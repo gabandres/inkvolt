@@ -10,7 +10,7 @@ namespace InkvoltPdf.Core;
 public sealed record LinkInfo(string Id, int PageIndex, RectD Rect, string? Uri, int TargetPage)
 {
     /// <summary>What it leads to, for lists and tooltips.</summary>
-    public string Describe() => Uri ?? (TargetPage >= 0 ? $"Page {TargetPage + 1}" : "Another action");
+    public string Describe() => Uri ?? (TargetPage >= 0 ? Loc.Format(PdfStrings.Link_PageN, TargetPage + 1) : PdfStrings.Link_OtherAction);
 }
 
 /// <summary>
@@ -28,7 +28,7 @@ public static class Links
 
     public static IReadOnlyList<LinkInfo> Read(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's links can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Link_CantRead);
         var list = new List<LinkInfo>();
         for (var p = 0; p < doc.PageCount; p++)
         {
@@ -78,18 +78,18 @@ public static class Links
     public static byte[] PutOnText(byte[] data, string? password, int pageIndex, IReadOnlyList<RectD> lineRects, string? uri, int targetPage)
     {
         var lines = lineRects.Where(r => !r.IsEmpty).ToList();
-        if (lines.Count == 0) throw new ArgumentException("No text to link.", nameof(lineRects));
+        if (lines.Count == 0) throw new ArgumentException(PdfStrings.Link_NoText, nameof(lineRects));
         var all = RectD.FromEdges(lines.Min(r => r.X), lines.Min(r => r.Y), lines.Max(r => r.Right), lines.Max(r => r.Bottom));
         return Put(data, password, pageIndex, all, uri, targetPage, null, lines);
     }
 
     private static byte[] Put(byte[] data, string? password, int pageIndex, RectD rect, string? uri, int targetPage, string? replaceId, List<RectD>? lines)
     {
-        if (rect.Width < 1 || rect.Height < 1) throw new ArgumentException("The link needs a size.");
-        if (uri is not null) uri = Normalize(uri) ?? throw new ArgumentException("That isn't a web or email address.");
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (rect.Width < 1 || rect.Height < 1) throw new ArgumentException(PdfStrings.Link_NeedsSize);
+        if (uri is not null) uri = Normalize(uri) ?? throw new ArgumentException(PdfStrings.Link_NotAddress);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
-        if (uri is null && (targetPage < 0 || targetPage >= doc.PageCount)) throw new ArgumentException($"Choose a page from 1 to {doc.PageCount}.");
+        if (uri is null && (targetPage < 0 || targetPage >= doc.PageCount)) throw new ArgumentException(Loc.Format(PdfStrings.Link_ChoosePage, doc.PageCount));
 
         PdfDictionary annot;
         var page = doc.Pages[pageIndex];
@@ -153,8 +153,8 @@ public static class Links
     /// <summary>Moves or resizes a link (onto another page too), keeping where it leads, whatever its action.</summary>
     public static byte[] Move(byte[] data, string? password, string id, int pageIndex, RectD rect)
     {
-        if (rect.Width < 1 || rect.Height < 1) throw new ArgumentException("The link needs a size.");
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (rect.Width < 1 || rect.Height < 1) throw new ArgumentException(PdfStrings.Link_NeedsSize);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         var annot = Relocate(doc, id, pageIndex);
         var (x1, y1, x2, y2) = TextStamps.FromPageSpace(doc.Pages[pageIndex], rect);
@@ -168,8 +168,8 @@ public static class Links
     /// <summary>The link <paramref name="id"/>, moved into page <paramref name="pageIndex"/>'s annotations if it was on another page.</summary>
     private static PdfDictionary Relocate(PdfDocument doc, string id, int pageIndex)
     {
-        var (oldPage, link) = Annotations.Find(doc, id) ?? throw new InvalidOperationException("That link is no longer in the document.");
-        if (PdfObj.NameOf(link, "/Subtype") != "/Link") throw new InvalidOperationException("That isn't a link.");
+        var (oldPage, link) = Annotations.Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Link_Gone);
+        if (PdfObj.NameOf(link, "/Subtype") != "/Link") throw new InvalidOperationException(PdfStrings.Link_NotALink);
         if (oldPage == pageIndex) return link;
         var from = PdfObj.Annots(doc, doc.Pages[oldPage]);
         for (var i = from.Elements.Count - 1; i >= 0; i--)
@@ -183,9 +183,9 @@ public static class Links
     /// <summary>Deletes a link.</summary>
     public static byte[] Delete(byte[] data, string? password, string id)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (Annotations.Find(doc, id) is not { } found || PdfObj.NameOf(found.Annot, "/Subtype") != "/Link")
-            throw new InvalidOperationException("That link is no longer in the document.");
+            throw new InvalidOperationException(PdfStrings.Link_Gone);
         Annotations.DeleteIn(doc, id);
         return PdfObj.Save(doc);
     }

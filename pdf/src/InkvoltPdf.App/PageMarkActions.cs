@@ -17,22 +17,20 @@ namespace InkvoltPdf.App;
 public static class PageMarkActions
 {
     /// <summary>Text colors offered for headers, footers and watermarks.</summary>
-    internal static readonly (string Name, AnnotColor Color)[] Colors =
+    internal static (string Name, AnnotColor Color)[] Colors =>
     [
-        ("Black", new AnnotColor(0, 0, 0)),
-        ("Dark gray", new AnnotColor(0.3, 0.3, 0.3)),
-        ("Gray", new AnnotColor(0.5, 0.5, 0.5)),
-        ("Red", new AnnotColor(0.8, 0.1, 0.1)),
-        ("Blue", new AnnotColor(0.1, 0.3, 0.8)),
-        ("Green", new AnnotColor(0.1, 0.5, 0.2)),
+        (Strings.Mark_ColorBlack, new AnnotColor(0, 0, 0)),
+        (Strings.Mark_ColorDarkGray, new AnnotColor(0.3, 0.3, 0.3)),
+        (Strings.Mark_ColorGray, new AnnotColor(0.5, 0.5, 0.5)),
+        (Strings.Mark_ColorRed, new AnnotColor(0.8, 0.1, 0.1)),
+        (Strings.Mark_ColorBlue, new AnnotColor(0.1, 0.3, 0.8)),
+        (Strings.Mark_ColorGreen, new AnnotColor(0.1, 0.5, 0.2)),
     ];
 
     /// <summary>The last header and footer applied (this session): the dialog opens with it.</summary>
-    private static HeaderFooterOptions _lastHeaderFooter = new() { FooterCenter = "Page <<page>> of <<pages>>" };
+    private static HeaderFooterOptions? _lastHeaderFooter; // the first time: a footer "Page 1 of 3", in the interface's language
     private static int _lastHeaderFooterColor;
     private static bool _lastBatesOn;
-
-    private static string Pages(int n) => n == 1 ? "1 page" : $"{n} pages";
 
     private static string Inches(double pt) => (pt / 72).ToString("0.##");
 
@@ -43,7 +41,7 @@ public static class PageMarkActions
         var options = choice.Options with { Date = DateTime.Now };
         var targets = choice.Pages.Where(p => p < tab.PageView.PageCount).ToArray();
         if (targets.Length == 0) return;
-        await tab.RunEdit($"Add header & footer to {Pages(targets.Length)}", (d, pw) => HeaderFooter.Apply(d, pw, targets, options));
+        await tab.RunEdit(Loc.Plural(targets.Length, Strings.Mark_AddHfLabel_One, Strings.Mark_AddHfLabel_Many), (d, pw) => HeaderFooter.Apply(d, pw, targets, options));
     }
 
     /// <param name="ContinueBates">Batch: Bates numbers run on from file to file.</param>
@@ -55,18 +53,18 @@ public static class PageMarkActions
     /// </summary>
     internal static HeaderFooterChoice? AskHeaderFooter(Window owner, DocumentTab? tab, HeaderFooterOptions? initial = null, bool continueBates = false)
     {
-        var last = initial ?? _lastHeaderFooter;
-        var dlg = new FormDialog(owner, tab is null ? "Header, Footer & Bates Numbers" : "Add Header & Footer", tab is null ? "OK" : "Apply", tab is null ? 600 : 860);
+        var last = initial ?? _lastHeaderFooter ?? new HeaderFooterOptions { FooterCenter = Strings.Mark_DefaultFooter };
+        var dlg = new FormDialog(owner, tab is null ? Strings.Mark_HfBatesTitle : Strings.Mark_AddHfTitle, tab is null ? Strings.Common_OK : Strings.Common_Apply, tab is null ? 600 : 860);
         dlg.AddNote(tab is null
-            ? "Written into every page of each file, so it prints and shows in every viewer. <<file>> is each file's own name."
-            : "Written into the pages, so it prints and shows in every viewer. Applying again replaces the header and footer on those pages; Organize › Remove Header & Footer takes them off.");
+            ? Strings.Mark_HfNoteBatch
+            : Strings.Mark_HfNote);
 
         // Six boxes: header and footer, left / center / right.
         var slots = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         slots.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         for (var i = 0; i < 3; i++) slots.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         for (var i = 0; i < 3; i++) slots.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        string[] columns = ["Left", "Center", "Right"];
+        string[] columns = [Strings.Mark_Left, Strings.Mark_Center, Strings.Mark_Right];
         for (var c = 0; c < 3; c++) Place(slots, new TextBlock { Text = columns[c], Style = Caption, Margin = new Thickness(c == 0 ? 0 : 6, 0, 0, 2) }, 0, c + 1);
         var boxes = new Dictionary<HeaderFooterSlot, TextBox>();
         foreach (var slot in Enum.GetValues<HeaderFooterSlot>())
@@ -74,21 +72,21 @@ public static class PageMarkActions
             var row = slot <= HeaderFooterSlot.HeaderRight ? 1 : 2;
             var col = (int)slot % 3;
             var box = new TextBox { Text = last.Text(slot), Margin = new Thickness(col == 0 ? 0 : 6, 2, 0, 2) };
-            AutomationProperties.SetName(box, $"{(row == 1 ? "Header" : "Footer")} {columns[col].ToLowerInvariant()} text");
+            AutomationProperties.SetName(box, Loc.Format(row == 1 ? Strings.Mark_HeaderBoxName : Strings.Mark_FooterBoxName, columns[col].ToLowerInvariant()));
             boxes[slot] = box;
             Place(slots, box, row, col + 1);
         }
-        Place(slots, new TextBlock { Text = "Header", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }, 1, 0);
-        Place(slots, new TextBlock { Text = "Footer", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }, 2, 0);
+        Place(slots, new TextBlock { Text = Strings.Mark_Header, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }, 1, 0);
+        Place(slots, new TextBlock { Text = Strings.Mark_Footer, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) }, 2, 0);
 
         // Token buttons insert into the box last focused (the footer's center at first).
         var target = boxes[HeaderFooterSlot.FooterCenter];
         foreach (var box in boxes.Values) box.GotKeyboardFocus += (s, _) => target = (TextBox)s;
         var tokens = new WrapPanel { Margin = new Thickness(0, 6, 0, 0) };
-        tokens.Children.Add(new TextBlock { Text = "Insert:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
-        foreach (var (name, token) in new[] { ("Page number", "<<page>>"), ("Page count", "<<pages>>"), ("Date", "<<date>>"), ("Time", "<<time>>"), ("File name", "<<file>>"), ("Bates number", "<<bates>>") })
+        tokens.Children.Add(new TextBlock { Text = Strings.Mark_Insert, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+        foreach (var (name, token) in new[] { (Strings.Mark_TokenPage, "<<page>>"), (Strings.Mark_TokenPages, "<<pages>>"), (Strings.Mark_TokenDate, "<<date>>"), (Strings.Mark_TokenTime, "<<time>>"), (Strings.Mark_TokenFile, "<<file>>"), (Strings.Mark_TokenBates, "<<bates>>") })
         {
-            var b = new Button { Content = name, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 2, 4, 2), ToolTip = $"Insert {token} where the cursor is" };
+            var b = new Button { Content = name, Padding = new Thickness(8, 2, 8, 2), Margin = new Thickness(0, 2, 4, 2), ToolTip = Loc.Format(Strings.Mark_InsertTokenTip, token) };
             b.Click += (_, _) =>
             {
                 var at = target.SelectionStart;
@@ -102,26 +100,26 @@ public static class PageMarkActions
 
         // Look: size, color, margins (inches from the page's edges).
         var look = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        var size = Field(look, "Font size (pt)", last.FontSize.ToString("0.#"), 0, 0);
+        var size = Field(look, Strings.Mark_FontSize, last.FontSize.ToString("0.#"), 0, 0);
         var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = ColorIndex(initial?.Color, _lastHeaderFooterColor), Margin = new Thickness(0, 3, 0, 3) };
-        AutomationProperties.SetName(color, "Text color");
-        Labeled(look, "Color", color, 0, 2);
-        var top = Field(look, "Top margin (in)", Inches(last.MarginTop), 1, 0);
-        var bottom = Field(look, "Bottom margin (in)", Inches(last.MarginBottom), 1, 2);
-        var left = Field(look, "Left margin (in)", Inches(last.MarginLeft), 2, 0);
-        var right = Field(look, "Right margin (in)", Inches(last.MarginRight), 2, 2);
+        AutomationProperties.SetName(color, Strings.Mark_TextColor);
+        Labeled(look, Strings.Scan_Color, color, 0, 2);
+        var top = Field(look, Strings.Mark_TopMargin, Inches(last.MarginTop), 1, 0);
+        var bottom = Field(look, Strings.Mark_BottomMargin, Inches(last.MarginBottom), 1, 2);
+        var left = Field(look, Strings.Mark_LeftMargin, Inches(last.MarginLeft), 2, 0);
+        var right = Field(look, Strings.Mark_RightMargin, Inches(last.MarginRight), 2, 2);
 
         // Bates numbering: <<bates>> becomes prefix + running number + suffix.
-        var bates = new CheckBox { Content = "Bates numbering (<<bates>>: a running number for legal documents)", IsChecked = initial is null ? _lastBatesOn : initial.Bates is not null, Margin = new Thickness(0, 10, 0, 0) };
+        var bates = new CheckBox { Content = Strings.Mark_BatesOn, IsChecked = initial is null ? _lastBatesOn : initial.Bates is not null, Margin = new Thickness(0, 10, 0, 0) };
         var batesGrid = new Grid { Margin = new Thickness(0, 4, 0, 0) };
         var lastBates = last.Bates ?? new BatesFormat();
-        var prefix = Field(batesGrid, "Prefix", lastBates.Prefix, 0, 0);
-        var start = Field(batesGrid, "Start at", lastBates.Start.ToString(), 0, 2);
-        var digits = Field(batesGrid, "Digits", lastBates.Digits.ToString(), 1, 0);
-        var suffix = Field(batesGrid, "Suffix", lastBates.Suffix, 1, 2);
+        var prefix = Field(batesGrid, Strings.Mark_Prefix, lastBates.Prefix, 0, 0);
+        var start = Field(batesGrid, Strings.Mark_StartAt, lastBates.Start.ToString(), 0, 2);
+        var digits = Field(batesGrid, Strings.Mark_Digits, lastBates.Digits.ToString(), 1, 0);
+        var suffix = Field(batesGrid, Strings.Mark_Suffix, lastBates.Suffix, 1, 2);
         var carry = tab is not null ? null : new CheckBox
         {
-            Content = new TextBlock { Text = "Continue the numbers from file to file (the files are then done one at a time, in list order)", TextWrapping = TextWrapping.Wrap },
+            Content = new TextBlock { Text = Strings.Mark_ContinueBates, TextWrapping = TextWrapping.Wrap },
             IsChecked = continueBates,
             Margin = new Thickness(0, 8, 0, 0),
         };
@@ -144,14 +142,14 @@ public static class PageMarkActions
         var form = new StackPanel();
         form.Children.Add(slots);
         form.Children.Add(tokens);
-        form.Children.Add(Heading("Look"));
+        form.Children.Add(Heading(Strings.Mark_Look));
         form.Children.Add(look);
         form.Children.Add(bates);
         form.Children.Add(batesGrid);
         if (carry is not null) form.Children.Add(carry);
         if (range is not null)
         {
-            form.Children.Add(Heading("Pages"));
+            form.Children.Add(Heading(Strings.Common_Pages));
             form.Children.Add(range);
         }
 
@@ -164,21 +162,21 @@ public static class PageMarkActions
             pages = [];
             error = null;
             if (range is not null && !range.TryGet(out pages, out error)) return false;
-            if (!FormDialog.TryNumber(size.Text, 4, 72, out var fontSize)) return Fail("The font size must be from 4 to 72 points.", out error);
+            if (!FormDialog.TryNumber(size.Text, 4, 72, out var fontSize)) return Fail(Strings.Mark_FontSizeRange, out error);
             var m = new double[4];
             var boxesM = new[] { top, bottom, left, right };
             for (var i = 0; i < 4; i++)
-                if (!FormDialog.TryNumber(boxesM[i].Text, 0, 20, out m[i])) return Fail("Margins must be numbers of inches from 0 to 20.", out error);
+                if (!FormDialog.TryNumber(boxesM[i].Text, 0, 20, out m[i])) return Fail(Strings.Mark_MarginsRange, out error);
             BatesFormat? b = null;
             var usesBates = boxes.Values.Any(x => x.Text.Contains("<<bates>>", StringComparison.OrdinalIgnoreCase));
             if (bates.IsChecked == true)
             {
-                if (!long.TryParse(start.Text.Trim(), out var s) || s < 0 || s > 999_999_999_999) return Fail("The Bates number must start at a whole number of 0 or more.", out error);
-                if (!int.TryParse(digits.Text.Trim(), out var d) || d is < 1 or > 12) return Fail("Bates numbers can have 1 to 12 digits.", out error);
+                if (!long.TryParse(start.Text.Trim(), out var s) || s < 0 || s > 999_999_999_999) return Fail(Strings.Mark_BatesStart, out error);
+                if (!int.TryParse(digits.Text.Trim(), out var d) || d is < 1 or > 12) return Fail(Strings.Mark_BatesDigits, out error);
                 b = new BatesFormat(prefix.Text, s, d, suffix.Text);
-                if (!usesBates) return Fail("Put <<bates>> in a header or footer box (Insert › Bates number).", out error);
+                if (!usesBates) return Fail(Strings.Mark_PutBates, out error);
             }
-            else if (usesBates) return Fail("Turn on Bates numbering for <<bates>>, or remove it.", out error);
+            else if (usesBates) return Fail(Strings.Mark_TurnOnBates, out error);
             options = new HeaderFooterOptions
             {
                 HeaderLeft = boxes[HeaderFooterSlot.HeaderLeft].Text,
@@ -197,7 +195,7 @@ public static class PageMarkActions
                 FileName = tab?.Session.DisplayName ?? "",
                 Date = DateTime.Now,
             };
-            if (options.IsEmpty) return Fail("Type the text of a header or a footer.", out error);
+            if (options.IsEmpty) return Fail(Strings.Mark_TypeHf, out error);
             return true;
         }
 
@@ -229,8 +227,8 @@ public static class PageMarkActions
     public static async Task RemoveHeaderFooter(DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (await tab.TryEdit("Remove header & footer", HeaderFooter.Remove) == EditOutcome.NoChange)
-            tab.ShowNotice("No header or footer added by Inkvolt PDF was found. Headers made by other apps are part of the page and can't be told apart.");
+        if (await tab.TryEdit(Strings.Mark_RemoveHfLabel, HeaderFooter.Remove) == EditOutcome.NoChange)
+            tab.ShowNotice(Strings.Mark_NoHf);
     }
 
     // ───────────────────────────── Watermark ─────────────────────────────
@@ -238,7 +236,7 @@ public static class PageMarkActions
     private static readonly int[] Opacities = [10, 20, 30, 40, 50, 60, 75, 100];
 
     /// <summary>The last watermark applied (this session), its color and image file: the dialog opens with them.</summary>
-    private static WatermarkOptions _lastWatermark = new() { Text = "CONFIDENTIAL" };
+    private static WatermarkOptions? _lastWatermark; // the first time: the word below, in the interface's language
     private static int _lastWatermarkColor = 3;
     private static string _lastWatermarkImage = "";
 
@@ -248,66 +246,66 @@ public static class PageMarkActions
         if (AskWatermark(owner, tab) is not { } choice || !await tab.SettleAsync()) return;
         var targets = choice.Pages.Where(p => p < tab.PageView.PageCount).ToArray();
         if (targets.Length == 0) return;
-        await tab.RunEdit($"Add watermark to {Pages(targets.Length)}", (d, pw) => Watermarks.Apply(d, pw, targets, choice.Options));
+        await tab.RunEdit(Loc.Plural(targets.Length, Strings.Mark_AddWmLabel_One, Strings.Mark_AddWmLabel_Many), (d, pw) => Watermarks.Apply(d, pw, targets, choice.Options));
     }
 
     /// <summary>The watermark dialog. With a tab: the pages to mark and a preview; without one (File › Batch): every page, no preview.</summary>
     internal static (WatermarkOptions Options, int[] Pages)? AskWatermark(Window owner, DocumentTab? tab, WatermarkOptions? initial = null)
     {
-        var last = initial ?? _lastWatermark;
-        var dlg = new FormDialog(owner, tab is null ? "Watermark" : "Add Watermark", tab is null ? "OK" : "Apply", tab is null ? 540 : 820);
+        var last = initial ?? _lastWatermark ?? new WatermarkOptions { Text = Strings.Mark_DefaultWatermark };
+        var dlg = new FormDialog(owner, tab is null ? Strings.Mark_WatermarkTitle : Strings.Mark_AddWatermarkTitle, tab is null ? Strings.Common_OK : Strings.Common_Apply, tab is null ? 540 : 820);
         dlg.AddNote(tab is null
-            ? "Written into every page of each file, so it prints and shows in every viewer."
-            : "Written into the pages, so it prints and shows in every viewer. Applying again replaces the watermark on those pages; Organize › Remove Watermark takes it off.");
+            ? Strings.Mark_WmNoteBatch
+            : Strings.Mark_WmNote);
 
         var group = $"wm{dlg.GetHashCode()}";
-        var useText = new RadioButton { Content = "Text", GroupName = group, IsChecked = last.Image is null, Margin = new Thickness(0, 4, 0, 4) };
-        var useImage = new RadioButton { Content = "Image", GroupName = group, IsChecked = last.Image is not null, Margin = new Thickness(0, 8, 0, 4) };
+        var useText = new RadioButton { Content = Strings.Mark_Text, GroupName = group, IsChecked = last.Image is null, Margin = new Thickness(0, 4, 0, 4) };
+        var useImage = new RadioButton { Content = Strings.Sign_TabImage, GroupName = group, IsChecked = last.Image is not null, Margin = new Thickness(0, 8, 0, 4) };
 
         var text = new TextBox { Text = last.Text ?? "CONFIDENTIAL", Margin = new Thickness(24, 0, 0, 0) };
-        AutomationProperties.SetName(text, "Watermark text");
+        AutomationProperties.SetName(text, Strings.Mark_WatermarkText);
         var textLook = new Grid { Margin = new Thickness(24, 4, 0, 0) };
-        var size = Field(textLook, "Font size (pt)", last.FontSize.ToString("0.#"), 0, 0);
+        var size = Field(textLook, Strings.Mark_FontSize, last.FontSize.ToString("0.#"), 0, 0);
         var color = new ComboBox { ItemsSource = Colors.Select(c => c.Name).ToList(), SelectedIndex = ColorIndex(initial?.Color, _lastWatermarkColor), Margin = new Thickness(0, 3, 0, 3) };
-        AutomationProperties.SetName(color, "Text color");
-        Labeled(textLook, "Color", color, 0, 2);
+        AutomationProperties.SetName(color, Strings.Mark_TextColor);
+        Labeled(textLook, Strings.Scan_Color, color, 0, 2);
 
         var imageRow = new DockPanel { Margin = new Thickness(24, 0, 0, 0) };
-        var browse = new Button { Content = "Browse…", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        var browse = new Button { Content = Strings.Common_Browse, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
         DockPanel.SetDock(browse, Dock.Right);
         var path = new TextBox { Text = _lastWatermarkImage };
-        AutomationProperties.SetName(path, "Image file");
+        AutomationProperties.SetName(path, Strings.Mark_ImageFile);
         imageRow.Children.Add(browse);
         imageRow.Children.Add(path);
         browse.Click += (_, _) =>
         {
-            var pick = new Microsoft.Win32.OpenFileDialog { Title = "Watermark image", Filter = FileTools.ImageFilter };
+            var pick = new Microsoft.Win32.OpenFileDialog { Title = Strings.Mark_WatermarkImage, Filter = FileTools.ImageFilter };
             if (pick.ShowDialog(dlg) != true) return;
             path.Text = pick.FileName;
         };
         var imageLook = new Grid { Margin = new Thickness(24, 4, 0, 0) };
-        var scale = Field(imageLook, "Width (% of page)", (last.ImageScale * 100).ToString("0"), 0, 0);
+        var scale = Field(imageLook, Strings.Mark_WidthPercent, (last.ImageScale * 100).ToString("0"), 0, 0);
 
         var common = new Grid { Margin = new Thickness(0, 4, 0, 0) };
-        var angle = Field(common, "Angle (°)", last.Rotation.ToString("0.#"), 0, 0);
-        var opacity = Labeled(common, "Opacity", new ComboBox
+        var angle = Field(common, Strings.Mark_Angle, last.Rotation.ToString("0.#"), 0, 0);
+        var opacity = Labeled(common, Strings.Mark_Opacity, new ComboBox
         {
             ItemsSource = Opacities.Select(o => $"{o}%").ToList(),
             SelectedIndex = Math.Max(0, Array.IndexOf(Opacities, (int)Math.Round(last.Opacity * 100))),
             Margin = new Thickness(0, 3, 0, 3),
         }, 0, 2);
-        var layout = Labeled(common, "Layout", new ComboBox
+        var layout = Labeled(common, Strings.Mark_Layout, new ComboBox
         {
-            ItemsSource = new[] { "Centered", "Tiled" },
+            ItemsSource = new[] { Strings.Mark_Centered, Strings.Mark_Tiled },
             SelectedIndex = (int)last.Layout,
             Margin = new Thickness(0, 3, 0, 3),
         }, 1, 0);
-        var where = Labeled(common, "Position", new ComboBox
+        var where = Labeled(common, Strings.Dialog_Position, new ComboBox
         {
-            ItemsSource = new[] { "Over content", "Behind content" },
+            ItemsSource = new[] { Strings.Mark_Over, Strings.Mark_Behind },
             SelectedIndex = last.Behind ? 1 : 0,
             Margin = new Thickness(0, 3, 0, 3),
-            ToolTip = "Behind: opaque parts of the page (a scanned page, a filled background) hide it",
+            ToolTip = Strings.Mark_BehindTip,
         }, 1, 2);
 
         var range = tab is null ? null : new PageRangePicker(tab, preferSelection: false);
@@ -318,11 +316,11 @@ public static class PageMarkActions
         form.Children.Add(useImage);
         form.Children.Add(imageRow);
         form.Children.Add(imageLook);
-        form.Children.Add(Heading("Look"));
+        form.Children.Add(Heading(Strings.Mark_Look));
         form.Children.Add(common);
         if (range is not null)
         {
-            form.Children.Add(Heading("Pages"));
+            form.Children.Add(Heading(Strings.Common_Pages));
             form.Children.Add(range);
         }
         var preview = tab is null ? null : new PagePreview(tab);
@@ -341,11 +339,11 @@ public static class PageMarkActions
                 {
                     loaded = System.IO.File.Exists(file)
                         ? (file, SignatureImages.ToStampImage(SignatureImages.LoadImage(file)), null)
-                        : (file, null, "Choose an image file (Browse…).");
+                        : (file, null, Strings.Mark_ChooseImage);
                 }
                 catch (Exception ex) when (ex is System.IO.IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
                 {
-                    loaded = (file, null, $"That image can't be read: {ex.Message}");
+                    loaded = (file, null, Loc.Format(Strings.Sign_ImageUnreadable, ex.Message));
                 }
             }
             error = loaded.Error;
@@ -358,7 +356,7 @@ public static class PageMarkActions
             pages = [];
             error = null;
             if (range is not null && !range.TryGet(out pages, out error)) return false;
-            if (!FormDialog.TryNumber(angle.Text, -360, 360, out var degrees)) return Fail("The angle must be a number of degrees from -360 to 360.", out error);
+            if (!FormDialog.TryNumber(angle.Text, -360, 360, out var degrees)) return Fail(Strings.Mark_AngleRange, out error);
             options = new WatermarkOptions
             {
                 Rotation = degrees,
@@ -369,12 +367,12 @@ public static class PageMarkActions
             if (useImage.IsChecked == true)
             {
                 if (Image(path.Text, out error) is not { } image) return false;
-                if (!FormDialog.TryNumber(scale.Text, 1, 400, out var percent)) return Fail("The width must be from 1 to 400% of the page.", out error);
+                if (!FormDialog.TryNumber(scale.Text, 1, 400, out var percent)) return Fail(Strings.Mark_WidthRange, out error);
                 options = options with { Image = image, ImageScale = percent / 100 };
                 return true;
             }
-            if (string.IsNullOrWhiteSpace(text.Text)) return Fail("Type the watermark's text.", out error);
-            if (!FormDialog.TryNumber(size.Text, 4, 500, out var fontSize)) return Fail("The font size must be from 4 to 500 points.", out error);
+            if (string.IsNullOrWhiteSpace(text.Text)) return Fail(Strings.Mark_TypeWatermark, out error);
+            if (!FormDialog.TryNumber(size.Text, 4, 500, out var fontSize)) return Fail(Strings.Mark_FontSizeRangeWm, out error);
             options = options with { Text = text.Text.Trim(), FontSize = fontSize, Color = Colors[Math.Max(0, color.SelectedIndex)].Color };
             return true;
         }
@@ -407,8 +405,8 @@ public static class PageMarkActions
     public static async Task RemoveWatermark(DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (await tab.TryEdit("Remove watermark", Watermarks.Remove) == EditOutcome.NoChange)
-            tab.ShowNotice("No watermark added by Inkvolt PDF was found. Watermarks made by other apps are part of the page and can't be told apart.");
+        if (await tab.TryEdit(Strings.Mark_RemoveWmLabel, Watermarks.Remove) == EditOutcome.NoChange)
+            tab.ShowNotice(Strings.Mark_NoWatermark);
     }
 
 
@@ -502,10 +500,10 @@ internal sealed class PagePreview : StackPanel
         _caption.Style = (Style)Application.Current.FindResource("Caption");
         var frame = new Border { BorderThickness = new Thickness(1), Background = Brushes.White, Child = _image, MinHeight = 120 };
         frame.SetResourceReference(Border.BorderBrushProperty, "DividerStrokeColorDefaultBrush");
-        Children.Add(new TextBlock { Text = "Preview", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        Children.Add(new TextBlock { Text = Strings.Sign_Preview, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
         Children.Add(frame);
         Children.Add(_caption);
-        AutomationProperties.SetName(_image, "Preview");
+        AutomationProperties.SetName(_image, Strings.Sign_Preview);
         _timer.Tick += (_, _) =>
         {
             _timer.Stop();
@@ -547,7 +545,7 @@ internal sealed class PagePreview : StackPanel
                 }
                 catch (Exception e) when (e is InvalidOperationException or OwnerPasswordRequiredException or ArgumentException)
                 {
-                    error = e is OwnerPasswordRequiredException ? "No preview: editing this file needs its permissions password." : $"No preview: {e.Message}";
+                    error = e is OwnerPasswordRequiredException ? Strings.Mark_NoPreviewPassword : Loc.Format(Strings.Mark_NoPreview, e.Message);
                 }
                 _extracted = (want.Page, bytes, error);
             }
@@ -568,12 +566,12 @@ internal sealed class PagePreview : StackPanel
             });
             if (ticket != _ticket) return;
             _image.Source = bmp;
-            _caption.Text = $"Page {want.Page + 1}";
-            AutomationProperties.SetName(_image, $"Preview of page {want.Page + 1}");
+            _caption.Text = Loc.Format(Strings.Viewer_PageN, want.Page + 1);
+            AutomationProperties.SetName(_image, Loc.Format(Strings.Mark_PreviewOfPage, want.Page + 1));
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            if (ticket == _ticket) _caption.Text = $"No preview: {e.Message}";
+            if (ticket == _ticket) _caption.Text = Loc.Format(Strings.Mark_NoPreview, e.Message);
         }
     }
 }

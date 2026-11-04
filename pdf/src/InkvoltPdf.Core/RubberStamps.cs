@@ -121,13 +121,13 @@ public static class RubberStamps
     /// </summary>
     public static byte[] Put(byte[] data, string? password, int pageIndex, RectD rect, StampDesign design, string? author, string? replaceId = null)
     {
-        if (rect.IsEmpty) throw new ArgumentException("The stamp needs a size.");
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (rect.IsEmpty) throw new ArgumentException(PdfStrings.Stamp_NeedsSize);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         (int Page, PdfDictionary Annot)? old = null;
         if (replaceId is not null)
         {
-            old = Annotations.Find(doc, replaceId) ?? throw new InvalidOperationException("The stamp is no longer in the document.");
+            old = Annotations.Find(doc, replaceId) ?? throw new InvalidOperationException(PdfStrings.Stamp_Gone);
             design = DesignOf(old.Value.Annot) ?? design;
         }
 
@@ -176,9 +176,9 @@ public static class RubberStamps
     public static byte[] Move(byte[] data, string? password, string id, int pageIndex, RectD rect)
     {
         StampDesign? design;
-        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be edited"))
+        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_CantEdit))
         {
-            var (_, annot) = Annotations.Find(doc, id) ?? throw new InvalidOperationException("The stamp is no longer in the document.");
+            var (_, annot) = Annotations.Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Stamp_Gone);
             design = DesignOf(annot);
         }
         return design is null

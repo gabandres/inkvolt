@@ -18,8 +18,8 @@ internal static class FormActionDialogs
     /// to the same place; anything else asks again), or "Cancel" (also Esc; it stops the form's script too).
     /// </summary>
     public static ConsentChoice Consent(Window? owner, string title, string body, string destination) =>
-        Show(owner, title, body, destination, "Only continue if you trust this document.", null, "", "SystemFillColorCautionBrush",
-            [("Allow once", true), ("Always allow for this destination in this document", false), ("Cancel", false)], focus: 2) switch
+        Show(owner, title, body, destination, Strings.Form_TrustNote, null, "", "SystemFillColorCautionBrush",
+            [(Strings.Form_AllowOnce, true), (Strings.Form_AllowAlways, false), (Strings.Common_Cancel, false)], focus: 2) switch
         {
             0 => ConsentChoice.Once,
             1 => ConsentChoice.Always,
@@ -34,19 +34,19 @@ internal static class FormActionDialogs
         switch (a.Buttons)
         {
             case 1:
-                buttons = [("OK", true), ("Cancel", false)];
+                buttons = [(Strings.Common_OK, true), (Strings.Common_Cancel, false)];
                 codes = [1, 2];
                 break;
             case 2:
-                buttons = [("Yes", true), ("No", false)];
+                buttons = [(Strings.Common_Yes, true), (Strings.Common_No, false)];
                 codes = [4, 3];
                 break;
             case 3:
-                buttons = [("Yes", true), ("No", false), ("Cancel", false)];
+                buttons = [(Strings.Common_Yes, true), (Strings.Common_No, false), (Strings.Common_Cancel, false)];
                 codes = [4, 3, 2];
                 break;
             default:
-                buttons = [("OK", true)];
+                buttons = [(Strings.Common_OK, true)];
                 codes = [1];
                 break;
         }
@@ -57,8 +57,8 @@ internal static class FormActionDialogs
             2 => ("", "AccentTextFillColorPrimaryBrush"),
             _ => ("", "AccentTextFillColorPrimaryBrush"),
         };
-        var title = a.Title.Length > 0 ? a.Title : "Message from the form";
-        var i = Show(owner, title, a.Message, null, "This message comes from the document's script.", null, glyph, brush, buttons, focus: 0);
+        var title = a.Title.Length > 0 ? a.Title : Strings.Form_MessageTitle;
+        var i = Show(owner, title, a.Message, null, Strings.Form_MessageNote, null, glyph, brush, buttons, focus: 0);
         return codes[Math.Clamp(i, 0, codes.Length - 1)];
     }
 
@@ -68,16 +68,16 @@ internal static class FormActionDialogs
         var panel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         if (p.Label.Length > 0) panel.Children.Add(new TextBlock { Text = p.Label, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
         Control input = p.Password ? new PasswordBox { Password = p.Default } : new TextBox { Text = p.Default };
-        System.Windows.Automation.AutomationProperties.SetName(input, p.Label.Length > 0 ? p.Label : "Answer");
+        System.Windows.Automation.AutomationProperties.SetName(input, p.Label.Length > 0 ? p.Label : Strings.Form_Answer);
         panel.Children.Add(input);
         input.Loaded += (_, _) =>
         {
             input.Focus();
             if (input is TextBox tb) tb.SelectAll();
         };
-        var title = p.Title.Length > 0 ? p.Title : "The form asks";
-        var i = Show(owner, title, p.Question, null, "This question comes from the document's script.", panel, "", "AccentTextFillColorPrimaryBrush",
-            [("OK", true), ("Cancel", false)], focus: -1);
+        var title = p.Title.Length > 0 ? p.Title : Strings.Form_AsksTitle;
+        var i = Show(owner, title, p.Question, null, Strings.Form_QuestionNote, panel, "", "AccentTextFillColorPrimaryBrush",
+            [(Strings.Common_OK, true), (Strings.Common_Cancel, false)], focus: -1);
         if (i != 0) return null;
         return input switch
         {
@@ -129,7 +129,7 @@ internal static class FormActionDialogs
             var box = new Border { Child = dest, Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(0, 10, 0, 0), CornerRadius = new CornerRadius(4), BorderThickness = new Thickness(1) };
             box.SetResourceReference(Border.BackgroundProperty, "ControlFillColorSecondaryBrush");
             box.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-            System.Windows.Automation.AutomationProperties.SetName(dest, "Destination: " + destination);
+            System.Windows.Automation.AutomationProperties.SetName(dest, Loc.Format(Strings.Form_Destination, destination));
             text.Children.Add(box);
         }
         if (extra is not null) text.Children.Add(extra);

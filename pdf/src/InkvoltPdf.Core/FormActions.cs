@@ -301,7 +301,7 @@ public static partial class FormEditor
         public bool WantedChange { get; private set; }
 
         public string? FocusField { get; set; }
-        public string Label { get; private set; } = "Form action";
+        public string Label { get; private set; } = PdfStrings.Form_UndoAction;
 
         public List<string> Log => Js.Log;
 
@@ -464,7 +464,7 @@ public static partial class FormEditor
                 }
             }
             Log.Add($"Form action: {what} stopped (too many outward actions)");
-            if (!Stopped) Notices.Add("This form kept trying to open, send or email things, so Inkvolt PDF stopped its script.");
+            if (!Stopped) Notices.Add(PdfStrings.Form_ScriptStopped);
             Stopped = true;
             return false;
         }
@@ -657,7 +657,7 @@ public static partial class FormEditor
                 WantedChange = true;
                 return;
             }
-            Label = "Reset form";
+            Label = PdfStrings.Form_UndoResetForm;
             foreach (var f in Pick(names, exclude).ToList())
             {
                 if (f.Type is not ("/Tx" or "/Ch" or "/Btn") || (f.Type == "/Btn" && (f.Flags & FfPushButton) != 0)) continue;
@@ -746,7 +746,7 @@ public static partial class FormEditor
                 Log.Add("Import: the file isn't FDF or XFDF form data");
                 return true;
             }
-            Label = "Import form data";
+            Label = PdfStrings.Form_UndoImportData;
             foreach (var f in _fields)
             {
                 if (!values.TryGetValue(f.Name, out var v) || v.Count == 0) continue;
@@ -790,7 +790,7 @@ public static partial class FormEditor
                 saved = PdfObj.Save(_doc);
             }
             RunDeferred(saved ?? _source);
-            var label = Label == "Form action" && Js.Touched.Count > 0 ? "Form script" : Label;
+            var label = Label == PdfStrings.Form_UndoAction && Js.Touched.Count > 0 ? PdfStrings.Form_UndoScript : Label;
             return new FormActionResult(saved, label, [.. Notices, .. _alerts], Log, FocusField, WantedChange || (ReadOnly && Js.Touched.Count > 0));
         }
 

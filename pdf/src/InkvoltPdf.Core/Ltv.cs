@@ -35,10 +35,10 @@ public sealed record LtvPlan(IReadOnlyList<LtvAddress> Addresses, IReadOnlyList<
     /// <summary>A plain line for each kind of address: what the far end gets.</summary>
     public static string WhatIsSent(LtvAddressKind kind) => kind switch
     {
-        LtvAddressKind.Ocsp => "is told which certificate is being asked about (its serial number and a hash of its issuer)",
-        LtvAddressKind.Crl => "sends its list of revoked certificates; nothing but the request is sent",
-        LtvAddressKind.Issuer => "sends a public certificate; nothing but the request is sent",
-        _ => "receives a hash of the document or signature, never the document",
+        LtvAddressKind.Ocsp => PdfStrings.Ltv_SentOcsp,
+        LtvAddressKind.Crl => PdfStrings.Ltv_SentCrl,
+        LtvAddressKind.Issuer => PdfStrings.Ltv_SentIssuer,
+        _ => PdfStrings.Ltv_SentTimestamp,
     };
 }
 
@@ -78,7 +78,7 @@ public static class Ltv
             if (f.Tsa is { } tsa) builder.AddChain(tsa, f.TsaCerts, f.Stamped ?? DateTimeOffset.UtcNow);
         }
         var broken = facts.Count(f => f.Info.Status is SignatureStatus.Invalid or SignatureStatus.DisallowedChanges or SignatureStatus.Unsupported);
-        if (broken > 0) notes.Add($"{broken} signature{(broken == 1 ? "" : "s")} that didn't check out {(broken == 1 ? "is" : "are")} left out.");
+        if (broken > 0) notes.Add(Loc.Plural(broken, PdfStrings.Ltv_BrokenLeftOut_One, PdfStrings.Ltv_BrokenLeftOut_Many));
         return new LtvPlan(builder.Addresses, [.. notes, .. builder.Notes], builder.Addresses.Count == 0 && builder.Notes.Count == 0);
     }
 
@@ -89,12 +89,12 @@ public static class Ltv
         builder.AddChain(signer, [], DateTimeOffset.UtcNow);
         var list = new List<LtvAddress>
         {
-            new(LtvAddressKind.Timestamp, timestampUrl, "the signature", client?.Why(timestampUrl, LtvAddressKind.Timestamp) ?? (client is null ? LtvClient.WhyRefused(timestampUrl, LtvAddressKind.Timestamp) : null)),
+            new(LtvAddressKind.Timestamp, timestampUrl, PdfStrings.Ltv_TheSignature, client?.Why(timestampUrl, LtvAddressKind.Timestamp) ?? (client is null ? LtvClient.WhyRefused(timestampUrl, LtvAddressKind.Timestamp) : null)),
         };
         list.AddRange(builder.Addresses);
         var notes = new List<string>(builder.Notes)
         {
-            "The timestamp's certificate names addresses of its own, of the same kinds; they are asked too, once the timestamp arrives.",
+            PdfStrings.Ltv_TsaAddressesToo,
         };
         return new LtvPlan(list, notes, false);
     }
@@ -118,14 +118,14 @@ public static class Ltv
                 if (issuer is null)
                 {
                     foreach (var url in CertFacts.IssuerUrls(c)) Add(LtvAddressKind.Issuer, url, name);
-                    Notes.Add($"{name}'s issuer isn't in the file or on this PC. If it can be fetched, the addresses it names are asked too.");
+                    Notes.Add(Loc.Format(PdfStrings.Ltv_IssuerNotHere, name));
                 }
                 else if (pool.Check(c, issuer, when).Answer is RevocationAnswer.Good or RevocationAnswer.Revoked or RevocationAnswer.RevokedLater) continue;
                 var ocsp = CertFacts.OcspUrls(c);
                 var crl = CertFacts.CrlUrls(c);
                 foreach (var url in ocsp) Add(LtvAddressKind.Ocsp, url, name);
                 foreach (var url in crl) Add(LtvAddressKind.Crl, url, name);
-                if (ocsp.Count == 0 && crl.Count == 0) Notes.Add($"{name} names no address to ask about it, so it can't be covered.");
+                if (ocsp.Count == 0 && crl.Count == 0) Notes.Add(Loc.Format(PdfStrings.Ltv_NoAddressCantCover, name));
             }
         }
 
@@ -163,13 +163,13 @@ public static class Ltv
     internal static async Task<LtvResult> ExtendAsync(byte[] data, string? password, LtvClient client, Func<byte[], CancellationToken, Task<byte[]>>? documentTimestamp, bool strict, CancellationToken cancel)
     {
         if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
-            throw new SigningException("Encrypted (password-protected) PDFs can't take long-term data, since an update can't be appended to them without breaking their signatures. Nothing was changed.");
+            throw new SigningException(PdfStrings.Ltv_Encrypted);
         var before = Signatures.Inspect(data, password);
         var intact = before.Where(f => f.Intact && f.Info.Certificate is not null).ToList();
         if (intact.Count == 0)
             throw new SigningException(before.Any(f => f.Info.Status != SignatureStatus.Unsigned)
-                ? "None of this document's signatures checks out, so there is nothing to add long-term data for. Nothing was changed."
-                : "This document isn't signed, so there is nothing to add long-term data for.");
+                ? PdfStrings.Ltv_NoValidSignature
+                : PdfStrings.Ltv_NotSigned);
 
         // A signature with no timestamp yet gets its time from a first document timestamp (its B-T); the data then comes
         // after that time, so it can speak for it, and the timestamp below goes over the data (B-LTA).
@@ -198,7 +198,7 @@ public static class Ltv
             changed = true;
             // The stamp's own authority, so the timestamp can be checked later too.
             var stamp = Signatures.Inspect(output, password).Where(f => f.DocumentTimestamp && f.Intact).MaxBy(f => f.End)
-                ?? throw new SigningException("The document timestamp doesn't check out. Nothing was changed.");
+                ?? throw new SigningException(PdfStrings.Ltv_DocTimestampBad);
             var entry = await gather.EntryFor(stamp, cancel).ConfigureAwait(false);
             Stop(gather, strict);
             output = Dss.Append(output, password, [entry]);
@@ -210,19 +210,19 @@ public static class Ltv
             var after = Signatures.Inspect(output, password);
             foreach (var f in before.Where(f => f.Intact))
                 if (after.FirstOrDefault(a => a.Info.FieldName == f.Info.FieldName) is not { Intact: true })
-                    throw new SigningException($"Adding long-term data would have broken the signature \"{f.Info.FieldName}\". Nothing was changed.");
+                    throw new SigningException(Loc.Format(PdfStrings.Ltv_WouldBreak, f.Info.FieldName));
         }
         return new LtvResult(output, changed, gather.Results(), client.Contacts);
     }
 
     private static void Stop(Gatherer gather, bool strict)
     {
-        if (gather.FirstFailure is { } failure) throw new SigningException($"{failure} Nothing was changed.");
+        if (gather.FirstFailure is { } failure) throw new SigningException(Loc.Format(PdfStrings.Ltv_FailureNoChange, failure));
         if (!strict) return;
         var revoked = gather.Entries.FirstOrDefault(e => e.Outcome == CertificateCheckOutcome.Revoked);
-        if (revoked is not null) throw new SigningException($"{CertFacts.Name(revoked.Cert)} has been revoked, so it can't sign for the long term. Nothing was changed.");
+        if (revoked is not null) throw new SigningException(Loc.Format(PdfStrings.Ltv_Revoked, CertFacts.Name(revoked.Cert)));
         var gap = gather.Entries.FirstOrDefault(e => !new CertificateCheck("", e.Outcome).Covered);
-        if (gap is not null) throw new SigningException($"Long-term data can't be complete: {gap.Detail}. Sign without long-term validation, or use a digital ID whose authority can be asked. Nothing was changed.");
+        if (gap is not null) throw new SigningException(Loc.Format(PdfStrings.Ltv_Incomplete, gap.Detail));
     }
 
     private static RevocationPool StoredPool(byte[] data, string? password)
@@ -361,19 +361,19 @@ public static class Ltv
             if (CertFacts.IsSelfSigned(c))
             {
                 e.Outcome = CertificateCheckOutcome.Root;
-                e.Detail = "a root: needs no revocation data";
+                e.Detail = PdfStrings.Ltv_Root;
                 return;
             }
             if (CertFacts.HasOcspNoCheck(c))
             {
                 e.Outcome = CertificateCheckOutcome.NoCheckNeeded;
-                e.Detail = "an OCSP responder that needs no check of its own";
+                e.Detail = PdfStrings.Ltv_NoCheckResponder;
                 return;
             }
             if (issuer is null)
             {
                 e.Outcome = CertificateCheckOutcome.NoIssuer;
-                e.Detail = $"{name}'s issuer isn't in the file or on this PC, and couldn't be fetched";
+                e.Detail = Loc.Format(PdfStrings.Ltv_IssuerNotFetched, name);
                 return;
             }
             if (useStored)
@@ -381,7 +381,7 @@ public static class Ltv
                 var (stored, at, responder, evidence) = Judge(c, issuer, when);
                 if (stored is RevocationAnswer.Good or RevocationAnswer.Revoked or RevocationAnswer.RevokedLater)
                 {
-                    Record(e, stored, at, evidence!, responder, "already in the file");
+                    Record(e, stored, at, evidence!, responder, PdfStrings.Ltv_AlreadyInFile);
                     await CoverResponder(e, issuer, when, used, cancel).ConfigureAwait(false);
                     return;
                 }
@@ -403,19 +403,19 @@ public static class Ltv
                     var der = await client.PostAsync(url, LtvAddressKind.Ocsp, "application/ocsp-request", OcspResponse.Request(c, issuer), LtvClient.MaxOcspReply, cancel).ConfigureAwait(false);
                     if (OcspResponse.Parse(der, out var problem) is not { } reply)
                     {
-                        failure ??= $"The answer from {LtvClient.Host(url)} can't be used: {problem}.";
+                        failure ??= Loc.Format(PdfStrings.Ltv_AnswerUnusable, LtvClient.Host(url), problem);
                         continue;
                     }
                     if (reply.AnswerFor(c, issuer) is null || !reply.SignedFor(issuer, Pool.Certs, out _))
                     {
-                        failure ??= $"The answer from {LtvClient.Host(url)} isn't signed by the certificate's issuer, or is about another certificate.";
+                        failure ??= Loc.Format(PdfStrings.Ltv_AnswerNotSigned, LtvClient.Host(url));
                         continue;
                     }
                     Pool.AddOcsp(der);
                     var (answer, at, responder, evidence) = Judge(c, issuer, when);
                     if (answer == RevocationAnswer.Stale)
                     {
-                        failure ??= $"The answer from {LtvClient.Host(url)} is too old to speak for the signing time.";
+                        failure ??= Loc.Format(PdfStrings.Ltv_AnswerTooOld, LtvClient.Host(url));
                         continue;
                     }
                     Record(e, answer, at, evidence ?? der, responder, $"OCSP, {LtvClient.Host(url)}");
@@ -440,14 +440,14 @@ public static class Ltv
                     var der = await client.GetAsync(url, LtvAddressKind.Crl, LtvClient.MaxCrlReply, cancel).ConfigureAwait(false);
                     if (CrlDocument.Parse(der) is not { } list || !list.SpeaksFor(c, issuer))
                     {
-                        failure ??= $"The list from {LtvClient.Host(url)} can't be read, or isn't signed by the certificate's issuer.";
+                        failure ??= Loc.Format(PdfStrings.Ltv_ListUnreadable, LtvClient.Host(url));
                         continue;
                     }
                     Pool.AddCrl(der);
                     var (answer, at, responder, evidence) = Judge(c, issuer, when);
                     if (answer == RevocationAnswer.Stale)
                     {
-                        failure ??= $"The list from {LtvClient.Host(url)} is too old to speak for the signing time.";
+                        failure ??= Loc.Format(PdfStrings.Ltv_ListTooOld, LtvClient.Host(url));
                         continue;
                     }
                     Record(e, answer, at, evidence ?? der, responder, $"CRL, {LtvClient.Host(url)}");
@@ -462,11 +462,11 @@ public static class Ltv
             if (tried == 0)
             {
                 e.Detail = refused > 0
-                    ? $"{name} names only addresses on a local network or that can't be used, so none was contacted"
-                    : $"{name} names no address to ask about it";
+                    ? Loc.Format(PdfStrings.Ltv_OnlyLocalAddresses, name)
+                    : Loc.Format(PdfStrings.Ltv_NoAddress, name);
                 return;
             }
-            e.Detail = failure ?? $"{name} couldn't be asked about";
+            e.Detail = failure ?? Loc.Format(PdfStrings.Ltv_CouldntAsk, name);
             FirstFailure ??= failure ?? e.Detail;
         }
 
@@ -493,11 +493,11 @@ public static class Ltv
             else e.Crl = evidence;
             (e.Outcome, e.Detail) = answer switch
             {
-                RevocationAnswer.Good => (CertificateCheckOutcome.Good, $"not revoked ({source})"),
-                RevocationAnswer.Revoked => (CertificateCheckOutcome.Revoked, $"REVOKED{(at is { } a ? $" on {a.UtcDateTime:yyyy-MM-dd}" : "")} ({source})"),
-                RevocationAnswer.RevokedLater => (CertificateCheckOutcome.RevokedLater, $"revoked later, on {at?.UtcDateTime:yyyy-MM-dd}, after the signing time ({source})"),
-                RevocationAnswer.Unknown => (CertificateCheckOutcome.Unknown, $"the authority doesn't know this certificate ({source})"),
-                _ => (CertificateCheckOutcome.NoData, $"no usable answer ({source})"),
+                RevocationAnswer.Good => (CertificateCheckOutcome.Good, Loc.Format(PdfStrings.Ltv_NotRevoked, source)),
+                RevocationAnswer.Revoked => (CertificateCheckOutcome.Revoked, at is { } a ? Loc.Format(PdfStrings.Ltv_RevokedAt, a.UtcDateTime, source) : Loc.Format(PdfStrings.Ltv_RevokedNoDate, source)),
+                RevocationAnswer.RevokedLater => (CertificateCheckOutcome.RevokedLater, Loc.Format(PdfStrings.Ltv_RevokedLater, at?.UtcDateTime, source)),
+                RevocationAnswer.Unknown => (CertificateCheckOutcome.Unknown, Loc.Format(PdfStrings.Ltv_UnknownCert, source)),
+                _ => (CertificateCheckOutcome.NoData, Loc.Format(PdfStrings.Ltv_NoUsableAnswer, source)),
             };
         }
     }

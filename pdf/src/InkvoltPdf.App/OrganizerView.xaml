@@ -2,26 +2,27 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:app="clr-namespace:InkvoltPdf.App"
+             xmlns:loc="clr-namespace:InkvoltPdf.App"
              Focusable="True" FocusVisualStyle="{x:Null}"
-             AutomationProperties.Name="Organize pages">
+             AutomationProperties.Name="{x:Static loc:Strings.Organize_ViewName}">
     <DockPanel>
         <!-- Header: what is selected, thumbnail size, done -->
         <Border DockPanel.Dock="Top" Padding="16,10" BorderThickness="0,0,0,1" app:TextScale.Scales="True"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
             <DockPanel LastChildFill="False">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="Organize pages" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <TextBlock Text="{x:Static loc:Strings.Organize_ViewName}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
                     <TextBlock x:Name="SelectionText" Margin="16,0,0,0" VerticalAlignment="Center" Style="{StaticResource Caption}"
                                AutomationProperties.LiveSetting="Polite" />
-                    <Button x:Name="SelectAllButton" Content="Select all" Margin="16,0,0,0" Style="{StaticResource TextButton}" />
-                    <Button x:Name="SelectNoneButton" Content="Clear selection" Margin="4,0,0,0" Style="{StaticResource TextButton}" />
+                    <Button x:Name="SelectAllButton" Content="{x:Static loc:Strings.Organize_SelectAll}" Margin="16,0,0,0" Style="{StaticResource TextButton}" />
+                    <Button x:Name="SelectNoneButton" Content="{x:Static loc:Strings.Organize_ClearSelection}" Margin="4,0,0,0" Style="{StaticResource TextButton}" />
                 </StackPanel>
-                <Button x:Name="DoneButton" DockPanel.Dock="Right" Content="Done" MinWidth="88" Margin="16,0,0,0"
-                        Style="{DynamicResource AccentButtonStyle}" ToolTip="Back to reading (Esc)" />
+                <Button x:Name="DoneButton" DockPanel.Dock="Right" Content="{x:Static loc:Strings.Common_Done}" MinWidth="88" Margin="16,0,0,0"
+                        Style="{DynamicResource AccentButtonStyle}" ToolTip="{x:Static loc:Strings.Organize_DoneTip}" />
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE71F;" FontSize="12" Margin="0,0,8,0" />
                     <Slider x:Name="SizeSlider" Minimum="90" Maximum="360" Width="140" VerticalAlignment="Center"
-                            AutomationProperties.Name="Thumbnail size" ToolTip="Thumbnail size" />
+                            AutomationProperties.Name="{x:Static loc:Strings.Organize_ThumbnailSize}" ToolTip="{x:Static loc:Strings.Organize_ThumbnailSize}" />
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE8A3;" FontSize="12" Margin="8,0,0,0" />
                 </StackPanel>
             </DockPanel>
@@ -30,65 +31,65 @@
         <!-- Page actions on the selected pages (also on the right-click menu and the Organize menu) -->
         <Border DockPanel.Dock="Top" Padding="12,4" BorderThickness="0,0,0,1" app:TextScale.Scales="True"
                 BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-            <app:ToolbarPanel x:Name="ActionBar" AutomationProperties.Name="Page actions">
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateLeft" ToolTip="Rotate the selected pages counterclockwise" AutomationProperties.Name="Rotate left">
+            <app:ToolbarPanel x:Name="ActionBar" AutomationProperties.Name="{x:Static loc:Strings.Organize_PageActions}">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateLeft" ToolTip="{x:Static loc:Strings.Organize_RotateLeftTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_RotateLeft}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" FontSize="15" />
-                        <TextBlock Text="Rotate left" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_RotateLeft}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateRight" ToolTip="Rotate the selected pages clockwise" AutomationProperties.Name="Rotate right">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.RotateRight" ToolTip="{x:Static loc:Strings.Organize_RotateRightTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_RotateRight}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE7AD;" FontSize="15" RenderTransformOrigin="0.5,0.5">
                             <TextBlock.RenderTransform>
                                 <ScaleTransform ScaleX="-1" />
                             </TextBlock.RenderTransform>
                         </TextBlock>
-                        <TextBlock Text="Rotate right" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_RotateRight}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DeleteSelected" ToolTip="Delete the selected pages (Del)" AutomationProperties.Name="Delete">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DeleteSelected" ToolTip="{x:Static loc:Strings.Organize_DeleteTip}" AutomationProperties.Name="{x:Static loc:Strings.Common_Delete}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" FontSize="15" />
-                        <TextBlock Text="Delete" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Common_Delete}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DuplicatePages" ToolTip="Duplicate the selected pages" AutomationProperties.Name="Duplicate">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.DuplicatePages" ToolTip="{x:Static loc:Strings.Organize_DuplicateTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_Duplicate}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" FontSize="15" />
-                        <TextBlock Text="Duplicate" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_Duplicate}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.ExtractPages" ToolTip="Extract pages into a new PDF" AutomationProperties.Name="Extract">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.ExtractPages" ToolTip="{x:Static loc:Strings.Organize_ExtractTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_ExtractButton}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xEDE1;" FontSize="15" />
-                        <TextBlock Text="Extract" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_ExtractButton}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.MovePages" ToolTip="Move pages to another place in the document" AutomationProperties.Name="Move">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.MovePages" ToolTip="{x:Static loc:Strings.Organize_MoveTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_MoveButton}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE8CB;" FontSize="15" />
-                        <TextBlock Text="Move" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_MoveButton}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
                 <Border Style="{StaticResource BarSeparator}" />
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertPages" ToolTip="Insert pages from another file" AutomationProperties.Name="Insert from file">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertPages" ToolTip="{x:Static loc:Strings.Organize_InsertFileTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_InsertFile}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE8E5;" FontSize="15" />
-                        <TextBlock Text="Insert from file" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_InsertFile}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertBlank" ToolTip="Insert blank pages" AutomationProperties.Name="Insert blank">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.InsertBlank" ToolTip="{x:Static loc:Strings.Organize_InsertBlankTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_InsertBlank}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" FontSize="15" />
-                        <TextBlock Text="Insert blank" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_InsertBlank}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
                 <Border Style="{StaticResource BarSeparator}" />
-                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.CropPages" ToolTip="Crop pages" AutomationProperties.Name="Crop">
+                <Button Style="{StaticResource CommandButton}" Command="app:Cmd.CropPages" ToolTip="{x:Static loc:Strings.Organize_CropTip}" AutomationProperties.Name="{x:Static loc:Strings.Organize_Crop}">
                     <StackPanel Orientation="Horizontal">
                         <TextBlock Style="{StaticResource Icon}" Text="&#xE7A8;" FontSize="15" />
-                        <TextBlock Text="Crop" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
+                        <TextBlock Text="{x:Static loc:Strings.Organize_Crop}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                     </StackPanel>
                 </Button>
             </app:ToolbarPanel>
@@ -135,16 +136,16 @@
                                                 <!-- Hover actions -->
                                                 <StackPanel x:Name="Actions" Orientation="Horizontal" HorizontalAlignment="Center" app:TextScale.Scales="True"
                                                             VerticalAlignment="Bottom" Margin="0,0,0,6" Visibility="Hidden">
-                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE7AD;" ToolTip="Rotate counterclockwise"
-                                                            Tag="left" Click="OnItemAction" AutomationProperties.Name="Rotate counterclockwise" />
-                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE7AD;" ToolTip="Rotate clockwise"
-                                                            Tag="right" Click="OnItemAction" AutomationProperties.Name="Rotate clockwise" RenderTransformOrigin="0.5,0.5">
+                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE7AD;" ToolTip="{x:Static loc:Strings.Organize_RotateCcw}"
+                                                            Tag="left" Click="OnItemAction" AutomationProperties.Name="{x:Static loc:Strings.Organize_RotateCcw}" />
+                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE7AD;" ToolTip="{x:Static loc:Strings.Organize_RotateCw}"
+                                                            Tag="right" Click="OnItemAction" AutomationProperties.Name="{x:Static loc:Strings.Organize_RotateCw}" RenderTransformOrigin="0.5,0.5">
                                                         <Button.RenderTransform>
                                                             <ScaleTransform ScaleX="-1" />
                                                         </Button.RenderTransform>
                                                     </Button>
-                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE74D;" ToolTip="Delete"
-                                                            Tag="delete" Click="OnItemAction" AutomationProperties.Name="Delete page" />
+                                                    <Button Style="{StaticResource HoverAction}" Content="&#xE74D;" ToolTip="{x:Static loc:Strings.Common_Delete}"
+                                                            Tag="delete" Click="OnItemAction" AutomationProperties.Name="{x:Static loc:Strings.Organize_DeletePage}" />
                                                 </StackPanel>
                                             </Grid>
                                             <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,8,0,0" FontSize="12" app:TextScale.Scales="True" />
@@ -181,7 +182,7 @@
                         <MenuItem Command="app:Cmd.RotateRight" />
                         <MenuItem Command="app:Cmd.RotateLeft" />
                         <Separator />
-                        <MenuItem Command="app:Cmd.DeleteSelected" InputGestureText="Del" />
+                        <MenuItem Command="app:Cmd.DeleteSelected" InputGestureText="{x:Static loc:Strings.Organize_DelKey}" />
                         <MenuItem Command="app:Cmd.DuplicatePages" />
                         <MenuItem Command="app:Cmd.ExtractPages" />
                         <MenuItem Command="app:Cmd.MovePages" />
@@ -190,7 +191,7 @@
                         <MenuItem Command="app:Cmd.InsertBlank" />
                         <MenuItem Command="app:Cmd.CropPages" />
                         <Separator />
-                        <MenuItem Command="app:Cmd.Print" Header="_Print Pages…" />
+                        <MenuItem Command="app:Cmd.Print" Header="{x:Static loc:Strings.Organize_PrintPagesMenu}" />
                         <MenuItem Command="app:Cmd.ExportImages" />
                     </ContextMenu>
                 </ItemsControl.ContextMenu>

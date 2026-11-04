@@ -86,7 +86,7 @@ public static class Bookmarks
     /// <exception cref="ArgumentOutOfRangeException">A bookmark leads to a page the document doesn't have.</exception>
     public static byte[] SetOutline(byte[] data, string? password, IReadOnlyList<Bookmark> outline)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var existing = new List<PdfDictionary>();
         Flatten(PdfStructure.ReadOutline(doc));
         var used = new HashSet<int>();
@@ -106,12 +106,12 @@ public static class Bookmarks
 
         List<PdfStructure.OutlineItem> Build(IReadOnlyList<Bookmark> nodes, int depth)
         {
-            if (depth > 64) throw new ArgumentException("Bookmarks are nested too deeply.", nameof(outline));
+            if (depth > 64) throw new ArgumentException(PdfStrings.Bookmark_TooDeep, nameof(outline));
             var list = new List<PdfStructure.OutlineItem>();
             foreach (var node in nodes)
             {
                 if (node.PageIndex >= doc.PageCount || node.PageIndex < -1)
-                    throw new ArgumentOutOfRangeException(nameof(outline), $"Bookmark \"{node.Title}\" leads to page {node.PageIndex + 1}, which the document doesn't have.");
+                    throw new ArgumentOutOfRangeException(nameof(outline), Loc.Format(PdfStrings.Bookmark_PageMissing, node.Title, node.PageIndex + 1));
                 var reuse = node.SourceId > 0 && node.SourceId <= existing.Count && used.Add(node.SourceId);
                 var d = reuse ? existing[node.SourceId - 1] : new PdfDictionary(doc);
                 if (!reuse) doc.Internals.AddObject(d);

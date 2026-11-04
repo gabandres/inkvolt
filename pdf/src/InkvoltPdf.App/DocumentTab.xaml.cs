@@ -20,7 +20,7 @@ public sealed class ThumbItem(int index, double width, double height, Action<Thu
 
     public int Index { get; } = index;
     public string Label { get; private set; } = (index + 1).ToString();
-    public string AccessibleName { get; private set; } = $"Page {index + 1}";
+    public string AccessibleName { get; private set; } = Loc.Format(Strings.Tab_ThumbPage, index + 1);
     public override string ToString() => AccessibleName;
 
     /// <summary>Shows the page's label (e.g. "iv") instead of its number.</summary>
@@ -28,7 +28,7 @@ public sealed class ThumbItem(int index, double width, double height, Action<Thu
     {
         if (label == Label) return;
         Label = label;
-        AccessibleName = label == (Index + 1).ToString() ? $"Page {Index + 1}" : $"Page {label} ({Index + 1} of {pageCount})";
+        AccessibleName = label == (Index + 1).ToString() ? Loc.Format(Strings.Tab_ThumbPage, Index + 1) : Loc.Format(Strings.Tab_ThumbPageLabel, label, Index + 1, pageCount);
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Label)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AccessibleName)));
     }
@@ -152,10 +152,10 @@ public partial class DocumentTab : UserControl, IDisposable
         // Shortcuts in tooltips come from the commands' gestures (never typed by hand, so they can't drift).
         Cmd.AddShortcutsToTips(this);
         PageBox.ToolTip = Cmd.Tip((string)PageBox.ToolTip, Cmd.GoToPage);
-        SearchRail.ToolTip = Cmd.Tip("Search", Cmd.SearchPane);
-        ClosePaneButton.ToolTip = Cmd.Tip("Close pane", Cmd.NavPane);
-        FindPrevButton.ToolTip = Cmd.Tip("Previous match", Cmd.FindPrevious);
-        FindNextButton.ToolTip = Cmd.Tip("Next match", Cmd.FindNext);
+        SearchRail.ToolTip = Cmd.Tip(Strings.Tab_Search, Cmd.SearchPane);
+        ClosePaneButton.ToolTip = Cmd.Tip(Strings.Tab_ClosePane, Cmd.NavPane);
+        FindPrevButton.ToolTip = Cmd.Tip(Strings.Tab_PreviousMatch, Cmd.FindPrevious);
+        FindNextButton.ToolTip = Cmd.Tip(Strings.Tab_NextMatch, Cmd.FindNext);
 
         Thumbs.ItemsSource = _thumbs;
         SearchResults.ItemsSource = _results;
@@ -200,7 +200,7 @@ public partial class DocumentTab : UserControl, IDisposable
         ClosePaneButton.Click += (_, _) => ShowPane(NavPaneKind.None, remember: true);
 
         // Page / zoom pill
-        ZoomBox.ItemsSource = new[] { "Fit width", "Fit page", "25%", "50%", "75%", "100%", "125%", "150%", "200%", "300%", "400%", "800%" };
+        ZoomBox.ItemsSource = new[] { Strings.Tab_FitWidth, Strings.Tab_FitPage, "25%", "50%", "75%", "100%", "125%", "150%", "200%", "300%", "400%", "800%" };
         ZoomBox.SelectionChanged += (_, _) => { if (!_updatingPill && ZoomBox.SelectedItem is string z) ApplyZoomText(z); };
         ZoomBox.AddHandler(KeyDownEvent, new KeyEventHandler((_, e) =>
         {
@@ -378,10 +378,17 @@ public partial class DocumentTab : UserControl, IDisposable
         SuspectRail.IsChecked = kind == NavPaneKind.SuspectWords;
         PaneTitle.Text = kind switch
         {
-            NavPaneKind.None => "",
-            NavPaneKind.ReadingOrder => "Reading order",
-            NavPaneKind.SuspectWords => "Suspect words",
-            _ => kind.ToString(),
+            NavPaneKind.Pages => Strings.Common_Pages,
+            NavPaneKind.Bookmarks => Strings.Tab_Bookmarks,
+            NavPaneKind.Search => Strings.Tab_Search,
+            NavPaneKind.Comments => Strings.Tab_Comments,
+            NavPaneKind.Attachments => Strings.Tab_Attachments,
+            NavPaneKind.Layers => Strings.Tab_Layers,
+            NavPaneKind.Signatures => Strings.Tab_Signatures,
+            NavPaneKind.Accessibility => Strings.Tab_PaneAccessibility,
+            NavPaneKind.ReadingOrder => Strings.Tab_PaneReadingOrder,
+            NavPaneKind.SuspectWords => Strings.Tab_SuspectWords,
+            _ => "",
         };
         ReadingOrderShown(kind == NavPaneKind.ReadingOrder);
         UpdatePaneDetail();
@@ -398,14 +405,14 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         PaneDetail.Text = _pane switch
         {
-            NavPaneKind.Pages when Thumbs.SelectedItems.Count > 1 => $"{Thumbs.SelectedItems.Count} selected",
+            NavPaneKind.Pages when Thumbs.SelectedItems.Count > 1 => Loc.Format(Strings.Tab_PaneSelected, Thumbs.SelectedItems.Count),
             NavPaneKind.Pages => $"{Viewer.PageCount}",
             NavPaneKind.Comments => _commentItems.Count > 0 ? $"{_commentItems.Count}" : "",
             NavPaneKind.Attachments => _attachments.Count > 0 ? $"{_attachments.Count}" : "",
             NavPaneKind.Layers => $"{_layers.Count}",
-            NavPaneKind.Signatures => $"{_signatures.Count(s => s.Status != SignatureStatus.Unsigned)} signed",
+            NavPaneKind.Signatures => Loc.Format(Strings.Tab_PaneSigned, _signatures.Count(s => s.Status != SignatureStatus.Unsigned)),
             NavPaneKind.Accessibility => "PDF/UA",
-            NavPaneKind.ReadingOrder => $"Page {Viewer.CurrentPage + 1}",
+            NavPaneKind.ReadingOrder => Loc.Format(Strings.Tab_ThumbPage, Viewer.CurrentPage + 1),
             NavPaneKind.SuspectWords => SuspectList.Items.Count > 0 ? $"{SuspectList.Items.Count}" : "",
             _ => "",
         };
@@ -434,7 +441,7 @@ public partial class DocumentTab : UserControl, IDisposable
         var label = PageLabel(current);
         if (!PageBox.IsKeyboardFocusWithin) PageBox.Text = n > 0 ? label : "";
         // With page labels: "iii (3 of 120)"; without: "3 of 120".
-        PageCountText.Text = n > 0 && label != (current + 1).ToString() ? $"({current + 1} of {n})" : $"of {n}";
+        PageCountText.Text = n > 0 && label != (current + 1).ToString() ? Loc.Format(Strings.Tab_PillOfLabeled, current + 1, n) : Loc.Format(Strings.Tab_PillOf, n);
         if (!ZoomBox.IsKeyboardFocusWithin)
         {
             _updatingPill = true;
@@ -449,8 +456,8 @@ public partial class DocumentTab : UserControl, IDisposable
     private void ApplyZoomText(string text)
     {
         text = text.Trim();
-        if (text.Equals("Fit width", StringComparison.OrdinalIgnoreCase)) SetZoomMode(ZoomMode.FitWidth);
-        else if (text.Equals("Fit page", StringComparison.OrdinalIgnoreCase)) SetZoomMode(ZoomMode.FitPage);
+        if (text.Equals(Strings.Tab_FitWidth, StringComparison.CurrentCultureIgnoreCase)) SetZoomMode(ZoomMode.FitWidth);
+        else if (text.Equals(Strings.Tab_FitPage, StringComparison.CurrentCultureIgnoreCase)) SetZoomMode(ZoomMode.FitPage);
         else if (double.TryParse(text.TrimEnd('%', ' '), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.CurrentCulture, out var pct) && pct > 0)
         {
             ActiveView.SetZoom(pct / 100);
@@ -511,7 +518,7 @@ public partial class DocumentTab : UserControl, IDisposable
         var fields = widgets.Where(w => !w.ReadOnly && w.Kind is not (FormFieldKind.PushButton or FormFieldKind.Signature))
             .Select(w => w.FieldName).Distinct().Count();
         FormBar.Visibility = fields > 0 && !_formBarDismissed && !IsDesigningForm ? Visibility.Visible : Visibility.Collapsed;
-        FormBarText.Text = $"This form has {fields} fillable field{(fields == 1 ? "" : "s")}. Click a field to fill it; Tab moves to the next one. {Cmd.Tip("Save", Cmd.Save)} when you're done.";
+        FormBarText.Text = Loc.Plural(fields, Strings.Tab_FormBar_One, Strings.Tab_FormBar_Many, Cmd.Tip(Strings.Common_Save, Cmd.Save));
         RaiseState();
     }
 
@@ -550,7 +557,7 @@ public partial class DocumentTab : UserControl, IDisposable
                 }
                 var batch = new Dictionary<string, string>(_formQueue);
                 _formQueue.Clear();
-                var label = batch.Count == 1 ? "Fill form field" : $"Fill {batch.Count} form fields";
+                var label = batch.Count == 1 ? Strings.Tab_EditFillField : Loc.Format(Strings.Tab_EditFillFields, batch.Count);
                 FormFillResult? fill = null;
                 var host = FormHost;
                 var outcome = await TryEdit(label, (d, pw) => (fill = FormEditor.Fill(d, pw, batch, host)).Data, quiet: true, contentOnly: true);
@@ -612,10 +619,10 @@ public partial class DocumentTab : UserControl, IDisposable
                     if (_disposed) return;
                 }
                 var outcome = e.ReplaceId is { } id && e.Text.Length == 0 && e.Kind == StampKind.Text
-                    ? await TryEdit("Remove text", (d, pw) => TextStamps.Remove(d, pw, id), contentOnly: true)
+                    ? await TryEdit(Strings.Tab_EditRemoveText, (d, pw) => TextStamps.Remove(d, pw, id), contentOnly: true)
                     : e.ReplaceId is { } markId && e.Kind != StampKind.Text
-                        ? await TryEdit(e.Kind == StampKind.Check ? "Remove check mark" : "Remove cross", (d, pw) => TextStamps.Remove(d, pw, markId), contentOnly: true)
-                        : await TryEdit(e.Kind switch { StampKind.Check => "Add check mark", StampKind.Cross => "Add cross", _ => e.ReplaceId is null ? "Add text" : "Edit text" },
+                        ? await TryEdit(e.Kind == StampKind.Check ? Strings.Tab_EditRemoveCheck : Strings.Tab_EditRemoveCross, (d, pw) => TextStamps.Remove(d, pw, markId), contentOnly: true)
+                        : await TryEdit(e.Kind switch { StampKind.Check => Strings.Tab_EditAddCheck, StampKind.Cross => Strings.Tab_EditAddCross, _ => e.ReplaceId is null ? Strings.Tab_EditAddText : Strings.Tab_EditEditText },
                             (d, pw) => TextStamps.Put(d, pw, e.PageIndex, e.Rect, e.Kind, e.Text, e.FontSize, e.ReplaceId), quiet: e.Kind == StampKind.Text, contentOnly: true);
                 if (outcome != EditOutcome.Busy || _disposed) return;
             }
@@ -678,7 +685,7 @@ public partial class DocumentTab : UserControl, IDisposable
         if (on == IsOrganizing) return;
         if (on && !Session.IsPdf)
         {
-            Notify("Organizing pages works on PDF files only.");
+            Notify(Strings.Tab_OrganizePdfOnly);
             return;
         }
         var selection = SelectedPages;
@@ -777,7 +784,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         if (!Session.IsPdf)
         {
-            Prompt.Info(Window.GetWindow(this), "Page editing works on PDFs", "This file can be viewed and printed, but only PDF pages can be rearranged.");
+            Prompt.Info(Window.GetWindow(this), Strings.Tab_EditPdfOnlyTitle, Strings.Tab_EditPdfOnlyBody);
             return EditOutcome.Failed;
         }
         if (_disposed) return EditOutcome.Failed;
@@ -792,14 +799,14 @@ public partial class DocumentTab : UserControl, IDisposable
             var request = new EditRequest(label, edit) { ContentOnly = contentOnly, SignaturesWarned = signaturesWarned, NewPasswords = newPasswords };
             var result = await Session.EditAsync(request, EditPrompts, () =>
             {
-                if (veil) work = BeginBusy($"{label}…");
+                if (veil) work = BeginBusy(Loc.Format(Strings.Tab_EditWorking, label));
                 BeginWrite();
                 writing = true;
             });
             if (result.Error is { } ex) // top-level UI action: report any failure, never lose it
             {
                 Log.Write($"{label} failed: {ex}");
-                Prompt.Error(Window.GetWindow(this), $"{label} didn't work", ex.Message);
+                Prompt.Error(Window.GetWindow(this), Loc.Format(Strings.Tab_EditFailed, label), ex.Message);
             }
             if (result.Outcome != EditOutcome.Done) return result.Outcome;
             var id = result.StepId;
@@ -808,7 +815,7 @@ public partial class DocumentTab : UserControl, IDisposable
                 if (goToPage is { } p) Viewer.GoToPage(Math.Clamp(p, 0, Viewer.PageCount - 1), record: false);
                 if (!quiet)
                 {
-                    Notify(label, "Undo", () =>
+                    Notify(label, Strings.Common_Undo, () =>
                     {
                         // Only while this very edit is still the newest undo step (not an older or newer one at the same depth).
                         if (_disposed || IsBusy || Session.UndoStepId != id) return;
@@ -820,7 +827,7 @@ public partial class DocumentTab : UserControl, IDisposable
             catch (Exception shown) // the edit is committed (and undoable); report a failure showing it, as before
             {
                 Log.Write($"{label} failed: {shown}");
-                Prompt.Error(Window.GetWindow(this), $"{label} didn't work", shown.Message);
+                Prompt.Error(Window.GetWindow(this), Loc.Format(Strings.Tab_EditFailed, label), shown.Message);
                 return EditOutcome.Failed;
             }
             return EditOutcome.Done;
@@ -835,25 +842,27 @@ public partial class DocumentTab : UserControl, IDisposable
     public void Undo()
     {
         if (!Session.CanUndo) return;
-        Step(Session.Undo, Session.UndoLabel, "Undo");
+        Step(Session.Undo, Session.UndoLabel, Strings.Tab_UndoDone, Strings.Tab_UndoFailed);
     }
 
     public void Redo()
     {
         if (!Session.CanRedo) return;
-        Step(Session.Redo, Session.RedoLabel, "Redo");
+        Step(Session.Redo, Session.RedoLabel, Strings.Tab_RedoDone, Strings.Tab_RedoFailed);
     }
 
-    private void Step(Action action, string? label, string verb)
+    /// <param name="done">"Undo: {0}", {0} the step's label.</param>
+    /// <param name="failed">"Undo didn't work".</param>
+    private void Step(Action action, string? label, string done, string failed)
     {
         try
         {
             action();
-            Notify($"{verb}: {label}");
+            Notify(Loc.Format(done, label));
         }
         catch (Exception ex) when (ex is InvalidOperationException or MuPDFCore.MuPDFException)
         {
-            Prompt.Error(Window.GetWindow(this), $"{verb} didn't work", ex.Message);
+            Prompt.Error(Window.GetWindow(this), failed, ex.Message);
         }
     }
 
@@ -1123,7 +1132,7 @@ public partial class DocumentTab : UserControl, IDisposable
             else if (!d.Source.IsDisposed)
             {
                 var src = new PdfSource(d.Source.Session.Data, d.Source.Session.Password, d.Source.Session.DisplayName);
-                await RunEdit($"Copy {Plural(d.Pages.Length)} from {src.Name}", (data, pw) => PageEditor.Insert(data, pw, src, d.Pages, before), before);
+                await RunEdit(Loc.Plural(d.Pages.Length, Strings.Tab_EditCopyPages_One, Strings.Tab_EditCopyPages_Many, src.Name),(data, pw) => PageEditor.Insert(data, pw, src, d.Pages, before), before);
             }
             return;
         }
@@ -1132,7 +1141,7 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             if (_disposed || Window.GetWindow(this) is not { } owner) return;
             if (PdfFiles.LoadForImport(owner, path) is not { } source) continue;
-            await RunEdit($"Insert {Path.GetFileName(path)}", (data, pw) => PageEditor.Insert(data, pw, source, null, before), before);
+            await RunEdit(Loc.Format(Strings.Tab_EditInsertFile, Path.GetFileName(path)),(data, pw) => PageEditor.Insert(data, pw, source, null, before), before);
         }
     }
 
@@ -1146,12 +1155,10 @@ public partial class DocumentTab : UserControl, IDisposable
         var order = PageEditor.MoveOrder(Viewer.PageCount, pages, before);
         if (order.SequenceEqual(Enumerable.Range(0, order.Length))) return null;
         var newFirst = Array.IndexOf(order, pages.Min());
-        if (!await RunEdit($"Move {Plural(pages.Length)}", (data, pw) => PageEditor.Reorder(data, pw, order), newFirst)) return null;
+        if (!await RunEdit(Loc.Plural(pages.Length, Strings.Tab_EditMovePages_One, Strings.Tab_EditMovePages_Many), (data, pw) => PageEditor.Reorder(data, pw, order), newFirst)) return null;
         SelectPages(Enumerable.Range(newFirst, pages.Length));
         return newFirst;
     }
-
-    private static string Plural(int n) => n == 1 ? "1 page" : $"{n} pages";
 
     public static string[] DroppedPdfs(DragEventArgs e) =>
         e.Data.GetData(DataFormats.FileDrop) is string[] files
@@ -1339,7 +1346,7 @@ public partial class DocumentTab : UserControl, IDisposable
             if (next < 0 || next >= _results.Count)
             {
                 next = (next + _results.Count) % _results.Count;
-                Notify(backwards ? "Search wrapped to the end" : "Search wrapped to the beginning");
+                Notify(backwards ? Strings.Tab_SearchWrappedEnd : Strings.Tab_SearchWrappedStart);
             }
         }
         ShowHit(next);
@@ -1369,7 +1376,7 @@ public partial class DocumentTab : UserControl, IDisposable
             SearchResults.SelectedIndex = index;
             SearchResults.ScrollIntoView(_results[index]);
         }
-        FindStatus.Text = $"{index + 1} of {_results.Count}";
+        FindStatus.Text = Loc.Format(Strings.Tab_FindPosition, index + 1, _results.Count);
     }
 
     private Task RunSearchFromPane()
@@ -1408,7 +1415,7 @@ public partial class DocumentTab : UserControl, IDisposable
             if (cts.IsCancellationRequested) return;
             foreach (var h in update.Hits) _results.Add(h);
             if (update.Hits.Count > 0) Viewer.SetSearchHits(_results);
-            SearchStatus.Text = FindStatus.Text = $"Searching… page {update.Page + 1} of {count} ({_results.Count} found)";
+            SearchStatus.Text = FindStatus.Text = Loc.Format(Strings.Tab_Searching, update.Page + 1, count, _results.Count);
 
             // Jump to the first match at/after the current page as soon as it's known (not after the whole scan).
             if (_jumpWhenFound && !_searchBackwards && update.Hits.Exists(h => h.Page >= startPage))
@@ -1448,21 +1455,23 @@ public partial class DocumentTab : UserControl, IDisposable
             // Let the last progress callback land before summarizing.
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
             if (cts.IsCancellationRequested) return;
-            SearchStatus.Text = _results.Count == 0 ? $"No matches for \"{query}\"." : $"{_results.Count} match(es) on {_results.Select(r => r.Page).Distinct().Count()} page(s).";
+            var summary = _results.Count == 0 ? Loc.Format(Strings.Tab_SearchNoMatchesFor, query)
+                : Loc.Format(Strings.Tab_SearchSummary, _results.Count, _results.Select(r => r.Page).Distinct().Count());
             int[] failed;
             lock (failedPages) failed = [.. failedPages];
             if (failed.Length > 0)
-                SearchStatus.Text += failed.Length == 1
-                    ? $" Page {failed[0]} couldn't be searched (it may be damaged)."
-                    : $" {failed.Length} pages couldn't be searched (they may be damaged): {string.Join(", ", failed.Take(10))}{(failed.Length > 10 ? "…" : "")}.";
+                summary = failed.Length == 1
+                    ? Loc.Format(Strings.Tab_SearchSummaryFailedPage, summary, failed[0])
+                    : Loc.Format(Strings.Tab_SearchSummaryFailedPages, summary, failed.Length, string.Join(", ", failed.Take(10)) + (failed.Length > 10 ? "…" : ""));
+            SearchStatus.Text = summary;
             RedactHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
-            if (_results.Count == 0) FindStatus.Text = "No matches";
+            if (_results.Count == 0) FindStatus.Text = Strings.Tab_FindNoMatches;
             else if (_jumpWhenFound)
             {
                 _jumpWhenFound = false;
                 ShowHit(FirstHitFrom(startPage, _searchBackwards));
             }
-            else if (_activeHit >= 0) FindStatus.Text = $"{_activeHit + 1} of {_results.Count}";
+            else if (_activeHit >= 0) FindStatus.Text = Loc.Format(Strings.Tab_FindPosition, _activeHit + 1, _results.Count);
         }
         catch (OperationCanceledException)
         {
@@ -1475,8 +1484,8 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             Log.Write($"Search failed: {ex}");
             if (cts.IsCancellationRequested) return;
-            SearchStatus.Text = FindStatus.Text = "Search failed";
-            Notify($"Search didn't work: {ex.Message}", error: true);
+            SearchStatus.Text = FindStatus.Text = Strings.Tab_SearchFailed;
+            Notify(Loc.Format(Strings.Tab_SearchFailedToast, ex.Message), error: true);
         }
     }
 
@@ -1659,8 +1668,8 @@ public partial class DocumentTab : UserControl, IDisposable
         if (missing)
         {
             if (_diskAcknowledged) return;
-            ShowDiskBar($"{name} was moved, renamed or deleted. Your copy is still open here; save it to keep it.",
-                "Save As…", () => Cmd.SaveAs.Execute(null, this), null, null);
+            ShowDiskBar(Loc.Format(Strings.Tab_DiskMissing, name),
+                Strings.Common_SaveAs,() => Cmd.SaveAs.Execute(null, this), null, null);
         }
         else if (!changed)
         {
@@ -1670,12 +1679,12 @@ public partial class DocumentTab : UserControl, IDisposable
         }
         else if (!Session.IsDirty && !HasPendingEdits)
         {
-            _ = ReloadFromDiskAsync($"{name} was changed by another program and has been reloaded");
+            _ = ReloadFromDiskAsync(Loc.Format(Strings.Tab_DiskReloadedAuto, name));
         }
         else if (!_diskAcknowledged)
         {
-            ShowDiskBar($"{name} was changed by another program. Reload it to see those changes (yours will be discarded), or keep your version (saving it will overwrite theirs).",
-                "Reload", () => _ = ReloadFromDiskAsync($"Reloaded {name}", manual: true), "Keep mine", () =>
+            ShowDiskBar(Loc.Format(Strings.Tab_DiskChanged, name),
+                Strings.Tab_DiskReload, () => _ = ReloadFromDiskAsync(Loc.Format(Strings.Tab_DiskReloaded, name), manual: true), Strings.Tab_DiskKeepMine, () =>
                 {
                     _diskAcknowledged = true;
                     DiskBar.Visibility = Visibility.Collapsed;
@@ -1698,7 +1707,7 @@ public partial class DocumentTab : UserControl, IDisposable
         while (true)
         {
             // Read and parsed on a worker thread (big files don't freeze the window); busy meanwhile, so no edit cuts in.
-            var busy = BeginBusy($"Reloading {Session.DisplayName}…");
+            var busy = BeginBusy(Loc.Format(Strings.Tab_DiskReloading, Session.DisplayName));
             try
             {
                 var reloaded = await Session.ReloadFromDiskAsync(() =>
@@ -1730,16 +1739,16 @@ public partial class DocumentTab : UserControl, IDisposable
                 if (_disposed) return;
                 if (manual)
                 {
-                    Prompt.Error(Window.GetWindow(this), $"Couldn't reload {Session.DisplayName}",
-                        $"{ex.Message}{Environment.NewLine}{Environment.NewLine}The document stays as it was.");
+                    Prompt.Error(Window.GetWindow(this), Loc.Format(Strings.Tab_DiskReloadFailedTitle, Session.DisplayName),
+                        $"{ex.Message}{Environment.NewLine}{Environment.NewLine}{Strings.Tab_DiskReloadFailedBody}");
                     return;
                 }
                 if (ex is PasswordRequiredException)
                 {
                     // Another program protected it with a password this tab doesn't know: Reload asks for it.
                     _reloadAttempts = 0;
-                    ShowDiskBar($"{Session.DisplayName} was changed by another program and now needs a password to open.",
-                        "Reload…", () => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
+                    ShowDiskBar(Loc.Format(Strings.Tab_DiskNeedsPassword, Session.DisplayName),
+                        Strings.Tab_DiskReloadEllipsis,() => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
                     return;
                 }
                 // Often the other program is still writing the file: try again a few times, then say so.
@@ -1749,8 +1758,8 @@ public partial class DocumentTab : UserControl, IDisposable
                     return;
                 }
                 _reloadAttempts = 0;
-                ShowDiskBar($"{Session.DisplayName} was changed by another program, but it couldn't be reloaded: {ex.Message}",
-                    "Try again", () => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
+                ShowDiskBar(Loc.Format(Strings.Tab_DiskReloadFailed, Session.DisplayName, ex.Message),
+                    Strings.Common_Retry,() => _ = ReloadFromDiskAsync(toast, manual: true), null, null);
                 return;
             }
             finally

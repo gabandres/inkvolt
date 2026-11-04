@@ -8,9 +8,9 @@ public sealed record StampImage(int Width, int Height, byte[] Rgb, byte[]? Alpha
 {
     public void Validate()
     {
-        if (Width <= 0 || Height <= 0 || Width > 8192 || Height > 8192) throw new ArgumentException("The image size isn't usable.");
+        if (Width <= 0 || Height <= 0 || Width > 8192 || Height > 8192) throw new ArgumentException(PdfStrings.Sign_ImageSizeUnusable);
         if (Rgb.Length != (long)Width * Height * 3 || (Alpha is not null && Alpha.Length != (long)Width * Height))
-            throw new ArgumentException("The image data doesn't match its size.");
+            throw new ArgumentException(PdfStrings.Sign_ImageDataMismatch);
     }
 }
 
@@ -33,7 +33,7 @@ public static class SignatureStamps
 
     public static IReadOnlyList<TextStamp> Read(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Sign_PdfCantRead);
         var list = new List<TextStamp>();
         for (var p = 0; p < doc.PageCount; p++)
         {
@@ -73,19 +73,19 @@ public static class SignatureStamps
     internal static byte[] Place(byte[] data, string? password, int pageIndex, RectD rect, StampImage? image, string? replaceId, string label,
         string idPrefix, string name, string? author, string? subject = null)
     {
-        if (rect.IsEmpty) throw new ArgumentException("The stamp needs a size.");
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (rect.IsEmpty) throw new ArgumentException(PdfStrings.Sign_StampNeedsSize);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_PdfCantEdit);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         PdfItem? imageRef = null;
         (int Page, int Index, PdfDictionary Annot)? old = null;
         if (replaceId is not null)
         {
-            old = Find(doc, replaceId) ?? throw new InvalidOperationException("The stamp is no longer in the document.");
+            old = Find(doc, replaceId) ?? throw new InvalidOperationException(PdfStrings.Sign_StampGone);
             if (image is null)
                 imageRef = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(old.Value.Annot.Elements["/AP"])?.Elements["/N"])?.Elements["/Resources"])?.Elements["/XObject"])?.Elements["/Im1"];
         }
         if (image is not null) imageRef = ImageXObject(doc, image).Reference;
-        if (imageRef is null) throw new InvalidOperationException("The stamp's image is missing.");
+        if (imageRef is null) throw new InvalidOperationException(PdfStrings.Sign_StampImageMissing);
 
         var page = doc.Pages[pageIndex];
         var (x1, y1, x2, y2) = TextStamps.FromPageSpace(page, rect);

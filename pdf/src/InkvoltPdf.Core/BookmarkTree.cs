@@ -10,12 +10,12 @@ public static class BookmarkTree
     /// <exception cref="ArgumentOutOfRangeException">No bookmark at <paramref name="path"/>.</exception>
     public static Bookmark At(IReadOnlyList<Bookmark> tree, IReadOnlyList<int> path)
     {
-        if (path.Count == 0) throw new ArgumentOutOfRangeException(nameof(path), "Empty bookmark path.");
+        if (path.Count == 0) throw new ArgumentOutOfRangeException(nameof(path), PdfStrings.Bookmark_EmptyPath);
         var list = tree;
         Bookmark? b = null;
         foreach (var i in path)
         {
-            if (i < 0 || i >= list.Count) throw new ArgumentOutOfRangeException(nameof(path), "The bookmark isn't there any more.");
+            if (i < 0 || i >= list.Count) throw new ArgumentOutOfRangeException(nameof(path), PdfStrings.Bookmark_Gone);
             b = list[i];
             list = b.Children;
         }
@@ -53,7 +53,7 @@ public static class BookmarkTree
     {
         var moving = At(tree, from);
         if (parent.Count >= from.Count && parent.Take(from.Count).SequenceEqual(from))
-            throw new InvalidOperationException("A bookmark can't be moved into itself.");
+            throw new InvalidOperationException(PdfStrings.Bookmark_IntoItself);
         if (parent.Count > 0) At(tree, parent);
 
         // Removing first shifts later siblings (and the parent's path) up by one where they share the old parent.

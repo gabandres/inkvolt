@@ -38,7 +38,7 @@ public static partial class CommentFiles
             if (XfdfElements.TryGetValue(r.Subtype, out var name)) annots.Add(Element(r, name));
             else notInXfdf[r.Subtype] = notInXfdf.GetValueOrDefault(r.Subtype) + 1;
         }
-        foreach (var (subtype, n) in notInXfdf) left.Add($"{Plural(n, KindName(subtype))}: XFDF has no element for them (FDF keeps them)");
+        foreach (var (subtype, n) in notInXfdf) left.Add(Loc.Format(PdfStrings.Comment_NotInXfdf, CountOf(n, subtype)));
         var root = new XElement(XfdfNs + "xfdf", new XAttribute(XNamespace.Xml + "space", "preserve"), annots);
         if (pdfFileName is not null) root.Add(new XElement(XfdfNs + "f", new XAttribute("href", pdfFileName)));
         using var ms = new MemoryStream();
@@ -260,7 +260,7 @@ public static partial class CommentFiles
         // A DTD could pull in other files or blow up as it expands: refused outright, before any parsing.
         var head = Encoding.UTF8.GetString(file, 0, Math.Min(file.Length, 4096));
         if (head.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) || head.Contains("<!ENTITY", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("The XFDF file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end.");
+            throw new InvalidDataException(PdfStrings.Comment_XfdfDtd);
         XDocument doc;
         try
         {
@@ -270,13 +270,13 @@ public static partial class CommentFiles
         catch (XmlException ex)
         {
             throw new InvalidDataException(ex.Message.Contains("DTD", StringComparison.OrdinalIgnoreCase)
-                ? "The XFDF file has a DTD, which Inkvolt PDF doesn't read."
-                : $"The file isn't valid XFDF: {ex.Message}", ex);
+                ? PdfStrings.Comment_XfdfDtdShort
+                : Loc.Format(PdfStrings.Comment_XfdfInvalid, ex.Message), ex);
         }
-        if (doc.Root is not { } root || root.Name.LocalName != "xfdf") throw new InvalidDataException("The file isn't XFDF (its root element isn't <xfdf>).");
+        if (doc.Root is not { } root || root.Name.LocalName != "xfdf") throw new InvalidDataException(PdfStrings.Comment_NotXfdf);
 
         var elements = root.Elements().Where(x => x.Name.LocalName == "annots").SelectMany(a => a.Elements()).ToList();
-        if (elements.Count > MaxComments) throw new InvalidDataException($"The file has more than {MaxComments:N0} comments, the most Inkvolt PDF imports.");
+        if (elements.Count > MaxComments) throw new InvalidDataException(Loc.Format(PdfStrings.Comment_TooMany, MaxComments));
         var cleaner = new Cleaner(v => v);
         var records = new List<Record>();
         for (var i = 0; i < elements.Count; i++)
@@ -285,7 +285,7 @@ public static partial class CommentFiles
             var page = int.TryParse((string?)x.Attribute("page"), NumberStyles.None, CultureInfo.InvariantCulture, out var pg) ? pg : -1;
             if (!SubtypeOfElement.TryGetValue(x.Name.LocalName, out var subtype))
             {
-                if (x.Name.LocalName != "popup") skipped.Add($"Page {page + 1}, <{x.Name.LocalName}>: not a kind of comment Inkvolt PDF imports");
+                if (x.Name.LocalName != "popup") skipped.Add(Loc.Format(PdfStrings.Comment_SkippedElement, page + 1, x.Name.LocalName));
                 continue;
             }
             var dict = FromXfdf(x, subtype);

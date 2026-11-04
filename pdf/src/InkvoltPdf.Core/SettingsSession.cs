@@ -37,8 +37,8 @@ public sealed class SettingsSession
     public string? Summary => _order.Count switch
     {
         0 => null,
-        1 => "1 setting changed since Settings opened",
-        var n => $"{n} settings changed since Settings opened",
+        1 => PdfStrings.Settings_SummaryOne,
+        var n => Loc.Format(PdfStrings.Settings_SummaryMany, n),
     };
 
     /// <summary>The changed settings with the values they had when the window opened; the session is unchanged after.</summary>

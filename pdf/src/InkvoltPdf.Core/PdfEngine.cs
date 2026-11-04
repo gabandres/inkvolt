@@ -7,12 +7,12 @@ namespace InkvoltPdf.Core;
 
 /// <summary>An edit needs the document's permissions (owner) password: it was opened without it, or the one given is wrong.</summary>
 public sealed class OwnerPasswordRequiredException(bool wrongPassword, Exception? inner = null)
-    : Exception(wrongPassword ? "Incorrect permissions password." : "Editing this PDF needs its permissions (owner) password.", inner)
+    : Exception(wrongPassword ? PdfStrings.Doc_WrongOwnerPassword : PdfStrings.Doc_NeedsOwnerPassword, inner)
 {
     public bool WrongPassword { get; } = wrongPassword;
 }
 
-public sealed class PasswordRequiredException(bool wrongPassword) : Exception(wrongPassword ? "Incorrect password." : "This document is password protected.")
+public sealed class PasswordRequiredException(bool wrongPassword) : Exception(wrongPassword ? PdfStrings.Doc_WrongPassword : PdfStrings.Doc_PasswordProtected)
 {
     public bool WrongPassword { get; } = wrongPassword;
 }
@@ -398,7 +398,7 @@ public sealed partial class PdfEngine : IDisposable
                         area.X0, area.Y0, area.X1, area.Y1, (float)scale, (int)PixelFormats.BGR, pixels, cookie);
                 }
                 cancel.ThrowIfCancellationRequested();
-                if (result != 0) throw new InvalidOperationException($"MuPDF could not render page {page + 1} (error {result}).");
+                if (result != 0) throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_RenderFailed, page + 1, result));
                 return true;
             }
             finally
@@ -460,7 +460,7 @@ public sealed partial class PdfEngine : IDisposable
                     });
                 }
                 cancel.ThrowIfCancellationRequested();
-                if (failed != 0) throw new InvalidOperationException($"MuPDF could not render page {page + 1} (error {failed}).");
+                if (failed != 0) throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_RenderFailed, page + 1, failed));
                 return true;
             }
             finally
@@ -485,7 +485,7 @@ public sealed partial class PdfEngine : IDisposable
     private static void CheckSize(double width, double height)
     {
         if (width * height > MaxPixels)
-            throw new InvalidOperationException($"The image would be too large ({width:0} x {height:0} pixels). Use a lower zoom or resolution.");
+            throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_ImageTooLarge, width, height));
     }
 
     /// <summary>The text instance of the document, opened on first use. Call under _textGate.</summary>
@@ -509,7 +509,7 @@ public sealed partial class PdfEngine : IDisposable
             doc = _reopen(ctx);
             if (doc.EncryptionState == EncryptionState.Encrypted && !Unlock(doc, _password ?? ""))
                 throw new PasswordRequiredException(true);
-            if (doc.Pages.Count != _pages.Length) throw new InvalidOperationException("The document changed while open.");
+            if (doc.Pages.Count != _pages.Length) throw new InvalidOperationException(PdfStrings.Doc_ChangedWhileOpen);
             return (ctx, doc);
         }
         catch
@@ -1252,7 +1252,7 @@ public sealed partial class PdfEngine : IDisposable
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.KeepAlive(ctx);
-            if (ex is OutOfMemoryException) throw new InsufficientMemoryException("There isn't enough memory to open this document.", ex);
+            if (ex is OutOfMemoryException) throw new InsufficientMemoryException(PdfStrings.Doc_NotEnoughMemory, ex);
             throw;
         }
     }

@@ -23,29 +23,29 @@ public sealed class CommentItem(AnnotationInfo info, string pageHeader, int dept
     public string Title => TitleOf(Info);
 
     /// <summary>What a comment is called ("Highlight", "Arrow", "Callout"…).</summary>
-    public static string TitleOf(AnnotationInfo info) => info.ReplyTo is not null ? "Reply" : DrawingTitle(info) ?? info.Kind switch
+    public static string TitleOf(AnnotationInfo info) => info.ReplyTo is not null ? Strings.Review_KindReply : DrawingTitle(info) ?? info.Kind switch
     {
-        AnnotationKind.Stamp => string.IsNullOrWhiteSpace(info.Subject) ? "Stamp" : info.Subject,
-        AnnotationKind.Text => "Note",
-        AnnotationKind.FreeText => "Text box",
-        AnnotationKind.StrikeOut => "Strike-out",
-        AnnotationKind.Squiggly => "Squiggly underline",
-        AnnotationKind.FileAttachment => "Attached file",
-        AnnotationKind.Square => "Rectangle",
-        AnnotationKind.Circle => "Ellipse",
-        AnnotationKind.PolyLine => "Polyline",
-        AnnotationKind.Ink => "Drawing",
-        AnnotationKind.Caret => "Insert text",
-        AnnotationKind.Redact => "Redaction mark",
+        AnnotationKind.Stamp => string.IsNullOrWhiteSpace(info.Subject) ? Strings.Review_KindStamp : info.Subject,
+        AnnotationKind.Text => Strings.Review_KindNote,
+        AnnotationKind.FreeText => Strings.Review_KindTextBox,
+        AnnotationKind.StrikeOut => Strings.Review_KindStrikeOut,
+        AnnotationKind.Squiggly => Strings.Review_KindSquiggly,
+        AnnotationKind.FileAttachment => Strings.Review_KindAttachedFile,
+        AnnotationKind.Square => Strings.Review_KindRectangle,
+        AnnotationKind.Circle => Strings.Review_KindEllipse,
+        AnnotationKind.PolyLine => Strings.Review_KindPolyline,
+        AnnotationKind.Ink => Strings.Review_KindDrawing,
+        AnnotationKind.Caret => Strings.Review_KindInsertText,
+        AnnotationKind.Redact => Strings.Review_KindRedactionMark,
         AnnotationKind.Other => info.Subtype,
         _ => info.Kind.ToString(),
     };
 
     private static string? DrawingTitle(AnnotationInfo a) => !DrawTools.IsDrawing(a) || DrawTools.ToolOf(a) is not { } tool ? null : a.Subtype switch
     {
-        "Polygon" => "Polygon",
-        "PolyLine" => "Polyline",
-        "FreeText" when tool == ViewerTool.TextBox && a.Style?.Color is null => "Typewriter text",
+        "Polygon" => Strings.Review_KindPolygon,
+        "PolyLine" => Strings.Review_KindPolyline,
+        "FreeText" when tool == ViewerTool.TextBox && a.Style?.Color is null => Strings.Review_KindTypewriter,
         _ => DrawTools.Title(tool),
     };
 
@@ -94,7 +94,9 @@ public sealed class CommentItem(AnnotationInfo info, string pageHeader, int dept
         return b;
     }
 
-    public string AccessibleName => $"{Title}{(Info.Author is { Length: > 0 } a ? $" by {a}" : "")}, {PageHeader}: {Contents}";
+    public string AccessibleName => Info.Author is { Length: > 0 } a
+        ? Loc.Format(Strings.Review_CommentNameBy, Title, a, PageHeader, Contents)
+        : Loc.Format(Strings.Review_CommentName, Title, PageHeader, Contents);
     public override string ToString() => AccessibleName;
 }
 
@@ -111,13 +113,13 @@ public sealed class AttachmentItem(AttachmentInfo info, string? pageLabel)
         get
         {
             var parts = new List<string> { FileActions.FormatSize(Info.Size) };
-            if (pageLabel is not null) parts.Add($"on page {pageLabel}");
+            if (pageLabel is not null) parts.Add(Loc.Format(Strings.Review_AttachmentOnPage, pageLabel));
             if (!string.IsNullOrWhiteSpace(Info.Description) && Info.Description != Info.FileName) parts.Add(Info.Description.Trim());
             return string.Join(" · ", parts);
         }
     }
 
-    public string Tip => Info.Modified is { } m ? $"{Name}\nModified {m.LocalDateTime:g}" : Name;
+    public string Tip => Info.Modified is { } m ? Loc.Format(Strings.Review_AttachmentTip, Name, m.LocalDateTime) : Name;
     public string AccessibleName => $"{Name}, {Detail}";
     public override string ToString() => AccessibleName;
 }
@@ -131,7 +133,7 @@ public sealed class LayerNode(string label, LayerInfo? layer, List<LayerNode> ch
     public LayerInfo? Layer { get; } = layer;
     public List<LayerNode> Children { get; } = children;
     public bool IsEnabled => Layer is { Locked: false };
-    public string? Tip => Layer is { Locked: true } ? "The document locks this layer" : null;
+    public string? Tip => Layer is { Locked: true } ? Strings.Review_LayerLocked : null;
     public Visibility CheckVisibility => Layer is null ? Visibility.Collapsed : Visibility.Visible;
     public Visibility GroupVisibility => Layer is null ? Visibility.Visible : Visibility.Collapsed;
 
@@ -155,8 +157,8 @@ public sealed class LayerNode(string label, LayerInfo? layer, List<LayerNode> ch
 public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool brokenByEdits = false)
 {
     public SignatureInfo Info { get; } = info;
-    public string Title => Info.Status == SignatureStatus.Unsigned ? $"{Info.FieldName} (not signed)"
-        : Info.SubFilter == "ETSI.RFC3161" ? $"Document timestamp: {Info.SignerName ?? Info.FieldName}"
+    public string Title => Info.Status == SignatureStatus.Unsigned ? Loc.Format(Strings.Review_SigNotSigned, Info.FieldName)
+        : Info.SubFilter == "ETSI.RFC3161" ? Loc.Format(Strings.Review_SigTimestampTitle, Info.SignerName ?? Info.FieldName)
         : Info.SignerName ?? Info.FieldName;
     public string? LongTerm => Info.LongTerm?.Summary;
     public Visibility LongTermVisibility => Info.LongTerm is null ? Visibility.Collapsed : Visibility.Visible;
@@ -173,31 +175,34 @@ public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool br
     {
         get
         {
-            var lines = new List<string> { $"Field: {Info.FieldName}{(pageLabel is null ? " (invisible)" : $", page {pageLabel}")}" };
-            if (Info.SigningTime is { } t) lines.Add($"Signed: {t.LocalDateTime:F}{(Info.HasTimestamp ? " (timestamped)" : " (the signer's clock)")}");
+            var lines = new List<string>
+            {
+                pageLabel is null ? Loc.Format(Strings.Review_SigFieldInvisible, Info.FieldName) : Loc.Format(Strings.Review_SigFieldOnPage, Info.FieldName, pageLabel),
+            };
+            if (Info.SigningTime is { } t) lines.Add(Loc.Format(Info.HasTimestamp ? Strings.Review_SigSignedTimestamped : Strings.Review_SigSignedClock, t.LocalDateTime));
             if (Info.CertificationLevel is { } p) lines.Add(p switch
             {
-                1 => "Certified: no changes allowed",
-                2 => "Certified: filling in forms and signing allowed",
-                _ => "Certified: filling in forms, signing and comments allowed",
+                1 => Strings.Review_SigCertifiedNoChanges,
+                2 => Strings.Review_SigCertifiedForms,
+                _ => Strings.Review_SigCertifiedComments,
             });
-            if (!string.IsNullOrWhiteSpace(Info.Reason)) lines.Add($"Reason: {Info.Reason}");
-            if (!string.IsNullOrWhiteSpace(Info.Location)) lines.Add($"Location: {Info.Location}");
-            if (Info.SubFilter is { } f) lines.Add($"Format: {f}");
+            if (!string.IsNullOrWhiteSpace(Info.Reason)) lines.Add(Loc.Format(Strings.Review_SigReason, Info.Reason));
+            if (!string.IsNullOrWhiteSpace(Info.Location)) lines.Add(Loc.Format(Strings.Review_SigLocation, Info.Location));
+            if (Info.SubFilter is { } f) lines.Add(Loc.Format(Strings.Review_SigFormat, f));
             if (Info.Status != SignatureStatus.Unsigned)
-                lines.Add(Info.CoversWholeDocument ? "Covers the whole document"
-                    : Info.LongTerm?.OnlyValidationDataAfter == true ? "Covers the whole document; long-term validation data was added after it"
-                    : "Doesn't cover the whole document (changed after signing)");
+                lines.Add(Info.CoversWholeDocument ? Strings.Review_SigCoversAll
+                    : Info.LongTerm?.OnlyValidationDataAfter == true ? Strings.Review_SigCoversAllLtvAfter
+                    : Strings.Review_SigCoversPart);
             if (Info.Certificate is { } c)
             {
-                lines.Add($"Certificate: {c.Subject}");
-                lines.Add($"Issued by: {c.Issuer}");
-                lines.Add($"Valid: {c.NotBefore:d} to {c.NotAfter:d}{(Info.CertificateValidAtSigningTime == false ? " (not valid at signing time)" : "")}");
-                lines.Add($"Trust: {(Info.CertificateTrusted ? "trusted by Windows" : Info.CertificateStatus)}");
-                lines.Add($"Serial: {c.SerialNumber}");
-                lines.Add($"SHA-1 thumbprint: {c.Thumbprint}");
+                lines.Add(Loc.Format(Strings.Review_SigCertificate, c.Subject));
+                lines.Add(Loc.Format(Strings.Review_SigIssuedBy, c.Issuer));
+                lines.Add(Loc.Format(Info.CertificateValidAtSigningTime == false ? Strings.Review_SigValidDatesNotAtSigning : Strings.Review_SigValidDates, c.NotBefore, c.NotAfter));
+                lines.Add(Loc.Format(Strings.Review_SigTrust, Info.CertificateTrusted ? Strings.Review_SigTrustedByWindows : Info.CertificateStatus));
+                lines.Add(Loc.Format(Strings.Review_SigSerial, c.SerialNumber));
+                lines.Add(Loc.Format(Strings.Review_SigThumbprint, c.Thumbprint));
             }
-            foreach (var check in Info.LongTerm?.Chain ?? []) lines.Add($"Revocation data: {check.Name}: {Describe(check)}");
+            foreach (var check in Info.LongTerm?.Chain ?? []) lines.Add(Loc.Format(Strings.Review_SigRevocationData, check.Name, Describe(check)));
             if (!string.IsNullOrWhiteSpace(Info.Detail)) lines.Add(Info.Detail);
             return string.Join("\n", lines);
         }
@@ -205,15 +210,15 @@ public sealed class SignatureItem(SignatureInfo info, string? pageLabel, bool br
 
     private static string Describe(CertificateCheck c) => c.Outcome switch
     {
-        CertificateCheckOutcome.Root => "a root, needs none",
-        CertificateCheckOutcome.NoCheckNeeded => "an OCSP responder, needs none",
-        CertificateCheckOutcome.Good => "not revoked",
-        CertificateCheckOutcome.Revoked => $"REVOKED{(c.RevokedAt is { } at ? $" on {at.UtcDateTime:yyyy-MM-dd}" : "")}",
-        CertificateCheckOutcome.RevokedLater => $"revoked later, on {c.RevokedAt?.UtcDateTime:yyyy-MM-dd}",
-        CertificateCheckOutcome.Unknown => "unknown to its authority",
-        CertificateCheckOutcome.Stale => "too old to speak for the signing time",
-        CertificateCheckOutcome.NoIssuer => "its issuer isn't in the file or on this PC",
-        _ => "none in the file",
+        CertificateCheckOutcome.Root => Strings.Review_CheckRoot,
+        CertificateCheckOutcome.NoCheckNeeded => Strings.Review_CheckOcspResponder,
+        CertificateCheckOutcome.Good => Strings.Review_CheckGood,
+        CertificateCheckOutcome.Revoked => c.RevokedAt is { } at ? Loc.Format(Strings.Review_CheckRevokedOn, at.UtcDateTime) : Strings.Review_CheckRevoked,
+        CertificateCheckOutcome.RevokedLater => Loc.Format(Strings.Review_CheckRevokedLater, c.RevokedAt?.UtcDateTime),
+        CertificateCheckOutcome.Unknown => Strings.Review_CheckUnknown,
+        CertificateCheckOutcome.Stale => Strings.Review_CheckStale,
+        CertificateCheckOutcome.NoIssuer => Strings.Review_CheckNoIssuer,
+        _ => Strings.Review_CheckNone,
     };
 }
 
@@ -568,7 +573,7 @@ public partial class DocumentTab
         void Add(AnnotationInfo a, int depth, HashSet<string> seen)
         {
             if (!seen.Add(a.Id)) return;
-            items.Add(new CommentItem(a, $"Page {PageLabel(a.PageIndex)}", Math.Min(depth, 4)));
+            items.Add(new CommentItem(a, Loc.Format(Strings.Review_PageHeader, PageLabel(a.PageIndex)), Math.Min(depth, 4)));
             foreach (var r in replies[a.Id].OrderBy(r => r.Modified ?? DateTimeOffset.MinValue)) Add(r, depth + 1, seen);
         }
         var seen = new HashSet<string>();
@@ -586,8 +591,8 @@ public partial class DocumentTab
         if (selectedId is not null && shown.FirstOrDefault(c => c.Info.Id == selectedId) is { } again) CommentList.SelectedItem = again;
         _syncingComments = false;
         CommentsEmpty.Text = items.Count == 0
-            ? "No comments yet. Select text and press Ctrl+Shift+H to highlight it, or add a note."
-            : shown.Count == 0 ? "No comments match." : "";
+            ? Strings.Review_NoComments
+            : shown.Count == 0 ? Strings.Review_NoCommentsMatch : "";
         CommentsEmpty.Visibility = CommentsEmpty.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         UpdatePaneDetail();
     }
@@ -604,7 +609,7 @@ public partial class DocumentTab
     private bool ReviewIsCurrent()
     {
         if (ReferenceEquals(_reviewData, Session.ContentKey)) return true;
-        Notify("Comments are still being refreshed after the last change. Try again in a moment.");
+        Notify(Strings.Review_StillRefreshing);
         return false;
     }
 
@@ -616,13 +621,13 @@ public partial class DocumentTab
         if (!CanMarkup) return false;
         if (Viewer.SelectedPageCount > 50)
         {
-            Notify("Select at most 50 pages of text to mark it up.", error: true);
+            Notify(Strings.Review_MarkupTooMany, error: true);
             return false;
         }
-        if (await SelectionLineRects("Marking up text") is not { } parts) return false;
+        if (await SelectionLineRects(Strings.Review_MarkingUp) is not { } parts) return false;
         if (parts.Count == 0)
         {
-            Notify("The selection has no text to mark.");
+            Notify(Strings.Review_NoTextToMark);
             return false;
         }
         var color = kind switch
@@ -633,7 +638,11 @@ public partial class DocumentTab
             _ => AnnotColor.Yellow,
         };
         var author = Author;
-        var label = kind switch { TextMarkupKind.Underline => "Underline text", TextMarkupKind.StrikeOut => "Strike out text", TextMarkupKind.Squiggly => "Squiggly underline", _ => "Highlight text" };
+        var label = kind switch
+        {
+            TextMarkupKind.Underline => Strings.Review_UndoUnderline, TextMarkupKind.StrikeOut => Strings.Review_UndoStrikeOut,
+            TextMarkupKind.Squiggly => Strings.Review_UndoSquiggly, _ => Strings.Review_UndoHighlight,
+        };
         var ok = await RunEdit(label, (d, pw) =>
         {
             foreach (var (page, rects) in parts) d = Annotations.AddTextMarkup(d, pw, page, kind, rects, color, null, author);
@@ -650,10 +659,10 @@ public partial class DocumentTab
         if (text is null)
         {
             if (Window.GetWindow(this) is not { } owner) return false;
-            var dlg = new FormDialog(owner, "Add note", "Add");
+            var dlg = new FormDialog(owner, Strings.Review_AddNoteTitle, Strings.Common_Add);
             var box = NoteBox(dlg, "");
-            dlg.AddNote($"Shown on page {PageLabel(page)} as a note icon; its text appears when you point at it. Author: {Author}.");
-            dlg.Validate(() => box.Text.Trim().Length == 0 ? "Type the note's text." : null);
+            dlg.AddNote(Loc.Format(Strings.Review_AddNoteNote, PageLabel(page), Author));
+            dlg.Validate(() => box.Text.Trim().Length == 0 ? Strings.Review_AddNoteEmpty : null);
             if (!dlg.ShowModal()) return false;
             text = box.Text.Trim();
         }
@@ -662,14 +671,14 @@ public partial class DocumentTab
         y = Math.Clamp(y, 0, Math.Max(0, g.Height - 20));
         var author = Author;
         var note = text;
-        var ok = await RunEdit("Add note", (d, pw) => Annotations.AddNote(d, pw, page, x, y, note, author), contentOnly: true);
+        var ok = await RunEdit(Strings.Review_AddNoteTitle, (d, pw) => Annotations.AddNote(d, pw, page, x, y, note, author), contentOnly: true);
         if (ok && Viewer.Tool == ViewerTool.AddNote) Viewer.Tool = ViewerTool.Hand; // one note per click, like other editors
         return ok;
     }
 
     private static TextBox NoteBox(FormDialog dlg, string text)
     {
-        var box = dlg.AddText("Text", text);
+        var box = dlg.AddText(Strings.Review_NoteText, text);
         box.AcceptsReturn = true;
         box.TextWrapping = TextWrapping.Wrap;
         box.MinHeight = 110;
@@ -685,23 +694,23 @@ public partial class DocumentTab
         if (newText is null)
         {
             if (Window.GetWindow(this) is not { } owner) return false;
-            var dlg = new FormDialog(owner, a.Kind == AnnotationKind.Text ? "Edit note" : "Edit comment", "Save");
+            var dlg = new FormDialog(owner, a.Kind == AnnotationKind.Text ? Strings.Review_EditNote : Strings.Review_EditComment, Strings.Common_Save);
             var box = NoteBox(dlg, a.Contents);
             var who = string.Join(" · ", new[] { a.Author, a.Modified?.LocalDateTime.ToString("g") }.Where(s => !string.IsNullOrWhiteSpace(s)));
-            dlg.AddNote($"Page {PageLabel(a.PageIndex)}{(who.Length > 0 ? $" · {who}" : "")}");
+            dlg.AddNote(who.Length > 0 ? Loc.Format(Strings.Review_EditNoteWho, PageLabel(a.PageIndex), who) : Loc.Format(Strings.Review_PageHeader, PageLabel(a.PageIndex)));
             if (!dlg.ShowModal()) return false;
             newText = box.Text.TrimEnd();
         }
         if (newText == a.Contents) return false;
         var text = newText;
-        return await RunEdit("Edit comment", (d, pw) => Annotations.SetContents(d, pw, a.Id, text), contentOnly: true);
+        return await RunEdit(Strings.Review_EditComment, (d, pw) => Annotations.SetContents(d, pw, a.Id, text), contentOnly: true);
     }
 
     public async Task<bool> DeleteComment(AnnotationInfo a)
     {
         if (!ReviewIsCurrent()) return false;
         var replies = _annotations.Count(x => x.ReplyTo == a.Id);
-        return await RunEdit(replies > 0 ? $"Delete comment and {replies} repl{(replies == 1 ? "y" : "ies")}" : "Delete comment",
+        return await RunEdit(replies > 0 ? Loc.Plural(replies, Strings.Review_UndoDeleteReplies_One, Strings.Review_UndoDeleteReplies_Many) : Strings.Review_UndoDeleteComment,
             (d, pw) => Annotations.Delete(d, pw, a.Id), contentOnly: true);
     }
 
@@ -716,7 +725,7 @@ public partial class DocumentTab
         AttachmentsEmpty.Visibility = items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         AttachmentsBadge.Visibility = items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AttachmentsBadgeText.Text = items.Count > 99 ? "99+" : items.Count.ToString();
-        AttachmentsRail.ToolTip = items.Count == 0 ? "Attachments" : $"Attachments ({items.Count} file{(items.Count == 1 ? "" : "s")})";
+        AttachmentsRail.ToolTip = items.Count == 0 ? Strings.Review_Attachments : Loc.Plural(items.Count, Strings.Review_AttachmentsCount_One, Strings.Review_AttachmentsCount_Many);
         System.Windows.Automation.AutomationProperties.SetName(AttachmentsRail, (string)AttachmentsRail.ToolTip);
         UpdateAttachmentButtons();
         UpdatePaneDetail();
@@ -742,9 +751,9 @@ public partial class DocumentTab
         {
             var dlg = new SaveFileDialog
             {
-                Title = "Save attachment",
+                Title = Strings.Review_SaveAttachmentTitle,
                 FileName = SafeFileName(a.FileName),
-                Filter = "All files (*.*)|*.*",
+                Filter = Strings.Review_AllFilesFilter,
                 InitialDirectory = AppSettings.Current.LastFolder is { Length: > 0 } dir && Directory.Exists(dir) ? dir : null,
             };
             if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
@@ -772,17 +781,16 @@ public partial class DocumentTab
             // apps then treat it with the same care (SmartScreen, Office Protected View) as the PDF it came from.
             await Task.Run(() => AtomicFile.WriteAllBytes(target, Attachments.Extract(data, pw, a.Key), tmp => WriteZoneIdentifier(tmp, zone)));
             await Task.Run(() => WriteZoneIdentifier(target, zone));
-            Notify($"Saved {Path.GetFileName(path)}");
+            Notify(Loc.Format(Strings.Review_SavedFile, Path.GetFileName(path)));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            Prompt.Error(Window.GetWindow(this), "Couldn't save the attachment", ex.Message);
+            Prompt.Error(Window.GetWindow(this), Strings.Review_SaveAttachmentFailed, ex.Message);
         }
     }
 
     private void OpenInTabRefused(string path) =>
-        Prompt.Info(Window.GetWindow(this), $"{Path.GetFileName(path)} is open in Inkvolt PDF",
-            "Choose a different name, or close that document first.");
+        Prompt.Info(Window.GetWindow(this), Loc.Format(Strings.Review_OpenInTabTitle, Path.GetFileName(path)), Strings.Review_OpenInTabBody);
 
     /// <summary>
     /// The Mark of the Web for a file taken out of the document at <paramref name="source"/>: Internet zone (3) or the
@@ -855,7 +863,7 @@ public partial class DocumentTab
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            Prompt.Error(Window.GetWindow(this), $"Couldn't open {a.FileName}", ex.Message);
+            Prompt.Error(Window.GetWindow(this), Loc.Format(Strings.Review_OpenAttachmentFailed, a.FileName), ex.Message);
         }
     }
 
@@ -864,7 +872,7 @@ public partial class DocumentTab
         if (!Session.IsPdf) return false;
         if (path is null)
         {
-            var dlg = new OpenFileDialog { Title = "Attach a file", Filter = "All files (*.*)|*.*" };
+            var dlg = new OpenFileDialog { Title = Strings.Review_AttachTitle, Filter = Strings.Review_AllFilesFilter };
             if (dlg.ShowDialog(Window.GetWindow(this)) != true) return false;
             path = dlg.FileName;
         }
@@ -872,18 +880,18 @@ public partial class DocumentTab
         try
         {
             var info = new FileInfo(path);
-            if (info.Length > 512L * 1024 * 1024) throw new IOException("Files over 512 MB can't be attached.");
+            if (info.Length > 512L * 1024 * 1024) throw new IOException(Strings.Review_AttachTooBig);
             var source = path;
             bytes = await Task.Run(() => File.ReadAllBytes(source));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(Window.GetWindow(this), "Couldn't read the file", ex.Message);
+            Prompt.Error(Window.GetWindow(this), Strings.Review_ReadFileFailed, ex.Message);
             return false;
         }
         var name = Path.GetFileName(path);
         var modified = File.GetLastWriteTime(path);
-        var ok = await RunEdit($"Attach {name}", (d, pw) => Attachments.Add(d, pw, name, bytes, description, modified), contentOnly: true);
+        var ok = await RunEdit(Loc.Format(Strings.Review_UndoAttach, name), (d, pw) => Attachments.Add(d, pw, name, bytes, description, modified), contentOnly: true);
         if (ok) ShowPane(NavPaneKind.Attachments);
         return ok;
     }
@@ -891,7 +899,7 @@ public partial class DocumentTab
     public async Task<bool> RemoveAttachment(AttachmentInfo a)
     {
         if (!ReviewIsCurrent()) return false;
-        return await RunEdit($"Remove attachment {a.FileName}", (d, pw) => Attachments.Remove(d, pw, a.Key), contentOnly: true);
+        return await RunEdit(Loc.Format(Strings.Review_UndoRemoveAttachment, a.FileName), (d, pw) => Attachments.Remove(d, pw, a.Key), contentOnly: true);
     }
 
     private static string SafeFileName(string name)
@@ -988,7 +996,7 @@ public partial class DocumentTab
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 Log.Write($"Showing layers failed: {ex}");
-                if (ticket == _layerTicket) Notify($"Couldn't change the layers: {ex.Message}", error: true);
+                if (ticket == _layerTicket) Notify(Loc.Format(Strings.Review_LayersFailed, ex.Message), error: true);
                 return;
             }
         }
@@ -1044,7 +1052,7 @@ public partial class DocumentTab
         var visibility = _layers.Where(l => _layerChoice.ContainsKey(l.Name)).ToDictionary(l => l.Id, l => _layerChoice[l.Name]);
         var choice = new Dictionary<string, bool>(_layerChoice);
         _layerChoice.Clear(); // the saved defaults are what shows now
-        if (!await RunEdit("Save layer visibility", (d, pw) => Layers.SetDefaultVisibility(d, pw, visibility)))
+        if (!await RunEdit(Strings.Review_UndoLayerVisibility, (d, pw) => Layers.SetDefaultVisibility(d, pw, visibility)))
         {
             foreach (var (k, v) in choice) _layerChoice[k] = v;
             return;
@@ -1079,30 +1087,30 @@ public partial class DocumentTab
     };
 
     internal static string SignatureSummary(SignatureInfo s, bool brokenByEdits = false) => brokenByEdits
-        ? "Valid when opened. Your edits changed the signed document, so this signature no longer verifies. Undo them, or keep the signed original by saving your changes as a copy."
+        ? Strings.Review_SigBrokenByEdits
         : s.Status switch
     {
-        SignatureStatus.Unsigned => "Empty signature field.",
-        SignatureStatus.Invalid => "Invalid: the signed content was altered, or the signature is damaged.",
-        SignatureStatus.DisallowedChanges => "Invalid: the signed bytes are intact, but the document was later changed in ways this signature doesn't allow, so what you see may not be what was signed.",
-        SignatureStatus.Unsupported => "Not checked: Inkvolt PDF can't verify this kind of signature.",
+        SignatureStatus.Unsigned => Strings.Review_SigEmpty,
+        SignatureStatus.Invalid => Strings.Review_SigInvalid,
+        SignatureStatus.DisallowedChanges => Strings.Review_SigDisallowed,
+        SignatureStatus.Unsupported => Strings.Review_SigUnsupported,
         SignatureStatus.ModifiedAfterSigning => s.CertificateTrusted
-            ? "The signature is valid, but the document was modified after signing."
-            : "The signature is intact, but the document was modified after signing and the certificate isn't trusted on this PC.",
-        _ when !s.CertificateTrusted => $"The signature is intact, but the certificate isn't trusted on this PC ({s.CertificateStatus}).",
-        _ when s.SubFilter == "ETSI.RFC3161" => "Valid: the document hasn't changed since this timestamp.",
-        _ => "Valid: the document hasn't changed since it was signed.",
+            ? Strings.Review_SigModified
+            : Strings.Review_SigModifiedUntrusted,
+        _ when !s.CertificateTrusted => Loc.Format(Strings.Review_SigUntrusted, s.CertificateStatus),
+        _ when s.SubFilter == "ETSI.RFC3161" => Strings.Review_SigValidTimestamp,
+        _ => Strings.Review_SigValid,
     };
 
-    private string ShortStatus(SignatureInfo s) => BrokenByEdits(s) ? "valid when opened, invalidated by your edits" : s.Status switch
+    private string ShortStatus(SignatureInfo s) => BrokenByEdits(s) ? Strings.Review_SigShortBroken : s.Status switch
     {
-        SignatureStatus.ModifiedAfterSigning when AppendedByEdits(s) => "intact; your changes were added after signing",
-        SignatureStatus.Invalid => "invalid",
-        SignatureStatus.DisallowedChanges => "invalid: changed in ways the signature doesn't allow",
-        SignatureStatus.Unsupported => "can't be checked",
-        SignatureStatus.ModifiedAfterSigning => "modified after signing",
-        _ when !s.CertificateTrusted => "certificate not trusted",
-        _ => "valid",
+        SignatureStatus.ModifiedAfterSigning when AppendedByEdits(s) => Strings.Review_SigShortAppended,
+        SignatureStatus.Invalid => Strings.Review_SigShortInvalid,
+        SignatureStatus.DisallowedChanges => Strings.Review_SigShortDisallowed,
+        SignatureStatus.Unsupported => Strings.Review_SigShortUnsupported,
+        SignatureStatus.ModifiedAfterSigning => Strings.Review_SigShortModified,
+        _ when !s.CertificateTrusted => Strings.Review_SigShortUntrusted,
+        _ => Strings.Review_SigShortValid,
     };
 
     private void ShowSignatures(IReadOnlyList<SignatureInfo> sigs, bool onOpen)
@@ -1138,18 +1146,20 @@ public partial class DocumentTab
         if (signed.Count == 1)
         {
             var s = signed[0];
-            text = $"Signed by {s.SignerName ?? s.FieldName} — {ShortStatus(s)}.";
+            text = Loc.Format(Strings.Review_SigBarOne, s.SignerName ?? s.FieldName, ShortStatus(s));
         }
         else if (signed.All(BrokenByEdits))
         {
-            text = $"{signed.Count} signatures were valid when opened; your edits invalidated them.";
+            text = Loc.Format(Strings.Review_SigBarAllBroken, signed.Count);
         }
         else
         {
             var problems = signed.Count(s => SignatureSeverity(s, BrokenByEdits(s)) != "ok");
             text = problems == 0
-                ? $"{signed.Count} signatures, all valid."
-                : $"{signed.Count} signatures; {problems} {(problems == 1 ? "has a problem" : "have problems")}: {string.Join("; ", signed.Where(s => SignatureSeverity(s, BrokenByEdits(s)) != "ok").Take(3).Select(s => $"{s.SignerName ?? s.FieldName} — {ShortStatus(s)}"))}.";
+                ? Loc.Format(Strings.Review_SigBarAllValid, signed.Count)
+                : Loc.Plural(problems, Strings.Review_SigBarProblems_One, Strings.Review_SigBarProblems_Many, signed.Count,
+                    string.Join("; ", signed.Where(s => SignatureSeverity(s, BrokenByEdits(s)) != "ok").Take(3)
+                        .Select(s => Loc.Format(Strings.Review_SigBarProblem, s.SignerName ?? s.FieldName, ShortStatus(s)))));
         }
         var severities = signed.Select(s => SignatureSeverity(s, BrokenByEdits(s))).ToList();
         var worst = severities.Contains("bad") ? "bad" : severities.Contains("warn") ? "warn" : "ok";
@@ -1171,16 +1181,13 @@ public partial class DocumentTab
     /// signed revision: say so, and offer the rewrite that removes it for good.
     /// </summary>
     private void NotifyRemovedItemKept() =>
-        Notify("The removed item is still recoverable from the signed original revision. To remove it for good, flatten the file and save it as a copy (this breaks the signatures).",
-            "Flatten…", () => _ = FlattenRevisionsAsync());
+        Notify(Strings.Review_RemovedItemKept, Strings.Review_FlattenAction, () => _ = FlattenRevisionsAsync());
 
     private async Task FlattenRevisionsAsync()
     {
         if (_disposed || IsBusy) return;
-        if (!Prompt.Confirm(Window.GetWindow(this), "Flatten the signed file?",
-                "The file is rewritten as a single revision: what your edits removed is gone for good, and its signatures will no longer verify. Save the result as a copy (Save As) to keep the signed original.",
-                "Flatten", warning: true)) return;
-        await RunEdit("Flatten (remove earlier revisions)", SignedEdits.Flatten);
+        if (!Prompt.Confirm(Window.GetWindow(this), Strings.Review_FlattenTitle, Strings.Review_FlattenBody, Strings.Review_FlattenButton, warning: true)) return;
+        await RunEdit(Strings.Review_UndoFlatten, SignedEdits.Flatten);
     }
 
     // ───────────────────────────── Redaction ─────────────────────────────
@@ -1192,8 +1199,9 @@ public partial class DocumentTab
         RedactBar.Visibility = tool || marks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         var pages = marks.Select(m => m.PageIndex).Distinct().Count();
         RedactBarText.Text = marks.Count == 0
-            ? "Drag over the areas to black out. Nothing is removed until you apply the redactions."
-            : $"{marks.Count} area{(marks.Count == 1 ? "" : "s")} on {pages} page{(pages == 1 ? "" : "s")} marked for redaction. Click a mark with the redaction tool to remove it.";
+            ? Strings.Review_RedactBarEmpty
+            : marks.Count == 1 ? Strings.Review_RedactBarOne
+            : Loc.Format(pages == 1 ? Strings.Review_RedactBarOnePage : Strings.Review_RedactBarManyPages, marks.Count, pages);
         RedactApply.IsEnabled = RedactClear.IsEnabled = marks.Count > 0;
         RedactHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
         StateChanged?.Invoke(this, EventArgs.Empty);
@@ -1206,11 +1214,11 @@ public partial class DocumentTab
     private async Task<List<(int Page, List<RectD> Rects)>?> SelectionLineRects(string title)
     {
         var engine = Viewer.Engine;
-        using var prompt = new ProgressPrompt(Window.GetWindow(this), title, "Reading the selected text…");
+        using var prompt = new ProgressPrompt(Window.GetWindow(this), title, Strings.Review_ReadingSelection);
         try
         {
             var parts = await Viewer.GetSelectionLineRectsAsync(
-                new Progress<(int Done, int Total)>(p => prompt.Report($"Reading page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / p.Total)), prompt.Token);
+                new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Review_ReadingPage, p.Done, p.Total), (double)p.Done / p.Total)), prompt.Token);
             return ReferenceEquals(engine, Viewer.Engine) ? parts : null;
         }
         catch (OperationCanceledException)
@@ -1219,7 +1227,7 @@ public partial class DocumentTab
         }
         catch (ObjectDisposedException)
         {
-            Notify("The document changed meanwhile. Select the text again.");
+            Notify(Strings.Review_ChangedSelectAgain);
             return null;
         }
     }
@@ -1228,7 +1236,7 @@ public partial class DocumentTab
     public async Task<int> RedactSelection()
     {
         if (!Session.IsPdf || !Viewer.HasSelection) return 0;
-        if (await SelectionLineRects("Marking text for redaction") is not { } parts) return -1;
+        if (await SelectionLineRects(Strings.Review_MarkingForRedaction) is not { } parts) return -1;
         var marks = parts.SelectMany(p => p.Rects.Select(r => new RedactMark(p.Page, r.Inflate(0.5)))).ToList();
         Viewer.AddRedactions(marks);
         Viewer.ClearSelection();
@@ -1241,7 +1249,7 @@ public partial class DocumentTab
         if (!Session.IsPdf) return 0;
         var marks = _results.SelectMany(h => h.Rects.Select(r => new RedactMark(h.Page, r.Inflate(0.5)))).ToList();
         Viewer.AddRedactions(marks);
-        if (marks.Count > 0) Notify($"Marked {_results.Count} match{(_results.Count == 1 ? "" : "es")} for redaction. Check the marks, then apply them.");
+        if (marks.Count > 0) Notify(Loc.Plural(_results.Count, Strings.Review_MarkedMatches_One, Strings.Review_MarkedMatches_Many));
         return marks.Count;
     }
 
@@ -1254,11 +1262,11 @@ public partial class DocumentTab
         if (!Session.IsPdf || Viewer.Engine is not { } engine) return null;
         var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
         RedactionSearchResult found;
-        using (var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Searching the pages…"))
+        using (var prompt = new ProgressPrompt(Window.GetWindow(this), Strings.Review_RedactPatternTitle, Strings.Review_SearchingPages))
         {
             try
             {
-                var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Searching page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / p.Total));
+                var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Review_SearchingPage, p.Done, p.Total), (double)p.Done / p.Total));
                 found = await Task.Run(() => RedactionSearch.Find(engine, options, ocr, progress, prompt.Token), prompt.Token);
             }
             catch (OperationCanceledException)
@@ -1267,13 +1275,13 @@ public partial class DocumentTab
             }
             catch (ObjectDisposedException)
             {
-                Notify("The document changed meanwhile. Try again.");
+                Notify(Strings.Review_ChangedTryAgain);
                 return null;
             }
             catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or ArgumentException or InvalidOperationException or MuPDFCore.MuPDFException)
             {
                 Log.Write($"Redact by pattern stopped: {ex.GetType().Name}");
-                Prompt.Error(Window.GetWindow(this), "The search stopped", ex is MuPDFCore.MuPDFException ? "This PDF is damaged and can't be read to the end, so nothing was changed." : ex.Message);
+                Prompt.Error(Window.GetWindow(this), Strings.Review_SearchStopped, ex is MuPDFCore.MuPDFException ? Strings.Review_SearchDamaged : ex.Message);
                 return null;
             }
         }
@@ -1289,7 +1297,7 @@ public partial class DocumentTab
         if (await SearchPatterns(options) is not { } found || Window.GetWindow(this) is not { } owner) return false;
         if (found.Hits.Count == 0 && found.Looks.Count == 0)
         {
-            Notify("Nothing matching was found on the pages searched.");
+            Notify(Strings.Review_NothingMatching);
             return false;
         }
         var earlier = Viewer.Redactions.ToList();
@@ -1352,10 +1360,10 @@ public partial class DocumentTab
         var name = Session.DisplayName;
         string? failure = null;
         RedactionCheckReport? check = null;
-        using var prompt = new ProgressPrompt(Window.GetWindow(this), "Redact by pattern", "Reading the result back…");
+        using var prompt = new ProgressPrompt(Window.GetWindow(this), Strings.Review_RedactPatternTitle, Strings.Review_ReadingBack);
         try
         {
-            var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Reading back page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+            var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Review_ReadingBackPage, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
             var remaining = await Task.Run(() =>
             {
                 // A page the app has just recognized has its words again in the text; one without (no OCR, or OCR cancelled) is read now.
@@ -1366,22 +1374,22 @@ public partial class DocumentTab
             if (remaining.Count > 0)
             {
                 rows.AddRange(remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere)));
-                failure = $"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Run Redact by Pattern again, or undo.";
+                failure = Loc.Plural(remaining.Count, Strings.Review_StillThere_One, Strings.Review_StillThere_Many, RedactionReport.Pages(remaining.Select(h => h.Page)));
             }
-            prompt.Report("Looking through the rest of the file…", 1);
+            prompt.Report(Strings.Review_LookingThroughRest, 1);
             check = await Task.Run(() => RedactionCheck.Run(data, password, checkOptions, null, prompt.Token), prompt.Token);
             // Only what was removed being left fails it; what else the check finds in the file opens its own report next.
-            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= $"Elsewhere in the file: {check.Summary}";
+            if (check.Findings.Any(f => RedactionCheck.IsLeftover(f.Kind))) failure ??= Loc.Format(Strings.Review_ElsewhereInFile, check.Summary);
             else if (check.Incomplete) failure ??= string.Join(" ", check.Notes);
         }
         catch (OperationCanceledException)
         {
-            failure = "The result wasn't read back: you cancelled it, so nothing says what was removed is gone.";
+            failure = Strings.Review_ReadBackCancelled;
         }
         catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or PasswordRequiredException or MuPDFCore.MuPDFException or ObjectDisposedException or NotSupportedException or StreamTooLargeException)
         {
             Log.Write($"Reading a redaction back failed: {ex.GetType().Name}");
-            failure = "The result couldn't be read back, so nothing says what was removed is gone.";
+            failure = Strings.Review_ReadBackFailed;
         }
         return (new RedactionFileReport(name, rows, found.Looks, failure), check, checkOptions);
     }
@@ -1399,9 +1407,10 @@ public partial class DocumentTab
         if (marks.Count == 0 || !Session.IsPdf) return false;
         var pages = marks.Select(m => m.PageIndex).Distinct().Order().ToList();
         var list = string.Join(", ", pages.Take(12).Select(PageLabel)) + (pages.Count > 12 ? "…" : "");
-        if (confirm && !Prompt.Confirm(Window.GetWindow(this), $"Apply {marks.Count} redaction{(marks.Count == 1 ? "" : "s")}?",
-                $"The marked areas are blacked out and their content removed. {(pages.Count == 1 ? "Page" : "Pages")} {list} become images: their text can no longer be selected, searched or copied, and their links, comments and form fields are flattened into the image.{(Session.SignedOnOpen ? "\n\nThis document is digitally signed: redaction rewrites the file, so its signatures will no longer verify." : "")}\n\nYou can undo this until you save. Once saved, the removed content can't be recovered.",
-                "Apply redactions", warning: true)) return false;
+        if (confirm && !Prompt.Confirm(Window.GetWindow(this), Loc.Plural(marks.Count, Strings.Review_ApplyTitle_One, Strings.Review_ApplyTitle_Many),
+                Loc.Format(pages.Count == 1 ? Strings.Review_ApplyBodyPage : Strings.Review_ApplyBodyPages, list)
+                    + (Session.SignedOnOpen ? "\n\n" + Strings.Review_ApplyBodySigned : "") + "\n\n" + Strings.Review_ApplyBodyUndo,
+                Strings.Review_ApplyButton, warning: true)) return false;
         var areas = marks.GroupBy(m => m.PageIndex).ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.Select(m => m.Rect)]);
         // What is about to be redacted, for the check afterwards: the text under the marks, the document as it is.
         var before = Session.Data;
@@ -1409,16 +1418,16 @@ public partial class DocumentTab
         var ocr = PageOcr.Engine;
         var recognized = 0;
         var ocrSkipped = false;
-        var ok = await RunEdit($"Redact {marks.Count} area{(marks.Count == 1 ? "" : "s")}", (d, pw) =>
+        var ok = await RunEdit(Loc.Plural(marks.Count, Strings.Review_UndoRedact_One, Strings.Review_UndoRedact_Many), (d, pw) =>
         {
             var redacted = Redaction.Apply(d, pw, areas);
             if (ocr is null) return redacted;
             // The redacted pages are images now: recognize what's left on them and lay it back as invisible text, so they
             // stay searchable and selectable. Part of the same edit (one undo step). Cancel skips only this part.
-            var progress = Dispatcher.Invoke(() => new ProgressPrompt(Window.GetWindow(this), "Applying redactions", "Recognizing text…"));
+            var progress = Dispatcher.Invoke(() => new ProgressPrompt(Window.GetWindow(this), Strings.Review_ApplyingTitle, Strings.Review_RecognizingText));
             try
             {
-                var words = RecognizePages(ocr, redacted, pw, pages, progress, "Recognizing the text left on redacted pages", areas).Words;
+                var words = RecognizePages(ocr, redacted, pw, pages, progress, Strings.Review_RecognizingRedacted, areas).Words;
                 recognized = words.Values.Sum(w => w.Count);
                 return recognized == 0 ? redacted : TextLayer.AddInvisibleText(redacted, pw, words);
             }
@@ -1436,8 +1445,8 @@ public partial class DocumentTab
         {
             Viewer.ClearRedactions();
             if (Viewer.Tool == ViewerTool.Redact) Viewer.Tool = ViewerTool.Hand;
-            if (ocr is null) Notify("The redacted pages are images now and their text can't be searched: no text recognition (OCR) language is installed in Windows.");
-            else if (ocrSkipped) Notify("Redacted. Text recognition was cancelled, so the redacted pages can't be searched; use Recognize Text (OCR) to add it later.");
+            if (ocr is null) Notify(Strings.Review_RedactedNoOcr);
+            else if (ocrSkipped) Notify(Strings.Review_RedactedOcrCancelled);
             if (check) _ = CheckAfterApply(new RedactionCheckOptions { Values = values, Areas = areas, Original = before });
         }
         return ok;
@@ -1463,7 +1472,7 @@ public partial class DocumentTab
             return;
         }
         if (_disposed || !ReferenceEquals(data, Session.Data)) return;
-        if (report.IsClean) Notify("Redaction checked: nothing of what was redacted is left in the file.");
+        if (report.IsClean) Notify(Strings.Review_RedactionChecked);
         else await RedactionCheckActions.Show(this, report, options);
     }
 
@@ -1482,13 +1491,13 @@ public partial class DocumentTab
         }
         if (items.Count > 0 || findings.Any(f => f.Fix == RedactionFix.Rewrite))
         {
-            var outcome = await TryEdit("Remove redaction leftovers", (d, pw) =>
+            var outcome = await TryEdit(Strings.Review_UndoRemoveLeftovers, (d, pw) =>
                 SignedEdits.Run(() => Sanitizer.Sanitize(d, pw, items).Data, allowRewrite: true).Data, signaturesWarned: true);
             if (outcome is not (EditOutcome.Done or EditOutcome.NoChange)) return;
         }
         // Checked again with what was redacted, not where (the fix redacted more, and earlier areas are images now).
         if (await RedactionCheckActions.Run(this, options with { Areas = null, Original = null }) is not { } again) return;
-        if (again.IsClean) Notify("Fixed: nothing of what was redacted is left in the file. Save to keep it.");
+        if (again.IsClean) Notify(Strings.Review_LeftoversFixed);
         else await RedactionCheckActions.Show(this, again, options);
     }
 
@@ -1503,37 +1512,32 @@ public partial class DocumentTab
         if (!Session.IsPdf || IsBusy || Window.GetWindow(this) is not { } owner) return false;
         if (PageOcr.Engine is not { } fallback)
         {
-            Prompt.Info(owner, "Text recognition isn't available", PageOcr.Unavailable);
+            Prompt.Info(owner, Strings.Review_OcrUnavailable, PageOcr.Unavailable);
             return false;
         }
         var count = Viewer.PageCount;
         var current = Viewer.CurrentPage;
         var settings = AppSettings.Current;
-        var dlg = new FormDialog(owner, "Recognize Text (OCR)", "Recognize", 480);
-        var which = dlg.AddChoice("Pages", ["All pages without text", $"Current page ({PageLabel(current)})", "Page range"]);
-        var range = dlg.Add("Page range", new TextBox { Text = Core.PageRange.Format(SelectedPages.Length > 1 ? SelectedPages : [current]) });
+        var dlg = new FormDialog(owner, Strings.Review_OcrTitle, Strings.Review_OcrButton, 480);
+        var which = dlg.AddChoice(Strings.Common_Pages, [Strings.Review_OcrAllWithoutText, Loc.Format(Strings.Review_OcrCurrentPage, PageLabel(current)), Strings.Review_OcrPageRange]);
+        var range = dlg.Add(Strings.Review_OcrPageRange, new TextBox { Text = Core.PageRange.Format(SelectedPages.Length > 1 ? SelectedPages : [current]) });
         range.GotKeyboardFocus += (_, _) => which.SelectedIndex = 2;
         var languages = PageOcr.Languages;
         var chosen = PageOcr.For(settings.OcrLanguage) ?? fallback;
-        var language = dlg.AddChoice("Language", languages.Select(l => l.Name),
+        var language = dlg.AddChoice(Strings.Review_OcrLanguage, languages.Select(l => l.Name),
             Math.Max(0, languages.ToList().FindIndex(l => string.Equals(l.Tag, chosen.Language, StringComparison.OrdinalIgnoreCase))));
         System.Windows.Automation.AutomationProperties.SetHelpText(language,
-            "The language of the text. More languages: Windows Settings > Time & language > Language & region, a language's options, Optical character recognition.");
-        var clean = dlg.AddCheck("Straighten and clean the pages first", settings.OcrClean);
-        System.Windows.Automation.AutomationProperties.SetHelpText(clean,
-            "Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.");
-        var suspects = dlg.AddCheck("Mark suspect words to check", settings.OcrSuspects);
-        System.Windows.Automation.AutomationProperties.SetHelpText(suspects,
-            "Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. Review > Review Suspect Words lists them.");
-        var writeBack = dlg.AddCheck("Replace the scans with the cleaned pages", false);
-        System.Windows.Automation.AutomationProperties.SetHelpText(writeBack,
-            "The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save.");
+            Strings.Review_OcrLanguageHelp);
+        var clean = dlg.AddCheck(Strings.Review_OcrClean, settings.OcrClean);
+        System.Windows.Automation.AutomationProperties.SetHelpText(clean, Strings.Review_OcrCleanHelp);
+        var suspects = dlg.AddCheck(Strings.Review_OcrSuspects, settings.OcrSuspects);
+        System.Windows.Automation.AutomationProperties.SetHelpText(suspects, Strings.Review_OcrSuspectsHelp);
+        var writeBack = dlg.AddCheck(Strings.Review_OcrWriteBack, false);
+        System.Windows.Automation.AutomationProperties.SetHelpText(writeBack, Strings.Review_OcrWriteBackHelp);
         writeBack.IsEnabled = clean.IsChecked == true;
         clean.Checked += (_, _) => writeBack.IsEnabled = true;
         clean.Unchecked += (_, _) => { writeBack.IsEnabled = false; writeBack.IsChecked = false; };
-        dlg.AddNote("Cleaning straightens pages (up to 15°), turns sideways and upside-down pages upright, and removes specks and grey paper; " +
-            "the pages look the same unless you replace the scans. Suspect words are listed to check and correct. Pages that already have text are skipped. " +
-            "Recognition runs on this PC with Windows' text recognition, so check important text.");
+        dlg.AddNote(Strings.Review_OcrNote);
         int[] pages = [];
         dlg.Validate(() =>
         {
@@ -1565,12 +1569,12 @@ public partial class DocumentTab
         var hadText = 0;
         var replaced = 0;
         var chosenPages = pages;
-        var outcome = await TryEdit("Recognize text", (d, pw) =>
+        var outcome = await TryEdit(Strings.Review_UndoOcr, (d, pw) =>
         {
-            var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, "Recognizing text", "Starting…"));
+            var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, Strings.Review_RecognizingTitle, Strings.Review_Starting));
             try
             {
-                var result = RecognizePages(ocr, d, pw, chosenPages, progress, "Recognizing text", options: options, spelling: spelling);
+                var result = RecognizePages(ocr, d, pw, chosenPages, progress, Strings.Review_RecognizingTitle, options: options, spelling: spelling);
                 hadText = result.HadText;
                 pagesWithWords = result.Words.Count;
                 found = result.Words.Values.Sum(w => w.Count);
@@ -1587,27 +1591,32 @@ public partial class DocumentTab
         switch (outcome)
         {
             case EditOutcome.Done when found > 0:
-                var cleaned = replaced > 0 ? $" {replaced} page{(replaced == 1 ? " was" : "s were")} replaced with the cleaned image{(replaced == 1 ? "" : "s")}." : "";
+                var cleaned = replaced > 0 ? " " + Loc.Plural(replaced, Strings.Review_OcrReplaced_One, Strings.Review_OcrReplaced_Many) : "";
+                var recognizedWords = found == 1 ? Loc.Format(Strings.Review_OcrRecognizedOneWord, found, pagesWithWords)
+                    : Loc.Plural(pagesWithWords, Strings.Review_OcrRecognized_OnePage, Strings.Review_OcrRecognized_ManyPages, found);
                 if (suspect > 0)
                 {
                     SuspectRail.Visibility = Visibility.Visible;
-                    Notify($"Recognized {found} word{(found == 1 ? "" : "s")} on {pagesWithWords} page{(pagesWithWords == 1 ? "" : "s")}; {suspect} suspect word{(suspect == 1 ? "" : "s")} to check.{cleaned}",
-                        "Review", () => _ = ShowSuspectWordsAsync());
+                    Notify(Loc.Plural(suspect, Strings.Review_OcrWithSuspects_One, Strings.Review_OcrWithSuspects_Many, recognizedWords) + cleaned,
+                        Strings.Review_OcrReviewAction, () => _ = ShowSuspectWordsAsync());
                 }
                 else
-                    Notify($"Recognized {found} word{(found == 1 ? "" : "s")} on {pagesWithWords} page{(pagesWithWords == 1 ? "" : "s")}{(hadText > 0 ? $" ({hadText} already had text)" : "")}. They can be searched and selected now.{cleaned}",
-                        "Undo", () => { if (!IsBusy && Session.UndoLabel == "Recognize text") Undo(); });
+                {
+                    var undoLabel = Strings.Review_UndoOcr;
+                    Notify((hadText > 0 ? Loc.Format(Strings.Review_OcrDoneHadText, recognizedWords, hadText) : Loc.Format(Strings.Review_OcrDone, recognizedWords)) + cleaned,
+                        Strings.Common_Undo, () => { if (!IsBusy && Session.UndoLabel == undoLabel) Undo(); });
+                }
                 return true;
             case EditOutcome.Done:
-                Notify($"No text was recognized on these pages.{(replaced > 0 ? $" {replaced} page{(replaced == 1 ? " was" : "s were")} replaced with the cleaned image{(replaced == 1 ? "" : "s")}." : "")}");
+                Notify(Strings.Review_OcrNone + (replaced > 0 ? " " + Loc.Plural(replaced, Strings.Review_OcrReplaced_One, Strings.Review_OcrReplaced_Many) : ""));
                 return true;
             case EditOutcome.NoChange:
                 Notify(hadText == chosenPages.Length
-                    ? (chosenPages.Length == 1 ? "This page already has text: nothing to recognize." : "These pages already have text: nothing to recognize.")
-                    : "No text was recognized on these pages.");
+                    ? (chosenPages.Length == 1 ? Strings.Review_OcrPageHasText : Strings.Review_OcrPagesHaveText)
+                    : Strings.Review_OcrNone);
                 return false;
             case EditOutcome.Declined:
-                Notify("Text recognition cancelled. Nothing was changed.");
+                Notify(Strings.Review_OcrCancelled);
                 return false;
             default:
                 return false;
@@ -1635,7 +1644,7 @@ public partial class DocumentTab
         for (var i = 0; i < pages.Count; i++)
         {
             progress.Token.ThrowIfCancellationRequested();
-            progress.Report($"{title}: page {i + 1} of {pages.Count}…", (double)i / pages.Count);
+            progress.Report(Loc.Format(Strings.Review_OcrProgress, title, i + 1, pages.Count), (double)i / pages.Count);
             var page = pages[i];
             if (page < 0 || page >= engine.PageCount) continue;
             if (TextLayer.HasText(engine, page))

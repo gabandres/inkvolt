@@ -56,6 +56,33 @@ public static class AppLanguage
     public static string[] WithoutLanguageArgument(string[] args) =>
         Array.IndexOf(args, "--lang") is var i and >= 0 ? [.. args.Where((_, j) => j != i && j != i + 1)] : args;
 
+    /// <summary>
+    /// The English of a menu item or command name shown in another language ("Girar páginas…" → "Rotate Pages"), so the
+    /// command palette also finds commands by the English names tutorials use; "" when the interface is English or the
+    /// name isn't one of <see cref="Strings"/>' (a file name, a printer's). Access keys and a trailing "…" are left out.
+    /// </summary>
+    public static string EnglishOf(string shown)
+    {
+        if (Current.Name == UiLanguage.English.Name || shown.Length == 0) return "";
+        return (_english ??= BuildEnglish()).GetValueOrDefault(Plain(shown), "");
+    }
+
+    private static Dictionary<string, string>? _english;
+
+    private static Dictionary<string, string> BuildEnglish()
+    {
+        var names = new Dictionary<string, string>(StringComparer.CurrentCultureIgnoreCase);
+        var shown = Strings.ResourceManager.GetResourceSet(Current, createIfNotExists: true, tryParents: true);
+        var english = Strings.ResourceManager.GetResourceSet(CultureInfo.InvariantCulture, createIfNotExists: true, tryParents: false);
+        if (shown is null || english is null) return names;
+        foreach (System.Collections.DictionaryEntry entry in shown)
+            if (entry.Value is string text && english.GetString((string)entry.Key) is { } en && Plain(en) is var plain && plain != Plain(text))
+                names.TryAdd(Plain(text), plain);
+        return names;
+    }
+
+    private static string Plain(string text) => text.Replace("_", "").TrimEnd('…', '.').Trim();
+
     private static void Use(CultureInfo culture)
     {
         Current = culture;

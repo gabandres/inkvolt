@@ -93,9 +93,9 @@ public sealed record MeasureScale(double PerPoint, string Unit, string Ratio, in
     public static MeasureScale From(double docValue, string docUnit, double realValue, string realUnit, int decimals = 2)
     {
         if (!(docValue > 0) || !(realValue > 0) || !double.IsFinite(docValue) || !double.IsFinite(realValue))
-            throw new ArgumentException("Both lengths of a scale must be more than 0.");
+            throw new ArgumentException(PdfStrings.Measure_ScaleLengths);
         if (!PointsPer.TryGetValue(docUnit, out var per) || !PointsPer.ContainsKey(realUnit))
-            throw new ArgumentException($"Units are {string.Join(", ", Units)}.");
+            throw new ArgumentException(Loc.Format(PdfStrings.Measure_Units, string.Join(", ", Units)));
         return new MeasureScale(realValue / (docValue * per), realUnit, $"{N(docValue)} {docUnit} = {N(realValue)} {realUnit}", Math.Clamp(decimals, 0, 6));
     }
 
@@ -103,8 +103,8 @@ public sealed record MeasureScale(double PerPoint, string Unit, string Ratio, in
     /// <exception cref="ArgumentException">A length isn't positive, or the unit isn't known.</exception>
     public static MeasureScale Calibrate(double measuredPoints, double realLength, string unit, int decimals = 2)
     {
-        if (!(measuredPoints > 0) || !(realLength > 0)) throw new ArgumentException("Both lengths must be more than 0.");
-        if (!PointsPer.ContainsKey(unit)) throw new ArgumentException($"Units are {string.Join(", ", Units)}.");
+        if (!(measuredPoints > 0) || !(realLength > 0)) throw new ArgumentException(PdfStrings.Measure_Lengths);
+        if (!PointsPer.ContainsKey(unit)) throw new ArgumentException(Loc.Format(PdfStrings.Measure_Units, string.Join(", ", Units)));
         var perPoint = realLength / measuredPoints;
         return new MeasureScale(perPoint, unit, $"1 in = {N(72 * perPoint)} {unit}", Math.Clamp(decimals, 0, 6));
     }
@@ -265,7 +265,7 @@ public static class Measurements
     /// </summary>
     public static byte[] SetPageScale(byte[] data, string? password, IReadOnlyCollection<int> pages, MeasureScale? scale)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         foreach (var i in pages.Distinct())
         {
             if (i < 0 || i >= doc.PageCount) continue;

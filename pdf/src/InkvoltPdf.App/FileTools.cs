@@ -16,7 +16,7 @@ public static class FileTools
     /// <summary>Image types <see cref="ImageImport"/> reads.</summary>
     private static readonly string[] ImageExtensions = [".jpg", ".jpeg", ".jfif", ".png", ".bmp", ".gif", ".tif", ".tiff"];
 
-    public const string ImageFilter = "Images (*.jpg, *.png, *.bmp, *.gif, *.tif)|*.jpg;*.jpeg;*.jfif;*.png;*.bmp;*.gif;*.tif;*.tiff|All files (*.*)|*.*";
+    public static string ImageFilter => Strings.File_ImageFilter;
 
     public static bool IsImage(string path) => ImageExtensions.Contains(Path.GetExtension(path).ToLowerInvariant());
 
@@ -27,7 +27,7 @@ public static class FileTools
     /// <summary>The page size chosen last (this session).</summary>
     private static int _imagePageSize;
 
-    private static readonly string[] PageSizeNames = ["Fit each image (page the size of the image)", "Letter (8.5 × 11 in)", "A4 (210 × 297 mm)"];
+    private static string[] PageSizeNames => [Strings.File_SizeFitImage, Strings.File_SizeLetter, Strings.File_SizeA4];
 
     // ───────────────────────────── New from images ─────────────────────────────
 
@@ -37,7 +37,7 @@ public static class FileTools
         if (DevScript.TakeSavePath(out var scripted)) files = scripted is null ? [] : scripted.Split(';');
         else
         {
-            var dlg = new OpenFileDialog { Title = "New PDF from Images", Filter = ImageFilter, Multiselect = true, InitialDirectory = AppSettings.Current.LastFolder };
+            var dlg = new OpenFileDialog { Title = Strings.File_FromImagesTitle, Filter = ImageFilter, Multiselect = true, InitialDirectory = AppSettings.Current.LastFolder };
             if (dlg.ShowDialog(host) != true) return;
             files = dlg.FileNames;
         }
@@ -49,9 +49,9 @@ public static class FileTools
     /// <summary>Asks how big the pages should be. Null when cancelled.</summary>
     private static PageSizeOption? AskPageSize(Window owner, int count)
     {
-        var dlg = new FormDialog(owner, "New PDF from Images", "Create");
-        dlg.AddNote(count == 1 ? "One image becomes one page." : $"{count} images become {count} pages, in this order (a multi-page TIFF adds a page per frame).");
-        var size = dlg.AddChoice("Page size", PageSizeNames, _imagePageSize);
+        var dlg = new FormDialog(owner, Strings.File_FromImagesTitle, Strings.File_Create);
+        dlg.AddNote(count == 1 ? Strings.File_OneImage : Loc.Format(Strings.File_ImagesBecome, count));
+        var size = dlg.AddChoice(Strings.File_PageSize, PageSizeNames, _imagePageSize);
         if (!dlg.ShowModal()) return null;
         _imagePageSize = size.SelectedIndex;
         return (PageSizeOption)size.SelectedIndex;
@@ -59,17 +59,17 @@ public static class FileTools
 
     private static async Task CreateFromFiles(MainWindow host, IReadOnlyList<string> files, PageSizeOption size)
     {
-        host.ShowStatus(files.Count == 1 ? $"Converting {Path.GetFileName(files[0])}…" : $"Converting {files.Count} images…");
+        host.ShowStatus(files.Count == 1 ? Loc.Format(Strings.File_ConvertingOne, Path.GetFileName(files[0])) : Loc.Format(Strings.File_ConvertingImages, files.Count));
         try
         {
             var bytes = await Task.Run(() => ImageImport.ImagesToPdf([.. files.Select(f => (File.ReadAllBytes(f), Path.GetFileName(f)))], size));
-            host.OpenSession(DocumentSession.FromBytes(bytes, "Untitled.pdf"));
-            host.ShowStatus("New PDF made from " + (files.Count == 1 ? Path.GetFileName(files[0]) : $"{files.Count} images") + ". Save to keep it.");
+            host.OpenSession(DocumentSession.FromBytes(bytes, Strings.File_UntitledPdf));
+            host.ShowStatus(files.Count == 1 ? Loc.Format(Strings.File_MadeFromOne, Path.GetFileName(files[0])) : Loc.Format(Strings.File_MadeFromImages, files.Count));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {
             Log.Write($"Images to PDF failed: {ex}");
-            Prompt.Error(host, "Couldn't make a PDF from the images", ex.Message);
+            Prompt.Error(host, Strings.File_CouldntMakeImages, ex.Message);
         }
     }
 
@@ -99,18 +99,18 @@ public static class FileTools
             {
                 var frozen = SignatureImages.FromClipboard((BitmapSource)image.GetAsFrozen()); // frozen here: the encoding runs on a worker thread
                 var bytes = await Task.Run(() => ImageImport.ImagesToPdf([(EncodePng(frozen), "Clipboard.png")], PageSizeOption.FitImage));
-                host.OpenSession(DocumentSession.FromBytes(bytes, "Untitled.pdf"));
-                host.ShowStatus("New PDF made from the clipboard image. Save to keep it.");
+                host.OpenSession(DocumentSession.FromBytes(bytes, Strings.File_UntitledPdf));
+                host.ShowStatus(Strings.File_MadeFromClipboard);
                 return;
             }
         }
         catch (Exception ex) when (ex is COMException or ExternalException or InvalidOperationException or IOException)
         {
             Log.Write($"New from clipboard failed: {ex}");
-            Prompt.Error(host, "Couldn't read the clipboard", ex.Message);
+            Prompt.Error(host, Strings.File_CouldntReadClipboard, ex.Message);
             return;
         }
-        Prompt.Info(host, "Nothing to make a PDF from", "Copy an image (for example a screenshot) or image files first, then try again.");
+        Prompt.Info(host, Strings.File_NothingToMake, Strings.File_NothingToMakeBody);
     }
 
     /// <param name="frozen">A frozen bitmap (usable from any thread).</param>
@@ -134,12 +134,12 @@ public static class FileTools
         if (files.Length == 0 || !files.All(f => IsImage(f) && File.Exists(f))) return false;
         var tab = host.ActiveTab;
         var canInsert = tab is { IsDisposed: false, IsBusy: false } && tab.Session.IsPdf && tab.PageView.PageCount > 0;
-        var dlg = new FormDialog(host, files.Length == 1 ? $"Open {Path.GetFileName(files[0])}" : $"Open {files.Length} images", "OK", 480);
-        List<string> choices = [files.Length == 1 ? "Make a new PDF of it" : "Combine them into a new PDF (a page per image)"];
-        if (canInsert) choices.Add($"Add as pages at the end of {tab!.Session.DisplayName}");
-        choices.Add(files.Length == 1 ? "Just view the image" : "View each image in its own tab");
-        var what = dlg.AddChoice("What should Inkvolt PDF do?", choices);
-        var size = dlg.AddChoice("Page size", PageSizeNames, _imagePageSize);
+        var dlg = new FormDialog(host, files.Length == 1 ? Loc.Format(Strings.File_OpenOne, Path.GetFileName(files[0])) : Loc.Format(Strings.File_OpenImages, files.Length), Strings.Common_OK, 480);
+        List<string> choices = [files.Length == 1 ? Strings.File_MakeNewPdf : Strings.File_CombineImages];
+        if (canInsert) choices.Add(Loc.Format(Strings.File_AddAtEnd, tab!.Session.DisplayName));
+        choices.Add(files.Length == 1 ? Strings.File_JustView : Strings.File_ViewEach);
+        var what = dlg.AddChoice(Strings.File_WhatToDo, choices);
+        var size = dlg.AddChoice(Strings.File_PageSize, PageSizeNames, _imagePageSize);
         what.SelectionChanged += (_, _) => size.IsEnabled = what.SelectedIndex < choices.Count - 1;
         if (!dlg.ShowModal()) return true;
         _imagePageSize = size.SelectedIndex;
@@ -154,7 +154,7 @@ public static class FileTools
     public static async Task InsertImages(DocumentTab tab, IReadOnlyList<string> files, int before, PageSizeOption? size = null)
     {
         var pageSize = size ?? (PageSizeOption)_imagePageSize;
-        var label = files.Count == 1 ? $"Insert {Path.GetFileName(files[0])}" : $"Insert {files.Count} images";
+        var label = files.Count == 1 ? Loc.Format(Strings.File_InsertOne, Path.GetFileName(files[0])) : Loc.Format(Strings.File_InsertImages, files.Count);
         await tab.RunEdit(label, (d, pw) =>
         {
             var pdf = ImageImport.ImagesToPdf([.. files.Select(f => (File.ReadAllBytes(f), Path.GetFileName(f)))], pageSize);
@@ -164,25 +164,25 @@ public static class FileTools
 
     // ───────────────────────────── Reduce file size ─────────────────────────────
 
-    internal static readonly (string Name, double? Dpi, int Quality)[] Qualities =
+    internal static (string Name, double? Dpi, int Quality)[] Qualities =>
     [
-        ("High: images up to 200 dpi", 200, 85),
-        ("Medium: images up to 150 dpi (good for screens)", 150, 75),
-        ("Low: images up to 96 dpi (smallest)", 96, 60),
-        ("Keep images as they are", null, 75),
+        (Strings.File_QualityHigh, 200, 85),
+        (Strings.File_QualityMedium, 150, 75),
+        (Strings.File_QualityLow, 96, 60),
+        (Strings.File_QualityKeep, null, 75),
     ];
 
     public static async Task ReduceSize(Window owner, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        var dlg = new FormDialog(owner, "Reduce File Size", "Reduce", 480);
-        dlg.AddNote($"Now {FileActions.FormatSize(tab.Session.Data.Length)}. Pages look the same; large images are resampled and stored as JPEG.");
-        var quality = dlg.AddChoice("Image quality", Qualities.Select(q => q.Name), 1);
-        dlg.Add("Also", new System.Windows.Controls.StackPanel());
-        var thumbs = dlg.AddCheck("Remove embedded page thumbnails", true);
-        var pieces = dlg.AddCheck("Remove other apps' private editing data", true);
-        var dedupe = dlg.AddCheck("Store identical images and fonts once", true);
-        var metadata = dlg.AddCheck("Remove the extra descriptive data (title, author and subject stay)");
+        var dlg = new FormDialog(owner, Strings.File_ReduceTitle, Strings.File_Reduce, 480);
+        dlg.AddNote(Loc.Format(Strings.File_ReduceNote, FileActions.FormatSize(tab.Session.Data.Length)));
+        var quality = dlg.AddChoice(Strings.File_ImageQuality, Qualities.Select(q => q.Name), 1);
+        dlg.Add(Strings.File_Also, new System.Windows.Controls.StackPanel());
+        var thumbs = dlg.AddCheck(Strings.File_RemoveThumbs, true);
+        var pieces = dlg.AddCheck(Strings.File_RemovePieces, true);
+        var dedupe = dlg.AddCheck(Strings.File_Dedupe, true);
+        var metadata = dlg.AddCheck(Strings.File_RemoveMetadata);
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
 
         var q = Qualities[quality.SelectedIndex];
@@ -197,7 +197,7 @@ public static class FileTools
         };
         OptimizeResult? result = null;
         using var taskbar = new TaskbarProgress(Window.GetWindow(tab));
-        var outcome = await tab.TryEdit("Reduce file size", (d, pw) =>
+        var outcome = await tab.TryEdit(Strings.File_ReduceLabel, (d, pw) =>
         {
             var r = Optimizer.Optimize(d, pw, options);
             result = r;
@@ -208,13 +208,12 @@ public static class FileTools
         if (outcome == EditOutcome.NoChange)
         {
             tab.ShowNotice(res.Saved <= 0
-                ? $"This file is already compact ({FileActions.FormatSize(res.SizeBefore)}): nothing was changed."
-                : $"Only {FileActions.FormatSize(res.Saved)} could be saved, so the file was left as it is.");
+                ? Loc.Format(Strings.File_AlreadyCompact, FileActions.FormatSize(res.SizeBefore))
+                : Loc.Format(Strings.File_OnlySaved, FileActions.FormatSize(res.Saved)));
             return;
         }
         if (outcome == EditOutcome.Done)
-            tab.ShowNotice($"Reduced from {FileActions.FormatSize(res.SizeBefore)} to {FileActions.FormatSize(res.SizeAfter)} " +
-                           $"({100.0 * res.Saved / Math.Max(1, res.SizeBefore):0}% smaller). Save to keep it.", undo: true);
+            tab.ShowNotice(Loc.Format(Strings.File_Reduced, FileActions.FormatSize(res.SizeBefore), FileActions.FormatSize(res.SizeAfter), 100.0 * res.Saved / Math.Max(1, res.SizeBefore)), undo: true);
     }
 
     // ───────────────────────────── Flatten ─────────────────────────────
@@ -222,12 +221,12 @@ public static class FileTools
     public static async Task Flatten(Window owner, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        var dlg = new FormDialog(owner, "Flatten", "Flatten", 460);
-        dlg.AddNote("Draws comments and filled-in fields into the pages as they look now. They can't be edited, replied to or filled in afterwards. Undo brings them back until you close the document.");
-        var comments = dlg.AddCheck("Comments, markup and stamps", true);
-        var fields = dlg.AddCheck("Form fields (signature fields stay)", true);
-        var printable = dlg.AddCheck("Only what prints (drop the rest)");
-        dlg.Validate(() => comments.IsChecked != true && fields.IsChecked != true ? "Choose what to flatten." : null);
+        var dlg = new FormDialog(owner, Strings.File_Flatten, Strings.File_Flatten, 460);
+        dlg.AddNote(Strings.File_FlattenNote);
+        var comments = dlg.AddCheck(Strings.File_FlattenComments, true);
+        var fields = dlg.AddCheck(Strings.File_FlattenFields, true);
+        var printable = dlg.AddCheck(Strings.File_FlattenPrintable);
+        dlg.Validate(() => comments.IsChecked != true && fields.IsChecked != true ? Strings.File_FlattenChoose : null);
         if (!dlg.ShowModal()) return;
         var options = new FlattenOptions
         {
@@ -235,7 +234,7 @@ public static class FileTools
             FormFields = fields.IsChecked == true,
             PrintableOnly = printable.IsChecked == true,
         };
-        var what = options.Annotations && options.FormFields ? "comments and fields" : options.Annotations ? "comments" : "form fields";
-        await tab.RunEdit($"Flatten {what}", (d, pw) => Flattener.Flatten(d, pw, options));
+        var label = options.Annotations && options.FormFields ? Strings.File_FlattenBoth : options.Annotations ? Strings.File_FlattenOnlyComments : Strings.File_FlattenOnlyFields;
+        await tab.RunEdit(label, (d, pw) => Flattener.Flatten(d, pw, options));
     }
 }

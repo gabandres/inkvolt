@@ -50,13 +50,13 @@ public partial class DocumentTab
         if (IsEditingContent) return;
         if (!Session.IsPdf)
         {
-            Notify("Text and pictures can be edited in PDF files only.");
+            Notify(Strings.EditContent_PdfOnly);
             return;
         }
         if (IsOrganizing) SetOrganizing(false);
         Viewer.Tool = ViewerTool.EditContent;
         Viewer.Focus();
-        Notify("Click text to change it, or a picture to move, resize, replace or delete it. Tab goes through them.");
+        Notify(Strings.EditContent_Hint);
     }
 
     private void UpdateEditContentUi()
@@ -136,16 +136,16 @@ public partial class DocumentTab
         if (check.Missing.Count > 0)
         {
             // Said live under the editor too; nothing is changed.
-            var list = string.Join(", ", check.Missing.Take(8).Select(c => c == " " ? "space" : $"“{c}”"));
-            Notify($"Not changed: neither the font “{e.Run.FontName}” nor any font on this PC has {list}.", error: true);
+            var list = string.Join(Strings.EditContent_ListSeparator, check.Missing.Take(8).Select(c => c == " " ? Strings.EditContent_Space : Loc.Format(Strings.EditContent_QuotedChar, c)));
+            Notify(Loc.Format(Strings.EditContent_FontLacks, e.Run.FontName, list), error: true);
             return;
         }
-        var outcome = await TryEdit("Edit text", (d, pw) => ContentEditor.ReplaceText(d, pw, e.Run, e.Text), veil: false);
-        if (outcome == EditOutcome.Busy) Notify("Not changed: the last change is still being applied. Try again in a moment.", error: true);
+        var outcome = await TryEdit(Strings.EditContent_EditText, (d, pw) => ContentEditor.ReplaceText(d, pw, e.Run, e.Text), veil: false);
+        if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
         if (outcome != EditOutcome.Done) return;
         if (check.Width - check.OldWidth > 0.5)
-            Notify($"Text changed. It is {check.Width - check.OldWidth:0} pt wider than before and doesn't reflow, so it may overlap what follows.",
-                "Undo", () =>
+            Notify(Loc.Format(Strings.EditContent_Wider, check.Width - check.OldWidth),
+                Strings.Common_Undo, () =>
                 {
                     if (!IsBusy && Session.CanUndo) Undo();
                 });
@@ -160,36 +160,35 @@ public partial class DocumentTab
         var check = e.Paragraph.Check(e.Text, e.Spans);
         if (check.LookProblem is { } lp)
         {
-            Notify($"Not changed: {lp}.", error: true);
+            Notify(Loc.Format(Strings.EditContent_NotChangedBecause, lp), error: true);
             return;
         }
         if (check.Missing.Count > 0)
         {
-            var list = string.Join(", ", check.Missing.Take(8).Select(c => c == " " ? "space" : $"“{c}”"));
-            Notify($"Not changed: neither the font “{e.Paragraph.Lead.FontName}” nor any font on this PC has {list}.", error: true);
+            var list = string.Join(Strings.EditContent_ListSeparator, check.Missing.Take(8).Select(c => c == " " ? Strings.EditContent_Space : Loc.Format(Strings.EditContent_QuotedChar, c)));
+            Notify(Loc.Format(Strings.EditContent_FontLacks, e.Paragraph.Lead.FontName, list), error: true);
             return;
         }
         var allow = false;
         if (check.Overlaps is not null)
         {
             var was = e.Paragraph.Lines.Count;
-            if (!Prompt.Confirm(Window.GetWindow(this), "The text runs into what follows",
-                    $"The new text takes {check.LineCount} lines (it had {was}), so its last lines would run into the text or picture below it. " +
-                    "Change it anyway? Undo takes it back.", "Change Anyway", warning: true))
+            if (!Prompt.Confirm(Window.GetWindow(this), Strings.EditContent_OverlapTitle,
+                    Loc.Format(Strings.EditContent_OverlapBody, check.LineCount, was), Strings.EditContent_ChangeAnyway, warning: true))
             {
-                Notify("Not changed: shorten the text to keep it in its place.");
+                Notify(Strings.EditContent_Shorten);
                 return;
             }
             allow = true;
         }
-        var outcome = await TryEdit("Edit paragraph", (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans), veil: false);
-        if (outcome == EditOutcome.Busy) Notify("Not changed: the last change is still being applied. Try again in a moment.", error: true);
+        var outcome = await TryEdit(Strings.EditContent_EditParagraph, (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans), veil: false);
+        if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
     }
 
     private async Task MoveImage(ImageMove m)
     {
         var page = m.Image.PageIndex;
-        if (await TryEdit("Move picture", (d, pw) => ContentEditor.MoveImage(d, pw, m.Image, m.Box), veil: false) == EditOutcome.Done)
+        if (await TryEdit(Strings.EditContent_EditMovePicture, (d, pw) => ContentEditor.MoveImage(d, pw, m.Image, m.Box), veil: false) == EditOutcome.Done)
             Viewer.SelectImage(page, m.Box);
         else ReloadEditContent(); // back where it was
     }
@@ -202,12 +201,12 @@ public partial class DocumentTab
         switch (action)
         {
             case ContentAction.Delete:
-                if (await RunEdit("Delete picture", (d, pw) => ContentEditor.DeleteImage(d, pw, image)))
+                if (await RunEdit(Strings.EditContent_EditDeletePicture, (d, pw) => ContentEditor.DeleteImage(d, pw, image)))
                     Viewer.SelectImage(image.PageIndex, null);
                 break;
             case ContentAction.Replace:
             {
-                var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Replace Picture", Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+                var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.EditContent_ReplaceTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
                 if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
                 byte[] file;
                 try
@@ -216,7 +215,7 @@ public partial class DocumentTab
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Prompt.Error(Window.GetWindow(this), "Replace Picture didn't work", ex.Message);
+                    Prompt.Error(Window.GetWindow(this), Strings.EditContent_ReplaceFailed, ex.Message);
                     return;
                 }
                 var name = Path.GetFileName(dlg.FileName);
@@ -229,7 +228,7 @@ public partial class DocumentTab
 
     private async Task ReplaceImageWith(PageImage image, byte[] file, string name)
     {
-        if (await RunEdit("Replace picture", (d, pw) => ContentEditor.ReplaceImage(d, pw, image, file, name)))
+        if (await RunEdit(Strings.EditContent_EditReplacePicture, (d, pw) => ContentEditor.ReplaceImage(d, pw, image, file, name)))
             Viewer.SelectImage(image.PageIndex, null);
     }
 

@@ -103,12 +103,12 @@ public static class FileActions
         if (setup.Handling == PrintHandling.Booklet && duplex) dlg.PrintTicket.Duplexing = Duplexing.TwoSidedShortEdge;
 
         // Busy before anything else can run: the print holds this engine until it is done.
-        using var busy = tab.BeginBusy($"Printing {Pages(pages.Length)}…");
+        using var busy = tab.BeginBusy(Loc.Plural(pages.Length, Strings.Print_PrintingPages_One, Strings.Print_PrintingPages_Many));
         var engine = tab.ViewEngine;
         var plan = new PrintPlan(pages, SizesOf(engine), printable, setup);
         var sheets = plan.SheetCount;
         var unit = setup.Handling == PrintHandling.Fit ? "page" : "sheet";
-        using var progress = new ProgressPrompt(owner, "Printing", $"Preparing {Pages(pages.Length)}…");
+        using var progress = new ProgressPrompt(owner, Strings.Print_Printing, Loc.Plural(pages.Length, Strings.Print_PreparingPages_One, Strings.Print_PreparingPages_Many));
         var paginator = new PdfPaginator(engine, plan, paper, progress.Token);
         try
         {
@@ -121,7 +121,7 @@ public static class FileActions
             writer.WritingProgressChanged += (_, e) =>
             {
                 if (e.WritingLevel == System.Windows.Documents.Serialization.WritingProgressChangeLevel.FixedPageWritingProgress)
-                    progress.Report($"Sending {unit} {Math.Min(e.Number, sheets)} of {sheets} to the printer…", (double)e.Number / sheets);
+                    progress.Report(Loc.Format(setup.Handling == PrintHandling.Fit ? Strings.Print_SendingPage : Strings.Print_SendingSheet, Math.Min(e.Number, sheets), sheets), (double)e.Number / sheets);
             };
             await WriteAsync(writer, paginator, dlg.PrintTicket);
             Log.Write($"Printed {Pages(pages.Length)} ({setup.Handling}, {sheets} {unit}s)");
@@ -129,12 +129,12 @@ public static class FileActions
         catch (Exception ex) when (ex is OperationCanceledException || progress.Token.IsCancellationRequested)
         {
             Log.Write("Printing cancelled");
-            (Window.GetWindow(tab) as MainWindow)?.ShowStatus("Printing cancelled");
+            (Window.GetWindow(tab) as MainWindow)?.ShowStatus(Strings.Print_Cancelled);
         }
         catch (Exception ex)
         {
             Log.Write($"Print failed: {ex}");
-            Prompt.Error(owner, "Printing didn't work", ex.Message);
+            Prompt.Error(owner, Strings.Print_Failed, ex.Message);
         }
     }
 
@@ -173,13 +173,13 @@ public static class FileActions
         Log.Write($"Printer check: {printer.Name}: {health.State}");
         if (!health.ShouldWarn)
         {
-            (owner as MainWindow)?.ShowStatus($"{printer.Name}: {health.Summary}");
+            (owner as MainWindow)?.ShowStatus($"{printer.Name}: {health.Summary}"); // in every language: only names and values, no words
             return true;
         }
         var body = health.State == InkvoltPrint.Core.Suite.Readiness.Offline
-            ? "It didn't answer just now: it may be off, or not on this network. If you print anyway, Windows keeps the job until the printer is back."
-            : $"{health.Summary}.\n\nFix it on the printer first, or print anyway: the job waits in the Windows queue until the printer can print it.";
-        return Prompt.Confirm(owner, $"{printer.Name} {PrinterCheck.Problem(health)}", body, "Print anyway", warning: true);
+            ? Strings.Print_NoAnswer
+            : Loc.Format(Strings.Print_FixFirst, health.Summary);
+        return Prompt.Confirm(owner, PrinterCheck.Problem(health, printer.Name), body, Strings.Print_PrintAnyway, warning: true);
     }
 
     private static Task WriteAsync(System.Windows.Xps.XpsDocumentWriter writer, DocumentPaginator paginator, System.Printing.PrintTicket? ticket)
@@ -327,22 +327,22 @@ public static class FileActions
     public static async Task ExportImages(Window owner, DocumentTab tab, MainWindow host)
     {
         if (!await tab.SettleAsync()) return;
-        var dlg = new FormDialog(owner, "Export Pages as Images", "Export");
+        var dlg = new FormDialog(owner, Strings.File_ExportImagesTitle, Strings.File_Export);
         var range = dlg.AddRange(tab, preferSelection: false);
-        var format = dlg.AddChoice("Format", ["PNG (lossless)", "JPEG (smaller)"]);
-        var dpi = dlg.AddChoice("Resolution", ["72 dpi", "96 dpi", "150 dpi", "200 dpi", "300 dpi", "600 dpi"], 2);
-        var folder = dlg.AddText("Save to folder", Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder);
-        var browse = new Button { Content = "Browse…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
-        browse.Click += (_, _) => { if (PdfFiles.PickFolder(dlg, "Export images to", folder.Text) is { } f) folder.Text = f; };
+        var format = dlg.AddChoice(Strings.File_Format, [Strings.File_FormatPng, Strings.File_FormatJpeg]);
+        var dpi = dlg.AddChoice(Strings.File_Resolution, [.. new[] { 72, 96, 150, 200, 300, 600 }.Select(n => Loc.Format(Strings.File_Dpi, n))], 2);
+        var folder = dlg.AddText(Strings.File_SaveToFolder, Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder);
+        var browse = new Button { Content = Strings.Common_Browse, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
+        browse.Click += (_, _) => { if (PdfFiles.PickFolder(dlg, Strings.File_ExportImagesTo, folder.Text) is { } f) folder.Text = f; };
         dlg.Add(null, browse);
         int[] pages = [];
         dlg.Validate(() =>
         {
             if (!range.TryGet(out pages, out var err)) return err;
-            return Directory.Exists(folder.Text) ? null : "Choose an existing folder.";
+            return Directory.Exists(folder.Text) ? null : Strings.File_ChooseExisting;
         });
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
-        if (!Organize.ConfirmUnprotected(owner, tab, "The page images are saved without its password protection: anyone can open them.", "Export anyway")) return;
+        if (!Organize.ConfirmUnprotected(owner, tab, Strings.File_ImagesUnprotected, Strings.Comments_ExportAnyway)) return;
         pages = [.. pages.Where(p => p < tab.PageView.PageCount)];
         if (pages.Length == 0) return;
 
@@ -356,14 +356,14 @@ public static class FileActions
         var dpiFor = pages.Distinct().ToDictionary(p => p, p => PageImages.ClampDpi(engine.GetPage(p), res));
         var clamped = dpiFor.Values.Where(d => d < res).ToList();
         // Busy from here (also while asking about large pages), so nothing replaces the engine this export reads.
-        using var busy = tab.BeginBusy($"Exporting {Pages(pages.Length)}…");
+        using var busy = tab.BeginBusy(Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
         if (clamped.Count > 0)
         {
             var lowest = clamped.Min();
             var many = clamped.Count > 1;
-            if (!Prompt.Confirm(owner, "Some pages are very large",
-                    $"{(many ? $"{clamped.Count} pages are" : "1 page is")} too large to export at {res} dpi, so {(many ? "they are" : "it is")} exported at a lower resolution (down to {lowest:0} dpi) to stay under {PageImages.MaxPixels / 1e6:0} megapixels per image.",
-                    "Export")) return;
+            if (!Prompt.Confirm(owner, Strings.File_VeryLarge,
+                    Loc.Plural(clamped.Count, Strings.File_TooLarge_One, Strings.File_TooLarge_Many, res, lowest, PageImages.MaxPixels / 1e6),
+                    Strings.File_Export)) return;
             Log.Write($"Export: {clamped.Count} page(s) clamped below {res} dpi (lowest {lowest:0})");
         }
 
@@ -372,16 +372,16 @@ public static class FileActions
         var targets = new List<(int Page, string Path)>();
         try
         {
-            foreach (var p in pages) targets.Add((p, PdfFiles.UniquePath(dir, $"{name} - page {p + 1}.{ext}", reserved)));
+            foreach (var p in pages) targets.Add((p, PdfFiles.UniquePath(dir, Loc.Format(Strings.File_PageImageName, name, p + 1, ext), reserved)));
         }
         catch (IOException ex)
         {
-            Prompt.Error(owner, "Can't export to that folder", ex.Message);
+            Prompt.Error(owner, Strings.File_CantExportFolder, ex.Message);
             return;
         }
 
         var done = 0;
-        using var progress = new ProgressPrompt(owner, "Exporting images", $"Exporting {Pages(pages.Length)}…");
+        using var progress = new ProgressPrompt(owner, Strings.File_ExportingImages, Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
         var cancel = progress.Token;
         try
         {
@@ -390,7 +390,7 @@ public static class FileActions
                 foreach (var (p, path) in targets)
                 {
                     cancel.ThrowIfCancellationRequested();
-                    progress.Report($"Exporting page {p + 1} ({done + 1} of {targets.Count})…", (double)done / targets.Count);
+                    progress.Report(Loc.Format(Strings.File_ExportingPage, p + 1, done + 1, targets.Count), (double)done / targets.Count);
                     try
                     {
                         engine.SaveImage(p, dpiFor[p], path, jpeg, cancel);
@@ -403,18 +403,18 @@ public static class FileActions
                     Interlocked.Increment(ref done);
                 }
             }, cancel);
-            host.ShowStatus($"Exported {done} image(s) to {dir}");
+            host.ShowStatus(Loc.Format(Strings.File_ExportedImages, done, dir));
             Shell.Open(dir);
         }
         catch (OperationCanceledException)
         {
             Log.Write($"Export cancelled after {done} of {targets.Count} image(s)");
-            host.ShowStatus($"Export cancelled. {done} image(s) were saved to {dir}");
+            host.ShowStatus(Loc.Format(Strings.File_ExportCancelledImages, done, dir));
         }
         catch (Exception ex)
         {
             Log.Write($"Export failed after {done} image(s): {ex}");
-            Prompt.Error(owner, $"Export stopped after {done} page(s)", ex.Message);
+            Prompt.Error(owner, Loc.Format(Strings.File_ExportStopped, done), ex.Message);
         }
     }
 
@@ -436,7 +436,7 @@ public static class FileActions
             }
         }
 
-        var dlg = new FormDialog(owner, "Document Properties", s.IsPdf ? "Save Changes" : "Close", 520);
+        var dlg = new FormDialog(owner, Strings.File_PropertiesTitle, s.IsPdf ? Strings.File_SaveChanges : Strings.Common_Close, 520);
         var info = new Grid();
         info.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
         info.ColumnDefinitions.Add(new ColumnDefinition());
@@ -454,39 +454,39 @@ public static class FileActions
             info.Children.Add(l);
             info.Children.Add(v);
         }
-        Row("File", s.DisplayName);
-        Row("Location", s.FilePath is null ? "Not saved yet" : Path.GetDirectoryName(s.FilePath));
-        Row("File size", FormatSize(s.Data.Length));
-        Row("Pages", s.Engine.PageCount.ToString());
-        Row("Page size", $"{Organize.Inches(g.Width)} × {Organize.Inches(g.Height)} in  ({g.Width * 25.4 / 72:0} × {g.Height * 25.4 / 72:0} mm)  — page {page + 1}");
-        Row("PDF version", meta?.Version);
-        Row("Security", SecurityActions.Describe(s));
-        Row("Created by", meta?.Creator);
-        Row("Producer", meta?.Producer);
-        Row("Created", meta?.Created?.ToString("g"));
-        Row("Modified", meta?.Modified?.ToString("g"));
-        dlg.Add("Document", info);
-        if (s.IsPdf) dlg.AddFooterButton("What's in This PDF…").Click += (_, _) => _ = InventoryActions.Show(dlg, tab, null);
+        Row(Strings.File_PropFile, s.DisplayName);
+        Row(Strings.File_PropLocation, s.FilePath is null ? Strings.File_NotSavedYet : Path.GetDirectoryName(s.FilePath));
+        Row(Strings.File_PropSize, FormatSize(s.Data.Length));
+        Row(Strings.Common_Pages, s.Engine.PageCount.ToString());
+        Row(Strings.File_PageSize, Loc.Format(Strings.File_PropPageSize, Organize.Inches(g.Width), Organize.Inches(g.Height), g.Width * 25.4 / 72, g.Height * 25.4 / 72, page + 1));
+        Row(Strings.File_PropVersion, meta?.Version);
+        Row(Strings.File_PropSecurity, SecurityActions.Describe(s));
+        Row(Strings.File_PropCreator, meta?.Creator);
+        Row(Strings.File_PropProducer, meta?.Producer);
+        Row(Strings.File_PropCreated, meta?.Created?.ToString("g"));
+        Row(Strings.File_PropModified, meta?.Modified?.ToString("g"));
+        dlg.Add(Strings.Viewer_Document, info);
+        if (s.IsPdf) dlg.AddFooterButton(Strings.File_WhatsInPdfButton).Click += (_, _) => _ = InventoryActions.Show(dlg, tab, null);
 
         TextBox? title = null, author = null, subject = null, keywords = null;
         if (meta is not null)
         {
-            title = dlg.AddText("Title", meta.Title);
-            author = dlg.AddText("Author", meta.Author);
-            subject = dlg.AddText("Subject", meta.Subject);
-            keywords = dlg.AddText("Keywords", meta.Keywords);
+            title = dlg.AddText(Strings.Access_Title, meta.Title);
+            author = dlg.AddText(Strings.File_Author, meta.Author);
+            subject = dlg.AddText(Strings.File_Subject, meta.Subject);
+            keywords = dlg.AddText(Strings.File_Keywords, meta.Keywords);
         }
         if (!dlg.ShowModal() || meta is null) return;
 
         if (title!.Text == meta.Title && author!.Text == meta.Author && subject!.Text == meta.Subject && keywords!.Text == meta.Keywords) return;
         var (t, a, sub, k) = (title.Text, author!.Text, subject!.Text, keywords!.Text);
-        await tab.RunEdit("Edit document properties", (d, pw) => PageEditor.WriteMetadata(d, pw, t, a, sub, k));
+        await tab.RunEdit(Strings.File_EditPropsLabel, (d, pw) => PageEditor.WriteMetadata(d, pw, t, a, sub, k));
     }
 
     internal static string FormatSize(long bytes) => bytes switch
     {
-        < 1024 => $"{bytes} bytes",
-        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
-        _ => $"{bytes / 1024.0 / 1024.0:0.##} MB",
+        < 1024 => Loc.Format(Strings.Form_Bytes, bytes),
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB", // in every language: unit symbol
+        _ => $"{bytes / 1024.0 / 1024.0:0.##} MB", // in every language: unit symbol
     };
 }

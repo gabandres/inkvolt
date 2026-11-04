@@ -48,7 +48,7 @@ public static class FormDataFiles
     public static byte[] Export(byte[] data, string? password, FormDataFormat format, string? pdfFileName = null)
     {
         var fields = FormEditor.DataFields(data, password);
-        if (fields.Count == 0) throw new InvalidOperationException("This PDF has no form fields with data.");
+        if (fields.Count == 0) throw new InvalidOperationException(PdfStrings.Form_NoDataFields);
         switch (format)
         {
             case FormDataFormat.Csv:
@@ -95,8 +95,8 @@ public static class FormDataFiles
         if (Sniff(file) == FormDataFormat.Csv)
         {
             var (header, rows) = ReadTable(file);
-            if (rows.Count == 0) throw new InvalidDataException("The CSV has field names but no row of values.");
-            if (rows.Count > 1) notes.Add($"The file has {rows.Count:N0} rows of values: the first was filled in. Fill Forms from CSV makes a form for each row.");
+            if (rows.Count == 0) throw new InvalidDataException(PdfStrings.Form_CsvNoRows);
+            if (rows.Count > 1) notes.Add(Loc.Format(PdfStrings.Form_CsvManyRows, rows.Count));
             values = Row(header, rows[0]);
         }
         else values = ReadValues(file);
@@ -106,7 +106,7 @@ public static class FormDataFiles
     internal static FormDataImport Fill(byte[] data, string? password, IReadOnlyDictionary<string, string> values, List<string> notes, IFormActionHost? host = null)
     {
         var fields = FormEditor.DataFields(data, password);
-        if (fields.Count == 0) throw new InvalidOperationException("This PDF has no form fields with data.");
+        if (fields.Count == 0) throw new InvalidOperationException(PdfStrings.Form_NoDataFields);
         var (good, unknown, rejected) = Check(fields, values);
         if (good.Count == 0) return new FormDataImport(data, 0, unknown, rejected, notes);
         var result = FormEditor.Fill(data, password, good, host);
@@ -141,8 +141,8 @@ public static class FormDataFiles
     /// <exception cref="InvalidDataException">The file isn't one of them, is damaged, too big, or carries a DTD.</exception>
     public static Dictionary<string, string> ReadValues(byte[] file)
     {
-        if (file.Length == 0) throw new InvalidDataException("The file is empty.");
-        if (file.Length > MaxFileBytes) throw new InvalidDataException($"The file is larger than {MaxFileBytes >> 20} MB, the most Inkvolt PDF reads as form data.");
+        if (file.Length == 0) throw new InvalidDataException(PdfStrings.Form_FileEmpty);
+        if (file.Length > MaxFileBytes) throw new InvalidDataException(Loc.Format(PdfStrings.Form_FileTooBig, MaxFileBytes >> 20));
         switch (Sniff(file))
         {
             case FormDataFormat.Json:
@@ -156,8 +156,8 @@ public static class FormDataFiles
             {
                 var head = Encoding.UTF8.GetString(file, 0, Math.Min(file.Length, 4096));
                 if (head.Contains("<!DOCTYPE", StringComparison.OrdinalIgnoreCase) || head.Contains("<!ENTITY", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("The file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end.");
-                var parsed = FormData.Parse(file) ?? throw new InvalidDataException("The file isn't XFDF, FDF, JSON or CSV form data, or it is damaged.");
+                    throw new InvalidDataException(PdfStrings.Form_FileDtd);
+                var parsed = FormData.Parse(file) ?? throw new InvalidDataException(PdfStrings.Form_FileNotData);
                 return parsed.ToDictionary(kv => kv.Key, kv => string.Join('\n', kv.Value), StringComparer.Ordinal);
             }
         }
@@ -186,13 +186,13 @@ public static class FormDataFiles
         }
         catch (JsonException ex)
         {
-            throw new InvalidDataException($"The JSON file can't be read: {ex.Message}", ex);
+            throw new InvalidDataException(Loc.Format(PdfStrings.Form_JsonUnreadable, ex.Message), ex);
         }
         using (doc)
         {
             var root = doc.RootElement;
             if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("fields", out var f) && f.ValueKind == JsonValueKind.Object) root = f;
-            if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("The JSON file should hold an object of field names and values: {\"fields\": {\"name\": \"value\"}}.");
+            if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException(Loc.Format(PdfStrings.Form_JsonShape));
             var result = new Dictionary<string, string>(StringComparer.Ordinal);
             Walk(root, null);
             return result;
@@ -232,12 +232,12 @@ public static class FormDataFiles
     /// <exception cref="InvalidDataException">Too big, too many rows, empty, or a header that names a column twice.</exception>
     internal static (List<string> Header, List<List<string>> Rows) ReadTable(byte[] file)
     {
-        if (file.Length > Csv.MaxBytes) throw new InvalidDataException($"The file is larger than {Csv.MaxBytes >> 20} MB.");
+        if (file.Length > Csv.MaxBytes) throw new InvalidDataException(Loc.Format(PdfStrings.Form_CsvTooBig, Csv.MaxBytes >> 20));
         var rows = Csv.Read(Csv.Decode(file));
-        if (rows.Count == 0) throw new InvalidDataException("The CSV file is empty.");
+        if (rows.Count == 0) throw new InvalidDataException(PdfStrings.Form_CsvEmpty);
         var header = rows[0].Select(h => h.Trim()).ToList();
         var twice = header.Where(h => h.Length > 0).GroupBy(h => h, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
-        if (twice is not null) throw new InvalidDataException($"The column \"{twice.Key}\" is in the CSV twice.");
+        if (twice is not null) throw new InvalidDataException(Loc.Format(PdfStrings.Form_CsvColumnTwice, twice.Key));
         return (header, rows.Skip(1).ToList());
     }
 

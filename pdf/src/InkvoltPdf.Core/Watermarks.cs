@@ -86,13 +86,13 @@ public static class Watermarks
     {
         var text = options.Text?.Replace("\r\n", "\n").Replace('\r', '\n').Trim('\n', ' ');
         if (string.IsNullOrWhiteSpace(text) == (options.Image is null))
-            throw new ArgumentException(options.Image is null ? "Type the watermark's text or choose an image." : "A watermark is a text or an image, not both.");
-        if (options.Image is null && (!double.IsFinite(options.FontSize) || options.FontSize is < 4 or > 500)) throw new ArgumentException("The font size must be from 4 to 500 points.");
-        if (options.Image is not null && (!double.IsFinite(options.ImageScale) || options.ImageScale is <= 0 or > 4)) throw new ArgumentException("The image size must be from 1% to 400% of the page width.");
-        if (!double.IsFinite(options.Rotation) || !double.IsFinite(options.Opacity)) throw new ArgumentException("The angle and opacity must be numbers.");
+            throw new ArgumentException(options.Image is null ? PdfStrings.Watermark_NeedsContent : PdfStrings.Watermark_NotBoth);
+        if (options.Image is null && (!double.IsFinite(options.FontSize) || options.FontSize is < 4 or > 500)) throw new ArgumentException(PdfStrings.Watermark_FontSize);
+        if (options.Image is not null && (!double.IsFinite(options.ImageScale) || options.ImageScale is <= 0 or > 4)) throw new ArgumentException(PdfStrings.Watermark_ImageSize);
+        if (!double.IsFinite(options.Rotation) || !double.IsFinite(options.Opacity)) throw new ArgumentException(PdfStrings.Watermark_AngleOpacity);
         options.Image?.Validate();
 
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var opacity = Math.Clamp(options.Opacity, 0.01, 1);
         var gs = new PdfDictionary(doc);
         gs.Elements["/Type"] = new PdfName("/ExtGState");
@@ -158,7 +158,7 @@ public static class Watermarks
     /// <summary>Removes every watermark Inkvolt PDF added. Returns <paramref name="data"/> itself when there are none.</summary>
     public static byte[] Remove(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var any = false;
         foreach (var page in doc.Pages) any |= PageMarks.Remove(doc, page, Kind);
         if (!any) return data;

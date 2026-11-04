@@ -11,7 +11,7 @@ public enum PdfAConformance { B, A }
 
 /// <summary>A document can't be made PDF/A-2b (or 2a); <see cref="Blockers"/> says why (nothing was changed).</summary>
 public sealed class PdfAException(IReadOnlyList<string> blockers)
-    : InvalidOperationException("This PDF can't be saved as PDF/A: " + string.Join(" ", blockers))
+    : InvalidOperationException(PdfStrings.PdfA_CantSave + string.Join(" ", blockers))
 {
     public IReadOnlyList<string> Blockers { get; } = blockers;
 }
@@ -73,47 +73,47 @@ public static class PdfA
     {
         var changes = new List<string>();
         if (Incremental.LooksSigned(data) && Signatures.Verify(data, password).Any(s => s.Status != SignatureStatus.Unsigned))
-            throw new PdfAException(["It is digitally signed: a PDF/A copy is a rewrite, which would break the signatures. (Sanitize can remove them first.)"]);
+            throw new PdfAException([PdfStrings.PdfA_Signed]);
 
         // No field is signed, yet a /ByteRange can still make the file look so: usage rights, whose signature no person
         // made, or what an earlier revision left behind. A rewrite breaks nothing of anybody's, so it is allowed below.
         if (PdfSecurity.ReadSecurity(data, password).IsEncrypted)
         {
             data = SignedEdits.Run(() => PdfSecurity.Unprotect(data, password), allowRewrite: true).Data;
-            changes.Add("password protection removed (PDF/A files can't be encrypted)");
+            changes.Add(PdfStrings.PdfA_ChangePasswordRemoved);
         }
 
         if (Incremental.LooksSigned(data))
         {
-            using var read = PdfObj.Open(data, null, PdfDocumentOpenMode.Import, "This PDF can't be converted");
+            using var read = PdfObj.Open(data, null, PdfDocumentOpenMode.Import, PdfStrings.PdfA_CantConvert);
             var perms = PdfObj.Dict(read.Internals.Catalog.Elements["/Perms"]);
             if (perms?.Elements.ContainsKey("/DocMDP") == true)
-                throw new PdfAException(["It is certified: a PDF/A copy is a rewrite, which would break the certification. (Sanitize can remove it first.)"]);
+                throw new PdfAException([PdfStrings.PdfA_Certified]);
             if (perms?.Elements.ContainsKey("/UR3") == true || perms?.Elements.ContainsKey("/UR") == true)
-                changes.Add("Reader usage rights removed (the form maker's seal, not a person's signature; a rewritten copy would void it)");
+                changes.Add(PdfStrings.PdfA_ChangeUsageRights);
         }
 
         // Scripts, actions that run things, multimedia, XFA and attached files: what Sanitize removes.
         SanitizeResult sanitized = null!;
         SignedEdits.Run(() => (sanitized = Sanitizer.Sanitize(data, null, new HashSet<SanitizeItem> { SanitizeItem.ActiveContent, SanitizeItem.EmbeddedFiles })).Data, allowRewrite: true);
-        if (sanitized.Removed[SanitizeItem.ActiveContent] > 0) changes.Add($"{Count(sanitized.Removed[SanitizeItem.ActiveContent], "script or active item", "scripts and active items")} removed");
-        if (sanitized.Removed[SanitizeItem.EmbeddedFiles] > 0) changes.Add($"{Count(sanitized.Removed[SanitizeItem.EmbeddedFiles], "attached file", "attached files")} removed");
+        if (sanitized.Removed[SanitizeItem.ActiveContent] > 0) changes.Add(Loc.Plural(sanitized.Removed[SanitizeItem.ActiveContent], PdfStrings.PdfA_ChangeScripts_One, PdfStrings.PdfA_ChangeScripts_Many));
+        if (sanitized.Removed[SanitizeItem.EmbeddedFiles] > 0) changes.Add(Loc.Plural(sanitized.Removed[SanitizeItem.EmbeddedFiles], PdfStrings.PdfA_ChangeAttachments_One, PdfStrings.PdfA_ChangeAttachments_Many));
         data = sanitized.Data;
 
-        using var doc = PdfObj.Open(data, null, PdfDocumentOpenMode.Modify, "This PDF can't be converted");
+        using var doc = PdfObj.Open(data, null, PdfDocumentOpenMode.Modify, PdfStrings.PdfA_CantConvert);
         var pdfUa = false;
         if (conformance == PdfAConformance.A)
         {
             var catalog = doc.Internals.Catalog;
             var blockers = new List<string>();
             if (!catalog.Elements.ContainsKey("/StructTreeRoot") || PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is not PdfBoolean { Value: true })
-                blockers.Add("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Review › Make Accessible).");
+                blockers.Add(PdfStrings.PdfA_NotTagged);
             if (!AccessibilityCheck.IsLanguage(PdfObj.Text(catalog.Elements["/Lang"])))
-                blockers.Add("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).");
+                blockers.Add(PdfStrings.PdfA_NoLanguage);
             if (blockers.Count > 0) throw new PdfAException(blockers);
             pdfUa = Xmp.SaysPdfUa(Xmp.Read(doc));
             // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.
-            if (FontUnicode.Complete(doc) is var fonts and > 0) changes.Add($"{Count(fonts, "font", "fonts")} given the Unicode values of their characters");
+            if (FontUnicode.Complete(doc) is var fonts and > 0) changes.Add(Loc.Plural(fonts, PdfStrings.PdfA_ChangeUnicode_One, PdfStrings.PdfA_ChangeUnicode_Many));
         }
         var pass = new Pass(doc, changes);
         pass.Run();
@@ -127,7 +127,7 @@ public static class PdfA
         doc.Save(ms, false);
         var packet = Xmp.BuildPdfA(doc.Info, conformance.ToString(), pdfUa);
         var result = Xmp.ReplacePacket(ms.GetBuffer().AsSpan(0, (int)ms.Length), packet)
-                     ?? throw new InvalidOperationException("The PDF/A metadata couldn't be written.");
+                     ?? throw new InvalidOperationException(PdfStrings.PdfA_MetadataNotWritten);
         if (Validate(result, conformance) is { Count: > 0 } left) throw new PdfAException(left);
         return new PdfAResult(result, changes);
     }
@@ -142,8 +142,6 @@ public static class PdfA
         pass.Fonts();
         return pass.Embedded;
     }
-
-    private static string Count(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n} {many}";
 
     /// <summary>
     /// The base-14 Latin face a font name stands for, and so the Windows font with its metrics: the standard names
@@ -190,7 +188,7 @@ public static class PdfA
     internal static List<int> DingbatsMissing(Func<int, bool> has) => [.. Enumerable.Range(0, 256).Where(c => Pass.DingbatUnicode(c) is var u and > 0 && !has(u))];
 
     internal static string DingbatsMissingMessage(string name, int missing) =>
-        $"The font {name} isn't embedded, and this PC's Segoe UI Symbol lacks {missing} of its symbols, which would draw blank.";
+        Loc.Format(PdfStrings.PdfA_DingbatsMissing, name, missing);
 
     private sealed class Pass(PdfDocument doc, List<string> changes)
     {
@@ -225,18 +223,18 @@ public static class PdfA
             OutputIntent(catalog);
             var longNames = ShortenLongNames(catalog);
 
-            if (_removedAnnots > 0) changes.Add($"{Count(_removedAnnots, "comment or field", "comments and fields")} that PDF/A doesn't allow, or without an appearance, removed");
-            if (_hiddenAnnots > 0) changes.Add($"{Count(_hiddenAnnots, "hidden comment", "hidden comments")} removed");
-            if (_actions + _aa > 0) changes.Add($"{Count(_actions + _aa, "action", "actions")} PDF/A doesn't allow removed");
-            if (_images > 0) changes.Add($"smoothing and alternate versions PDF/A doesn't allow taken off {Count(_images, "picture", "pictures")}");
-            if (_lzw > 0) changes.Add($"{Count(_lzw, "LZW stream", "LZW streams")} re-compressed");
-            if (_tr > 0) changes.Add("transfer and halftone functions removed");
-            if (_embedded > 0) changes.Add($"{Count(_embedded, "standard font", "standard fonts")} embedded");
-            if (_dingbats > 0) changes.Add("check marks and other ZapfDingbats symbols embedded from Segoe UI Symbol, whose shapes differ a little");
-            if (_ocNames > 0) changes.Add("layer configurations named");
-            if (_ownMetadata > 0) changes.Add($"{Count(_ownMetadata, "picture's or page's own metadata packet", "pictures' and pages' own metadata packets")} removed");
-            if (longNames > 0) changes.Add($"{Count(longNames, "name", "names")} longer than PDF/A allows shortened");
-            changes.Add("sRGB output intent and PDF/A metadata added");
+            if (_removedAnnots > 0) changes.Add(Loc.Plural(_removedAnnots, PdfStrings.PdfA_ChangeAnnots_One, PdfStrings.PdfA_ChangeAnnots_Many));
+            if (_hiddenAnnots > 0) changes.Add(Loc.Plural(_hiddenAnnots, PdfStrings.PdfA_ChangeHidden_One, PdfStrings.PdfA_ChangeHidden_Many));
+            if (_actions + _aa > 0) changes.Add(Loc.Plural(_actions + _aa, PdfStrings.PdfA_ChangeActions_One, PdfStrings.PdfA_ChangeActions_Many));
+            if (_images > 0) changes.Add(Loc.Plural(_images, PdfStrings.PdfA_ChangeImages_One, PdfStrings.PdfA_ChangeImages_Many));
+            if (_lzw > 0) changes.Add(Loc.Plural(_lzw, PdfStrings.PdfA_ChangeLzw_One, PdfStrings.PdfA_ChangeLzw_Many));
+            if (_tr > 0) changes.Add(PdfStrings.PdfA_ChangeTransferRemoved);
+            if (_embedded > 0) changes.Add(Loc.Plural(_embedded, PdfStrings.PdfA_ChangeFonts_One, PdfStrings.PdfA_ChangeFonts_Many));
+            if (_dingbats > 0) changes.Add(PdfStrings.PdfA_ChangeDingbats);
+            if (_ocNames > 0) changes.Add(PdfStrings.PdfA_ChangeLayersNamed);
+            if (_ownMetadata > 0) changes.Add(Loc.Plural(_ownMetadata, PdfStrings.PdfA_ChangeMetadata_One, PdfStrings.PdfA_ChangeMetadata_Many));
+            if (longNames > 0) changes.Add(Loc.Plural(longNames, PdfStrings.PdfA_ChangeNames_One, PdfStrings.PdfA_ChangeNames_Many));
+            changes.Add(PdfStrings.PdfA_ChangeIntentAdded);
         }
 
         /// <summary>Annotations PDF/A forbids or that wouldn't show are removed; the rest print, and keep only their normal appearance.</summary>
@@ -277,7 +275,7 @@ public static class PdfA
                 {
                     if (subtype == "Widget")
                     {
-                        Blockers.Add("A form field has no appearance of its own, so it can't be shown the same everywhere.");
+                        Blockers.Add(PdfStrings.PdfA_FieldNoAppearance);
                         continue;
                     }
                     annots.Elements.RemoveAt(i);
@@ -322,7 +320,7 @@ public static class PdfA
             if (d.Stream is not null)
             {
                 if (d.Elements.ContainsKey("/F") && (d.Elements.ContainsKey("/FFilter") || type is null && subtype is null && !d.Elements.ContainsKey("/Length")))
-                    Blockers.Add("It refers to content in another file (an external stream).");
+                    Blockers.Add(PdfStrings.PdfA_ExternalStream);
                 ReencodeLzw(d);
             }
             switch (subtype)
@@ -342,12 +340,12 @@ public static class PdfA
                     if (changed) _images++;
                     break;
                 case "PS":
-                    Blockers.Add("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow.");
+                    Blockers.Add(PdfStrings.PdfA_PostScript);
                     break;
                 case "Form":
                     d.Elements.Remove("/OPI");
                     d.Elements.Remove("/Ref");
-                    if (PdfObj.Name(d.Elements["/Subtype2"]) == "PS") Blockers.Add("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow.");
+                    if (PdfObj.Name(d.Elements["/Subtype2"]) == "PS") Blockers.Add(PdfStrings.PdfA_PostScript);
                     break;
             }
             if (type == "ExtGState" || d.Elements.ContainsKey("/TR") || d.Elements.ContainsKey("/HTP"))
@@ -428,7 +426,7 @@ public static class PdfA
             {
                 if (op.Operands.Any(o => o.Kind == CKind.Name && NameTooLong(o.Name)))
                 {
-                    Blockers.Add("Its page content uses a name longer than the 127 bytes PDF/A allows.");
+                    Blockers.Add(PdfStrings.PdfA_LongNameInContent);
                     return;
                 }
                 switch (op.Name)
@@ -443,13 +441,13 @@ public static class PdfA
                         CmykBlocker();
                         return;
                     case "BI" when op.Operands.Any(o => o.Kind == CKind.Name && o.Name is "LZW" or "LZWDecode"):
-                        Blockers.Add("An inline picture is LZW-compressed, which PDF/A doesn't allow.");
+                        Blockers.Add(PdfStrings.PdfA_InlineLzw);
                         return;
                 }
             }
         }
 
-        private void CmykBlocker() => Blockers.Add("It uses CMYK color without a color profile; a PDF/A-2b copy here gets an RGB (sRGB) output intent, so that color can't be kept as it is.");
+        private void CmykBlocker() => Blockers.Add(PdfStrings.PdfA_Cmyk);
 
         private static bool UsesCmyk(PdfItem? cs) => cs switch
         {
@@ -530,7 +528,7 @@ public static class PdfA
                 {
                     var descendant = PdfObj.Dict(PdfObj.Array(font.Elements["/DescendantFonts"])?.Elements.FirstOrDefault());
                     if (!IsEmbedded(PdfObj.Dict(descendant?.Elements["/FontDescriptor"])))
-                        Blockers.Add($"The font {FontName(font)} isn't embedded, and only the standard fonts can be embedded here.");
+                        Blockers.Add(Loc.Format(PdfStrings.PdfA_FontOnlyStandard, FontName(font)));
                     continue;
                 }
                 if (IsEmbedded(PdfObj.Dict(font.Elements["/FontDescriptor"]))) continue;
@@ -570,9 +568,9 @@ public static class PdfA
             var subtype = PdfObj.Name(font.Elements["/Subtype"]);
             var name = PdfObj.Name(font.Elements["/BaseFont"]) ?? "";
             if (IsDingbats(name)) return EmbedDingbats(font);
-            var notEmbedded = $"The font {FontName(font)} isn't embedded, and only the standard Helvetica, Times, Courier and ZapfDingbats faces can be embedded here.";
+            var notEmbedded = Loc.Format(PdfStrings.PdfA_FontOnlyStandardFaces, FontName(font));
             if (subtype is not ("Type1" or "TrueType" or "MMType1") || PdfA.StandardFace(name) is not { } std) return notEmbedded;
-            if (std.Metrics is not { } ttf) return $"The font {FontName(font)} isn't embedded, and Windows' matching font isn't installed.";
+            if (std.Metrics is not { } ttf) return Loc.Format(PdfStrings.PdfA_FontNoWindowsMatch, FontName(font));
 
             // The original code → glyph name map (its encoding, else StandardEncoding as the standard fonts have).
             var names = new string?[256];
@@ -617,7 +615,7 @@ public static class PdfA
                     var w = PdfObj.Num(own, i);
                     if (code is < 0 or > 255 || unicodes[code] == 0 || w <= 0) continue;
                     if (Math.Abs(w - ttf.Advance(unicodes[code]) * 1000) > 20)
-                        return $"The font {FontName(font)} isn't embedded, and its letter widths differ from Windows' {std.Family switch { StdFamily.Times => "Times New Roman", StdFamily.Courier => "Courier New", _ => "Arial" }}{(std.Bold ? " Bold" : "")}{(std.Italic ? " Italic" : "")}, so the text would move.";
+                        return Loc.Format(PdfStrings.PdfA_FontWidthsDiffer, FontName(font), $"{std.Family switch { StdFamily.Times => "Times New Roman", StdFamily.Courier => "Courier New", _ => "Arial" }}{(std.Bold ? " Bold" : "")}{(std.Italic ? " Italic" : "")}");
                 }
             }
             if (HbSubset.SubsetUnicodes(ttf, used) is not { } program) return notEmbedded;
@@ -712,8 +710,8 @@ public static class PdfA
         {
             var name = FontName(font);
             if (PdfObj.Name(font.Elements["/Subtype"]) is not ("Type1" or "TrueType" or "MMType1") || font.Elements.ContainsKey("/Encoding"))
-                return $"The font {name} isn't embedded, and it has an encoding of its own, so its symbols can't be matched.";
-            if (SystemFonts.Get("seguisym.ttf") is not { } ttf) return $"The font {name} isn't embedded, and Windows' Segoe UI Symbol, which has its symbols, isn't installed.";
+                return Loc.Format(PdfStrings.PdfA_DingbatsOwnEncoding, name);
+            if (SystemFonts.Get("seguisym.ttf") is not { } ttf) return Loc.Format(PdfStrings.PdfA_DingbatsNoSegoe, name);
             if (DingbatsMissing(ttf.Has) is { Count: > 0 } missing) return DingbatsMissingMessage(name, missing.Count);
             var unicodes = Enumerable.Range(0, 256).Select(c => DingbatUnicode(c) is var u && ttf.Has(u) ? u : 0).ToArray();
             unicodes[0x20] = 0x20;
@@ -722,11 +720,11 @@ public static class PdfA
                 var firstOwn = PdfObj.Int(font.Elements["/FirstChar"]) ?? 0;
                 for (var i = 0; i < own.Elements.Count; i++)
                     if (firstOwn + i is >= 0 and <= 255 && unicodes[firstOwn + i] > 0 && PdfObj.Num(own, i) is var w and > 0 && Math.Abs(w - ttf.Advance(unicodes[firstOwn + i]) * 1000) > 20)
-                        return $"The font {name} isn't embedded, and its symbols' widths differ from Windows' Segoe UI Symbol, so they would move.";
+                        return Loc.Format(PdfStrings.PdfA_DingbatsWidths, name);
             }
             var used = unicodes.Where(u => u > 0).Distinct().ToList();
             if (HbSubset.SubsetUnicodes(ttf, used) is not { } subset || TrueTypeFont.Load("", subset) is not { } cut)
-                return $"The font {name} isn't embedded, and Windows' Segoe UI Symbol couldn't be cut down to its symbols.";
+                return Loc.Format(PdfStrings.PdfA_DingbatsNoSubset, name);
             var program = WithSymbolCmap(subset, [.. Enumerable.Range(0, 256).Where(c => unicodes[c] > 0).Select(c => (c, cut.GlyphOf(unicodes[c])))]);
 
             var file = PdfObj.AddStream(doc, program);
@@ -942,7 +940,7 @@ public static class PdfA
         var problems = new List<string>();
         var head = Encoding.Latin1.GetString(pdf.AsSpan(0, Math.Min(pdf.Length, 64)));
         if (!System.Text.RegularExpressions.Regex.IsMatch(head, @"^%PDF-1\.[0-7]\r?\n%[\x80-\xFF]{4}"))
-            problems.Add("The file header isn't a PDF 1.x header followed by a binary comment.");
+            problems.Add(PdfStrings.PdfA_VHeader);
         PdfDocument doc;
         try
         {
@@ -950,49 +948,49 @@ public static class PdfA
         }
         catch (Exception ex) when (ex is PdfReaderException or InvalidOperationException)
         {
-            return [.. problems, $"The file can't be read: {ex.Message}"];
+            return [.. problems, Loc.Format(PdfStrings.PdfA_VCantRead, ex.Message)];
         }
         using (doc)
         {
-            if (doc.SecurityHandler.Elements.ContainsKey("/Filter")) problems.Add("It is encrypted.");
-            if (doc.Internals.FirstDocumentID.Length == 0) problems.Add("The trailer has no file identifier (/ID).");
+            if (doc.SecurityHandler.Elements.ContainsKey("/Filter")) problems.Add(PdfStrings.PdfA_VEncrypted);
+            if (doc.Internals.FirstDocumentID.Length == 0) problems.Add(PdfStrings.PdfA_VNoId);
             var catalog = doc.Internals.Catalog;
             if (conformance == PdfAConformance.A)
             {
-                if (!catalog.Elements.ContainsKey("/StructTreeRoot")) problems.Add("It isn't tagged (no structure tree).");
-                if (PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is not PdfBoolean { Value: true }) problems.Add("It doesn't say it is tagged (MarkInfo).");
-                if (!AccessibilityCheck.IsLanguage(PdfObj.Text(catalog.Elements["/Lang"]))) problems.Add("It doesn't say its language.");
+                if (!catalog.Elements.ContainsKey("/StructTreeRoot")) problems.Add(PdfStrings.PdfA_VNotTagged);
+                if (PdfObj.Resolve(PdfObj.Dict(catalog.Elements["/MarkInfo"])?.Elements["/Marked"]) is not PdfBoolean { Value: true }) problems.Add(PdfStrings.PdfA_VNoMarkInfo);
+                if (!AccessibilityCheck.IsLanguage(PdfObj.Text(catalog.Elements["/Lang"]))) problems.Add(PdfStrings.PdfA_VNoLanguage);
             }
             var intents = PdfObj.Array(catalog.Elements["/OutputIntents"]);
             var pdfa = intents?.Elements.Select(PdfObj.Dict).FirstOrDefault(i => PdfObj.Name(i?.Elements["/S"]) == "GTS_PDFA1");
             if (PdfObj.Dict(pdfa?.Elements["/DestOutputProfile"]) is not { Stream: not null } profile || PdfObj.Int(profile.Elements["/N"]) != 3 ||
                 PdfObj.StreamBytes(profile) is not { Length: > 128 } iccBytes || Encoding.ASCII.GetString(iccBytes, 36, 4) != "acsp")
-                problems.Add("There is no RGB PDF/A output intent with an ICC profile.");
+                problems.Add(PdfStrings.PdfA_VNoIntent);
             if (PdfObj.Dict(catalog.Elements["/Metadata"]) is not { Stream: { } meta } metaDict)
-                problems.Add("There is no XMP metadata.");
+                problems.Add(PdfStrings.PdfA_VNoXmp);
             else
             {
-                if (metaDict.Elements.ContainsKey("/Filter")) problems.Add("The XMP metadata is compressed.");
+                if (metaDict.Elements.ContainsKey("/Filter")) problems.Add(PdfStrings.PdfA_VXmpCompressed);
                 var xmp = Encoding.UTF8.GetString(meta.Value);
                 if (!xmp.Contains("pdfaid:part=\"2\"", StringComparison.Ordinal) && !xmp.Contains("<pdfaid:part>2</pdfaid:part>", StringComparison.Ordinal))
-                    problems.Add("The XMP metadata doesn't say PDF/A-2.");
+                    problems.Add(PdfStrings.PdfA_VXmpNotPdfA2);
                 if (!xmp.Contains($"pdfaid:conformance=\"{level}\"", StringComparison.Ordinal) && !xmp.Contains($"<pdfaid:conformance>{level}</pdfaid:conformance>", StringComparison.Ordinal))
-                    problems.Add($"The XMP metadata doesn't say conformance {level}.");
+                    problems.Add(Loc.Format(PdfStrings.PdfA_VXmpConformance, level));
                 if (conformance == PdfAConformance.A && xmp.Contains("pdfuaid", StringComparison.Ordinal) && !xmp.Contains("pdfaSchema:prefix>pdfuaid<", StringComparison.Ordinal))
-                    problems.Add("The XMP metadata says PDF/UA without the extension schema PDF/A requires.");
+                    problems.Add(PdfStrings.PdfA_VXmpUaSchema);
             }
-            if (catalog.Elements.ContainsKey("/AA")) problems.Add("The document has additional actions.");
+            if (catalog.Elements.ContainsKey("/AA")) problems.Add(PdfStrings.PdfA_VDocActions);
             if (PdfObj.Dict(catalog.Elements["/Names"]) is { } names && (names.Elements.ContainsKey("/JavaScript") || names.Elements.ContainsKey("/EmbeddedFiles")))
-                problems.Add("The document has scripts or attached files.");
+                problems.Add(PdfStrings.PdfA_VScriptsFiles);
             if (PdfObj.Dict(catalog.Elements["/AcroForm"]) is { } acro && (acro.Elements.ContainsKey("/XFA") || PdfObj.Resolve(acro.Elements["/NeedAppearances"]) is PdfBoolean { Value: true }))
-                problems.Add("The form is an XFA form or needs the viewer to draw its fields.");
+                problems.Add(PdfStrings.PdfA_VXfa);
 
             var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
             var stack = new Stack<PdfItem>([catalog]);
             while (stack.Count > 0)
             {
                 var item = PdfObj.Resolve(stack.Pop());
-                if (item is PdfName longName && NameTooLong(longName.Value)) problems.Add("A name is longer than the 127 bytes PDF/A allows.");
+                if (item is PdfName longName && NameTooLong(longName.Value)) problems.Add(PdfStrings.PdfA_VLongName);
                 if (item is not PdfObject o || !seen.Add(o)) continue;
                 if (o is PdfArray arr)
                 {
@@ -1002,33 +1000,33 @@ public static class PdfA
                 if (o is not PdfDictionary d) continue;
                 foreach (var key in d.Elements.Keys.ToList())
                 {
-                    if (NameTooLong(key)) problems.Add("A name is longer than the 127 bytes PDF/A allows.");
+                    if (NameTooLong(key)) problems.Add(PdfStrings.PdfA_VLongName);
                     if (key != "/Parent" && key != "/P" && d.Elements[key] is { } value) stack.Push(value);
                 }
-                if (d.Elements.ContainsKey("/AA")) problems.Add("Something has additional actions.");
-                if (!ReferenceEquals(d, catalog) && d.Elements.ContainsKey("/Metadata")) problems.Add("Something other than the document has metadata of its own.");
+                if (d.Elements.ContainsKey("/AA")) problems.Add(PdfStrings.PdfA_VActions);
+                if (!ReferenceEquals(d, catalog) && d.Elements.ContainsKey("/Metadata")) problems.Add(PdfStrings.PdfA_VOwnMetadata);
                 var type = PdfObj.Name(d.Elements["/Type"]);
                 var subtype = PdfObj.Name(d.Elements["/Subtype"]);
                 var s = PdfObj.Name(d.Elements["/S"]);
                 if (s is not null && !d.Elements.ContainsKey("/K") && (type == "Action" || ForbiddenActions.Contains(s)) &&
                     (ForbiddenActions.Contains(s) || s == "Named" && !AllowedNamed.Contains(PdfObj.Name(d.Elements["/N"]) ?? "")))
-                    problems.Add($"It has a {s} action.");
+                    problems.Add(Loc.Format(PdfStrings.PdfA_VAction, s));
                 if (d.Stream is not null)
                 {
                     var filter = PdfObj.Resolve(d.Elements["/Filter"]);
                     if (filter is PdfName { Value: "/LZWDecode" } || filter is PdfArray fa && fa.Elements.Any(e => (PdfObj.Resolve(e) as PdfName)?.Value == "/LZWDecode"))
-                        problems.Add("A stream is LZW-compressed.");
+                        problems.Add(PdfStrings.PdfA_VLzw);
                 }
                 if (subtype == "Image" && (PdfObj.Resolve(d.Elements["/Interpolate"]) is PdfBoolean { Value: true } || d.Elements.ContainsKey("/Alternates") || d.Elements.ContainsKey("/OPI")))
-                    problems.Add("A picture has interpolation, alternates or OPI.");
-                if (subtype == "PS") problems.Add("It has a PostScript XObject.");
-                if (d.Elements.ContainsKey("/TR") || d.Elements.ContainsKey("/HTP")) problems.Add("A graphics state has a transfer function or halftone origin.");
+                    problems.Add(PdfStrings.PdfA_VImage);
+                if (subtype == "PS") problems.Add(PdfStrings.PdfA_VPostScript);
+                if (d.Elements.ContainsKey("/TR") || d.Elements.ContainsKey("/HTP")) problems.Add(PdfStrings.PdfA_VTransfer);
                 if (type == "Font" && subtype is "Type1" or "TrueType" or "MMType1" && PdfObj.Dict(d.Elements["/FontDescriptor"]) is var fd && !(fd is not null &&
                         (fd.Elements.ContainsKey("/FontFile") || fd.Elements.ContainsKey("/FontFile2") || fd.Elements.ContainsKey("/FontFile3"))))
-                    problems.Add($"The font {PdfObj.Name(d.Elements["/BaseFont"])} isn't embedded.");
+                    problems.Add(Loc.Format(PdfStrings.PdfA_VFontNotEmbedded, PdfObj.Name(d.Elements["/BaseFont"])));
                 if (subtype is "CIDFontType0" or "CIDFontType2" && PdfObj.Dict(d.Elements["/FontDescriptor"]) is var cfd &&
                     !(cfd is not null && (cfd.Elements.ContainsKey("/FontFile2") || cfd.Elements.ContainsKey("/FontFile3") || cfd.Elements.ContainsKey("/FontFile"))))
-                    problems.Add($"The font {PdfObj.Name(d.Elements["/BaseFont"])} isn't embedded.");
+                    problems.Add(Loc.Format(PdfStrings.PdfA_VFontNotEmbedded, PdfObj.Name(d.Elements["/BaseFont"])));
             }
             foreach (var page in doc.Pages)
             {
@@ -1037,14 +1035,14 @@ public static class PdfA
                 {
                     var subtype = PdfObj.Name(a.Elements["/Subtype"]) ?? "";
                     var flags = PdfObj.Int(a.Elements["/F"]) ?? 0;
-                    if (RemovedAnnotations.Contains(subtype)) problems.Add($"It has a {subtype} annotation.");
+                    if (RemovedAnnotations.Contains(subtype)) problems.Add(Loc.Format(PdfStrings.PdfA_VAnnotation, subtype));
                     if ((flags & FlagPrint) == 0 || (flags & (FlagInvisible | FlagHidden | FlagNoView | FlagToggleNoView)) != 0)
-                        problems.Add("An annotation doesn't print or is hidden.");
+                        problems.Add(PdfStrings.PdfA_VAnnotHidden);
                     var ap = PdfObj.Dict(a.Elements["/AP"]);
-                    if (ap is not null && (ap.Elements.ContainsKey("/R") || ap.Elements.ContainsKey("/D"))) problems.Add("An annotation has rollover or down appearances.");
+                    if (ap is not null && (ap.Elements.ContainsKey("/R") || ap.Elements.ContainsKey("/D"))) problems.Add(PdfStrings.PdfA_VAnnotRollover);
                     var rect = PdfObj.Array(a.Elements["/Rect"]);
                     var zero = rect is null || Math.Abs(PdfObj.Num(rect, 2) - PdfObj.Num(rect, 0)) < 1e-6 || Math.Abs(PdfObj.Num(rect, 3) - PdfObj.Num(rect, 1)) < 1e-6;
-                    if (ap?.Elements["/N"] is null && subtype is not ("Popup" or "Link") && !zero) problems.Add("An annotation has no appearance.");
+                    if (ap?.Elements["/N"] is null && subtype is not ("Popup" or "Link") && !zero) problems.Add(PdfStrings.PdfA_VAnnotNoAppearance);
                 }
             }
         }

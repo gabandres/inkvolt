@@ -26,7 +26,7 @@ public enum ViewerTool
 
 public sealed record SearchHit(int Page, int Start, int End, IReadOnlyList<RectD> Rects, string Excerpt)
 {
-    public string PageLabel => $"Page {Page + 1}";
+    public string PageLabel => Loc.Format(Strings.Viewer_PageN, Page + 1);
 }
 
 /// <summary>A caret on a page: ordered by page, then caret.</summary>
@@ -1271,7 +1271,7 @@ public sealed partial class PageViewer : ScrollViewer
     private static void PaintFailed(DrawingContext dc, Rect pr, double dpi)
     {
         var size = Math.Clamp(pr.Width / 24, 9, 16);
-        var ft = new FormattedText("This page can't be displayed", System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+        var ft = new FormattedText(Strings.Viewer_PageFailed, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             new Typeface("Segoe UI"), size, FailedBrush, dpi) { MaxTextWidth = Math.Max(10, pr.Width - 16), TextAlignment = TextAlignment.Center };
         dc.DrawText(ft, new Point(pr.X + 8, pr.Y + Math.Max(8, (pr.Height - ft.Height) / 2)));
     }
@@ -1574,8 +1574,8 @@ public sealed partial class PageViewer : ScrollViewer
         var safe = Uri.TryCreate(uri, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" or "mailto";
         if (!safe)
         {
-            if (!Prompt.Confirm(Window.GetWindow(this), "Open this link?",
-                $"The document wants to open {uri}. Only continue if you trust the document.", "Open link", warning: true)) return;
+            if (!Prompt.Confirm(Window.GetWindow(this), Strings.Viewer_OpenLinkTitle,
+                Loc.Format(Strings.Viewer_OpenLinkBody, uri), Strings.Viewer_OpenLink, warning: true)) return;
         }
         Shell.Open(uri);
     }
@@ -1593,15 +1593,15 @@ public sealed partial class PageViewer : ScrollViewer
             try
             {
                 Clipboard.SetImage(bmp);
-                StatusMessage?.Invoke(this, $"Snapshot copied ({bmp.PixelWidth} × {bmp.PixelHeight} px)");
+                StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_SnapshotCopied, bmp.PixelWidth, bmp.PixelHeight));
             }
             catch (System.Runtime.InteropServices.COMException ex)
             {
-                StatusMessage?.Invoke(this, $"Couldn't copy: {ex.Message}");
+                StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_CopyFailed, ex.Message));
             }
         }, ex => StatusMessage?.Invoke(this, ex is ObjectDisposedException
-            ? "Couldn't copy the snapshot: the document changed meanwhile. Try again."
-            : $"Couldn't copy the snapshot: {ex.Message}"));
+            ? Strings.Viewer_SnapshotChanged
+            : Loc.Format(Strings.Viewer_SnapshotFailed, ex.Message)));
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)

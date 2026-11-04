@@ -58,7 +58,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
     public AppSettings.WatchSetting Setting { get; } = setting;
     public string PresetName { get; private set; } = Path.GetFileNameWithoutExtension(setting.Preset);
     public string Output { get; private set; } = "";
-    public string Status { get; private set; } = "Stopped";
+    public string Status { get; private set; } = Strings.Batch_Stopped;
     public bool HasProblem { get; private set; }
     public int Done { get; private set; }
     public int Failed { get; private set; }
@@ -86,17 +86,17 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         }
         catch (BatchPresetException ex)
         {
-            Show($"Not watching: {ex.Message}", problem: true);
+            Show(Loc.Format(Strings.Batch_NotWatching, ex.Message), problem: true);
             return;
         }
         PresetName = preset.Name;
         var steps = preset.Steps;
         if (steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords))
         {
-            if (owner is null || SecurityActions.AskProtection(owner, "Passwords for the Watched Folder", "Start", null,
-                    $"\"{preset.Name}\" protects each file with a password. Type the passwords: they are kept only while Inkvolt PDF is open, never saved.") is not { } c)
+            if (owner is null || SecurityActions.AskProtection(owner, Strings.Batch_WatchPasswordsTitle, Strings.Batch_Start, null,
+                    Loc.Format(Strings.Batch_WatchPasswordsNote, preset.Name)) is not { } c)
             {
-                Show("Paused: the preset protects files with a password, which isn't saved. Start to type it.", problem: true);
+                Show(Strings.Batch_PausedPassword, problem: true);
                 return;
             }
             steps = BatchPresets.WithPasswords(steps, c.UserPassword, c.OwnerPassword);
@@ -106,7 +106,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         var ocr = PageOcr.Engine;
         if ((WatchedFolder.Validate(Setting.Folder, Output) ?? plan.Validate(ocr is not null)) is { } error)
         {
-            Show($"Not watching: {error}", problem: true);
+            Show(Loc.Format(Strings.Batch_NotWatching, error), problem: true);
             return;
         }
         var ocrGate = new Lock();
@@ -126,7 +126,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
                 else Failed++;
                 if (e.State != BatchItemState.Done) Log.Write($"Watched folder: {Log.Name(e.FileName)}: {e.State}: {e.Message}");
             }
-            Show(p.Working > 0 ? $"Working on {Files(p.Working)}… {Counts}" : Watching(e: p.Finished));
+            Show(p.Working > 0 ? Loc.Plural(p.Working, Strings.Batch_WorkingOn_One, Strings.Batch_WorkingOn_Many, Counts) : Watching(e: p.Finished));
         });
         Setting.Paused = false;
         _cts = new CancellationTokenSource();
@@ -139,12 +139,12 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
             try
             {
                 await WatchedFolder.RunAsync(Setting.Folder, plan, host, null, progress, token);
-                Ui(() => Show("Stopped"));
+                Ui(() => Show(Strings.Batch_Stopped));
             }
             catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException)
             {
                 Log.Write($"Watched folder {Log.Name(Setting.Folder)} stopped: {ex.Message}");
-                Ui(() => Show($"Not watching: {ex.Message}", problem: true));
+                Ui(() => Show(Loc.Format(Strings.Batch_NotWatching, ex.Message), problem: true));
             }
         });
     }
@@ -153,7 +153,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
     {
         _cts?.Cancel();
         Setting.Paused = true;
-        Show("Stopping: the files being worked on finish their current action…");
+        Show(Strings.Batch_Stopping);
     }
 
     /// <summary>Stops and waits (up to <paramref name="wait"/>) so files being worked on go back rather than stay in "working".</summary>
@@ -167,12 +167,19 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         catch (AggregateException) { }
     }
 
-    private string Counts => Done + Failed == 0 ? "" : $"{Done:N0} done{(Failed > 0 ? $", {Failed:N0} failed" : "")} since Inkvolt PDF started.";
+    private string Counts => Done + Failed == 0 ? "" : Failed > 0 ? Loc.Format(Strings.Batch_CountsFailed, Done, Failed) : Loc.Format(Strings.Batch_Counts, Done);
 
     private string Watching(WatchEntry? e = null) =>
-        $"Watching. {Counts}{(e is null ? "" : $" Last: {e.FileName}, {e.State.ToString().ToLowerInvariant()} at {e.Time:t}.")}".TrimEnd();
+        (Loc.Format(Strings.Batch_Watching, Counts) + (e is null ? "" : " " + Loc.Format(Strings.Batch_WatchLast, e.FileName, StateWord(e.State), e.Time))).TrimEnd();
 
-    private static string Files(int n) => n == 1 ? "1 file" : $"{n:N0} files";
+    private static string StateWord(BatchItemState s) => s switch
+    {
+        BatchItemState.Done => Strings.Batch_StateDone,
+        BatchItemState.Failed => Strings.Batch_StateFailed,
+        BatchItemState.Skipped => Strings.Batch_StateSkipped,
+        BatchItemState.Cancelled => Strings.Batch_StateCancelled,
+        _ => s.ToString().ToLowerInvariant(),
+    };
 
     private void Show(string status, bool problem = false)
     {
@@ -251,8 +258,8 @@ internal static class FolderWatches
         {
             if (All.Count == 0) return null;
             var running = All.Count(w => w.IsRunning);
-            if (All.Any(w => w.HasProblem)) return "Watched folder needs a look";
-            return running == 0 ? "Watched folders stopped" : running == 1 ? "Watching 1 folder" : $"Watching {running} folders";
+            if (All.Any(w => w.HasProblem)) return Strings.Batch_WatchNeedsLook;
+            return running == 0 ? Strings.Batch_WatchStopped : Loc.Plural(running, Strings.Batch_WatchingFolders_One, Strings.Batch_WatchingFolders_Many);
         }
     }
 }
@@ -284,7 +291,7 @@ internal sealed class WatchWindow : Window
     private WatchWindow(Window owner)
     {
         Owner = owner;
-        Title = "Watched Folders";
+        Title = Strings.Batch_WatchedFolders;
         Width = 720;
         Height = 520;
         MinWidth = 520;
@@ -294,25 +301,23 @@ internal sealed class WatchWindow : Window
         var caption = (Style)Application.Current.FindResource("Caption");
 
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-        heading.Children.Add(new TextBlock { Text = "Watched Folders", FontSize = 20, FontWeight = FontWeights.SemiBold });
+        heading.Children.Add(new TextBlock { Text = Strings.Batch_WatchedFolders, FontSize = 20, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock
         {
-            Text = "Each PDF or image put in a watched folder runs through its preset once it has stopped growing; the original moves to \"done\" or \"failed\" " +
-                   "in that folder, and inkvolt-watch.log there gets a line for it. Folders are watched while Inkvolt PDF is open; with it closed, use " +
-                   "inkvoltpdf --watch <folder> --preset <file> in a terminal or a scheduled task.",
+            Text = Strings.Batch_WatchIntro,
             Style = caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0),
         });
         var scroll = new ScrollViewer { Content = _list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
-        AutomationProperties.SetName(_list, "Watched folders");
+        AutomationProperties.SetName(_list, Strings.Batch_WatchedFoldersName);
         var body = new DockPanel { Margin = new Thickness(24, 20, 24, 16) };
         DockPanel.SetDock(heading, Dock.Top);
         body.Children.Add(heading);
         body.Children.Add(scroll);
 
-        var add = new Button { Content = "Watch a Folder…", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+        var add = new Button { Content = Strings.Batch_WatchAFolder, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
         add.SetResourceReference(StyleProperty, "AccentButtonStyle");
         add.Click += (_, _) => AskAdd();
-        var close = new Button { Content = "Close", MinWidth = 104, IsCancel = true };
+        var close = new Button { Content = Strings.Common_Close, MinWidth = 104, IsCancel = true };
         close.Click += (_, _) => Close();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 16, 24, 16) };
         buttons.Children.Add(add);
@@ -342,12 +347,12 @@ internal sealed class WatchWindow : Window
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = Pro.Locked(ProFeature.WatchedFolders), FontWeight = FontWeights.SemiBold });
             text.Children.Add(new TextBlock { Text = Pro.Describe(ProFeature.WatchedFolders), TextWrapping = TextWrapping.Wrap, Style = caption, Margin = new Thickness(0, 4, 0, 8) });
-            text.Children.Add(Small("About Inkvolt Pro…", () => ProWindow.Open(this, ProFeature.WatchedFolders)));
+            text.Children.Add(Small(Strings.Batch_AboutPro, () => ProWindow.Open(this, ProFeature.WatchedFolders)));
             banner.Child = text;
             _list.Children.Add(banner);
         }
         if (FolderWatches.All.Count == 0)
-            _list.Children.Add(new TextBlock { Text = "No folder is watched. Watch a Folder chooses one and the preset it runs.", Style = caption, TextWrapping = TextWrapping.Wrap });
+            _list.Children.Add(new TextBlock { Text = Strings.Batch_NoFolder, Style = caption, TextWrapping = TextWrapping.Wrap });
         foreach (var w in FolderWatches.All)
         {
             var card = new Border { Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 8), CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1) };
@@ -357,34 +362,34 @@ internal sealed class WatchWindow : Window
             panel.Children.Add(new TextBlock { Text = w.Setting.Folder, FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, ToolTip = w.Setting.Folder });
             panel.Children.Add(new TextBlock
             {
-                Text = $"Preset: {w.PresetName}{(w.Output.Length > 0 ? $" · Results: {w.Output}" : "")}",
+                Text = w.Output.Length > 0 ? Loc.Format(Strings.Batch_PresetResults, w.PresetName, w.Output) : Loc.Format(Strings.Batch_PresetLine, w.PresetName),
                 Style = caption, TextTrimming = TextTrimming.CharacterEllipsis,
             });
             var status = new TextBlock { Text = w.Status, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) };
             if (w.HasProblem) status.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
             panel.Children.Add(status);
             var actions = new WrapPanel();
-            actions.Children.Add(Small(w.IsRunning ? "Stop" : "Start", () =>
+            actions.Children.Add(Small(w.IsRunning ? Strings.Common_Stop : Strings.Batch_Start, () =>
             {
                 if (w.IsRunning) w.Stop();
                 else w.Start(this);
                 FolderWatches.SaveState();
             }));
-            actions.Children.Add(Small("Open Folder", () => Shell.Open(w.Setting.Folder)));
-            actions.Children.Add(Small("Open Log", () =>
+            actions.Children.Add(Small(Strings.FormData_OpenFolder, () => Shell.Open(w.Setting.Folder)));
+            actions.Children.Add(Small(Strings.Batch_OpenLog, () =>
             {
                 var log = Path.Combine(w.Setting.Folder, WatchedFolder.LogName);
                 if (File.Exists(log)) Shell.Open(log);
-                else Prompt.Info(this, "No log yet", "The log is written when the first file is finished.");
+                else Prompt.Info(this, Strings.Batch_NoLog, Strings.Batch_NoLogBody);
             }));
-            actions.Children.Add(Small("Remove", () =>
+            actions.Children.Add(Small(Strings.Common_Remove, () =>
             {
-                if (Prompt.Confirm(this, "Stop watching this folder?", $"{w.Setting.Folder} is no longer watched. Its files, \"done\" and \"failed\" stay as they are.", "Remove"))
+                if (Prompt.Confirm(this, Strings.Batch_StopWatching, Loc.Format(Strings.Batch_StopWatchingBody, w.Setting.Folder), Strings.Common_Remove))
                     FolderWatches.Remove(w);
             }));
             panel.Children.Add(actions);
             card.Child = panel;
-            AutomationProperties.SetName(card, $"{w.Setting.Folder}: {w.Status}");
+            AutomationProperties.SetName(card, $"{w.Setting.Folder}: {w.Status}"); // in every language: only names and values, no words
             _list.Children.Add(card);
         }
     }
@@ -403,24 +408,24 @@ internal sealed class WatchWindow : Window
         var presets = PresetLibrary.List();
         if (presets.Count == 0)
         {
-            Prompt.Info(this, "Save a preset first", "A watched folder runs a saved preset. In Batch, choose the actions, then Save Preset.");
+            Prompt.Info(this, Strings.Batch_SavePresetFirst, Strings.Batch_SavePresetFirstBody);
             return;
         }
-        var dlg = new FormDialog(this, "Watch a Folder", "Watch", 520);
+        var dlg = new FormDialog(this, Strings.Batch_WatchFolderTitle, Strings.Batch_Watch, 520);
         var folder = new TextBox();
-        AutomationProperties.SetName(folder, "Folder to watch");
-        dlg.Add("Folder to watch", Browsing(folder, "Watch this folder"));
-        var preset = dlg.AddChoice("Preset", presets.Select(p => p.Name));
+        AutomationProperties.SetName(folder, Strings.Batch_FolderToWatch);
+        dlg.Add(Strings.Batch_FolderToWatch, Browsing(folder, Strings.Batch_WatchThisFolder));
+        var preset = dlg.AddChoice(Strings.Batch_Preset, presets.Select(p => p.Name));
         var output = new TextBox();
-        AutomationProperties.SetName(output, "Save results to");
-        dlg.Add("Save results to", Browsing(output, "Save the results to"));
-        dlg.AddNote("Empty: the preset's folder, or a \"results\" folder inside the watched one.");
+        AutomationProperties.SetName(output, Strings.Batch_SaveResultsTo);
+        dlg.Add(Strings.Batch_SaveResultsTo, Browsing(output, Strings.Batch_SaveTheResultsTo));
+        dlg.AddNote(Strings.Batch_EmptyOutputNote);
         dlg.Validate(() =>
         {
             var f = folder.Text.Trim().Trim('"');
-            if (FolderWatches.All.Any(w => string.Equals(Path.GetFullPath(w.Setting.Folder), f, StringComparison.OrdinalIgnoreCase))) return "That folder is watched already.";
+            if (FolderWatches.All.Any(w => string.Equals(Path.GetFullPath(w.Setting.Folder), f, StringComparison.OrdinalIgnoreCase))) return Strings.Batch_AlreadyWatched;
             var o = output.Text.Trim().Trim('"');
-            if (o.Length > 0 && !Path.IsPathFullyQualified(o)) return "Give the results folder as a full path, or leave it empty.";
+            if (o.Length > 0 && !Path.IsPathFullyQualified(o)) return Strings.Batch_FullPath;
             return WatchedFolder.Validate(f, o.Length > 0 ? o : Path.IsPathFullyQualified(f) ? WatchedFolder.DefaultOutput(f) : "");
         });
         if (!dlg.ShowModal()) return;
@@ -429,7 +434,7 @@ internal sealed class WatchWindow : Window
 
     private DockPanel Browsing(TextBox box, string title)
     {
-        var browse = new Button { Content = "Browse…", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        var browse = new Button { Content = Strings.Common_Browse, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
         browse.Click += (_, _) =>
         {
             if (PdfFiles.PickFolder(this, title, Directory.Exists(box.Text) ? box.Text : null) is { } f) box.Text = f;

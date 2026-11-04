@@ -82,7 +82,7 @@ public static class AiProtocol
         {
             using var doc = JsonDocument.Parse(json);
             if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-                throw new AiException("The endpoint's model list isn't in the OpenAI format. Type the model's name instead.");
+                throw new AiException(PdfStrings.Ai_ModelListNotOpenAi);
             var ids = new SortedSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var m in data.EnumerateArray())
                 if (m.ValueKind == JsonValueKind.Object && m.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String && id.GetString() is { Length: > 0 } s)
@@ -91,7 +91,7 @@ public static class AiProtocol
         }
         catch (JsonException ex)
         {
-            throw new AiException("The endpoint's model list isn't JSON. Is the address right (it usually ends in /v1)?", ex);
+            throw new AiException(PdfStrings.Ai_ModelListNotJson, ex);
         }
     }
 
@@ -185,21 +185,20 @@ public static class AiProtocol
     /// <summary>What an HTTP error status means for the user, with the server's own message when it gives one.</summary>
     public static string DescribeError(int status, string? serverMessage, string model, AiEndpoint endpoint)
     {
-        var said = string.IsNullOrWhiteSpace(serverMessage) ? "" : $" The server said: \"{serverMessage.Trim()}\"";
+        var said = string.IsNullOrWhiteSpace(serverMessage) ? "" : Loc.Format(PdfStrings.Ai_ServerSaid, serverMessage.Trim());
         var mentionsModel = serverMessage?.Contains("model", StringComparison.OrdinalIgnoreCase) == true;
         var mentionsContext = serverMessage is { } m && (m.Contains("context", StringComparison.OrdinalIgnoreCase) || m.Contains("too long", StringComparison.OrdinalIgnoreCase) || m.Contains("tokens", StringComparison.OrdinalIgnoreCase));
         return status switch
         {
-            401 or 403 => $"{endpoint.Host} refused the request ({status}): check the API key in Settings › AI assistant.{said}",
+            401 or 403 => Loc.Format(PdfStrings.Ai_RefusedKey, endpoint.Host, status, said),
             404 when mentionsModel =>
-                $"The model \"{model}\" isn't available at {endpoint.Host} (404). Pick another one in Settings › AI assistant" +
-                (endpoint.ServerName == "Ollama" ? $", or download it with: ollama pull {model}." : ".") + said,
-            404 => $"Nothing answers at {endpoint.ChatUrl} (404). Check the endpoint address in Settings › AI assistant (it usually ends in /v1).{said}",
-            400 or 413 when mentionsContext => $"The text is too long for the model.{said} Choose fewer pages, or a smaller context size in Settings › AI assistant.",
-            400 when mentionsModel => $"{endpoint.Host} doesn't accept the model \"{model}\".{said}",
-            429 => $"{endpoint.Host} is limiting requests (429): wait a moment, or check your plan's quota.{said}",
-            >= 500 => $"{endpoint.Host} had a problem answering ({status}).{said}",
-            _ => $"{endpoint.Host} refused the request ({status}).{said}",
+                Loc.Format(endpoint.ServerName == "Ollama" ? PdfStrings.Ai_ModelMissingOllama : PdfStrings.Ai_ModelMissing, model, endpoint.Host) + said,
+            404 => Loc.Format(PdfStrings.Ai_NothingAnswers, endpoint.ChatUrl, said),
+            400 or 413 when mentionsContext => Loc.Format(PdfStrings.Ai_TextTooLongForModel, said),
+            400 when mentionsModel => Loc.Format(PdfStrings.Ai_ModelNotAccepted, endpoint.Host, model, said),
+            429 => Loc.Format(PdfStrings.Ai_RateLimited, endpoint.Host, said),
+            >= 500 => Loc.Format(PdfStrings.Ai_ServerProblem, endpoint.Host, status, said),
+            _ => Loc.Format(PdfStrings.Ai_Refused, endpoint.Host, status, said),
         };
     }
 
@@ -250,7 +249,7 @@ public sealed class AiStreamParser
         if (_data.Length + payload.Length > MaxEventChars)
         {
             _data.Clear();
-            throw new AiException("The endpoint sent a streamed chunk too large to be part of an answer.");
+            throw new AiException(PdfStrings.Ai_ChunkTooLarge);
         }
         if (_data.Length > 0) _data.Append('\n');
         _data.Append(payload);
@@ -272,7 +271,7 @@ public sealed class AiStreamParser
         {
             if (!strict) return ""; // more data lines may follow
             _data.Clear();
-            throw new AiException("The endpoint sent an answer Inkvolt PDF can't read (not OpenAI-compatible streaming).", ex);
+            throw new AiException(PdfStrings.Ai_NotStreaming, ex);
         }
         _data.Clear();
         SawData = true;
@@ -282,7 +281,7 @@ public sealed class AiStreamParser
     private string Chunk(JsonElement root)
     {
         if (AiProtocol.ErrorMessageOf(root) is { } error && root.TryGetProperty("error", out _))
-            throw new AiException($"The model stopped with an error: \"{error}\"");
+            throw new AiException(Loc.Format(PdfStrings.Ai_ModelError, error));
         if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("choices", out var choices) || choices.ValueKind != JsonValueKind.Array)
             return "";
         var sb = new StringBuilder();
@@ -311,12 +310,12 @@ public sealed class AiStreamParser
             using var doc = JsonDocument.Parse(json);
             var text = p.Chunk(doc.RootElement);
             if (doc.RootElement.ValueKind != JsonValueKind.Object || !doc.RootElement.TryGetProperty("choices", out _))
-                throw new AiException("The endpoint's answer isn't an OpenAI-compatible chat completion.");
+                throw new AiException(PdfStrings.Ai_NotChatCompletion);
             return (text, p.FinishReason);
         }
         catch (JsonException ex)
         {
-            throw new AiException("The endpoint sent an answer Inkvolt PDF can't read (not JSON).", ex);
+            throw new AiException(PdfStrings.Ai_NotJson, ex);
         }
     }
 }

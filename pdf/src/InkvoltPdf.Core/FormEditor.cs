@@ -121,7 +121,7 @@ public static partial class FormEditor
         var acro = PdfObj.Dict(doc.Internals.Catalog.Elements["/AcroForm"]);
         var fields = new List<Field>();
         Collect(doc, acro, fields);
-        if (fields.Count == 0) throw new InvalidOperationException("This PDF has no fillable form.");
+        if (fields.Count == 0) throw new InvalidOperationException(PdfStrings.Form_NoFillableForm);
         var runner = new FormActionRunner(doc, acro, fields, host, data);
         var js = runner.Js;
         var rejected = new List<FieldRejection>();
@@ -196,7 +196,7 @@ public static partial class FormEditor
             if (!r.Rc)
             {
                 // A message the user already saw in a dialog isn't repeated (empty reason).
-                var why = r.Alerts.Count > 0 ? string.Join("\n", r.Alerts) : r.Shown > 0 ? "" : $"The value entered for {f.Name} isn't valid.";
+                var why = r.Alerts.Count > 0 ? string.Join("\n", r.Alerts) : r.Shown > 0 ? "" : Loc.Format(PdfStrings.Form_ValueNotValid, f.Name);
                 return (value, why);
             }
             alerts.AddRange(r.Alerts);
@@ -831,5 +831,5 @@ public static partial class FormEditor
     }
 
     private static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode) =>
-        PdfObj.Open(data, password, mode, "This PDF's form can't be read");
+        PdfObj.Open(data, password, mode, PdfStrings.Form_CantRead);
 }

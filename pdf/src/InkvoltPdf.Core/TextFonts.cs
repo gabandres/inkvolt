@@ -76,11 +76,11 @@ internal sealed class TextFont
             _cidFont = PdfObj.Array(font.Elements["/DescendantFonts"]) is { Elements.Count: > 0 } df ? PdfObj.Dict(df.Elements[0]) : null;
             descriptor = _cidFont is null ? null : PdfObj.Dict(_cidFont.Elements["/FontDescriptor"]);
             var encoding = PdfObj.Name(font.Elements["/Encoding"]);
-            if (_cidFont is null) Blocked = "its font is damaged";
-            else if (encoding == "Identity-V") Blocked = "it is vertical text";
+            if (_cidFont is null) Blocked = PdfStrings.Edit_BlockedFontDamaged;
+            else if (encoding == "Identity-V") Blocked = PdfStrings.Edit_BlockedVertical;
             else if (encoding != "Identity-H")
             {
-                Blocked = "its font uses a character map (CMap) that can't be written to yet";
+                Blocked = PdfStrings.Edit_BlockedCMap;
                 TwoByte = encoding is { } e && (e.Contains("UCS2", StringComparison.Ordinal) || e.Contains("UTF16", StringComparison.Ordinal));
             }
             if (_cidFont is not null)
@@ -94,12 +94,12 @@ internal sealed class TextFont
                     for (var i = 0; i < _cidToGid.Length; i++) _cidToGid[i] = b[2 * i] << 8 | b[2 * i + 1];
                 }
             }
-            if (Blocked is null && !_hasToUnicode) Blocked = "its font doesn't say which characters its glyphs are";
+            if (Blocked is null && !_hasToUnicode) Blocked = PdfStrings.Edit_BlockedNoToUnicode;
         }
         else
         {
             descriptor = PdfObj.Dict(font.Elements["/FontDescriptor"]);
-            if (subtype == "/Type3") Blocked = "it is drawn with a Type 3 font (glyphs drawn as pictures)";
+            if (subtype == "/Type3") Blocked = PdfStrings.Edit_BlockedType3;
             var first = (int)PdfObj.Num(font.Elements["/FirstChar"], 0);
             if (PdfObj.Array(font.Elements["/Widths"]) is { } widths)
                 for (var i = 0; i < widths.Elements.Count; i++)

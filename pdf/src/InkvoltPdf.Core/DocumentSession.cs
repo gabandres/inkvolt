@@ -65,7 +65,7 @@ public sealed partial class DocumentSession : IDisposable
         }
 
         private IOException ChangedOnDisk() =>
-            new($"\"{System.IO.Path.GetFileName(Path)}\" changed on disk after it was opened. Reload it to go on.");
+            new(Loc.Format(PdfStrings.Doc_ChangedOnDisk, System.IO.Path.GetFileName(Path)));
     }
 
     /// <summary>The names <see cref="MayContain"/> can answer for, plus "/ObjStm" (compressed objects hide every name).</summary>
@@ -347,7 +347,7 @@ public sealed partial class DocumentSession : IDisposable
     {
         var target = new FileInfo(path);
         if (target.Exists && target.IsReadOnly)
-            throw new UnauthorizedAccessException($"\"{target.Name}\" is read-only. Save a copy under another name, or clear its read-only attribute.");
+            throw new UnauthorizedAccessException(Loc.Format(PdfStrings.Doc_ReadOnly, target.Name));
 
         var temp = Path.Combine(target.DirectoryName!, $".{target.Name}.{Guid.NewGuid():N}.tmp");
         try
@@ -406,7 +406,7 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     /// <exception cref="PasswordRequiredException">The file needs another password (another program protected it).</exception>
     public void ReloadFromDisk() =>
-        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException("This document has not been saved to a file."), FileType, _diskPassword, _inPlaceBytes));
+        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), FileType, _diskPassword, _inPlaceBytes));
 
     /// <summary>
     /// <see cref="ReloadFromDisk"/> with the reading and parsing on a worker thread; the content is swapped on the calling
@@ -417,7 +417,7 @@ public sealed partial class DocumentSession : IDisposable
     {
         var (path, type, inPlaceBytes) = (FilePath, FileType, _inPlaceBytes);
         password ??= _diskPassword;
-        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException("This document has not been saved to a file."), type, password, inPlaceBytes));
+        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), type, password, inPlaceBytes));
         if (stillWanted?.Invoke() == false || path != FilePath)
         {
             copy.Engine.Dispose();

@@ -11,6 +11,9 @@ public sealed record AiChunk(int FirstPage, int LastPage, string Text)
 {
     /// <summary>"page 3" or "pages 3–7" (1-based).</summary>
     public string PagesText => AiText.PagesText(FirstPage, LastPage);
+
+    /// <summary>The same in English, for a prompt (prompts are always English).</summary>
+    internal string PagesTextEnglish => AiText.PagesText(FirstPage, LastPage, english: true);
 }
 
 /// <summary>A "[p. N]" citation in an answer: where it is and the page it names (0-based).</summary>
@@ -70,13 +73,23 @@ public static partial class AiText
     public static string PageMarker(int page) => $"[Page {page + 1}]";
 
     /// <summary>"page 3" or "pages 3–7" (1-based).</summary>
-    public static string PagesText(int first, int last) => first == last ? $"page {first + 1}" : $"pages {first + 1}–{last + 1}";
+    public static string PagesText(int first, int last) => PagesText(first, last, english: false);
+
+    /// <summary>"page 3" or "pages 3–7" in English (a prompt) or the interface's language.</summary>
+    internal static string PagesText(int first, int last, bool english) =>
+        english ? (first == last ? $"page {first + 1}" : $"pages {first + 1}–{last + 1}")
+        : first == last ? Loc.Format(PdfStrings.Ai_PageN, first + 1) : Loc.Format(PdfStrings.Ai_PagesRange, first + 1, last + 1);
 
     /// <summary>"pages 1–3, 5" for a set of 0-based pages.</summary>
-    public static string PagesText(IEnumerable<int> pages)
+    public static string PagesText(IEnumerable<int> pages) => PagesText(pages, english: false);
+
+    /// <summary>"pages 1–3, 5" in English (a prompt) or the interface's language.</summary>
+    internal static string PagesText(IEnumerable<int> pages, bool english)
     {
         var list = pages.Distinct().Order().ToList();
-        return list.Count == 1 ? $"page {list[0] + 1}" : $"pages {PageRange.Format(list).Replace("-", "–")}";
+        if (list.Count == 1) return english ? $"page {list[0] + 1}" : Loc.Format(PdfStrings.Ai_PageN, list[0] + 1);
+        var ranges = PageRange.Format(list).Replace("-", "–");
+        return english ? $"pages {ranges}" : Loc.Format(PdfStrings.Ai_PagesList, ranges);
     }
 
     /// <summary>Tidies extracted text: trims lines, collapses runs of spaces and of blank lines.</summary>

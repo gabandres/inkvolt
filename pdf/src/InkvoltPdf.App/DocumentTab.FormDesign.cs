@@ -22,36 +22,46 @@ public partial class DocumentTab
     private string? _designSelectAfter;   // select this field once the fields are read again
     private int _suggestionPages = -1;    // the page count the suggestions were found with
 
-    private static readonly (string Label, FieldFormat? Format)[] Formats =
+    // Built when read (not cached), so the labels are in the interface's language.
+    private static (string Label, FieldFormat? Format)[] Formats =>
     [
-        ("None", null),
-        ("Number (1,234.56)", new FieldFormat(FieldFormatKind.Number, 2)),
-        ("Whole number (1,234)", new FieldFormat(FieldFormatKind.Number, 0)),
-        ("Currency ($1,234.56)", new FieldFormat(FieldFormatKind.Number, 2, Currency: "$", CurrencyPrepend: true)),
-        ("Percent (12.50%)", new FieldFormat(FieldFormatKind.Percent, 2)),
-        ("Date (mm/dd/yyyy)", new FieldFormat(FieldFormatKind.Date, DatePattern: "mm/dd/yyyy")),
-        ("Date (dd/mm/yyyy)", new FieldFormat(FieldFormatKind.Date, DatePattern: "dd/mm/yyyy")),
-        ("Date (yyyy-mm-dd)", new FieldFormat(FieldFormatKind.Date, DatePattern: "yyyy-mm-dd")),
-        ("ZIP code", new FieldFormat(FieldFormatKind.Special, Special: 0)),
-        ("ZIP+4", new FieldFormat(FieldFormatKind.Special, Special: 1)),
-        ("Phone number", new FieldFormat(FieldFormatKind.Special, Special: 2)),
-        ("Social Security number", new FieldFormat(FieldFormatKind.Special, Special: 3)),
+        (Strings.Common_None, null),
+        (Strings.FormDesign_FormatNumber, new FieldFormat(FieldFormatKind.Number, 2)),
+        (Strings.FormDesign_FormatWholeNumber, new FieldFormat(FieldFormatKind.Number, 0)),
+        (Strings.FormDesign_FormatCurrency, new FieldFormat(FieldFormatKind.Number, 2, Currency: "$", CurrencyPrepend: true)),
+        (Strings.FormDesign_FormatPercent, new FieldFormat(FieldFormatKind.Percent, 2)),
+        (Strings.FormDesign_FormatDateMdy, new FieldFormat(FieldFormatKind.Date, DatePattern: "mm/dd/yyyy")),
+        (Strings.FormDesign_FormatDateDmy, new FieldFormat(FieldFormatKind.Date, DatePattern: "dd/mm/yyyy")),
+        (Strings.FormDesign_FormatDateIso, new FieldFormat(FieldFormatKind.Date, DatePattern: "yyyy-mm-dd")),
+        (Strings.FormDesign_FormatZip, new FieldFormat(FieldFormatKind.Special, Special: 0)),
+        (Strings.FormDesign_FormatZip4, new FieldFormat(FieldFormatKind.Special, Special: 1)),
+        (Strings.FormDesign_FormatPhone, new FieldFormat(FieldFormatKind.Special, Special: 2)),
+        (Strings.FormDesign_FormatSsn, new FieldFormat(FieldFormatKind.Special, Special: 3)),
     ];
 
-    private static readonly (string Label, AnnotColor? Color)[] BorderColors =
-        [("None", null), ("Black", new(0, 0, 0)), ("Gray", new(0.45, 0.45, 0.45)), ("Blue", new(0.1, 0.35, 0.8)), ("Red", new(0.8, 0.1, 0.1))];
-
-    private static readonly (string Label, AnnotColor? Color)[] FillColors =
-        [("None", null), ("White", new(1, 1, 1)), ("Light gray", new(0.85, 0.85, 0.85)), ("Light blue", new(0.88, 0.93, 1)), ("Light yellow", new(1, 0.98, 0.8))];
-
-    private static readonly string[] Sizes = ["Auto", "8", "9", "10", "11", "12", "14", "16", "18", "24"];
-
-    private static readonly (string Label, DesignFieldKind Kind, bool Multiline)[] SuggestionKinds =
+    private static (string Label, AnnotColor? Color)[] BorderColors =>
     [
-        ("Text field", DesignFieldKind.Text, false), ("Multi-line text field", DesignFieldKind.Text, true), ("Check box", DesignFieldKind.CheckBox, false),
-        ("Radio button", DesignFieldKind.Radio, false), ("Dropdown", DesignFieldKind.ComboBox, false), ("List box", DesignFieldKind.ListBox, false),
-        ("Signature field", DesignFieldKind.Signature, false),
+        (Strings.Common_None, null), (Strings.FormDesign_ColorBlack, new(0, 0, 0)), (Strings.FormDesign_ColorGray, new(0.45, 0.45, 0.45)),
+        (Strings.FormDesign_ColorBlue, new(0.1, 0.35, 0.8)), (Strings.FormDesign_ColorRed, new(0.8, 0.1, 0.1)),
     ];
+
+    private static (string Label, AnnotColor? Color)[] FillColors =>
+    [
+        (Strings.Common_None, null), (Strings.FormDesign_ColorWhite, new(1, 1, 1)), (Strings.FormDesign_ColorLightGray, new(0.85, 0.85, 0.85)),
+        (Strings.FormDesign_ColorLightBlue, new(0.88, 0.93, 1)), (Strings.FormDesign_ColorLightYellow, new(1, 0.98, 0.8)),
+    ];
+
+    private static string[] Sizes => [Strings.FormDesign_SizeAuto, "8", "9", "10", "11", "12", "14", "16", "18", "24"];
+
+    private static (string Label, DesignFieldKind Kind, bool Multiline)[] SuggestionKinds =>
+    [
+        (Strings.FormDesign_KindText, DesignFieldKind.Text, false), (Strings.FormDesign_KindMultiline, DesignFieldKind.Text, true),
+        (Strings.FormDesign_KindCheckBox, DesignFieldKind.CheckBox, false), (Strings.FormDesign_KindRadio, DesignFieldKind.Radio, false),
+        (Strings.FormDesign_KindDropdown, DesignFieldKind.ComboBox, false), (Strings.FormDesign_KindListBox, DesignFieldKind.ListBox, false),
+        (Strings.FormDesign_KindSignature, DesignFieldKind.Signature, false),
+    ];
+
+    private static string[] ButtonActions => [Strings.FormDesign_ActionNothing, Strings.FormDesign_ActionReset, Strings.Common_Print];
 
     private (ToggleButton Button, DesignFieldKind? Kind)[] DesignTools =>
     [
@@ -77,45 +87,45 @@ public partial class DocumentTab
         Viewer.ToolChanged += (_, _) => UpdateFormDesignUi();
         Viewer.DesignSelectionChanged += (_, _) => ShowDesignSelection();
         Viewer.DesignFieldDrawn += (_, p) => _ = AddDrawnField(p);
-        Viewer.DesignFieldMoved += (_, f) => _ = UpdateDesignFields("Move field", [f]);
+        Viewer.DesignFieldMoved += (_, f) => _ = UpdateDesignFields(Strings.FormDesign_UndoMove, [f]);
         Viewer.DesignActionRequested += (_, a) => _ = OnDesignAction(a);
 
         FieldFormatBox.ItemsSource = Formats.Select(f => f.Label).ToList();
-        FieldActionBox.ItemsSource = new[] { "Nothing", "Reset the form", "Print" };
+        FieldActionBox.ItemsSource = ButtonActions;
         FieldSizeBox.ItemsSource = Sizes;
-        FieldAlignBox.ItemsSource = new[] { "Left", "Center", "Right" };
+        FieldAlignBox.ItemsSource = new[] { Strings.FormDesign_AlignLeft, Strings.FormDesign_AlignCenter, Strings.FormDesign_AlignRight };
         SuggestionKindBox.ItemsSource = SuggestionKinds.Select(k => k.Label).ToList();
 
         // Text boxes apply on Enter (single-line ones) and when focus leaves; lists and check boxes when they change.
-        OnCommit(FieldNameBox, () => Change("Rename field", f =>
+        OnCommit(FieldNameBox, () => Change(Strings.FormDesign_UndoRename, f =>
         {
             var name = FieldNameBox.Text.Trim();
             if (name == f.Name) return f;
             var others = Viewer.DesignFields.Where(o => o.Id != f.Id && !(f.Kind == DesignFieldKind.Radio && o.Name == f.Name)).Select(o => (o.Name, o.Kind));
             return FormDesign.NameClash(others, name, f.Kind) is { } problem ? Refuse(problem) : f with { Name = name };
         }));
-        OnCommit(FieldTooltipBox, () => Change("Change tooltip", f => f with { Tooltip = FieldTooltipBox.Text.Trim() }));
-        OnCommit(FieldMaxLenBox, () => Change("Change length limit", f =>
+        OnCommit(FieldTooltipBox, () => Change(Strings.FormDesign_UndoTooltip, f => f with { Tooltip = FieldTooltipBox.Text.Trim() }));
+        OnCommit(FieldMaxLenBox, () => Change(Strings.FormDesign_UndoLengthLimit, f =>
             int.TryParse(FieldMaxLenBox.Text.Trim(), NumberStyles.None, CultureInfo.CurrentCulture, out var n) && n is >= 0 and <= 100_000
                 ? f with { MaxLength = n }
-                : FieldMaxLenBox.Text.Trim().Length == 0 ? f with { MaxLength = 0 } : Refuse("Type the most characters as a whole number (0: no limit).")));
-        OnCommit(FieldExportBox, () => Change("Change value", f =>
+                : FieldMaxLenBox.Text.Trim().Length == 0 ? f with { MaxLength = 0 } : Refuse(Strings.FormDesign_MaxLengthInvalid)));
+        OnCommit(FieldExportBox, () => Change(Strings.FormDesign_UndoValue, f =>
         {
             var v = FieldExportBox.Text.Trim();
             if (v == f.ExportValue) return f;
             if (FormDesign.ExportValueProblem(v) is { } problem) return Refuse(problem);
             if (f.Kind == DesignFieldKind.Radio && Viewer.DesignFields.Any(o => o.Id != f.Id && o.Kind == DesignFieldKind.Radio && o.Name == f.Name && o.ExportValue == v))
-                return Refuse($"Another button of \"{f.Name}\" already stands for \"{v}\": give this one a value of its own.");
+                return Refuse(Loc.Format(Strings.FormDesign_ValueTaken, f.Name, v));
             // A radio button that was the group's default stays it.
             return f with { ExportValue = v, DefaultValue = f.Kind == DesignFieldKind.Radio && f.DefaultValue == f.ExportValue ? v : f.DefaultValue };
         }));
-        OnCommit(FieldCaptionBox, () => Change("Change label", f => f with { Caption = FieldCaptionBox.Text }));
-        OnCommit(FieldDefaultBox, () => Change("Change default", f => f with { DefaultValue = FieldDefaultBox.Text }));
-        OnCommit(FieldOptionsBox, () => Change("Change choices", f =>
+        OnCommit(FieldCaptionBox, () => Change(Strings.FormDesign_UndoLabel, f => f with { Caption = FieldCaptionBox.Text }));
+        OnCommit(FieldDefaultBox, () => Change(Strings.FormDesign_UndoDefault, f => f with { DefaultValue = FieldDefaultBox.Text }));
+        OnCommit(FieldOptionsBox, () => Change(Strings.FormDesign_UndoChoices, f =>
         {
             var (options, labels) = ParseChoices(FieldOptionsBox.Text);
             if (options.SequenceEqual(f.Options) && labels.SequenceEqual(f.ShownOptions)) return f;
-            if (options.Count == 0) return Refuse("Type at least one choice.");
+            if (options.Count == 0) return Refuse(Strings.FormDesign_NoChoices);
             return f with
             {
                 Options = options,
@@ -131,41 +141,41 @@ public partial class DocumentTab
             ReplaceSuggestion(s, s with { Name = name });
         });
 
-        FieldRequiredBox.Click += (_, _) => Change("Change required", f => f with { Required = FieldRequiredBox.IsChecked == true });
-        FieldReadOnlyBox.Click += (_, _) => Change("Change read-only", f => f with { ReadOnly = FieldReadOnlyBox.IsChecked == true });
-        FieldMultilineBox.Click += (_, _) => Change("Change multi-line", f => f with { Multiline = FieldMultilineBox.IsChecked == true });
-        FieldEditableBox.Click += (_, _) => Change("Change dropdown", f => f with { Editable = FieldEditableBox.IsChecked == true });
-        FieldMultiSelectBox.Click += (_, _) => Change("Change list box", f => f with { MultiSelect = FieldMultiSelectBox.IsChecked == true });
-        FieldDefaultCheck.Click += (_, _) => Change("Change default", f => f with
+        FieldRequiredBox.Click += (_, _) => Change(Strings.FormDesign_UndoRequired, f => f with { Required = FieldRequiredBox.IsChecked == true });
+        FieldReadOnlyBox.Click += (_, _) => Change(Strings.FormDesign_UndoReadOnly, f => f with { ReadOnly = FieldReadOnlyBox.IsChecked == true });
+        FieldMultilineBox.Click += (_, _) => Change(Strings.FormDesign_UndoMultiline, f => f with { Multiline = FieldMultilineBox.IsChecked == true });
+        FieldEditableBox.Click += (_, _) => Change(Strings.FormDesign_UndoDropdown, f => f with { Editable = FieldEditableBox.IsChecked == true });
+        FieldMultiSelectBox.Click += (_, _) => Change(Strings.FormDesign_UndoListBox, f => f with { MultiSelect = FieldMultiSelectBox.IsChecked == true });
+        FieldDefaultCheck.Click += (_, _) => Change(Strings.FormDesign_UndoDefault, f => f with
         {
             DefaultValue = FieldDefaultCheck.IsChecked == true ? f.ExportValue : f.Kind == DesignFieldKind.Radio && f.DefaultValue != f.ExportValue ? f.DefaultValue : "",
         });
         FieldFormatBox.SelectionChanged += (_, _) =>
         {
             if (FieldFormatBox.SelectedIndex is var i && i >= 0 && i < Formats.Length)
-                Change("Change format", f => f with { Format = Formats[i].Format });
+                Change(Strings.FormDesign_UndoFormat, f => f with { Format = Formats[i].Format });
         };
         FieldActionBox.SelectionChanged += (_, _) =>
         {
             if (FieldActionBox.SelectedIndex is >= 0 and var i && i < 3)
-                Change("Change button action", f => f with { Action = i switch { 1 => FieldButtonAction.ResetForm, 2 => FieldButtonAction.Print, _ => FieldButtonAction.None } });
+                Change(Strings.FormDesign_UndoButtonAction, f => f with { Action = i switch { 1 => FieldButtonAction.ResetForm, 2 => FieldButtonAction.Print, _ => FieldButtonAction.None } });
         };
         FieldDefaultChoice.SelectionChanged += (_, _) =>
         {
             if (FieldDefaultChoice.SelectedIndex is >= 0 and var i)
-                Change("Change default", f => f with { DefaultValue = i == 0 ? "" : f.Options.ElementAtOrDefault(i - 1) ?? "" });
+                Change(Strings.FormDesign_UndoDefault, f => f with { DefaultValue = i == 0 ? "" : f.Options.ElementAtOrDefault(i - 1) ?? "" });
         };
         FieldAlignBox.SelectionChanged += (_, _) =>
         {
-            if (FieldAlignBox.SelectedIndex is >= 0 and var i) Change("Change alignment", f => f with { Alignment = i });
+            if (FieldAlignBox.SelectedIndex is >= 0 and var i) Change(Strings.FormDesign_UndoAlignment, f => f with { Alignment = i });
         };
         FieldBorderBox.SelectionChanged += (_, _) =>
         {
-            if (FieldBorderBox.SelectedIndex is >= 0 and var i && i < BorderColors.Length) Change("Change border", f => f with { BorderColor = BorderColors[i].Color });
+            if (FieldBorderBox.SelectedIndex is >= 0 and var i && i < BorderColors.Length) Change(Strings.FormDesign_UndoBorder, f => f with { BorderColor = BorderColors[i].Color });
         };
         FieldFillBox.SelectionChanged += (_, _) =>
         {
-            if (FieldFillBox.SelectedIndex is >= 0 and var i && i < FillColors.Length) Change("Change fill", f => f with { FillColor = FillColors[i].Color });
+            if (FieldFillBox.SelectedIndex is >= 0 and var i && i < FillColors.Length) Change(Strings.FormDesign_UndoFill, f => f with { FillColor = FillColors[i].Color });
         };
         FieldSizeBox.SelectionChanged += (_, _) =>
         {
@@ -219,7 +229,7 @@ public partial class DocumentTab
         if (IsDesigningForm) return true;
         if (!Session.IsPdf)
         {
-            Notify("Forms can be prepared in PDF files only.");
+            Notify(Strings.FormDesign_PdfOnly);
             return false;
         }
         if (IsOrganizing) SetOrganizing(false);
@@ -240,12 +250,10 @@ public partial class DocumentTab
         var owner = Window.GetWindow(this);
         if (xfaOnly)
         {
-            Prompt.Info(owner, "This form uses XFA", "Its fields are an XFA form, which Inkvolt PDF can't edit. Adobe Acrobat (Pro) can convert or edit it.");
+            Prompt.Info(owner, Strings.FormDesign_XfaTitle, Strings.FormDesign_XfaBody);
             return false;
         }
-        if (hasXfa && !Prompt.Confirm(owner, "Edit this form's fields?",
-                "This form also carries an XFA version, which Adobe Acrobat shows instead of the fields. Changing the fields here removes the XFA version, so every viewer shows the fields as you prepare them.",
-                "Edit fields"))
+        if (hasXfa && !Prompt.Confirm(owner, Strings.FormDesign_XfaBothTitle, Strings.FormDesign_XfaBothBody, Strings.FormDesign_XfaBothEdit))
             return false;
         Viewer.Tool = ViewerTool.PrepareForm;
         Viewer.Focus();
@@ -325,7 +333,7 @@ public partial class DocumentTab
     private bool DesignIsCurrent()
     {
         if (ReferenceEquals(_designData, Session.Data)) return true;
-        Notify("The fields are still being refreshed after the last change. Try again in a moment.");
+        Notify(Strings.FormDesign_StillRefreshing);
         _ = LoadFormDesignAsync();
         return false;
     }
@@ -343,7 +351,7 @@ public partial class DocumentTab
             f = FormDesign.NewField(p.Kind, p.PageIndex, p.Rect, all.Select(x => x.Name));
         if (p.Kind == DesignFieldKind.Text && p.Rect.Height >= 36) f = f with { Multiline = true };
         Viewer.DesignKind = null; // back to selecting: the new field's properties show
-        await AddFields($"Add {DesignField.KindName(p.Kind).ToLowerInvariant()}", [f], f.Id);
+        await AddFields(Loc.Format(Strings.FormDesign_UndoAdd, DesignField.KindName(p.Kind).ToLowerInvariant()), [f], f.Id);
     }
 
     private async Task<bool> AddFields(string label, IReadOnlyList<DesignField> fields, string? select)
@@ -389,7 +397,7 @@ public partial class DocumentTab
             {
                 var next = NextFieldAfter(f);
                 _designSelectAfter = next;
-                if (!await RunEdit($"Delete {DesignField.KindName(f.Kind).ToLowerInvariant()}", (d, pw) => FormDesign.Delete(d, pw, [f.Id]), contentOnly: true))
+                if (!await RunEdit(Loc.Format(Strings.FormDesign_UndoDelete, DesignField.KindName(f.Kind).ToLowerInvariant()), (d, pw) => FormDesign.Delete(d, pw, [f.Id]), contentOnly: true))
                     _designSelectAfter = null;
                 break;
             }
@@ -398,7 +406,7 @@ public partial class DocumentTab
                 var g = Session.Engine.GetPage(f.PageIndex);
                 var below = f.Rect.Bottom + 8 + f.Rect.Height <= g.Height;
                 var copy = FormDesign.Duplicate(f, Viewer.DesignFields, below ? 0 : Math.Min(f.Rect.Width + 8, Math.Max(0, g.Width - f.Rect.Right)), below ? f.Rect.Height + 8 : 0);
-                await AddFields($"Duplicate {DesignField.KindName(f.Kind).ToLowerInvariant()}", [copy], copy.Id);
+                await AddFields(Loc.Format(Strings.FormDesign_UndoDuplicate, DesignField.KindName(f.Kind).ToLowerInvariant()), [copy], copy.Id);
                 break;
             }
             case DesignAction.Accept when s is not null:
@@ -448,7 +456,7 @@ public partial class DocumentTab
             fields.Add(f);
         }
         var index = Viewer.SelectedSuggestionIndex;
-        var label = fields.Count == 1 ? $"Add {DesignField.KindName(fields[0].Kind).ToLowerInvariant()}" : $"Add {fields.Count} fields";
+        var label = fields.Count == 1 ? Loc.Format(Strings.FormDesign_UndoAdd, DesignField.KindName(fields[0].Kind).ToLowerInvariant()) : Loc.Format(Strings.FormDesign_UndoAddMany, fields.Count);
         if (!await RunEdit(label, (d, pw) => FormDesign.Add(d, pw, fields), contentOnly: true)) return;
         var rest = Viewer.Suggestions.Where(x => !picked.Contains(x)).ToList();
         Viewer.SetSuggestions(rest);
@@ -478,9 +486,9 @@ public partial class DocumentTab
         var pages = Enumerable.Range(0, engine.PageCount).ToList();
         IReadOnlyList<FieldSuggestion> found;
         using (BeginBusy(null))
-        using (var prompt = new ProgressPrompt(Window.GetWindow(this), "Detect Fields", "Looking for fields…"))
+        using (var prompt = new ProgressPrompt(Window.GetWindow(this), Strings.FormDesign_DetectTitle, Strings.FormDesign_DetectLooking))
         {
-            var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Looking at page {p.Done + 1:N0} of {p.Total:N0}…", (double)p.Done / p.Total));
+            var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.FormDesign_DetectPage, p.Done + 1, p.Total), (double)p.Done / p.Total));
             var token = prompt.Token;
             try
             {
@@ -493,7 +501,7 @@ public partial class DocumentTab
             catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException)
             {
                 Log.Write($"Detect fields failed: {ex}");
-                Notify("Couldn't look for fields: the document changed meanwhile. Try again.", error: true);
+                Notify(Strings.FormDesign_DetectChanged, error: true);
                 return;
             }
         }
@@ -502,14 +510,14 @@ public partial class DocumentTab
         Viewer.SetSuggestions(found);
         if (found.Count == 0)
         {
-            Notify("No fields found. Inkvolt PDF looks for lines to write on, empty boxes, small squares and runs of underscores.");
+            Notify(Strings.FormDesign_DetectNone);
             return;
         }
         // Start on the current page's first suggestion, else the first one.
         var first = Math.Max(0, found.ToList().FindIndex(s => s.PageIndex >= Viewer.CurrentPage));
         Viewer.SelectSuggestion(first, reveal: true);
         Viewer.Focus();
-        Notify($"Found {found.Count} possible field{(found.Count == 1 ? "" : "s")} (dashed): Enter adds one, Del skips it, or add them all from the panel.");
+        Notify(Loc.Plural(found.Count, Strings.FormDesign_DetectFound_One, Strings.FormDesign_DetectFound_Many));
     }
 
     private async Task MoveInTabOrder(int step)
@@ -520,14 +528,14 @@ public partial class DocumentTab
         var j = i + step;
         if (i < 0 || j < 0 || j >= onPage.Count)
         {
-            Notify(step < 0 ? "This field is already filled first on its page." : "This field is already filled last on its page.");
+            Notify(step < 0 ? Strings.FormDesign_AlreadyFirst : Strings.FormDesign_AlreadyLast);
             return;
         }
         (onPage[i], onPage[j]) = (onPage[j], onPage[i]);
         var ids = onPage.Select(x => x.Id).ToList();
         var newIds = new Dictionary<string, string>();
         _designSelectAfter = f.Id;
-        var ok = await RunEdit("Change tab order", (d, pw) =>
+        var ok = await RunEdit(Strings.FormDesign_UndoTabOrder, (d, pw) =>
         {
             newIds.Clear();
             return FormDesign.SetTabOrder(d, pw, f.PageIndex, ids, newIds);
@@ -609,9 +617,9 @@ public partial class DocumentTab
     {
         text = text.Trim();
         double size;
-        if (text.Length == 0 || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) size = 0;
+        if (text.Length == 0 || text.Equals(Strings.FormDesign_SizeAuto, StringComparison.OrdinalIgnoreCase) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) size = 0;
         else if (!double.TryParse(text.TrimEnd('p', 't', ' '), NumberStyles.Float, CultureInfo.CurrentCulture, out size) || size is < 0 or > 200) return;
-        Change("Change text size", f => f with { FontSize = size });
+        Change(Strings.FormDesign_UndoTextSize, f => f with { FontSize = size });
     }
 
     /// <summary>Fills the panel from the selection: a field's properties, a suggestion, or the hint.</summary>
@@ -629,10 +637,10 @@ public partial class DocumentTab
             SuggestionAll.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
             FieldPanelHint.Visibility = f is null && s is null ? Visibility.Visible : Visibility.Collapsed;
             FieldPanelError.Visibility = Visibility.Collapsed;
-            SuggestionCount.Text = $"{count} suggested field{(count == 1 ? "" : "s")} (dashed on the page).";
-            var title = f is not null ? $"{DesignField.KindName(f.Kind)} · page {f.PageIndex + 1}{(f.Signed ? " · signed" : "")}"
-                : s is not null ? $"Suggested {DesignField.KindName(s.Kind).ToLowerInvariant()} · page {s.PageIndex + 1}"
-                : "Prepare Form";
+            SuggestionCount.Text = Loc.Plural(count, Strings.FormDesign_SuggestedCount_One, Strings.FormDesign_SuggestedCount_Many);
+            var title = f is not null ? Loc.Format(f.Signed ? Strings.FormDesign_TitleFieldSigned : Strings.FormDesign_TitleField, DesignField.KindName(f.Kind), f.PageIndex + 1)
+                : s is not null ? Loc.Format(Strings.FormDesign_TitleSuggested, DesignField.KindName(s.Kind).ToLowerInvariant(), s.PageIndex + 1)
+                : Strings.FormDesign_TitlePrepare;
             var changed = FieldPanelTitle.Text != title;
             FieldPanelTitle.Text = title;
             if (f is not null) ShowField(f);
@@ -640,17 +648,18 @@ public partial class DocumentTab
             {
                 SetText(SuggestionNameBox, s.Name);
                 SuggestionKindBox.SelectedIndex = Array.FindIndex(SuggestionKinds, k => k.Kind == s.Kind && k.Multiline == s.Multiline);
-                SuggestionSource.Text = "Found from " + s.Source switch
+                SuggestionSource.Text = s.Source switch
                 {
-                    "underscores" => "a run of underscores.",
-                    "line" => "a line to write on.",
-                    "box" => "an empty box.",
-                    "square" => "a small square.",
-                    _ => "a box character.",
+                    "underscores" => Strings.FormDesign_FoundUnderscores,
+                    "line" => Strings.FormDesign_FoundLine,
+                    "box" => Strings.FormDesign_FoundBox,
+                    "square" => Strings.FormDesign_FoundSquare,
+                    _ => Strings.FormDesign_FoundBoxCharacter,
                 };
             }
             if (changed || f is not null || s is not null)
-                Announce(f is not null ? $"{f.Describe()} selected, page {f.PageIndex + 1}" : s is not null ? $"Suggested {DesignField.KindName(s.Kind).ToLowerInvariant()} {s.Name}, page {s.PageIndex + 1}" : title);
+                Announce(f is not null ? Loc.Format(Strings.FormDesign_AnnounceField, f.Describe(), f.PageIndex + 1)
+                    : s is not null ? Loc.Format(Strings.FormDesign_AnnounceSuggested, DesignField.KindName(s.Kind).ToLowerInvariant(), s.Name, s.PageIndex + 1) : title);
         }
         finally
         {
@@ -678,8 +687,8 @@ public partial class DocumentTab
             SetText(FieldMaxLenBox, f.MaxLength.ToString(CultureInfo.CurrentCulture));
             var formats = Formats.Select(x => x.Label).ToList();
             var at = Array.FindIndex(Formats, x => x.Format == f.Format);
-            if (f.CustomFormat) formats.Add("Custom script (kept)");
-            else if (at < 0) formats.Add($"Other ({f.Format!.Kind.ToString().ToLowerInvariant()}, kept)");
+            if (f.CustomFormat) formats.Add(Strings.FormDesign_FormatCustomScript);
+            else if (at < 0) formats.Add(Loc.Format(Strings.FormDesign_FormatOther, f.Format!.Kind.ToString().ToLowerInvariant()));
             FieldFormatBox.ItemsSource = formats;
             FieldFormatBox.SelectedIndex = at >= 0 && !f.CustomFormat ? at : formats.Count - 1;
             FieldFormatBox.IsEnabled = !f.CustomFormat;
@@ -700,8 +709,8 @@ public partial class DocumentTab
         {
             SetText(FieldCaptionBox, f.Caption);
             FieldActionBox.ItemsSource = f.Action == FieldButtonAction.Other
-                ? new[] { "Nothing", "Reset the form", "Print", "The form's own action (kept)" }
-                : new[] { "Nothing", "Reset the form", "Print" };
+                ? ButtonActions.Append(Strings.FormDesign_ActionOwn).ToArray()
+                : ButtonActions;
             FieldActionBox.SelectedIndex = f.Action switch { FieldButtonAction.ResetForm => 1, FieldButtonAction.Print => 2, FieldButtonAction.Other => 3, _ => 0 };
         }
 
@@ -711,17 +720,17 @@ public partial class DocumentTab
         if (text) SetText(FieldDefaultBox, f.DefaultValue);
         if (choice)
         {
-            FieldDefaultChoice.ItemsSource = f.ShownOptions.Prepend("(none)").ToList();
+            FieldDefaultChoice.ItemsSource = f.ShownOptions.Prepend(Strings.FormDesign_DefaultNone).ToList();
             FieldDefaultChoice.SelectedIndex = f.Options.ToList().IndexOf(f.DefaultValue) + 1;
         }
         FieldDefaultCheck.Visibility = onOff ? Visibility.Visible : Visibility.Collapsed;
         FieldDefaultCheck.IsChecked = onOff && f.DefaultValue.Length > 0 && f.DefaultValue == f.ExportValue;
-        FieldDefaultCheck.Content = f.Kind == DesignFieldKind.Radio ? "Selected by default" : "Checked by default";
+        FieldDefaultCheck.Content = f.Kind == DesignFieldKind.Radio ? Strings.FormDesign_SelectedByDefault : Strings.FormDesign_CheckedByDefault;
 
         var hasText = !onOff && f.Kind != DesignFieldKind.Signature;
         FieldSizeBox.IsEnabled = hasText;
         FieldAlignBox.IsEnabled = hasText;
-        if (!FieldSizeBox.IsKeyboardFocusWithin) FieldSizeBox.Text = f.FontSize <= 0 ? "Auto" : f.FontSize.ToString("0.#", CultureInfo.CurrentCulture);
+        if (!FieldSizeBox.IsKeyboardFocusWithin) FieldSizeBox.Text = f.FontSize <= 0 ? Strings.FormDesign_SizeAuto : f.FontSize.ToString("0.#", CultureInfo.CurrentCulture);
         FieldAlignBox.SelectedIndex = Math.Clamp(f.Alignment, 0, 2);
         SelectColor(FieldBorderBox, BorderColors, f.BorderColor);
         SelectColor(FieldFillBox, FillColors, f.FillColor);
@@ -733,7 +742,7 @@ public partial class DocumentTab
         static bool Near(AnnotColor? a, AnnotColor? b) => a is null ? b is null : b is { } v && Math.Abs(a.Value.R - v.R) < 0.02 && Math.Abs(a.Value.G - v.G) < 0.02 && Math.Abs(a.Value.B - v.B) < 0.02;
         var labels = choices.Select(c => c.Label).ToList();
         var at = Array.FindIndex(choices, c => Near(c.Color, color));
-        if (at < 0) labels.Add("Custom (kept)");
+        if (at < 0) labels.Add(Strings.FormDesign_ColorCustom);
         box.ItemsSource = labels;
         box.SelectedIndex = at >= 0 ? at : labels.Count - 1;
     }

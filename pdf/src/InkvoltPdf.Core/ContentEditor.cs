@@ -162,7 +162,7 @@ public static partial class ContentEditor
     /// <summary>The page's text runs and pictures.</summary>
     public static PageContent Read(byte[] data, string? password, int pageIndex, CancellationToken cancel = default)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         var page = doc.Pages[pageIndex];
         return WithParagraphs(Walk(page, pageIndex, Parse(page, cancel), cancel).Content);
@@ -171,7 +171,7 @@ public static partial class ContentEditor
     /// <summary>Several pages' text runs and pictures (a page that can't be read comes back empty).</summary>
     public static IReadOnlyDictionary<int, PageContent> Read(byte[] data, string? password, IReadOnlyCollection<int> pages, CancellationToken cancel = default)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
         var result = new Dictionary<int, PageContent>();
         foreach (var p in pages)
         {
@@ -197,7 +197,7 @@ public static partial class ContentEditor
     {
         text = OneLine(text);
         if (text == run.Text) return data;
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var page = PageOf(doc, run.PageIndex);
         var streams = Streams(page);
         var content = streams.Bytes;
@@ -206,9 +206,9 @@ public static partial class ContentEditor
         // The run where it was; else (an earlier edit moved the page's operators) the same text in the same place.
         var now = walk.Content.Runs.FirstOrDefault(r => r.Id == run.Id && r.Text == run.Text)
                   ?? walk.Content.Runs.Where(r => r.Text == run.Text && Near(r.Box, run.Box)).MinBy(r => Math.Abs(r.Box.X - run.Box.X) + Math.Abs(r.Box.Y - run.Box.Y));
-        if (now is { Blocked: { } why }) throw new ContentEditException($"This text can't be edited: {why}.");
+        if (now is { Blocked: { } why }) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, why));
         if (now is null || !walk.Runs.TryGetValue(now.Id, out var info))
-            throw new ContentEditException("The page changed since this text was picked. Pick it again.");
+            throw new ContentEditException(PdfStrings.Edit_PageChangedText);
         var font = now.Font!;
 
         var plan = Plan(info, now, text);
@@ -344,13 +344,13 @@ public static partial class ContentEditor
 
     private static ContentEditException MissingGlyphs(TextFont font, IReadOnlyList<string> missing)
     {
-        static string Show(string c) => c == " " ? "space" : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) is System.Globalization.UnicodeCategory.PrivateUse or System.Globalization.UnicodeCategory.Surrogate or System.Globalization.UnicodeCategory.OtherNotAssigned
+        static string Show(string c) => c == " " ? PdfStrings.Edit_MissingSpace : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) is System.Globalization.UnicodeCategory.PrivateUse or System.Globalization.UnicodeCategory.Surrogate or System.Globalization.UnicodeCategory.OtherNotAssigned
             ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”";
-        var list = string.Join(", ", missing.Take(12).Select(Show)) + (missing.Count > 12 ? $" and {missing.Count - 12} more" : "");
-        var name = font.Name.Length > 0 ? $"the font “{font.Name}”" : "this text's font";
-        return new ContentEditException(
-            $"Neither {name} nor any font on this PC has {list}, so it can't be written. Leave {(missing.Count == 1 ? "it" : "them")} out, or add a text box instead.",
-            missing);
+        var list = string.Join(", ", missing.Take(12).Select(Show)) + (missing.Count > 12 ? Loc.Format(PdfStrings.Edit_MissingMore, missing.Count - 12) : "");
+        var message = font.Name.Length > 0
+            ? Loc.Plural(missing.Count, PdfStrings.Edit_MissingGlyphsNamed_One, PdfStrings.Edit_MissingGlyphsNamed_Many, font.Name, list)
+            : Loc.Plural(missing.Count, PdfStrings.Edit_MissingGlyphs_One, PdfStrings.Edit_MissingGlyphs_Many, list);
+        return new ContentEditException(message, missing);
     }
 
     /// <summary>The text-showing operator rewritten with new parts (strings of codes and TJ adjustments).</summary>
@@ -394,15 +394,15 @@ public static partial class ContentEditor
     /// <summary>Moves and/or resizes a picture so its bounding box becomes <paramref name="box"/> (page space).</summary>
     public static byte[] MoveImage(byte[] data, string? password, PageImage image, RectD box)
     {
-        if (box.Width < 1 || box.Height < 1) throw new ContentEditException("A picture can't be made that small.");
+        if (box.Width < 1 || box.Height < 1) throw new ContentEditException(PdfStrings.Edit_PictureTooSmall);
         return EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
         {
             var p2u = PageToUser(page);
-            var u2p = p2u.Invert() ?? throw new ContentEditException("This page's size can't be read.");
+            var u2p = p2u.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PageSizeUnreadable);
             var old = found.Box;
             var d = new Mat(box.Width / old.Width, 0, 0, box.Height / old.Height, box.X - old.X * box.Width / old.Width, box.Y - old.Y * box.Height / old.Height);
             var dUser = u2p.Times(d).Times(p2u);
-            var inv = ctm.Invert() ?? throw new ContentEditException("This picture is drawn squashed flat, so it can't be moved.");
+            var inv = ctm.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PictureSquashed);
             var m = ctm.Times(dUser).Times(inv); // inserted before the Do, the image lands on CTM × D
             var at = ops.IndexOf(op);
             // "q a b c d e f cm /Im Do Q": change that cm; otherwise wrap the Do.
@@ -453,7 +453,7 @@ public static partial class ContentEditor
 
     private static byte[] EditImage(byte[] data, string? password, PageImage image, ImageEdit edit, bool dropName = false)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var page = PageOf(doc, image.PageIndex);
         var streams = Streams(page);
         var content = streams.Bytes;
@@ -461,9 +461,9 @@ public static partial class ContentEditor
         var walk = Walk(page, image.PageIndex, ops, default);
         var now = walk.Content.Images.FirstOrDefault(i => i.Id == image.Id && Near(i.Box, image.Box))
                   ?? walk.Content.Images.LastOrDefault(i => Near(i.Box, image.Box));
-        if (now is { Blocked: { } why }) throw new ContentEditException($"This picture can't be edited: {why}.");
+        if (now is { Blocked: { } why }) throw new ContentEditException(Loc.Format(PdfStrings.Edit_PictureCantBeEdited, why));
         if (now is null || !walk.ImageCtm.TryGetValue(now.Id, out var ctm))
-            throw new ContentEditException("The page changed since this picture was picked. Pick it again.");
+            throw new ContentEditException(PdfStrings.Edit_PageChangedPicture);
         var op = ops[now.Id];
         var oldName = op.Name == "Do" ? op.Operands[0].Name : null;
         var edits = edit(doc, page, now, op, ctm, ops, content);
@@ -527,7 +527,7 @@ public static partial class ContentEditor
 
     private static PdfPage PageOf(PdfDocument doc, int index)
     {
-        if (index < 0 || index >= doc.PageCount) throw new ContentEditException("This page is no longer in the document.");
+        if (index < 0 || index >= doc.PageCount) throw new ContentEditException(PdfStrings.Edit_PageGone);
         return doc.Pages[index];
     }
 
@@ -599,7 +599,7 @@ public static partial class ContentEditor
             }
         }
         if (streams.Parts.Any(p => p.Unreadable))
-            throw new ContentEditException("Part of this page's content can't be read (it is damaged), so the page can't be rewritten without losing it.");
+            throw new ContentEditException(PdfStrings.Edit_PageDamaged);
         page.Elements["/Contents"] = PdfObj.AddStream(doc, updated).Reference!;
         return updated;
     }
@@ -724,7 +724,7 @@ public static partial class ContentEditor
         public PageContent Content => new(TextRuns, Images);
     }
 
-    private const string FormImageBlocked = "it is part of a form XObject (a drawing the page reuses), and only the page's own pictures can be edited in this version";
+    private static string FormImageBlocked =>PdfStrings.Edit_BlockedFormImage;
 
     private sealed class GState
     {
@@ -750,7 +750,7 @@ public static partial class ContentEditor
         {
             var run = w.TextRuns[i];
             if (run.Info?.Form is not { Outer: not null } form || !form.Chain().Any(f => w.FormUses.GetValueOrDefault(f) > 1)) continue;
-            w.TextRuns[i] = run with { Blocked = "it is inside a drawing (a form XObject) that the page draws more than once through another drawing, and an edit would change every copy", Info = null };
+            w.TextRuns[i] = run with { Blocked = PdfStrings.Edit_BlockedSharedForm, Info = null };
             w.Runs.Remove(run.Id);
         }
         return w;
@@ -898,7 +898,7 @@ public static partial class ContentEditor
                     var arg = op.Operands.Count > 0 ? op.Operands[^1] : null;
                     if (arg is null || (op.Name == "TJ" ? arg.Kind != CKind.Array : arg.Kind != CKind.String)) break;
                     tm = ShowText(w, page, pageIndex, id, op, arg, gs, tm, tlm,
-                        blocked ?? (hiddenLayer > 0 ? HiddenLayerBlocked : null) ?? (actualText > 0 ? "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong" : null),
+                        blocked ?? (hiddenLayer > 0 ? HiddenLayerBlocked : null) ?? (actualText > 0 ? PdfStrings.Edit_BlockedActualText : null),
                         looks.Count > 0 ? looks.Peek() : null, form is null ? null : form with { Index = i });
                     break;
                 }
@@ -934,7 +934,7 @@ public static partial class ContentEditor
                     break;
                 }
                 case "BI":
-                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? "where its data ends can't be told for sure, so changing it could damage the page" : null));
+                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null));
                     break;
             }
         }
@@ -961,7 +961,10 @@ public static partial class ContentEditor
     }
 
     /// <summary>Why text in a layer that is off stays: nobody sees it, so it isn't edited, and it is never sent for translating.</summary>
-    internal const string HiddenLayerBlocked = "it is invisible text (in a hidden layer)";
+    internal static string HiddenLayerBlocked =>PdfStrings.Edit_BlockedHiddenLayer;
+
+    /// <summary>Text nobody sees (in a layer that is off, or recognized text over a scan): never sent for translating.</summary>
+    internal static bool IsInvisible(string? why) => why is not null && (why == HiddenLayerBlocked || why == PdfStrings.Edit_BlockedInvisibleOcr);
 
     /// <summary>A layer, or a set of layers, the document opens with off.</summary>
     private static bool IsHiddenLayer(PdfPage page, PdfDictionary? oc)
@@ -1069,11 +1072,11 @@ public static partial class ContentEditor
         var why = blocked;
         if (why is null)
         {
-            if (font is null) why = "its font is missing from the page";
+            if (font is null) why = PdfStrings.Edit_BlockedNoFont;
             else if (font.Blocked is { } fb) why = fb;
-            else if (gs.Render is 3 or 7) why = "it is invisible text (recognized text over a scan)";
-            else if (text.Contains('�')) why = "some of its characters can't be read";
-            else if (text.Trim().Length == 0) why = "it is only spaces";
+            else if (gs.Render is 3 or 7) why = PdfStrings.Edit_BlockedInvisibleOcr;
+            else if (text.Contains('�')) why = PdfStrings.Edit_BlockedUnreadableChars;
+            else if (text.Trim().Length == 0) why = PdfStrings.Edit_BlockedOnlySpaces;
         }
         var run = new TextRun(pageIndex, id, text, box, Math.Abs(fs) * vscale, font?.Name ?? gs.FontKey, font?.Bold ?? false, font?.Italic ?? false,
             gs.Fill, angle, why)

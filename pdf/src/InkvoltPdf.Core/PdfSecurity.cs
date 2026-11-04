@@ -69,13 +69,13 @@ public static class PdfSecurity
     {
         permissions ??= PdfPermissions.All;
         if (string.IsNullOrEmpty(userPassword) && string.IsNullOrEmpty(ownerPassword))
-            throw new ArgumentException("Protecting a PDF needs an open password or a permissions password.", nameof(ownerPassword));
+            throw new ArgumentException(PdfStrings.Security_NeedsPassword, nameof(ownerPassword));
         if (method is not (EncryptionMethod.Aes256 or EncryptionMethod.Aes128))
-            throw new ArgumentException("Inkvolt PDF encrypts with AES-256 or AES-128.", nameof(method));
+            throw new ArgumentException(PdfStrings.Security_AesOnly, nameof(method));
         if (string.IsNullOrEmpty(ownerPassword))
             ownerPassword = permissions.IsUnrestricted ? userPassword! : Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
 
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_PdfCantEdit);
         KeptProtection.Forget(doc);
         SignedEdits.RequireRewrite(data, doc, "encrypting rewrites the whole file");
         KeptProtection.Apply(doc, method, userPassword ?? "", ownerPassword, permissions);
@@ -89,7 +89,7 @@ public static class PdfSecurity
     /// <exception cref="SignaturesWouldBreakException">The document is signed and the rewrite wasn't allowed.</exception>
     public static byte[] Unprotect(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_PdfCantEdit);
         if (!IsEncrypted(doc)) return data;
         KeptProtection.Forget(doc);
         SignedEdits.RequireRewrite(data, doc, "removing the encryption rewrites the whole file");

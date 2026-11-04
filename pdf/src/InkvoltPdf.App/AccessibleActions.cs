@@ -30,11 +30,11 @@ internal static class AccessibleActions
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         TagPlan plan;
-        using (var prompt = new ProgressPrompt(owner, "Make Accessible", "Reading the pages…"))
+        using (var prompt = new ProgressPrompt(owner, Strings.Access_MakeAccessible, Strings.Access_ReadingPages))
         {
             try
             {
-                var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Reading page {p.Done + 1:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+                var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Access_ReadingPage, p.Done + 1, p.Total), (double)p.Done / Math.Max(1, p.Total)));
                 plan = await Task.Run(() =>
                 {
                     // Its own engine: the viewer's keeps rendering meanwhile.
@@ -49,7 +49,7 @@ internal static class AccessibleActions
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or MuPDFException)
             {
                 Log.Write($"Make Accessible: reading failed: {ex}");
-                Prompt.Error(owner, "This document can't be tagged", ex.Message);
+                Prompt.Error(owner, Strings.Access_CantTag, ex.Message);
                 return null;
             }
         }
@@ -67,57 +67,55 @@ internal static class AccessibleActions
         }
         if (!await tab.SettleAsync()) return false;
         var options = new AccessibleOptions { Title = plan.Title, Language = plan.Language };
-        var outcome = await tab.TryEdit("Make accessible", (d, pw) => AutoTag.Write(d, pw, plan, options));
+        var outcome = await tab.TryEdit(Strings.Access_EditLabel, (d, pw) => AutoTag.Write(d, pw, plan, options));
         if (outcome != EditOutcome.Done) return false;
         Log.Write($"Make Accessible: {plan.Blocks.Count} pieces, {plan.FiguresWithoutAlt} pictures without alternate text");
         tab.ShowWrittenPlan(plan);
         host.ShowStatus(plan.FiguresWithoutAlt == 0
-            ? "Tagged. Check the reading order, then run the Accessibility Check."
-            : $"Tagged. {plan.FiguresWithoutAlt} {(plan.FiguresWithoutAlt == 1 ? "picture needs" : "pictures need")} alternate text: select each in the Reading order pane.");
+            ? Strings.Access_Tagged
+            : Loc.Plural(plan.FiguresWithoutAlt, Strings.Access_TaggedAlt_One, Strings.Access_TaggedAlt_Many));
         return true;
     }
 
     /// <summary>The title and language window; the plan with what the person confirmed, or null when cancelled.</summary>
     private static TagPlan? Ask(Window owner, TagPlan plan)
     {
-        var dlg = new FormDialog(owner, "Make Accessible", "Tag the Document", 520);
-        dlg.AddNote("Tags the document on this PC, from its layout: headings, paragraphs, lists, tables and pictures in reading order; " +
-                    "running headers, footers and page numbers are marked as decoration. Screen readers and Reflow use the tags. " +
-                    "You can undo this until you save.");
-        if (plan.WasTagged) dlg.AddNote("This document already has tags. They are replaced with new ones (pictures in the same place keep their alternate text).");
+        var dlg = new FormDialog(owner, Strings.Access_MakeAccessible, Strings.Access_TagButton, 520);
+        dlg.AddNote(Strings.Access_TagNote);
+        if (plan.WasTagged) dlg.AddNote(Strings.Access_AlreadyTagged);
 
-        var title = dlg.Add("Title", new TextBox { Text = plan.Title ?? "" });
-        AutomationName(title, "Title");
+        var title = dlg.Add(Strings.Access_Title, new TextBox { Text = plan.Title ?? "" });
+        AutomationName(title, Strings.Access_Title);
         dlg.AddNote(plan.TitleFrom switch
         {
-            TitleSource.Metadata => "From the document's properties. Screen readers say it first, and the window shows it.",
-            TitleSource.Heading => "From the first heading: check that it says what the document is.",
-            _ => "No title was found: type one that says what the document is.",
+            TitleSource.Metadata => Strings.Access_TitleFromProperties,
+            TitleSource.Heading => Strings.Access_TitleFromHeading,
+            _ => Strings.Access_NoTitle,
         });
 
-        var language = dlg.Add("Language", new ComboBox { IsEditable = true, ItemsSource = Languages, Text = plan.Language ?? "" });
-        AutomationName(language, "Language code");
-        dlg.AddNote(plan.Language is null ? "The language couldn't be told from the text: choose or type its code (such as en or es)."
-            : plan.LanguageGuessed ? "Read from the text: check it. A code such as en, en-US or es-PR."
-            : "From the document. A code such as en, en-US or es-PR.");
+        var language = dlg.Add(Strings.Access_Language, new ComboBox { IsEditable = true, ItemsSource = Languages, Text = plan.Language ?? "" });
+        AutomationName(language, Strings.Access_LanguageCode);
+        dlg.AddNote(plan.Language is null ? Strings.Access_LanguageUnknown
+            : plan.LanguageGuessed ? Strings.Access_LanguageGuessed
+            : Strings.Access_LanguageFromDoc);
 
         var figures = plan.Blocks.Count(b => b.Kind == TagBlockKind.Figure);
         var tables = plan.Blocks.Count(b => b.Kind == TagBlockKind.Table);
         var headings = plan.Blocks.Count(b => b.Kind == TagBlockKind.Heading);
-        dlg.AddNote($"Found: {Count(headings, "heading")}, {Count(tables, "table")}, {Count(figures, "picture")}" +
-                    (plan.FiguresWithoutAlt > 0 ? $"; {Count(plan.FiguresWithoutAlt, "picture")} still {(plan.FiguresWithoutAlt == 1 ? "needs" : "need")} alternate text, " +
-                                                  "which you add in the Reading order pane that opens next." : "."));
+        var found = (Loc.Plural(headings, Strings.Access_Headings_One, Strings.Access_Headings_Many), Loc.Plural(tables, Strings.Access_Tables_One, Strings.Access_Tables_Many),
+            Loc.Plural(figures, Strings.Access_Pictures_One, Strings.Access_Pictures_Many));
+        dlg.AddNote(plan.FiguresWithoutAlt > 0
+            ? Loc.Plural(plan.FiguresWithoutAlt, Strings.Access_FoundAlt_One, Strings.Access_FoundAlt_Many, found.Item1, found.Item2, found.Item3)
+            : Loc.Format(Strings.Access_Found, found.Item1, found.Item2, found.Item3));
         dlg.Validate(() =>
         {
-            if (string.IsNullOrWhiteSpace(title.Text)) return "Type a title: PDF/UA asks for one.";
+            if (string.IsNullOrWhiteSpace(title.Text)) return Strings.Access_TypeTitle;
             var code = language.Text.Trim();
-            return AccessibilityCheck.IsLanguage(code) ? null : "Choose or type a language code, such as en, en-US or es.";
+            return AccessibilityCheck.IsLanguage(code) ? null : Strings.Access_ChooseLanguage;
         });
         dlg.Loaded += (_, _) => title.Focus();
         if (!dlg.ShowModal()) return null;
         return plan with { Title = title.Text.Trim(), Language = language.Text.Trim(), LanguageGuessed = false, TitleFrom = TitleSource.Metadata };
-
-        static string Count(int n, string what) => n == 1 ? $"1 {what}" : $"{n} {what}s";
     }
 
     private static void AutomationName(UIElement e, string name) => System.Windows.Automation.AutomationProperties.SetName(e, name);

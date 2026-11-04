@@ -18,10 +18,8 @@ internal static class PdfAActions
         var level = conformance == PdfAConformance.A ? "PDF/A-2a" : "PDF/A-2b";
         if (conformance == PdfAConformance.A && !await Task.Run(() => AutoTag.IsTagged(tab.Session.Data, tab.Session.Password)))
         {
-            if (!Prompt.Confirm(host, "Tag the document first?",
-                    "PDF/A-2a keeps a document's structure (its tags), and this one has none. Make Accessible tags it from its layout " +
-                    "(headings, paragraphs, lists, tables, pictures); you can check the reading order and add alternate text, then save " +
-                    "the PDF/A-2a copy again.", "Make Accessible")) return;
+            if (!Prompt.Confirm(host, Strings.PdfA_TagFirstTitle,
+                    Strings.PdfA_TagFirstBody, Strings.PdfA_MakeAccessible)) return;
             if (!await AccessibleActions.MakeAccessible(host, tab)) return;
             if (!await tab.SettleAsync()) return;
         }
@@ -31,7 +29,7 @@ internal static class PdfAActions
 
         PdfAResult? result = null;
         var wrong = false;
-        using (var busy = tab.BeginBusy("Making a PDF/A copy…"))
+        using (var busy = tab.BeginBusy(Strings.PdfA_Making))
         {
             while (result is null)
             {
@@ -50,25 +48,24 @@ internal static class PdfAActions
                 catch (PdfAException ex)
                 {
                     Log.Write($"PDF/A: {Log.Name(tab.Session.FilePath)} refused: {string.Join(" ", ex.Blockers)}");
-                    Prompt.Info(host, $"Can't save as {level}",
-                        $"Nothing was saved. This document has what {level} doesn't allow, and changing it would change how the document looks:\n\n" +
-                        string.Join("\n", ex.Blockers.Select(b => "• " + b)));
+                    Prompt.Info(host, Loc.Format(Strings.PdfA_CantSaveAs, level),
+                        Loc.Format(Strings.PdfA_Blocked, level, string.Join("\n", ex.Blockers.Select(b => "• " + b))));
                     return;
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or PdfSharp.PdfSharpException or MuPDFCore.MuPDFException)
                 {
                     Log.Write($"PDF/A failed: {ex}");
-                    Prompt.Error(host, $"Can't save as {level}", ex.Message);
+                    Prompt.Error(host, Loc.Format(Strings.PdfA_CantSaveAs, level), ex.Message);
                     return;
                 }
             }
         }
 
         var folder = Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder;
-        if (PdfFiles.PickSavePath(host, conformance == PdfAConformance.A ? $"{name} (PDF-A-2a).pdf" : $"{name} (PDF-A).pdf", folder) is not { } path) return;
+        if (PdfFiles.PickSavePath(host, conformance == PdfAConformance.A ? Loc.Format(Strings.PdfA_FileName2a, name) : Loc.Format(Strings.PdfA_FileName, name), folder) is not { } path) return;
         if (string.Equals(Path.GetFullPath(path), tab.Session.FilePath, StringComparison.OrdinalIgnoreCase))
         {
-            Prompt.Info(host, "Choose another name", "The PDF/A copy can't replace the open document. Choose another name or folder.");
+            Prompt.Info(host, Strings.PdfA_ChooseAnotherName, Strings.PdfA_CantReplace);
             return;
         }
         try
@@ -77,22 +74,22 @@ internal static class PdfAActions
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(host, "Can't save the PDF/A copy", $"{ex.Message}\n\nIf the file is open in another program, close it there or choose another name.");
+            Prompt.Error(host, Strings.PdfA_CantSaveCopy, Loc.Format(Strings.PdfA_SaveFailed, ex.Message));
             return;
         }
         Log.Write($"PDF/A: saved {Log.Name(path)}; {string.Join("; ", result.Changes)}");
-        var open = Prompt.Confirm(host, $"Saved as {level}",
-            $"{Path.GetFileName(path)} is an archival copy ({level}{(conformance == PdfAConformance.A ? ", tagged for accessibility" : "")}). To get there:\n\n{string.Join("\n", result.Changes.Select(c => "• " + char.ToUpperInvariant(c[0]) + c[1..]))}\n\n" +
-            "Inkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF.", "Open the Copy");
+        var open = Prompt.Confirm(host, Loc.Format(Strings.PdfA_SavedAs, level),
+            Loc.Format(conformance == PdfAConformance.A ? Strings.PdfA_SavedBodyTagged : Strings.PdfA_SavedBody, Path.GetFileName(path), level,
+                string.Join("\n", result.Changes.Select(c => "• " + char.ToUpperInvariant(c[0]) + c[1..]))), Strings.PdfA_OpenCopy);
         if (open) await host.OpenFileAsync(path);
     }
 
     private static string? AskOwnerPassword(Window owner, string name, bool wrong)
     {
-        var dlg = new FormDialog(owner, "Permissions password required", "Continue");
-        if (wrong) dlg.AddNote("That password is incorrect. Try again.");
-        dlg.AddNote($"A PDF/A copy can't be password protected, so making one of \"{name}\" needs its permissions (owner) password.");
-        var box = dlg.Add("Password", new System.Windows.Controls.PasswordBox());
+        var dlg = new FormDialog(owner, Strings.PdfA_PasswordTitle, Strings.Common_Continue);
+        if (wrong) dlg.AddNote(Strings.PdfA_PasswordWrong);
+        dlg.AddNote(Loc.Format(Strings.PdfA_PasswordNote, name));
+        var box = dlg.Add(Strings.PdfA_Password, new System.Windows.Controls.PasswordBox());
         dlg.Loaded += (_, _) => box.Focus();
         return dlg.ShowModal() ? box.Password : null;
     }

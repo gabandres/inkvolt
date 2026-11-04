@@ -38,7 +38,7 @@ public static partial class AccessibilityCheck
                 cancel.ThrowIfCancellationRequested();
                 if (_documentOperators > maxDocumentOperators)
                 {
-                    _notes.Add($"The document's content is very long: pages {p + 1} to {doc.PageCount} weren't checked.");
+                    _notes.Add(Loc.Format(PdfStrings.A11y_ContentTooLong, p + 1, doc.PageCount));
                     break;
                 }
                 var page = doc.Pages[p];
@@ -49,29 +49,29 @@ public static partial class AccessibilityCheck
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException or NullReferenceException)
                 {
-                    _notes.Add($"Page {p + 1}'s content couldn't be read in full: {ex.Message}");
+                    _notes.Add(Loc.Format(PdfStrings.A11y_PageUnreadable, p + 1, ex.Message));
                 }
                 _documentOperators += walk.Operators;
-                if (walk.Stopped) _notes.Add($"Page {p + 1}: its content is very long; only the first part of it was checked.");
+                if (walk.Stopped) _notes.Add(Loc.Format(PdfStrings.A11y_PageContentLong, p + 1));
                 if (walk.Untagged > 0)
-                    Add("01-005", $"{Count(walk.Untagged, "content item")} on this page {(walk.Untagged == 1 ? "is" : "are")} neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).",
-                        p, walk.UntaggedBox, "Page content", walk.Untagged);
+                    Add("01-005", Loc.Plural(walk.Untagged, PdfStrings.A11y_Untagged_One, PdfStrings.A11y_Untagged_Many),
+                        p, walk.UntaggedBox, PdfStrings.A11y_ElementPageContent, walk.Untagged);
                 if (walk.ArtifactInTagged > 0)
-                    Add("01-003", $"{Count(walk.ArtifactInTagged, "artifact")} on this page {(walk.ArtifactInTagged == 1 ? "is" : "are")} inside tagged content.", p, default, "Page content", walk.ArtifactInTagged);
+                    Add("01-003", Loc.Plural(walk.ArtifactInTagged, PdfStrings.A11y_ArtifactInTagged_One, PdfStrings.A11y_ArtifactInTagged_Many), p, default, PdfStrings.A11y_ElementPageContent, walk.ArtifactInTagged);
                 if (walk.TaggedInArtifact > 0)
-                    Add("01-004", $"{Count(walk.TaggedInArtifact, "piece")} of tagged content on this page {(walk.TaggedInArtifact == 1 ? "is" : "are")} inside an artifact.", p, default, "Page content", walk.TaggedInArtifact);
+                    Add("01-004", Loc.Plural(walk.TaggedInArtifact, PdfStrings.A11y_TaggedInArtifact_One, PdfStrings.A11y_TaggedInArtifact_Many), p, default, PdfStrings.A11y_ElementPageContent, walk.TaggedInArtifact);
                 if (walk.NoLang > 0)
-                    Add("11-001", $"The language of {Count(walk.NoLang, "piece")} of text on this page can't be told: the document, its tags and its marked content give none.", p, walk.NoLangBox, "Page text", walk.NoLang);
+                    Add("11-001", Loc.Plural(walk.NoLang, PdfStrings.A11y_TextNoLang_One, PdfStrings.A11y_TextNoLang_Many), p, walk.NoLangBox, PdfStrings.A11y_ElementPageText, walk.NoLang);
                 if (walk.SpanNoLang > 0)
-                    Add("11-002", $"{Count(walk.SpanNoLang, "span")} of marked content on this page {(walk.SpanNoLang == 1 ? "has" : "have")} alternate, actual or expansion text without a language.", p, default, "Page content", walk.SpanNoLang);
-                foreach (var lang in walk.BadLangs) Add("UA 7.2-Lang", $"Marked content on this page has the language “{Short(lang)}”, which isn't a language code.", p, default, "Page content");
+                    Add("11-002", Loc.Plural(walk.SpanNoLang, PdfStrings.A11y_SpanNoLang_One, PdfStrings.A11y_SpanNoLang_Many), p, default, PdfStrings.A11y_ElementPageContent, walk.SpanNoLang);
+                foreach (var lang in walk.BadLangs) Add("UA 7.2-Lang", Loc.Format(PdfStrings.A11y_MarkedLangNotCode, Short(lang)), p, default, PdfStrings.A11y_ElementPageContent);
                 Annotations(p, page);
                 Step(p + 1);
             }
             foreach (var (form, use) in _forms)
                 if (use.Tagged && use.Uses > 1)
-                    Add("30-002", $"A form XObject with tagged content is drawn {use.Uses} times, so its tags would stand for several places at once.", use.Page, default, "Form XObject");
-            foreach (var form in _refForms) Add("30-001", "The document draws content taken from another file (a reference XObject).", element: "Form XObject");
+                    Add("30-002", Loc.Format(PdfStrings.A11y_FormDrawnTimes, use.Uses), use.Page, default, PdfStrings.A11y_ElementFormXObject);
+            foreach (var form in _refForms) Add("30-001", PdfStrings.A11y_ReferenceXObject, element: PdfStrings.A11y_ElementFormXObject);
             FormFields();
         }
 
@@ -271,7 +271,7 @@ public static partial class AccessibilityCheck
                                 }
                                 if (depth >= MaxFormDepth)
                                 {
-                                    c.NoteOnce($"Forms nested more than {MaxFormDepth} deep weren't checked.");
+                                    c.NoteOnce(Loc.Format(PdfStrings.A11y_FormsTooDeep, MaxFormDepth));
                                     break;
                                 }
                                 if (!_active.Add(x)) break;
@@ -414,11 +414,11 @@ public static partial class AccessibilityCheck
         {
             if (PdfObj.Array(page.Elements["/Annots"]) is not { Elements.Count: > 0 } annots) return;
             var tabs = PdfObj.Name(page.Elements["/Tabs"]);
-            if (tabs is null) Add("28-008", "This page has comments, links or form fields but doesn't set its tab order (no Tabs entry).", p, default, "Page");
-            else if (tabs != "S") Add("28-009", $"This page's tab order is “{tabs}”, not the order of the tags (S).", p, default, "Page");
+            if (tabs is null) Add("28-008", PdfStrings.A11y_NoTabOrder, p, default, PdfStrings.A11y_ElementPage);
+            else if (tabs != "S") Add("28-009", Loc.Format(PdfStrings.A11y_TabOrderIs, tabs), p, default, PdfStrings.A11y_ElementPage);
             var (cx1, cy1, cx2, cy2) = PdfObj.VisibleBox(page);
             _documentOperators += Math.Min(annots.Elements.Count, 20_000L) * OperatorsPerAnnotation;
-            if (annots.Elements.Count > 20_000) _notes.Add($"Page {p + 1}: it has very many annotations; only the first 20,000 were checked.");
+            if (annots.Elements.Count > 20_000) _notes.Add(Loc.Format(PdfStrings.A11y_ManyAnnotations, p + 1));
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Take(20_000))
             {
                 var subtype = PdfObj.NameOf(a, "/Subtype").TrimStart('/');
@@ -434,32 +434,33 @@ public static partial class AccessibilityCheck
                 var alt = parent is not null && HasText(parent, "/Alt");
                 var contents = HasText(a, "/Contents");
                 var label = AnnotName(subtype);
+                var self = ThisAnnot(subtype);
 
                 if (!hidden && !outside && subtype != "Popup") // a pop-up belongs to its comment and isn't read on its own
                 {
                     if (subtype is not ("Widget" or "PrinterMark" or "Link") && std != "Annot")
-                        Add("28-002", $"This {label} isn't inside an Annot tag{(std is null ? " (it isn't tagged)" : $" (it is in a {std} tag)")}.", p, box, Cap(label));
+                        Add("28-002", Cap(Loc.Format(PdfStrings.A11y_NotInAnnot, self, std is null ? PdfStrings.A11y_NotTagged : Loc.Format(PdfStrings.A11y_InTag, std))), p, box, Cap(label));
                     if (subtype != "Widget" && !contents && !alt)
-                        Add("28-004", $"This {label} has no description: no text (Contents) and no alternate text on its tag.", p, box, Cap(label));
+                        Add("28-004", Cap(Loc.Format(PdfStrings.A11y_NoAnnotDescription, self)), p, box, Cap(label));
                     if (subtype == "Widget" && IsFieldWidget(a))
                     {
                         if (!HasFieldTooltip(a) && !alt)
-                            Add("28-005", $"The form field “{Short(FieldName(a))}” has no tooltip and no alternate text, so a screen reader can't say what to fill in.", p, box, "Form field");
+                            Add("28-005", Loc.Format(PdfStrings.A11y_FieldNoTooltip, Short(FieldName(a))), p, box, PdfStrings.A11y_ElementFormField);
                     }
                     if (subtype == "Widget" && std != "Form")
-                        Add("28-010", $"The form field “{Short(FieldName(a))}” isn't inside a Form tag{(std is null ? " (it isn't tagged)" : "")}.", p, box, "Form field");
+                        Add("28-010", Loc.Format(PdfStrings.A11y_FieldNotInForm, Short(FieldName(a)), std is null ? PdfStrings.A11y_NotTagged : ""), p, box, PdfStrings.A11y_ElementFormField);
                     if (subtype == "Link")
                     {
-                        if (std != "Link") Add("28-011", $"This link isn't inside a Link tag{(std is null ? " (it isn't tagged)" : $" (it is in a {std} tag)")}.", p, box, "Link");
-                        if (!contents) Add("28-012", "This link has no description of where it goes (Contents).", p, box, "Link");
+                        if (std != "Link") Add("28-011", Loc.Format(PdfStrings.A11y_LinkNotInLink, std is null ? PdfStrings.A11y_NotTagged : Loc.Format(PdfStrings.A11y_InTag, std)), p, box, PdfStrings.A11y_ElementLink);
+                        if (!contents) Add("28-012", PdfStrings.A11y_LinkNoDescription, p, box, PdfStrings.A11y_ElementLink);
                     }
-                    if (subtype == "TrapNet") Add("28-007", "This page has a trap network annotation (TrapNet).", p, box, "Trap network");
-                    if (subtype == "PrinterMark" && parent is not null) Add("28-017", "This printer's mark is in the tags.", p, box, "Printer's mark");
+                    if (subtype == "TrapNet") Add("28-007", PdfStrings.A11y_TrapNet, p, box, PdfStrings.A11y_ElementTrapNet);
+                    if (subtype == "PrinterMark" && parent is not null) Add("28-017", PdfStrings.A11y_PrinterMarkTagged, p, box, PdfStrings.A11y_ElementPrinterMark);
                 }
                 if (contents && !_docLang && !a.Elements.ContainsKey("/Lang") && parent?.Elements.ContainsKey("/Lang") != true)
-                    Add("11-004", $"This {label}'s text has no language, and the document has none.", p, box, Cap(label));
+                    Add("11-004", Cap(Loc.Format(PdfStrings.A11y_AnnotTextNoLang, self)), p, box, Cap(label));
                 if (subtype == "FileAttachment" && PdfObj.Dict(a.Elements["/FS"]) is { } fs && fs.Elements.ContainsKey("/EF") && !HasBothNames(fs))
-                    Add("28-016", "This attached file lacks one of its file names (F and UF).", p, box, "Attached file");
+                    Add("28-016", PdfStrings.A11y_AttachedLacksName, p, box, PdfStrings.A11y_ElementAttachedFile);
                 MediaClips(a, p, box, 0);
                 if (!hidden) Appearance(a, p, page);
             }
@@ -467,18 +468,35 @@ public static partial class AccessibilityCheck
 
         private static string AnnotName(string subtype) => subtype switch
         {
-            "Text" => "note",
-            "Link" => "link",
-            "Widget" => "form field",
-            "FreeText" => "text box",
-            "Highlight" or "Underline" or "StrikeOut" or "Squiggly" => "text markup comment",
-            "Stamp" => "stamp",
-            "FileAttachment" => "attached-file comment",
-            "Popup" => "pop-up note",
-            "Ink" => "drawing",
-            "Square" or "Circle" or "Line" or "Polygon" or "PolyLine" => "shape comment",
-            "" => "annotation",
-            _ => $"{subtype} annotation",
+            "Text" => PdfStrings.A11y_AnnotNote,
+            "Link" => PdfStrings.A11y_AnnotLink,
+            "Widget" => PdfStrings.A11y_AnnotFormField,
+            "FreeText" => PdfStrings.A11y_AnnotTextBox,
+            "Highlight" or "Underline" or "StrikeOut" or "Squiggly" => PdfStrings.A11y_AnnotTextMarkup,
+            "Stamp" => PdfStrings.A11y_AnnotStamp,
+            "FileAttachment" => PdfStrings.A11y_AnnotFileAttachment,
+            "Popup" => PdfStrings.A11y_AnnotPopup,
+            "Ink" => PdfStrings.A11y_AnnotDrawing,
+            "Square" or "Circle" or "Line" or "Polygon" or "PolyLine" => PdfStrings.A11y_AnnotShape,
+            "" => PdfStrings.A11y_AnnotAnnotation,
+            _ => Loc.Format(PdfStrings.A11y_AnnotOther, subtype),
+        };
+
+        /// <summary>"this note", "this link": the annotation as a sentence names it (the first letter capitalized where it starts one).</summary>
+        private static string ThisAnnot(string subtype) => subtype switch
+        {
+            "Text" => PdfStrings.A11y_ThisNote,
+            "Link" => PdfStrings.A11y_ThisLink,
+            "Widget" => PdfStrings.A11y_ThisFormField,
+            "FreeText" => PdfStrings.A11y_ThisTextBox,
+            "Highlight" or "Underline" or "StrikeOut" or "Squiggly" => PdfStrings.A11y_ThisTextMarkup,
+            "Stamp" => PdfStrings.A11y_ThisStamp,
+            "FileAttachment" => PdfStrings.A11y_ThisFileAttachment,
+            "Popup" => PdfStrings.A11y_ThisPopup,
+            "Ink" => PdfStrings.A11y_ThisDrawing,
+            "Square" or "Circle" or "Line" or "Polygon" or "PolyLine" => PdfStrings.A11y_ThisShape,
+            "" => PdfStrings.A11y_ThisAnnotation,
+            _ => Loc.Format(PdfStrings.A11y_ThisOther, subtype),
         };
 
         private static string Cap(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
@@ -531,12 +549,12 @@ public static partial class AccessibilityCheck
                 return;
             }
             if (PdfObj.Dict(r.Elements["/C"]) is not { } clip || PdfObj.NameOf(clip, "/S") != "/MCD") return;
-            if (!clip.Elements.ContainsKey("/CT")) Add("28-014", "A media clip on this page doesn't say its type (CT).", p, box, "Media clip");
+            if (!clip.Elements.ContainsKey("/CT")) Add("28-014", PdfStrings.A11y_MediaNoType, p, box, PdfStrings.A11y_ElementMediaClip);
             // Alt: language and text pairs, every one a string, no text empty.
             var alt = PdfObj.Array(clip.Elements["/Alt"]);
             if (alt is null || alt.Elements.Count % 2 != 0 ||
                 alt.Elements.Select((x, i) => (Text: PdfObj.Str(x), i)).Any(x => x.Text is null || (x.i % 2 == 1 && x.Text.Length == 0)))
-                Add("28-015", "A media clip on this page has no usable alternate description (Alt: pairs of a language and a text).", p, box, "Media clip");
+                Add("28-015", PdfStrings.A11y_MediaNoAlt, p, box, PdfStrings.A11y_ElementMediaClip);
         }
 
         /// <summary>The fonts an annotation's appearance draws with (they must meet the font rules too).</summary>
@@ -548,7 +566,7 @@ public static partial class AccessibilityCheck
             else
             {
                 streams.AddRange(n.Elements.Values.Select(PdfObj.Dict).OfType<PdfDictionary>().Where(s => s.Stream is not null).Take(8)); // every state (a check box's on and off)
-                if (n.Elements.Count > 8) NoteOnce("An annotation has very many appearances; only the first 8 were checked.");
+                if (n.Elements.Count > 8) NoteOnce(PdfStrings.A11y_ManyAppearances);
             }
             foreach (var s in streams.Where(_appearances.Add)) // each stream once: walked again it adds no fonts, and thousands of annotations may share one
                 try
@@ -556,11 +574,11 @@ public static partial class AccessibilityCheck
                     var walk = new Walk(this, p, page);
                     walk.Run(PdfObj.StreamBytes(s), PdfObj.Dict(s.Elements["/Resources"]), Mat.Identity, null, [], 0, contentOnly: true);
                     _documentOperators += walk.Operators;
-                    if (walk.Stopped) _notes.Add($"Page {p + 1}: an annotation's appearance is very long; only the first part of it was checked.");
+                    if (walk.Stopped) _notes.Add(Loc.Format(PdfStrings.A11y_AppearanceLong, p + 1));
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException)
                 {
-                    NoteOnce("An annotation's appearance couldn't be read, so its fonts weren't checked.");
+                    NoteOnce(PdfStrings.A11y_AppearanceUnreadable);
                 }
         }
 
@@ -592,8 +610,8 @@ public static partial class AccessibilityCheck
                 if (PdfObj.Array(f.Elements["/Kids"]) is { } kids)
                     foreach (var kid in kids.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) stack.Push((kid, depth + 1));
             }
-            if (stack.Count > 0) NoteOnce("The file has very many form fields; only the first 50,000 were checked.");
-            if (count > 0) Add("11-005", $"The tooltips of {Count(count, "form field")} have no language, and the document has none.", element: "Form fields", count: count);
+            if (stack.Count > 0) NoteOnce(PdfStrings.A11y_ManyFormFields);
+            if (count > 0) Add("11-005", Loc.Plural(count, PdfStrings.A11y_TooltipsNoLang_One, PdfStrings.A11y_TooltipsNoLang_Many), element: PdfStrings.A11y_ElementFormFields, count: count);
         }
     }
 }

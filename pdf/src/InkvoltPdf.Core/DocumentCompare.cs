@@ -182,23 +182,23 @@ public sealed class CompareResult
     /// <summary>"3 text changes (1 inserted, 2 changed); 1 page removed; 2 pages without text": one line for the toolbar and the report.</summary>
     public string Summary()
     {
-        if (Identical) return "No differences in the text";
+        if (Identical) return PdfStrings.Compare_NoDifferences;
         var parts = new List<string>();
         var text = Inserted + Deleted + Changed;
         if (text > 0)
         {
-            var kinds = new[] { (Inserted, "inserted"), (Deleted, "removed"), (Changed, "changed") }.Where(k => k.Item1 > 0).Select(k => $"{k.Item1} {k.Item2}");
-            parts.Add($"{Count(text, "text change")} ({string.Join(", ", kinds)})" + (MaybeMisread > 0 ? $", {MaybeMisread} of them may be misread on the scan" : ""));
+            var kinds = new[] { (Inserted, PdfStrings.Compare_KindInserted), (Deleted, PdfStrings.Compare_KindRemoved), (Changed, PdfStrings.Compare_KindChanged) }
+                .Where(k => k.Item1 > 0).Select(k => Loc.Format(k.Item2, k.Item1));
+            parts.Add(Loc.Plural(text, PdfStrings.Compare_TextChanges_One, PdfStrings.Compare_TextChanges_Many, string.Join(", ", kinds)) +
+                      (MaybeMisread > 0 ? Loc.Format(PdfStrings.Compare_MaybeMisread, MaybeMisread) : ""));
         }
-        else parts.Add("No text changes");
-        if (Moved > 0) parts.Add($"{Moved} moved");
-        if (Formatted > 0) parts.Add(Count(Formatted, "formatting change"));
-        if (PagesInserted > 0) parts.Add($"{Count(PagesInserted, "page")} inserted");
-        if (PagesRemoved > 0) parts.Add($"{Count(PagesRemoved, "page")} removed");
-        if (PairsWithoutText > 0) parts.Add($"{Count(PairsWithoutText, "page")} without text to compare");
+        else parts.Add(PdfStrings.Compare_NoTextChanges);
+        if (Moved > 0) parts.Add(Loc.Format(PdfStrings.Compare_Moved, Moved));
+        if (Formatted > 0) parts.Add(Loc.Plural(Formatted, PdfStrings.Compare_FormattingChanges_One, PdfStrings.Compare_FormattingChanges_Many));
+        if (PagesInserted > 0) parts.Add(Loc.Plural(PagesInserted, PdfStrings.Compare_PagesInserted_One, PdfStrings.Compare_PagesInserted_Many));
+        if (PagesRemoved > 0) parts.Add(Loc.Plural(PagesRemoved, PdfStrings.Compare_PagesRemoved_One, PdfStrings.Compare_PagesRemoved_Many));
+        if (PairsWithoutText > 0) parts.Add(Loc.Plural(PairsWithoutText, PdfStrings.Compare_PagesWithoutText_One, PdfStrings.Compare_PagesWithoutText_Many));
         return string.Join("; ", parts);
-
-        static string Count(int n, string what) => n == 1 ? $"1 {what}" : $"{n} {what}s";
     }
 }
 

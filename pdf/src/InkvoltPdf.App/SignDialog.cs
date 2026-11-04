@@ -38,12 +38,12 @@ public static class SignDialog
         public override string ToString() => Label;
     }
 
-    private static readonly string[] Reasons =
+    private static string[] Reasons =>
     [
-        "I am the author of this document",
-        "I approve this document",
-        "I have reviewed this document",
-        "I agree to the terms defined by this document",
+        Strings.Sign_ReasonAuthor,
+        Strings.Sign_ReasonApprove,
+        Strings.Sign_ReasonReviewed,
+        Strings.Sign_ReasonAgree,
     ];
 
     /// <param name="fieldAspect">Width/height of the box the signature goes in (an existing field's), for the preview.</param>
@@ -51,7 +51,7 @@ public static class SignDialog
     public static SignChoice? Show(Window owner, string? fieldName, double fieldAspect, bool fieldVisible, bool alreadySigned, IReadOnlyList<string> lockable)
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(owner, fieldName is null ? "Sign digitally" : $"Sign \"{fieldName}\"", "Sign…", 520);
+        var dlg = new FormDialog(owner, fieldName is null ? Strings.Sign_Digitally : Loc.Format(Strings.Sign_Field, fieldName), Strings.Sign_SignButton, 520);
         var items = new System.Collections.ObjectModel.ObservableCollection<IdItem>();
         try
         {
@@ -61,22 +61,22 @@ public static class SignDialog
         {
             Log.Write($"Listing digital IDs failed: {ex.Message}");
         }
-        items.Add(new IdItem("Use a digital ID file (.pfx, .p12)…", action: () => LoadPfx(dlg)));
-        items.Add(new IdItem("Create a personal digital ID…", action: () => CreatePersonal(dlg)));
+        items.Add(new IdItem(Strings.Sign_UsePfx, action: () => LoadPfx(dlg)));
+        items.Add(new IdItem(Strings.Sign_CreatePersonal, action: () => CreatePersonal(dlg)));
 
         var ids = new ComboBox { ItemsSource = items };
         var last = items.ToList().FindIndex(i => i.Cert?.Thumbprint == s.SignThumbprint);
         ids.SelectedIndex = last >= 0 ? last : items[0].Cert is not null ? 0 : -1;
         var prev = ids.SelectedIndex;
-        dlg.Add("Digital ID", ids);
+        dlg.Add(Strings.Sign_DigitalId, ids);
         var idNote = dlg.AddNote("");
         Action refresh = () => { };
         void DescribeId()
         {
             var c = (ids.SelectedItem as IdItem)?.Cert;
             idNote.Text = c is null
-                ? "Choose a digital ID. Smart cards and Windows Hello keys ask for their PIN when you sign."
-                : $"{c.Subject}{Environment.NewLine}Issued by {c.GetNameInfo(X509NameType.SimpleName, true)}; valid until {c.NotAfter:d}.";
+                ? Strings.Sign_ChooseIdHint
+                : c.Subject + Environment.NewLine + Loc.Format(Strings.Sign_IssuedBy, c.GetNameInfo(X509NameType.SimpleName, true), c.NotAfter);
         }
         ids.SelectionChanged += (_, _) =>
         {
@@ -97,10 +97,10 @@ public static class SignDialog
             refresh();
         };
 
-        var reason = dlg.Add("Reason", new ComboBox { IsEditable = true, ItemsSource = Reasons, Text = s.SignReason });
-        var location = dlg.AddText("Location", s.SignLocation);
+        var reason = dlg.Add(Strings.Sign_Reason, new ComboBox { IsEditable = true, ItemsSource = Reasons, Text = s.SignReason });
+        var location = dlg.AddText(Strings.File_PropLocation, s.SignLocation);
 
-        var visible = dlg.AddCheck("Show the signature on the page", fieldName is null ? s.SignVisible : fieldVisible);
+        var visible = dlg.AddCheck(Strings.Sign_ShowOnPage, fieldName is null ? s.SignVisible : fieldVisible);
         visible.IsEnabled = fieldName is null;
         var shown = dlg.Add(null, new WrapPanel());
         CheckBox ShowCheck(string text, bool value)
@@ -109,14 +109,14 @@ public static class SignDialog
             shown.Children.Add(box);
             return box;
         }
-        var showDate = ShowCheck("Show the date", s.SignShowDate);
-        var showReason = ShowCheck("Show the reason", s.SignShowReason);
-        var showDn = ShowCheck("Show the distinguished name", s.SignShowDn);
+        var showDate = ShowCheck(Strings.Sign_ShowDate, s.SignShowDate);
+        var showReason = ShowCheck(Strings.Sign_ShowReason, s.SignShowReason);
+        var showDn = ShowCheck(Strings.Sign_ShowDn, s.SignShowDn);
         var saved = SignatureLibrary.List().Where(x => !x.Initials).ToList();
-        var imageNames = new List<string> { "No image" };
-        imageNames.AddRange(saved.Select(x => $"Handwritten: {x.Name}"));
+        var imageNames = new List<string> { Strings.Sign_NoImage };
+        imageNames.AddRange(saved.Select(x => Loc.Format(Strings.Sign_Handwritten, x.Name)));
         var imageIndex = saved.FindIndex(x => x.Path == s.SignImage) + 1;
-        var image = dlg.AddChoice("Image beside the text", imageNames, imageIndex);
+        var image = dlg.AddChoice(Strings.Sign_ImageBeside, imageNames, imageIndex);
 
         // Live preview of the visible signature: details left, handwriting right.
         var aspect = Math.Clamp(fieldAspect, 1.2, 6);
@@ -128,18 +128,18 @@ public static class SignDialog
         grid.Children.Add(new Viewbox { Child = previewText, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both, HorizontalAlignment = HorizontalAlignment.Left });
         Grid.SetColumn(previewImage, 1);
         grid.Children.Add(previewImage);
-        var preview = dlg.Add("Preview", new Border { Child = grid, Width = 320, Height = 320 / aspect, HorizontalAlignment = HorizontalAlignment.Left, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) });
+        var preview = dlg.Add(Strings.Sign_Preview, new Border { Child = grid, Width = 320, Height = 320 / aspect, HorizontalAlignment = HorizontalAlignment.Left, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) });
 
         void UpdatePreview()
         {
             var c = (ids.SelectedItem as IdItem)?.Cert;
-            var name = c?.GetNameInfo(X509NameType.SimpleName, false) ?? "Your name";
+            var name = c?.GetNameInfo(X509NameType.SimpleName, false) ?? Strings.Sign_YourName;
             previewText.Children.Clear();
             void Line(string t) => previewText.Children.Add(new TextBlock { Text = t, Foreground = Brushes.Black, FontFamily = new FontFamily("Arial"), FontSize = 11 });
-            Line($"Digitally signed by {name}");
-            if (showDn.IsChecked == true && c is not null) Line($"DN: {c.Subject}");
-            if (showReason.IsChecked == true && !string.IsNullOrWhiteSpace(reason.Text)) Line($"Reason: {reason.Text}");
-            if (showDate.IsChecked == true) Line($"Date: {DateTimeOffset.Now:yyyy.MM.dd HH:mm:ss zzz}");
+            Line($"Digitally signed by {name}"); // in every language: the signature's text is written into the PDF in English
+            if (showDn.IsChecked == true && c is not null) Line($"DN: {c.Subject}"); // in every language: as written into the PDF
+            if (showReason.IsChecked == true && !string.IsNullOrWhiteSpace(reason.Text)) Line($"Reason: {reason.Text}"); // in every language: as written into the PDF
+            if (showDate.IsChecked == true) Line($"Date: {DateTimeOffset.Now:yyyy.MM.dd HH:mm:ss zzz}"); // in every language: as written into the PDF
             BitmapSource? img = null;
             if (image.SelectedIndex > 0)
             {
@@ -160,18 +160,18 @@ public static class SignDialog
         image.SelectionChanged += (_, _) => UpdatePreview();
         reason.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdatePreview()));
 
-        var timestamp = dlg.AddCheck("Add a trusted timestamp", s.SignTimestamp);
-        var tsaUrl = dlg.AddText("Timestamp server", ChosenTimestampUrl(s));
-        dlg.AddNote("Sectigo's free server is suggested; you can enter another that starts with https://. It is contacted only if you add a timestamp, and receives only a hash of the signature, never the document.");
-        var longTerm = dlg.AddChoice("Long-term validation", ["None", "Store revocation data (PAdES B-LT)", "Store revocation data, add a document timestamp (PAdES B-LTA)"],
+        var timestamp = dlg.AddCheck(Strings.Sign_AddTimestamp, s.SignTimestamp);
+        var tsaUrl = dlg.AddText(Strings.Ltv_TimestampServer, ChosenTimestampUrl(s));
+        dlg.AddNote(Strings.Sign_SectigoNote);
+        var longTerm = dlg.AddChoice(Strings.Sign_LongTerm, [Strings.Common_None, Strings.Sign_LtStore, Strings.Sign_LtaStore],
             Pro.Allows(ProFeature.LongTermValidation) ? Math.Clamp(s.SignLongTerm, 0, 2) : 0);
         if (Pro.Allows(ProFeature.LongTermValidation))
-            dlg.AddNote("Keeps the signature checkable after your certificate expires. You see which addresses are asked before anything goes online.");
+            dlg.AddNote(Strings.Sign_LongTermNote);
         else
         {
             longTerm.IsEnabled = false;
             dlg.AddNote(Pro.Locked(ProFeature.LongTermValidation));
-            var about = dlg.AddFooterButton("About Inkvolt Pro…");
+            var about = dlg.AddFooterButton(Strings.Batch_AboutPro);
             about.Click += (_, _) => ProWindow.Open(dlg, ProFeature.LongTermValidation);
         }
         void SyncTsa()
@@ -184,22 +184,22 @@ public static class SignDialog
         longTerm.SelectionChanged += (_, _) => SyncTsa();
         SyncTsa();
 
-        var certify = dlg.AddChoice("Certify", ["Don't certify (approval signature)", "Certify: no changes allowed", "Certify: form filling allowed",
-            "Certify: form filling and comments allowed"]);
+        var certify = dlg.AddChoice(Strings.Sign_Certify, [Strings.Sign_CertifyNo, Strings.Sign_CertifyNoChanges, Strings.Sign_CertifyForms,
+            Strings.Sign_CertifyFormsComments]);
         if (alreadySigned)
         {
             certify.IsEnabled = false;
-            certify.ToolTip = "Only the first signature can certify a document.";
+            certify.ToolTip = Strings.Sign_FirstCertifies;
         }
         // Certifying a form: which of its fields to lock (FieldMDP). A locked field changed later shows as not allowed.
         ComboBox? lockChoice = null;
         ListBox? lockList = null;
         if (lockable.Count > 0 && !alreadySigned)
         {
-            lockChoice = dlg.AddChoice("Lock form fields", FieldLocks.Choices);
+            lockChoice = dlg.AddChoice(Strings.Sign_LockFields, FieldLocks.Choices);
             lockList = dlg.Add(null, new ListBox { MaxHeight = 132, SelectionMode = SelectionMode.Multiple, ItemsSource = lockable,
-                ToolTip = "The fields to lock, or to leave open", Visibility = Visibility.Collapsed }, top: 6);
-            AutomationProperties.SetName(lockList, "Form fields");
+                ToolTip = Strings.Sign_LockTip, Visibility = Visibility.Collapsed }, top: 6);
+            AutomationProperties.SetName(lockList, Strings.Sign_FormFields);
             var lockNote = dlg.AddNote("");
             if (!Pro.Allows(ProFeature.FieldLocking))
             {
@@ -213,7 +213,7 @@ public static class SignDialog
                 var picks = certifying && lockChoice.SelectedIndex is 2 or 3;
                 lockList.Visibility = picks ? Visibility.Visible : Visibility.Collapsed;
                 if (Pro.Allows(ProFeature.FieldLocking))
-                    lockNote.Text = certifying ? FieldLocks.Note(lockChoice.SelectedIndex) : "Certify to lock form fields.";
+                    lockNote.Text = certifying ? FieldLocks.Note(lockChoice.SelectedIndex) : Strings.Sign_CertifyToLock;
             }
             certify.SelectionChanged += (_, _) => SyncLock();
             lockChoice.SelectionChanged += (_, _) => SyncLock();
@@ -225,12 +225,12 @@ public static class SignDialog
 
         dlg.Validate(() =>
         {
-            if ((ids.SelectedItem as IdItem)?.Cert is null) return "Choose a digital ID.";
+            if ((ids.SelectedItem as IdItem)?.Cert is null) return Strings.Sign_ChooseId;
             if (lockChoice is { IsEnabled: true, SelectedIndex: 2 or 3 } && lockList!.SelectedItems.Count == 0)
-                return lockChoice.SelectedIndex == 2 ? "Choose the fields to lock." : "Choose the fields to leave open.";
+                return lockChoice.SelectedIndex == 2 ? Strings.Sign_ChooseToLock : Strings.Sign_ChooseToLeave;
             if (timestamp.IsChecked != true) return null;
-            if (tsaUrl.Text.Trim().Length == 0) return "Enter the timestamp server's address (https://…), or untick the timestamp.";
-            return LtvClient.WhyRefused(tsaUrl.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? $"That timestamp server can't be used: {why}." : null;
+            if (tsaUrl.Text.Trim().Length == 0) return Strings.Sign_EnterServer;
+            return LtvClient.WhyRefused(tsaUrl.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? Loc.Format(Strings.Ltv_ServerRefused, why) : null;
         });
         var ok = dlg.ShowModal();
         var chosen = (ids.SelectedItem as IdItem)?.Cert;
@@ -278,7 +278,7 @@ public static class SignDialog
 
     private static X509Certificate2? LoadPfx(Window owner)
     {
-        var open = new OpenFileDialog { Title = "Digital ID file", Filter = "Digital ID files (*.pfx;*.p12)|*.pfx;*.p12" };
+        var open = new OpenFileDialog { Title = Strings.Sign_IdFile, Filter = Strings.Sign_IdFilter };
         if (open.ShowDialog(owner) != true) return null;
         byte[] bytes;
         try
@@ -287,14 +287,14 @@ public static class SignDialog
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(owner, "The file can't be read", ex.Message);
+            Prompt.Error(owner, Strings.Sign_CantRead, ex.Message);
             return null;
         }
         while (true)
         {
-            var dlg = new FormDialog(owner, "Digital ID password", "OK", 400);
+            var dlg = new FormDialog(owner, Strings.Sign_IdPassword, Strings.Common_OK, 400);
             dlg.AddNote(Path.GetFileName(open.FileName));
-            var pw = dlg.Add("Password", new PasswordBox());
+            var pw = dlg.Add(Strings.PdfA_Password, new PasswordBox());
             dlg.Loaded += (_, _) => pw.Focus();
             if (!dlg.ShowModal()) return null;
             try
@@ -302,16 +302,16 @@ public static class SignDialog
                 var cert = DigitalIds.LoadPfx(bytes, pw.Password);
                 if (DigitalIds.IsUsable(cert)) return cert;
                 cert.Dispose();
-                Prompt.Error(owner, "This digital ID can't sign", "It is expired, not yet valid, or not meant for signatures.");
+                Prompt.Error(owner, Strings.Sign_CantSign, Strings.Sign_CantSignBody);
                 return null;
             }
             catch (SigningException ex) when (ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase))
             {
-                Prompt.Error(owner, "Incorrect password", ex.Message);
+                Prompt.Error(owner, Strings.Sign_WrongPassword, ex.Message);
             }
             catch (SigningException ex)
             {
-                Prompt.Error(owner, "This digital ID can't be used", ex.Message);
+                Prompt.Error(owner, Strings.Sign_CantUse, ex.Message);
                 return null;
             }
         }
@@ -319,23 +319,23 @@ public static class SignDialog
 
     private static X509Certificate2? CreatePersonal(Window owner)
     {
-        var dlg = new FormDialog(owner, "Create a personal digital ID", "Create", 460);
-        dlg.AddNote("A self-signed ID: signatures made with it verify, but other people's PDF readers won't trust it until they trust your certificate. It is stored in your Windows certificate store (Current User), valid for 5 years.");
-        var name = dlg.AddText("Name", DocumentTab.Author);
-        var email = dlg.AddText("Email (optional)");
-        var org = dlg.AddText("Organization (optional)");
-        var backup = dlg.AddCheck("Also save a backup copy (.pfx) protected by a password");
-        var pw1 = dlg.Add("Backup password", new PasswordBox());
-        var pw2 = dlg.Add("Confirm password", new PasswordBox());
+        var dlg = new FormDialog(owner, Strings.Sign_CreateTitle, Strings.File_Create, 460);
+        dlg.AddNote(Strings.Sign_CreateNote);
+        var name = dlg.AddText(Strings.Sign_Name, DocumentTab.Author);
+        var email = dlg.AddText(Strings.Sign_Email);
+        var org = dlg.AddText(Strings.Sign_Organization);
+        var backup = dlg.AddCheck(Strings.Sign_Backup);
+        var pw1 = dlg.Add(Strings.Sign_BackupPassword, new PasswordBox());
+        var pw2 = dlg.Add(Strings.Sign_ConfirmPassword, new PasswordBox());
         void Sync() => pw1.IsEnabled = pw2.IsEnabled = backup.IsChecked == true;
         backup.Click += (_, _) => Sync();
         Sync();
-        dlg.AddNote("Without a backup the private key can't be exported: if Windows is reinstalled, the ID is gone.");
+        dlg.AddNote(Strings.Sign_NoBackupNote);
         dlg.Validate(() =>
         {
-            if (string.IsNullOrWhiteSpace(name.Text)) return "Enter your name.";
-            if (backup.IsChecked == true && pw1.Password.Length < 10) return "Use a backup password of at least 10 characters.";
-            if (backup.IsChecked == true && pw1.Password != pw2.Password) return "The passwords don't match.";
+            if (string.IsNullOrWhiteSpace(name.Text)) return Strings.Sign_EnterName;
+            if (backup.IsChecked == true && pw1.Password.Length < 10) return Strings.Sign_BackupTooShort;
+            if (backup.IsChecked == true && pw1.Password != pw2.Password) return Strings.Sign_PasswordsMismatch;
             return null;
         });
         if (!dlg.ShowModal()) return null;
@@ -345,7 +345,7 @@ public static class SignDialog
             var pfx = DigitalIds.CreatePersonalPfx(name.Text, email.Text, org.Text, password);
             if (backup.IsChecked == true)
             {
-                var save = new SaveFileDialog { Title = "Save the digital ID backup", FileName = $"{name.Text.Trim()} digital ID.pfx", Filter = "Digital ID files (*.pfx)|*.pfx", DefaultExt = ".pfx" };
+                var save = new SaveFileDialog { Title = Strings.Sign_SaveBackup, FileName = Loc.Format(Strings.Sign_BackupFileName, name.Text.Trim()), Filter = Strings.Sign_PfxFilter, DefaultExt = ".pfx" };
                 if (save.ShowDialog(owner) == true) File.WriteAllBytes(save.FileName, pfx);
             }
             return DigitalIds.Install(pfx, password);
@@ -353,7 +353,7 @@ public static class SignDialog
         catch (Exception ex) when (ex is CryptographicException or SigningException or IOException or UnauthorizedAccessException)
         {
             Log.Write($"Creating a digital ID failed: {ex}");
-            Prompt.Error(owner, "The digital ID couldn't be created", ex.Message);
+            Prompt.Error(owner, Strings.Sign_CouldntCreate, ex.Message);
             return null;
         }
     }

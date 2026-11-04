@@ -172,7 +172,7 @@ public static class Translation
         string? openPassword = null, bool dropOpenPassword = false)
     {
         // Opened as for the edit: a file that needs a password for that says so now, before anything is sent, not after hours of translating.
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (string.IsNullOrEmpty(openPassword) && !string.IsNullOrEmpty(password) && PdfSecurity.IsOpenPassword(data, password)) openPassword = password;
         KeptProtection.Require(doc, openPassword, dropOpenPassword);
         PdfEngine? engine = null;
@@ -213,7 +213,7 @@ public static class Translation
                         var t = slot.Paragraph;
                         if (t.Text.Length > MaxParagraphChars)
                         {
-                            blocked.Add((p, "it is far too long to be one paragraph"));
+                            blocked.Add((p, PdfStrings.Translate_BlockedTooLong));
                             continue;
                         }
                         if (!TranslationText.HasWords(t.Text))
@@ -223,14 +223,14 @@ public static class Translation
                         }
                         if (t.Blocked is { } why)
                         {
-                            if (!why.Contains("invisible", StringComparison.Ordinal)) blocked.Add((p, why));
+                            if (!ContentEditor.IsInvisible(why)) blocked.Add((p, why));
                             continue;
                         }
                         pageHasWords = true;
                         paragraphs++;
                         if (seen.Add(t.Text)) texts.Add((t.Text, p));
                     }
-                    if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => r.Blocked?.Contains("invisible", StringComparison.Ordinal) == true)))
+                    if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => ContentEditor.IsInvisible(r.Blocked))))
                         scans.Add(p);
                     if (content.Runs.Any(r => Math.Abs(r.Angle) >= 0.5 && TranslationText.HasWords(r.Text))) turned.Add(p);
                     plans.Add(new TranslationPagePlan(p, cells, obstacles));
@@ -354,7 +354,7 @@ public static class Translation
                 failuresInRow = problem == NoEnd ? failuresInRow + 1 : 0;
                 if (failuresInRow >= settings.FailuresBeforeStopping)
                 {
-                    answers.StoppedBecause = "The endpoint's answers don't come to an end, so the translation stopped.";
+                    answers.StoppedBecause = PdfStrings.Translate_StoppedNoEnd;
                     break;
                 }
             }
@@ -365,7 +365,7 @@ public static class Translation
             }
             catch (AiException ex)
             {
-                answers.Failed[job.Text] = "the endpoint didn't answer";
+                answers.Failed[job.Text] = PdfStrings.Translate_NoAnswer;
                 failuresInRow++;
                 if (ex.Status is 401 or 403 or 404 or (>= 300 and < 400) || failuresInRow >= settings.FailuresBeforeStopping)
                 {
@@ -376,8 +376,8 @@ public static class Translation
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
                 // A body that can't even be read (a bad gzip stream): what was already translated is kept.
-                answers.Failed[job.Text] = "the endpoint's answer couldn't be read";
-                answers.StoppedBecause = "The endpoint sent something that can't be read as an answer.";
+                answers.Failed[job.Text] = PdfStrings.Translate_AnswerUnreadable;
+                answers.StoppedBecause = PdfStrings.Translate_StoppedUnreadable;
                 break;
             }
         }
@@ -385,7 +385,7 @@ public static class Translation
         return answers;
     }
 
-    private const string NoEnd = "its answer didn't end in time";
+    private static string NoEnd =>PdfStrings.Translate_AnswerNoEnd;
 
     /// <summary>One text's pieces in turn, joined. The text, or null and why not. Connection failures throw <see cref="AiException"/> after their retries.</summary>
     private static async Task<(string? Text, string? Problem)> TranslateOne(TranslationJob job, string language, TranslationChat chat, TranslationSettings settings, CancellationToken cancel)
@@ -428,10 +428,10 @@ public static class Translation
                     }
                     return (string.Join(' ', parts), null);
                 }
-                return (null, "the model's answer was cut off by its length limit");
+                return (null, PdfStrings.Translate_CutOff);
             }
             var (clean, bad) = TranslationText.CleanReply(reply.Text, piece);
-            if (clean is not null && TranslationText.SlipsIntoAnotherScript(clean, piece, language)) (clean, bad) = (null, "its answer has words in another script");
+            if (clean is not null && TranslationText.SlipsIntoAnotherScript(clean, piece, language)) (clean, bad) = (null, PdfStrings.Translate_OtherScript);
             if (clean is not null) return (clean, null);
             problem = bad;
         }
@@ -452,12 +452,12 @@ public static class Translation
                 {
                     if (guard.Add(text)) limit.Cancel();
                 }, limit.Token);
-                return guard.TooLong ? (null, "its answer was far longer than the text") : (reply, null);
+                return guard.TooLong ? (null, PdfStrings.Translate_FarLonger) : (reply, null);
             }
             catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
             {
                 // Its own limit, not the user's Stop.
-                return (null, guard.TooLong ? "its answer was far longer than the text" : NoEnd);
+                return (null, guard.TooLong ? PdfStrings.Translate_FarLonger : NoEnd);
             }
             catch (AiException ex) when (retry < settings.RetryWaits.Count && ex.Status is 0 or 429 or >= 500)
             {
@@ -490,7 +490,7 @@ public static class Translation
             return new TranslationResult(null, report);
         }
 
-        using var doc = PdfObj.Open(plan.Data, plan.Password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(plan.Data, plan.Password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var writer = new ContentEditor.TranslationWriter(doc, Convert.ToHexString(SHA256.HashData(plan.Data))[..8]);
         var notes = new List<(int Page, double X, double Y, string Text)>();
         var done = 0;
@@ -528,16 +528,16 @@ public static class Translation
                         if (!w.Fits)
                         {
                             unfit++;
-                            flagged.Add(new TranslationFlag(TranslationFlagKind.DoesNotFit, page.Page, p.Box, "This translated paragraph doesn't fit its box even at the smallest size: it may run over what follows."));
+                            flagged.Add(new TranslationFlag(TranslationFlagKind.DoesNotFit, page.Page, p.Box, PdfStrings.Translate_DoesNotFit));
                         }
                         if (w.Dropped.Count > 0)
-                            flagged.Add(new TranslationFlag(TranslationFlagKind.CharactersLeftOut, page.Page, p.Box, $"No font on this PC has {w.Dropped.Count} character{(w.Dropped.Count == 1 ? "" : "s")} of this translation, so {(w.Dropped.Count == 1 ? "it was" : "they were")} left out."));
+                            flagged.Add(new TranslationFlag(TranslationFlagKind.CharactersLeftOut, page.Page, p.Box, Loc.Plural(w.Dropped.Count, PdfStrings.Translate_CharactersLeftOut_One, PdfStrings.Translate_CharactersLeftOut_Many)));
                     }
                     else if (no.TryGetValue(i, out var r))
                     {
-                        if (r.Why.Contains("invisible", StringComparison.Ordinal)) continue;
+                        if (ContentEditor.IsInvisible(r.Why)) continue;
                         untranslated++;
-                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, $"This paragraph isn't translated: {r.Why}."));
+                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, Loc.Format(PdfStrings.Translate_NotTranslated, r.Why)));
                     }
                     else if (answers.Done.TryGetValue(p.Text, out var same) && same == p.Text) { /* counted as unchanged */ }
                     else
@@ -545,11 +545,11 @@ public static class Translation
                         untranslated++;
                         var reached = answers.Failed.ContainsKey(p.Text) || p.Text.Length > MaxParagraphChars;
                         var why = answers.Failed.TryGetValue(p.Text, out var f) ? f
-                            : p.Text.Length > MaxParagraphChars ? "it is far too long to be one paragraph"
-                            : answers.Cancelled ? "the translation was stopped first"
-                            : answers.StoppedBecause is not null ? "the endpoint stopped answering first"
-                            : "it got no answer";
-                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, $"This paragraph isn't translated: {why}.", reached));
+                            : p.Text.Length > MaxParagraphChars ? PdfStrings.Translate_BlockedTooLong
+                            : answers.Cancelled ? PdfStrings.Translate_StoppedFirst
+                            : answers.StoppedBecause is not null ? PdfStrings.Translate_EndpointStoppedFirst
+                            : PdfStrings.Translate_GotNoAnswer;
+                        flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, Loc.Format(PdfStrings.Translate_NotTranslated, why), reached));
                     }
                 }
             }
@@ -698,7 +698,7 @@ public static partial class TranslationText
     public static (string? Text, string? Problem) CleanReply(string reply, string source)
     {
         var text = AiText.WithoutThinking(reply, out var thinking);
-        if (thinking) return (null, "its answer never got past the model's reasoning");
+        if (thinking) return (null, PdfStrings.Translate_OnlyReasoning);
         // A template can swallow the opening tag and leave only the closing one.
         if (text.LastIndexOf("</think>", StringComparison.OrdinalIgnoreCase) is >= 0 and var closing) text = text[(closing + "</think>".Length)..];
         text = SpecialTokens().Replace(text, "");
@@ -711,13 +711,13 @@ public static partial class TranslationText
         if (!source.Contains("__", StringComparison.Ordinal)) text = text.Replace("__", "", StringComparison.Ordinal);
         if (!source.TrimStart().StartsWith('#')) text = Heading().Replace(text, "");
         text = Characters(text).Trim(); // what decoding entities brought in
-        if (text.Length == 0) return (null, "its answer was empty");
-        if (Paragraphs().Split(text).Count(p => p.Trim().Length > 0) > 1) return (null, "its answer came in several paragraphs for one");
+        if (text.Length == 0) return (null, PdfStrings.Translate_EmptyAnswer);
+        if (Paragraphs().Split(text).Count(p => p.Trim().Length > 0) > 1) return (null, PdfStrings.Translate_SeveralParagraphs);
         text = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         text = Unquoted(text, source);
-        if (text.Length == 0) return (null, "its answer was empty");
-        if (text.Length > MaxReplyChars(source)) return (null, "its answer was far longer than the text");
-        if (source.Length >= 200 && text.Length < source.Length / 12) return (null, "its answer was far shorter than the text");
+        if (text.Length == 0) return (null, PdfStrings.Translate_EmptyAnswer);
+        if (text.Length > MaxReplyChars(source)) return (null, PdfStrings.Translate_FarLonger);
+        if (source.Length >= 200 && text.Length < source.Length / 12) return (null, PdfStrings.Translate_FarShorter);
         return (text, null);
     }
 

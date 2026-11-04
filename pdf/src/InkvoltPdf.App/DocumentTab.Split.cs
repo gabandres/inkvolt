@@ -60,7 +60,7 @@ public partial class DocumentTab
             if (e.NewValue is true) ActivatePane(second: false);
         };
         CloseSplitButton.Click += (_, _) => SetSplit(SplitMode.None);
-        CloseSplitButton.ToolTip = Cmd.Tip("Close the split", Cmd.RemoveSplit);
+        CloseSplitButton.ToolTip = Cmd.Tip(Strings.Split_CloseTip, Cmd.RemoveSplit);
         Viewer.ScrollChanged += (_, e) =>
         {
             if (_second is { } other) Follow(Viewer, other, e);
@@ -85,8 +85,8 @@ public partial class DocumentTab
         SetSplit(SplitMode.None);
         _beside = other;
         SetSplit(SplitMode.SideBySide);
-        _mainCaption = PaneCaption("Translated");
-        _secondCaption = PaneCaption("Original");
+        _mainCaption = PaneCaption(Strings.Split_CaptionTranslated);
+        _secondCaption = PaneCaption(Strings.Split_CaptionOriginal);
         _secondCaption.ToolTip = otherName;
         SplitHost.Children.Add(_mainCaption);
         SecondPaneHost.Children.Add(_secondCaption);
@@ -198,7 +198,7 @@ public partial class DocumentTab
         _secondScheduler = new RenderScheduler(Dispatcher);
         var second = new PageViewer { Background = Viewer.Background, Focusable = true };
         second.SetResourceReference(BackgroundProperty, "SolidBackgroundFillColorSecondaryBrush");
-        AutomationProperties.SetName(second, "Document pages, second pane");
+        AutomationProperties.SetName(second, Strings.Split_SecondPaneName);
         second.InvertColors = Viewer.InvertColors;
         second.SetLayout(Viewer.Layout);
         second.SetViewRotation(Viewer.ViewRotation);

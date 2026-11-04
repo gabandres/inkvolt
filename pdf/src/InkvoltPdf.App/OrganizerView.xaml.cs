@@ -26,8 +26,8 @@ public sealed class OrganizerItem(int index, double pageW, double pageH, Action<
     public double PageWidth { get; } = pageW;
     public double PageHeight { get; } = pageH;
     public string Label => (Index + 1).ToString();
-    public string AccessibleName => $"Page {Index + 1}";
-    public string Tooltip => $"Page {Index + 1} · {Organize.Inches(PageWidth)} × {Organize.Inches(PageHeight)} in · double-click to open";
+    public string AccessibleName => Loc.Format(Strings.Organize_CardName, Index + 1);
+    public string Tooltip => Loc.Format(Strings.Organize_CardTip, Index + 1, Organize.Inches(PageWidth), Organize.Inches(PageHeight));
     public double Box => _box;
     public double CellWidth => _box + 20;
     public double Width => Math.Round(PageWidth * Math.Min(_box / PageWidth, _box / PageHeight));
@@ -232,7 +232,7 @@ public partial class OrganizerView : UserControl
     private void UpdateSelectionText()
     {
         var n = _items.Count(i => i.IsSelected);
-        SelectionText.Text = n == 0 ? $"{_items.Count} pages" : $"{n} of {_items.Count} pages selected";
+        SelectionText.Text = n == 0 ? Loc.Plural(_items.Count, Strings.Organize_PageCount_One, Strings.Organize_PageCount_Many) : Loc.Format(Strings.Organize_SelectedCount, n, _items.Count);
     }
 
     private void MoveFocus(int index, bool extend, bool toggle = false)
@@ -333,12 +333,12 @@ public partial class OrganizerView : UserControl
         };
         if (before is not { } b)
         {
-            Announce(key is Key.Left or Key.Up ? "Already at the start" : "Already at the end");
+            Announce(key is Key.Left or Key.Up ? Strings.Organize_AtStart : Strings.Organize_AtEnd);
             return;
         }
         if (await _tab.MovePagesAsync(pages, b) is not { } first) return;
         var n = pages.Length;
-        Announce(n == 1 ? $"Moved to position {first + 1} of {count}" : $"Moved {n} pages to positions {first + 1}–{first + n} of {count}");
+        Announce(n == 1 ? Loc.Format(Strings.Organize_MovedOne, first + 1, count) : Loc.Format(Strings.Organize_MovedMany, n, first + 1, first + n, count));
     }
 
     /// <summary>Speaks <paramref name="message"/> through the selection line (a polite live region).</summary>

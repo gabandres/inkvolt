@@ -90,28 +90,28 @@ public sealed record IndexerStatus(IndexerPhase Phase, int Searchable, int Waiti
             var sb = new StringBuilder();
             sb.Append(Phase switch
             {
-                IndexerPhase.Starting => "Starting.",
-                IndexerPhase.Scanning => "Looking through the folder.",
-                IndexerPhase.Indexing => string.Create(CultureInfo.CurrentCulture, $"Indexing: {Done:N0} of {Done + Waiting:N0} files read."),
-                IndexerPhase.Compacting => "Tidying the index.",
-                IndexerPhase.UpToDate => "Up to date.",
-                IndexerPhase.Paused => "Paused.",
-                IndexerPhase.Stopped => "Stopped.",
-                _ => Problem ?? "Something is in the way.",
+                IndexerPhase.Starting => PdfStrings.Index_Starting,
+                IndexerPhase.Scanning => PdfStrings.Index_Scanning,
+                IndexerPhase.Indexing => Loc.Format(PdfStrings.Index_Indexing, Done, Done + Waiting),
+                IndexerPhase.Compacting => PdfStrings.Index_Compacting,
+                IndexerPhase.UpToDate => PdfStrings.Index_UpToDate,
+                IndexerPhase.Paused => PdfStrings.Index_Paused,
+                IndexerPhase.Stopped => PdfStrings.Index_Stopped,
+                _ => Problem ?? PdfStrings.Index_SomethingInTheWay,
             });
             sb.Append(string.Create(CultureInfo.CurrentCulture, $" {Searchable:N0} {(Searchable == 1 ? "PDF" : "PDFs")} searchable."));
             var skipped = Skipped.Where(s => s.Value > 0).ToList();
             var left = skipped.Where(s => s.Key != IndexedState.NoText).ToList();
             if (left.Count > 0)
             {
-                sb.Append(string.Create(CultureInfo.CurrentCulture, $" {left.Sum(s => s.Value):N0} skipped or cut short: "));
-                sb.Append(string.Join(", ", left.Select(s => string.Create(CultureInfo.CurrentCulture, $"{s.Value:N0} {FolderIndexer.Describe(s.Key)}"))));
+                sb.Append(Loc.Format(PdfStrings.Index_SkippedOrCut, left.Sum(s => s.Value)));
+                sb.Append(string.Join(", ", left.Select(s => Loc.Format(PdfStrings.Index_CountState, s.Value, FolderIndexer.Describe(s.Key)))));
                 sb.Append('.');
             }
             if (Skipped.TryGetValue(IndexedState.NoText, out var scans) && scans > 0)
-                sb.Append(string.Create(CultureInfo.CurrentCulture, $" {scans:N0} with no text yet (scans: Recognize Text makes them searchable)."));
-            if (Unavailable > 0) sb.Append(string.Create(CultureInfo.CurrentCulture, $" {Unavailable:N0} couldn't be opened just now and will be tried again."));
-            if (CloudOnly > 0) sb.Append(string.Create(CultureInfo.CurrentCulture, $" {CloudOnly:N0} only in the cloud, not downloaded for this."));
+                sb.Append(Loc.Format(PdfStrings.Index_NoTextYet, scans));
+            if (Unavailable > 0) sb.Append(Loc.Format(PdfStrings.Index_Unavailable, Unavailable));
+            if (CloudOnly > 0) sb.Append(Loc.Format(PdfStrings.Index_CloudOnly, CloudOnly));
             return sb.ToString();
         }
     }
@@ -218,20 +218,20 @@ public sealed class FolderIndexer : IDisposable
             .Where(f => f.State != IndexedState.Indexed || f.FailedPages > 0)
             .OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase)
             .Select(f => new SkippedFile(f.RelativePath, f.State, f.State == IndexedState.Indexed
-                ? string.Create(CultureInfo.CurrentCulture, $"{f.FailedPages:N0} of {f.Pages:N0} pages couldn't be read")
+                ? Loc.Format(PdfStrings.Index_PagesUnread, f.FailedPages, f.Pages)
                 : Describe(f.State)))];
     }
 
     /// <summary>Why a file isn't (fully) in the index, in a few words.</summary>
     public static string Describe(IndexedState state) => state switch
     {
-        IndexedState.NoText => "no text (a scan)",
-        IndexedState.Password => "password protected",
-        IndexedState.Damaged => "damaged",
-        IndexedState.TooBig => "too big",
-        IndexedState.TooSlow => "too slow to read",
-        IndexedState.Crashed => "crashed the reader",
-        _ => "indexed",
+        IndexedState.NoText => PdfStrings.Index_StateNoText,
+        IndexedState.Password => PdfStrings.Index_StatePassword,
+        IndexedState.Damaged => PdfStrings.Index_StateDamaged,
+        IndexedState.TooBig => PdfStrings.Index_StateTooBig,
+        IndexedState.TooSlow => PdfStrings.Index_StateTooSlow,
+        IndexedState.Crashed => PdfStrings.Index_StateCrashed,
+        _ => PdfStrings.Index_StateIndexed,
     };
 
     /// <summary>Stops, as soon as the workers are ended and what was read is committed, and closes the index. Waits up to <paramref name="wait"/>.</summary>
@@ -301,7 +301,7 @@ public sealed class FolderIndexer : IDisposable
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    _problem = $"Couldn't write the index: {ex.Message}";
+                    _problem = Loc.Format(PdfStrings.Index_CantWrite, ex.Message);
                     SetPhase(IndexerPhase.Problem);
                     next = _options.Rescan;
                 }
@@ -312,7 +312,7 @@ public sealed class FolderIndexer : IDisposable
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     // A thread of its own: anything left unhandled here would take the app down with it.
-                    _problem = $"Indexing stopped on an error: {ex.Message}";
+                    _problem = Loc.Format(PdfStrings.Index_StoppedOnError, ex.Message);
                     SetPhase(IndexerPhase.Problem);
                     next = _options.Rescan;
                 }
@@ -321,7 +321,7 @@ public sealed class FolderIndexer : IDisposable
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            _problem = $"Indexing stopped on an error: {ex.Message}";
+            _problem = Loc.Format(PdfStrings.Index_StoppedOnError, ex.Message);
         }
         finally
         {
@@ -360,7 +360,7 @@ public sealed class FolderIndexer : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _problem = $"Couldn't open the index: {ex.Message}";
+            _problem = Loc.Format(PdfStrings.Index_CantOpen, ex.Message);
         }
         SetPhase(IndexerPhase.Problem);
         return false;
@@ -416,7 +416,7 @@ public sealed class FolderIndexer : IDisposable
 
     private sealed record Item(string RelativePath, string FullPath, long Size, long Ticks);
 
-    private const string Away = "The folder isn't there just now. The index stays as it is, and its files are found again when it's back.";
+    private static string Away => PdfStrings.Index_FolderAway;
 
     /// <summary>Lists the folder, reads what is new or changed, takes out what is gone. Returns how long until the next look.</summary>
     private TimeSpan Pass()
@@ -472,7 +472,7 @@ public sealed class FolderIndexer : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Gone between the check above and the listing: away, as above, not a listing that failed.
-            _problem = Directory.Exists(_folder) ? $"Couldn't list the folder: {ex.Message}" : Away;
+            _problem = Directory.Exists(_folder) ? Loc.Format(PdfStrings.Index_CantList, ex.Message) : Away;
             SetPhase(IndexerPhase.Problem);
             return _options.Rescan;
         }
@@ -494,7 +494,7 @@ public sealed class FolderIndexer : IDisposable
         if (_workersFailed)
         {
             _workersFailed = false;
-            _problem = "Couldn't start the process that reads files. Trying again shortly.";
+            _problem = PdfStrings.Index_WorkersFailed;
             SetPhase(IndexerPhase.Problem);
             return _options.Rescan;
         }

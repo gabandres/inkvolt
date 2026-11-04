@@ -61,21 +61,21 @@ internal sealed class BatchWindow : Window
     private readonly ListView _fileList = new() { SelectionMode = SelectionMode.Extended, AllowDrop = true };
     private readonly TextBlock _fileCount = new() { Style = Caption, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(8, 0, 0, 1) };
     private readonly ListBox _stepList = new() { HorizontalContentAlignment = HorizontalAlignment.Stretch };
-    private readonly CheckBox _recursive = new() { Content = "Include subfolders", Margin = new Thickness(0, 8, 0, 0) };
+    private readonly CheckBox _recursive = new() { Content = Strings.Batch_IncludeSubfolders, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _folder = new();
     private readonly TextBox _template = new();
-    private readonly CheckBox _neverOverwrite = new() { Content = "Never overwrite (add a number to a taken name)", Margin = new Thickness(0, 8, 16, 0) };
-    private readonly CheckBox _keepSubfolders = new() { Content = "Keep subfolders", Margin = new Thickness(0, 8, 0, 0) };
-    private readonly ComboBox _signed = new() { ItemsSource = new[] { "Leave them as they are", "Change them too (signatures may stop verifying)" } };
-    private readonly ComboBox _passwords = new() { ItemsSource = new[] { "Ask for each one", "Skip them" } };
-    private readonly ComboBox _imageSize = new() { ItemsSource = new[] { "The size of the image", "Letter", "A4" } };
+    private readonly CheckBox _neverOverwrite = new() { Content = Strings.Batch_NeverOverwrite, Margin = new Thickness(0, 8, 16, 0) };
+    private readonly CheckBox _keepSubfolders = new() { Content = Strings.Batch_KeepSubfolders, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly ComboBox _signed = new() { ItemsSource = new[] { Strings.Batch_SignedLeave, Strings.Batch_SignedChange } };
+    private readonly ComboBox _passwords = new() { ItemsSource = new[] { Strings.Batch_PasswordsAsk, Strings.Batch_PasswordsSkip } };
+    private readonly ComboBox _imageSize = new() { ItemsSource = new[] { Strings.Batch_ImageSizeImage, Strings.Convert_PaperLetter, Strings.Convert_PaperA4 } };
     private readonly ProgressBar _progress = new() { Height = 4, Maximum = 1, Margin = new Thickness(0, 0, 0, 6) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _start = new() { Content = "Start", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
-    private readonly Button _stop = new() { Content = "Stop", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
-    private readonly Button _openFolder = new() { Content = "Open Folder", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
-    private readonly Button _report = new() { Content = "Redaction Report…", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
-    private readonly Button _close = new() { Content = "Close", MinWidth = 104, IsCancel = true };
+    private readonly Button _start = new() { Content = Strings.Batch_Start, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsDefault = true };
+    private readonly Button _stop = new() { Content = Strings.Common_Stop, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+    private readonly Button _openFolder = new() { Content = Strings.FormData_OpenFolder, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
+    private readonly Button _report = new() { Content = Strings.Batch_RedactionReport, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+    private readonly Button _close = new() { Content = Strings.Common_Close, MinWidth = 104, IsCancel = true };
     private readonly List<UIElement> _editors = [];
     private readonly ComboBox _preset = new() { MinWidth = 220 };
     private List<(string Name, string Path)> _presets = [];
@@ -114,7 +114,7 @@ internal sealed class BatchWindow : Window
     {
         _host = host;
         Owner = host;
-        Title = "Batch";
+        Title = Strings.Batch_Title;
         Width = 900;
         Height = 840;
         MinWidth = 720;
@@ -125,12 +125,12 @@ internal sealed class BatchWindow : Window
 
         // ── Files ──
         var view = new GridView();
-        view.Columns.Add(new GridViewColumn { Header = "File", Width = 200, DisplayMemberBinding = new Binding(nameof(FileRow.Name)) });
-        view.Columns.Add(new GridViewColumn { Header = "Result", Width = 300, DisplayMemberBinding = new Binding(nameof(FileRow.Status)) });
-        view.Columns.Add(new GridViewColumn { Header = "Folder", Width = 220, DisplayMemberBinding = new Binding(nameof(FileRow.Folder)) });
+        view.Columns.Add(new GridViewColumn { Header = Strings.File_PropFile, Width = 200, DisplayMemberBinding = new Binding(nameof(FileRow.Name)) });
+        view.Columns.Add(new GridViewColumn { Header = Strings.Batch_ColResult, Width = 300, DisplayMemberBinding = new Binding(nameof(FileRow.Status)) });
+        view.Columns.Add(new GridViewColumn { Header = Strings.Batch_ColFolder, Width = 220, DisplayMemberBinding = new Binding(nameof(FileRow.Folder)) });
         _fileList.View = view;
         _fileList.ItemsSource = _files;
-        AutomationProperties.SetName(_fileList, "Files");
+        AutomationProperties.SetName(_fileList, Strings.Batch_Files);
         _fileList.Drop += (_, e) =>
         {
             if (e.Data.GetData(DataFormats.FileDrop) is string[] dropped) AddPaths(dropped);
@@ -143,17 +143,17 @@ internal sealed class BatchWindow : Window
         _recursive.IsChecked = s.BatchRecursive;
 
         var fileButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
-        fileButtons.Children.Add(Small("Add Files…", AddFilesDialog));
-        fileButtons.Children.Add(Small("Add Folder…", AddFolderDialog));
-        fileButtons.Children.Add(Small("Remove", RemoveSelectedFiles));
-        fileButtons.Children.Add(Small("Clear", () =>
+        fileButtons.Children.Add(Small(Strings.Dialog_AddFiles, AddFilesDialog));
+        fileButtons.Children.Add(Small(Strings.Batch_AddFolder, AddFolderDialog));
+        fileButtons.Children.Add(Small(Strings.Common_Remove, RemoveSelectedFiles));
+        fileButtons.Children.Add(Small(Strings.Common_Clear, () =>
         {
             _files.Clear();
             _listed.Clear();
             UpdateCounts();
         }));
         var filesHeader = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-        filesHeader.Children.Add(new TextBlock { Text = "Files", FontWeight = FontWeights.SemiBold });
+        filesHeader.Children.Add(new TextBlock { Text = Strings.Batch_Files, FontWeight = FontWeights.SemiBold });
         filesHeader.Children.Add(_fileCount);
         var filesPanel = new DockPanel();
         DockPanel.SetDock(filesHeader, Dock.Top);
@@ -167,7 +167,7 @@ internal sealed class BatchWindow : Window
         _editors.Add(fileButtons);
 
         // ── Actions ──
-        AutomationProperties.SetName(_stepList, "Actions, in order");
+        AutomationProperties.SetName(_stepList, Strings.Batch_ActionsInOrder);
         ScrollViewer.SetHorizontalScrollBarVisibility(_stepList, ScrollBarVisibility.Disabled); // so the empty list's hint wraps
         _stepList.MouseDoubleClick += (_, _) => ChangeSelectedStep();
         _stepList.KeyDown += (_, e) =>
@@ -176,7 +176,7 @@ internal sealed class BatchWindow : Window
             if (e.Key == Key.Delete) RemoveSelectedStep();
             else if (e.Key == Key.Enter) ChangeSelectedStep();
         };
-        var add = Small("Add Action ▾", () => { });
+        var add = Small(Strings.Batch_AddActionMenu, () => { });
         add.ContextMenu = ActionMenu();
         add.Click += (_, _) =>
         {
@@ -184,14 +184,14 @@ internal sealed class BatchWindow : Window
             add.ContextMenu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
             add.ContextMenu.IsOpen = true;
         };
-        AutomationProperties.SetName(add, "Add action");
+        AutomationProperties.SetName(add, Strings.Batch_AddAction);
         var stepButtons = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
         stepButtons.Children.Add(add);
-        stepButtons.Children.Add(Small("Change…", ChangeSelectedStep));
-        stepButtons.Children.Add(Small("Remove", RemoveSelectedStep));
-        stepButtons.Children.Add(Glyph("", "Move up", () => MoveSelectedStep(-1)));
-        stepButtons.Children.Add(Glyph("", "Move down", () => MoveSelectedStep(1)));
-        var stepsHeader = new TextBlock { Text = "Actions, in order", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
+        stepButtons.Children.Add(Small(Strings.Common_Change, ChangeSelectedStep));
+        stepButtons.Children.Add(Small(Strings.Common_Remove, RemoveSelectedStep));
+        stepButtons.Children.Add(Glyph("", Strings.Batch_MoveUp, () => MoveSelectedStep(-1)));
+        stepButtons.Children.Add(Glyph("", Strings.Batch_MoveDown, () => MoveSelectedStep(1)));
+        var stepsHeader = new TextBlock { Text = Strings.Batch_ActionsInOrder, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) };
         var stepsPanel = new DockPanel { Margin = new Thickness(16, 0, 0, 0) };
         DockPanel.SetDock(stepsHeader, Dock.Top);
         stepsPanel.Children.Add(stepsHeader);
@@ -215,14 +215,14 @@ internal sealed class BatchWindow : Window
         _signed.SelectedIndex = 0;
         _passwords.SelectedIndex = 0;
         _imageSize.SelectedIndex = 0;
-        AutomationProperties.SetName(_folder, "Save results to");
-        AutomationProperties.SetName(_template, "File names");
-        AutomationProperties.SetName(_signed, "Signed PDFs");
-        AutomationProperties.SetName(_passwords, "PDFs with a password");
-        AutomationProperties.SetName(_imageSize, "Images become pages of");
-        var browse = Small("Browse…", () =>
+        AutomationProperties.SetName(_folder, Strings.Batch_SaveResultsTo);
+        AutomationProperties.SetName(_template, Strings.FormData_FileNames);
+        AutomationProperties.SetName(_signed, Strings.Batch_SignedPdfs);
+        AutomationProperties.SetName(_passwords, Strings.Batch_PasswordPdfs);
+        AutomationProperties.SetName(_imageSize, Strings.Batch_ImagesBecome);
+        var browse = Small(Strings.Common_Browse, () =>
         {
-            if (PdfFiles.PickFolder(this, "Save the results to", Directory.Exists(_folder.Text) ? _folder.Text : null) is { } f) _folder.Text = f;
+            if (PdfFiles.PickFolder(this, Strings.Batch_SaveTheResultsTo, Directory.Exists(_folder.Text) ? _folder.Text : null) is { } f) _folder.Text = f;
         });
         browse.Margin = new Thickness(6, 0, 0, 0);
 
@@ -235,21 +235,21 @@ internal sealed class BatchWindow : Window
         folderRow.Children.Add(browse);
         folderRow.Children.Add(_folder);
         var left = new StackPanel();
-        left.Children.Add(Label("Save results to"));
+        left.Children.Add(Label(Strings.Batch_SaveResultsTo));
         left.Children.Add(folderRow);
-        left.Children.Add(Label("File names"));
+        left.Children.Add(Label(Strings.FormData_FileNames));
         left.Children.Add(_template);
-        left.Children.Add(new TextBlock { Text = "<<name>> the file's name · <<n>> its number (<<n:3>>: 001) · <<date>> · <<folder>>", Style = Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+        left.Children.Add(new TextBlock { Text = Strings.Batch_NamePattern, Style = Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
         var checks = new WrapPanel();
         checks.Children.Add(_neverOverwrite);
         checks.Children.Add(_keepSubfolders);
         left.Children.Add(checks);
         var right = new StackPanel();
-        right.Children.Add(Label("Signed PDFs"));
+        right.Children.Add(Label(Strings.Batch_SignedPdfs));
         right.Children.Add(_signed);
-        right.Children.Add(Label("PDFs with a password"));
+        right.Children.Add(Label(Strings.Batch_PasswordPdfs));
         right.Children.Add(_passwords);
-        right.Children.Add(Label("Images become pages of"));
+        right.Children.Add(Label(Strings.Batch_ImagesBecome));
         right.Children.Add(_imageSize);
         Grid.SetColumn(right, 2);
         output.Children.Add(left);
@@ -268,22 +268,22 @@ internal sealed class BatchWindow : Window
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         body.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 14) };
-        heading.Children.Add(new TextBlock { Text = "Batch", FontSize = 20, FontWeight = FontWeights.SemiBold });
+        heading.Children.Add(new TextBlock { Text = Strings.Batch_Title, FontSize = 20, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock
         {
-            Text = "The same actions for many files, in the order listed. The originals stay as they are; the results go to the folder below (exports and page images without password protection).",
+            Text = Strings.Batch_Intro,
             Style = Caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0),
         });
         var presetRow = new WrapPanel { Margin = new Thickness(0, 12, 0, 0) };
-        presetRow.Children.Add(new TextBlock { Text = "Preset", FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
-        AutomationProperties.SetName(_preset, "Preset");
+        presetRow.Children.Add(new TextBlock { Text = Strings.Batch_Preset, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 6) });
+        AutomationProperties.SetName(_preset, Strings.Batch_Preset);
         _preset.Margin = new Thickness(0, 0, 8, 6);
         _preset.SelectionChanged += (_, _) => LoadSelectedPreset();
         presetRow.Children.Add(_preset);
-        presetRow.Children.Add(Small("Save Preset…", SavePreset));
-        presetRow.Children.Add(Small("Import…", ImportPreset));
-        presetRow.Children.Add(Small("Export…", ExportPreset));
-        presetRow.Children.Add(Small("Delete", DeletePreset));
+        presetRow.Children.Add(Small(Strings.Batch_SavePreset, SavePreset));
+        presetRow.Children.Add(Small(Strings.Batch_Import, ImportPreset));
+        presetRow.Children.Add(Small(Strings.Export_ExportButton, ExportPreset));
+        presetRow.Children.Add(Small(Strings.Common_Delete, DeletePreset));
         heading.Children.Add(presetRow);
         _editors.Add(presetRow);
         body.Children.Add(heading);
@@ -309,7 +309,7 @@ internal sealed class BatchWindow : Window
         buttons.Children.Add(_report);
         buttons.Children.Add(_openFolder);
         buttons.Children.Add(_close);
-        var watched = new Button { Content = "Watched Folders…", MinWidth = 104, Margin = new Thickness(24, 16, 0, 16), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
+        var watched = new Button { Content = Strings.Batch_WatchedFoldersButton, MinWidth = 104, Margin = new Thickness(24, 16, 0, 16), VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left };
         watched.Click += (_, _) => WatchWindow.Open(_host);
         var bar = new DockPanel();
         DockPanel.SetDock(buttons, Dock.Right);
@@ -361,17 +361,17 @@ internal sealed class BatchWindow : Window
             if (_listed.Add(f.Path)) _files.Add(new FileRow(f));
         var ignored = paths.Count(p => File.Exists(p) && !BatchFiles.IsSupported(p));
         UpdateCounts();
-        if (ignored > 0) Status($"{(ignored == 1 ? "1 file isn't" : $"{ignored} files aren't")} a PDF or an image, so {(ignored == 1 ? "it was" : "they were")} left out.");
+        if (ignored > 0) Status(Loc.Plural(ignored, Strings.Batch_Ignored_One, Strings.Batch_Ignored_Many));
         if (_folder.Text.Length == 0 && found.Count > 0)
-            _folder.Text = Path.Combine(Path.GetDirectoryName(found[0].Path) ?? AppSettings.Current.LastFolder, "Batch results");
+            _folder.Text = Path.Combine(Path.GetDirectoryName(found[0].Path) ?? AppSettings.Current.LastFolder, Strings.Batch_ResultsFolder);
     }
 
     private void AddFilesDialog()
     {
         var dlg = new OpenFileDialog
         {
-            Title = "Add files",
-            Filter = "PDFs and images|*.pdf;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif|PDF files (*.pdf)|*.pdf|Images|*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif",
+            Title = Strings.Batch_AddFilesTitle,
+            Filter = $"{Strings.Batch_FilterPdfImages}|*.pdf;*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif|{Strings.Compare_FilterPdf}|*.pdf|{Strings.Batch_FilterImages}|*.jpg;*.jpeg;*.png;*.tif;*.tiff;*.bmp;*.gif",
             Multiselect = true,
             InitialDirectory = AppSettings.Current.LastFolder,
         };
@@ -380,7 +380,7 @@ internal sealed class BatchWindow : Window
 
     private void AddFolderDialog()
     {
-        if (PdfFiles.PickFolder(this, "Add the PDFs and images in a folder") is { } folder) AddPaths([folder]);
+        if (PdfFiles.PickFolder(this, Strings.Batch_AddFolderTitle) is { } folder) AddPaths([folder]);
     }
 
     private void RemoveSelectedFiles()
@@ -396,8 +396,8 @@ internal sealed class BatchWindow : Window
     private void UpdateCounts()
     {
         var images = _files.Count(f => f.File.IsImage);
-        _fileCount.Text = _files.Count == 0 ? "add PDFs or images, or drag them here"
-            : $"{_files.Count:N0} file{(_files.Count == 1 ? "" : "s")}{(images > 0 ? $" ({images:N0} image{(images == 1 ? "" : "s")}, made into PDFs)" : "")}";
+        _fileCount.Text = _files.Count == 0 ? Strings.Batch_FilesEmpty
+            : images > 0 ? Loc.Format(Strings.Batch_FilesWithImages, Loc.Plural(_files.Count, Strings.Folder_Files_One, Strings.Folder_Files_Many), Loc.Plural(images, Strings.Batch_Images_One, Strings.Batch_Images_Many)) : Loc.Plural(_files.Count, Strings.Folder_Files_One, Strings.Folder_Files_Many);
     }
 
     /// <summary>A finished file: open its PDF result in a tab, else show its first result in its folder.</summary>
@@ -429,34 +429,34 @@ internal sealed class BatchWindow : Window
             };
             menu.Items.Add(item);
         }
-        Item("Reduce File Size…", () => AskOptimize(null));
-        Item("Protect with Password…", () => AskProtect());
-        Item("Remove Password Protection", () => new UnprotectStep());
-        Item("Sanitize…", () => AskSanitize(null));
-        Item("Redact Patterns…", () => AskRedactPatterns(null));
-        Item("Check Redaction", () => new CheckRedactionStep());
-        Item("Check Accessibility (PDF/UA)", () => new CheckAccessibilityStep());
-        Item("Report What's in Each File", () => new ReportContentsStep());
-        Item("Add Watermark…", () => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null);
-        Item("Add Header, Footer & Bates Numbers…", () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
-        Item("Rotate Pages…", () => AskRotate(null));
-        Item("Flatten…", () => AskFlatten(null));
+        Item(Strings.Batch_ItemReduce, () => AskOptimize(null));
+        Item(Strings.Batch_ItemProtect, () => AskProtect());
+        Item(Strings.Batch_ItemUnprotect, () => new UnprotectStep());
+        Item(Strings.Inventory_Sanitize, () => AskSanitize(null));
+        Item(Strings.Batch_ItemRedactPatterns, () => AskRedactPatterns(null));
+        Item(Strings.Batch_ItemCheckRedaction, () => new CheckRedactionStep());
+        Item(Strings.Batch_ItemCheckAccess, () => new CheckAccessibilityStep());
+        Item(Strings.Batch_ItemReportContents, () => new ReportContentsStep());
+        Item(Strings.Batch_ItemWatermark, () => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null);
+        Item(Strings.Batch_ItemHeaderFooter, () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
+        Item(Strings.Batch_ItemRotate, () => AskRotate(null));
+        Item(Strings.Batch_ItemFlatten, () => AskFlatten(null));
         var ocr = PageOcr.Engine is not null;
-        Item("Recognize Text (OCR)", () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
-        Item("Make Accessible (Tag)", () => new MakeAccessibleStep());
-        Item("Save as PDF/A-2b", () => new SaveAsPdfAStep());
-        Item("Save as PDF/A-2a (Tagged)", () => new SaveAsPdfAStep { Conformance = PdfAConformance.A });
+        Item(Strings.Batch_ItemOcr, () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
+        Item(Strings.Batch_ItemMakeAccessible, () => new MakeAccessibleStep());
+        Item(Strings.Batch_ItemPdfA2b, () => new SaveAsPdfAStep());
+        Item(Strings.Batch_ItemPdfA2a, () => new SaveAsPdfAStep { Conformance = PdfAConformance.A });
         menu.Items.Add(new Separator());
-        Item("Export to Word (.docx)", () => new ExportStep(BatchExportFormat.Word));
-        Item("Export Tables to Excel (.xlsx)", () => new ExportStep(BatchExportFormat.Excel));
-        Item("Export as Plain Text (.txt)", () => new ExportStep(BatchExportFormat.Text));
-        Item("Export to PowerPoint (.pptx)", () => new ExportStep(BatchExportFormat.PowerPoint));
-        Item("Export to HTML (.html)", () => new ExportStep(BatchExportFormat.Html));
-        Item("Export Pages as Images…", () => AskImages(null));
+        Item(Strings.Batch_ItemWord, () => new ExportStep(BatchExportFormat.Word));
+        Item(Strings.Batch_ItemExcel, () => new ExportStep(BatchExportFormat.Excel));
+        Item(Strings.Batch_ItemText, () => new ExportStep(BatchExportFormat.Text));
+        Item(Strings.Batch_ItemPowerPoint, () => new ExportStep(BatchExportFormat.PowerPoint));
+        Item(Strings.Batch_ItemHtml, () => new ExportStep(BatchExportFormat.Html));
+        Item(Strings.Batch_ItemImages, () => AskImages(null));
         menu.Items.Add(new Separator());
-        Item("Export Comments…", () => AskReview(null, comments: true));
-        Item("Summarize Comments", () => new ExportStep(BatchExportFormat.CommentSummary));
-        Item("Export Form Data…", () => AskReview(null, comments: false));
+        Item(Strings.Batch_ItemComments, () => AskReview(null, comments: true));
+        Item(Strings.Comments_SummarizeTitle, () => new ExportStep(BatchExportFormat.CommentSummary));
+        Item(Strings.Batch_ItemFormData, () => AskReview(null, comments: false));
         return menu;
     }
 
@@ -467,17 +467,17 @@ internal sealed class BatchWindow : Window
         {
             var step = _steps[i];
             var panel = new StackPanel { Margin = new Thickness(0, 3, 0, 3) };
-            panel.Children.Add(new TextBlock { Text = $"{i + 1}. {step.Title}", FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+            panel.Children.Add(new TextBlock { Text = $"{i + 1}. {step.Title}", FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis }); // in every language: only names and values, no words
             var detail = Describe(step);
             if (detail.Length > 0) panel.Children.Add(new TextBlock { Text = detail, Style = Caption, TextWrapping = TextWrapping.Wrap });
             var item = new ListBoxItem { Content = panel, Tag = step };
-            AutomationProperties.SetName(item, $"{i + 1}. {step.Title}{(detail.Length > 0 ? $": {detail}" : "")}");
+            AutomationProperties.SetName(item, detail.Length > 0 ? Loc.Format(Strings.Batch_StepNameDetail, i + 1, step.Title, detail) : Loc.Format(Strings.Batch_StepName, i + 1, step.Title));
             _stepList.Items.Add(item);
         }
         if (_steps.Count == 0)
             _stepList.Items.Add(new ListBoxItem
             {
-                Content = new TextBlock { Text = "Add Action adds what to do with each file: reduce size, protect, sanitize, redact patterns, check redaction, watermark, header and footer, rotate, flatten, OCR, PDF/A, export. Or choose a saved preset above.", Style = Caption, TextWrapping = TextWrapping.Wrap },
+                Content = new TextBlock { Text = Strings.Batch_StepsEmpty, Style = Caption, TextWrapping = TextWrapping.Wrap },
                 Focusable = false,
                 IsHitTestVisible = false,
             });
@@ -526,15 +526,15 @@ internal sealed class BatchWindow : Window
     private OptimizeStep? AskOptimize(OptimizeStep? current)
     {
         var o = current?.Options ?? new OptimizeOptions();
-        var dlg = new FormDialog(this, "Reduce File Size", "OK", 480);
-        dlg.AddNote("Each file is rewritten in a compact form. A file that would shrink by less than 1% is left as it was.");
+        var dlg = new FormDialog(this, Strings.File_ReduceTitle, Strings.Common_OK, 480);
+        dlg.AddNote(Strings.Batch_ReduceNote);
         var qualities = FileTools.Qualities;
-        var quality = dlg.AddChoice("Image quality", qualities.Select(q => q.Name), Math.Max(0, Array.FindIndex(qualities, q => q.Dpi == o.MaxImageDpi)));
-        dlg.Add("Also", new StackPanel());
-        var thumbs = dlg.AddCheck("Remove embedded page thumbnails", o.RemoveThumbnails);
-        var pieces = dlg.AddCheck("Remove other apps' private editing data", o.RemovePieceInfo);
-        var dedupe = dlg.AddCheck("Store identical images and fonts once", o.DeduplicateStreams);
-        var metadata = dlg.AddCheck("Remove the extra descriptive data (title, author and subject stay)", o.RemoveMetadata);
+        var quality = dlg.AddChoice(Strings.File_ImageQuality, qualities.Select(q => q.Name), Math.Max(0, Array.FindIndex(qualities, q => q.Dpi == o.MaxImageDpi)));
+        dlg.Add(Strings.File_Also, new StackPanel());
+        var thumbs = dlg.AddCheck(Strings.File_RemoveThumbs, o.RemoveThumbnails);
+        var pieces = dlg.AddCheck(Strings.File_RemovePieces, o.RemovePieceInfo);
+        var dedupe = dlg.AddCheck(Strings.File_Dedupe, o.DeduplicateStreams);
+        var metadata = dlg.AddCheck(Strings.File_RemoveMetadata, o.RemoveMetadata);
         if (!dlg.ShowModal()) return null;
         var q = qualities[Math.Max(0, quality.SelectedIndex)];
         return new OptimizeStep(o with
@@ -549,16 +549,16 @@ internal sealed class BatchWindow : Window
     }
 
     private ProtectStep? AskProtect() =>
-        SecurityActions.AskProtection(this, "Protect with Password", "OK", null,
-                "Each file is encrypted with these passwords. Keep them somewhere safe: a forgotten open password can't be recovered. Files that are already protected need their permissions password (asked for each file).")
+        SecurityActions.AskProtection(this, Strings.Security_ProtectTitle, Strings.Common_OK, null,
+                Strings.Batch_ProtectNote)
             is { } c
             ? new ProtectStep(c.UserPassword, c.OwnerPassword, c.Permissions, c.Method)
             : null;
 
     private SanitizeStep? AskSanitize(SanitizeStep? current)
     {
-        var dlg = new FormDialog(this, "Sanitize", "OK", 540);
-        dlg.AddNote("Removes what each file carries besides its pages, and saves it afresh, so nothing of its earlier versions stays in it.");
+        var dlg = new FormDialog(this, Strings.Sanitize_Sanitize, Strings.Common_OK, 540);
+        dlg.AddNote(Strings.Batch_SanitizeNote);
         var checks = new List<(SanitizeItem Item, CheckBox Box)>();
         foreach (var (item, label, group) in SanitizeActions.Kinds)
         {
@@ -568,8 +568,8 @@ internal sealed class BatchWindow : Window
             dlg.Add(group, box, top: 14);
             checks.Add((item, box));
         }
-        dlg.AddNote("Removing digital signatures takes the signers' names and certificates out. Signed files are only changed when \"Signed PDFs\" says so: sanitizing rewrites them, so their signatures stop verifying either way.");
-        dlg.Validate(() => checks.Any(c => c.Box.IsChecked == true) ? null : "Choose what to remove.");
+        dlg.AddNote(Strings.Batch_SanitizeSignedNote);
+        dlg.Validate(() => checks.Any(c => c.Box.IsChecked == true) ? null : Strings.Batch_ChooseRemove);
         if (!dlg.ShowModal()) return null;
         return new SanitizeStep(checks.Where(c => c.Box.IsChecked == true).Select(c => c.Item).ToHashSet());
     }
@@ -580,20 +580,20 @@ internal sealed class BatchWindow : Window
     private RotateStep? AskRotate(RotateStep? current)
     {
         int[] degrees = [90, -90, 180];
-        var dlg = new FormDialog(this, "Rotate Pages", "OK");
-        var dir = dlg.AddChoice("Every page of each file", ["90° clockwise", "90° counterclockwise", "180°"], Math.Max(0, Array.IndexOf(degrees, current?.Degrees ?? 90)));
+        var dlg = new FormDialog(this, Strings.Batch_RotateTitle, Strings.Common_OK);
+        var dir = dlg.AddChoice(Strings.Batch_EveryPage, [Strings.Batch_Clockwise, Strings.Batch_Counterclockwise, "180°"], Math.Max(0, Array.IndexOf(degrees, current?.Degrees ?? 90)));
         return dlg.ShowModal() ? new RotateStep(degrees[Math.Max(0, dir.SelectedIndex)]) : null;
     }
 
     private FlattenStep? AskFlatten(FlattenStep? current)
     {
         var o = current?.Options ?? new FlattenOptions();
-        var dlg = new FormDialog(this, "Flatten", "OK", 460);
-        dlg.AddNote("Draws comments and filled-in fields into the pages as they look. They can't be edited, replied to or filled in afterwards.");
-        var comments = dlg.AddCheck("Comments, markup and stamps", o.Annotations);
-        var fields = dlg.AddCheck("Form fields (signature fields stay)", o.FormFields);
-        var printable = dlg.AddCheck("Only what prints (drop the rest)", o.PrintableOnly);
-        dlg.Validate(() => comments.IsChecked != true && fields.IsChecked != true ? "Choose what to flatten." : null);
+        var dlg = new FormDialog(this, Strings.File_Flatten, Strings.Common_OK, 460);
+        dlg.AddNote(Strings.Batch_FlattenNote);
+        var comments = dlg.AddCheck(Strings.File_FlattenComments, o.Annotations);
+        var fields = dlg.AddCheck(Strings.File_FlattenFields, o.FormFields);
+        var printable = dlg.AddCheck(Strings.File_FlattenPrintable, o.PrintableOnly);
+        dlg.Validate(() => comments.IsChecked != true && fields.IsChecked != true ? Strings.File_FlattenChoose : null);
         if (!dlg.ShowModal()) return null;
         return new FlattenStep(o with { Annotations = comments.IsChecked == true, FormFields = fields.IsChecked == true, PrintableOnly = printable.IsChecked == true });
     }
@@ -601,10 +601,10 @@ internal sealed class BatchWindow : Window
     private ExportStep? AskImages(ExportStep? current)
     {
         int[] dpis = [72, 96, 150, 200, 300, 600];
-        var dlg = new FormDialog(this, "Export Pages as Images", "OK");
-        dlg.AddNote("One image per page, named \"<file> - page 1\" and so on. Very large pages are made at a lower resolution.");
-        var format = dlg.AddChoice("Format", ["PNG (lossless)", "JPEG (smaller)"], current?.Format == BatchExportFormat.Jpeg ? 1 : 0);
-        var dpi = dlg.AddChoice("Resolution", dpis.Select(d => $"{d} dpi"), Math.Max(0, Array.IndexOf(dpis, current?.Dpi ?? 150)));
+        var dlg = new FormDialog(this, Strings.File_ExportImagesTitle, Strings.Common_OK);
+        dlg.AddNote(Strings.Batch_ImagesNote);
+        var format = dlg.AddChoice(Strings.File_Format, [Strings.File_FormatPng, Strings.File_FormatJpeg], current?.Format == BatchExportFormat.Jpeg ? 1 : 0);
+        var dpi = dlg.AddChoice(Strings.File_Resolution, dpis.Select(d => Loc.Format(Strings.File_Dpi, d)), Math.Max(0, Array.IndexOf(dpis, current?.Dpi ?? 150)));
         if (!dlg.ShowModal()) return null;
         return new ExportStep(format.SelectedIndex == 1 ? BatchExportFormat.Jpeg : BatchExportFormat.Png, dpis[Math.Max(0, dpi.SelectedIndex)]);
     }
@@ -615,13 +615,13 @@ internal sealed class BatchWindow : Window
             ? [BatchExportFormat.CommentsXfdf, BatchExportFormat.CommentsFdf, BatchExportFormat.CommentsCsv]
             : [BatchExportFormat.FormDataXfdf, BatchExportFormat.FormDataFdf, BatchExportFormat.FormDataCsv, BatchExportFormat.FormDataJson];
         string[] labels = comments
-            ? ["XFDF (Acrobat and other PDF apps)", "FDF (keeps every appearance)", "CSV (a row per comment, for spreadsheets)"]
-            : ["XFDF (Acrobat and other PDF apps)", "FDF", "CSV (a header and a row of values)", "JSON"];
-        var dlg = new FormDialog(this, comments ? "Export Comments" : "Export Form Data", "OK");
+            ? [Strings.Batch_FormatXfdf, Strings.Batch_FormatFdfLooks, Strings.Batch_FormatCsvComments]
+            : [Strings.Batch_FormatXfdf, "FDF", Strings.Batch_FormatCsvValues, "JSON"];
+        var dlg = new FormDialog(this, comments ? Strings.Comments_ExportTitle : Strings.FormData_ExportTitle, Strings.Common_OK);
         dlg.AddNote(comments
-            ? "A file beside each result with its comments; a PDF without comments gets none."
-            : "A file beside each result with its form's values; a PDF without a form gets none.");
-        var format = dlg.AddChoice("Format", labels, Math.Max(0, Array.IndexOf(formats, current?.Format ?? formats[0])));
+            ? Strings.Batch_CommentsNote
+            : Strings.Batch_FormDataNote);
+        var format = dlg.AddChoice(Strings.File_Format, labels, Math.Max(0, Array.IndexOf(formats, current?.Format ?? formats[0])));
         if (!dlg.ShowModal()) return null;
         return new ExportStep(formats[Math.Max(0, format.SelectedIndex)]);
     }
@@ -633,70 +633,69 @@ internal sealed class BatchWindow : Window
         {
             case OptimizeStep o:
                 var q = FileTools.Qualities.FirstOrDefault(x => x.Dpi == o.Options.MaxImageDpi).Name ?? "";
-                return q + (o.Options.RemoveMetadata ? "; extra descriptive data removed" : "");
+                return o.Options.RemoveMetadata ? Loc.Format(Strings.Batch_DescMetadata, q) : q;
             case ProtectStep { NeedsPasswords: true }:
-                return "Its passwords aren't in the preset: Change… to type them";
+                return Strings.Batch_DescNoPasswords;
             case ProtectStep p:
                 var parts = new List<string>();
-                if (!string.IsNullOrEmpty(p.UserPassword)) parts.Add("needs a password to open");
-                if (!p.Permissions.IsUnrestricted) parts.Add("restricted");
+                if (!string.IsNullOrEmpty(p.UserPassword)) parts.Add(Strings.Security_NeedsOpen);
+                if (!p.Permissions.IsUnrestricted) parts.Add(Strings.Batch_DescRestricted);
                 parts.Add(p.Method == EncryptionMethod.Aes128 ? "AES-128" : "AES-256");
                 return string.Join(" · ", parts);
             case UnprotectStep:
-                return "Each file's permissions password is asked for";
+                return Strings.Batch_DescUnprotect;
             case SanitizeStep s:
-                return s.Items.Count == SanitizeActions.Kinds.Length ? "Everything, signatures too"
-                    : s.Items.Count == SanitizeActions.Kinds.Length - 1 && !s.Items.Contains(SanitizeItem.Signatures) ? "Everything but signatures"
-                    : $"{s.Items.Count} of {SanitizeActions.Kinds.Length} kinds of hidden data";
+                return s.Items.Count == SanitizeActions.Kinds.Length ? Strings.Batch_DescEverything
+                    : s.Items.Count == SanitizeActions.Kinds.Length - 1 && !s.Items.Contains(SanitizeItem.Signatures) ? Strings.Batch_DescButSignatures
+                    : Loc.Format(Strings.Batch_DescKinds, s.Items.Count, SanitizeActions.Kinds.Length);
             case RedactPatternsStep r:
                 return RedactPatternActions.Describe(r.Options);
             case CheckRedactionStep:
-                return "A file with anything recoverable left (text under boxes, leftovers of what was redacted) fails and isn't saved";
+                return Strings.Batch_DescCheckRedaction;
             case CheckAccessibilityStep:
-                return "PDF/UA-1 machine checks (Matterhorn Protocol); a report (.html) beside each file; a file that fails any isn't saved";
+                return Strings.Batch_DescCheckAccess;
             case ReportContentsStep:
-                return "Scripts, actions, addresses, attachments, metadata, earlier versions, hidden content and form values: a report (.html and .json) beside each file";
+                return Strings.Batch_DescReportContents;
             case WatermarkStep w:
-                var what = w.Options.Image is not null ? "A picture" : $"\"{w.Options.Text}\"";
-                return $"{what}, {w.Options.Opacity:P0} opaque, {(w.Options.Layout == WatermarkLayout.Tiled ? "tiled" : "centered")}{(w.Options.Behind ? ", behind the content" : "")}";
+                var what = w.Options.Image is not null ? Strings.Batch_DescPicture : $"\"{w.Options.Text}\"";
+                var tiled = w.Options.Layout == WatermarkLayout.Tiled;
+                return Loc.Format(w.Options.Behind ? (tiled ? Strings.Batch_DescWmTiledBehind : Strings.Batch_DescWmCenteredBehind) : (tiled ? Strings.Batch_DescWmTiled : Strings.Batch_DescWmCentered), what, w.Options.Opacity);
             case HeaderFooterStep h:
                 var texts = Enum.GetValues<HeaderFooterSlot>().Select(h.Options.Text).Where(t => !string.IsNullOrWhiteSpace(t)).ToList();
                 var line = string.Join(" · ", texts);
                 if (line.Length > 80) line = line[..80] + "…";
-                if (h.Options.Bates is { } b) line += $"; Bates from {b.Format(0)}{(h.ContinueBates ? ", continued across files" : ", in each file")}";
+                if (h.Options.Bates is { } b) line += Loc.Format(h.ContinueBates ? Strings.Batch_DescBatesContinued : Strings.Batch_DescBatesEach, b.Format(0));
                 return line;
             case RotateStep r:
-                return r.Degrees switch { 90 => "90° clockwise", -90 or 270 => "90° counterclockwise", _ => "180°" };
+                return r.Degrees switch { 90 => Strings.Batch_Clockwise, -90 or 270 => Strings.Batch_Counterclockwise, _ => "180°" };
             case FlattenStep f:
-                var kinds = new List<string>();
-                if (f.Options.Annotations) kinds.Add("comments");
-                if (f.Options.FormFields) kinds.Add("form fields");
-                return string.Join(" and ", kinds) is { Length: > 0 } k ? char.ToUpperInvariant(k[0]) + k[1..] + (f.Options.PrintableOnly ? ", only what prints" : "") : "";
+                var flat = f.Options.Annotations && f.Options.FormFields ? Strings.Batch_DescFlatBoth : f.Options.Annotations ? Strings.Batch_DescFlatComments : f.Options.FormFields ? Strings.Batch_DescFlatFields : "";
+                return flat.Length > 0 && f.Options.PrintableOnly ? Loc.Format(Strings.Batch_DescPrintsOnly, flat) : flat;
             case SaveAsPdfAStep { Conformance: PdfAConformance.A }:
-                return "An accessible archival copy (ISO 19005-2, level A: the tags kept); the file must be tagged (Make Accessible before it); a file that can't be made one fails, saying why";
+                return Strings.Batch_DescPdfA2a;
             case SaveAsPdfAStep:
-                return "An archival copy (ISO 19005-2, level B); a file that can't be made one fails, saying why";
+                return Strings.Batch_DescPdfA2b;
             case MakeAccessibleStep:
-                return "Tags each file from its layout (headings, paragraphs, lists, tables, pictures; running headers and page numbers as decoration), with its title and language; the notes say how many pictures need alternate text";
+                return Strings.Batch_DescMakeAccessible;
             case OcrStep:
-                return PageOcr.Engine is { } e ? $"Pages without text, with Windows' {e.LanguageName} recognizer" : PageOcr.Unavailable;
+                return PageOcr.Engine is { } e ? Loc.Format(Strings.Batch_DescOcr, e.LanguageName) : PageOcr.Unavailable;
             case ExportStep x:
                 return x.Format switch
                 {
-                    BatchExportFormat.Word => "A .docx beside each result",
-                    BatchExportFormat.Excel => "The tables found, as an .xlsx (none found: no file)",
-                    BatchExportFormat.Text => "A .txt beside each result",
-                    BatchExportFormat.PowerPoint => "A .pptx beside each result, one slide per page",
-                    BatchExportFormat.Html => "One .html beside each result, pictures inside it",
-                    BatchExportFormat.CommentsXfdf => "An .xfdf beside each result (none without comments)",
-                    BatchExportFormat.CommentsFdf => "An .fdf beside each result (none without comments)",
-                    BatchExportFormat.CommentsCsv => "A comments .csv beside each result (none without comments)",
-                    BatchExportFormat.CommentSummary => "A PDF of each page beside its comments, numbered and connected",
-                    BatchExportFormat.FormDataXfdf => "An .xfdf of the form's values beside each result",
-                    BatchExportFormat.FormDataFdf => "An .fdf of the form's values beside each result",
-                    BatchExportFormat.FormDataCsv => "A data .csv of the form's values beside each result",
-                    BatchExportFormat.FormDataJson => "A .json of the form's values beside each result",
-                    _ => $"{(x.Format == BatchExportFormat.Png ? "PNG" : "JPEG")}, {x.Dpi} dpi, one file per page",
+                    BatchExportFormat.Word => Strings.Batch_DescWord,
+                    BatchExportFormat.Excel => Strings.Batch_DescExcel,
+                    BatchExportFormat.Text => Strings.Batch_DescText,
+                    BatchExportFormat.PowerPoint => Strings.Batch_DescPptx,
+                    BatchExportFormat.Html => Strings.Batch_DescHtml,
+                    BatchExportFormat.CommentsXfdf => Strings.Batch_DescXfdf,
+                    BatchExportFormat.CommentsFdf => Strings.Batch_DescFdf,
+                    BatchExportFormat.CommentsCsv => Strings.Batch_DescCsv,
+                    BatchExportFormat.CommentSummary => Strings.Batch_DescSummary,
+                    BatchExportFormat.FormDataXfdf => Strings.Batch_DescFormXfdf,
+                    BatchExportFormat.FormDataFdf => Strings.Batch_DescFormFdf,
+                    BatchExportFormat.FormDataCsv => Strings.Batch_DescFormCsv,
+                    BatchExportFormat.FormDataJson => Strings.Batch_DescFormJson,
+                    _ => Loc.Format(Strings.Batch_DescImages, x.Format == BatchExportFormat.Png ? "PNG" : "JPEG", x.Dpi),
                 };
             default:
                 return "";
@@ -743,8 +742,8 @@ internal sealed class BatchWindow : Window
         _signed.SelectedIndex = preset.SignedFiles == SignedFilePolicy.Edit ? 1 : 0;
         _passwords.SelectedIndex = preset.Passwords == PasswordPolicy.Skip ? 1 : 0;
         _imageSize.SelectedIndex = preset.ImagePageSize switch { PageSizeOption.Letter => 1, PageSizeOption.A4 => 2, _ => 0 };
-        Status($"\"{preset.Name}\": {preset.Steps.Count} action{(preset.Steps.Count == 1 ? "" : "s")}." +
-               (preset.Steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords) ? " Protect with a password needs its passwords (presets don't keep them): choose it, then Change…" : ""));
+        Status(Loc.Plural(preset.Steps.Count, Strings.Batch_PresetActions_One, Strings.Batch_PresetActions_Many, preset.Name) +
+               (preset.Steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords) ? " " + Strings.Batch_PresetNeedsPasswords : ""));
     }
 
     private void SavePreset()
@@ -752,40 +751,40 @@ internal sealed class BatchWindow : Window
         if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
         if (_steps.Count == 0)
         {
-            Status("Add the actions first, then save them as a preset.", error: true);
+            Status(Strings.Batch_AddActionsFirst, error: true);
             return;
         }
-        var dlg = new FormDialog(this, "Save Preset", "Save", 480);
-        var name = dlg.AddText("Name", SelectedPreset?.Name ?? "");
-        var keepFolder = dlg.AddCheck("Keep the results folder in the preset", _folder.Text.Trim().Length > 0);
-        dlg.AddNote("The actions in order with their settings, the file names and the choices below. Passwords are never saved: they are asked for when the preset runs.");
-        dlg.Validate(() => string.IsNullOrWhiteSpace(name.Text) ? "Name the preset." : null);
+        var dlg = new FormDialog(this, Strings.Batch_SavePresetTitle, Strings.Common_Save, 480);
+        var name = dlg.AddText(Strings.Sign_Name, SelectedPreset?.Name ?? "");
+        var keepFolder = dlg.AddCheck(Strings.Batch_KeepFolder, _folder.Text.Trim().Length > 0);
+        dlg.AddNote(Strings.Batch_SavePresetNote);
+        dlg.Validate(() => string.IsNullOrWhiteSpace(name.Text) ? Strings.Batch_NamePreset : null);
         if (!dlg.ShowModal()) return;
         var path = PresetLibrary.PathFor(name.Text.Trim());
         if (File.Exists(path) && !string.Equals(path, SelectedPreset?.Path, StringComparison.OrdinalIgnoreCase)
-                              && !Prompt.Confirm(this, "Replace the preset?", $"There is a preset named \"{name.Text.Trim()}\" already.", "Replace"))
+                              && !Prompt.Confirm(this, Strings.Batch_ReplacePreset, Loc.Format(Strings.Batch_PresetExists, name.Text.Trim()), Strings.Common_Replace))
             return;
         try
         {
             RefreshPresets(PresetLibrary.Save(BatchPreset.From(name.Text.Trim(), Plan(), keepFolder.IsChecked == true)));
-            Status($"Preset \"{name.Text.Trim()}\" saved. Watched Folders can run it; Export… writes a copy for the command line or another PC.");
+            Status(Loc.Format(Strings.Batch_PresetSaved, name.Text.Trim()));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Status($"The preset couldn't be saved: {ex.Message}", error: true);
+            Status(Loc.Format(Strings.Batch_PresetNotSaved, ex.Message), error: true);
         }
     }
 
     private void ImportPreset()
     {
         if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
-        var dlg = new OpenFileDialog { Title = "Import a batch preset", Filter = "Batch presets (*.json)|*.json", InitialDirectory = AppSettings.Current.LastFolder };
+        var dlg = new OpenFileDialog { Title = Strings.Batch_ImportTitle, Filter = Strings.Batch_PresetFilter, InitialDirectory = AppSettings.Current.LastFolder };
         if (dlg.ShowDialog(this) != true) return;
         try
         {
             var preset = BatchPresets.Load(dlg.FileName);
             var path = PresetLibrary.PathFor(preset.Name);
-            if (File.Exists(path) && !Prompt.Confirm(this, "Replace the preset?", $"There is a preset named \"{preset.Name}\" already.", "Replace")) return;
+            if (File.Exists(path) && !Prompt.Confirm(this, Strings.Batch_ReplacePreset, Loc.Format(Strings.Batch_PresetExists, preset.Name), Strings.Common_Replace)) return;
             RefreshPresets(PresetLibrary.Save(preset));
             ShowPreset(preset);
         }
@@ -801,27 +800,27 @@ internal sealed class BatchWindow : Window
         if (!ProGate.Check(this, ProFeature.BatchPresets)) return;
         if (_steps.Count == 0)
         {
-            Status("Add the actions first (or choose a preset), then export them.", error: true);
+            Status(Strings.Batch_AddActionsFirstExport, error: true);
             return;
         }
-        var name = SelectedPreset?.Name ?? "Batch preset";
-        var dlg = new SaveFileDialog { Title = "Export the batch preset", Filter = "Batch presets (*.json)|*.json", FileName = BatchPresets.FileName(name) };
+        var name = SelectedPreset?.Name ?? Strings.Batch_DefaultPresetName;
+        var dlg = new SaveFileDialog { Title = Strings.Batch_ExportTitle, Filter = Strings.Batch_PresetFilter, FileName = BatchPresets.FileName(name) };
         if (dlg.ShowDialog(this) != true) return;
         try
         {
             BatchPresets.Save(BatchPreset.From(name, Plan(), keepFolder: true), dlg.FileName);
-            Status($"Exported to {dlg.FileName}. Run it with: inkvoltpdf --batch \"{dlg.FileName}\" <files or folders>");
+            Status(Loc.Format(Strings.Batch_ExportedRun, dlg.FileName));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Status($"The preset couldn't be exported: {ex.Message}", error: true);
+            Status(Loc.Format(Strings.Batch_PresetNotExported, ex.Message), error: true);
         }
     }
 
     private void DeletePreset()
     {
         if (SelectedPreset is not { } chosen
-            || !Prompt.Confirm(this, "Delete the preset?", $"\"{chosen.Name}\" is removed from this PC. A watched folder using it stops at its next start.", "Delete"))
+            || !Prompt.Confirm(this, Strings.Batch_DeletePresetTitle, Loc.Format(Strings.Batch_DeletePresetBody, chosen.Name), Strings.Common_Delete))
             return;
         try
         {
@@ -829,7 +828,7 @@ internal sealed class BatchWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Status($"The preset couldn't be deleted: {ex.Message}", error: true);
+            Status(Loc.Format(Strings.Batch_PresetNotDeleted, ex.Message), error: true);
         }
         RefreshPresets();
     }
@@ -863,7 +862,7 @@ internal sealed class BatchWindow : Window
         if (!IsIdle) return;
         if (_files.Count == 0)
         {
-            Status("Add the files first (Add Files, Add Folder, or drag them into the list).", error: true);
+            Status(Strings.Batch_AddFilesFirst, error: true);
             return;
         }
         var plan = Plan();
@@ -879,7 +878,7 @@ internal sealed class BatchWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            Status($"The results can't be saved there: {ex.Message}", error: true);
+            Status(Loc.Format(Strings.Batch_CantSaveThere, ex.Message), error: true);
             return;
         }
         var s = AppSettings.Current;
@@ -891,14 +890,14 @@ internal sealed class BatchWindow : Window
         s.Save();
 
         var rows = _files.ToList();
-        foreach (var r in rows) r.Show("Waiting");
+        foreach (var r in rows) r.Show(Strings.Batch_Waiting);
         var fractions = new double[rows.Count];
         var finished = 0;
         _skipPasswords = false;
         _cts = new CancellationTokenSource();
         SetRunning(true);
         using var taskbar = new TaskbarProgress(this);
-        Status($"Working on {Files(rows.Count)}…");
+        Status(Loc.Plural(rows.Count, Strings.Batch_WorkingOnFiles_One, Strings.Batch_WorkingOnFiles_Many));
         Log.Write($"Batch: {rows.Count} file(s); {string.Join(", ", plan.Steps.Select(x => x.Title))}; to {Log.Name(plan.OutputFolder)}");
 
         var ocrGate = new Lock();
@@ -931,7 +930,7 @@ internal sealed class BatchWindow : Window
             var overall = fractions.Sum() / rows.Count;
             _progress.Value = overall;
             taskbar.Report(overall);
-            if (_cts is { IsCancellationRequested: false }) _status.Text = $"Working: {finished:N0} of {Files(rows.Count)} finished…";
+            if (_cts is { IsCancellationRequested: false }) _status.Text = Loc.Plural(rows.Count, Strings.Batch_WorkingOf_One, Strings.Batch_WorkingOf_Many, finished);
         });
 
         BatchSummary? summary = null;
@@ -943,7 +942,7 @@ internal sealed class BatchWindow : Window
         catch (Exception ex)
         {
             Log.Write($"Batch failed: {ex}");
-            Status($"The batch stopped: {ex.Message}", error: true);
+            Status(Loc.Format(Strings.Batch_Stopped2, ex.Message), error: true);
         }
         finally
         {
@@ -959,12 +958,12 @@ internal sealed class BatchWindow : Window
             if (row.Result is null) row.Show(RowText(result), result);
         _progress.Value = 1;
         var written = summary.Items.Sum(i => i.Outputs.Count);
-        Status($"{summary.Text} {(written == 1 ? "1 file" : $"{written:N0} files")} saved in {plan.OutputFolder}." +
-               (summary.Failed + summary.Skipped > 0 ? " The list says why for each file not done." : "") +
-               (written > 0 ? " Double-click a file to open its result." : ""), error: summary.Failed > 0);
+        Status(Loc.Plural(written, Strings.Batch_SavedIn_One, Strings.Batch_SavedIn_Many, summary.Text, plan.OutputFolder) +
+               (summary.Failed + summary.Skipped > 0 ? " " + Strings.Batch_ListSaysWhy : "") +
+               (written > 0 ? " " + Strings.Batch_DoubleClick : ""), error: summary.Failed > 0);
         _openFolder.IsEnabled = written > 0;
         _report.Visibility = summary.RedactionReport is null ? Visibility.Collapsed : Visibility.Visible;
-        _start.Content = "Run Again";
+        _start.Content = Strings.Batch_RunAgain;
         Log.Write($"Batch: {summary.Text}");
         if (_closeWhenDone) Close();
     }
@@ -972,7 +971,7 @@ internal sealed class BatchWindow : Window
     /// <summary>The last run's removal report as a page.</summary>
     internal void ShowRedactionReport()
     {
-        if (LastSummary?.RedactionReport is { } report) RedactionReportDialog.Show(this, report, "Batch");
+        if (LastSummary?.RedactionReport is { } report) RedactionReportDialog.Show(this, report, Strings.Batch_Title);
     }
 
     private static string RowText(BatchItemResult r)
@@ -981,19 +980,17 @@ internal sealed class BatchWindow : Window
         {
             BatchItemState.Done => r.Outputs.Count switch
             {
-                0 => "Done: nothing to save",
-                1 => $"Done: {Path.GetFileName(r.Outputs[0])}",
-                _ => $"Done: {r.Outputs.Count} files",
+                0 => Strings.Batch_DoneNothing,
+                1 => Loc.Format(Strings.Batch_DoneFile, Path.GetFileName(r.Outputs[0])),
+                _ => Loc.Format(Strings.Batch_DoneFiles, r.Outputs.Count),
             },
-            BatchItemState.Skipped => $"Skipped: {r.Message}",
-            BatchItemState.Failed => $"Failed: {r.Message}",
-            BatchItemState.Cancelled => "Cancelled",
+            BatchItemState.Skipped => Loc.Format(Strings.Batch_SkippedMsg, r.Message),
+            BatchItemState.Failed => Loc.Format(Strings.Batch_FailedMsg, r.Message),
+            BatchItemState.Cancelled => Strings.Batch_Cancelled,
             _ => r.Message,
         };
         return r.Notes.Count > 0 ? $"{text} ({string.Join("; ", r.Notes)})" : text;
     }
-
-    private static string Files(int n) => n == 1 ? "1 file" : $"{n:N0} files";
 
     private void SetRunning(bool running)
     {
@@ -1015,14 +1012,14 @@ internal sealed class BatchWindow : Window
         if (_cts is not { IsCancellationRequested: false } cts) return;
         cts.Cancel();
         _stop.IsEnabled = false;
-        Status("Stopping: the files being worked on finish their current action…");
+        Status(Strings.Batch_Stopping);
     }
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
         if (IsIdle) return;
         e.Cancel = true;
-        if (!Prompt.Confirm(this, "Stop the batch?", "Files not finished yet are left out. Results already saved stay.", "Stop")) return;
+        if (!Prompt.Confirm(this, Strings.Batch_StopTitle, Strings.Batch_StopBody, Strings.Common_Stop)) return;
         _closeWhenDone = true;
         Stop();
     }
@@ -1037,17 +1034,17 @@ internal sealed class BatchWindow : Window
             var name = Path.GetFileName(request.File.Path);
             var (title, text, ok) = request.Kind switch
             {
-                BatchPasswordKind.Open => ("Password required", $"\"{name}\" is protected. Enter its password to work on it.", "Continue"),
-                BatchPasswordKind.Permissions => ("Permissions password required", $"\"{name}\" is restricted: its author's permissions password is needed to change it.", "Continue"),
-                _ => ("Open password required", $"\"{name}\" needs its open password too, so the result can keep it.", "Continue"),
+                BatchPasswordKind.Open => (Strings.Dialog_PasswordRequired, Loc.Format(Strings.Batch_PwOpen, name), Strings.Common_Continue),
+                BatchPasswordKind.Permissions => (Strings.PdfA_PasswordTitle, Loc.Format(Strings.Batch_PwPerms, name), Strings.Common_Continue),
+                _ => (Strings.Batch_OpenPwTitle, Loc.Format(Strings.Batch_PwKeep, name), Strings.Common_Continue),
             };
             var dlg = new FormDialog(this, title, ok);
-            if (request.Wrong) dlg.AddNote("That password is incorrect. Try again.");
+            if (request.Wrong) dlg.AddNote(Strings.PdfA_PasswordWrong);
             dlg.AddNote(text);
-            var box = dlg.Add("Password", new PasswordBox());
-            AutomationProperties.SetName(box, "Password");
-            var skipRest = dlg.AddCheck("Skip the other files that need a password");
-            dlg.AddNote("Cancel skips this file; the batch goes on.");
+            var box = dlg.Add(Strings.PdfA_Password, new PasswordBox());
+            AutomationProperties.SetName(box, Strings.PdfA_Password);
+            var skipRest = dlg.AddCheck(Strings.Batch_SkipOthers);
+            dlg.AddNote(Strings.Batch_CancelSkips);
             dlg.Loaded += (_, _) => box.Focus();
             var given = dlg.ShowModal() ? box.Password : null;
             if (skipRest.IsChecked == true) _skipPasswords = true;

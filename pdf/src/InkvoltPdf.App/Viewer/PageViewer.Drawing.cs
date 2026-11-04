@@ -634,10 +634,10 @@ public sealed partial class PageViewer
             VerticalContentAlignment = VerticalAlignment.Top,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
-            ToolTip = "Type, then click elsewhere or press Esc. Enter adds a line; an empty box is removed.",
+            ToolTip = Strings.Viewer_TextBoxEditTip,
         };
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
-        AutomationProperties.SetName(box, d.Callout.Count > 0 ? "Callout text" : "Text box text");
+        AutomationProperties.SetName(box, d.Callout.Count > 0 ? Strings.Viewer_CalloutText : Strings.Viewer_TextBoxText);
         ApplyEditorLook(box, d.Style);
         ShowEditor(box, null, null, d);
         box.CaretIndex = box.Text.Length;

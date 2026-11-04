@@ -12,26 +12,26 @@ namespace InkvoltPdf.App;
 /// </summary>
 internal static class LtvDialogs
 {
-    private const string NothingElse = "Nothing else leaves this PC, and the document itself is never sent. Addresses on this PC or a local network are never contacted, however a file names them.";
+    private static string NothingElse => Strings.Ltv_NothingElse;
 
     /// <summary>Add Verification Information: the addresses, and the choice of a document timestamp. The timestamp server's address, or "" for none; null when cancelled.</summary>
     public static string? ConfirmAdd(Window owner, LtvPlan plan, LtvClient client)
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(owner, "Add Verification Information", "Contact and add", 620);
-        dlg.AddNote("Stores in the file what it takes to check its signatures years from now, as an update after the signatures: they stay as they are. The file is saved as a new copy afterwards.");
+        var dlg = new FormDialog(owner, Strings.Ltv_AddTitle, Strings.Ltv_ContactAndAdd, 620);
+        dlg.AddNote(Strings.Ltv_AddNote);
         AddAddresses(dlg, plan);
-        var timestamp = dlg.AddCheck("Also add a document timestamp (PAdES B-LTA)");
-        var url = dlg.AddText("Timestamp server", SignDialog.ChosenTimestampUrl(s));
+        var timestamp = dlg.AddCheck(Strings.Ltv_AlsoTimestamp);
+        var url = dlg.AddText(Strings.Ltv_TimestampServer, SignDialog.ChosenTimestampUrl(s));
         url.IsEnabled = false;
-        dlg.AddNote($"Sectigo's free server is suggested; you can enter another that starts with https://. It {LtvPlan.WhatIsSent(LtvAddressKind.Timestamp)}. A signature with no timestamp of its own takes two.");
+        dlg.AddNote(Loc.Format(Strings.Ltv_SectigoNote, LtvPlan.WhatIsSent(LtvAddressKind.Timestamp)));
         timestamp.Click += (_, _) => url.IsEnabled = timestamp.IsChecked == true;
         dlg.AddNote(NothingElse);
         dlg.Validate(() =>
         {
             if (timestamp.IsChecked != true) return null;
-            if (url.Text.Trim().Length == 0) return "Enter the timestamp server's address, or untick the document timestamp.";
-            return client.Why(url.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? $"That timestamp server can't be used: {why}." : null;
+            if (url.Text.Trim().Length == 0) return Strings.Ltv_EnterServer;
+            return client.Why(url.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? Loc.Format(Strings.Ltv_ServerRefused, why) : null;
         });
         if (!dlg.ShowModal()) return null;
         if (timestamp.IsChecked != true) return "";
@@ -43,8 +43,8 @@ internal static class LtvDialogs
     /// <summary>Signing for the long term: the addresses, once the digital ID and the timestamp server are chosen.</summary>
     public static bool ConfirmSign(Window owner, LtvPlan plan, LongTermLevel level)
     {
-        var dlg = new FormDialog(owner, level == LongTermLevel.Lta ? "Sign with long-term validation (PAdES B-LTA)" : "Sign with long-term validation (PAdES B-LT)", "Contact and sign", 620);
-        dlg.AddNote("To store the proof that your certificate is good when you sign, these will be asked:");
+        var dlg = new FormDialog(owner, level == LongTermLevel.Lta ? Strings.Ltv_SignLta : Strings.Ltv_SignLt, Strings.Ltv_ContactAndSign, 620);
+        dlg.AddNote(Strings.Ltv_SignNote);
         AddAddresses(dlg, plan);
         dlg.AddNote(NothingElse);
         return dlg.ShowModal();
@@ -53,8 +53,8 @@ internal static class LtvDialogs
     /// <summary>Check Signatures Online: the addresses. Leaves the file alone.</summary>
     public static bool ConfirmOnline(Window owner, LtvPlan plan)
     {
-        var dlg = new FormDialog(owner, "Check signatures online", "Contact and check", 620);
-        dlg.AddNote("Opening a file never goes online. To check now whether the certificates of its signatures have been revoked, these will be asked. The file stays as it is, and the answer is for this window only.");
+        var dlg = new FormDialog(owner, Strings.Ltv_CheckOnline, Strings.Ltv_ContactAndCheck, 620);
+        dlg.AddNote(Strings.Ltv_CheckNote);
         AddAddresses(dlg, plan);
         dlg.AddNote(NothingElse);
         return dlg.ShowModal();
@@ -66,20 +66,20 @@ internal static class LtvDialogs
         var refused = plan.Addresses.Where(a => a.RefusedBecause is not null).ToList();
         if (asked.Count > 0)
         {
-            dlg.Add("What will be contacted", List(asked.Select(a => $"{Host(a.Url)}, about {a.ForWhom}: {a.Url}"), "What will be contacted"));
+            dlg.Add(Strings.Ltv_WillContact, List(asked.Select(a => Loc.Format(Strings.Ltv_AddressLine, Host(a.Url), a.ForWhom, a.Url)), Strings.Ltv_WillContact));
             foreach (var kind in asked.Select(a => a.Kind).Distinct())
                 dlg.AddNote(kind switch
                 {
-                    LtvAddressKind.Ocsp => $"An OCSP responder {LtvPlan.WhatIsSent(kind)}.",
-                    LtvAddressKind.Crl => $"A CRL address {LtvPlan.WhatIsSent(kind)}.",
-                    LtvAddressKind.Issuer => $"An issuer's address {LtvPlan.WhatIsSent(kind)}.",
-                    _ => $"The timestamp server {LtvPlan.WhatIsSent(kind)}.",
+                    LtvAddressKind.Ocsp => Loc.Format(Strings.Ltv_OcspSends, LtvPlan.WhatIsSent(kind)),
+                    LtvAddressKind.Crl => Loc.Format(Strings.Ltv_CrlSends, LtvPlan.WhatIsSent(kind)),
+                    LtvAddressKind.Issuer => Loc.Format(Strings.Ltv_IssuerSends, LtvPlan.WhatIsSent(kind)),
+                    _ => Loc.Format(Strings.Ltv_TimestampSends, LtvPlan.WhatIsSent(kind)),
                 });
         }
         else if (refused.Count == 0)
-            dlg.AddNote(plan.Complete ? "Nothing needs asking: the file already holds the data, or its certificates need none." : "The certificates name nothing to ask about them.");
+            dlg.AddNote(plan.Complete ? Strings.Ltv_NothingNeeded : Strings.Ltv_NothingNamed);
         if (refused.Count > 0)
-            dlg.Add("What won't be contacted", List(refused.Select(a => $"{a.RefusedBecause}: {a.Url}"), "What won't be contacted"));
+            dlg.Add(Strings.Ltv_WontContact, List(refused.Select(a => $"{a.RefusedBecause}: {a.Url}"), Strings.Ltv_WontContact));
         foreach (var note in plan.Notes) dlg.AddNote(note);
     }
 
@@ -100,16 +100,16 @@ internal static class LtvDialogs
         var text = new StringBuilder();
         if (certificates.Count > 0)
         {
-            text.Append("Certificates:");
+            text.Append(Strings.Ltv_Certificates);
             foreach (var c in certificates) text.Append($"\n{c.Name}: {c.Outcome}");
             text.Append("\n\n");
         }
         if (contacts.Count > 0)
         {
-            text.Append("Asked:");
+            text.Append(Strings.Ltv_Asked);
             foreach (var c in contacts) text.Append($"\n{c.Url}: {c.Outcome}");
         }
-        else text.Append("Nothing was asked online.");
+        else text.Append(Strings.Ltv_NothingAsked);
         return text.ToString();
     }
 }

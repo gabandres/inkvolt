@@ -38,7 +38,7 @@ public sealed partial class PageViewer
 
     /// <summary>The measurement under way, for the dev script and screen readers: its points and value.</summary>
     public string? MeasureInProgress =>
-        _measurePage < 0 ? null : $"{_measurePts.Count} point(s), {CurrentValue(includeHover: false)}";
+        _measurePage < 0 ? null : Loc.Format(Strings.Viewer_MeasurePoints, _measurePts.Count, CurrentValue(includeHover: false));
 
     private void CancelMeasure()
     {
@@ -135,7 +135,7 @@ public sealed partial class PageViewer
         var scale = MeasureScaleAt?.Invoke(_measurePage, pts[0]) ?? MeasureScale.Default;
         var kind = KindOf(_tool);
         if (kind == MeasureKind.Area && pts.Count >= 3)
-            return $"{scale.Format(MeasureKind.Area, pts)} · perimeter {scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerUnit)}";
+            return Loc.Format(Strings.Viewer_AreaPerimeter, scale.Format(MeasureKind.Area, pts), scale.FormatValue(MeasureKind.Perimeter, MeasureGeometry.Length(pts, closed: true) * scale.PerUnit));
         return scale.Format(MeasureKind.Distance, pts);
     }
 

@@ -65,10 +65,10 @@ public partial class MainWindow
                 ShowStatus(UpdateCheck.UpToDateText);
                 break;
             case UpdateCheckResult.NotFromStore:
-                Prompt.Info(this, "Check for Updates", UpdateCheck.NotFromStoreText);
+                Prompt.Info(this, Strings.Main_CheckForUpdatesTitle, UpdateCheck.NotFromStoreText);
                 break;
             case UpdateCheckResult.Failed:
-                Prompt.Info(this, "Couldn't check for updates", UpdateCheck.FailedText);
+                Prompt.Info(this, Strings.Main_UpdateCheckFailed, UpdateCheck.FailedText);
                 break;
         }
     }
@@ -80,12 +80,12 @@ public partial class MainWindow
         var show = UpdateCheck.ShowsNotice(result);
         var mandatory = result == UpdateCheckResult.Mandatory;
         UpdateButton.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        UpdateText.Text = mandatory ? "Update required" : "Update";
+        UpdateText.Text = mandatory ? Strings.Main_UpdateRequired : Strings.Main_Update;
         UpdateIcon.Text = mandatory ? "" : "";
         UpdateIcon.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty,
             mandatory ? "SystemFillColorCautionBrush" : "AccentTextFillColorPrimaryBrush");
         var text = show ? UpdateCheck.NoticeText(mandatory) : "";
-        UpdateButton.ToolTip = !show ? null : mandatory ? text : $"{text}: install it now";
+        UpdateButton.ToolTip = !show ? null : mandatory ? text : Loc.Format(Strings.Main_UpdateTip, text);
         System.Windows.Automation.AutomationProperties.SetName(UpdateButton, text);
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, LayoutTabs);
     }
@@ -97,9 +97,9 @@ public partial class MainWindow
     {
         if (_updateInstalling) return;
         var mandatory = _updateResult == UpdateCheckResult.Mandatory;
-        var choice = Prompt.Choose(this, mandatory ? "A required update to Inkvolt PDF is ready" : UpdateCheck.NoticeText(false),
-            (mandatory ? "Please install it now. " : "") + "Windows closes Inkvolt PDF while it installs the update. You're asked about unsaved changes first.",
-            ("Update", true), ("Later", false));
+        var choice = Prompt.Choose(this, mandatory ? Strings.Main_UpdateRequiredTitle : UpdateCheck.NoticeText(false),
+            mandatory ? Strings.Main_UpdateBodyRequired : Strings.Main_UpdateBody,
+            (Strings.Main_Update, true), (Strings.Main_UpdateLater, false));
         if (choice != 0) return;
         await InstallUpdateAsync();
     }
@@ -136,7 +136,7 @@ public partial class MainWindow
             if (_closed) return;
             // Still running: the install was canceled or failed (or finished without closing the app). Bring the documents back.
             if (closed.Count > 0) OpenFiles(closed);
-            if (UpdateCheck.InstallMessage(outcome) is { } message) Prompt.Info(this, "Update not installed", message);
+            if (UpdateCheck.InstallMessage(outcome) is { } message) Prompt.Info(this, Strings.Main_UpdateNotInstalled, message);
             else ShowUpdateNotice(UpdateCheckResult.UpToDate);
         }
         finally

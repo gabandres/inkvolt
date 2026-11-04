@@ -43,7 +43,7 @@ public sealed record WatchSummary(int Done, int Failed);
 
 /// <summary>The folder is watched already (by the app or a command line): two watchers would race for its files.</summary>
 public sealed class FolderWatchedException(string folder)
-    : IOException($"{folder} is already watched by another Inkvolt PDF (the app or a command line). Stop that one first.");
+    : IOException(Loc.Format(PdfStrings.Batch_FolderWatched, folder));
 
 /// <summary>
 /// A watched folder: each PDF or image that lands in the folder (not its subfolders) is run through a batch plan once it
@@ -68,11 +68,11 @@ public static class WatchedFolder
     /// <summary>What is wrong with watching <paramref name="folder"/> into <paramref name="outputFolder"/>, or null.</summary>
     public static string? Validate(string folder, string outputFolder)
     {
-        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return "Choose the folder to watch.";
-        if (!Directory.Exists(folder)) return $"There is no folder {folder}.";
+        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return PdfStrings.Batch_WatchChooseFolder;
+        if (!Directory.Exists(folder)) return Loc.Format(PdfStrings.Batch_WatchNoFolder, folder);
         if (string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(outputFolder)),
                 StringComparison.OrdinalIgnoreCase))
-            return "The results can't go into the watched folder itself (they would be picked up again): use a subfolder such as \"results\", or another folder.";
+            return PdfStrings.Batch_WatchResultsInside;
         return null;
     }
 
@@ -103,7 +103,7 @@ public static class WatchedFolder
         foreach (var left in Directory.EnumerateFiles(working).Order(StringComparer.OrdinalIgnoreCase))
         {
             var entry = Finish(folder, left, Path.GetFileName(left), BatchItemState.Failed,
-                "Interrupted: Inkvolt PDF closed while working on it. Put it back in the folder to run it again.", []);
+                PdfStrings.Batch_WatchInterrupted, []);
             failed++;
             progress?.Report(new WatchProgress(0, entry));
         }
@@ -168,11 +168,11 @@ public static class WatchedFolder
             var message = r.Notes.Count > 0 ? $"{r.Message} ({string.Join("; ", r.Notes)})" : r.Message;
             WatchEntry entry;
             if (r.State == BatchItemState.Cancelled && r.Outputs.Count == 0)
-                entry = Finish(folder, path, name, r.State, "Stopped before it was done: left in the folder for next time", [], back: true);
+                entry = Finish(folder, path, name, r.State, PdfStrings.Batch_WatchStoppedBefore, [], back: true);
             else
             {
                 var state = r.State == BatchItemState.Cancelled ? BatchItemState.Failed : r.State;
-                if (r.State == BatchItemState.Cancelled) message = "Stopped part-way (some results were written)";
+                if (r.State == BatchItemState.Cancelled) message = PdfStrings.Batch_WatchStoppedPartWay;
                 entry = Finish(folder, path, name, state, message, r.Outputs);
                 if (state == BatchItemState.Done) done++;
                 else failed++;
@@ -187,7 +187,7 @@ public static class WatchedFolder
     {
         var target = back ? folder : Path.Combine(folder, state == BatchItemState.Done ? DoneFolder : FailedFolder);
         var moved = DropFolder.MoveTo(path, target, name);
-        if (moved is null && File.Exists(path)) message += $" (the original stays in {WorkingFolder}: it couldn't be moved)";
+        if (moved is null && File.Exists(path)) message += Loc.Format(PdfStrings.Batch_WatchOriginalStays, WorkingFolder);
         var entry = new WatchEntry(DateTime.Now, name, state, message, outputs, moved);
         DropFolder.AppendLog(Path.Combine(folder, LogName), entry.LogLine);
         return entry;

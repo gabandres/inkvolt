@@ -24,10 +24,10 @@ public static class InventoryActions
         if (await Run(owner, tab) is not { } report) return;
 
         var sanitizable = host is not null && !report.Counts.IsClean;
-        var dlg = new FormDialog(owner, "What's in This PDF", sanitizable ? "Sanitize…" : "Close", 720);
-        if (sanitizable) dlg.SetCancelText("Close");
+        var dlg = new FormDialog(owner, Strings.Inventory_Title, sanitizable ? Strings.Inventory_Sanitize : Strings.Common_Close, 720);
+        if (sanitizable) dlg.SetCancelText(Strings.Common_Close);
         else dlg.HideCancel();
-        dlg.AddNote(report.Summary + " Nothing in the file was opened or contacted to make this report.");
+        dlg.AddNote(Loc.Format(Strings.Inventory_SummaryNote, report.Summary));
 
         int? goTo = null;
         var list = new StackPanel();
@@ -37,7 +37,7 @@ public static class InventoryActions
             if (items.Count == 0) continue;
             var heading = new TextBlock
             {
-                Text = $"{DocumentInventory.Title(section)} ({items.Count:N0})",
+                Text = $"{DocumentInventory.Title(section)} ({items.Count:N0})", // in every language: only names and values, no words
                 FontWeight = FontWeights.SemiBold,
                 FontSize = 15,
                 Margin = new Thickness(0, list.Children.Count == 0 ? 0 : 12, 0, 6),
@@ -53,13 +53,13 @@ public static class InventoryActions
         if (list.Children.Count > 0)
         {
             var scroll = new ScrollViewer { Content = list, MaxHeight = 440, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Padding = new Thickness(0, 0, 8, 0) };
-            AutomationProperties.SetName(scroll, "What the file carries");
+            AutomationProperties.SetName(scroll, Strings.Inventory_WhatFileCarries);
             dlg.Add(null, scroll, top: 14);
         }
         foreach (var note in report.Notes) dlg.AddNote(note);
 
-        dlg.AddFooterButton("Save Report…").Click += (_, _) => SaveReport(dlg, tab, report);
-        dlg.AddFooterButton("Copy Report").Click += (_, _) =>
+        dlg.AddFooterButton(Strings.Inventory_SaveReport).Click += (_, _) => SaveReport(dlg, tab, report);
+        dlg.AddFooterButton(Strings.Inventory_CopyReport).Click += (_, _) =>
         {
             try
             {
@@ -81,11 +81,11 @@ public static class InventoryActions
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         InventoryReport report;
-        using (var prompt = new ProgressPrompt(owner, "What's in this PDF", "Looking through the file…"))
+        using (var prompt = new ProgressPrompt(owner, Strings.Inventory_ProgressTitle, Strings.Inventory_LookingThrough))
         {
             try
             {
-                var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Looking at the pages: step {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+                var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Inventory_LookingPages, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
                 report = await Task.Run(() => DocumentInventory.Run(data, password, progress, prompt.Token), prompt.Token);
             }
             catch (OperationCanceledException)
@@ -95,7 +95,7 @@ public static class InventoryActions
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or OwnerPasswordRequiredException or MuPDFCore.MuPDFException)
             {
                 Log.Write($"Inventory failed: {ex}");
-                Prompt.Error(owner, "This document couldn't be looked through", ex.Message);
+                Prompt.Error(owner, Strings.Inventory_Failed, ex.Message);
                 return null;
             }
         }
@@ -108,10 +108,10 @@ public static class InventoryActions
         var head = new TextBlock { TextWrapping = TextWrapping.Wrap };
         head.Inlines.Add(new Run(i.What) { FontWeight = FontWeights.SemiBold });
         head.Inlines.Add(new Run($" · {i.Where}"));
-        if (i.WithoutClick) head.Inlines.Add(new Run(" · no click needed") { FontWeight = FontWeights.SemiBold });
+        if (i.WithoutClick) head.Inlines.Add(new Run(" · " + Strings.Inventory_NoClick) { FontWeight = FontWeights.SemiBold });
         if (i.Page >= 0)
         {
-            var link = new Hyperlink(new Run($"Go to page {i.Page + 1}"));
+            var link = new Hyperlink(new Run(Loc.Format(Strings.Viewer_GoToPage, i.Page + 1)));
             link.Click += (_, _) => goTo(i.Page);
             head.Inlines.Add(new Run("  "));
             head.Inlines.Add(link);
@@ -120,7 +120,7 @@ public static class InventoryActions
         row.Children.Add(new TextBlock { Text = i.Detail, TextWrapping = TextWrapping.Wrap, FontFamily = new FontFamily("Cascadia Mono, Consolas"), Margin = new Thickness(0, 2, 0, 0) });
         var caption = Caption(i);
         if (caption.Length > 0) row.Children.Add(new TextBlock { Text = caption, TextWrapping = TextWrapping.Wrap, Style = (Style)Application.Current.FindResource("Caption") });
-        AutomationProperties.SetName(row, $"{i.What}, {i.Where}{(i.WithoutClick ? ", no click needed" : "")}: {i.Detail}. {caption}");
+        AutomationProperties.SetName(row, Loc.Format(i.WithoutClick ? Strings.Inventory_RowNameNoClick : Strings.Inventory_RowName, i.What, i.Where, i.Detail, caption));
         row.Focusable = true;
         return row;
     }
@@ -128,16 +128,16 @@ public static class InventoryActions
     private static string Caption(InventoryItem i)
     {
         var parts = new List<string>();
-        if (i.Calls.Count > 0) parts.Add($"It {string.Join(", ", i.Calls)}.");
-        if (i.RemovedBy is not null || i.Section == InventorySection.EarlierVersions) parts.Add("Sanitize removes it.");
-        else if (i.Section is InventorySection.Hidden or InventorySection.Redaction) parts.Add("Redacting its area removes it.");
+        if (i.Calls.Count > 0) parts.Add(Loc.Format(Strings.Inventory_ItCalls, string.Join(", ", i.Calls)));
+        if (i.RemovedBy is not null || i.Section == InventorySection.EarlierVersions) parts.Add(Strings.Inventory_SanitizeRemoves);
+        else if (i.Section is InventorySection.Hidden or InventorySection.Redaction) parts.Add(Strings.Inventory_RedactRemoves);
         return string.Join(" ", parts);
     }
 
     private static void SaveReport(Window owner, DocumentTab tab, InventoryReport report)
     {
-        var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + " contents";
-        if (CommentFileActions.PickSave(owner, "Save the report", "Web page (*.html)|*.html|JSON (*.json)|*.json", name + ".html",
+        var name = Loc.Format(Strings.Inventory_FileName, Path.GetFileNameWithoutExtension(tab.Session.DisplayName));
+        if (CommentFileActions.PickSave(owner, Strings.Redact_SaveReport, Strings.Inventory_SaveFilter, name + ".html",
                 tab.Session.FilePath is { } p ? Path.GetDirectoryName(p) : null) is not { } path) return;
         try
         {
@@ -148,7 +148,7 @@ public static class InventoryActions
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(owner, "The report couldn't be saved", ex.Message);
+            Prompt.Error(owner, Strings.Redact_ReportNotSaved, ex.Message);
         }
     }
 

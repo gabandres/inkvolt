@@ -59,7 +59,7 @@ public partial class MainWindow
         {
             var d = design;
             var item = new MenuItem { Header = StampPreview(d) };
-            System.Windows.Automation.AutomationProperties.SetName(item, d.Detail is null ? $"Stamp {d.Label}" : $"Stamp {d.Title} {d.Detail}");
+            System.Windows.Automation.AutomationProperties.SetName(item, d.Detail is null ? Loc.Format(Strings.Stamp_Named, d.Label) : Loc.Format(Strings.Stamp_NamedDetail, d.Title, d.Detail));
             item.Click += (_, _) => t.BeginPlaceStamp(d);
             menu.Items.Add(item);
         }
@@ -85,32 +85,32 @@ public partial class MainWindow
             }
             header.Children.Add(new TextBlock { Text = s.Name, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header };
-            System.Windows.Automation.AutomationProperties.SetName(item, $"Stamp {s.Name}");
+            System.Windows.Automation.AutomationProperties.SetName(item, Loc.Format(Strings.Stamp_Named, s.Name));
             item.Click += (_, _) => t.BeginPlaceStamp(stamp);
             menu.Items.Add(item);
         }
         menu.Items.Add(new Separator());
-        var add = new MenuItem { Header = "Add a _custom stamp from an image…", IsEnabled = saved.Count < StampLibrary.MaxStamps };
-        if (!add.IsEnabled) add.ToolTip = $"Up to {StampLibrary.MaxStamps} custom stamps: delete one first.";
+        var add = new MenuItem { Header = Strings.Stamp_AddCustom, IsEnabled = saved.Count < StampLibrary.MaxStamps };
+        if (!add.IsEnabled) add.ToolTip = Loc.Format(Strings.Stamp_UpTo, StampLibrary.MaxStamps);
         add.Click += (_, _) => AddCustomStamp(t, null);
         menu.Items.Add(add);
         if (saved.Count > 0)
         {
-            var delete = new MenuItem { Header = "_Delete a custom stamp" };
+            var delete = new MenuItem { Header = Strings.Stamp_DeleteCustom };
             foreach (var s in saved)
             {
                 var stamp = s;
                 var d = new MenuItem { Header = s.Name };
                 d.Click += (_, _) =>
                 {
-                    if (!Prompt.Confirm(this, $"Delete the {stamp.Name} stamp?", "It is removed from this PC. Stamps already placed in documents stay.", "Delete")) return;
+                    if (!Prompt.Confirm(this, Loc.Format(Strings.Stamp_DeleteTitle, stamp.Name), Strings.Stamp_DeleteBody, Strings.Common_Delete)) return;
                     try
                     {
                         StampLibrary.Delete(stamp);
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                     {
-                        Prompt.Error(this, "Couldn't delete it", ex.Message);
+                        Prompt.Error(this, Strings.Stamp_CouldntDelete, ex.Message);
                     }
                 };
                 delete.Items.Add(d);
@@ -150,7 +150,7 @@ public partial class MainWindow
     {
         if (path is null)
         {
-            var pick = new Microsoft.Win32.OpenFileDialog { Title = "Custom stamp from an image", Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+            var pick = new Microsoft.Win32.OpenFileDialog { Title = Strings.Stamp_FromImage, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
             if (pick.ShowDialog(this) != true) return;
             path = pick.FileName;
         }
@@ -161,18 +161,18 @@ public partial class MainWindow
         }
         catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
         {
-            Prompt.Error(this, "That image can't be used", ex.Message);
+            Prompt.Error(this, Strings.Stamp_ImageUnusable, ex.Message);
             return;
         }
         var clear = true;
         if (name is null)
         {
-            var dlg = new FormDialog(this, "Add a Custom Stamp", "Save");
+            var dlg = new FormDialog(this, Strings.Stamp_AddTitle, Strings.Common_Save);
             dlg.Add(null, new Border { Background = Brushes.White, Padding = new Thickness(6), HorizontalAlignment = HorizontalAlignment.Left, Child = new Image { Source = bmp, MaxHeight = 90, MaxWidth = 380, Stretch = Stretch.Uniform } });
-            var box = dlg.AddText("Name", Path.GetFileNameWithoutExtension(path));
-            var transparent = dlg.AddCheck("Make a white background transparent", true);
-            dlg.AddNote("Saved on this PC for use in any document, like your signatures.");
-            dlg.Validate(() => box.Text.Trim().Length == 0 ? "Give the stamp a name." : null);
+            var box = dlg.AddText(Strings.Sign_Name, Path.GetFileNameWithoutExtension(path));
+            var transparent = dlg.AddCheck(Strings.Sign_WhiteTransparent, true);
+            dlg.AddNote(Strings.Stamp_SavedNote);
+            dlg.Validate(() => box.Text.Trim().Length == 0 ? Strings.Stamp_GiveName : null);
             if (!dlg.ShowModal()) return;
             name = box.Text.Trim();
             clear = transparent.IsChecked == true;
@@ -183,14 +183,14 @@ public partial class MainWindow
             image = SignatureImages.Trim(image) ?? image;
             if (StampLibrary.Save(image, name) is not { } saved)
             {
-                Prompt.Info(this, "No room for another stamp", $"Up to {StampLibrary.MaxStamps} custom stamps can be saved: delete one first.");
+                Prompt.Info(this, Strings.Stamp_NoRoom, Loc.Format(Strings.Stamp_UpToSaved, StampLibrary.MaxStamps));
                 return;
             }
             t.BeginPlaceStamp(saved);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(this, "Couldn't save the stamp", ex.Message);
+            Prompt.Error(this, Strings.Stamp_CouldntSave, ex.Message);
         }
     }
 }
@@ -240,7 +240,7 @@ public partial class DocumentTab
         var (w, h) = RubberStamps.NaturalSize(design);
         Arm(w, h);
         (_pendingStamp, _pendingCustomStamp) = (design, null);
-        Notify($"Click where the {design.Label} stamp goes. Drag it to move it, drag its corner to resize, Delete removes it.");
+        Notify(Loc.Format(Strings.Stamp_ClickWhere, design.Label));
     }
 
     /// <summary>Arms the Stamp tool with a custom stamp.</summary>
@@ -253,14 +253,14 @@ public partial class DocumentTab
         }
         catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
         {
-            Notify($"The stamp can't be read: {ex.Message}", error: true);
+            Notify(Loc.Format(Strings.Stamp_Unreadable, ex.Message), error: true);
             return;
         }
         var h = 50.0;
         var w = Math.Min(220, h * bmp.PixelWidth / Math.Max(1, bmp.PixelHeight));
         Arm(w, w * bmp.PixelHeight / Math.Max(1, bmp.PixelWidth));
         (_pendingStamp, _pendingCustomStamp) = (null, stamp);
-        Notify($"Click where the {stamp.Name} stamp goes. Drag it to move it, drag its corner to resize, Delete removes it.");
+        Notify(Loc.Format(Strings.Stamp_ClickWhere, stamp.Name));
     }
 
     private void Arm(double w, double h)
@@ -288,17 +288,17 @@ public partial class DocumentTab
             }
             catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException)
             {
-                Notify($"The stamp can't be read: {ex.Message}", error: true);
+                Notify(Loc.Format(Strings.Stamp_Unreadable, ex.Message), error: true);
                 return;
             }
-            await RunStampEdit("Add stamp", (d, pw) => RubberStamps.PutImage(d, pw, p.PageIndex, p.Rect, image, custom.Name, author));
+            await RunStampEdit(Strings.Stamp_AddLabel, (d, pw) => RubberStamps.PutImage(d, pw, p.PageIndex, p.Rect, image, custom.Name, author));
         }
         else if (design is not null)
         {
             _lastStamp = design;
             // "Approved by" says when it was placed.
             if (design.Detail is not null) design = ApprovedByNow();
-            await RunStampEdit($"Add {design.Label.ToLowerInvariant()} stamp", (d, pw) => RubberStamps.Put(d, pw, p.PageIndex, p.Rect, design, author));
+            await RunStampEdit(Loc.Format(Strings.Stamp_AddNamedLabel, design.Label.ToLowerInvariant()), (d, pw) => RubberStamps.Put(d, pw, p.PageIndex, p.Rect, design, author));
         }
     }
 

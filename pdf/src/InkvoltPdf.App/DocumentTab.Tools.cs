@@ -28,7 +28,7 @@ public partial class DocumentTab
             return;
         }
         var step = Session.UndoStepId;
-        Notify(message, "Undo", () =>
+        Notify(message, Strings.Common_Undo, () =>
         {
             if (_disposed || IsBusy || Session.UndoStepId != step) return;
             Undo();

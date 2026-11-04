@@ -29,7 +29,7 @@ public static partial class AccessibilityCheck
         PdfDocument doc;
         try
         {
-            doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be checked");
+            doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.A11y_CantCheck);
         }
         catch (InvalidOperationException) when (!string.IsNullOrEmpty(password) && PdfSecurity.NeedsOpenPassword(data))
         {
@@ -37,7 +37,7 @@ public static partial class AccessibilityCheck
         }
         catch (Exception ex) when (Unreadable(ex))
         {
-            throw new InvalidOperationException($"This PDF can't be checked: {ex.Message}", ex);
+            throw new InvalidOperationException(Loc.Format(PdfStrings.A11y_CantCheckWhy, ex.Message), ex);
         }
         using (doc)
         {
@@ -47,7 +47,7 @@ public static partial class AccessibilityCheck
             }
             catch (Exception ex) when (Unreadable(ex))
             {
-                throw new InvalidOperationException($"This PDF can't be checked in full: {ex.Message}", ex);
+                throw new InvalidOperationException(Loc.Format(PdfStrings.A11y_CantCheckInFull, ex.Message), ex);
             }
         }
     }
@@ -91,22 +91,22 @@ public static partial class AccessibilityCheck
             if (!_notes.Contains(note)) _notes.Add(note);
         }
 
-        private void Add(string condition, string problem, int page = -1, RectD box = default, string element = "Document", int count = 1, string? fix = null) =>
-            Add(new AccessibilityFinding(condition, problem) { Page = page, Box = box, Element = element, Count = count, FixOverride = fix });
+        private void Add(string condition, string problem, int page = -1, RectD box = default, string? element = null, int count = 1, string? fix = null) =>
+            Add(new AccessibilityFinding(condition, problem) { Page = page, Box = box, Element = element ?? PdfStrings.A11y_Document, Count = count, FixOverride = fix });
 
         public AccessibilityReport Run()
         {
             _root = PdfObj.Dict(_catalog.Elements["/StructTreeRoot"]);
             var lang = PdfObj.Text(_catalog.Elements["/Lang"]);
             _docLang = lang is not null; // present, even empty or malformed (that is reported on its own, as UA 7.2-Lang)
-            if (lang is not null && !IsLanguage(lang)) Add("UA 7.2-Lang", $"The document's language is “{Short(lang)}”, which isn't a language code.");
+            if (lang is not null && !IsLanguage(lang)) Add("UA 7.2-Lang", Loc.Format(PdfStrings.A11y_LangNotCode, Short(lang)));
 
             Header();
-            if (_root is null) Add("UA 7.1", "The document has no tags (no structure tree), so screen readers can't tell its headings, lists, tables or reading order.");
+            if (_root is null) Add("UA 7.1", PdfStrings.A11y_NoTags);
             var markInfo = PdfObj.Dict(_catalog.Elements["/MarkInfo"]);
             if (markInfo is null || Bool(markInfo.Elements["/Marked"]) != true)
-                Add("UA 6.2", markInfo is null ? "The document doesn't say it is tagged (no MarkInfo)." : "The document says it isn't tagged (Marked isn't true).");
-            if (markInfo is not null && Bool(markInfo.Elements["/Suspects"]) == true) Add("01-007", "The document says its tags may be wrong (Suspects is true).");
+                Add("UA 6.2", markInfo is null ? PdfStrings.A11y_NoMarkInfo : PdfStrings.A11y_MarkedNotTrue);
+            if (markInfo is not null && Bool(markInfo.Elements["/Suspects"]) == true) Add("01-007", PdfStrings.A11y_SuspectsTrue);
 
             Metadata();
             ViewerPreferences();
@@ -122,7 +122,7 @@ public static partial class AccessibilityCheck
             CheckFonts();
 
             foreach (var (condition, n) in _dropped)
-                _findings.Add(new AccessibilityFinding(condition, $"… and {n} more like these (only the first {MaxPerCondition} are listed).") { Count = n });
+                _findings.Add(new AccessibilityFinding(condition, Loc.Format(PdfStrings.A11y_MoreLikeThese, n, MaxPerCondition)) { Count = n });
 
             var order = Conditions.Select((c, i) => (c.Id, i)).ToDictionary(x => x.Id, x => x.i);
             var sorted = _findings.OrderBy(f => order.GetValueOrDefault(f.Condition, int.MaxValue)).ThenBy(f => f.Page < 0 ? -1 : f.Page).ToList();
@@ -138,9 +138,9 @@ public static partial class AccessibilityCheck
             var at = start.IndexOf("%PDF-", StringComparison.Ordinal);
             var head = at < 0 ? "" : start[at..].Split('\r', '\n')[0].TrimEnd();
             if (head.Length == 8 && head.StartsWith("%PDF-1.", StringComparison.Ordinal) && head[7] is >= '0' and <= '7') return;
-            Add("UA 6.1", head.StartsWith("%PDF-2", StringComparison.Ordinal) ? "The file is PDF 2.0; PDF/UA-1 is based on PDF 1.7 (PDF 2.0 files follow PDF/UA-2)."
-                : at >= 0 ? $"The file's header is “{Short(head)}”, not “%PDF-1.n” (n from 0 to 7)."
-                : "The file doesn't start with a PDF header.");
+            Add("UA 6.1", head.StartsWith("%PDF-2", StringComparison.Ordinal) ? PdfStrings.A11y_Pdf20
+                : at >= 0 ? Loc.Format(PdfStrings.A11y_HeaderIs, Short(head))
+                : PdfStrings.A11y_NoHeader);
         }
 
         private static readonly XNamespace Rdf = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
@@ -152,35 +152,35 @@ public static partial class AccessibilityCheck
         {
             if (PdfObj.Dict(_catalog.Elements["/Metadata"]) is not { Stream: not null })
             {
-                Add("06-001", "The document has no XMP metadata, so it can't say it is PDF/UA or give its title there.");
+                Add("06-001", PdfStrings.A11y_NoXmp);
                 return;
             }
             var xmp = Xmp.Read(doc);
             if (xmp is null)
             {
-                Add("06-001", "The document's XMP metadata can't be read (it isn't well-formed XML).");
+                Add("06-001", PdfStrings.A11y_XmpUnreadable);
                 return;
             }
             var descriptions = xmp.Descendants(Rdf + "Description").ToList();
             // pdfuaid:part, as an attribute of a description or an element inside it.
             var part = descriptions.Select(d => d.Attribute(PdfUaId + "part")?.Value).FirstOrDefault(v => v is not null)
                        ?? xmp.Descendants(PdfUaId + "part").Select(e => e.Value).FirstOrDefault();
-            if (part is null) Add("06-002", "The metadata doesn't say the document is PDF/UA (it has no pdfuaid:part).");
-            else if (part.Trim() != "1") Add("06-002", $"The metadata says the document follows PDF/UA part {Short(part.Trim())}, not part 1.");
+            if (part is null) Add("06-002", PdfStrings.A11y_NoPdfUaPart);
+            else if (part.Trim() != "1") Add("06-002", Loc.Format(PdfStrings.A11y_PdfUaPartN, Short(part.Trim())));
             else
             {
                 var prefix = PrefixOf(xmp, PdfUaId);
-                if (prefix is not null && prefix != "pdfuaid") Add("06-002", $"The PDF/UA identifier is written with the prefix “{prefix}”; PDF/UA asks for “pdfuaid”.");
+                if (prefix is not null && prefix != "pdfuaid") Add("06-002", Loc.Format(PdfStrings.A11y_PdfUaPrefix, prefix));
             }
 
             var title = xmp.Descendants(Dc + "title").FirstOrDefault();
-            if (title is null) Add("06-003", "The metadata has no title (dc:title).");
+            if (title is null) Add("06-003", PdfStrings.A11y_NoDcTitle);
 
             // Metadata text whose only language alternative is x-default: its language comes from the document's.
             if (!_docLang)
                 foreach (var alt in xmp.Descendants(Rdf + "Alt"))
                     if (alt.Elements(Rdf + "li").ToList() is [var only] && (string?)only.Attribute(XmlNs + "lang") == "x-default")
-                        Add("11-006", $"The metadata's {alt.Parent?.Name.LocalName ?? "text"} has no language of its own, and the document has none.");
+                        Add("11-006", alt.Parent?.Name.LocalName is { } property ? Loc.Format(PdfStrings.A11y_XmpNoLang, property) : PdfStrings.A11y_XmpNoLangText);
         }
 
         private static string? PrefixOf(XDocument xmp, XNamespace ns)
@@ -195,8 +195,8 @@ public static partial class AccessibilityCheck
         {
             var prefs = PdfObj.Dict(_catalog.Elements["/ViewerPreferences"]);
             var display = prefs is null ? null : Bool(prefs.Elements["/DisplayDocTitle"]);
-            if (display is null) Add("07-001", "The document doesn't ask viewers to show its title in the window (DisplayDocTitle is missing): they show the file name.");
-            else if (display == false) Add("07-002", "The document asks viewers to show the file name in the window instead of its title (DisplayDocTitle is false).");
+            if (display is null) Add("07-001", PdfStrings.A11y_DisplayDocTitleMissing);
+            else if (display == false) Add("07-002", PdfStrings.A11y_DisplayDocTitleFalse);
         }
 
         private void Security()
@@ -206,10 +206,10 @@ public static partial class AccessibilityCheck
             switch (PermissionsCondition(PdfObj.Int(handler.Elements["/P"])))
             {
                 case "26-001":
-                    Add("26-001", "The file is encrypted but doesn't say what readers may do (no P entry).");
+                    Add("26-001", PdfStrings.A11y_NoPermissions);
                     break;
                 case "26-002":
-                    Add("26-002", "The file's protection doesn't allow copying text for accessibility, so screen readers may refuse to read it.");
+                    Add("26-002", PdfStrings.A11y_NoCopyForAccessibility);
                     break;
             }
         }
@@ -220,14 +220,15 @@ public static partial class AccessibilityCheck
             void Config(PdfDictionary? c, string condition, string which)
             {
                 if (c is null) return;
-                if (string.IsNullOrEmpty(PdfObj.Text(c.Elements["/Name"]))) Add(condition, $"The {which} layer configuration has no name.");
-                if (c.Elements.ContainsKey("/AS")) Add("20-003", $"The {which} layer configuration switches layers automatically (it has an AS entry).");
+                var isDefault = which == "default";
+                if (string.IsNullOrEmpty(PdfObj.Text(c.Elements["/Name"]))) Add(condition, isDefault ? PdfStrings.A11y_DefaultLayerNoName : PdfStrings.A11y_OtherLayerNoName);
+                if (c.Elements.ContainsKey("/AS")) Add("20-003", isDefault ? PdfStrings.A11y_DefaultLayerAs : PdfStrings.A11y_OtherLayerAs);
             }
             Config(PdfObj.Dict(oc.Elements["/D"]), "20-002", "default");
             if (PdfObj.Array(oc.Elements["/Configs"]) is { } configs)
             {
                 foreach (var c in configs.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Take(256)) Config(c, "20-001", "other");
-                if (configs.Elements.Count > 256) NoteOnce("The file has very many layer configurations; only the first 256 were checked.");
+                if (configs.Elements.Count > 256) NoteOnce(PdfStrings.A11y_ManyLayerConfigs);
             }
         }
 
@@ -239,11 +240,11 @@ public static partial class AccessibilityCheck
             {
                 if (++attached > 10_000)
                 {
-                    NoteOnce("The file has very many attached files; only the first 10,000 were checked.");
+                    NoteOnce(PdfStrings.A11y_ManyAttachments);
                     break;
                 }
                 if (PdfObj.Dict(value) is { } spec && spec.Elements.ContainsKey("/EF") && !HasBothNames(spec))
-                    Add("21-001", $"The attached file “{Short(key)}” lacks {(spec.Elements.ContainsKey("/UF") ? "its F name" : "its UF (Unicode) name")}.", element: "Attached file");
+                    Add("21-001", Loc.Format(spec.Elements.ContainsKey("/UF") ? PdfStrings.A11y_AttachedNoF : PdfStrings.A11y_AttachedNoUF, Short(key)), element: PdfStrings.A11y_ElementAttachedFile);
             }
         }
 
@@ -271,11 +272,11 @@ public static partial class AccessibilityCheck
             try
             {
                 if (Regex.IsMatch(text, @"<dynamicRender[^>]*>\s*required\s*</dynamicRender\s*>", RegexOptions.IgnoreCase, TimeSpan.FromSeconds(2)))
-                    Add("25-001", "The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use.");
+                    Add("25-001", PdfStrings.A11y_DynamicXfa);
             }
             catch (RegexMatchTimeoutException)
             {
-                _notes.Add("The file's XFA form took too long to read, so whether it is dynamic wasn't checked.");
+                _notes.Add(PdfStrings.A11y_XfaTooLong);
             }
         }
 
@@ -295,7 +296,7 @@ public static partial class AccessibilityCheck
                 if (PdfObj.Dict(item.Elements["/Next"]) is { } next) stack.Push(next);
                 if (PdfObj.Dict(item.Elements["/First"]) is { } kid) stack.Push(kid);
             }
-            Add("11-003", $"The document has no language, so the language of its {count} {(count == 1 ? "bookmark" : "bookmarks")} can't be told.", element: "Bookmarks", count: count);
+            Add("11-003", Loc.Plural(count, PdfStrings.A11y_BookmarksNoLang_One, PdfStrings.A11y_BookmarksNoLang_Many), element: PdfStrings.A11y_ElementBookmarks, count: count);
         }
 
         private static bool? Bool(PdfItem? item) => PdfObj.Resolve(item) switch

@@ -144,9 +144,9 @@ public static class HeaderFooter
     /// <summary>Writes the header and footer on <paramref name="pages"/> (0-based; Bates numbers follow page order).</summary>
     public static byte[] Apply(byte[] data, string? password, IReadOnlyCollection<int> pages, HeaderFooterOptions options)
     {
-        if (options.IsEmpty) throw new ArgumentException("Type the text of a header or a footer.");
-        if (!double.IsFinite(options.FontSize) || options.FontSize is < 1 or > 200) throw new ArgumentException("The font size must be from 1 to 200 points.");
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        if (options.IsEmpty) throw new ArgumentException(PdfStrings.HeaderFooter_NeedsText);
+        if (!double.IsFinite(options.FontSize) || options.FontSize is < 1 or > 200) throw new ArgumentException(PdfStrings.HeaderFooter_FontSize);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var count = options.PageCount ?? doc.PageCount;
         var color = new PdfColorValue([options.Color.R, options.Color.G, options.Color.B]);
         var size = options.FontSize;
@@ -190,7 +190,7 @@ public static class HeaderFooter
     /// <summary>Removes every header and footer Inkvolt PDF added. Returns <paramref name="data"/> itself when there are none.</summary>
     public static byte[] Remove(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var any = false;
         foreach (var page in doc.Pages) any |= PageMarks.Remove(doc, page, Kind);
         if (!any) return data;

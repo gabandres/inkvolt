@@ -49,7 +49,7 @@ public static class CompareReport
         if (doc.PageCount > 0) MarginNote(0, summary, AnnotColor.Yellow);
         foreach (var c in result.Changes)
         {
-            var misread = c.MaybeMisread ? " This may be a misreading of the scan." : "";
+            var misread = c.MaybeMisread ? PdfStrings.Compare_NoteMaybeMisread : "";
             switch (c.Kind)
             {
                 case ChangeKind.Inserted or ChangeKind.Changed:
@@ -60,20 +60,20 @@ public static class CompareReport
                         if (rects.Count == 0) continue;
                         Annotations.AddTextMarkupIn(doc, span.Page, TextMarkupKind.Highlight, rects,
                             c.Kind == ChangeKind.Inserted ? InsertedColor : ChangedColor,
-                            (c.Kind == ChangeKind.Inserted ? $"Inserted (not in {oldName})" : $"Changed. {oldName} has: “{Quote(c.OldText)}”") + misread, Author);
+                            (c.Kind == ChangeKind.Inserted ? Loc.Format(PdfStrings.Compare_NoteInserted, oldName) : Loc.Format(PdfStrings.Compare_NoteChanged, oldName, Quote(c.OldText))) + misread, Author);
                     }
                     break;
                 case ChangeKind.Moved:
                 {
-                    var from = c.Old is [var was, ..] ? $" from page {was.Page + 1} of {oldName}" : "";
+                    var movedHere = c.Old is [var was, ..] ? Loc.Format(PdfStrings.Compare_NoteMovedFrom, was.Page + 1, oldName) : PdfStrings.Compare_NoteMovedHere;
                     foreach (var span in c.New)
                     {
                         if (span.Page >= doc.PageCount || span.Page >= newPages.Count) continue;
                         var rects = newPages[span.Page].GetRects(span.Start, span.End);
-                        if (rects.Count > 0) Annotations.AddTextMarkupIn(doc, span.Page, TextMarkupKind.Highlight, rects, MovedColor, $"Moved here{from}.", Author);
+                        if (rects.Count > 0) Annotations.AddTextMarkupIn(doc, span.Page, TextMarkupKind.Highlight, rects, MovedColor, movedHere, Author);
                     }
                     if (c.NewAnchor is { } a && a.Page < doc.PageCount && a.Page < newPages.Count && Spot(newPages[a.Page], a.Start) is { } spot && c.New is [var to, ..])
-                        Annotations.AddNoteIn(doc, a.Page, spot.X, spot.Y, $"Moved to page {to.Page + 1}: “{Quote(c.OldText)}”", Author, MovedColor);
+                        Annotations.AddNoteIn(doc, a.Page, spot.X, spot.Y, Loc.Format(PdfStrings.Compare_NoteMovedTo, to.Page + 1, Quote(c.OldText)), Author, MovedColor);
                     break;
                 }
                 case ChangeKind.Formatted:
@@ -81,12 +81,12 @@ public static class CompareReport
                     {
                         if (span.Page >= doc.PageCount || span.Page >= newPages.Count) continue;
                         var rects = newPages[span.Page].GetRects(span.Start, span.End);
-                        if (rects.Count > 0) Annotations.AddTextMarkupIn(doc, span.Page, TextMarkupKind.Highlight, rects, FormattedColor, $"Formatting: {c.Look?.Describe()}", Author);
+                        if (rects.Count > 0) Annotations.AddTextMarkupIn(doc, span.Page, TextMarkupKind.Highlight, rects, FormattedColor, Loc.Format(PdfStrings.Compare_NoteFormatting, c.Look?.Describe()), Author);
                     }
                     break;
                 case ChangeKind.Deleted:
                 {
-                    var text = $"Removed: “{Quote(c.OldText)}”{misread}";
+                    var text = Loc.Format(PdfStrings.Compare_NoteRemoved, Quote(c.OldText)) + misread;
                     if (c.NewAnchor is { } a && a.Page < doc.PageCount && a.Page < newPages.Count && Spot(newPages[a.Page], a.Start) is { } spot)
                         Annotations.AddNoteIn(doc, a.Page, spot.X, spot.Y, text, Author, RemovedColor);
                     else if (NearestNewPage(result, c.Row, doc.PageCount) is { } p)
@@ -94,15 +94,16 @@ public static class CompareReport
                     break;
                 }
                 case ChangeKind.PageInserted when c.New is [var span, ..] && span.Page < doc.PageCount:
-                    MarginNote(span.Page, $"Inserted page: {oldName} doesn't have it.", InsertedColor);
+                    MarginNote(span.Page, Loc.Format(PdfStrings.Compare_NotePageInserted, oldName), InsertedColor);
                     break;
                 case ChangeKind.PageRemoved when c.Old is [var span, ..]:
                 {
                     // On the next page the new document has, else its last one.
                     var next = result.Rows.Skip(c.Row + 1).FirstOrDefault(r => r.NewPage is not null)?.NewPage ?? doc.PageCount - 1;
                     if (next >= 0)
-                        MarginNote(next, $"Removed page: page {span.Page + 1} of {oldName} was here" +
-                                         (c.OldText.Length > 0 ? $": “{Quote(c.OldText)}”" : " (it has no text)."), RemovedColor);
+                        MarginNote(next, c.OldText.Length > 0
+                            ? Loc.Format(PdfStrings.Compare_NotePageRemoved, span.Page + 1, oldName, Quote(c.OldText))
+                            : Loc.Format(PdfStrings.Compare_NotePageRemovedNoText, span.Page + 1, oldName), RemovedColor);
                     break;
                 }
             }
@@ -111,9 +112,9 @@ public static class CompareReport
         {
             if (area.NewPage >= doc.PageCount) continue;
             foreach (var box in area.Boxes)
-                Annotations.AddTextMarkupIn(doc, area.NewPage, TextMarkupKind.Highlight, [box], VisualColor, $"Looks different in {oldName}.", Author);
+                Annotations.AddTextMarkupIn(doc, area.NewPage, TextMarkupKind.Highlight, [box], VisualColor, Loc.Format(PdfStrings.Compare_NoteLooksDifferent, oldName), Author);
             if (area.OffPage > 0)
-                MarginNote(area.NewPage, $"{oldName}'s page is larger: {(area.OffPage == 1 ? "1 area" : $"{area.OffPage} areas")} beyond this page's edge {(area.OffPage == 1 ? "looks" : "look")} different.", VisualColor);
+                MarginNote(area.NewPage, Loc.Plural(area.OffPage, PdfStrings.Compare_NoteOffPage_One, PdfStrings.Compare_NoteOffPage_Many, oldName), VisualColor);
         }
         foreach (var (page, notes) in margin)
             Annotations.AddNoteIn(doc, page, 6, 6, string.Join("\n\n", notes.Select(n => n.Text)), Author, notes[0].Color);

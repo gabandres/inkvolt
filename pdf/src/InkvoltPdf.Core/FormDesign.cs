@@ -93,17 +93,17 @@ public sealed record DesignField
     public int TabIndex { get; init; }
 
     /// <summary>A name for lists and screen readers: "Text field Name", "Radio button Gender (Female)".</summary>
-    public string Describe() => $"{KindName(Kind)} {Name}{(Kind == DesignFieldKind.Radio ? $" ({ExportValue})" : "")}";
+    public string Describe() => Kind == DesignFieldKind.Radio ? Loc.Format(PdfStrings.Form_DescribeRadio, KindName(Kind), Name, ExportValue) : Loc.Format(PdfStrings.Form_Describe, KindName(Kind), Name);
 
     public static string KindName(DesignFieldKind kind) => kind switch
     {
-        DesignFieldKind.Text => "Text field",
-        DesignFieldKind.CheckBox => "Check box",
-        DesignFieldKind.Radio => "Radio button",
-        DesignFieldKind.ComboBox => "Dropdown",
-        DesignFieldKind.ListBox => "List box",
-        DesignFieldKind.Signature => "Signature field",
-        _ => "Button",
+        DesignFieldKind.Text => PdfStrings.Form_KindText,
+        DesignFieldKind.CheckBox => PdfStrings.Form_KindCheckBox,
+        DesignFieldKind.Radio => PdfStrings.Form_KindRadio,
+        DesignFieldKind.ComboBox => PdfStrings.Form_KindDropdown,
+        DesignFieldKind.ListBox => PdfStrings.Form_KindListBox,
+        DesignFieldKind.Signature => PdfStrings.Form_KindSignature,
+        _ => PdfStrings.Form_KindButton,
     };
 }
 
@@ -127,7 +127,7 @@ public static class FormDesign
     /// <summary>Every widget of every form field, page by page in each page's /Annots order.</summary>
     public static IReadOnlyList<DesignField> Read(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's form can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Form_CantRead);
         return ReadIn(doc);
     }
 
@@ -274,21 +274,21 @@ public static class FormDesign
     /// <summary>Why <paramref name="name"/> can't be a field name, or null when it can.</summary>
     public static string? NameProblem(string name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return "Type a name for the field.";
-        if (name.Length > MaxNameLength) return $"Use at most {MaxNameLength} characters.";
-        if (name.Any(char.IsControl)) return "A field name can't contain tabs or line breaks.";
+        if (string.IsNullOrWhiteSpace(name)) return PdfStrings.Form_NameEmpty;
+        if (name.Length > MaxNameLength) return Loc.Format(PdfStrings.Form_NameTooLong, MaxNameLength);
+        if (name.Any(char.IsControl)) return PdfStrings.Form_NameControl;
         if (name.Split('.').Any(s => s.Trim().Length == 0 || s.Trim() != s))
-            return "Dots separate the parts of a name (\"address.city\"): a name can't start or end with one, have two in a row, or spaces around one.";
+            return PdfStrings.Form_NameDots;
         return null;
     }
 
     /// <summary>Why a check box or radio button can't have <paramref name="value"/> as its export value, or null.</summary>
     public static string? ExportValueProblem(string value)
     {
-        if (value.Length == 0) return "Type the value the button stands for when it's on.";
-        if (value == "Off") return "\"Off\" means not selected; choose another value.";
+        if (value.Length == 0) return PdfStrings.Form_ExportEmpty;
+        if (value == "Off") return PdfStrings.Form_ExportOff;
         if (value.Length > 60 || !value.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_' or '.'))
-            return "Use letters, digits, '-', '_' and '.' only (at most 60).";
+            return PdfStrings.Form_ExportChars;
         return null;
     }
 
@@ -304,10 +304,10 @@ public static class FormDesign
             if (other == name)
             {
                 if (kind == DesignFieldKind.Radio && otherKind == DesignFieldKind.Radio) continue;
-                return $"Another field is already named \"{name}\".";
+                return Loc.Format(PdfStrings.Form_NameTaken, name);
             }
-            if (other.StartsWith(name + ".", StringComparison.Ordinal)) return $"\"{name}\" already groups other fields (such as \"{other}\").";
-            if (name.StartsWith(other + ".", StringComparison.Ordinal)) return $"\"{other}\" is a field, so it can't hold \"{name}\".";
+            if (other.StartsWith(name + ".", StringComparison.Ordinal)) return Loc.Format(PdfStrings.Form_NameGroups, name, other);
+            if (name.StartsWith(other + ".", StringComparison.Ordinal)) return Loc.Format(PdfStrings.Form_NameUnderField, other, name);
         }
         return null;
     }
@@ -330,10 +330,10 @@ public static class FormDesign
             DesignFieldKind.Text => "Text",
             DesignFieldKind.CheckBox => "Check Box",
             DesignFieldKind.Radio => "Group",
-            DesignFieldKind.ComboBox => "Dropdown",
+            DesignFieldKind.ComboBox => PdfStrings.Form_KindDropdown,
             DesignFieldKind.ListBox => "List Box",
             DesignFieldKind.Signature => "Signature",
-            _ => "Button",
+            _ => PdfStrings.Form_KindButton,
         };
         var free = NameCheck(existing);
         for (var i = 1; ; i++)
@@ -481,17 +481,17 @@ public static class FormDesign
         using var doc = Open(data, password);
         var acro = EnsureAcroForm(doc);
         // Find every widget first: positional ids ("p0:3") refer to the document as it was read.
-        var targets = changes.Select(c => (Spec: c, Found: Annotations.Find(doc, c.Id) ?? throw new InvalidOperationException("That field is no longer in the document."))).ToList();
+        var targets = changes.Select(c => (Spec: c, Found: Annotations.Find(doc, c.Id) ?? throw new InvalidOperationException(PdfStrings.Form_FieldGone))).ToList();
         foreach (var (change, (page, w)) in targets)
         {
             var spec = change;
             var all = Fields(doc, acro);
-            var f = all.FirstOrDefault(x => x.Widgets.Any(k => ReferenceEquals(k, w))) ?? throw new InvalidOperationException("That isn't a form field.");
-            var kind = KindOf(f) ?? throw new InvalidOperationException("That kind of field can't be edited.");
+            var f = all.FirstOrDefault(x => x.Widgets.Any(k => ReferenceEquals(k, w))) ?? throw new InvalidOperationException(PdfStrings.Form_NotAField);
+            var kind = KindOf(f) ?? throw new InvalidOperationException(PdfStrings.Form_KindNotEditable);
             if (kind == DesignFieldKind.Signature && PdfObj.Dict(FormEditor.Inherited(f.Dict, "/V")) is not null)
-                throw new InvalidOperationException("A signed signature field can't be changed.");
+                throw new InvalidOperationException(PdfStrings.Form_SignedCantChange);
             if (kind != spec.Kind && !(kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox && spec.Kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox))
-                throw new InvalidOperationException("A field can't change its kind.");
+                throw new InvalidOperationException(PdfStrings.Form_CantChangeKind);
             var index = PdfObj.Array(doc.Pages[page].Elements["/Annots"])!.Elements.Select(PdfObj.Dict).ToList().FindIndex(a => ReferenceEquals(a, w));
             Validate(doc, spec with { PageIndex = page }, Describe(doc, acro, f, w, page, index));
             if (PdfObj.Str(w.Elements["/NM"]) is not { Length: > 0 })
@@ -547,12 +547,12 @@ public static class FormDesign
         if (ids.Count == 0) return data;
         using var doc = Open(data, password);
         var acro = EnsureAcroForm(doc);
-        var targets = ids.Select(id => Annotations.Find(doc, id) ?? throw new InvalidOperationException("That field is no longer in the document.")).ToList();
+        var targets = ids.Select(id => Annotations.Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Form_FieldGone)).ToList();
         foreach (var (page, w) in targets)
         {
             var f = Fields(doc, acro).FirstOrDefault(x => x.Widgets.Any(k => ReferenceEquals(k, w)));
             if (f is not null && f.Type == "/Sig" && PdfObj.Dict(FormEditor.Inherited(f.Dict, "/V")) is not null)
-                throw new InvalidOperationException("A signed signature field can't be deleted.");
+                throw new InvalidOperationException(PdfStrings.Form_SignedCantDelete);
             var annots = PdfObj.Annots(doc, doc.Pages[page]);
             for (var i = annots.Elements.Count - 1; i >= 0; i--)
                 if (ReferenceEquals(PdfObj.Dict(annots.Elements[i]), w)) annots.Elements.RemoveAt(i);
@@ -603,7 +603,7 @@ public static class FormDesign
 
     // ───────────────────────────── Internals ─────────────────────────────
 
-    private static PdfDocument Open(byte[] data, string? password) => PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+    private static PdfDocument Open(byte[] data, string? password) => PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_PdfCantEdit);
 
     /// <summary>
     /// Checks what a new field sets, or what an edit changes (<paramref name="old"/>: the field as it is): a field the
@@ -611,16 +611,16 @@ public static class FormDesign
     /// </summary>
     private static void Validate(PdfDocument doc, DesignField spec, DesignField? old = null)
     {
-        if (spec.PageIndex < 0 || spec.PageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(spec), "That page isn't in the document.");
+        if (spec.PageIndex < 0 || spec.PageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(spec), PdfStrings.Form_PageMissing);
         var resized = old is null || Math.Abs(old.Rect.Width - spec.Rect.Width) > 0.01 || Math.Abs(old.Rect.Height - spec.Rect.Height) > 0.01;
-        if (resized && (spec.Rect.Width < 4 || spec.Rect.Height < 4)) throw new ArgumentException("A field needs to be at least 4 points wide and high.");
+        if (resized && (spec.Rect.Width < 4 || spec.Rect.Height < 4)) throw new ArgumentException(PdfStrings.Form_TooSmall);
         if (old is null && NameProblem(spec.Name) is { } problem) throw new ArgumentException(problem);
         if (spec.Kind is DesignFieldKind.CheckBox or DesignFieldKind.Radio && spec.ExportValue != old?.ExportValue && ExportValueProblem(spec.ExportValue) is { } bad)
             throw new ArgumentException(bad);
         if (spec.Kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox && !spec.Options.SequenceEqual(old?.Options ?? []) && spec.Options.Any(o => o.Length == 0))
-            throw new ArgumentException("A choice can't be empty.");
+            throw new ArgumentException(PdfStrings.Form_ChoiceEmpty);
         if (spec.OptionLabels.Count > 0 && spec.OptionLabels.Count != spec.Options.Count)
-            throw new ArgumentException("Each choice needs its own text.");
+            throw new ArgumentException(PdfStrings.Form_ChoiceText);
     }
 
     private static List<FormEditor.Field> Fields(PdfDocument doc, PdfDictionary acro)
@@ -747,7 +747,7 @@ public static class FormDesign
     {
         if (ReferenceEquals(group, w) || PdfObj.Array(group.Elements["/Kids"]) is not { } kids) return;
         if (kids.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Any(k => !ReferenceEquals(k, w) && FormEditor.OnStateOf(k) == spec.ExportValue))
-            throw new ArgumentException($"Another button of \"{spec.Name}\" already stands for \"{spec.ExportValue}\": give this one a value of its own.");
+            throw new ArgumentException(Loc.Format(PdfStrings.Form_ExportTaken, spec.Name, spec.ExportValue));
     }
 
     /// <summary>

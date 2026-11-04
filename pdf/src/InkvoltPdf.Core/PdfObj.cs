@@ -106,8 +106,9 @@ internal static class PdfObj
 
     public static string F(double v) => Math.Round(v, 3).ToString("0.###", Inv);
 
-    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string failure = "This PDF can't be read")
+    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string? failure = null)
     {
+        failure ??= PdfStrings.Doc_CantRead;
         try
         {
             var doc = Read(new MemoryStream(data, writable: false), password, mode);
@@ -407,4 +408,4 @@ internal static class PdfObj
 /// swallow it, so a stream too large to read fails what reads it unless that caller decides otherwise.
 /// </summary>
 public sealed class StreamTooLargeException(int limit)
-    : IOException($"A part of this PDF is too large to read: it unpacks to more than {limit >> 20:N0} MB.");
+    : IOException(Loc.Format(PdfStrings.Doc_PartTooLarge, limit >> 20));

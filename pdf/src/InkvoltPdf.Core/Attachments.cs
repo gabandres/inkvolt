@@ -30,7 +30,7 @@ public static class Attachments
 
     public static IReadOnlyList<AttachmentInfo> List(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's attachments can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Attach_CantRead);
         var list = new List<AttachmentInfo>();
         foreach (var (key, value) in PdfObj.NameTree(EmbeddedFilesRoot(doc)))
             if (PdfObj.Dict(value) is { } fs) list.Add(Describe(DocPrefix + key, key, fs, AttachmentSource.Document, -1));
@@ -51,9 +51,9 @@ public static class Attachments
     /// <exception cref="StreamTooLargeException">It unpacks to more than <see cref="MaxAttachmentBytes"/>.</exception>
     public static byte[] Extract(byte[] data, string? password, string key)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's attachments can't be read");
-        var fs = FindSpec(doc, key) ?? throw new InvalidOperationException("That attachment no longer exists.");
-        var stream = FileStream(fs) ?? throw new InvalidOperationException("That attachment has no embedded data.");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Attach_CantRead);
+        var fs = FindSpec(doc, key) ?? throw new InvalidOperationException(PdfStrings.Attach_Gone);
+        var stream = FileStream(fs) ?? throw new InvalidOperationException(PdfStrings.Attach_NoData);
         return PdfObj.StreamBytes(stream, MaxAttachmentBytes);
     }
 
@@ -73,7 +73,7 @@ public static class Attachments
     /// <summary>Embeds a file in the document's attachment list (renamed "name (2).ext" if the name is taken).</summary>
     public static byte[] Add(byte[] data, string? password, string fileName, byte[] bytes, string? description = null, DateTimeOffset? modified = null)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var entries = PdfObj.NameTree(EmbeddedFilesRoot(doc)).ToList();
         var name = Path.GetFileName(fileName);
         if (name.Length == 0) name = "attachment";
@@ -112,16 +112,16 @@ public static class Attachments
     /// <summary>Removes a document attachment, or a file-attachment annotation.</summary>
     public static byte[] Remove(byte[] data, string? password, string key)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (key.StartsWith(AnnotPrefix, StringComparison.Ordinal))
         {
-            if (!Annotations.DeleteIn(doc, key[AnnotPrefix.Length..])) throw new InvalidOperationException("That attachment no longer exists.");
+            if (!Annotations.DeleteIn(doc, key[AnnotPrefix.Length..])) throw new InvalidOperationException(PdfStrings.Attach_Gone);
         }
         else
         {
             var name = key.StartsWith(DocPrefix, StringComparison.Ordinal) ? key[DocPrefix.Length..] : key;
             var entries = PdfObj.NameTree(EmbeddedFilesRoot(doc)).ToList();
-            if (entries.RemoveAll(e => e.Key == name) == 0) throw new InvalidOperationException("That attachment no longer exists.");
+            if (entries.RemoveAll(e => e.Key == name) == 0) throw new InvalidOperationException(PdfStrings.Attach_Gone);
             WriteTree(doc, entries);
             SignedEdits.NoteRemoval();
         }

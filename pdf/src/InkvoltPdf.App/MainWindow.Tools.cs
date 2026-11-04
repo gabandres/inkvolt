@@ -85,7 +85,7 @@ public partial class MainWindow
     private bool AiReady()
     {
         if (AiService.Current(out var problem) is not null) return true;
-        if (!AiActions.ShowSettings(this, problem + " Set it up here, or Cancel.")) return false;
+        if (!AiActions.ShowSettings(this, Loc.Format(Strings.Main_AiSetUpHere, problem))) return false;
         foreach (var t in Tabs) t.RefreshAiPane();
         return AiService.Current(out _) is not null;
     }

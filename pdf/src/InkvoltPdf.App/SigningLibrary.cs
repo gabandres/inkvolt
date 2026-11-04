@@ -211,7 +211,7 @@ public sealed class SignatureCaptureDialog : Window
     private readonly ComboBox _font = new();
     private readonly TextBlock _typedPreview = new() { FontSize = 56, Foreground = Brushes.Black, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 12, 0) };
     private readonly Image _imported = new() { Height = 150, Stretch = Stretch.Uniform };
-    private readonly CheckBox _whiteToClear = new() { Content = "Make a white background transparent", IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
+    private readonly CheckBox _whiteToClear = new() { Content = Strings.Sign_WhiteTransparent, IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TabControl _tabs = new();
     private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
     private BitmapSource? _importedSource;
@@ -221,14 +221,14 @@ public sealed class SignatureCaptureDialog : Window
     public SignatureCaptureDialog(Window owner, bool initials, string defaultName)
     {
         Owner = owner;
-        Title = initials ? "Add initials" : "Add a signature";
+        Title = initials ? Strings.Sign_AddInitials : Strings.Sign_AddSignature;
         Width = 560;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        var pen = new ComboBox { ItemsSource = new[] { "Black ink", "Blue ink" }, SelectedIndex = 0, Width = 120 };
+        var pen = new ComboBox { ItemsSource = new[] { Strings.Sign_BlackInk, Strings.Sign_BlueInk }, SelectedIndex = 0, Width = 120 };
         void SetInk() => _ink.DefaultDrawingAttributes = new DrawingAttributes
         {
             Color = pen.SelectedIndex == 1 ? Color.FromRgb(0x10, 0x2A, 0x8C) : Colors.Black,
@@ -240,7 +240,7 @@ public sealed class SignatureCaptureDialog : Window
             SetInk();
             foreach (var s in _ink.Strokes) s.DrawingAttributes.Color = _ink.DefaultDrawingAttributes.Color;
         };
-        var clear = new Button { Content = "Clear", Margin = new Thickness(8, 0, 0, 0) };
+        var clear = new Button { Content = Strings.Common_Clear, Margin = new Thickness(8, 0, 0, 0) };
         clear.Click += (_, _) => _ink.Strokes.Clear();
         var drawTools = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 8, 0, 0) };
         drawTools.Children.Add(pen);
@@ -248,7 +248,7 @@ public sealed class SignatureCaptureDialog : Window
         var draw = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         draw.Children.Add(new Border { Child = _ink, BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) });
         draw.Children.Add(drawTools);
-        draw.Children.Add(Caption("Sign with the mouse, a pen or your finger."));
+        draw.Children.Add(Caption(Strings.Sign_DrawCaption));
 
         _typed.Text = initials ? new string([.. defaultName.Split(' ', StringSplitOptions.RemoveEmptyEntries).Select(w => char.ToUpperInvariant(w[0]))]) : defaultName;
         _font.ItemsSource = SignatureImages.ScriptFonts();
@@ -263,16 +263,16 @@ public sealed class SignatureCaptureDialog : Window
         _font.SelectionChanged += (_, _) => UpdateTyped();
         UpdateTyped();
         var type = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        type.Children.Add(Label(initials ? "Initials" : "Name"));
+        type.Children.Add(Label(initials ? Strings.Sign_Initials : Strings.Sign_Name));
         type.Children.Add(_typed);
-        type.Children.Add(Label("Style"));
+        type.Children.Add(Label(Strings.Sign_Style));
         type.Children.Add(_font);
         type.Children.Add(new Border { Child = _typedPreview, Background = Brushes.White, Height = 110, Margin = new Thickness(0, 10, 0, 0), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) });
 
-        var pick = new Button { Content = "Choose an image…", HorizontalAlignment = HorizontalAlignment.Left };
+        var pick = new Button { Content = Strings.Sign_ChooseImage, HorizontalAlignment = HorizontalAlignment.Left };
         pick.Click += (_, _) =>
         {
-            var dlg = new OpenFileDialog { Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.tif;*.tiff" };
+            var dlg = new OpenFileDialog { Filter = Strings.Sign_ImageFilter };
             if (dlg.ShowDialog(this) != true) return;
             try
             {
@@ -281,23 +281,23 @@ public sealed class SignatureCaptureDialog : Window
             }
             catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException)
             {
-                ShowError($"That image can't be read: {ex.Message}");
+                ShowError(Loc.Format(Strings.Sign_ImageUnreadable, ex.Message));
             }
         };
         var image = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
         image.Children.Add(pick);
         image.Children.Add(new Border { Child = _imported, Background = Brushes.White, Height = 150, Margin = new Thickness(0, 10, 0, 0), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) });
         image.Children.Add(_whiteToClear);
-        image.Children.Add(Caption("PNG images keep their transparency. A scan or photo works best on plain white paper."));
+        image.Children.Add(Caption(Strings.Sign_ImageCaption));
 
-        _tabs.Items.Add(new TabItem { Header = "Draw", Content = draw });
-        _tabs.Items.Add(new TabItem { Header = "Type", Content = type });
-        _tabs.Items.Add(new TabItem { Header = "Image", Content = image });
+        _tabs.Items.Add(new TabItem { Header = Strings.Sign_TabDraw, Content = draw });
+        _tabs.Items.Add(new TabItem { Header = Strings.Sign_TabType, Content = type });
+        _tabs.Items.Add(new TabItem { Header = Strings.Sign_TabImage, Content = image });
 
-        var ok = new Button { Content = "Save", IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
+        var ok = new Button { Content = Strings.Common_Save, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
         ok.SetResourceReference(StyleProperty, "AccentButtonStyle");
         ok.Click += (_, _) => Accept();
-        var cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 104 };
+        var cancel = new Button { Content = Strings.Common_Cancel, IsCancel = true, MinWidth = 104 };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         buttons.Children.Add(ok);
         buttons.Children.Add(cancel);
@@ -338,7 +338,7 @@ public sealed class SignatureCaptureDialog : Window
             {
                 if (_ink.Strokes.Count == 0)
                 {
-                    ShowError("Draw your signature first.");
+                    ShowError(Strings.Sign_DrawFirst);
                     return;
                 }
                 var bounds = _ink.Strokes.GetBounds();
@@ -355,7 +355,7 @@ public sealed class SignatureCaptureDialog : Window
             {
                 if (string.IsNullOrWhiteSpace(_typed.Text))
                 {
-                    ShowError("Type your name first.");
+                    ShowError(Strings.Sign_TypeFirst);
                     return;
                 }
                 var ft = new FormattedText(_typed.Text.Trim(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight,
@@ -368,7 +368,7 @@ public sealed class SignatureCaptureDialog : Window
             case 2:
                 if (_importedSource is null)
                 {
-                    ShowError("Choose an image first.");
+                    ShowError(Strings.Sign_ImageFirst);
                     return;
                 }
                 raw = _whiteToClear.IsChecked == true ? SignatureImages.WhiteToTransparent(_importedSource) : _importedSource;
@@ -377,7 +377,7 @@ public sealed class SignatureCaptureDialog : Window
         Result = raw is null ? null : SignatureImages.Trim(raw);
         if (Result is null)
         {
-            ShowError("The signature is empty.");
+            ShowError(Strings.Sign_Empty);
             return;
         }
         DialogResult = true;

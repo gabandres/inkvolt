@@ -36,7 +36,7 @@ public sealed class TabModel(DocumentTab tab) : INotifyPropertyChanged
         }
     }
     private string? _label;
-    public string ToolTip => Tab.Session.FilePath ?? $"{Tab.Session.DisplayName} (not saved yet)";
+    public string ToolTip => Tab.Session.FilePath ?? Loc.Format(Strings.Main_TabNotSavedTip, Tab.Session.DisplayName);
     public Visibility DirtyVisibility => Tab.Session.IsDirty ? Visibility.Visible : Visibility.Collapsed;
 
     public void Refresh()
@@ -74,6 +74,9 @@ public sealed class RecentItem(string path, string detail) : INotifyPropertyChan
 /// <summary>A command palette entry.</summary>
 public sealed record PaletteItem(string Name, string Category, string Gesture, string Glyph, Action Run)
 {
+    /// <summary>The command's English name when the interface is in another language (AppLanguage.EnglishOf), also searched.</summary>
+    public string English { get; init; } = AppLanguage.EnglishOf(Name);
+
     public override string ToString() => Gesture.Length > 0 ? $"{Name}, {Gesture}" : Name;
 }
 
@@ -118,7 +121,7 @@ public partial class MainWindow : Window
         // Shortcuts shown on buttons come from the commands' gestures, so they always match the bindings.
         Cmd.AddShortcutsToTips(this);
         PaletteKeyText.Text = Cmd.GestureText(Cmd.CommandPalette);
-        AppearanceButton.ToolTip = $"Appearance: dark mode, light mode, dark pages ({Cmd.GestureText(Cmd.ToggleDarkMode)} switches dark mode)";
+        AppearanceButton.ToolTip = Loc.Format(Strings.Main_AppearanceTip, Cmd.GestureText(Cmd.ToggleDarkMode));
         TabStrip.ItemsSource = _tabs;
         RestorePlacement();
         BindCommands();
@@ -260,14 +263,14 @@ public partial class MainWindow : Window
             Placement = !atMouse ? System.Windows.Controls.Primitives.PlacementMode.Bottom : System.Windows.Controls.Primitives.PlacementMode.MousePoint,
             Items =
             {
-                Item("_Close", () => _ = CloseTabAsync(model), gesture: "Ctrl+W"),
-                Item("Close _Others", () => _ = CloseTabsAsync(_tabs.Where(t => t != model).ToList()), _tabs.Count > 1),
-                Item("Close Tabs to the _Right", () => _ = CloseTabsAsync(_tabs.Skip(index + 1).ToList()), index < _tabs.Count - 1),
+                Item(Strings.Main_TabClose, () => _ = CloseTabAsync(model), gesture: "Ctrl+W"),
+                Item(Strings.Main_TabCloseOthers, () => _ = CloseTabsAsync(_tabs.Where(t => t != model).ToList()), _tabs.Count > 1),
+                Item(Strings.Main_TabCloseRight, () => _ = CloseTabsAsync(_tabs.Skip(index + 1).ToList()), index < _tabs.Count - 1),
                 new Separator(),
-                Item("Copy _Path", () => CopyPath(path!), path is not null),
-                Item("Show in _Folder", () => Shell.ShowInFolder(path!), path is not null),
+                Item(Strings.Main_TabCopyPath, () => CopyPath(path!), path is not null),
+                Item(Strings.Main_TabShowInFolder, () => Shell.ShowInFolder(path!), path is not null),
                 new Separator(),
-                Item("Reopen Closed _Tab", () => _ = ReopenClosedAsync(), gesture: "Ctrl+Shift+T"),
+                Item(Strings.Main_TabReopenClosed, () => _ = ReopenClosedAsync(), gesture: "Ctrl+Shift+T"),
             },
         };
         menu.IsOpen = true;
@@ -278,11 +281,11 @@ public partial class MainWindow : Window
         try
         {
             Clipboard.SetText(path);
-            ShowStatus("Path copied.");
+            ShowStatus(Strings.Main_PathCopied);
         }
         catch (System.Runtime.InteropServices.ExternalException)
         {
-            ShowStatus("Another program is using the clipboard. Try again.");
+            ShowStatus(Strings.Main_ClipboardBusy);
         }
     }
 
@@ -345,7 +348,7 @@ public partial class MainWindow : Window
         var summary = FolderWatches.Summary;
         WatchButton.Visibility = summary is null ? Visibility.Collapsed : Visibility.Visible;
         WatchText.Text = summary ?? "";
-        WatchButton.ToolTip = summary is null ? null : $"{summary}: open Watched Folders";
+        WatchButton.ToolTip = summary is null ? null : Loc.Format(Strings.Main_WatchTip, summary);
         System.Windows.Automation.AutomationProperties.SetName(WatchButton, summary ?? "");
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, LayoutTabs);
     }
@@ -428,7 +431,7 @@ public partial class MainWindow : Window
         }
         e.Cancel = true;
         var hwnd = new WindowInteropHelper(this).Handle;
-        ShutdownBlockReasonCreate(hwnd, "Unsaved changes in Inkvolt PDF");
+        ShutdownBlockReasonCreate(hwnd, Strings.Main_ShutdownReason);
         if (_sessionPromptRunning) return;
         _sessionPromptRunning = true;
         Dispatcher.BeginInvoke(async () =>
@@ -497,13 +500,13 @@ public partial class MainWindow : Window
         card.MouseLeave += (_, _) => { if (!persistent) timer.Start(); };
         if (persistent) AutomationProperties.SetLiveSetting(card, AutomationLiveSetting.Assertive);
 
-        var close = new Button { Style = (Style)FindResource("IconButton"), Content = "", FontSize = 10, Height = 26, MinWidth = 26, ToolTip = "Dismiss" };
+        var close = new Button { Style = (Style)FindResource("IconButton"), Content = "", FontSize = 10, Height = 26, MinWidth = 26, ToolTip = Strings.Main_ToastDismiss };
         close.Click += (_, _) => Dismiss();
         DockPanel.SetDock(close, Dock.Right);
         row.Children.Add(close);
         if (toast.Action is { } action)
         {
-            var act = new Button { Content = toast.ActionLabel ?? "OK", Style = (Style)FindResource("TextButton"), Margin = new Thickness(12, 0, 0, 0), FontWeight = FontWeights.SemiBold };
+            var act = new Button { Content = toast.ActionLabel ?? Strings.Common_OK, Style = (Style)FindResource("TextButton"), Margin = new Thickness(12, 0, 0, 0), FontWeight = FontWeights.SemiBold };
             act.Click += (_, _) =>
             {
                 Dismiss();
@@ -561,17 +564,17 @@ public partial class MainWindow : Window
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                ShowToast(new Toast($"Couldn't read the folder {name}: {ex.Message}", IsError: true));
+                ShowToast(new Toast(Loc.Format(Strings.Main_FolderReadFailed, name, ex.Message), IsError: true));
                 continue;
             }
             if (pdfs.Count == 0)
             {
-                ShowToast(new Toast($"The folder {name} has no PDF files in it. Drop the files themselves to open them.", IsError: true));
+                ShowToast(new Toast(Loc.Format(Strings.Main_FolderNoPdfs, name), IsError: true));
                 continue;
             }
             if (pdfs.Count > MaxFromFolder)
             {
-                ShowToast(new Toast($"Opening the first {MaxFromFolder} of {pdfs.Count} PDFs in {name}"));
+                ShowToast(new Toast(Loc.Format(Strings.Main_FolderOpeningFirst, MaxFromFolder, pdfs.Count, name)));
                 pdfs = pdfs[..MaxFromFolder];
             }
             result.AddRange(pdfs);
@@ -589,7 +592,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
         {
-            ShowToast(new Toast($"Couldn't open {path}: {ex.Message}", IsError: true));
+            ShowToast(new Toast(Loc.Format(Strings.Main_OpenPathFailed, path, ex.Message), IsError: true));
             return;
         }
 
@@ -604,7 +607,7 @@ public partial class MainWindow : Window
         if (!File.Exists(full))
         {
             var recent = AppSettings.Current.RecentFiles.Any(p => string.Equals(p, full, StringComparison.OrdinalIgnoreCase));
-            ShowToast(new Toast(recent ? $"Couldn't find {Path.GetFileName(full)}. It was removed from the recent list." : $"Couldn't find {Path.GetFileName(full)}.", IsError: true));
+            ShowToast(new Toast(Loc.Format(recent ? Strings.Main_NotFoundRemovedFromRecent : Strings.Main_NotFound, Path.GetFileName(full)), IsError: true));
             if (recent)
             {
                 AppSettings.Current.RemoveRecent(full);
@@ -660,8 +663,8 @@ public partial class MainWindow : Window
                 {
                     Log.Write($"Open {Path.GetFileName(full)} failed: {ex}");
                     if (_closed) return;
-                    Prompt.Error(this, $"Couldn't open {Path.GetFileName(full)}",
-                        $"The file may be damaged or in a format Inkvolt PDF can't read.{Environment.NewLine}{Environment.NewLine}{ex.Message}");
+                    Prompt.Error(this, Loc.Format(Strings.Main_OpenFailedTitle, Path.GetFileName(full)),
+                        $"{Strings.Main_OpenFailedBody}{Environment.NewLine}{Environment.NewLine}{ex.Message}");
                     return;
                 }
             }
@@ -820,7 +823,7 @@ public partial class MainWindow : Window
         {
             if (item == DrawButton)
             {
-                var draw = new MenuItem { Header = "_Draw", Icon = MenuIcon(DrawButtonIcon.Text) };
+                var draw = new MenuItem { Header = Strings.Main_MoreDraw, Icon = MenuIcon(DrawButtonIcon.Text) };
                 FillDrawMenu(draw);
                 menu.Items.Add(draw);
                 continue;
@@ -851,7 +854,7 @@ public partial class MainWindow : Window
         {
             // Moved here when the bar is short of room (OnBarRowSizeChanged).
             menu.Items.Add(new Separator());
-            var appearance = new MenuItem { Header = "_Appearance", Icon = MenuIcon("") };
+            var appearance = new MenuItem { Header = Strings.Main_MoreAppearance, Icon = MenuIcon("") };
             FillAppearanceMenu(appearance);
             menu.Items.Add(appearance);
         }
@@ -1025,7 +1028,7 @@ public partial class MainWindow : Window
             {
                 // Printing or exporting: that work holds the document; closing now would pull it away.
                 TabStrip.SelectedItem = model;
-                ShowStatus($"Wait a moment: {tab.Session.DisplayName} is still busy.");
+                ShowStatus(Loc.Format(Strings.Main_StillBusy, tab.Session.DisplayName));
                 return false;
             }
             var previous = TabStrip.SelectedItem as TabModel;
@@ -1146,7 +1149,7 @@ public partial class MainWindow : Window
             }
             if (pass == 10) // a tab that never settles (shouldn't happen): don't spin
             {
-                ShowStatus("Wait a moment: a document is still busy.");
+                ShowStatus(Strings.Main_DocumentStillBusy);
                 return false;
             }
             foreach (var model in models)
@@ -1154,7 +1157,7 @@ public partial class MainWindow : Window
                 if (model.Tab.IsBusy && !model.Tab.HasPendingEdits)
                 {
                     TabStrip.SelectedItem = model;
-                    ShowStatus($"Wait a moment: {model.Title} is still busy.");
+                    ShowStatus(Loc.Format(Strings.Main_StillBusy, model.Title));
                     return false;
                 }
                 await model.Tab.FlushPendingEditsAsync();
@@ -1243,11 +1246,12 @@ public partial class MainWindow : Window
             return;
         }
         if (left.Count == 0) return;
-        var names = string.Join(", ", left.Select(d => d.Info.DisplayName).Take(5)) + (left.Count > 5 ? $" and {left.Count - 5} more" : "");
+        var first = string.Join(", ", left.Select(d => d.Info.DisplayName).Take(5));
+        var names = left.Count > 5 ? Loc.Format(Strings.Main_RecoveryNamesMore, first, left.Count - 5) : first;
         var choice = Prompt.Choose(this,
-            left.Count == 1 ? "Restore a document that wasn't saved?" : $"Restore {left.Count} documents that weren't saved?",
-            $"Inkvolt PDF closed before changes to {names} were saved. Restore opens them with those changes, to save or close.",
-            ("Restore", true), ("Discard", false), ("Not now", false));
+            Loc.Plural(left.Count, Strings.Main_RecoveryTitle_One, Strings.Main_RecoveryTitle_Many),
+            Loc.Format(Strings.Main_RecoveryBody, names),
+            (Strings.Main_RecoveryRestore, true), (Strings.Common_Discard, false), (Strings.Main_NotNow, false));
         if (choice == 2) return;
         if (choice == 1)
         {
@@ -1292,13 +1296,13 @@ public partial class MainWindow : Window
                     // The copy's bytes don't open as a PDF: offering it again would fail the same way.
                     Log.Write($"Restoring {info.DisplayName} failed: {ex}");
                     RecoveryStore.Remove(document);
-                    ShowToast(new Toast($"Couldn't restore {info.DisplayName}: the copy is damaged.", IsError: true));
+                    ShowToast(new Toast(Loc.Format(Strings.Main_RestoreDamaged, info.DisplayName), IsError: true));
                     return false;
                 }
                 if (!OpenSession(session)) return false; // the window closed meanwhile: the copy stays for the next start
                 if (ActiveTab is { } tab && info.Page > 0 && info.Page < tab.PageView.PageCount)
                     _ = Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, () => tab.PageView.GoToPage(info.Page, record: false));
-                ShowToast(new Toast($"Restored {info.DisplayName} with its unsaved changes. Save to keep them."));
+                ShowToast(new Toast(Loc.Format(Strings.Main_Restored, info.DisplayName)));
                 return true;
             }
         }
@@ -1306,7 +1310,7 @@ public partial class MainWindow : Window
         {
             // Reading the copy failed (in use, no access) or the tab couldn't be made: the copy may be fine, so it stays.
             Log.Write($"Restoring {info.DisplayName} failed: {ex}");
-            ShowToast(new Toast($"Couldn't restore {info.DisplayName}: {ex.Message} The copy is kept; it's offered again at the next start.", IsError: true));
+            ShowToast(new Toast(Loc.Format(Strings.Main_RestoreFailed, info.DisplayName, ex.Message), IsError: true));
             return false;
         }
     }
@@ -1344,7 +1348,7 @@ public partial class MainWindow : Window
             catch (Exception ex) // top-level UI action: report any failure, never lose it
             {
                 Log.Write($"Save {tab.Session.DisplayName} failed: {ex}");
-                Prompt.Error(this, $"Couldn't save {tab.Session.DisplayName}", ex.Message);
+                Prompt.Error(this, Loc.Format(Strings.Main_SaveFailedTitle, tab.Session.DisplayName), ex.Message);
             }
             finally
             {
@@ -1359,7 +1363,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            if (tab.HasPendingEdits || tab.IsBusy) ShowStatus($"Saving {tab.Session.DisplayName} after the current change is written…");
+            if (tab.HasPendingEdits || tab.IsBusy) ShowStatus(Loc.Format(Strings.Main_SavingAfterChange, tab.Session.DisplayName));
             await tab.FlushPendingEditsAsync();
             if (tab.IsDisposed) return false;
             var s = tab.Session;
@@ -1382,7 +1386,7 @@ public partial class MainWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Save {tab.Session.DisplayName} failed: {ex}");
-            Prompt.Error(this, $"Couldn't save {tab.Session.DisplayName}", ex.Message);
+            Prompt.Error(this, Loc.Format(Strings.Main_SaveFailedTitle, tab.Session.DisplayName), ex.Message);
             return false;
         }
     }
@@ -1391,10 +1395,10 @@ public partial class MainWindow : Window
 
     private DiskChoice AskChangedOnDisk(string name)
     {
-        var dlg = new FormDialog(this, $"{name} changed on disk", "Overwrite", 460);
-        dlg.AddNote("Another program changed this file after you opened it. Saving now replaces those changes with your version.");
+        var dlg = new FormDialog(this, Loc.Format(Strings.Main_ChangedOnDiskTitle, name), Strings.Main_Overwrite, 460);
+        dlg.AddNote(Strings.Main_ChangedOnDiskNote);
         var choice = DiskChoice.Cancel;
-        var saveAs = dlg.Add(null, new Button { Content = "Save as a new file instead…", Style = (Style)FindResource("TextButton"), HorizontalAlignment = HorizontalAlignment.Left });
+        var saveAs = dlg.Add(null, new Button { Content = Strings.Main_SaveAsNewInstead, Style = (Style)FindResource("TextButton"), HorizontalAlignment = HorizontalAlignment.Left });
         saveAs.Click += (_, _) =>
         {
             choice = DiskChoice.SaveAs;
@@ -1410,9 +1414,9 @@ public partial class MainWindow : Window
         var ext = s.IsPdf ? ".pdf" : Path.GetExtension(s.DisplayName);
         var dlg = new SaveFileDialog
         {
-            Title = "Save As",
+            Title = Strings.Main_SaveAsTitle,
             FileName = suggestedName ?? Path.GetFileNameWithoutExtension(s.DisplayName) + ext,
-            Filter = s.IsPdf ? PdfFiles.PdfFilter : $"{ext.TrimStart('.').ToUpperInvariant()} files (*{ext})|*{ext}",
+            Filter = s.IsPdf ? PdfFiles.PdfFilter : $"{Loc.Format(Strings.Main_FilesOfType, ext.TrimStart('.').ToUpperInvariant(), ext)}|*{ext}",
             DefaultExt = ext,
             AddExtension = true,
             InitialDirectory = Path.GetDirectoryName(s.FilePath) ?? AppSettings.Current.LastFolder,
@@ -1427,12 +1431,12 @@ public partial class MainWindow : Window
         {
             if (other.Tab.IsBusy || other.Tab.HasPendingEdits || IsSaving(other.Tab))
             {
-                Prompt.Info(this, $"{other.Title} is busy in another tab", "Wait until it's done, or choose another name.");
+                Prompt.Info(this, Loc.Format(Strings.Main_BusyInOtherTabTitle, other.Title), Strings.Main_BusyInOtherTabBody);
                 return false;
             }
-            var lose = other.Tab.Session.IsDirty ? " Its unsaved changes will be lost." : "";
-            if (!Prompt.Confirm(this, $"{other.Title} is open in another tab",
-                    $"Saving here replaces that file, so its tab will be closed.{lose}", "Replace and close it", warning: true))
+            if (!Prompt.Confirm(this, Loc.Format(Strings.Main_OpenInOtherTabTitle, other.Title),
+                    other.Tab.Session.IsDirty ? Strings.Main_OpenInOtherTabBodyUnsaved : Strings.Main_OpenInOtherTabBody,
+                    Strings.Main_ReplaceAndClose, warning: true))
                 return false;
         }
 
@@ -1454,14 +1458,14 @@ public partial class MainWindow : Window
         {
             if (tab.IsDisposed) return false;
             // Written on a worker thread (big files don't freeze the window); busy meanwhile, so no edit or close cuts in.
-            using var busy = tab.BeginBusy($"Saving {Path.GetFileName(path)}…");
+            using var busy = tab.BeginBusy(Loc.Format(Strings.Main_SavingFile, Path.GetFileName(path)));
             await tab.Session.SaveAsAsync(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Save {Path.GetFileName(path)} failed: {ex}");
-            Prompt.Error(this, $"Couldn't save {Path.GetFileName(path)}",
-                $"{ex.Message}{Environment.NewLine}{Environment.NewLine}If another program has the file open, close it there, or use Save As to save a copy.");
+            Prompt.Error(this, Loc.Format(Strings.Main_SaveFailedTitle, Path.GetFileName(path)),
+                $"{ex.Message}{Environment.NewLine}{Environment.NewLine}{Strings.Main_SaveFailedHint}");
             return false;
         }
         finally
@@ -1472,7 +1476,7 @@ public partial class MainWindow : Window
         lock (RecentThumbs) RecentThumbs.Remove(path); // the start page shows the new first page
         AppSettings.Current.AddRecent(path);
         RefreshRecent();
-        ShowToast(new Toast($"Saved {Path.GetFileName(path)}", "Show in folder", () => Shell.ShowInFolder(path)));
+        ShowToast(new Toast(Loc.Format(Strings.Main_Saved, Path.GetFileName(path)), Strings.Main_ShowInFolderAction, () => Shell.ShowInFolder(path)));
         NoteSavedForRating();
         return true;
     }
@@ -1490,9 +1494,9 @@ public partial class MainWindow : Window
         if (e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
         {
             e.Effects = DragDropEffects.Copy;
-            DropText.Text = files.Length > 1 ? $"Drop to open {files.Length} files"
-                : Directory.Exists(files[0]) ? $"Drop to open the PDFs in {Path.GetFileName(Path.TrimEndingDirectorySeparator(files[0]))}"
-                : $"Drop to open {Path.GetFileName(files[0])}";
+            DropText.Text = files.Length > 1 ? Loc.Format(Strings.Main_DropToOpenFiles, files.Length)
+                : Directory.Exists(files[0]) ? Loc.Format(Strings.Main_DropToOpenFolder, Path.GetFileName(Path.TrimEndingDirectorySeparator(files[0])))
+                : Loc.Format(Strings.Main_DropToOpenFile, Path.GetFileName(files[0]));
             DropOverlay.Visibility = Visibility.Visible;
         }
         else
@@ -1520,7 +1524,7 @@ public partial class MainWindow : Window
     {
         var dlg = new OpenFileDialog
         {
-            Title = "Open",
+            Title = Strings.Common_Open,
             Filter = Converting.OpenFilter(),
             Multiselect = true,
             InitialDirectory = AppSettings.Current.LastFolder,
@@ -1543,14 +1547,14 @@ public partial class MainWindow : Window
         for (var i = 0; i < recent.Count; i++)
         {
             var path = recent[i];
-            var mi = new MenuItem { Header = $"_{(i + 1) % 10} {Path.GetFileName(path).Replace("_", "__")}", ToolTip = path };
+            var mi = new MenuItem { Header = $"_{(i + 1) % 10} {Path.GetFileName(path).Replace("_", "__")}", ToolTip = path }; // in every language: a recent file's name
             mi.Click += (_, _) => OpenFile(path);
             RecentMenu.Items.Add(mi);
         }
         if (recent.Count > 0)
         {
             RecentMenu.Items.Add(new Separator());
-            var clear = new MenuItem { Header = "_Clear Recent" };
+            var clear = new MenuItem { Header = Strings.Main_ClearRecent };
             clear.Click += OnClearRecent;
             RecentMenu.Items.Add(clear);
         }
@@ -1566,12 +1570,12 @@ public partial class MainWindow : Window
         static string Ago(DateTime t)
         {
             var d = DateTime.Now - t;
-            return d.TotalMinutes < 1 ? "Just now"
-                : d.TotalHours < 1 ? $"{(int)d.TotalMinutes} min ago"
-                : d.TotalDays < 1 ? $"{(int)d.TotalHours} h ago"
-                : d.TotalDays < 2 ? "Yesterday"
-                : d.TotalDays < 7 ? $"{(int)d.TotalDays} days ago"
-                : t.ToString("MMM d");
+            return d.TotalMinutes < 1 ? Strings.Main_AgoJustNow
+                : d.TotalHours < 1 ? Loc.Format(Strings.Main_AgoMinutes, (int)d.TotalMinutes)
+                : d.TotalDays < 1 ? Loc.Format(Strings.Main_AgoHours, (int)d.TotalHours)
+                : d.TotalDays < 2 ? Strings.Main_AgoYesterday
+                : d.TotalDays < 7 ? Loc.Format(Strings.Main_AgoDays, (int)d.TotalDays)
+                : t.ToString(Strings.Main_AgoDateFormat);
         }
     }
 
@@ -1652,7 +1656,7 @@ public partial class MainWindow : Window
         var snapshot = AppSettings.Current.ClearRecent();
         lock (RecentThumbs) RecentThumbs.Clear();
         RefreshRecent();
-        ShowToast(new Toast("Recent list cleared", "Undo", () =>
+        ShowToast(new Toast(Strings.Main_RecentCleared, Strings.Common_Undo, () =>
         {
             AppSettings.Current.RestoreRecent(snapshot);
             RefreshRecent();
@@ -1733,13 +1737,13 @@ public partial class MainWindow : Window
         {
             if (t.Session.IsMissingOnDisk())
             {
-                ShowToast(new Toast($"{t.Session.DisplayName} is no longer on disk; use Save As to keep this copy.", IsError: true));
+                ShowToast(new Toast(Loc.Format(Strings.Main_NoLongerOnDisk, t.Session.DisplayName), IsError: true));
                 return;
             }
-            if ((t.Session.IsDirty || t.HasPendingEdits) && !Prompt.Confirm(this, $"Reload {t.Session.DisplayName}?",
-                    "Your unsaved changes will be discarded and the file reopened as it is on disk.", "Reload", warning: true))
+            if ((t.Session.IsDirty || t.HasPendingEdits) && !Prompt.Confirm(this, Loc.Format(Strings.Main_ReloadTitle, t.Session.DisplayName),
+                    Strings.Main_ReloadBody, Strings.Main_Reload, warning: true))
                 return;
-            _ = t.ReloadFromDiskAsync($"Reloaded {t.Session.DisplayName}", manual: true);
+            _ = t.ReloadFromDiskAsync(Loc.Format(Strings.Main_Reloaded, t.Session.DisplayName), manual: true);
         }, t => t.Session.FilePath is not null && !IsSaving(t));
         Bind(Cmd.Print, t => _ = FileActions.Print(this, t), t => t.PageView.PageCount > 0);
         Bind(Cmd.PrintWithOptions, t => _ = FileActions.Print(this, t, withOptions: true), t => t.PageView.PageCount > 0);
@@ -1871,7 +1875,7 @@ public partial class MainWindow : Window
         if (!Inkvolt.OpenInkvoltPrint())
         {
             InkvoltPrintMenu.Visibility = Visibility.Collapsed;
-            ShowToast(new Toast("Inkvolt Print couldn't be started. Is it still installed?", IsError: true));
+            ShowToast(new Toast(Strings.Main_InkvoltPrintFailed, IsError: true));
         }
     }
 
@@ -1882,12 +1886,12 @@ public partial class MainWindow : Window
 
     private async void OnRedactText(object sender, RoutedEventArgs e)
     {
-        if (ActiveTab is { IsBusy: false } t && await t.RedactSelection() == 0) ShowStatus("Select the text to redact first (Select text tool, T)");
+        if (ActiveTab is { IsBusy: false } t && await t.RedactSelection() == 0) ShowStatus(Strings.Main_RedactSelectFirst);
     }
 
     private void OnRedactHits(object sender, RoutedEventArgs e)
     {
-        if (ActiveTab is { IsBusy: false } t && t.RedactSearchHits() == 0) ShowStatus("Search first (Ctrl+F or the Search pane), then mark the matches");
+        if (ActiveTab is { IsBusy: false } t && t.RedactSearchHits() == 0) ShowStatus(Strings.Main_RedactSearchFirst);
     }
 
     private void OnApplyRedactions(object sender, RoutedEventArgs e)
@@ -1930,20 +1934,20 @@ public partial class MainWindow : Window
         t.PageView.Tool = t.PageView.Tool == tool ? ViewerTool.Hand : tool;
         if (t.PageView.Tool == tool) ShowStatus(tool switch
         {
-            ViewerTool.AddText => "Click on the page where the text should go, then type",
-            ViewerTool.AddCheck => "Click where each check mark should go; click a mark again to remove it",
-            ViewerTool.AddNote => "Click on the page where the note should go",
-            ViewerTool.AddLink => "Drag a box over what should be a link; click a link to move or resize it, double-click to change where it leads",
-            ViewerTool.Redact => "Drag over the areas to black out; nothing is removed until you apply the redactions",
-            ViewerTool.Pen or ViewerTool.Highlighter => "Draw on the page with the mouse, pen or a finger; Esc goes back to the hand tool",
-            ViewerTool.Rectangle or ViewerTool.Ellipse => "Drag to draw; Shift makes a square or circle. Esc goes back to the hand tool",
-            ViewerTool.Line or ViewerTool.Arrow => "Drag to draw; Shift keeps it horizontal, vertical or at 45°. Esc goes back to the hand tool",
-            ViewerTool.TextBox => "Click to type a line, or drag a box for wrapped text",
-            ViewerTool.Callout => "Drag from what the callout points at to where its text goes",
-            ViewerTool.MeasureDistance => "Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Review › Measure › Set Scale)",
-            ViewerTool.MeasurePerimeter or ViewerTool.MeasureArea => "Click each corner; double-click or Enter finishes, Backspace takes a corner back, Esc cancels",
-            ViewerTool.MeasureCalibrate => "Click both ends of something whose real length you know (a dimension, a scale bar)",
-            _ => "Click where each cross should go; click one again to remove it",
+            ViewerTool.AddText => Strings.Main_HintAddText,
+            ViewerTool.AddCheck => Strings.Main_HintAddCheck,
+            ViewerTool.AddNote => Strings.Main_HintAddNote,
+            ViewerTool.AddLink => Strings.Main_HintAddLink,
+            ViewerTool.Redact => Strings.Main_HintRedact,
+            ViewerTool.Pen or ViewerTool.Highlighter => Strings.Main_HintPen,
+            ViewerTool.Rectangle or ViewerTool.Ellipse => Strings.Main_HintRectangle,
+            ViewerTool.Line or ViewerTool.Arrow => Strings.Main_HintLine,
+            ViewerTool.TextBox => Strings.Main_HintTextBox,
+            ViewerTool.Callout => Strings.Main_HintCallout,
+            ViewerTool.MeasureDistance => Strings.Main_HintMeasureDistance,
+            ViewerTool.MeasurePerimeter or ViewerTool.MeasureArea => Strings.Main_HintMeasureArea,
+            ViewerTool.MeasureCalibrate => Strings.Main_HintMeasureCalibrate,
+            _ => Strings.Main_HintAddCross,
         });
         UpdateUi();
     }
@@ -2011,7 +2015,7 @@ public partial class MainWindow : Window
     {
         if (_closedTabs.Count == 0)
         {
-            ShowStatus("No closed tabs to reopen");
+            ShowStatus(Strings.Main_NoClosedTabs);
             return;
         }
         var (path, page) = _closedTabs[^1];
@@ -2035,7 +2039,7 @@ public partial class MainWindow : Window
             WindowStyle = WindowStyle.None;
             if (WindowState == WindowState.Maximized) WindowState = WindowState.Normal; // re-maximize so the taskbar is covered
             WindowState = WindowState.Maximized;
-            ShowStatus("Full screen · press Esc or F11 to leave");
+            ShowStatus(Strings.Main_FullScreenHint);
         }
         else
         {
@@ -2062,6 +2066,9 @@ public partial class MainWindow : Window
         Palette.Visibility = Visibility.Collapsed;
         if (focus) FocusDocument();
     }
+
+    /// <summary>The palette category of recent files: shown, and how <see cref="FilterPalette"/> tells files from commands.</summary>
+    private static string RecentCategory => Strings.Palette_OpenRecent;
 
     /// <summary>Every menu command (so the palette never drifts from the menus), plus recent files.</summary>
     private List<PaletteItem> BuildPaletteItems()
@@ -2101,7 +2108,7 @@ public partial class MainWindow : Window
         foreach (var path in AppSettings.Current.RecentFiles)
         {
             var p = path;
-            items.Add(new PaletteItem(Path.GetFileName(p), "Open recent", "", "", () => OpenFile(p)));
+            items.Add(new PaletteItem(Path.GetFileName(p), RecentCategory, "", "", () => OpenFile(p)));
         }
         return items;
     }
@@ -2109,9 +2116,10 @@ public partial class MainWindow : Window
     private void FilterPalette()
     {
         var q = PaletteBox.Text.Trim();
-        // The same matching as Inkvolt Print's palette (PaletteSearch); recent files only when something is typed.
-        var result = InkvoltPrint.Core.Suite.PaletteSearch.Filter(_paletteAll, q, i => i.Name, i => i.Category,
-            isCommand: i => i.Category != "Open recent", showWhenEmpty: i => i.Category != "Open recent");
+        // The same matching as Inkvolt Print's palette (PaletteSearch); recent files only when something is typed. In
+        // Spanish a command is also found by its English name (as tutorials say it), ranked after a Spanish name's match.
+        var result = InkvoltPrint.Core.Suite.PaletteSearch.Filter(_paletteAll, q, i => i.Name, i => i.English.Length > 0 ? $"{i.Category} {i.English}" : i.Category,
+            isCommand: i => i.Category != RecentCategory, showWhenEmpty: i => i.Category != RecentCategory);
         if (ActiveTab is { } t && q.Length > 0)
         {
             // A page label ("iv", "A-3") or a page number; both when they point at different pages.
@@ -2119,11 +2127,11 @@ public partial class MainWindow : Window
             if (int.TryParse(q, out var number) && number >= 1 && number <= t.PageView.PageCount && byLabel != number - 1)
             {
                 var label = t.PageLabel(number - 1);
-                result.Insert(0, new PaletteItem(label != number.ToString() ? $"Go to page {number} ({label})" : $"Go to page {number}", "", "", "",
+                result.Insert(0, new PaletteItem(label != number.ToString() ? Loc.Format(Strings.Palette_GoToPageLabel, number, label) : Loc.Format(Strings.Palette_GoToPage, number), "", "", "",
                     () => { t.SetOrganizing(false); t.ActiveView.GoToPage(number - 1); }));
             }
             if (byLabel is { } p)
-                result.Insert(0, new PaletteItem($"Go to page {t.PageLabel(p)} ({p + 1} of {t.PageView.PageCount})", "", "", "",
+                result.Insert(0, new PaletteItem(Loc.Format(Strings.Palette_GoToPageByLabel, t.PageLabel(p), p + 1, t.PageView.PageCount), "", "", "",
                     () => { t.SetOrganizing(false); t.ActiveView.GoToPage(p); }));
         }
         PaletteList.ItemsSource = result;
@@ -2184,11 +2192,11 @@ public partial class MainWindow : Window
             mi.Click += (_, _) => run();
             return mi;
         }
-        menu.Items.Add(Item("Dark mode", s.Theme == "Dark", () => SetTheme("Dark")));
-        menu.Items.Add(Item("Light mode", s.Theme == "Light", () => SetTheme("Light")));
-        menu.Items.Add(Item("Use my Windows setting", s.Theme is not ("Light" or "Dark"), () => SetTheme("System")));
+        menu.Items.Add(Item(Strings.Main_AppearanceDark, s.Theme == "Dark", () => SetTheme("Dark")));
+        menu.Items.Add(Item(Strings.Main_AppearanceLight, s.Theme == "Light", () => SetTheme("Light")));
+        menu.Items.Add(Item(Strings.Main_AppearanceSystem, s.Theme is not ("Light" or "Dark"), () => SetTheme("System")));
         menu.Items.Add(new Separator());
-        menu.Items.Add(Item("Dark pages (night reading)", s.DarkPages, () => Cmd.DarkPages.Execute(null, this)));
+        menu.Items.Add(Item(Strings.Main_AppearanceDarkPages, s.DarkPages, () => Cmd.DarkPages.Execute(null, this)));
     }
 
     private void OnThemeMenu(object sender, RoutedEventArgs e)
@@ -2203,7 +2211,7 @@ public partial class MainWindow : Window
         App.ApplyTheme();
         UpdateUi();
         // Dark and light show for themselves; following Windows may change nothing visible, so say it took effect.
-        if (theme is not ("Dark" or "Light")) ShowStatus("Following your Windows setting");
+        if (theme is not ("Dark" or "Light")) ShowStatus(Strings.Main_FollowingWindows);
     }
 
     // ───────────────────────────── Settings ─────────────────────────────
@@ -2226,10 +2234,10 @@ public partial class MainWindow : Window
             ["AuthorName"] = s.AuthorName ?? "",
             ["Language"] = LanguageOf(s.Language),
         });
-        var dlg = new FormDialog(this, "Settings", "Close", 460);
+        var dlg = new FormDialog(this, Strings.Common_Settings, Strings.Common_Close, 460);
         dlg.HideCancel();
         string[] themes = ["System", "Light", "Dark"];
-        var theme = dlg.AddChoice("App theme", ["Use my Windows setting", "Light", "Dark"], Array.IndexOf(themes, ThemeOf(s.Theme)));
+        var theme = dlg.AddChoice(Strings.Settings_Theme, [Strings.Settings_ThemeSystem, Strings.Settings_ThemeLight, Strings.Settings_ThemeDark], Array.IndexOf(themes, ThemeOf(s.Theme)));
         // The interface's language, at the next start (AppLanguage reads it once, before the first window). Hidden until the
         // Spanish is complete (AppLanguage.SpanishReady).
         string[] languages = ["", "en", "es"];
@@ -2241,24 +2249,24 @@ public partial class MainWindow : Window
                 Math.Max(0, Array.IndexOf(languages, LanguageOf(s.Language))));
             dlg.AddNote(Strings.Settings_LanguageRestart);
         }
-        var restore = dlg.AddCheck("Reopen each file at the page where I left off", s.RestorePosition);
-        var reopen = dlg.AddCheck("Reopen the files I had open when I closed Inkvolt PDF", s.ReopenTabs);
-        var recovery = dlg.AddCheck("Keep recovery copies of unsaved changes", s.KeepRecoveryCopies);
-        recovery.ToolTip = "Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)";
-        var dark = dlg.AddCheck("Dark pages (inverted colors for night reading)", s.DarkPages);
+        var restore = dlg.AddCheck(Strings.Settings_RestorePosition, s.RestorePosition);
+        var reopen = dlg.AddCheck(Strings.Settings_ReopenTabs, s.ReopenTabs);
+        var recovery = dlg.AddCheck(Strings.Settings_RecoveryCopies, s.KeepRecoveryCopies);
+        recovery.ToolTip = Strings.Settings_RecoveryCopiesTip;
+        var dark = dlg.AddCheck(Strings.Settings_DarkPages, s.DarkPages);
         // Store installs only: an unpackaged copy has nothing to ask the Store about.
         CheckBox? updates = null;
         if (AppEnvironment.IsPackaged)
         {
-            updates = dlg.AddCheck("Check for updates when Inkvolt PDF starts", s.CheckForUpdates);
-            updates.ToolTip = "Asks the Microsoft Store, through Windows, whether a newer version is ready. Nothing else is sent.";
+            updates = dlg.AddCheck(Strings.Settings_CheckForUpdates, s.CheckForUpdates);
+            updates.ToolTip = Strings.Settings_CheckForUpdatesTip;
         }
-        var author = dlg.AddText("Author name on comments", s.AuthorName is { Length: > 0 } a ? a : Environment.UserName);
-        dlg.AddNote("To make Inkvolt PDF your default PDF app: Windows Settings › Apps › Default apps › Inkvolt PDF.");
-        var defaults = dlg.Add(null, new Button { Content = "Open Default apps", HorizontalAlignment = HorizontalAlignment.Left });
+        var author = dlg.AddText(Strings.Settings_AuthorName, s.AuthorName is { Length: > 0 } a ? a : Environment.UserName);
+        dlg.AddNote(Strings.Settings_DefaultAppNote);
+        var defaults = dlg.Add(null, new Button { Content = Strings.Settings_OpenDefaultApps, HorizontalAlignment = HorizontalAlignment.Left });
         defaults.Click += (_, _) => Shell.Open(AppEnvironment.DefaultAppsUri);
-        var aiState = dlg.Add("AI assistant", new TextBlock { Text = AiActions.Describe(), TextWrapping = TextWrapping.Wrap }, top: 18);
-        var ai = dlg.Add(null, new Button { Content = "AI assistant settings…", HorizontalAlignment = HorizontalAlignment.Left });
+        var aiState = dlg.Add(Strings.Settings_AiAssistant, new TextBlock { Text = AiActions.Describe(), TextWrapping = TextWrapping.Wrap }, top: 18);
+        var ai = dlg.Add(null, new Button { Content = Strings.Settings_AiSettings, HorizontalAlignment = HorizontalAlignment.Left });
         ai.Click += (_, _) =>
         {
             if (!AiActions.ShowSettings(dlg)) return;
@@ -2266,9 +2274,9 @@ public partial class MainWindow : Window
             foreach (var t in Tabs) t.RefreshAiPane();
         };
 
-        var reset = dlg.AddFooterButton("Reset to defaults");
-        reset.ToolTip = "These settings back to how Inkvolt PDF starts, at once (Undo changes puts them back). Recent files, signatures and the AI assistant's settings are kept.";
-        var undo = dlg.AddFooterButton("Undo changes");
+        var reset = dlg.AddFooterButton(Strings.Settings_ResetDefaults);
+        reset.ToolTip = Strings.Settings_ResetDefaultsTip;
+        var undo = dlg.AddFooterButton(Strings.Settings_UndoChanges);
 
         // The controls show the settings; while they are set from them, their change events apply nothing.
         var syncing = false;
@@ -2310,7 +2318,7 @@ public partial class MainWindow : Window
             s.Save();
             UpdateUi();
             undo.IsEnabled = session.HasChanges;
-            undo.ToolTip = session.Summary is { } summary ? $"{summary}: put them back as they were" : "Nothing changed since Settings opened";
+            undo.ToolTip = session.Summary is { } summary ? Loc.Format(Strings.Settings_UndoChangesTip, summary) : Strings.Settings_NothingChanged;
         }
         void Changed(string key, object? value)
         {
@@ -2351,7 +2359,7 @@ public partial class MainWindow : Window
                 Show(key, value);
             }
             Done();
-            ShowStatus("Settings back to their defaults; Undo changes puts them back");
+            ShowStatus(Strings.Settings_ResetDone);
         };
         undo.Click += (_, _) =>
         {
@@ -2361,7 +2369,7 @@ public partial class MainWindow : Window
                 Show(key, value);
             }
             Done();
-            ShowStatus("Settings put back as they were");
+            ShowStatus(Strings.Settings_UndoDone);
         };
         Done();
         dlg.ShowModal();
@@ -2389,7 +2397,7 @@ public partial class MainWindow : Window
         var pointer = CommandBarLayout.Group(CommandBarLayout.Pointer).Commands.FirstOrDefault(c => IsToolOn(c.Name))
                       ?? CommandBarLayout.Group(CommandBarLayout.Pointer).Commands[0];
         PointerIcon.Text = pointer.Glyph;
-        PointerLabel.Text = pointer.Name switch { "ToolSelect" => "Select", "ToolSnapshot" => "Snapshot", _ => "Hand" };
+        PointerLabel.Text = pointer.Name switch { "ToolSelect" => Strings.Main_PointerSelect, "ToolSnapshot" => Strings.Main_PointerSnapshot, _ => Strings.Main_PointerHand };
         PointerButton.IsChecked = pointer.Name != "ToolHand";
         ShowGroupState(FillSignButton, FillSignIcon, "FillSign", "\uE8D2");
         ShowGroupState(CommentButton, CommentIcon, "Comment", "\uE90A");
@@ -2427,10 +2435,10 @@ public partial class MainWindow : Window
         ThemeDarkMenu.IsChecked = AppSettings.Current.Theme == "Dark";
         AppearanceButton.Content = App.IsDark ? "\uE706" : "\uE708"; // sun in dark mode, moon in light mode
 
-        UndoMenu.Header = t?.Session.UndoLabel is { } u ? $"_Undo {u}" : "_Undo";
-        RedoMenu.Header = t?.Session.RedoLabel is { } r ? $"_Redo {r}" : "_Redo";
-        UndoButton.ToolTip = Cmd.Tip(t?.Session.UndoLabel is { } u2 ? $"Undo {u2}" : "Undo", Cmd.Undo);
-        RedoButton.ToolTip = Cmd.Tip(t?.Session.RedoLabel is { } r2 ? $"Redo {r2}" : "Redo", Cmd.Redo);
+        UndoMenu.Header = t?.Session.UndoLabel is { } u ? Loc.Format(Strings.Main_UndoWhatMenu, u) : Strings.Main_UndoMenu;
+        RedoMenu.Header = t?.Session.RedoLabel is { } r ? Loc.Format(Strings.Main_RedoWhatMenu, r) : Strings.Main_RedoMenu;
+        UndoButton.ToolTip = Cmd.Tip(t?.Session.UndoLabel is { } u2 ? Loc.Format(Strings.Main_UndoWhat, u2) : Strings.Common_Undo, Cmd.Undo);
+        RedoButton.ToolTip = Cmd.Tip(t?.Session.RedoLabel is { } r2 ? Loc.Format(Strings.Main_RedoWhat, r2) : Strings.Common_Redo, Cmd.Redo);
         CommandManager.InvalidateRequerySuggested();
     }
 
@@ -2545,16 +2553,16 @@ public partial class MainWindow : Window
     private void OnAbout(object sender, RoutedEventArgs e)
     {
         var version = typeof(MainWindow).Assembly.GetName().Version;
-        var dlg = new FormDialog(this, "About Inkvolt PDF", "Close", 420);
+        var dlg = new FormDialog(this, Strings.Main_AboutTitle, Strings.Common_Close, 420);
         dlg.Add(null, new Image { Source = new BitmapImage(new Uri("pack://application:,,,/InkvoltPdfLogo.png")), Width = 56, Height = 56, HorizontalAlignment = HorizontalAlignment.Left });
-        dlg.Add(null, new TextBlock { Text = $"Inkvolt PDF {version?.ToString(3)}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) });
-        dlg.AddNote($"Read, search, print and organize PDFs. Native {RuntimeInformation.ProcessArchitecture} build.");
-        dlg.AddNote("Copyright © 2026 Bermudez Systems LLC. Free software under the GNU Affero General Public License v3: you may use, share and change it; it comes with no warranty. Rendering, text and search: MuPDF (AGPL-3.0). Page editing: PDFsharp (MIT). Nothing you open leaves this computer.");
+        dlg.Add(null, new TextBlock { Text = $"Inkvolt PDF {version?.ToString(3)}", FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 10, 0, 0) }); // in every language: the product and its version
+        dlg.AddNote(Loc.Format(Strings.Main_AboutWhat, RuntimeInformation.ProcessArchitecture));
+        dlg.AddNote(Strings.Main_AboutLicense);
         if (AppEnvironment.IsPackaged)
-            dlg.AddNote("Installed as an app package; Windows keeps it up to date, and Help › Check for Updates looks for a new version now.");
-        var notices = dlg.Add(null, new Button { Content = "Third-party notices…", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) });
+            dlg.AddNote(Strings.Main_AboutPackaged);
+        var notices = dlg.Add(null, new Button { Content = Strings.Main_ThirdPartyNoticesButton, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) });
         notices.Click += (_, _) => ShowThirdPartyNotices(dlg);
-        var source = dlg.Add(null, new Button { Content = "Source code (GitHub)", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) });
+        var source = dlg.Add(null, new Button { Content = Strings.Main_SourceCode, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0) });
         source.Click += (_, _) => Shell.Open(SourceUrl);
         dlg.ShowModal();
     }
@@ -2571,9 +2579,9 @@ public partial class MainWindow : Window
         }
         catch (IOException ex)
         {
-            text = $"The notices could not be loaded: {ex.Message}";
+            text = Loc.Format(Strings.Main_NoticesLoadFailed, ex.Message);
         }
-        var dlg = new FormDialog(owner, "Third-party notices", "Close", 640);
+        var dlg = new FormDialog(owner, Strings.Main_ThirdPartyNoticesTitle, Strings.Common_Close, 640);
         dlg.Add(null, new TextBox
         {
             Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, Height = 420,

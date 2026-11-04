@@ -36,7 +36,7 @@ public partial class DocumentTab
             var link = Session.IsPdf && !IsOrganizing ? Viewer.ContextLink : null;
             foreach (var item in new FrameworkElement[] { CtxEditLink, CtxDeleteLink, CtxLinkSeparator })
                 item.Visibility = link is not null ? Visibility.Visible : Visibility.Collapsed;
-            if (link is not null) CtxEditLink.Header = $"_Edit Link ({Trim(link.Describe(), 40)})…";
+            if (link is not null) CtxEditLink.Header = Loc.Format(Strings.Insert_EditLinkMenu, Trim(link.Describe(), 40));
         };
     }
 
@@ -60,7 +60,7 @@ public partial class DocumentTab
             {
                 if (!Clipboard.ContainsImage() || Clipboard.GetImage() is not { } clip)
                 {
-                    Notify("There's no image on the clipboard. Copy a picture (for example a screenshot) first.");
+                    Notify(Strings.Insert_NoClipboardImage);
                     return Disarm();
                 }
                 bmp = SignatureImages.Fit(SignatureImages.FromClipboard((BitmapSource)clip.GetAsFrozen()), 2000);
@@ -70,7 +70,7 @@ public partial class DocumentTab
             {
                 if (path is null)
                 {
-                    var dlg = new Microsoft.Win32.OpenFileDialog { Title = "Add Image", Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+                    var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.Insert_AddImageTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
                     if (dlg.ShowDialog(Window.GetWindow(this)) != true) return Disarm();
                     path = dlg.FileName;
                 }
@@ -89,14 +89,14 @@ public partial class DocumentTab
             _pendingImage = image;
             _pendingImageName = name;
             Viewer.Tool = ViewerTool.AddImage;
-            Notify("Click where the picture goes. Drag it to move it, drag its corner to resize, Delete removes it.");
+            Notify(Strings.Insert_ClickWherePicture);
             Viewer.Focus();
             return true;
         }
         catch (Exception ex) when (ex is IOException or NotSupportedException or UnauthorizedAccessException or ArgumentException or InvalidOperationException or COMException or ExternalException)
         {
             Log.Write($"Add image failed: {ex.Message}");
-            Notify($"That picture can't be read: {ex.Message}", error: true);
+            Notify(Loc.Format(Strings.Insert_PictureUnreadable, ex.Message), error: true);
             return Disarm();
         }
         finally
@@ -117,7 +117,7 @@ public partial class DocumentTab
         var name = _pendingImageName;
         var author = Author;
         Viewer.Tool = ViewerTool.Hand;
-        await RunStampEdit("Add image", (d, pw) => SignatureStamps.PutImage(d, pw, p.PageIndex, p.Rect, image, name, author));
+        await RunStampEdit(Strings.Insert_EditAddImage, (d, pw) => SignatureStamps.PutImage(d, pw, p.PageIndex, p.Rect, image, name, author));
     }
 
     // ───────────────────────────── Links ─────────────────────────────
@@ -125,7 +125,7 @@ public partial class DocumentTab
     private async Task AddLinkAt(LinkPlacement p)
     {
         if (AskLinkTarget(null, p.PageIndex) is not { } target) return;
-        await RunEdit("Add link", (d, pw) => Links.Put(d, pw, p.PageIndex, p.Rect, target.Uri, target.Page));
+        await RunEdit(Strings.Insert_EditAddLink, (d, pw) => Links.Put(d, pw, p.PageIndex, p.Rect, target.Uri, target.Page));
     }
 
     /// <summary>
@@ -137,17 +137,17 @@ public partial class DocumentTab
         if (!CanMarkup) return false;
         if (Viewer.SelectedPageCount > 50)
         {
-            Notify("Select the text of at most 50 pages to make it a link.", error: true);
+            Notify(Strings.Insert_LinkTooManyPages, error: true);
             return false;
         }
-        if (await SelectionLineRects("Making a link") is not { } parts) return false;
+        if (await SelectionLineRects(Strings.Insert_MakingLink) is not { } parts) return false;
         if (parts.Count == 0)
         {
-            Notify("The selection has no text to make a link.");
+            Notify(Strings.Insert_SelectionNoText);
             return false;
         }
         if (AskLinkTarget(null, parts[0].Page) is not { } target) return false;
-        var ok = await RunEdit("Add link", (d, pw) =>
+        var ok = await RunEdit(Strings.Insert_EditAddLink, (d, pw) =>
         {
             foreach (var (page, rects) in parts) d = Links.PutOnText(d, pw, page, rects, target.Uri, target.Page);
             return d;
@@ -160,15 +160,15 @@ public partial class DocumentTab
     public async Task<bool> EditLink(LinkInfo link)
     {
         if (!ReviewIsCurrent() || AskLinkTarget(link, link.PageIndex) is not { } target) return false;
-        return await RunEdit("Edit link", (d, pw) => Links.Put(d, pw, link.PageIndex, link.Rect, target.Uri, target.Page, link.Id));
+        return await RunEdit(Strings.Insert_EditEditLink, (d, pw) => Links.Put(d, pw, link.PageIndex, link.Rect, target.Uri, target.Page, link.Id));
     }
 
     private async Task<bool> ChangeLink(LinkChange c)
     {
         var outcome = !ReviewIsCurrent() ? EditOutcome.Busy
             : c.Rect is { } r
-                ? await TryEdit("Move link", (d, pw) => Links.Move(d, pw, c.Id, c.PageIndex, r))
-                : await TryEdit("Delete link", (d, pw) => Links.Delete(d, pw, c.Id));
+                ? await TryEdit(Strings.Insert_EditMoveLink, (d, pw) => Links.Move(d, pw, c.Id, c.PageIndex, r))
+                : await TryEdit(Strings.Insert_EditDeleteLink, (d, pw) => Links.Delete(d, pw, c.Id));
         if (outcome is EditOutcome.Done or EditOutcome.NoChange) return true;
         // Not made (declined, failed, or the tab was busy): the page view already shows the box at its new place, so
         // show the links as the document has them.
@@ -196,19 +196,19 @@ public partial class DocumentTab
     {
         if (Window.GetWindow(this) is not { } owner) return null;
         if (DevScript.TakeLinkTarget(out var scripted)) return scripted;
-        var dlg = new FormDialog(owner, existing is null ? "Add Link" : "Edit Link", existing is null ? "Add" : "Save", 460);
+        var dlg = new FormDialog(owner, existing is null ? Strings.Insert_AddLinkTitle : Strings.Insert_EditLinkTitle, existing is null ? Strings.Common_Add : Strings.Common_Save, 460);
         var group = $"link{GetHashCode()}";
-        var toWeb = dlg.Add(null, new RadioButton { Content = "A web or email address", GroupName = group, IsChecked = existing is not { Uri: null, TargetPage: >= 0 } });
+        var toWeb = dlg.Add(null, new RadioButton { Content = Strings.Insert_ToWeb, GroupName = group, IsChecked = existing is not { Uri: null, TargetPage: >= 0 } });
         var url = dlg.Add(null, new TextBox { Text = existing?.Uri ?? "https://", Margin = new Thickness(24, 4, 0, 0) });
-        System.Windows.Automation.AutomationProperties.SetName(url, "Web or email address");
-        var toPage = dlg.Add(null, new RadioButton { Content = "A page in this document", GroupName = group, IsChecked = existing is { Uri: null, TargetPage: >= 0 }, Margin = new Thickness(0, 12, 0, 0) });
+        System.Windows.Automation.AutomationProperties.SetName(url, Strings.Insert_WebAddressName);
+        var toPage = dlg.Add(null, new RadioButton { Content = Strings.Insert_ToPage, GroupName = group, IsChecked = existing is { Uri: null, TargetPage: >= 0 }, Margin = new Thickness(0, 12, 0, 0) });
         var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(24, 4, 0, 0) };
         var page = new TextBox { Width = 80, Text = existing is { TargetPage: >= 0 } e ? PageLabel(e.TargetPage) : PageLabel(Math.Min(Viewer.PageCount - 1, onPage + 1)) };
-        System.Windows.Automation.AutomationProperties.SetName(page, "Page");
+        System.Windows.Automation.AutomationProperties.SetName(page, Strings.Common_Page);
         row.Children.Add(page);
-        row.Children.Add(new TextBlock { Text = $"of {Viewer.PageCount}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+        row.Children.Add(new TextBlock { Text = Loc.Format(Strings.Insert_OfPages, Viewer.PageCount), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
         dlg.Add(null, row);
-        dlg.AddNote("Inkvolt PDF asks before opening any address that isn't http, https or mailto; so do most viewers.");
+        dlg.AddNote(Strings.Insert_LinkNote);
         url.GotKeyboardFocus += (_, _) => toWeb.IsChecked = true;
         page.GotKeyboardFocus += (_, _) => toPage.IsChecked = true;
         dlg.Loaded += (_, _) =>
@@ -223,16 +223,15 @@ public partial class DocumentTab
         {
             if (toPage.IsChecked == true)
             {
-                if (FindPage(page.Text.Trim()) is not { } p) return $"Enter a page from 1 to {Viewer.PageCount}.";
+                if (FindPage(page.Text.Trim()) is not { } p) return Loc.Format(Strings.Insert_EnterPage, Viewer.PageCount);
                 result = (null, p);
                 return null;
             }
-            if (Links.Normalize(url.Text) is not { } uri) return "Type a web address (https://…) or an email address.";
+            if (Links.Normalize(url.Text) is not { } uri) return Strings.Insert_TypeAddress;
             // Addresses other than web and email open other programs: the same care as when opening such a link.
-            if (!Links.IsSafe(uri) && !Prompt.Confirm(dlg, "Link to this address?",
-                    $"{uri} isn't a web or email address, so it may open another program. Inkvolt PDF and most viewers ask before opening it. Only add it if you trust where it leads.",
-                    "Add link", warning: true))
-                return "Choose a web or email address instead.";
+            if (!Links.IsSafe(uri) && !Prompt.Confirm(dlg, Strings.Insert_UnsafeTitle,
+                    Loc.Format(Strings.Insert_UnsafeBody, uri), Strings.Insert_AddLinkButton, warning: true))
+                return Strings.Insert_ChooseWebInstead;
             result = (uri, -1);
             return null;
         });

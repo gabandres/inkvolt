@@ -135,7 +135,7 @@ internal static class LongTermCheck
                 f.Info = f.Info with
                 {
                     CertificateTrusted = false,
-                    CertificateStatus = $"Revoked{(revoked.RevokedAt is { } at ? $" on {at.UtcDateTime:yyyy-MM-dd}" : "")}: {revoked.Name}",
+                    CertificateStatus = revoked.RevokedAt is { } at ? Loc.Format(PdfStrings.Ltv_RevokedStatusAt, at.UtcDateTime, revoked.Name) : Loc.Format(PdfStrings.Ltv_RevokedStatus, revoked.Name),
                 };
 
             var level = Level(data, password, f, stamps, pool, revisions, complete, anchors);
@@ -247,22 +247,22 @@ internal static class LongTermCheck
 
     private static string Summary(SignatureFacts f, PadesLevel level, bool complete, IReadOnlyList<CertificateCheck> chain, RevocationPool pool)
     {
-        if (pool.OutOfBudget) return "The file's validation data is more than a check reads, so it wasn't fully checked.";
+        if (pool.OutOfBudget) return PdfStrings.Ltv_OutOfBudget;
         var missing = chain.Where(c => !c.Covered).Select(c => c.Name).Distinct().ToList();
-        var which = missing.Count == 0 ? "" : $" Missing for: {string.Join(", ", missing.Take(3))}{(missing.Count > 3 ? ", and more" : "")}.";
+        var which = missing.Count == 0 ? "" : Loc.Format(missing.Count > 3 ? PdfStrings.Ltv_MissingForMore : PdfStrings.Ltv_MissingFor, string.Join(", ", missing.Take(3)));
         var later = chain.FirstOrDefault(c => c.Outcome == CertificateCheckOutcome.RevokedLater);
-        var note = later is null ? "" : $" {later.Name} was revoked later, on {later.RevokedAt:yyyy-MM-dd}, after this signature's time.";
+        var note = later is null ? "" : Loc.Format(PdfStrings.Ltv_RevokedLaterNote, later.Name, later.RevokedAt);
         if (f.DocumentTimestamp)
-            return (complete ? "Document timestamp: its authority's validation data is in the file." : $"Document timestamp: its authority's validation data isn't all in the file.{which}") + note;
+            return (complete ? PdfStrings.Ltv_DocTsComplete : Loc.Format(PdfStrings.Ltv_DocTsIncomplete, which)) + note;
         return (level switch
         {
-            PadesLevel.BLTA => "PAdES B-LTA: LTV enabled. The file holds the validation data for every certificate, and a document timestamp covers it.",
-            PadesLevel.BLT => "PAdES B-LT: LTV enabled. The file holds the validation data for every certificate.",
-            PadesLevel.BT => $"PAdES B-T: timestamped, but the file doesn't hold the validation data, so checking it later depends on the certificate authorities still answering.{which}",
-            PadesLevel.BB when complete => "PAdES B-B: the file holds the validation data, but no timestamp proves when it was signed, so it can't be checked once the certificate expires.",
-            PadesLevel.BB => "PAdES B-B: no timestamp and no validation data in the file, so it can't be checked once the certificate expires.",
-            _ when complete && f.Stamped is not null => "LTV enabled, though not in the PAdES format: the file holds the validation data for every certificate.",
-            _ => $"Not in the PAdES format. The file doesn't hold what it takes to check it in the long term.{which}",
+            PadesLevel.BLTA => PdfStrings.Ltv_BLta,
+            PadesLevel.BLT => PdfStrings.Ltv_BLt,
+            PadesLevel.BT => Loc.Format(PdfStrings.Ltv_Bt, which),
+            PadesLevel.BB when complete => PdfStrings.Ltv_BbComplete,
+            PadesLevel.BB => PdfStrings.Ltv_BbNothing,
+            _ when complete && f.Stamped is not null => PdfStrings.Ltv_NotPadesComplete,
+            _ => Loc.Format(PdfStrings.Ltv_NotPades, which),
         }) + note;
     }
 }

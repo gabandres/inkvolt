@@ -134,9 +134,9 @@ public sealed record RedactionCheckReport(IReadOnlyList<RedactionFinding> Findin
 
     /// <summary>"3 things found: text under a cover (2), bookmark (1).", or that nothing was found.</summary>
     public string Summary => IsClean
-        ? "Nothing of what was redacted was found in the file."
-        : $"{(Findings.Count == 1 ? "1 thing" : $"{Findings.Count} things")} found: " +
-          string.Join(", ", Findings.GroupBy(f => f.Kind).OrderBy(g => g.Key).Select(g => $"{char.ToLowerInvariant(RedactionCheck.Name(g.Key)[0])}{RedactionCheck.Name(g.Key)[1..]} ({g.Count()})")) + ".";
+        ? PdfStrings.Redact_CheckNothingFound
+        : Loc.Plural(Findings.Count, PdfStrings.Redact_CheckFound_One, PdfStrings.Redact_CheckFound_Many,
+            string.Join(", ", Findings.GroupBy(f => f.Kind).OrderBy(g => g.Key).Select(g => $"{char.ToLowerInvariant(RedactionCheck.Name(g.Key)[0])}{RedactionCheck.Name(g.Key)[1..]} ({g.Count()})")));
 }
 
 /// <summary>
@@ -175,22 +175,22 @@ public static partial class RedactionCheck
 
     public static string Name(RedactionLeak kind) => kind switch
     {
-        RedactionLeak.CoveredText => "Text under a cover",
-        RedactionLeak.CoveredContent => "Picture or drawing under a box",
-        RedactionLeak.UnappliedMark => "Redaction mark not applied",
-        RedactionLeak.GlyphSpacing => "Spacing that gives away a width",
-        RedactionLeak.PageText => "Text on a page",
-        RedactionLeak.HiddenText => "Text that doesn't show",
-        RedactionLeak.HiddenContent => "Hidden content",
-        RedactionLeak.Annotation => "Comment",
-        RedactionLeak.FormField => "Form field",
-        RedactionLeak.Bookmark => "Bookmark",
-        RedactionLeak.Metadata => "Metadata",
-        RedactionLeak.Attachment => "Attached file",
-        RedactionLeak.StructureTree => "Tags (alternate text)",
-        RedactionLeak.EarlierRevision => "Earlier version",
-        RedactionLeak.FileData => "Other data in the file",
-        RedactionLeak.AreaNotRemoved => "Redacted area",
+        RedactionLeak.CoveredText => PdfStrings.Redact_LeakCoveredText,
+        RedactionLeak.CoveredContent => PdfStrings.Redact_LeakCoveredContent,
+        RedactionLeak.UnappliedMark => PdfStrings.Redact_LeakUnappliedMark,
+        RedactionLeak.GlyphSpacing => PdfStrings.Redact_LeakGlyphSpacing,
+        RedactionLeak.PageText => PdfStrings.Redact_LeakPageText,
+        RedactionLeak.HiddenText => PdfStrings.Redact_LeakHiddenText,
+        RedactionLeak.HiddenContent => PdfStrings.Redact_LeakHiddenContent,
+        RedactionLeak.Annotation => PdfStrings.Redact_LeakAnnotation,
+        RedactionLeak.FormField => PdfStrings.Redact_LeakFormField,
+        RedactionLeak.Bookmark => PdfStrings.Redact_LeakBookmark,
+        RedactionLeak.Metadata => PdfStrings.Redact_LeakMetadata,
+        RedactionLeak.Attachment => PdfStrings.Redact_LeakAttachment,
+        RedactionLeak.StructureTree => PdfStrings.Redact_LeakStructureTree,
+        RedactionLeak.EarlierRevision => PdfStrings.Redact_LeakEarlierRevision,
+        RedactionLeak.FileData => PdfStrings.Redact_LeakFileData,
+        RedactionLeak.AreaNotRemoved => PdfStrings.Redact_LeakAreaNotRemoved,
         _ => kind.ToString(),
     };
 
@@ -328,7 +328,7 @@ public static partial class RedactionCheck
         public RedactionCheckReport Run()
         {
             using var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
-            using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be checked");
+            using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Redact_CantCheck);
             var pages = engine.PageCount;
             var revisions = Revisions(data);
             _total = pages * 2 + Math.Min(revisions.Count, MaxRevisions);
@@ -381,7 +381,7 @@ public static partial class RedactionCheck
             {
                 // With the patterns run over the rest of the file, whatever they can read there has been looked for anyway.
                 _incomplete |= options.Patterns is null || outside.Count > MaxValues;
-                _notes.Add($"Only the first {MaxValues:N0} of {all.Count:N0} redacted values were looked for as written in the rest of the file.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_OnlyFirstValues, MaxValues, all.Count));
             }
             var matcher = new ValueMatcher(values);
             if (!matcher.IsEmpty)
@@ -393,18 +393,18 @@ public static partial class RedactionCheck
                 // What the patterns read but the search for it as written didn't place (an attached PDF's kerned text) is still there.
                 for (var v = 0; v < values.Count; v++)
                     if (!_hit.Contains(v) && outside.Contains(values[v], StringComparer.OrdinalIgnoreCase))
-                        Add(new RedactionFinding(RedactionLeak.FileData, "Another part of the file", values[v]));
+                        Add(new RedactionFinding(RedactionLeak.FileData, PdfStrings.Redact_WhereOtherPart, values[v]));
             }
             else EarlierVersions(engine, null, [], revisions);
             if (matcher.TooLarge)
             {
                 _incomplete = true;
-                _notes.Add("A redacted value was too long to look for in the rest of the file.");
+                _notes.Add(PdfStrings.Redact_ValueTooLong);
             }
             if (matcher.TimedOut)
             {
                 _incomplete = true;
-                _notes.Add("Looking for the redacted values took too long in part of the file, so that part wasn't searched to the end.");
+                _notes.Add(PdfStrings.Redact_SearchTimedOut);
             }
 
             var order = _findings.Select((f, i) => (f, i)).OrderBy(x => x.f.Page < 0 ? int.MaxValue : x.f.Page).ThenBy(x => x.f.Kind).ThenBy(x => x.i);
@@ -424,11 +424,11 @@ public static partial class RedactionCheck
             }
             catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or InvalidCastException or IndexOutOfRangeException or NotSupportedException)
             {
-                _notes.Add($"Page {index + 1}: part of its content couldn't be read, so boxes on it may have been missed.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_PageUnreadable, index + 1));
             }
             catch (StreamTooLargeException)
             {
-                TooLarge($"Page {index + 1}'s content");
+                TooLarge(Loc.Format(PdfStrings.Redact_PartPageContent, index + 1));
             }
             if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) return scan;
             for (var i = 0; i < annots.Elements.Count; i++)
@@ -517,7 +517,7 @@ public static partial class RedactionCheck
             {
                 // Its box is outside the page: redacting it draws the page again as an image, without it, and blacks out nothing.
                 var box = text.GetRects(start, end).Aggregate(default(RectD), (a, r) => a.Union(r));
-                Add(new RedactionFinding(RedactionLeak.HiddenText, $"Page {p + 1}, outside the visible page", text.Text[start..end]) { Page = p, Box = box });
+                Add(new RedactionFinding(RedactionLeak.HiddenText, Loc.Format(PdfStrings.Redact_WhereOffPage, p + 1), text.Text[start..end]) { Page = p, Box = box });
                 _found.Add(text.Text[start..end]);
                 for (var i = start; i < end; i++) _reported[p].Add(i);
             }
@@ -567,7 +567,7 @@ public static partial class RedactionCheck
                 var runs = Runs(text, i => rects.Any(r => r.Contains(text.BoxAt(i).CenterX, text.BoxAt(i).CenterY))).ToList();
                 var words = string.Join(" ", runs.Select(r => text.Text[r.Start..r.End]));
                 var box = rects.Aggregate(default(RectD), (a, r) => a.Union(r));
-                Add(new RedactionFinding(RedactionLeak.UnappliedMark, $"Page {p + 1}", words.Length > 0 ? words : "(no text under it: what it covers is still in the page)")
+                Add(new RedactionFinding(RedactionLeak.UnappliedMark, Loc.Format(PdfStrings.Redact_WherePage, p + 1), words.Length > 0 ? words : PdfStrings.Redact_NoTextUnder)
                     { Page = p, Box = box });
                 foreach (var (s, e) in runs)
                 {
@@ -598,7 +598,7 @@ public static partial class RedactionCheck
             }
             catch (Exception ex) when (ex is InvalidOperationException or PdfSharp.PdfSharpException or ArgumentException or NotSupportedException or NullReferenceException)
             {
-                _notes.Add("What is under the dark boxes couldn't be drawn (the file can't be copied without them), so only text under them was looked for.");
+                _notes.Add(PdfStrings.Redact_CoversNotDrawn);
                 foreach (var p in pages) Beside(p, scans[p]);
                 return;
             }
@@ -615,7 +615,7 @@ public static partial class RedactionCheck
                     var scale = Math.Min(1.5, Math.Sqrt(1_500_000 / (area.Width * area.Height)));
                     if (!HidesSomething(engine.Render(p, scale, area, cancel), without.Render(p, scale, area, cancel))) continue;
                     var under = Runs(text, i => area.Contains(text.BoxAt(i).CenterX, text.BoxAt(i).CenterY)).ToList();
-                    var where = cover.Annot >= 0 ? $"Page {p + 1}, under a dark comment" : $"Page {p + 1}, under a dark box";
+                    var where = cover.Annot >= 0 ? Loc.Format(PdfStrings.Redact_WhereUnderComment, p + 1) : Loc.Format(PdfStrings.Redact_WhereUnderBox, p + 1);
                     if (under.Count > 0)
                     {
                         Add(new RedactionFinding(RedactionLeak.CoveredText, where, string.Join(" ", under.Select(r => text.Text[r.Start..r.End]))) { Page = p, Box = area });
@@ -625,7 +625,7 @@ public static partial class RedactionCheck
                             for (var i = s; i < e; i++) _reported[p].Add(i);
                         }
                     }
-                    else Add(new RedactionFinding(RedactionLeak.CoveredContent, where, "A picture or drawing is still under it") { Page = p, Box = area });
+                    else Add(new RedactionFinding(RedactionLeak.CoveredContent, where, PdfStrings.Redact_PictureStillUnder) { Page = p, Box = area });
                 }
                 Beside(p, scans[p]);
             }
@@ -688,7 +688,7 @@ public static partial class RedactionCheck
                 var lines = near.Select(text.LineAt).Distinct().OrderBy(l => text.BoxAt(l.Start).X).ToList();
                 var left = lines.Where(l => text.BoxAt(l.Start).X < box.X).Select(l => text.Text[l.Start..l.End].Trim());
                 var right = lines.Where(l => text.BoxAt(l.Start).X >= box.X).Select(l => text.Text[l.Start..l.End].Trim());
-                Add(new RedactionFinding(RedactionLeak.GlyphSpacing, $"Page {p + 1}, beside a dark box", string.Join(" ", [.. left, "▮", .. right])) { Page = p, Box = box });
+                Add(new RedactionFinding(RedactionLeak.GlyphSpacing, Loc.Format(PdfStrings.Redact_WhereBesideBox, p + 1), string.Join(" ", [.. left, "▮", .. right])) { Page = p, Box = box });
             }
         }
 
@@ -702,8 +702,8 @@ public static partial class RedactionCheck
                 if (Enumerable.Range(start, end - start).Any(_reported[p].Contains)) continue;
                 var box = text.GetRects(start, end).Aggregate(default(RectD), (a, r) => a.Union(r));
                 var cover = scan.Covers.FirstOrDefault(c => c.Box.Inflate(0.5).Contains(box.CenterX, box.CenterY));
-                var where = cover is null ? "covered or drawn in the color behind it" : cover.Annot >= 0 ? "under a dark comment" : "under a dark box";
-                Add(new RedactionFinding(RedactionLeak.CoveredText, $"Page {p + 1}, {where}", text.Text[start..end]) { Page = p, Box = cover?.Box ?? box });
+                var where = cover is null ? PdfStrings.Redact_WhereColorBehind : cover.Annot >= 0 ? PdfStrings.Redact_WhereUnderComment : PdfStrings.Redact_WhereUnderBox;
+                Add(new RedactionFinding(RedactionLeak.CoveredText, Loc.Format(where, p + 1), text.Text[start..end]) { Page = p, Box = cover?.Box ?? box });
                 _found.Add(text.Text[start..end]);
                 for (var i = start; i < end; i++) _reported[p].Add(i);
             }
@@ -780,9 +780,9 @@ public static partial class RedactionCheck
                     for (var i = 0; i + 2 < img.Pixels.Length; i += 3)
                         if (Distance(img.Pixels, i, main) > 60) off++;
                     if (off > Math.Max(4, n / 50))
-                        Add(new RedactionFinding(RedactionLeak.AreaNotRemoved, $"Page {p + 1}", "The redacted area still shows content") { Page = p, Box = rect });
+                        Add(new RedactionFinding(RedactionLeak.AreaNotRemoved, Loc.Format(PdfStrings.Redact_WherePage, p + 1), PdfStrings.Redact_AreaShowsContent) { Page = p, Box = rect });
                     if (originals.Count > 0 && scans[p].Pictures.Any(pic => pic.Image is { } im && !pic.Box.Intersect(area).IsEmpty && originals.Contains(Hash(im))))
-                        Add(new RedactionFinding(RedactionLeak.AreaNotRemoved, $"Page {p + 1}", "The picture under the redacted area is the original, unchanged") { Page = p, Box = rect });
+                        Add(new RedactionFinding(RedactionLeak.AreaNotRemoved, Loc.Format(PdfStrings.Redact_WherePage, p + 1), PdfStrings.Redact_AreaOriginalPicture) { Page = p, Box = rect });
                 }
             }
         }
@@ -799,7 +799,7 @@ public static partial class RedactionCheck
             }
             catch (InvalidOperationException)
             {
-                _notes.Add("The document before redaction couldn't be read, so pictures under the redacted areas weren't compared with it.");
+                _notes.Add(PdfStrings.Redact_OriginalUnreadable);
             }
             return set;
         }
@@ -820,11 +820,11 @@ public static partial class RedactionCheck
             }
             _hiddenLayers = scan[SanitizeItem.HiddenLayers];
             if (scan[SanitizeItem.HiddenLayers] is var layers and > 0)
-                Add(new RedactionFinding(RedactionLeak.HiddenContent, "Hidden layers",
-                    $"{(layers == 1 ? "1 layer" : $"{layers} layers")} that don't show, with what they draw") { Sanitize = SanitizeItem.HiddenLayers });
+                Add(new RedactionFinding(RedactionLeak.HiddenContent, PdfStrings.Redact_WhereHiddenLayers,
+                    Loc.Plural(layers, PdfStrings.Redact_HiddenLayers_One, PdfStrings.Redact_HiddenLayers_Many)) { Sanitize = SanitizeItem.HiddenLayers });
             if (scan[SanitizeItem.HiddenAnnotations] is var annots and > 0)
-                Add(new RedactionFinding(RedactionLeak.HiddenContent, "Hidden comments and form fields",
-                    $"{(annots == 1 ? "1 comment or field" : $"{annots} comments and fields")} that don't show") { Sanitize = SanitizeItem.HiddenAnnotations });
+                Add(new RedactionFinding(RedactionLeak.HiddenContent, PdfStrings.Redact_WhereHiddenAnnots,
+                    Loc.Plural(annots, PdfStrings.Redact_HiddenAnnots_One, PdfStrings.Redact_HiddenAnnots_Many)) { Sanitize = SanitizeItem.HiddenAnnotations });
         }
 
         /// <summary>The values in each page's text (characters already reported under a cover aside).</summary>
@@ -836,7 +836,7 @@ public static partial class RedactionCheck
                 _hit.Add(v);
                 if (Enumerable.Range(start, length).Any(_reported[p].Contains)) continue; // reported under its cover
                 var box = text.GetRects(start, start + length).Aggregate(default(RectD), (a, r) => a.Union(r));
-                Add(new RedactionFinding(RedactionLeak.PageText, $"Page {p + 1}", text.Text.Substring(start, length).ReplaceLineEndings(" ")) { Page = p, Box = box });
+                Add(new RedactionFinding(RedactionLeak.PageText, Loc.Format(PdfStrings.Redact_WherePage, p + 1), text.Text.Substring(start, length).ReplaceLineEndings(" ")) { Page = p, Box = box });
                 for (var i = start; i < start + length; i++) _reported[p].Add(i);
             }
         }

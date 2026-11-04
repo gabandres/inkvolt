@@ -87,7 +87,7 @@ internal static class Dss
     /// </summary>
     public static byte[] Append(byte[] data, string? password, IReadOnlyList<VriEntry> entries)
     {
-        using var doc = Signing.OpenForAppend(data, password) ?? throw new SigningException("This document's file structure can't be extended, so long-term data can't be added without breaking its signatures. Nothing was changed.");
+        using var doc = Signing.OpenForAppend(data, password) ?? throw new SigningException(PdfStrings.Ltv_DssCantExtend);
         var catalog = doc.Internals.Catalog;
         var dss = PdfObj.Dict(catalog.Elements["/DSS"]);
         if (dss is null)
@@ -132,7 +132,7 @@ internal static class Dss
                 },
             };
 
-        return Incremental.TrySave(doc, null) ?? throw new SigningException("Long-term data can't be appended to this PDF. Nothing was changed.");
+        return Incremental.TrySave(doc, null) ?? throw new SigningException(PdfStrings.Ltv_DssCantAppend);
     }
 
     /// <summary>The store already holds all of this, under these signatures' /VRI keys: an update would add nothing.</summary>

@@ -44,7 +44,7 @@ public static partial class AccessibilityCheck
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or IndexOutOfRangeException or OverflowException)
                 {
-                    _notes.Add($"The font {FontName(font)} couldn't be read in full: {ex.Message}");
+                    _notes.Add(Loc.Format(PdfStrings.A11y_FontUnreadable, FontName(font), ex.Message));
                 }
             }
         }
@@ -59,7 +59,7 @@ public static partial class AccessibilityCheck
         private void Font(PdfDictionary font, FontUse use)
         {
             var name = FontName(font);
-            var label = $"Font {name}";
+            var label = Loc.Format(PdfStrings.A11y_ElementFont, name);
             void Fail(string condition, string problem) => Add(condition, problem, use.Page, use.Box, label);
 
             var subtype = PdfObj.NameOf(font, "/Subtype");
@@ -71,7 +71,7 @@ public static partial class AccessibilityCheck
             var symbolic = (flags & 4) != 0;
 
             if (subtype != "/Type3" && use.Shown.Count > 0 && !embedded)
-                Fail("31-009", $"The font {name} isn't embedded, so the text may show in another font, or not at all, on other computers.");
+                Fail("31-009", Loc.Format(PdfStrings.A11y_FontNotEmbedded, name));
 
             // Glyph by glyph.
             int missing = 0, notdef = 0, unmapped = 0, zero = 0, bom = 0, widths = 0;
@@ -130,13 +130,13 @@ public static partial class AccessibilityCheck
                 }
                 if (shown && tf.DictionaryWidth(code) is { } dw && tf.ProgramWidth(code) is { } pw && Math.Abs(dw - pw) > 1) widths++;
             }
-            if (missing > 0) Fail("31-011", $"The embedded font {name} lacks {Count(missing, "glyph")} the text uses, so {(missing == 1 ? "that character" : "those characters")} can't be drawn as meant.");
-            if (notdef > 0) Fail("31-030", $"Text in the font {name} draws the .notdef glyph (an empty box) {Count(notdef, "time")}: those characters aren't in the font.");
+            if (missing > 0) Fail("31-011", Loc.Plural(missing, PdfStrings.A11y_FontLacksGlyphs_One, PdfStrings.A11y_FontLacksGlyphs_Many, name));
+            if (notdef > 0) Fail("31-030", Loc.Plural(notdef, PdfStrings.A11y_FontNotdef_One, PdfStrings.A11y_FontNotdef_Many, name));
             if (unmapped > 0)
-                Fail("31-027", $"{Count(unmapped, "character")} in the font {name} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read {(unmapped == 1 ? "it" : "them")}.");
-            if (zero > 0) Fail("31-028", $"The font {name}'s ToUnicode map gives {Count(zero, "character")} the value 0.");
-            if (bom > 0) Fail("31-029", $"The font {name}'s ToUnicode map gives {Count(bom, "character")} the value U+FEFF or U+FFFE.");
-            if (widths > 0) Fail("31-016", $"{Count(widths, "glyph")} of the font {name} {(widths == 1 ? "has" : "have")} a different width in the PDF than in the font itself.");
+                Fail("31-027", Loc.Plural(unmapped, PdfStrings.A11y_FontUnmapped_One, PdfStrings.A11y_FontUnmapped_Many, name));
+            if (zero > 0) Fail("31-028", Loc.Plural(zero, PdfStrings.A11y_FontZero_One, PdfStrings.A11y_FontZero_Many, name));
+            if (bom > 0) Fail("31-029", Loc.Plural(bom, PdfStrings.A11y_FontBom_One, PdfStrings.A11y_FontBom_Many, name));
+            if (widths > 0) Fail("31-016", Loc.Plural(widths, PdfStrings.A11y_FontWidths_One, PdfStrings.A11y_FontWidths_Many, name));
 
             if (subtype == "/TrueType") TrueType(font, tf, symbolic, embedded, Fail);
             else if (subtype == "/Type0") Composite(font, cid, descriptor, embedded, name, Fail);
@@ -154,8 +154,8 @@ public static partial class AccessibilityCheck
                     var held = inProgram.ToHashSet(StringComparer.Ordinal);
                     var absent = held.Where(g => g != ".notdef" && !listed.Contains(g)).Take(3).ToList();
                     var extra = listed.Where(g => g != ".notdef" && !held.Contains(g)).Take(3).ToList();
-                    if (absent.Count > 0) Fail("31-012", $"The font {name}'s CharSet doesn't list every glyph in it (such as {string.Join(", ", absent)}).");
-                    if (extra.Count > 0) Fail("31-013", $"The font {name}'s CharSet lists glyphs it doesn't have (such as {string.Join(", ", extra)}).");
+                    if (absent.Count > 0) Fail("31-012", Loc.Format(PdfStrings.A11y_CharSetMissing, name, string.Join(", ", absent)));
+                    if (extra.Count > 0) Fail("31-013", Loc.Format(PdfStrings.A11y_CharSetExtra, name, string.Join(", ", extra)));
                 }
             }
         }
@@ -170,34 +170,34 @@ public static partial class AccessibilityCheck
             if (!symbolic)
             {
                 if (tt is not null && !(has30 ? cmaps > 1 : cmaps > 0))
-                    fail("31-017", $"The TrueType font {name} has no Unicode (3,1) or Mac (1,0) character map, so its glyphs can't be looked up.");
+                    fail("31-017", Loc.Format(PdfStrings.A11y_TrueTypeNoCmap, name));
                 switch (encoding)
                 {
                     case null:
-                        fail("31-019", $"The TrueType font {name} has no Encoding.");
+                        fail("31-019", Loc.Format(PdfStrings.A11y_TrueTypeNoEncoding, name));
                         break;
                     case PdfName n when n.Value is not ("/WinAnsiEncoding" or "/MacRomanEncoding"):
-                        fail("31-021", $"The TrueType font {name}'s encoding is {n.Value.TrimStart('/')}, not WinAnsi or MacRoman.");
+                        fail("31-021", Loc.Format(PdfStrings.A11y_TrueTypeEncodingIs, name, n.Value.TrimStart('/')));
                         break;
                     case PdfDictionary d:
                         var baseEncoding = PdfObj.Name(d.Elements["/BaseEncoding"]);
-                        if (baseEncoding is null) fail("31-020", $"The TrueType font {name}'s Encoding has no base encoding (WinAnsi or MacRoman).");
-                        else if (baseEncoding is not ("WinAnsiEncoding" or "MacRomanEncoding")) fail("31-021", $"The TrueType font {name}'s base encoding is {baseEncoding}, not WinAnsi or MacRoman.");
+                        if (baseEncoding is null) fail("31-020", Loc.Format(PdfStrings.A11y_TrueTypeNoBaseEncoding, name));
+                        else if (baseEncoding is not ("WinAnsiEncoding" or "MacRomanEncoding")) fail("31-021", Loc.Format(PdfStrings.A11y_TrueTypeBaseEncodingIs, name, baseEncoding));
                         if (PdfObj.Array(d.Elements["/Differences"]) is { } diffs)
                         {
                             var odd = diffs.Elements.Select(PdfObj.Name).OfType<string>().Where(g => g != ".notdef" && GlyphNames.ToUnicode(g) is null).Take(3).ToList();
-                            if (odd.Count > 0) fail("31-022", $"The TrueType font {name}'s Differences name glyphs outside the Adobe Glyph List (such as {string.Join(", ", odd)}).");
+                            if (odd.Count > 0) fail("31-022", Loc.Format(PdfStrings.A11y_DifferencesOutsideAgl, name, string.Join(", ", odd)));
                         }
                         break;
                 }
             }
             else
             {
-                if (encoding is not null) fail("31-024", $"The symbolic TrueType font {name} has an Encoding, which symbolic TrueType fonts mustn't have.");
+                if (encoding is not null) fail("31-024", Loc.Format(PdfStrings.A11y_SymbolicHasEncoding, name));
                 if (tt is not null && cmaps != 1 && !has30)
                     fail(cmaps == 0 ? "31-025" : "31-026", cmaps == 0
-                        ? $"The symbolic TrueType font {name} has no character map (cmap)."
-                        : $"The symbolic TrueType font {name} has several character maps but no Windows Symbol (3,0) one.");
+                        ? Loc.Format(PdfStrings.A11y_SymbolicNoCmap, name)
+                        : Loc.Format(PdfStrings.A11y_SymbolicNoSymbolCmap, name));
             }
         }
 
@@ -212,7 +212,7 @@ public static partial class AccessibilityCheck
                 case PdfName n:
                     var cmap = n.Value.TrimStart('/');
                     identity = cmap is "Identity-H" or "Identity-V";
-                    if (!PredefinedCMaps.Contains(cmap)) fail("31-006", $"The font {name} uses the CMap {cmap}, which is neither a standard one nor embedded."); // its collection is unknown too
+                    if (!PredefinedCMaps.Contains(cmap)) fail("31-006", Loc.Format(PdfStrings.A11y_CmapNotStandard, name, cmap)); // its collection is unknown too
                     else if (!identity)
                     {
                         cmapRegistry = "Adobe";
@@ -228,9 +228,9 @@ public static partial class AccessibilityCheck
                     var dictMode = PdfObj.Int(stream.Elements["/WMode"]) ?? 0;
                     var m = WModePattern().Match(text);
                     if ((m.Success ? int.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : 0) != dictMode)
-                        fail("31-007", $"The font {name}'s embedded CMap gives two different writing modes (WMode).");
+                        fail("31-007", Loc.Format(PdfStrings.A11y_CmapTwoWModes, name));
                     if (PdfObj.Resolve(stream.Elements["/UseCMap"]) is PdfName used && !PredefinedCMaps.Contains(used.Value.TrimStart('/')))
-                        fail("31-008", $"The font {name}'s CMap uses the CMap {used.Value.TrimStart('/')}, which isn't a standard one.");
+                        fail("31-008", Loc.Format(PdfStrings.A11y_CmapUsesNonStandard, name, used.Value.TrimStart('/')));
                     break;
             }
             if (cid is null) return;
@@ -240,16 +240,16 @@ public static partial class AccessibilityCheck
                 var registry = PdfObj.Text(info?.Elements["/Registry"]);
                 var ordering = PdfObj.Text(info?.Elements["/Ordering"]);
                 var supplement = PdfObj.Int(info?.Elements["/Supplement"]);
-                if (registry != cmapRegistry) fail("31-001", $"The font {name}'s character collection registry ({registry ?? "none"}) differs from its CMap's ({cmapRegistry ?? "none"}).");
-                if (ordering != cmapOrdering) fail("31-002", $"The font {name}'s character collection ordering ({ordering ?? "none"}) differs from its CMap's ({cmapOrdering ?? "none"}).");
-                if (supplement is { } s && cmapSupplement is { } cs && s > cs) fail("31-003", $"The font {name}'s character collection supplement ({s}) is higher than its CMap's ({cs}).");
+                if (registry != cmapRegistry) fail("31-001", Loc.Format(PdfStrings.A11y_RegistryDiffers, name, registry ?? PdfStrings.A11y_None, cmapRegistry ?? PdfStrings.A11y_None));
+                if (ordering != cmapOrdering) fail("31-002", Loc.Format(PdfStrings.A11y_OrderingDiffers, name, ordering ?? PdfStrings.A11y_None, cmapOrdering ?? PdfStrings.A11y_None));
+                if (supplement is { } s && cmapSupplement is { } cs && s > cs) fail("31-003", Loc.Format(PdfStrings.A11y_SupplementHigher, name, s, cs));
             }
             var cidType = PdfObj.NameOf(cid, "/Subtype");
             var map = PdfObj.Resolve(cid.Elements["/CIDToGIDMap"]);
             if (cidType == "/CIDFontType2" && embedded)
             {
-                if (map is null) fail("31-005", $"The TrueType CID font {name} has no glyph map (CIDToGIDMap).");
-                else if (map is not (PdfDictionary { Stream: not null } or PdfName { Value: "/Identity" })) fail("31-004", $"The TrueType CID font {name}'s glyph map (CIDToGIDMap) is neither a stream nor Identity.");
+                if (map is null) fail("31-005", Loc.Format(PdfStrings.A11y_CidNoGlyphMap, name));
+                else if (map is not (PdfDictionary { Stream: not null } or PdfName { Value: "/Identity" })) fail("31-004", Loc.Format(PdfStrings.A11y_CidGlyphMapBad, name));
             }
 
             // A subset's CIDSet must list every glyph the program holds.
@@ -284,8 +284,8 @@ public static partial class AccessibilityCheck
             if (holds is null) return;
             var unlisted = held.Count(c => c != 0 && !Listed(c));
             var extra = Enumerable.Range(1, Math.Max(0, bits.Length * 8 - 1)).Count(c => Listed(c) && !holds(c));
-            if (unlisted > 0) fail("31-014", $"The font {name}'s CIDSet doesn't list {Count(unlisted, "glyph")} that the font holds.");
-            if (extra > 0) fail("31-015", $"The font {name}'s CIDSet lists {Count(extra, "glyph")} that the font doesn't hold.");
+            if (unlisted > 0) fail("31-014", Loc.Plural(unlisted, PdfStrings.A11y_CidSetUnlisted_One, PdfStrings.A11y_CidSetUnlisted_Many, name));
+            if (extra > 0) fail("31-015", Loc.Plural(extra, PdfStrings.A11y_CidSetExtra_One, PdfStrings.A11y_CidSetExtra_Many, name));
         }
     }
 }

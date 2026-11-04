@@ -91,13 +91,13 @@ public static class BatchPresets
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists) throw new BatchPresetException($"There is no preset file at {path}.");
-            if (info.Length > MaxBytes) throw new BatchPresetException($"{info.Name} is too large to be a batch preset.");
+            if (!info.Exists) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetNoFile, path));
+            if (info.Length > MaxBytes) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetTooLarge, info.Name));
             json = File.ReadAllText(path, Encoding.UTF8);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            throw new BatchPresetException($"The preset {Path.GetFileName(path)} can't be read: {ex.Message}", ex);
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetUnreadable, Path.GetFileName(path), ex.Message), ex);
         }
         return Read(json, Path.GetFileNameWithoutExtension(path));
     }
@@ -336,7 +336,7 @@ public static class BatchPresets
         catch (InvalidOperationException ex)
         {
             // JSON text that holds half a surrogate pair ("\uD800") parses, and only fails when it is read.
-            throw new BatchPresetException("This preset holds text that can't be read.", ex);
+            throw new BatchPresetException(PdfStrings.Batch_PresetBadText, ex);
         }
     }
 
@@ -349,35 +349,35 @@ public static class BatchPresets
         }
         catch (JsonException ex)
         {
-            var where = ex.LineNumber is { } line ? $" (line {line + 1}, character {(ex.BytePositionInLine ?? 0) + 1})" : "";
-            throw new BatchPresetException($"This isn't a batch preset: it isn't valid JSON{where}.", ex);
+            var where = ex.LineNumber is { } line ? Loc.Format(PdfStrings.Batch_PresetJsonWhere, line + 1, (ex.BytePositionInLine ?? 0) + 1) : "";
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetNotJson, where), ex);
         }
         using (doc)
         {
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) throw new BatchPresetException("This isn't a batch preset: it should be a JSON object { … }.");
+            if (root.ValueKind != JsonValueKind.Object) throw new BatchPresetException(PdfStrings.Batch_PresetNotObject);
             if (root.TryGetProperty("format", out var format) && (format.ValueKind != JsonValueKind.String || format.GetString() != Format))
-                throw new BatchPresetException($"This JSON file isn't an Inkvolt PDF batch preset (its \"format\" should be \"{Format}\").");
+                throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetWrongFormat, Format));
             if (!root.TryGetProperty("version", out var version))
-                throw new BatchPresetException("This JSON file isn't an Inkvolt PDF batch preset: it has no \"version\".");
+                throw new BatchPresetException(PdfStrings.Batch_PresetNoVersion);
             if (version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1)
-                throw new BatchPresetException($"The preset's \"version\" ({version.GetRawText()}) isn't one Inkvolt PDF knows: it should be {Version}.");
+                throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetBadVersion, version.GetRawText(), Version));
             if (v > Version)
-                throw new BatchPresetException($"This preset was saved by a newer Inkvolt PDF (preset version {v}; this one reads version {Version} and earlier). Update Inkvolt PDF to use it.");
+                throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetNewer, v, Version));
 
-            var top = new Fields(root, "The preset");
+            var top = new Fields(root, PdfStrings.Batch_PresetWhereTop);
             top.Text("format", Format);
             top.Int("version", Version, 1, Version);
             var name = top.Text("name", null);
-            if (string.IsNullOrWhiteSpace(name)) name = string.IsNullOrWhiteSpace(fallbackName) ? "Preset" : fallbackName;
+            if (string.IsNullOrWhiteSpace(name)) name = string.IsNullOrWhiteSpace(fallbackName) ? PdfStrings.Batch_PresetDefaultName : fallbackName;
             var preset = new BatchPreset { Name = name.Trim(), Steps = [] };
             if (top.Object("output") is { } output)
             {
                 var folder = output.Text("folder", null);
                 if (folder is { Length: > 0 } && !Path.IsPathFullyQualified(folder))
-                    throw new BatchPresetException($"The preset's output \"folder\" should be a full path, such as D:\\\\Results (it is \"{folder}\").");
+                    throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetFolderNotFull, folder));
                 var names = output.Text("names", BatchNames.DefaultTemplate)!;
-                if (BatchNames.Validate(names) is { } nameError) throw new BatchPresetException($"The preset's output \"names\": {nameError}");
+                if (BatchNames.Validate(names) is { } nameError) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetBadNames, nameError));
                 preset = preset with
                 {
                     OutputFolder = string.IsNullOrWhiteSpace(folder) ? null : folder,
@@ -390,7 +390,7 @@ public static class BatchPresets
                 };
                 output.Done();
             }
-            var actions = top.Array("actions") ?? throw new BatchPresetException("The preset has no \"actions\": add at least one, such as { \"action\": \"optimize\" }.");
+            var actions = top.Array("actions") ?? throw new BatchPresetException(PdfStrings.Batch_PresetNoActions);
             var steps = new List<BatchStep>();
             var n = 0;
             foreach (var item in actions.EnumerateArray())
@@ -398,7 +398,7 @@ public static class BatchPresets
                 n++;
                 steps.Add(ReadStep(item, n));
             }
-            if (steps.Count == 0) throw new BatchPresetException("The preset's \"actions\" list is empty: add at least one.");
+            if (steps.Count == 0) throw new BatchPresetException(PdfStrings.Batch_PresetActionsEmpty);
             top.Done();
             return preset with { Steps = steps };
         }
@@ -406,13 +406,13 @@ public static class BatchPresets
 
     private static BatchStep ReadStep(JsonElement item, int n)
     {
-        if (item.ValueKind != JsonValueKind.Object) throw new BatchPresetException($"Action {n} should be an object such as {{ \"action\": \"ocr\" }}.");
+        if (item.ValueKind != JsonValueKind.Object) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetActionNotObject, n));
         if (!item.TryGetProperty("action", out var nameElement) || nameElement.ValueKind != JsonValueKind.String)
-            throw new BatchPresetException($"Action {n} has no \"action\" saying what it does (one of {string.Join(", ", ActionNames)}).");
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetActionNoName, n, string.Join(", ", ActionNames)));
         var name = nameElement.GetString()!;
         if (!ActionNames.Contains(name))
-            throw new BatchPresetException($"Action {n}: \"{name}\" isn't an action Inkvolt PDF knows (it knows {string.Join(", ", ActionNames)}).");
-        var f = new Fields(item, $"Action {n} ({name})");
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetActionUnknown, n, name, string.Join(", ", ActionNames)));
+        var f = new Fields(item, Loc.Format(PdfStrings.Batch_PresetWhereAction, n, name));
         f.Text("action", null);
         BatchStep step = name switch
         {
@@ -446,7 +446,7 @@ public static class BatchPresets
             "headerFooter" => ReadHeaderFooter(f),
             "rotate" => new RotateStep(f.Int("degrees", 90, -270, 270) is var d && d % 90 == 0 && d != 0
                 ? d
-                : throw new BatchPresetException($"Action {n} (rotate): \"degrees\" should be 90, -90 or 180.")),
+                : throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetRotateDegrees, n))),
             "flatten" => new FlattenStep(new FlattenOptions
             {
                 Annotations = f.Bool("annotations", true),
@@ -468,7 +468,7 @@ public static class BatchPresets
         var open = f.Bool("openPassword", false, passwordHint: true);
         var permissions = f.Bool("permissionsPassword", false, passwordHint: true);
         if (!open && !permissions)
-            throw new BatchPresetException($"{f.Where}: set \"openPassword\", \"permissionsPassword\" or both to true (the passwords themselves are given when it runs).");
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetPasswordFlags, f.Where));
         var method = f.Choice("encryption", EncryptionMethod.Aes256, EncryptionMethod.Aes256, EncryptionMethod.Aes128);
         var perms = new PdfPermissions(
             f.Choice("print", PrintPermission.HighResolution),
@@ -490,11 +490,11 @@ public static class BatchPresets
             }
             catch (Exception ex) when (ex is FormatException or InvalidDataException)
             {
-                throw new BatchPresetException($"{f.Where}: \"imagePng\" isn't a PNG picture in base64 ({ex.Message})", ex);
+                throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetBadPng, f.Where, ex.Message), ex);
             }
         }
         if (image is null && string.IsNullOrWhiteSpace(text))
-            throw new BatchPresetException($"{f.Where}: give a \"text\" (or an \"imagePng\" picture).");
+            throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetNoText, f.Where));
         var step = new WatermarkStep(new WatermarkOptions
         {
             Text = image is null ? text : null,
@@ -535,7 +535,7 @@ public static class BatchPresets
             MarginRight = f.Number("marginRight", 72, 0, 1000),
             Bates = bates,
         };
-        if (options.IsEmpty) throw new BatchPresetException($"{f.Where}: every text is empty; give at least one, such as \"footerCenter\": \"Page <<page>> of <<pages>>\".");
+        if (options.IsEmpty) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetAllTextsEmpty, f.Where));
         return new HeaderFooterStep(options, f.Bool("continueBates", false));
     }
 
@@ -549,7 +549,7 @@ public static class BatchPresets
 
         public Fields(JsonElement e, string where)
         {
-            if (e.ValueKind != JsonValueKind.Object) throw new BatchPresetException($"{where} should be an object {{ … }}.");
+            if (e.ValueKind != JsonValueKind.Object) throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetShouldBeObject, where));
             _e = e;
             Where = where;
         }
@@ -560,22 +560,22 @@ public static class BatchPresets
             return _e.TryGetProperty(name, out var v) && v.ValueKind != JsonValueKind.Null ? v : null;
         }
 
-        private BatchPresetException Wrong(string name, string should) => new($"{Where}: \"{name}\" should be {should}.");
+        private BatchPresetException Wrong(string name, string should) => new(Loc.Format(PdfStrings.Batch_PresetShouldBe, Where, name, should));
 
         public bool Bool(string name, bool fallback, bool passwordHint = false)
         {
             if (Get(name) is not { } v) return fallback;
             if (v.ValueKind is JsonValueKind.True or JsonValueKind.False) return v.GetBoolean();
             if (passwordHint && v.ValueKind == JsonValueKind.String)
-                throw new BatchPresetException($"{Where}: passwords aren't kept in presets; \"{name}\" is true or false, and the password is given when the batch runs.");
-            throw Wrong(name, "true or false");
+                throw new BatchPresetException(Loc.Format(PdfStrings.Batch_PresetNoPasswords, Where, name));
+            throw Wrong(name, PdfStrings.Batch_PresetShouldBool);
         }
 
         public double Number(string name, double fallback, double min, double max)
         {
             if (Get(name) is not { } v) return fallback;
-            if (v.ValueKind != JsonValueKind.Number || !v.TryGetDouble(out var d) || !double.IsFinite(d)) throw Wrong(name, "a number");
-            return d >= min && d <= max ? d : throw Wrong(name, $"between {min.ToString(CultureInfo.InvariantCulture)} and {max.ToString(CultureInfo.InvariantCulture)}");
+            if (v.ValueKind != JsonValueKind.Number || !v.TryGetDouble(out var d) || !double.IsFinite(d)) throw Wrong(name, PdfStrings.Batch_PresetShouldNumber);
+            return d >= min && d <= max ? d : throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldBetween, min.ToString(CultureInfo.InvariantCulture), max.ToString(CultureInfo.InvariantCulture)));
         }
 
         public double? NullableNumber(string name, double? fallback, double min, double max)
@@ -595,21 +595,21 @@ public static class BatchPresets
         public long Long(string name, long fallback, long min, long max)
         {
             if (Get(name) is not { } v) return fallback;
-            if (v.ValueKind != JsonValueKind.Number || !v.TryGetInt64(out var i)) throw Wrong(name, "a whole number");
-            return i >= min && i <= max ? i : throw Wrong(name, $"between {min} and {max}");
+            if (v.ValueKind != JsonValueKind.Number || !v.TryGetInt64(out var i)) throw Wrong(name, PdfStrings.Batch_PresetShouldWhole);
+            return i >= min && i <= max ? i : throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldBetween, min, max));
         }
 
         public string? Text(string name, string? fallback)
         {
             if (Get(name) is not { } v) return fallback;
-            return v.ValueKind == JsonValueKind.String ? v.GetString() : throw Wrong(name, "a text in quotes");
+            return v.ValueKind == JsonValueKind.String ? v.GetString() : throw Wrong(name, PdfStrings.Batch_PresetShouldText);
         }
 
         public IReadOnlyList<string> Texts(string name)
         {
             if (Get(name) is not { } v) return [];
-            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, "a list of texts [\"…\", \"…\"]");
-            return [.. v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Wrong(name, "a list of texts [\"…\", \"…\"]"))];
+            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, PdfStrings.Batch_PresetShouldTexts);
+            return [.. v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Wrong(name, PdfStrings.Batch_PresetShouldTexts))];
         }
 
         /// <summary>An enum value from its camelCase word; <paramref name="allowed"/> limits the choice (default: every value).</summary>
@@ -618,11 +618,11 @@ public static class BatchPresets
             if (Get(name) is not { } v) return fallback;
             var choices = allowed.Length > 0 ? allowed : Enum.GetValues<T>();
             var words = string.Join(", ", choices.Select(c => $"\"{Word(c)}\""));
-            if (v.ValueKind != JsonValueKind.String) throw Wrong(name, $"one of {words}");
+            if (v.ValueKind != JsonValueKind.String) throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldOneOf, words));
             var given = v.GetString();
             foreach (var c in choices)
                 if (Word(c) == given) return c;
-            throw Wrong(name, $"one of {words} (it is \"{given}\")");
+            throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldOneOfIs, words, given));
         }
 
         /// <summary>A list of enum words; missing: <paramref name="fallback"/>.</summary>
@@ -631,13 +631,13 @@ public static class BatchPresets
             if (Get(name) is not { } v) return fallback;
             var choices = (allowed ?? Enum.GetValues<T>()).ToList();
             var words = string.Join(", ", choices.Select(c => $"\"{Word(c)}\""));
-            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, $"a list of {words}");
+            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldListOf, words));
             var result = new List<T>();
             foreach (var e in v.EnumerateArray())
             {
                 var given = e.ValueKind == JsonValueKind.String ? e.GetString() : null;
                 var match = choices.FirstOrDefault(c => Word(c) == given);
-                if (given is null || Word(match) != given) throw Wrong(name, $"a list of {words} (\"{given ?? e.GetRawText()}\" isn't one)");
+                if (given is null || Word(match) != given) throw Wrong(name, Loc.Format(PdfStrings.Batch_PresetShouldListOfIsnt, words, given ?? e.GetRawText()));
                 result.Add(match);
             }
             return result;
@@ -647,10 +647,10 @@ public static class BatchPresets
         public IReadOnlyList<int>? Pages(string name)
         {
             if (Get(name) is not { } v) return null;
-            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, "null (every page) or a list of page numbers [1, 2]");
+            if (v.ValueKind != JsonValueKind.Array) throw Wrong(name, PdfStrings.Batch_PresetShouldPages);
             return [.. v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var p) && p >= 1
                 ? p - 1
-                : throw Wrong(name, "null (every page) or a list of page numbers from 1"))];
+                : throw Wrong(name, PdfStrings.Batch_PresetShouldPagesFrom1))];
         }
 
         public AnnotColor Color(string name, AnnotColor fallback)
@@ -658,22 +658,22 @@ public static class BatchPresets
             var text = Text(name, null);
             if (text is null) return fallback;
             if (text.Length != 7 || text[0] != '#' || !int.TryParse(text.AsSpan(1), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var rgb))
-                throw Wrong(name, "a color such as \"#808080\"");
+                throw Wrong(name, PdfStrings.Batch_PresetShouldColor);
             return new AnnotColor((rgb >> 16 & 0xFF) / 255.0, (rgb >> 8 & 0xFF) / 255.0, (rgb & 0xFF) / 255.0);
         }
 
-        public Fields? Object(string name) => Get(name) is { } v ? new Fields(v, $"{Where}'s \"{name}\"") : null;
+        public Fields? Object(string name) => Get(name) is { } v ? new Fields(v, Loc.Format(PdfStrings.Batch_PresetWhereOf, Where, name)) : null;
 
         public JsonElement? Array(string name) =>
-            Get(name) is { } v ? v.ValueKind == JsonValueKind.Array ? v : throw Wrong(name, "a list [ … ]") : null;
+            Get(name) is { } v ? v.ValueKind == JsonValueKind.Array ? v : throw Wrong(name, PdfStrings.Batch_PresetShouldList) : null;
 
         public void Done()
         {
             foreach (var p in _e.EnumerateObject())
                 if (!_asked.Contains(p.Name))
                     throw new BatchPresetException(p.Name.Contains("password", StringComparison.OrdinalIgnoreCase)
-                        ? $"{Where}: \"{p.Name}\" isn't a setting, and passwords are never kept in presets."
-                        : $"{Where}: \"{p.Name}\" isn't a setting Inkvolt PDF knows here.");
+                        ? Loc.Format(PdfStrings.Batch_PresetPasswordKey, Where, p.Name)
+                        : Loc.Format(PdfStrings.Batch_PresetUnknownKey, Where, p.Name));
         }
     }
 }

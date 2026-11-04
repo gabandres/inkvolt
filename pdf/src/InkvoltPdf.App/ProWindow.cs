@@ -53,21 +53,21 @@ internal sealed class ProWindow : Window
     {
         _feature = feature;
         Owner = owner;
-        Title = "Inkvolt Pro";
+        Title = "Inkvolt Pro"; // in every language: the product name
         Width = 560;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _caption = (Style)Application.Current.FindResource("Caption");
-        AutomationProperties.SetName(_key, "Licence key");
+        AutomationProperties.SetName(_key, Strings.Pro_LicenceKey);
         _error.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
 
         var body = new StackPanel { Margin = new Thickness(24, 20, 24, 20) };
-        body.Children.Add(new TextBlock { Text = "Inkvolt Pro", FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) });
+        body.Children.Add(new TextBlock { Text = "Inkvolt Pro", FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 12) }); // in every language: the product name
         body.Children.Add(_body);
 
-        var close = new Button { Content = "Close", MinWidth = 104, IsCancel = true };
+        var close = new Button { Content = Strings.Common_Close, MinWidth = 104, IsCancel = true };
         close.Click += (_, _) => Close();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 16, 24, 16) };
         buttons.Children.Add(close);
@@ -94,21 +94,21 @@ internal sealed class ProWindow : Window
             banner.SetResourceReference(Border.BackgroundProperty, "SystemFillColorAttentionBackgroundBrush");
             var text = new StackPanel();
             text.Children.Add(new TextBlock { Text = Pro.Locked(feature), FontWeight = FontWeights.SemiBold });
-            text.Children.Add(new TextBlock { Text = $"{Pro.Title(feature)}: {Pro.Describe(feature)}", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) });
+            text.Children.Add(new TextBlock { Text = $"{Pro.Title(feature)}: {Pro.Describe(feature)}", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) }); // in every language: only names and values, no words
             banner.Child = text;
             _body.Children.Add(banner);
         }
 
         if (licence is not null)
         {
-            _body.Children.Add(new TextBlock { Text = $"Pro licensed to {licence.Name}", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Key for {licence.Email}, issued {licence.Issued:D}. It is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling{(licence.Covers(ProKeys.ProductPrint) ? "; Inkvolt Print on this PC finds it too" : "")}. Thank you for supporting Inkvolt PDF."));
+            _body.Children.Add(new TextBlock { Text = Loc.Format(Strings.Pro_LicensedTo, licence.Name), FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(Loc.Format(licence.Covers(ProKeys.ProductPrint) ? Strings.Pro_KeyForSuite : Strings.Pro_KeyFor, licence.Email, licence.Issued)));
             if (!Pro.Enforced)
-                _body.Children.Add(Caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line, folder search) when they start asking for a key."));
-            var remove = new Button { Content = "Remove Licence", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+                _body.Children.Add(Caption(Strings.Pro_FreeWhileLaunchLicensed));
+            var remove = new Button { Content = Strings.Pro_RemoveLicence, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
             remove.Click += (_, _) =>
             {
-                if (!Prompt.Confirm(this, "Remove the Inkvolt Pro licence from this PC?", "Presets you saved and files the Pro features made stay as they are. You can enter the key again any time.", "Remove")) return;
+                if (!Prompt.Confirm(this, Strings.Pro_RemoveTitle, Strings.Pro_RemoveBody, Strings.Common_Remove)) return;
                 Pro.Remove();
                 Refresh();
             };
@@ -118,13 +118,13 @@ internal sealed class ProWindow : Window
 
         if (Pro.Enforced)
         {
-            _body.Children.Add(new TextBlock { Text = "Free", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"Inkvolt Pro unlocks batch presets, watched folders, the command line and folder search: a one-time {Pro.PriceText}, no account. The key is checked on this PC, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."));
+            _body.Children.Add(new TextBlock { Text = Strings.Pro_Free, FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(Loc.Format(Strings.Pro_Unlocks, Pro.PriceText)));
         }
         else
         {
-            _body.Children.Add(new TextBlock { Text = "Everything is free while Inkvolt PDF launches", FontSize = 16, FontWeight = FontWeights.SemiBold });
-            _body.Children.Add(Caption($"That includes the Pro features: batch presets, watched folders, the command line and folder search. Inkvolt Pro ({Pro.PriceText}, one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."));
+            _body.Children.Add(new TextBlock { Text = Strings.Pro_FreeWhileLaunch, FontSize = 16, FontWeight = FontWeights.SemiBold });
+            _body.Children.Add(Caption(Loc.Format(Strings.Pro_IncludesPro, Pro.PriceText)));
         }
         if (Pro.Problem is { } problem)
         {
@@ -132,15 +132,15 @@ internal sealed class ProWindow : Window
             text.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
             _body.Children.Add(text);
         }
-        var get = new Button { Content = $"Get Inkvolt Pro ({Pro.PriceText})", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
+        var get = new Button { Content = Loc.Format(Strings.Pro_Get, Pro.PriceText), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 12, 0, 0) };
         get.SetResourceReference(StyleProperty, "AccentButtonStyle");
         get.Click += (_, _) => Shell.Open(Pro.BuyUrl);
         _body.Children.Add(get);
 
-        _body.Children.Add(new TextBlock { Text = "Have a key? Paste it here", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 4) });
+        _body.Children.Add(new TextBlock { Text = Strings.Pro_HaveKey, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 20, 0, 4) });
         _body.Children.Add(_key);
         _body.Children.Add(_error);
-        var enter = new Button { Content = "Enter Key", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), IsDefault = true };
+        var enter = new Button { Content = Strings.Pro_EnterKey, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 8, 0, 0), IsDefault = true };
         enter.Click += (_, _) => Enter(_key.Text);
         _body.Children.Add(enter);
     }
@@ -175,7 +175,7 @@ internal sealed class ProWindow : Window
     }
 
     internal string DevState() =>
-        $"{(Pro.Licence is { } l ? $"Pro licensed to {l.Name}" : "Free")}; enforced={Pro.Enforced}; feature={_feature?.ToString() ?? "-"}; error='{(_error.Visibility == Visibility.Visible ? _error.Text : "")}'; " +
+        $"{(Pro.Licence is { } l ? $"Pro licensed to {l.Name}" : Strings.Pro_Free)}; enforced={Pro.Enforced}; feature={_feature?.ToString() ?? "-"}; error='{(_error.Visibility == Visibility.Visible ? _error.Text : "")}'; " +
         $"text='{string.Join(" | ", Texts())}'";
 
     private IEnumerable<string> Texts()

@@ -80,20 +80,20 @@ internal static class OfficeConverter
     /// <summary>What stops <paramref name="path"/> from being converted before Office is started, or null.</summary>
     public static string? Precheck(string path, OfficeApp app)
     {
-        if (!IsInstalled(app)) return $"Opening this file needs {OfficeFiles.AppName(app)}, which isn't installed on this PC.";
+        if (!IsInstalled(app)) return Loc.Format(Strings.Convert_OfficeMissing, OfficeFiles.AppName(app));
         try
         {
             var head = new byte[8];
             using (var f = File.OpenRead(path)) _ = f.Read(head, 0, head.Length);
             if (OfficeFiles.IsEncryptedOpenXml(head, path))
-                return $"This file is protected with a password. Open it in {OfficeFiles.AppName(app)}, then save it as PDF there (or save a copy without the password).";
+                return Loc.Format(Strings.Convert_OfficePassword, OfficeFiles.AppName(app));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return ex.Message;
         }
         if (app == OfficeApp.PowerPoint && Process.GetProcessesByName(ProcessName(app)).Length > 0)
-            return "PowerPoint is open. It runs one copy at a time, and Inkvolt PDF doesn't use the one you work in: close PowerPoint and try again.";
+            return Strings.Convert_PowerPointOpen;
         return null;
     }
 
@@ -107,7 +107,7 @@ internal static class OfficeConverter
     public static async Task<OfficeResult> ConvertAsync(string path, OfficeApp app, bool fromInternetConfirmed, CancellationToken cancel)
     {
         if (Precheck(path, app) is { } problem) throw new InvalidOperationException(problem);
-        if (ZoneOf(path) >= 3 && !fromInternetConfirmed) throw new InvalidOperationException("This file came from the internet: confirm before it is opened in Office.");
+        if (ZoneOf(path) >= 3 && !fromInternetConfirmed) throw new InvalidOperationException(Strings.Convert_FromInternet);
         var dir = Directory.CreateTempSubdirectory("inkvolt-office-");
         var output = Path.Combine(dir.FullName, "out.pdf");
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("The app's own path is unknown.");
@@ -140,18 +140,20 @@ internal static class OfficeConverter
             catch (OperationCanceledException)
             {
                 var left = await StopAsync(child, () => Volatile.Read(ref officePid), before, app);
-                var leftNote = left ? $" {OfficeFiles.AppName(app)} was left running because it shows a window (it may be asking something, or a document you opened is in it): close it yourself." : "";
+                var leftNote = left ? " " + Loc.Format(Strings.Convert_OfficeLeft, OfficeFiles.AppName(app)) : "";
                 if (cancel.IsCancellationRequested)
                 {
                     if (left) Log.Write($"Office conversion cancelled; {ProcessName(app)} left running (it shows a window)");
-                    throw new OperationCanceledException(leftNote.Trim(), cancel);
+                    var stopped = new OperationCanceledException(leftNote.Trim(), cancel);
+                    if (left) stopped.Data[LeftRunning] = true;
+                    throw stopped;
                 }
-                throw new InvalidOperationException($"{OfficeFiles.AppName(app)} didn't finish within {Timeout.TotalMinutes:0} minutes (it may have stopped to ask something)." +
-                    (left ? leftNote : " It was closed.") + Reason(await TakeAsync(errors)));
+                throw new InvalidOperationException(Loc.Format(Strings.Convert_OfficeTimeout, OfficeFiles.AppName(app), Timeout.TotalMinutes) +
+                    (left ? leftNote : " " + Strings.Convert_OfficeClosed) + Reason(await TakeAsync(errors)));
             }
             var stderr = await TakeAsync(errors);
             if (child.ExitCode != 0 || !File.Exists(output))
-                throw new InvalidOperationException(error ?? $"{OfficeFiles.AppName(app)} couldn't save this file as PDF.{Reason(stderr)}");
+                throw new InvalidOperationException(error ?? Loc.Format(Strings.Convert_OfficeCouldntSave, OfficeFiles.AppName(app), Reason(stderr)));
             return new OfficeResult(await File.ReadAllBytesAsync(output, CancellationToken.None), note);
         }
         finally
@@ -169,7 +171,7 @@ internal static class OfficeConverter
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
-            throw new InvalidOperationException($"The conversion helper didn't start ({ex.Message}).");
+            throw new InvalidOperationException(Loc.Format(Strings.Convert_HelperFailed, ex.Message));
         }
     }
 
@@ -185,6 +187,9 @@ internal static class OfficeConverter
             return "";
         }
     }
+
+    /// <summary>Set in the Data of the cancellation when Office was left running (its message then says so).</summary>
+    internal const string LeftRunning = "InkvoltOfficeLeftRunning";
 
     /// <summary>" (first line of the helper's error output)", short; empty when there is none.</summary>
     internal static string Reason(string stderr)

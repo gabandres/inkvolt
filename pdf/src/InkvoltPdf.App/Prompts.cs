@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
@@ -15,23 +16,23 @@ public enum SaveChoice { Save, DontSave, Cancel }
 public static class Prompt
 {
     public static void Error(Window? owner, string title, string body) =>
-        Show(owner, title, body, "", "SystemFillColorCriticalBrush", [("Close", true)]); // informs only: Close, not OK (Windows dialog guidance)
+        Show(owner, title, body, "", "SystemFillColorCriticalBrush", [(Strings.Common_Close, true)]); // informs only: Close, not OK (Windows dialog guidance)
 
     public static void Info(Window? owner, string title, string body) =>
-        Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", [("Close", true)]);
+        Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", [(Strings.Common_Close, true)]);
 
     /// <summary>True when the user chose <paramref name="confirm"/>.</summary>
     public static bool Confirm(Window? owner, string title, string body, string confirm, bool warning = false) =>
         Show(owner, title, body, warning ? "" : "", warning ? "SystemFillColorCautionBrush" : "AccentTextFillColorPrimaryBrush",
-            [(confirm, true), ("Cancel", false)]) == 0;
+            [(confirm, true), (Strings.Common_Cancel, false)]) == 0;
 
     /// <summary>The index of the button chosen; Esc or closing picks the last one.</summary>
     public static int Choose(Window? owner, string title, string body, params (string Text, bool Accent)[] buttons) =>
         Show(owner, title, body, "", "AccentTextFillColorPrimaryBrush", buttons);
 
     public static SaveChoice SaveChanges(Window owner, string name) =>
-        Show(owner, $"Save changes to {name}?", "Your page edits will be lost if you don't save them.", "",
-            "AccentTextFillColorPrimaryBrush", [("Save", true), ("Don't save", false), ("Cancel", false)]) switch
+        Show(owner, Loc.Format(Strings.Prompt_SaveChanges, name), Strings.Prompt_SaveChangesBody, "",
+            "AccentTextFillColorPrimaryBrush", [(Strings.Common_Save, true), (Strings.Prompt_DontSave, false), (Strings.Common_Cancel, false)]) switch
         {
             0 => SaveChoice.Save,
             1 => SaveChoice.DontSave,
@@ -122,7 +123,7 @@ public static class ShortcutsWindow
                     continue;
                 }
                 var keys = mi.Command is RoutedUICommand cmd
-                    ? string.Join("  or  ", cmd.InputGestures.OfType<KeyGesture>().Select(g => g.GetDisplayStringForCulture(System.Globalization.CultureInfo.CurrentCulture)))
+                    ? string.Join(Strings.Prompt_KeysOr, cmd.InputGestures.OfType<KeyGesture>().Select(g => g.GetDisplayStringForCulture(System.Globalization.CultureInfo.CurrentCulture)))
                     : "";
                 if (keys.Length == 0 && !string.IsNullOrEmpty(mi.InputGestureText)) keys = mi.InputGestureText;
                 if (keys.Length > 0 && !rows.Exists(r => r.Name == name)) rows.Add((group, name, keys));
@@ -137,51 +138,51 @@ public static class ShortcutsWindow
             if (gestures.Count == 0 || !owner.CommandBindings.Cast<CommandBinding>().Any(b => b.Command == cmd)) continue;
             var name = cmd.Text.Replace("_", "").TrimEnd('…');
             if (rows.Exists(r => r.Name == name)) continue;
-            rows.Add(("Other commands", name, string.Join("  or  ", gestures.Select(g => g.GetDisplayStringForCulture(System.Globalization.CultureInfo.CurrentCulture)))));
+            rows.Add((Strings.Prompt_KeysOther, name, string.Join(Strings.Prompt_KeysOr, gestures.Select(g => g.GetDisplayStringForCulture(System.Globalization.CultureInfo.CurrentCulture)))));
         }
         rows.AddRange(
         [
-            ("Reading", "Scroll by a screen", "PgUp / PgDn / Space"),
-            ("Reading", "Zoom at the pointer", "Ctrl+mouse wheel or pinch"),
-            ("Reading", "Select a word / line", "Double-click / triple-click (Select text tool)"),
-            ("Pages pane", "Delete selected pages", "Del"),
-            ("Pages pane", "Reorder pages", "Drag thumbnails (onto another tab to copy)"),
-            ("Organize pages", "Move between pages", "Arrow keys (Shift extends the selection)"),
-            ("Organize pages", "Move the selected pages", "Alt+Shift+arrow keys"),
-            ("Organize pages", "Open the page", "Enter or double-click"),
-            ("Organize pages", "Back to reading", "Esc"),
-            ("Drawing", "Square, circle, or a line at 45°", "Shift while dragging"),
-            ("Drawing", "Back to the hand tool", "Esc"),
-            ("Drawing", "Select a drawing", "Click it (hand tool)"),
-            ("Drawing", "Move the selected drawing", "Drag, or arrow keys (Shift: 10 pt)"),
-            ("Drawing", "Resize the selected drawing", "Drag a handle (Shift keeps the shape)"),
-            ("Drawing", "Delete the selected drawing", "Del"),
-            ("Drawing", "Edit a text box or callout", "Double-click or Enter"),
-            ("Drawing", "Finish typing in a text box", "Esc, Ctrl+Enter or click outside"),
-            ("Pictures, stamps and signatures", "Move / resize the selected one", "Drag it / drag its corner"),
-            ("Pictures, stamps and signatures", "Delete the selected one", "Del"),
-            ("Pictures, stamps and signatures", "Put down the one picked, or let go", "Click the page / Esc"),
-            ("Links", "Add a link (Links tool)", "Drag a box over the text"),
-            ("Links", "Change where the selected link leads", "Double-click or Enter"),
-            ("Links", "Delete the selected link", "Del, or right-click › Delete Link"),
-            ("Compare Files", "Next / previous change", "F8 / Shift+F8, or Alt+Down / Alt+Up"),
-            ("Compare Files", "Text side by side / visual overlay", "Ctrl+1 / Ctrl+2"),
-            ("Compare Files", "Zoom in / out / fit", "Ctrl+= / Ctrl+- / Ctrl+0, or Ctrl+mouse wheel"),
-            ("Anywhere", "Search all commands", Cmd.GestureText(Cmd.CommandPalette) ?? ""),
+            (Strings.Prompt_KeysReading, Strings.Prompt_KeysScroll, Strings.Prompt_KeysScrollKeys),
+            (Strings.Prompt_KeysReading, Strings.Prompt_KeysZoom, Strings.Prompt_KeysZoomKeys),
+            (Strings.Prompt_KeysReading, Strings.Prompt_KeysSelectWord, Strings.Prompt_KeysSelectWordKeys),
+            (Strings.Prompt_KeysPagesPane, Strings.Prompt_KeysDeletePages, "Del"),
+            (Strings.Prompt_KeysPagesPane, Strings.Prompt_KeysReorder, Strings.Prompt_KeysReorderKeys),
+            (Strings.Prompt_KeysOrganize, Strings.Prompt_KeysMoveBetween, Strings.Prompt_KeysMoveBetweenKeys),
+            (Strings.Prompt_KeysOrganize, Strings.Prompt_KeysMoveSelected, Strings.Prompt_KeysMoveSelectedKeys),
+            (Strings.Prompt_KeysOrganize, Strings.Prompt_KeysOpenPage, Strings.Prompt_KeysOpenPageKeys),
+            (Strings.Prompt_KeysOrganize, Strings.Prompt_KeysBackReading, "Esc"),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysSquare, Strings.Prompt_KeysSquareKeys),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysHand, "Esc"),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysSelectDrawing, Strings.Prompt_KeysSelectDrawingKeys),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysMoveDrawing, Strings.Prompt_KeysMoveDrawingKeys),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysResizeDrawing, Strings.Prompt_KeysResizeDrawingKeys),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysDeleteDrawing, "Del"),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysEditTextBox, Strings.Prompt_KeysDoubleEnter),
+            (Strings.Prompt_KeysDrawing, Strings.Prompt_KeysFinishTyping, Strings.Prompt_KeysFinishTypingKeys),
+            (Strings.Prompt_KeysPictures, Strings.Prompt_KeysMoveResize, Strings.Prompt_KeysMoveResizeKeys),
+            (Strings.Prompt_KeysPictures, Strings.Prompt_KeysDeleteSelected, "Del"),
+            (Strings.Prompt_KeysPictures, Strings.Prompt_KeysPutDown, Strings.Prompt_KeysPutDownKeys),
+            (Strings.Prompt_KeysLinks, Strings.Prompt_KeysAddLink, Strings.Prompt_KeysAddLinkKeys),
+            (Strings.Prompt_KeysLinks, Strings.Prompt_KeysChangeLink, Strings.Prompt_KeysDoubleEnter),
+            (Strings.Prompt_KeysLinks, Strings.Prompt_KeysDeleteLink, Strings.Prompt_KeysDeleteLinkKeys),
+            (Strings.Compare_Title, Strings.Prompt_KeysNextChange, Strings.Prompt_KeysNextChangeKeys),
+            (Strings.Compare_Title, Strings.Prompt_KeysViews, "Ctrl+1 / Ctrl+2"),
+            (Strings.Compare_Title, Strings.Prompt_KeysZoomCompare, Strings.Prompt_KeysZoomCompareKeys),
+            (Strings.Prompt_KeysAnywhere, Strings.Prompt_KeysSearchCommands, Cmd.GestureText(Cmd.CommandPalette) ?? ""),
         ]);
 
         var win = new Window
         {
             Owner = owner,
-            Title = "Keyboard shortcuts",
+            Title = Strings.Prompt_KeysTitle,
             Width = 640,
             Height = 620,
             ShowInTaskbar = false,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
         };
         var filter = new TextBox { Margin = new Thickness(20, 20, 20, 10) };
-        System.Windows.Automation.AutomationProperties.SetName(filter, "Filter shortcuts");
-        Placeholder.SetText(filter, "Type to filter: zoom, rotate, Ctrl+Shift…");
+        System.Windows.Automation.AutomationProperties.SetName(filter, Strings.Prompt_KeysFilter);
+        Placeholder.SetText(filter, Strings.Prompt_KeysFilterHint);
         var list = new StackPanel { Margin = new Thickness(20, 0, 20, 20) };
         void Fill()
         {
@@ -291,7 +292,7 @@ public sealed class ProgressPrompt : IDisposable
         _taskbar = new TaskbarProgress(owner);
         _text = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
         _bar = new ProgressBar { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 14, 0, 0) };
-        _cancel = new Button { Content = "Cancel", MinWidth = 104, IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
+        _cancel = new Button { Content = Strings.Common_Cancel, MinWidth = 104, IsCancel = true, HorizontalAlignment = HorizontalAlignment.Right };
         _cancel.Click += (_, _) => Cancel();
         _win = new Window
         {
@@ -370,7 +371,7 @@ public sealed class ProgressPrompt : IDisposable
         if (_cts.IsCancellationRequested) return;
         _cts.Cancel();
         _cancel.IsEnabled = false;
-        _text.Text = "Cancelling…";
+        _text.Text = Strings.Prompt_Cancelling;
         Cancelled?.Invoke();
     }
 

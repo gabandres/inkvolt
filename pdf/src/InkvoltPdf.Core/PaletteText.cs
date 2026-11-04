@@ -12,7 +12,7 @@ public static class PaletteText
         var q = query.Trim();
         var shown = q.Length > 40 ? q[..40] + "…" : q;
         return hasDocument
-            ? $"Nothing matches “{shown}”. Try another word, or type a page number to go there."
-            : $"Nothing matches “{shown}” with no document open. Open a file for the document commands (sign, edit text, export, redact…).";
+            ? Loc.Format(PdfStrings.Palette_NoMatch, shown)
+            : Loc.Format(PdfStrings.Palette_NoMatchNoDocument, shown);
     }
 }

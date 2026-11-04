@@ -91,7 +91,7 @@ public sealed record RedactionMatch(int Page, RedactionPattern Pattern, int Star
 
 /// <summary>A document has more matches than can be reviewed. Nothing is applied: a partial list must not look complete.</summary>
 public sealed class TooManyHitsException(int limit)
-    : Exception($"More than {limit:N0} matches were found, so the search stopped and nothing was changed. Choose fewer kinds or a narrower pattern.");
+    : Exception(Loc.Format(PdfStrings.Redact_TooManyHits, limit));
 
 /// <summary>
 /// Redaction by pattern: finds Social Security numbers, phone numbers, email addresses, payment card numbers, dates,
@@ -128,16 +128,16 @@ public static class RedactionPatterns
 
     public static string Name(RedactionPattern pattern) => pattern switch
     {
-        RedactionPattern.SocialSecurity => "US Social Security numbers",
-        RedactionPattern.Phone => "Phone numbers",
-        RedactionPattern.Email => "Email addresses",
-        RedactionPattern.PaymentCard => "Payment card numbers",
-        RedactionPattern.Date => "Dates",
-        RedactionPattern.ZipCode => "US ZIP codes",
-        RedactionPattern.Iban => "Bank account numbers (IBAN)",
-        RedactionPattern.IpAddress => "IP addresses",
-        RedactionPattern.Phrase => "Your words and phrases",
-        _ => "Your pattern",
+        RedactionPattern.SocialSecurity => PdfStrings.Redact_KindSsn,
+        RedactionPattern.Phone => PdfStrings.Redact_KindPhone,
+        RedactionPattern.Email => PdfStrings.Redact_KindEmail,
+        RedactionPattern.PaymentCard => PdfStrings.Redact_KindCard,
+        RedactionPattern.Date => PdfStrings.Redact_KindDate,
+        RedactionPattern.ZipCode => PdfStrings.Redact_KindZip,
+        RedactionPattern.Iban => PdfStrings.Redact_KindIban,
+        RedactionPattern.IpAddress => PdfStrings.Redact_KindIp,
+        RedactionPattern.Phrase => PdfStrings.Redact_KindPhrase,
+        _ => PdfStrings.Redact_KindExpression,
     };
 
     /// <summary>What a kind looks like, for the dialog.</summary>
@@ -146,10 +146,10 @@ public static class RedactionPatterns
         RedactionPattern.SocialSecurity => "123-45-6789 or 123456789",
         RedactionPattern.Phone => "(555) 201-3434, +1 555 201 3434, +44 20 7946 0958",
         RedactionPattern.Email => "name@example.com",
-        RedactionPattern.PaymentCard => "4111 1111 1111 1111; only numbers whose check digit is right",
+        RedactionPattern.PaymentCard => PdfStrings.Redact_ExampleCard,
         RedactionPattern.Date => "2026-10-27, 10/27/2026, 27.10.2026, October 27, 2026, 27 Oct 2026",
-        RedactionPattern.ZipCode => "90210 or 90210-1234; any five-digit number matches, so check the marks",
-        RedactionPattern.Iban => "DE89 3704 0044 0532 0130 00; only numbers whose check digits are right",
+        RedactionPattern.ZipCode => PdfStrings.Redact_ExampleZip,
+        RedactionPattern.Iban => PdfStrings.Redact_ExampleIban,
         RedactionPattern.IpAddress => "192.168.1.10, 2001:db8::1",
         _ => "",
     };
@@ -158,17 +158,17 @@ public static class RedactionPatterns
     public static string? ValidateExpression(string? expression)
     {
         if (string.IsNullOrEmpty(expression)) return null;
-        if (expression.Length > MaxExpressionLength) return $"This pattern is too long: keep it under {MaxExpressionLength:N0} characters.";
+        if (expression.Length > MaxExpressionLength) return Loc.Format(PdfStrings.Redact_PatternTooLong, MaxExpressionLength);
         try
         {
             var regex = new Regex(expression, RegexOptions.CultureInvariant, ExpressionTimeout);
             try
             {
-                if (regex.IsMatch("")) return "This pattern matches empty text, so it would mark nothing useful. Make at least one part required.";
+                if (regex.IsMatch("")) return PdfStrings.Redact_PatternMatchesEmpty;
             }
             catch (RegexMatchTimeoutException)
             {
-                return "This pattern takes too long even on empty text. Make it simpler.";
+                return PdfStrings.Redact_PatternSlow;
             }
             return null;
         }
@@ -178,19 +178,19 @@ public static class RedactionPatterns
             var reason = ex.Message;
             var dot = reason.IndexOf(". ", StringComparison.Ordinal);
             if (dot >= 0) reason = reason[(dot + 2)..];
-            return $"The pattern has a mistake near character {ex.Offset}: {reason}";
+            return Loc.Format(PdfStrings.Redact_PatternMistake, ex.Offset, reason);
         }
         catch (ArgumentException ex)
         {
-            return $"The pattern isn't valid: {ex.Message}";
+            return Loc.Format(PdfStrings.Redact_PatternInvalid, ex.Message);
         }
     }
 
     /// <summary>What is wrong with a whole set of choices (from the dialog, a saved set or a preset), in plain words; null when fine.</summary>
     public static string? Validate(RedactionPatternOptions options)
     {
-        if (options.Phrases.Count > MaxPhrases) return $"There are too many words and phrases: at most {MaxPhrases:N0}.";
-        if (options.Phrases.Any(p => p.Length > MaxPhraseLength)) return $"A word or phrase is too long: at most {MaxPhraseLength:N0} characters.";
+        if (options.Phrases.Count > MaxPhrases) return Loc.Format(PdfStrings.Redact_TooManyPhrases, MaxPhrases);
+        if (options.Phrases.Any(p => p.Length > MaxPhraseLength)) return Loc.Format(PdfStrings.Redact_PhraseTooLong, MaxPhraseLength);
         return ValidateExpression(options.Expression);
     }
 
@@ -302,7 +302,7 @@ public static class RedactionPatterns
         var clock = Stopwatch.StartNew();
         void Spend()
         {
-            if (clock.Elapsed > PageBudget) throw new TimeoutException($"Looking at page {page + 1} took too long, so the search stopped and nothing was changed.");
+            if (clock.Elapsed > PageBudget) throw new TimeoutException(Loc.Format(PdfStrings.Redact_PageTooSlow, page + 1));
         }
 
         void Add(RedactionPattern pattern, int start, int end, string? readIn, int[]? readMap)
@@ -343,7 +343,7 @@ public static class RedactionPatterns
             }
             catch (RegexMatchTimeoutException ex)
             {
-                throw new TimeoutException($"Looking for {Name(rule.Pattern).ToLowerInvariant()} took too long on page {page + 1}.", ex);
+                throw new TimeoutException(Loc.Format(PdfStrings.Redact_KindTooSlow, Name(rule.Pattern).ToLowerInvariant(), page + 1), ex);
             }
             Spend();
         }
@@ -376,8 +376,7 @@ public static class RedactionPatterns
             }
             catch (RegexMatchTimeoutException ex)
             {
-                throw new TimeoutException($"Your pattern took too long on page {page + 1}, so the search stopped. Make it simpler: " +
-                                           "a repeat inside a repeat, such as (a+)+, can take very long on some text.", ex);
+                throw new TimeoutException(Loc.Format(PdfStrings.Redact_ExpressionTooSlow, page + 1), ex);
             }
         }
         found.Sort((a, b) => a.Start != b.Start ? a.Start.CompareTo(b.Start) : a.End.CompareTo(b.End));

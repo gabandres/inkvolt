@@ -47,7 +47,7 @@ internal static class TextShaper
         {
             var len = char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]) ? 2 : 1;
             var cp = len == 2 ? char.ConvertToUtf32(text[i], text[i + 1]) : text[i];
-            var font = PickFont(cp, cur, primary) ?? throw new InvalidOperationException("No font is available to draw this text.");
+            var font = PickFont(cp, cur, primary) ?? throw new InvalidOperationException(PdfStrings.Font_NoneForText);
             if (cur is null || font != cur || levels[i] != runLevel)
             {
                 if (cur is not null && i > runStart) runs.Add((runStart, i - runStart, runLevel, cur));

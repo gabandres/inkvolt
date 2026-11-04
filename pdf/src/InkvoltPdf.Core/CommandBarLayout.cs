@@ -41,36 +41,38 @@ public static class CommandBarLayout
     public const string Draw = "Draw";
 
     /// <summary>The bar, left to right; null is a separator between groups.</summary>
-    public static readonly IReadOnlyList<Entry?> Bar =
+    public static IReadOnlyList<Entry?> Bar => BarTable.Value;
+
+    private static readonly PerLanguage<IReadOnlyList<Entry?>> BarTable = new(() =>
     [
         new("Save", null, 100, [new("Save", "\uE74E")]),
         new("Print", null, 100, [new("Print", "\uE749")]),
         new("Undo", null, 100, [new("Undo", "\uE7A7")]),
         new("Redo", null, 100, [new("Redo", "\uE7A6")]),
         null,
-        new(Pointer, "Select", 85,
-            [new("ToolHand", "\uE7C9", "H", "Drag the page to move around it"),
-             new("ToolSelect", "\uE8E9", "T", "Select text to copy, mark or look up"),
-             new("ToolSnapshot", "\uE722", "G", "Copy an area of the page as a picture")]),
+        new(Pointer, PdfStrings.Bar_Select, 85,
+            [new("ToolHand", "\uE7C9", "H", PdfStrings.Bar_HandDesc),
+             new("ToolSelect", "\uE8E9", "T", PdfStrings.Bar_SelectDesc),
+             new("ToolSnapshot", "\uE722", "G", PdfStrings.Bar_SnapshotDesc)]),
         null,
-        new("FillSign", "Fill & Sign", 90,
-            [new("ToolAddText", "\uE8D2", "A", "Type in a blank or anywhere on the page"),
-             new("ToolCheck", "\uE73E", "K", "Put a check mark in a box"),
-             new("ToolCross", "\uE711", "X", "Put a cross in a box"),
-             new("AddSignature", "\uE76D", Description: "Draw, type or pick your signature or initials")]),
-        new("Comment", "Comment", 80,
-            [new("Highlight", "\uE7E6", Description: "Mark the selected text in color"),
-             new("Underline", "\uE8DC", Description: "Draw a line under the selected text"),
-             new("StrikeOut", "\uE738", Description: "Cross out the selected text"),
-             new("AddNote", "\uE90A", Description: "Pin a note to the page"),
-             new("AddImage", "\uE91B", "I", "Place a picture on the page"),
-             new("ToolLink", "\uE71B", "N", "Draw a box that opens a page or web address"),
-             new("AddStamp", "\uEB95", "S", "Stamp Approved, Draft, Confidential or your own")]),
-        new(Draw, "Draw", 60, []),
-        new("Redact", "Redact", 50, [new("Redact", "\uE73B")]),
+        new("FillSign", PdfStrings.Bar_FillSign, 90,
+            [new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc),
+             new("ToolCheck", "\uE73E", "K", PdfStrings.Bar_CheckDesc),
+             new("ToolCross", "\uE711", "X", PdfStrings.Bar_CrossDesc),
+             new("AddSignature", "\uE76D", Description: PdfStrings.Bar_SignatureDesc)]),
+        new("Comment", PdfStrings.Bar_Comment, 80,
+            [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc),
+             new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
+             new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
+             new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
+             new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
+             new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
+             new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)]),
+        new(Draw, PdfStrings.Bar_Draw, 60, []),
+        new("Redact", PdfStrings.Bar_Redact, 50, [new("Redact", "\uE73B")]),
         null,
-        new("Organize", "Organize", 70, [new("Organize", "\uE8B3")]),
-    ];
+        new("Organize", PdfStrings.Bar_Organize, 70, [new("Organize", "\uE8B3")]),
+    ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>
     public static readonly IReadOnlyList<Command> Secondary =

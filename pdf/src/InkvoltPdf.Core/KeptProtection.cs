@@ -13,7 +13,7 @@ namespace InkvoltPdf.Core;
 /// document without one (its permissions password and restrictions stay).
 /// </summary>
 public sealed class OpenPasswordUnknownException()
-    : InvalidOperationException("This PDF needs a password to open, and the edit has to keep it. Enter the open password, or save without it.");
+    : InvalidOperationException(PdfStrings.Security_KeepOpenPassword);
 
 /// <summary>
 /// Keeps an encrypted document encrypted through edits. PDFsharp decrypts a document it opens for editing and saves it

@@ -121,28 +121,28 @@ public static class Signing
     public static async Task<byte[]> SignAsync(byte[] data, string? password, SignRequest req, CancellationToken cancel = default)
     {
         if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
-            throw new SigningException("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign.");
+            throw new SigningException(PdfStrings.Sign_EncryptedCantSign);
         var cert = req.Certificate;
-        if (!cert.HasPrivateKey) throw new SigningException("This digital ID has no private key, so it can't sign.");
+        if (!cert.HasPrivateKey) throw new SigningException(PdfStrings.Sign_NoPrivateKey);
         if (req.LongTerm != LongTermLevel.None && (req.Timestamp is null || req.LongTermClient is null))
-            throw new SigningException("Long-term validation needs a timestamp server.");
+            throw new SigningException(PdfStrings.Sign_LtvNeedsTimestamp);
         if (req.Lock is not null && !Pro.Allows(ProFeature.FieldLocking)) throw new SigningException(Pro.Locked(ProFeature.FieldLocking));
         if (req.Lock is { Action: not FieldLockAction.All, Fields.Count: 0 })
-            throw new SigningException("Choose at least one field to lock, or lock all of them.");
+            throw new SigningException(PdfStrings.Sign_ChooseFieldToLock);
         var hash = DigestFor(cert);
 
         var existing = Signatures.Verify(data, password);
         var signedBefore = existing.Any(s => s.Status != SignatureStatus.Unsigned);
         if (req.Certify != CertificationLevel.None && signedBefore)
-            throw new SigningException("A certifying signature must be the document's first signature: this document is already signed.");
+            throw new SigningException(PdfStrings.Sign_CertifyMustBeFirst);
         var certification = Certification(data, password);
         if (certification == CertificationLevel.NoChanges)
-            throw new SigningException("This document is certified with no changes allowed: another signature would invalidate the certification.");
+            throw new SigningException(PdfStrings.Sign_CertifiedNoChanges);
         // Form filling and signing (P=2) covers signing the signature fields the certifier put there, not adding new ones.
         if (certification == CertificationLevel.FormFilling && req.FieldName is null)
-            throw new SigningException("This document is certified to allow only filling in forms and signing its existing signature fields: sign one of its empty signature fields instead.");
+            throw new SigningException(PdfStrings.Sign_CertifiedFormsOnly);
         if (existing.FirstOrDefault(s => s.Status == SignatureStatus.DisallowedChanges && s.CertificationLevel is not null) is { } broken)
-            throw new SigningException($"The changes made to this document since it was certified aren't allowed by the certification ({broken.Detail}). Undo them, then sign.");
+            throw new SigningException(Loc.Format(PdfStrings.Sign_ChangesNotAllowed, broken.Detail));
 
         var reserve = req.Timestamp is null ? 16384 : 32768;
         for (var attempt = 0; attempt < 3; attempt++)
@@ -163,7 +163,7 @@ public static class Signing
             }
             reserve = der.Length + 8192;
         }
-        throw new SigningException("The signature doesn't fit the space reserved for it.");
+        throw new SigningException(PdfStrings.Sign_DoesntFit);
     }
 
     /// <summary>The certification level of a document's certifying signature (catalog /Perms /DocMDP), else None.</summary>
@@ -194,9 +194,9 @@ public static class Signing
         {
             // The file's structure can't be appended to (no usable last xref): normalize it first, which is only safe
             // when nothing is signed yet.
-            if (signedBefore) throw new SigningException("This signed document's file structure can't be extended, so a new signature would break the existing ones.");
-            using (var full = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be signed")) source = PdfObj.Save(full, rewrite: true);
-            doc = OpenTracked(source, password) ?? throw new SigningException("This PDF's structure can't be signed incrementally.");
+            if (signedBefore) throw new SigningException(PdfStrings.Sign_CantExtend);
+            using (var full = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_CantSign)) source = PdfObj.Save(full, rewrite: true);
+            doc = OpenTracked(source, password) ?? throw new SigningException(PdfStrings.Sign_CantSignIncrementally);
         }
         using (doc)
         {
@@ -223,9 +223,9 @@ public static class Signing
             {
                 var all = new List<FormEditor.Field>();
                 FormEditor.Collect(doc, acro, all);
-                var f = all.FirstOrDefault(x => x.Name == name) ?? throw new SigningException($"There is no field named \"{name}\".");
-                if (f.Type != "/Sig") throw new SigningException($"\"{name}\" isn't a signature field.");
-                if (FormEditor.Inherited(f.Dict, "/V") is not null and not PdfNull) throw new SigningException($"\"{name}\" is already signed.");
+                var f = all.FirstOrDefault(x => x.Name == name) ?? throw new SigningException(Loc.Format(PdfStrings.Sign_NoFieldNamed, name));
+                if (f.Type != "/Sig") throw new SigningException(Loc.Format(PdfStrings.Sign_NotSignatureField, name));
+                if (FormEditor.Inherited(f.Dict, "/V") is not null and not PdfNull) throw new SigningException(Loc.Format(PdfStrings.Sign_AlreadySigned, name));
                 fieldDict = f.Dict;
                 widget = f.Widgets.FirstOrDefault() ?? f.Dict;
                 var pi = PdfObj.PageIndexOf(doc, widget.Elements["/P"]);
@@ -236,7 +236,7 @@ public static class Signing
             }
             else
             {
-                if (req.PageIndex < 0 || req.PageIndex >= doc.PageCount) throw new SigningException("The signature's page doesn't exist.");
+                if (req.PageIndex < 0 || req.PageIndex >= doc.PageCount) throw new SigningException(PdfStrings.Sign_PageMissing);
                 page = doc.Pages[req.PageIndex];
                 rect = req.Rect ?? default;
                 widget = fieldDict = new PdfDictionary(doc);
@@ -311,11 +311,11 @@ public static class Signing
             if (req.Certify != CertificationLevel.None)
                 catalog.Elements["/Perms"] = new PdfDictionary(doc) { Elements = { ["/DocMDP"] = sig.Reference! } };
 
-            var pdf = Incremental.TrySave(doc, Xmp.Read(doc)) ?? throw new SigningException("The signature can't be appended to this PDF.");
+            var pdf = Incremental.TrySave(doc, Xmp.Read(doc)) ?? throw new SigningException(PdfStrings.Sign_CantAppend);
             var from = source.Length;
             var gapStart = LastIndexOf(pdf, Encoding.ASCII.GetBytes($"<{new string('0', reserve * 2)}>"), from);
             var rangeAt = LastIndexOf(pdf, Encoding.ASCII.GetBytes(RangePlaceholder), from);
-            if (gapStart < 0 || rangeAt < 0) throw new SigningException("The signature placeholder wasn't written.");
+            if (gapStart < 0 || rangeAt < 0) throw new SigningException(PdfStrings.Sign_PlaceholderNotWritten);
             var gapEnd = gapStart + reserve * 2 + 2;
             var range = $"[0 {gapStart} {gapEnd} {pdf.Length - gapEnd}";
             range = range.PadRight(RangePlaceholder.Length - 1) + "]";
@@ -334,7 +334,7 @@ public static class Signing
     /// <param name="timestamp">The exchange with the server: gets a DER request holding a hash of the file, returns the DER reply.</param>
     public static async Task<byte[]> AddDocumentTimestampAsync(byte[] data, string? password, Func<byte[], CancellationToken, Task<byte[]>> timestamp, CancellationToken cancel = default)
     {
-        if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0) throw new SigningException("Encrypted (password-protected) PDFs can't take a document timestamp. Nothing was changed.");
+        if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0) throw new SigningException(PdfStrings.Sign_EncryptedNoTimestamp);
         // A token with its chain is a few KB. The hash covers the reserved space, so a second try means asking the server again; twice is the limit.
         var reserve = 16384;
         for (var attempt = 0; attempt < 2; attempt++)
@@ -354,7 +354,7 @@ public static class Signing
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
-                throw new SigningException($"The timestamp server couldn't be reached: {ex.Message} Nothing was changed.", ex);
+                throw new SigningException(Loc.Format(PdfStrings.Sign_TsaUnreachableNoChange, ex.Message), ex);
             }
             byte[] der;
             try
@@ -363,7 +363,7 @@ public static class Signing
             }
             catch (CryptographicException ex)
             {
-                throw new SigningException($"The timestamp server's reply isn't usable: {ex.Message} Nothing was changed.", ex);
+                throw new SigningException(Loc.Format(PdfStrings.Sign_TsaReplyNoChange, ex.Message), ex);
             }
             var hex = Convert.ToHexString(der);
             if (hex.Length <= gapEnd - gapStart - 2)
@@ -373,12 +373,12 @@ public static class Signing
             }
             reserve = der.Length + 8192;
         }
-        throw new SigningException("The timestamp doesn't fit the space reserved for it. Nothing was changed.");
+        throw new SigningException(PdfStrings.Sign_TimestampDoesntFit);
     }
 
     private static (byte[] Pdf, int GapStart, int GapEnd) PrepareTimestamp(byte[] data, string? password, int reserve)
     {
-        using var doc = OpenTracked(data, password) ?? throw new SigningException("This document's file structure can't be extended, so a document timestamp would break its signatures. Nothing was changed.");
+        using var doc = OpenTracked(data, password) ?? throw new SigningException(PdfStrings.Sign_TimestampCantExtend);
         var catalog = doc.Internals.Catalog;
         var acro = PdfObj.Dict(catalog.Elements["/AcroForm"]);
         if (acro is null)
@@ -415,11 +415,11 @@ public static class Signing
         doc.Internals.AddObject(sig);
         widget.Elements["/V"] = sig.Reference!;
 
-        var pdf = Incremental.TrySave(doc, null) ?? throw new SigningException("A document timestamp can't be appended to this PDF. Nothing was changed.");
+        var pdf = Incremental.TrySave(doc, null) ?? throw new SigningException(PdfStrings.Sign_TimestampCantAppend);
         var from = data.Length;
         var gapStart = LastIndexOf(pdf, Encoding.ASCII.GetBytes($"<{new string('0', reserve * 2)}>"), from);
         var rangeAt = LastIndexOf(pdf, Encoding.ASCII.GetBytes(RangePlaceholder), from);
-        if (gapStart < 0 || rangeAt < 0) throw new SigningException("The timestamp's placeholder wasn't written. Nothing was changed.");
+        if (gapStart < 0 || rangeAt < 0) throw new SigningException(PdfStrings.Sign_TimestampPlaceholder);
         var gapEnd = gapStart + reserve * 2 + 2;
         var range = $"[0 {gapStart} {gapEnd} {pdf.Length - gapEnd}";
         range = range.PadRight(RangePlaceholder.Length - 1) + "]";
@@ -437,7 +437,7 @@ public static class Signing
         }
         catch (PdfReaderException ex)
         {
-            throw PdfObj.ReaderError(ex, PdfDocumentOpenMode.Modify, "This PDF can't be signed");
+            throw PdfObj.ReaderError(ex, PdfDocumentOpenMode.Modify, PdfStrings.Sign_CantSign);
         }
         Incremental.Track(doc, data, password, force: true);
         if (Incremental.IsTracked(doc)) return doc;
@@ -476,7 +476,7 @@ public static class Signing
         foreach (var name in chosen.Fields.Distinct(StringComparer.Ordinal))
         {
             if (!names.Any(n => n == name || n.StartsWith(name + ".", StringComparison.Ordinal)))
-                throw new SigningException($"This document has no form field named \"{name}\" to lock.");
+                throw new SigningException(Loc.Format(PdfStrings.Sign_NoFieldToLock, name));
             fields.Elements.Add(PdfObj.MakeString(name));
         }
         lockDict.Elements["/Fields"] = fields;
@@ -624,11 +624,11 @@ public static class Signing
         }
         catch (CryptographicException ex) when (IsCancellation(ex))
         {
-            throw new OperationCanceledException("Signing was cancelled.", ex);
+            throw new OperationCanceledException(PdfStrings.Sign_Cancelled, ex);
         }
         catch (CryptographicException ex)
         {
-            throw new SigningException($"The digital ID couldn't sign: {ex.Message}", ex);
+            throw new SigningException(Loc.Format(PdfStrings.Sign_IdCouldntSign, ex.Message), ex);
         }
 
         if (req.Timestamp is { } tsa)
@@ -643,7 +643,7 @@ public static class Signing
             }
             catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
             {
-                throw new SigningException($"The timestamp server couldn't be reached: {ex.Message}", ex);
+                throw new SigningException(Loc.Format(PdfStrings.Sign_TsaUnreachable, ex.Message), ex);
             }
             Rfc3161TimestampToken token;
             try
@@ -652,7 +652,7 @@ public static class Signing
             }
             catch (CryptographicException ex)
             {
-                throw new SigningException($"The timestamp server's reply isn't usable: {ex.Message}", ex);
+                throw new SigningException(Loc.Format(PdfStrings.Sign_TsaReply, ex.Message), ex);
             }
             cms.SignerInfos[0].AddUnsignedAttribute(new AsnEncodedData(TimestampTokenOid, token.AsSignedCms().Encode()));
         }

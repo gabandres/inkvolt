@@ -37,7 +37,7 @@ public static class Flattener
     public static byte[] Flatten(byte[] data, string? password, FlattenOptions? options = null)
     {
         options ??= new FlattenOptions();
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var catalog = doc.Internals.Catalog;
         var acro = PdfObj.Dict(catalog.Elements["/AcroForm"]);
         var removed = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
@@ -63,7 +63,7 @@ public static class Flattener
             if (take.Count == 0) continue;
             if (!pagesTouched)
             {
-                SignedEdits.RequireRewrite(data, doc, "flattening changes page content, which no signature permits");
+                SignedEdits.RequireRewrite(data, doc, PdfStrings.Doc_FlattenBreaksSignatures);
                 if (options.FormFields && acro is not null) FormEditor.EnsureAppearances(doc, acro);
                 pagesTouched = true;
             }

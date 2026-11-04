@@ -34,16 +34,16 @@ public sealed record LookChange(WordLook Old, WordLook New, LookParts Parts)
     public string Describe()
     {
         var parts = new List<string>();
-        if (Parts.HasFlag(LookParts.Bold)) parts.Add(New.Bold ? "bold added" : "bold removed");
-        if (Parts.HasFlag(LookParts.Italic)) parts.Add(New.Italic ? "italic added" : "italic removed");
-        if (Parts.HasFlag(LookParts.Size)) parts.Add($"size {Points(Old.Size)} → {Points(New.Size)} pt");
-        if (Parts.HasFlag(LookParts.Font)) parts.Add($"font {Name(Old.Font)} → {Name(New.Font)}");
-        if (Parts.HasFlag(LookParts.Color)) parts.Add($"color {ColorName(Old.Color)} → {ColorName(New.Color)}");
+        if (Parts.HasFlag(LookParts.Bold)) parts.Add(New.Bold ? PdfStrings.Compare_BoldAdded : PdfStrings.Compare_BoldRemoved);
+        if (Parts.HasFlag(LookParts.Italic)) parts.Add(New.Italic ? PdfStrings.Compare_ItalicAdded : PdfStrings.Compare_ItalicRemoved);
+        if (Parts.HasFlag(LookParts.Size)) parts.Add(Loc.Format(PdfStrings.Compare_SizeChange, Points(Old.Size), Points(New.Size)));
+        if (Parts.HasFlag(LookParts.Font)) parts.Add(Loc.Format(PdfStrings.Compare_FontChange, Name(Old.Font), Name(New.Font)));
+        if (Parts.HasFlag(LookParts.Color)) parts.Add(Loc.Format(PdfStrings.Compare_ColorChange, ColorName(Old.Color), ColorName(New.Color)));
         return string.Join(", ", parts);
 
         static string Points(double size) => size.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
-        static string Name(string font) => font.Length > 0 ? font : "unnamed";
-        static string ColorName(uint color) => color switch { 0 => "black", 0xFFFFFF => "white", _ => $"#{color:X6}" };
+        static string Name(string font) => font.Length > 0 ? font : PdfStrings.Compare_FontUnnamed;
+        static string ColorName(uint color) => color switch { 0 => PdfStrings.Compare_Black, 0xFFFFFF => PdfStrings.Compare_White, _ => $"#{color:X6}" };
     }
 }
 

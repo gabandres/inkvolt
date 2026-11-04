@@ -11,11 +11,11 @@ public sealed class A11yItem(AccessibilityFinding finding)
 {
     public AccessibilityFinding Finding { get; } = finding;
     public string Title => Finding.Element == Finding.Where ? $"{Finding.Condition} · {Finding.Where}" : $"{Finding.Condition} · {Finding.Where} · {Finding.Element}";
-    public string Problem => Finding.Count > 1 && !Finding.Problem.Contains(Finding.Count.ToString(), StringComparison.Ordinal) ? $"{Finding.Problem} ({Finding.Count} times)" : Finding.Problem;
-    public string Fix => "Fix: " + Finding.Fix;
+    public string Problem => Finding.Count > 1 && !Finding.Problem.Contains(Finding.Count.ToString(), StringComparison.Ordinal) ? Loc.Plural(Finding.Count, Strings.Tools_A11yProblemTimes_One, Strings.Tools_A11yProblemTimes_Many, Finding.Problem) : Finding.Problem;
+    public string Fix => Loc.Format(Strings.Tools_A11yFix, Finding.Fix);
 
     /// <summary>What a screen reader says for the item.</summary>
-    public string Spoken => $"Condition {Finding.Condition}, {Finding.Where}, {Finding.Element}. {Problem} {Fix}";
+    public string Spoken => Loc.Format(Strings.Tools_A11ySpoken, Finding.Condition, Finding.Where, Finding.Element, Problem, Fix);
 }
 
 /// <summary>One of the person's checks in the Accessibility pane (ticks are kept per tab and go into the saved report).</summary>
@@ -69,11 +69,11 @@ public partial class DocumentTab
         var password = Session.Password;
         var owner = Window.GetWindow(this);
         AccessibilityReport report;
-        using (var prompt = new ProgressPrompt(owner, "Accessibility Check", "Reading the tags…"))
+        using (var prompt = new ProgressPrompt(owner, Strings.Tools_A11yTitle, Strings.Tools_A11yReadingTags))
         {
             try
             {
-                var progress = new Progress<(int Done, int Total)>(p => prompt.Report($"Checking page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+                var progress = new Progress<(int Done, int Total)>(p => prompt.Report(Loc.Format(Strings.Tools_A11yCheckingPage, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
                 report = await Task.Run(() => AccessibilityCheck.Run(data, password, progress, prompt.Token), prompt.Token);
             }
             catch (OperationCanceledException)
@@ -83,7 +83,7 @@ public partial class DocumentTab
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException)
             {
                 Log.Write($"Accessibility check failed: {ex}");
-                Prompt.Error(owner, "The accessibility check couldn't run", ex.Message);
+                Prompt.Error(owner, Strings.Tools_A11yCouldntRun, ex.Message);
                 return false;
             }
         }
@@ -125,13 +125,13 @@ public partial class DocumentTab
     private void SaveAccessibilityReport()
     {
         if (_a11yReport is not { } report || Window.GetWindow(this) is not { } owner) return;
-        var name = Path.GetFileNameWithoutExtension(Session.DisplayName) + " accessibility.html";
-        if (CommentFileActions.PickSave(owner, "Save Accessibility Report", "Web page (*.html)|*.html", name, Path.GetDirectoryName(Session.FilePath)) is not { } path) return;
+        var name = Path.GetFileNameWithoutExtension(Session.DisplayName) + Strings.Tools_A11yReportFileSuffix;
+        if (CommentFileActions.PickSave(owner, Strings.Tools_A11ySaveReportTitle, Strings.Tools_A11yReportFilter, name, Path.GetDirectoryName(Session.FilePath)) is not { } path) return;
         try
         {
             File.WriteAllText(path, AccessibilityReportHtml.Write(report, Session.DisplayName, _a11yCheckedAt, _a11yDone), new UTF8Encoding(false));
             Log.Write($"Accessibility report saved to {Log.Name(path)}");
-            Notify($"Report saved: {Path.GetFileName(path)}", "Open", () =>
+            Notify(Loc.Format(Strings.Tools_A11yReportSaved, Path.GetFileName(path)), Strings.Common_Open, () =>
             {
                 try
                 {
@@ -139,13 +139,13 @@ public partial class DocumentTab
                 }
                 catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
                 {
-                    Prompt.Error(owner, "Can't open the report", ex.Message);
+                    Prompt.Error(owner, Strings.Tools_A11yCantOpenReport, ex.Message);
                 }
             });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(owner, "Can't save the report", ex.Message);
+            Prompt.Error(owner, Strings.Tools_A11yCantSaveReport, ex.Message);
         }
     }
 

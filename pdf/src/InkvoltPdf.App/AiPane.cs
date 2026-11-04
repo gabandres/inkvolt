@@ -25,8 +25,8 @@ public sealed partial class AiPane : Border
     private readonly TextBlock _whereIcon = new() { FontSize = 12, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Top };
     private readonly Border _whereBox = new() { CornerRadius = new CornerRadius(6), Padding = new Thickness(8, 4, 8, 4), Margin = new Thickness(12, 0, 12, 6) };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 0, 0, 6) };
-    private readonly Button _send = new() { Content = "Ask", MinWidth = 72 };
-    private readonly Button _stop = new() { Content = "Stop", MinWidth = 72, Visibility = Visibility.Collapsed };
+    private readonly Button _send = new() { Content = Strings.Ai_Ask, MinWidth = 72 };
+    private readonly Button _stop = new() { Content = Strings.Common_Stop, MinWidth = 72, Visibility = Visibility.Collapsed };
 
     public TextBox Input { get; } = new()
     {
@@ -38,7 +38,7 @@ public sealed partial class AiPane : Border
     };
 
     /// <summary>"All", or the pages questions are about ("1-3, 5").</summary>
-    public TextBox Scope { get; } = new() { Text = "All", Width = 110 };
+    public TextBox Scope { get; } = new() { Text = "All", Width = 110 }; // in every language: DocumentTab.Ai reads "all" as every page
 
     public event EventHandler? CloseRequested;
     public event EventHandler? ClearRequested;
@@ -55,14 +55,14 @@ public sealed partial class AiPane : Border
         SetResourceReference(BackgroundProperty, "LayerFillColorDefaultBrush");
         SetResourceReference(BorderBrushProperty, "CardStrokeColorDefaultBrush");
         BorderThickness = new Thickness(1, 0, 0, 0);
-        AutomationProperties.SetName(this, "AI assistant");
+        AutomationProperties.SetName(this, Strings.Ai_Assistant);
 
-        var title = new TextBlock { Text = "AI assistant", FontWeight = FontWeights.SemiBold, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
-        var close = IconButton("\uE711", "Close the AI assistant", 11);
+        var title = new TextBlock { Text = Strings.Ai_Assistant, FontWeight = FontWeights.SemiBold, FontSize = 14, VerticalAlignment = VerticalAlignment.Center };
+        var close = IconButton("\uE711", Strings.Ai_CloseAssistant, 11);
         close.Click += (_, _) => CloseRequested?.Invoke(this, EventArgs.Empty);
-        var clear = IconButton("\uE74D", "Clear the conversation", 13);
+        var clear = IconButton("\uE74D", Strings.Ai_ClearConversation, 13);
         clear.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
-        var settings = IconButton("\uE713", "AI assistant settings", 13);
+        var settings = IconButton("\uE713", Strings.Ai_Settings, 13);
         settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
         var header = new DockPanel { Margin = new Thickness(12, 8, 6, 6) };
         foreach (var b in new[] { close, clear, settings })
@@ -84,27 +84,26 @@ public sealed partial class AiPane : Border
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(4, 8, 4, 0),
             Style = (Style)Application.Current.FindResource("Caption"),
-            Text = "Ask a question about this document below, summarize it, or select text and right-click › Explain with AI.\n\n" +
-                   "Before anything is sent you see exactly what goes where. Answers are AI-generated and may be wrong: check them against the pages they cite.",
+            Text = Strings.Ai_EmptyHint,
         };
         _list.Children.Add(_empty);
         _scroll = new ScrollViewer { Content = _list, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, Focusable = false };
 
         // Footer: pages, question, send / stop
         var scopeRow = new DockPanel { Margin = new Thickness(0, 0, 0, 6) };
-        var scopeLabel = new TextBlock { Text = "Pages", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        var scopeLabel = new TextBlock { Text = Strings.Common_Pages, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         DockPanel.SetDock(scopeLabel, Dock.Left);
         DockPanel.SetDock(Scope, Dock.Left);
-        AutomationProperties.SetName(Scope, "Pages the questions are about");
-        Scope.ToolTip = "All, or pages such as 1-3, 5";
-        var summarize = new Button { Content = "Summarize…", Style = (Style)Application.Current.FindResource("TextButton"), HorizontalAlignment = HorizontalAlignment.Right };
+        AutomationProperties.SetName(Scope, Strings.Ai_ScopeName);
+        Scope.ToolTip = Strings.Ai_ScopeTip;
+        var summarize = new Button { Content = Strings.Ai_Summarize, Style = (Style)Application.Current.FindResource("TextButton"), HorizontalAlignment = HorizontalAlignment.Right };
         summarize.Click += (_, _) => SummarizeRequested?.Invoke(this, EventArgs.Empty);
         scopeRow.Children.Add(scopeLabel);
         scopeRow.Children.Add(Scope);
         scopeRow.Children.Add(summarize);
 
-        AutomationProperties.SetName(Input, "Question about this document");
-        AutomationProperties.SetHelpText(Input, "Enter sends, Shift+Enter starts a new line");
+        AutomationProperties.SetName(Input, Strings.Ai_InputName);
+        AutomationProperties.SetHelpText(Input, Strings.Ai_InputHelp);
         Input.PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.None)
@@ -126,7 +125,7 @@ public sealed partial class AiPane : Border
         footer.Children.Add(scopeRow);
         var hint = new TextBlock
         {
-            Text = "Ask about this document… (Enter sends)",
+            Text = Strings.Ai_InputHint,
             Margin = new Thickness(12, 7, 12, 0),
             IsHitTestVisible = false,
             Style = (Style)Application.Current.FindResource("Caption"),
@@ -172,14 +171,14 @@ public sealed partial class AiPane : Border
     {
         if (config is null)
         {
-            _where.Text = problem ?? "Not set up";
+            _where.Text = problem ?? Strings.Ai_NotSetUp;
             _whereIcon.Text = "\uE946"; // info
             _whereBox.SetResourceReference(BackgroundProperty, "SubtleFillColorSecondaryBrush");
             _whereIcon.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
             return;
         }
         var cloud = config.Endpoint.Reach == AiReach.Internet;
-        _where.Text = $"{config.Model} · {config.Endpoint.ReachText}";
+        _where.Text = $"{config.Model} · {config.Endpoint.ReachText}"; // in every language: only names and values, no words
         _whereIcon.Text = cloud ? "\uE7BA" : "\uE73E";
         _whereBox.SetResourceReference(BackgroundProperty, cloud ? "SystemFillColorCautionBackgroundBrush" : "SubtleFillColorSecondaryBrush");
         _whereIcon.SetResourceReference(TextBlock.ForegroundProperty, cloud ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush");
@@ -219,7 +218,7 @@ public sealed partial class AiPane : Border
             Child = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap },
         };
         bubble.SetResourceReference(BackgroundProperty, "SubtleFillColorSecondaryBrush");
-        AutomationProperties.SetName(bubble, "You: " + text);
+        AutomationProperties.SetName(bubble, Loc.Format(Strings.Ai_You, text));
         _list.Children.Add(bubble);
         ScrollToEnd();
     }
@@ -273,11 +272,11 @@ public sealed partial class AiAnswerCard : Border
 
         var warn = _warn = new TextBlock { Style = (Style)Application.Current.FindResource("Icon"), Text = "\uE7BA", FontSize = 12, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center };
         warn.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
-        var label = _label = new TextBlock { Text = $"AI-generated, may be wrong · {model}", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+        var label = _label = new TextBlock { Text = Loc.Format(Strings.Ai_MayBeWrong, model), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         label.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        _copy = new Button { Content = "\uE8C8", ToolTip = "Copy the answer", FontSize = 13, Height = 26, MinWidth = 26, IsEnabled = false };
+        _copy = new Button { Content = "\uE8C8", ToolTip = Strings.Ai_CopyAnswer, FontSize = 13, Height = 26, MinWidth = 26, IsEnabled = false };
         _copy.SetResourceReference(StyleProperty, "IconButton");
-        AutomationProperties.SetName(_copy, "Copy the answer");
+        AutomationProperties.SetName(_copy, Strings.Ai_CopyAnswer);
         _copy.Click += (_, _) => Copy();
         var head = new DockPanel();
         DockPanel.SetDock(_copy, Dock.Right);
@@ -292,7 +291,7 @@ public sealed partial class AiAnswerCard : Border
         body.Children.Add(_text);
         body.Children.Add(_note);
         Child = body;
-        AutomationProperties.SetName(this, "AI answer");
+        AutomationProperties.SetName(this, Strings.Ai_Answer);
         _text.Text = "…";
 
         // Re-render a few times a second while streaming, not per token.
@@ -338,7 +337,7 @@ public sealed partial class AiAnswerCard : Border
         if (_raw.Length == 0 && note is not null) _text.Visibility = Visibility.Collapsed;
         if (error && Text.Length == 0)
         {
-            _label.Text = $"No answer · {_model}";
+            _label.Text = Loc.Format(Strings.Ai_NoAnswer, _model);
             _warn.Text = "\uE783"; // error badge
             _warn.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         }
@@ -349,7 +348,7 @@ public sealed partial class AiAnswerCard : Border
             if (error) _note.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCriticalBrush");
         }
         _copy.IsEnabled = Text.Length > 0;
-        AutomationProperties.SetName(this, "AI answer, may be wrong: " + (Text.Length > 0 ? Text : note));
+        AutomationProperties.SetName(this, Loc.Format(Strings.Ai_AnswerSpoken, Text.Length > 0 ? Text : note));
         _scroll();
     }
 
@@ -357,12 +356,12 @@ public sealed partial class AiAnswerCard : Border
     {
         try
         {
-            Clipboard.SetText(Text + "\n\n(AI-generated, may be wrong)");
-            _copy.ToolTip = "Copied";
+            Clipboard.SetText(Text + "\n\n" + Strings.Ai_CopiedNote);
+            _copy.ToolTip = Strings.Ai_Copied;
         }
         catch (System.Runtime.InteropServices.COMException)
         {
-            _copy.ToolTip = "Couldn't copy: the clipboard is busy";
+            _copy.ToolTip = Strings.Ai_ClipboardBusy;
         }
     }
 
@@ -372,7 +371,7 @@ public sealed partial class AiAnswerCard : Border
         _text.Inlines.Clear();
         if (thinking || shown.Length == 0)
         {
-            _text.Text = thinking ? "Thinking…" : "…";
+            _text.Text = thinking ? Strings.Ai_Thinking : "…";
             return;
         }
         var lines = shown.Replace("\r\n", "\n").Split('\n');
@@ -410,8 +409,8 @@ public sealed partial class AiAnswerCard : Border
             {
                 if (c.Start > at) inlines.Add(new Run(text[at..c.Start]));
                 var page = c.Page;
-                var link = new Hyperlink(new Run(text.Substring(c.Start, c.Length))) { ToolTip = $"Go to page {page + 1}" };
-                AutomationProperties.SetName(link, $"Go to page {page + 1}");
+                var link = new Hyperlink(new Run(text.Substring(c.Start, c.Length))) { ToolTip = Loc.Format(Strings.Viewer_GoToPage, page + 1) };
+                AutomationProperties.SetName(link, Loc.Format(Strings.Viewer_GoToPage, page + 1));
                 link.Click += (_, _) => _goTo(page);
                 inlines.Add(link);
                 at = c.Start + c.Length;

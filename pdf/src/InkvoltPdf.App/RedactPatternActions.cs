@@ -34,26 +34,24 @@ public static class RedactPatternActions
     /// Null when cancelled.</summary>
     internal static RedactionPatternOptions? Ask(Window owner, RedactionPatternOptions current, DocumentTab? tab)
     {
-        var dlg = new FormDialog(owner, "Redact by Pattern", tab is not null ? "Find" : "OK", 580);
+        var dlg = new FormDialog(owner, Strings.Redact_PatternTitle, tab is not null ? Strings.Redact_Find : Strings.Common_OK, 580);
         dlg.AddNote(tab is not null
-            ? "Finds text by its pattern, in scans too through text recognition, and lists every match. Nothing is removed until you have checked the list."
-            : "Finds text by its pattern in each file, in scans too through text recognition, and redacts every match at once. Each result is read back and " +
-              "searched again: a file with a match left fails and isn't saved. A report goes in the results folder. Pages with matches become images; add " +
-              "Recognize Text (OCR) after this action to keep them searchable.");
-        dlg.AddNote("Text recognition can misread words and miss whole lines, so a scan is never reported clean: pages read that way are listed for you to look at by hand.");
+            ? Strings.Redact_PatternNoteTab
+            : Strings.Redact_PatternNoteBatch);
+        dlg.AddNote(Strings.Redact_OcrMisreads);
 
         // A saved set fills in the choices below.
         var (sets, setProblems) = RedactionPatternSets.List(SetsFolder);
         var setChoice = new ComboBox { MinWidth = 280 };
-        var saveSet = new Button { Content = "Save as…", Margin = new Thickness(8, 0, 0, 0) };
-        var deleteSet = new Button { Content = "Delete", Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
+        var saveSet = new Button { Content = Strings.Redact_SaveSetAs, Margin = new Thickness(8, 0, 0, 0) };
+        var deleteSet = new Button { Content = Strings.Common_Delete, Margin = new Thickness(8, 0, 0, 0), IsEnabled = false };
         var setRow = new StackPanel { Orientation = Orientation.Horizontal };
         setRow.Children.Add(setChoice);
         setRow.Children.Add(saveSet);
         setRow.Children.Add(deleteSet);
-        AutomationProperties.SetName(setChoice, "Saved set");
-        dlg.Add("Saved set", setRow, top: 16);
-        var setNote = dlg.AddNote("Saved on this PC as plain text, words and all.");
+        AutomationProperties.SetName(setChoice, Strings.Redact_SavedSet);
+        dlg.Add(Strings.Redact_SavedSet, setRow, top: 16);
+        var setNote = dlg.AddNote(Strings.Redact_SavedSetNote);
         if (setProblems.Count > 0)
         {
             setNote.Text = string.Join(" ", setProblems.Take(3));
@@ -83,11 +81,10 @@ public static class RedactPatternActions
             grid.Children.Add(box);
             checks.Add((pattern, box));
         }
-        dlg.Add("Look for", grid);
-        dlg.AddNote("Point at a kind to see what it matches. Card numbers and IBANs count only when their check digits are right; " +
-                    "ZIP codes match any five-digit number, so they are off unless you choose them.");
+        dlg.Add(Strings.Redact_LookFor, grid);
+        dlg.AddNote(Strings.Redact_KindsNote);
 
-        var phrases = dlg.Add("Your words and phrases (one per line)", new TextBox
+        var phrases = dlg.Add(Strings.Redact_PhrasesLabel, new TextBox
         {
             Text = string.Join(Environment.NewLine, current.Phrases),
             AcceptsReturn = true,
@@ -95,15 +92,15 @@ public static class RedactPatternActions
             Height = 56,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         }, top: 16);
-        AutomationProperties.SetName(phrases, "Your words and phrases, one per line");
+        AutomationProperties.SetName(phrases, Strings.Redact_PhrasesName);
 
-        var expression = dlg.Add("Your own pattern (a regular expression; optional)", new TextBox
+        var expression = dlg.Add(Strings.Redact_ExpressionLabel, new TextBox
         {
             Text = current.Expression ?? "",
             FontFamily = new FontFamily("Cascadia Mono, Consolas"),
         }, top: 16);
-        AutomationProperties.SetName(expression, "Your own pattern, a regular expression");
-        const string expressionHint = @"For example CASE-\d{4} finds CASE-0412. Line breaks read as spaces.";
+        AutomationProperties.SetName(expression, Strings.Redact_ExpressionName);
+        var expressionHint = Strings.Redact_ExpressionHint;
         var expressionNote = dlg.AddNote(expressionHint);
         AutomationProperties.SetLiveSetting(expressionNote, AutomationLiveSetting.Polite);
         expression.TextChanged += (_, _) =>
@@ -115,8 +112,8 @@ public static class RedactPatternActions
             AutomationProperties.SetHelpText(expression, error ?? "");
             UIElementAutomationPeer.CreatePeerForElement(expressionNote)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
         };
-        var whole = new CheckBox { Content = "Whole words only", IsChecked = current.WholeWord, Margin = new Thickness(0, 0, 24, 0) };
-        var matchCase = new CheckBox { Content = "Match case", IsChecked = current.MatchCase, ToolTip = "For your words and your pattern" };
+        var whole = new CheckBox { Content = Strings.Redact_WholeWords, IsChecked = current.WholeWord, Margin = new Thickness(0, 0, 24, 0) };
+        var matchCase = new CheckBox { Content = Strings.Redact_MatchCase, IsChecked = current.MatchCase, ToolTip = Strings.Redact_MatchCaseTip };
         var options = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 10, 0, 0) };
         options.Children.Add(whole);
         options.Children.Add(matchCase);
@@ -127,10 +124,10 @@ public static class RedactPatternActions
         TextBox? rangeText = null;
         if (tab is not null)
         {
-            allPages = new RadioButton { Content = "All pages", IsChecked = true, VerticalAlignment = VerticalAlignment.Center, MinWidth = 0, Margin = new Thickness(0, 0, 24, 0) };
-            var someRadio = new RadioButton { Content = "Pages:", VerticalAlignment = VerticalAlignment.Center, MinWidth = 0 };
+            allPages = new RadioButton { Content = Strings.Common_AllPages, IsChecked = true, VerticalAlignment = VerticalAlignment.Center, MinWidth = 0, Margin = new Thickness(0, 0, 24, 0) };
+            var someRadio = new RadioButton { Content = Strings.Dialog_PagesColon, VerticalAlignment = VerticalAlignment.Center, MinWidth = 0 };
             var someText = rangeText = new TextBox { Width = 120, Margin = new Thickness(8, 0, 0, 0), Text = PageRange.Format(Enumerable.Range(0, tab.PageView.PageCount)) };
-            AutomationProperties.SetName(someText, "Pages to search");
+            AutomationProperties.SetName(someText, Strings.Redact_PagesToSearch);
             someText.GotFocus += (_, _) => someRadio.IsChecked = true;
             var row = new StackPanel { Orientation = Orientation.Horizontal };
             row.Children.Add(allPages);
@@ -138,12 +135,12 @@ public static class RedactPatternActions
             row.Children.Add(someText);
             row.Children.Add(new TextBlock
             {
-                Text = $"e.g. 1-3, 5, 8- (of {tab.PageView.PageCount})",
+                Text = Loc.Format(Strings.Redact_PagesHint, tab.PageView.PageCount),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(8, 0, 0, 0),
                 Style = (Style)Application.Current.FindResource("Caption"),
             });
-            dlg.Add("Pages", row, top: 16);
+            dlg.Add(Strings.Common_Pages, row, top: 16);
         }
 
         RedactionPatternOptions Options() => new()
@@ -157,7 +154,7 @@ public static class RedactPatternActions
 
         void ShowSets(string? select)
         {
-            var names = new List<string> { "None" };
+            var names = new List<string> { Strings.Common_None };
             names.AddRange(sets.Select(s => s.Name));
             setChoice.ItemsSource = names;
             setChoice.SelectedIndex = Math.Max(0, select is null ? 0 : names.IndexOf(select));
@@ -182,12 +179,12 @@ public static class RedactPatternActions
         saveSet.Click += (_, _) =>
         {
             if (!ProGate.Check(dlg, ProFeature.PatternRedaction)) return;
-            var ask = new FormDialog(dlg, "Save Pattern Set", "Save", 440);
-            var name = ask.AddText("Name", setChoice.SelectedIndex > 0 ? (string)setChoice.SelectedItem : "");
-            ask.AddNote("The kinds, your words and your own pattern, saved on this PC as plain text under this name.");
+            var ask = new FormDialog(dlg, Strings.Redact_SaveSetTitle, Strings.Common_Save, 440);
+            var name = ask.AddText(Strings.Sign_Name, setChoice.SelectedIndex > 0 ? (string)setChoice.SelectedItem : "");
+            ask.AddNote(Strings.Redact_SaveSetNote);
             ask.Validate(() =>
             {
-                if (RedactionPatternSets.CleanName(name.Text).Length == 0) return "Name the set.";
+                if (RedactionPatternSets.CleanName(name.Text).Length == 0) return Strings.Redact_NameSet;
                 try
                 {
                     RedactionPatternSets.Save(new RedactionPatternSet(name.Text, Options()), SetsFolder);
@@ -208,7 +205,7 @@ public static class RedactPatternActions
         {
             if (setChoice.SelectedIndex <= 0) return;
             var name = sets[setChoice.SelectedIndex - 1].Name;
-            if (!Prompt.Confirm(dlg, $"Delete the set \"{name}\"?", "It goes from this PC. What you chose below stays until you close this window.", "Delete", warning: true)) return;
+            if (!Prompt.Confirm(dlg, Loc.Format(Strings.Redact_DeleteSet, name), Strings.Redact_DeleteSetBody, Strings.Common_Delete, warning: true)) return;
             RedactionPatternSets.Delete(name, SetsFolder);
             (sets, _) = RedactionPatternSets.List(SetsFolder);
             loading = true;
@@ -223,7 +220,7 @@ public static class RedactPatternActions
         dlg.Validate(() =>
         {
             if (RedactionPatterns.Validate(Options()) is { } error) return error;
-            if (Options().IsEmpty) return "Choose something to look for: a kind of text, a word or phrase, or your own pattern.";
+            if (Options().IsEmpty) return Strings.Redact_ChooseSomething;
             if (Options().Expression is not null && !ProGate.Check(dlg, ProFeature.PatternRedaction)) return Pro.Locked(ProFeature.PatternRedaction);
             pages = null;
             if (tab is null || allPages!.IsChecked == true) return null;
@@ -245,14 +242,14 @@ public static class RedactPatternActions
     {
         var kinds = RedactionPatterns.BuiltIn.Where(options.Patterns.Contains).ToList();
         var parts = new List<string>();
-        if (options.SetName is { } name) parts.Add($"Saved set \"{name}\"");
-        else if (kinds.Count == RedactionPatterns.BuiltIn.Count) parts.Add("Every kind of text");
-        else if (kinds.Count == RedactionPatterns.Defaults.Count && kinds.All(RedactionPatterns.Defaults.Contains)) parts.Add("Every kind of text but ZIP codes");
+        if (options.SetName is { } name) parts.Add(Loc.Format(Strings.Redact_DescSet, name));
+        else if (kinds.Count == RedactionPatterns.BuiltIn.Count) parts.Add(Strings.Redact_DescEvery);
+        else if (kinds.Count == RedactionPatterns.Defaults.Count && kinds.All(RedactionPatterns.Defaults.Contains)) parts.Add(Strings.Redact_DescEveryButZip);
         else if (kinds.Count > 0) parts.Add(string.Join(", ", kinds.Select(RedactionPatterns.Name)));
         var phrases = options.Phrases.Count(p => !string.IsNullOrWhiteSpace(p));
-        if (options.SetName is null && phrases > 0) parts.Add(phrases == 1 ? "1 word or phrase" : $"{phrases} words and phrases");
-        if (options.SetName is null && !string.IsNullOrEmpty(options.Expression)) parts.Add("your pattern");
+        if (options.SetName is null && phrases > 0) parts.Add(Loc.Plural(phrases, Strings.Redact_DescPhrases_One, Strings.Redact_DescPhrases_Many));
+        if (options.SetName is null && !string.IsNullOrEmpty(options.Expression)) parts.Add(Strings.Redact_DescYourPattern);
         var what = string.Join("; ", parts);
-        return what.Length == 0 ? "" : char.ToUpperInvariant(what[0]) + what[1..] + "; pages with matches become images";
+        return what.Length == 0 ? "" : Loc.Format(Strings.Redact_DescImages, char.ToUpperInvariant(what[0]) + what[1..]);
     }
 }

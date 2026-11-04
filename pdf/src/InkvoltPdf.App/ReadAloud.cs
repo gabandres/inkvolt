@@ -63,7 +63,7 @@ public sealed class ReadAloud : IDisposable
         _tick = new DispatcherTimer(DispatcherPriority.Render, _dispatcher) { Interval = TimeSpan.FromMilliseconds(40) };
         _tick.Tick += (_, _) => FollowPosition();
         _player.MediaEnded += (_, _) => _dispatcher.BeginInvoke(() => OnChunkEnded(_run));
-        _player.MediaFailed += (_, e) => _dispatcher.BeginInvoke(() => Fail($"The voice couldn't be played: {e.ErrorMessage}"));
+        _player.MediaFailed += (_, e) => _dispatcher.BeginInvoke(() => Fail(Loc.Format(Strings.Read_PlayFailed, e.ErrorMessage)));
 
         _synth.Options.IncludeWordBoundaryMetadata = true;
         _synth.Options.IncludeSentenceBoundaryMetadata = true;
@@ -76,11 +76,11 @@ public sealed class ReadAloud : IDisposable
             b.Click += (_, _) => click();
             return b;
         }
-        _playButton = Icon("", "Pause", TogglePause);
-        _voices = new ComboBox { Width = 210, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Voice" };
-        System.Windows.Automation.AutomationProperties.SetName(_voices, "Voice");
-        _speeds = new ComboBox { Width = 76, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = "Speed" };
-        System.Windows.Automation.AutomationProperties.SetName(_speeds, "Speed");
+        _playButton = Icon("", Strings.Read_Pause, TogglePause);
+        _voices = new ComboBox { Width = 210, Margin = new Thickness(6, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = Strings.Read_Voice };
+        System.Windows.Automation.AutomationProperties.SetName(_voices, Strings.Read_Voice);
+        _speeds = new ComboBox { Width = 76, Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, ToolTip = Strings.Read_Speed };
+        System.Windows.Automation.AutomationProperties.SetName(_speeds, Strings.Read_Speed);
         _status = new TextBlock { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 8, 0), MinWidth = 52, FontSize = 12 };
         _status.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
 
@@ -115,10 +115,10 @@ public sealed class ReadAloud : IDisposable
         title.SetResourceReference(TextBlock.FontFamilyProperty, "Icons");
         title.SetResourceReference(TextBlock.ForegroundProperty, "AccentTextFillColorPrimaryBrush");
         row.Children.Add(title);
-        row.Children.Add(Icon("", "Previous paragraph", () => Skip(-1)));
+        row.Children.Add(Icon("", Strings.Read_PrevParagraph, () => Skip(-1)));
         row.Children.Add(_playButton);
-        row.Children.Add(Icon("", "Next paragraph", () => Skip(1)));
-        row.Children.Add(Icon("", $"Stop ({Cmd.GestureText(Cmd.ReadAloud)})", Stop));
+        row.Children.Add(Icon("", Strings.Read_NextParagraph, () => Skip(1)));
+        row.Children.Add(Icon("", Loc.Format(Strings.Read_StopKey, Cmd.GestureText(Cmd.ReadAloud)), Stop));
         row.Children.Add(_status);
         var sep = new Border();
         sep.SetResourceReference(FrameworkElement.StyleProperty, "BarSeparator");
@@ -139,7 +139,7 @@ public sealed class ReadAloud : IDisposable
         };
         _bar.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorQuarternaryBrush");
         _bar.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
-        System.Windows.Automation.AutomationProperties.SetName(_bar, "Read aloud");
+        System.Windows.Automation.AutomationProperties.SetName(_bar, Strings.Read_ReadAloud);
         Grid.SetRow(_bar, 1);
         _host.Children.Add(_bar);
     }
@@ -165,7 +165,7 @@ public sealed class ReadAloud : IDisposable
         }
         if (SpeechSynthesizer.AllVoices.Count == 0)
         {
-            Prompt.Info(Window.GetWindow(_tab), "No voices installed", "Add a voice in Windows Settings › Time & language › Speech, then try again.");
+            Prompt.Info(Window.GetWindow(_tab), Strings.Read_NoVoices, Strings.Read_NoVoicesBody);
             return;
         }
         var run = ++_run;
@@ -326,7 +326,7 @@ public sealed class ReadAloud : IDisposable
         catch (Exception ex)
         {
             Log.Write($"Read aloud: synthesis failed: {ex}");
-            if (run == _run) Fail("The voice couldn't read this text.");
+            if (run == _run) Fail(Strings.Read_CantRead);
             return;
         }
         if (run != _run)
@@ -439,10 +439,10 @@ public sealed class ReadAloud : IDisposable
     private void UpdateButtons()
     {
         _playButton.Content = _paused ? "" : "";
-        var tip = _paused ? "Resume" : "Pause";
+        var tip = _paused ? Strings.Read_Resume : Strings.Read_Pause;
         _playButton.ToolTip = tip;
         System.Windows.Automation.AutomationProperties.SetName(_playButton, tip);
-        _status.Text = IsActive ? $"Page {_page + 1}" : "";
+        _status.Text = IsActive ? Loc.Format(Strings.Viewer_PageN, _page + 1) : "";
         _tab.RaiseReadAloudChanged();
     }
 

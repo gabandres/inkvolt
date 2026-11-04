@@ -50,7 +50,7 @@ public static class AiService
         problem = null;
         if (!s.AiEnabled)
         {
-            problem = "The AI assistant is off.";
+            problem = Strings.Ai_Off;
             return null;
         }
         if (!AiEndpoint.TryParse(UrlOf(s.AiPreset, s.AiCustomUrl), out var ep, out var error))
@@ -60,7 +60,7 @@ public static class AiService
         }
         if (string.IsNullOrWhiteSpace(s.AiModel))
         {
-            problem = "Choose a model for the AI assistant.";
+            problem = Strings.Ai_ChooseModel;
             return null;
         }
         // Ollama: until it is asked (ResolveAsync), the size it uses unless told otherwise on most PCs.
@@ -79,7 +79,7 @@ public static class AiService
         var (context, source) = await client.OllamaContextAsync(cancel);
         return context is { } n
             ? config with { ContextTokens = Math.Max(n, 1024), ContextSource = source }
-            : config with { ContextTokens = AiText.DefaultContextTokens, ContextSource = "Ollama's usual default (it didn't say)" };
+            : config with { ContextTokens = AiText.DefaultContextTokens, ContextSource = Strings.Ai_OllamaDefault };
     }
 
     /// <summary>A client for a configuration: for Ollama with the answer's limit, so the prompt and the answer fit its context.</summary>
@@ -136,7 +136,7 @@ public static class AiKeyStore
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
         {
             Log.Write($"AI keys not saved: {ex.GetType().Name}"); // never the key itself
-            throw new InvalidOperationException("The API key couldn't be saved on this PC.", ex);
+            throw new InvalidOperationException(Strings.Ai_KeyNotSaved, ex);
         }
     }
 

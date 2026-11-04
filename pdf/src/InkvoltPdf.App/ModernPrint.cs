@@ -42,7 +42,7 @@ internal static class ModernPrint
         if (!Available) return false;
         if (_active is not null)
         {
-            (owner as MainWindow)?.ShowStatus("The print dialog is already open");
+            (owner as MainWindow)?.ShowStatus(Strings.Print_DialogOpen);
             return true;
         }
         var hwnd = new WindowInteropHelper(owner).Handle;
@@ -223,9 +223,9 @@ internal sealed class PrintSession
             if (_setup.Handling == PrintHandling.Fit)
             {
                 // Page sizing, the preview following it.
-                var sizing = details.CreateItemListOption(SizingOption, "Page sizing");
-                sizing.AddItem("actual", "Actual size (only pages larger than the paper shrink)");
-                sizing.AddItem("fit", "Fit to paper (small pages grow too)");
+                var sizing = details.CreateItemListOption(SizingOption, Strings.Print_PageSizing);
+                sizing.AddItem("actual", Strings.Print_SizingActual);
+                sizing.AddItem("fit", Strings.Print_SizingFit);
                 sizing.TrySetValue(_setup.Sizing == PrintSizing.FitToPaper ? "fit" : "actual");
                 shown.Add(SizingOption);
             }
@@ -243,7 +243,7 @@ internal sealed class PrintSession
     {
         Log.Write($"Print dialog: {completion}");
         _completed = true;
-        if (completion == PrintTaskCompletion.Failed) Prompt.Error(_owner, "Printing didn't work", "Windows couldn't print the document.");
+        if (completion == PrintTaskCompletion.Failed) Prompt.Error(_owner, Strings.Print_Failed, Strings.Print_WindowsFailed);
         if (completion == PrintTaskCompletion.Submitted && !_documentDone && Volatile.Read(ref _making) == 0)
         {
             // Submitted can come before Windows asks for the job: wait for it a while, the tab still held.
@@ -508,9 +508,10 @@ internal sealed class PrintSession
             var layout = LayoutFor(o);
             var chosen = SheetsFor(o, layout.Plan.SheetCount);
             var sheets = chosen.Length;
-            var unit = layout.Setup.Handling == PrintHandling.Fit ? "page" : "sheet";
-            var what = sheets == 1 ? $"1 {unit}" : $"{sheets} {unit}s";
-            progress = _ui.Invoke(() => new ProgressPrompt(_owner, "Printing", $"Preparing {what}…"));
+            var pagesNotSheets = layout.Setup.Handling == PrintHandling.Fit;
+            var preparing = pagesNotSheets ? Loc.Plural(sheets, Strings.Print_PreparingPages_One, Strings.Print_PreparingPages_Many)
+                : Loc.Plural(sheets, Strings.Print_PreparingSheets_One, Strings.Print_PreparingSheets_Many);
+            progress = _ui.Invoke(() => new ProgressPrompt(_owner, Strings.Print_Printing, preparing));
             var cancel = CancellationTokenSource.CreateLinkedTokenSource(_cancel.Token, progress.Token).Token;
             try
             {
@@ -522,10 +523,10 @@ internal sealed class PrintSession
                     var xps = _ui.Invoke(() => SheetXps(sheet, layout.Paper));
                     cancel.ThrowIfCancellationRequested();
                     writer.AddSheet(xps, i + 1);
-                    progress.Report($"Sending {unit} {i + 1} of {sheets} to the printer…", (i + 1.0) / sheets);
+                    progress.Report(Loc.Format(pagesNotSheets ? Strings.Print_SendingPage : Strings.Print_SendingSheet, i + 1, sheets), (i + 1.0) / sheets);
                 }
                 writer.Close();
-                Log.Write($"Printed {what} ({layout.Setup.Handling})");
+                Log.Write($"Printed {sheets} {(pagesNotSheets ? "page" : "sheet")}(s) ({layout.Setup.Handling})");
                 if (_setup.Handling == PrintHandling.Fit)
                 {
                     var fit = layout.Setup.Sizing == PrintSizing.FitToPaper;
@@ -542,7 +543,7 @@ internal sealed class PrintSession
             {
                 Native.CancelJob(packageTarget);
                 Log.Write("Printing cancelled");
-                _ui.BeginInvoke(() => (_owner as MainWindow)?.ShowStatus("Printing cancelled"));
+                _ui.BeginInvoke(() => (_owner as MainWindow)?.ShowStatus(Strings.Print_Cancelled));
             }
             return 0;
         }
@@ -551,7 +552,7 @@ internal sealed class PrintSession
             // Our message, and the job dropped (an error back would have Windows show one of its own as well).
             Log.Write($"Print failed: {ex}");
             Native.CancelJob(packageTarget);
-            _ui.BeginInvoke(() => Prompt.Error(_owner, "Printing didn't work", ex.Message));
+            _ui.BeginInvoke(() => Prompt.Error(_owner, Strings.Print_Failed, ex.Message));
             return 0;
         }
         finally

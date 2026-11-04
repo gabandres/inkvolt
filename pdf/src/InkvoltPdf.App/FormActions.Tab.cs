@@ -82,18 +82,18 @@ public partial class DocumentTab
             foreach (var line in r.Log) Log.Write(line);
             foreach (var alert in r.Alerts.Distinct().Take(3)) Notify(alert);
             if (r.NeedsPermission)
-                Notify("This form is protected: its buttons can't change fields until the permissions password is entered (fill a field to be asked for it).");
+                Notify(Strings.Form_Protected);
             if (r.Data is { } updated)
             {
                 while (!_disposed)
                 {
                     if (!ReferenceEquals(Session.Data, data))
                     {
-                        Notify("The document changed while the form's action ran, so its changes weren't kept. Try again.", error: true);
+                        Notify(Strings.Form_ChangedMeanwhile, error: true);
                         break;
                     }
                     var outcome = await TryEdit(r.Label, (d, _) => ReferenceEquals(d, data) ? updated : d,
-                        quiet: r.Label is not ("Reset form" or "Import form data"), contentOnly: true);
+                        quiet: r.Label != PdfStrings.Form_UndoResetForm && r.Label != PdfStrings.Form_UndoImportData, contentOnly: true);
                     if (outcome != EditOutcome.Busy) break;
                     await WhenIdle();
                 }
@@ -214,12 +214,12 @@ public partial class DocumentTab
         {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Scheme is not ("http" or "https" or "mailto"))
             {
-                Toast($"The form tried to open {Short(url)}. Only web and email links can be opened from a form.", error: true);
+                Toast(Loc.Format(Strings.Form_OnlyWebLinks, Short(url)), error: true);
                 return false;
             }
             var mail = u.Scheme == "mailto";
-            if (!Consent("url", mail ? "Write an email?" : "Open a web page?",
-                    mail ? "The form wants to start an email in your email app, to:" : "The form wants to open this address in your browser:", u.OriginalString))
+            if (!Consent("url", mail ? Strings.Form_WriteEmail : Strings.Form_OpenWebPage,
+                    mail ? Strings.Form_WantsEmailTo : Strings.Form_WantsBrowser, u.OriginalString))
                 return false;
             Post(() => Shell.Open(u.AbsoluteUri));
             return true;
@@ -229,18 +229,18 @@ public partial class DocumentTab
         {
             if (!Uri.TryCreate(s.Url, UriKind.Absolute, out var u) || u.Scheme is not ("http" or "https"))
             {
-                Toast($"The form tried to send its data to {Short(s.Url)}. Form data can only be sent to web addresses (http or https).", error: true);
+                Toast(Loc.Format(Strings.Form_OnlyWebSubmit, Short(s.Url)), error: true);
                 return null;
             }
             var what = s.Format switch
             {
-                SubmitFormat.Pdf => $"the whole document ({Size(s.Body.Length)}), including the values of its {s.FieldCount} field{Plural(s.FieldCount)},",
-                SubmitFormat.Fdf => $"the values of {s.FieldCount} field{Plural(s.FieldCount)} (FDF, {Size(s.Body.Length)})",
-                SubmitFormat.Xfdf => $"the values of {s.FieldCount} field{Plural(s.FieldCount)} (XFDF, {Size(s.Body.Length)})",
-                _ => $"the values of {s.FieldCount} field{Plural(s.FieldCount)} (web form{(s.Method == "GET" ? ", in the address" : $", {Size(s.Body.Length)}")})",
+                SubmitFormat.Pdf => Loc.Plural(s.FieldCount, Strings.Form_SendPdf_One, Strings.Form_SendPdf_Many, Size(s.Body.Length)),
+                SubmitFormat.Fdf => Loc.Plural(s.FieldCount, Strings.Form_SendValues_One, Strings.Form_SendValues_Many, "FDF, " + Size(s.Body.Length)),
+                SubmitFormat.Xfdf => Loc.Plural(s.FieldCount, Strings.Form_SendValues_One, Strings.Form_SendValues_Many, "XFDF, " + Size(s.Body.Length)),
+                _ => Loc.Plural(s.FieldCount, Strings.Form_SendValues_One, Strings.Form_SendValues_Many, s.Method == "GET" ? Strings.Form_WebFormInAddress : Loc.Format(Strings.Form_WebFormSize, Size(s.Body.Length))),
             };
             var destination = $"{s.Method} {u.GetLeftPart(UriPartial.Path)}";
-            if (!Consent("submit", "Send form data?", $"The form wants to send {what} to this address. Nothing is sent unless you allow it.", destination,
+            if (!Consent("submit", Strings.Form_SendData, Loc.Format(Strings.Form_WantsSend, what), destination,
                     FormConsent.SubmitKey(s)))
                 return null;
             return Send(u, s);
@@ -260,30 +260,29 @@ public partial class DocumentTab
                 using var response = await Http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
                 var code = (int)response.StatusCode;
                 Log.Write($"Form data sent to {u.Host}: HTTP {code}");
-                Toast(response.IsSuccessStatusCode ? $"Form sent to {u.Host} ({code} {response.ReasonPhrase})." : $"{u.Host} didn't accept the form ({code} {response.ReasonPhrase}).",
+                Toast(Loc.Format(response.IsSuccessStatusCode ? Strings.Form_Sent : Strings.Form_NotAccepted, u.Host, code, response.ReasonPhrase),
                     error: !response.IsSuccessStatusCode);
                 return code;
             }
             catch (TaskCanceledException)
             {
-                Toast($"Sending the form to {u.Host} timed out.", error: true);
+                Toast(Loc.Format(Strings.Form_SendTimeout, u.Host), error: true);
                 return 0;
             }
             catch (HttpRequestException ex)
             {
                 Log.Write($"Form data to {u.Host} not sent: {ex.Message}");
-                Toast($"Couldn't send the form to {u.Host}: {ex.Message}", error: true);
+                Toast(Loc.Format(Strings.Form_SendFailed, u.Host, ex.Message), error: true);
                 return 0;
             }
         }
 
         public bool Mail(FormMail m)
         {
-            var attachment = m.Attachment is null ? "" : $" The {(m.AttachmentName?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) == true ? "document" : "form data")} " +
-                $"({Size(m.Attachment.Length)}) is saved to a temporary folder for you to attach.";
-            var to = m.To.Length > 0 ? m.To : "(you choose)";
+            var attachment = m.Attachment is null ? "" : " " + Loc.Format(m.AttachmentName?.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) == true ? Strings.Form_AttachDocument : Strings.Form_AttachData, Size(m.Attachment.Length));
+            var to = m.To.Length > 0 ? m.To : Strings.Form_YouChoose;
             var copies = string.Join("", new[] { ("cc", m.Cc), ("bcc", m.Bcc) }.Where(x => x.Item2.Length > 0).Select(x => $"\n{x.Item1}: {Short(x.Item2)}"));
-            if (!Consent("mail", "Write an email?", $"The form wants to start an email in your email app.{attachment}", $"mailto:{Short(to)}{copies}", FormConsent.MailKey(m)))
+            if (!Consent("mail", Strings.Form_WriteEmail, Strings.Form_WantsEmail + attachment, $"mailto:{Short(to)}{copies}", FormConsent.MailKey(m)))
                 return false;
             string? path = null;
             if (m.Attachment is not null)
@@ -298,7 +297,7 @@ public partial class DocumentTab
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    Toast($"Couldn't save the attachment: {ex.Message}", error: true);
+                    Toast(Loc.Format(Strings.Form_AttachFailed, ex.Message), error: true);
                     return false;
                 }
             }
@@ -311,7 +310,7 @@ public partial class DocumentTab
             Part("bcc", m.Bcc);
             Part("subject", m.Subject);
             var body = m.Message.Length > 1500 ? m.Message[..1500] : m.Message;
-            if (path is not null) body += (body.Length > 0 ? "\n\n" : "") + "Attach this file: " + path;
+            if (path is not null) body += (body.Length > 0 ? "\n\n" : "") + Loc.Format(Strings.Form_AttachThisFile, path);
             Part("body", body);
             var address = string.Join(',', m.To.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(Uri.EscapeDataString));
             var mailto = "mailto:" + address + (parts.Count > 0 ? "?" + string.Join('&', parts) : "");
@@ -321,7 +320,7 @@ public partial class DocumentTab
                 if (path is not null)
                 {
                     Shell.ShowInFolder(path);
-                    tab.Notify($"Attach {Path.GetFileName(path)} to the email (its folder is open).");
+                    tab.Notify(Loc.Format(Strings.Form_AttachToEmail, Path.GetFileName(path)));
                 }
             });
             return true;
@@ -349,15 +348,15 @@ public partial class DocumentTab
         {
             if (Resolve(path) is not { } full || !Path.GetExtension(full).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                Toast($"The form tried to open {Short(path)}, which isn't a PDF on this computer.", error: true);
+                Toast(Loc.Format(Strings.Form_NotPdfHere, Short(path)), error: true);
                 return false;
             }
             if (!File.Exists(full))
             {
-                Toast($"The form tried to open {Path.GetFileName(full)}, which can't be found.", error: true);
+                Toast(Loc.Format(Strings.Form_NotFound, Path.GetFileName(full)), error: true);
                 return false;
             }
-            if (!Consent("file", "Open another PDF?", $"The form wants to open this PDF in a new tab{(page > 0 ? $", at page {page + 1}" : "")}:", full)) return false;
+            if (!Consent("file", Strings.Form_OpenAnotherPdf, page > 0 ? Loc.Format(Strings.Form_WantsPdfAtPage, page + 1) : Strings.Form_WantsPdf, full)) return false;
             Post(() => _ = OpenPdf(full, page));
             return true;
         }
@@ -374,23 +373,23 @@ public partial class DocumentTab
         {
             if (Resolve(path) is not { } full)
             {
-                Toast($"The form tried to open {Short(path)}, which isn't a file on this computer.", error: true);
+                Toast(Loc.Format(Strings.Form_NotFileHere, Short(path)), error: true);
                 return false;
             }
             var ext = Path.GetExtension(full);
             if (!DocumentTypes.Contains(ext))
             {
                 Log.Write($"Form Launch action refused: {Path.GetFileName(full)}");
-                Toast($"The form tried to start {Path.GetFileName(full)}. Inkvolt PDF never runs programs or scripts from a document.", error: true);
+                Toast(Loc.Format(Strings.Form_NeverRuns, Path.GetFileName(full)), error: true);
                 return false;
             }
             if (!File.Exists(full))
             {
-                Toast($"The form tried to open {Path.GetFileName(full)}, which can't be found.", error: true);
+                Toast(Loc.Format(Strings.Form_NotFound, Path.GetFileName(full)), error: true);
                 return false;
             }
             var pdf = ext.Equals(".pdf", StringComparison.OrdinalIgnoreCase);
-            if (!Consent("file", "Open a file?", pdf ? "The form wants to open this PDF in a new tab:" : "The form wants to open this file with its default app:", full)) return false;
+            if (!Consent("file", Strings.Form_OpenFile, pdf ? Strings.Form_WantsPdf : Strings.Form_WantsDefaultApp, full)) return false;
             Post(() =>
             {
                 if (pdf) _ = OpenPdf(full, 0);
@@ -402,16 +401,16 @@ public partial class DocumentTab
         public byte[]? ImportData(string? suggestedPath)
         {
             var suggested = suggestedPath is null ? null : Resolve(suggestedPath);
-            if (!Consent("import", "Fill the form from a data file?",
-                    "The form wants to fill its fields from form data (FDF or XFDF). You pick the file next; its values replace the fields' values.",
-                    suggested ?? "(you choose the file)"))
+            if (!Consent("import", Strings.Form_FillFromData,
+                    Strings.Form_FillFromDataBody,
+                    suggested ?? Strings.Form_YouChooseFile))
                 return null;
             return Ui(() =>
             {
                 var dlg = new OpenFileDialog
                 {
-                    Title = "Import form data",
-                    Filter = "Form data (*.fdf;*.xfdf)|*.fdf;*.xfdf|All files (*.*)|*.*",
+                    Title = Strings.FormData_ImportLabel,
+                    Filter = Strings.Form_DataFilter,
                     CheckFileExists = true,
                 };
                 if (suggested is not null)
@@ -425,14 +424,14 @@ public partial class DocumentTab
                     var info = new FileInfo(dlg.FileName);
                     if (info.Length > 16 * 1024 * 1024)
                     {
-                        tab.Notify("That file is too large to be form data.", error: true);
+                        tab.Notify(Strings.Form_TooLarge, error: true);
                         return null;
                     }
                     return File.ReadAllBytes(dlg.FileName);
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    tab.Notify($"Couldn't read {Path.GetFileName(dlg.FileName)}: {ex.Message}", error: true);
+                    tab.Notify(Loc.Format(Strings.Form_CouldntRead, Path.GetFileName(dlg.FileName), ex.Message), error: true);
                     return null;
                 }
             });
@@ -485,8 +484,6 @@ public partial class DocumentTab
 
         private static string Short(string s) => s.Length > 120 ? s[..120] + "…" : s;
 
-        private static string Plural(int n) => n == 1 ? "" : "s";
-
-        private static string Size(long bytes) => bytes < 1024 ? $"{bytes} bytes" : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes / 1048576.0:0.#} MB";
+        private static string Size(long bytes) => bytes < 1024 ? Loc.Format(Strings.Form_Bytes, bytes) : bytes < 1024 * 1024 ? $"{bytes / 1024.0:0.#} KB" : $"{bytes / 1048576.0:0.#} MB"; // in every language: unit symbols
     }
 }

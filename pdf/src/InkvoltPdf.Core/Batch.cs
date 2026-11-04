@@ -92,7 +92,7 @@ public static partial class BatchNames
 
     /// <summary>An error for a template that can't make names, else null.</summary>
     public static string? Validate(string template) =>
-        string.IsNullOrWhiteSpace(template) ? "Type a name for the results, for example <<name>>." : null;
+        string.IsNullOrWhiteSpace(template) ? PdfStrings.Batch_NameTemplateEmpty : null;
 
     /// <param name="number">The file's place in the batch, from 1.</param>
     public static string Expand(string template, string sourcePath, int number, DateTime date)
@@ -159,7 +159,7 @@ public abstract record BatchStep
 
 public sealed record OptimizeStep(OptimizeOptions Options) : BatchStep
 {
-    public override string Title => "Reduce file size";
+    public override string Title => PdfStrings.Batch_StepOptimize;
 }
 
 /// <summary>
@@ -168,7 +168,7 @@ public sealed record OptimizeStep(OptimizeOptions Options) : BatchStep
 /// </summary>
 public sealed record ProtectStep(string? UserPassword, string? OwnerPassword, PdfPermissions Permissions, EncryptionMethod Method = EncryptionMethod.Aes256) : BatchStep
 {
-    public override string Title => "Protect with a password";
+    public override string Title => PdfStrings.Batch_StepProtect;
 
     /// <summary>A password is wanted but not given (a step read from a preset).</summary>
     public bool NeedsPasswords => UserPassword is "" || OwnerPassword is "";
@@ -178,18 +178,18 @@ public sealed record ProtectStep(string? UserPassword, string? OwnerPassword, Pd
 
 public sealed record UnprotectStep : BatchStep
 {
-    public override string Title => "Remove password protection";
+    public override string Title => PdfStrings.Batch_StepUnprotect;
 }
 
 public sealed record SanitizeStep(IReadOnlySet<SanitizeItem> Items) : BatchStep
 {
-    public override string Title => "Sanitize";
+    public override string Title => PdfStrings.Batch_StepSanitize;
 }
 
 /// <summary>Redaction by pattern on every page, applied at once (the pages with matches become images, as in the app).</summary>
 public sealed record RedactPatternsStep(RedactionPatternOptions Options) : BatchStep
 {
-    public override string Title => "Redact patterns";
+    public override string Title => PdfStrings.Batch_StepRedactPatterns;
 
     public override ProFeature? Feature => ProFeature.PatternRedaction;
 }
@@ -202,7 +202,7 @@ public sealed record CheckRedactionStep : BatchStep
 {
     public override bool ChangesPdf => false;
 
-    public override string Title => "Check redaction";
+    public override string Title => PdfStrings.Batch_StepCheckRedaction;
 }
 
 /// <summary>
@@ -213,7 +213,7 @@ public sealed record CheckAccessibilityStep : BatchStep
 {
     public override bool ChangesPdf => false;
 
-    public override string Title => "Check accessibility";
+    public override string Title => PdfStrings.Batch_StepCheckAccessibility;
 }
 
 /// <summary>
@@ -224,35 +224,35 @@ public sealed record ReportContentsStep : BatchStep
 {
     public override bool ChangesPdf => false;
 
-    public override string Title => "Report contents";
+    public override string Title => PdfStrings.Batch_StepReportContents;
 }
 
 public sealed record WatermarkStep(WatermarkOptions Options) : BatchStep
 {
-    public override string Title => "Add watermark";
+    public override string Title => PdfStrings.Batch_StepWatermark;
 }
 
 /// <param name="ContinueBates">Bates numbers run on from one file to the next (in list order), instead of starting again.</param>
 public sealed record HeaderFooterStep(HeaderFooterOptions Options, bool ContinueBates = false) : BatchStep
 {
-    public override string Title => Options.Bates is not null ? "Add header, footer & Bates numbers" : "Add header & footer";
+    public override string Title => Options.Bates is not null ? PdfStrings.Batch_StepHeaderFooterBates : PdfStrings.Batch_StepHeaderFooter;
 }
 
 /// <param name="Degrees">A multiple of 90, positive clockwise.</param>
 public sealed record RotateStep(int Degrees) : BatchStep
 {
-    public override string Title => "Rotate pages";
+    public override string Title => PdfStrings.Batch_StepRotate;
 }
 
 public sealed record FlattenStep(FlattenOptions Options) : BatchStep
 {
-    public override string Title => "Flatten";
+    public override string Title => PdfStrings.Batch_StepFlatten;
 }
 
 /// <summary>An archival PDF/A-2b copy (<see cref="PdfA.Convert"/>); a file that can't be made one fails, saying why.</summary>
 public sealed record SaveAsPdfAStep : BatchStep
 {
-    public override string Title => Conformance == PdfAConformance.A ? "Save as PDF/A-2a" : "Save as PDF/A";
+    public override string Title => Conformance == PdfAConformance.A ? PdfStrings.Batch_StepPdfA2a : PdfStrings.Batch_StepPdfA;
 
     public override ProFeature? Feature => Conformance == PdfAConformance.A ? ProFeature.AccessibleOutput : null;
 
@@ -267,7 +267,7 @@ public sealed record SaveAsPdfAStep : BatchStep
 /// </summary>
 public sealed record MakeAccessibleStep : BatchStep
 {
-    public override string Title => "Make accessible";
+    public override string Title => PdfStrings.Batch_StepMakeAccessible;
 
     public override ProFeature? Feature => ProFeature.AutoTagging;
 
@@ -278,7 +278,7 @@ public sealed record MakeAccessibleStep : BatchStep
 /// <summary>Text recognition of pages without text, added as an invisible text layer (the recognizer comes from <see cref="BatchHost.Recognize"/>).</summary>
 public sealed record OcrStep : BatchStep
 {
-    public override string Title => "Recognize text (OCR)";
+    public override string Title => PdfStrings.Batch_StepOcr;
 }
 
 public enum BatchExportFormat
@@ -300,21 +300,21 @@ public sealed record ExportStep(BatchExportFormat Format, int Dpi = 150) : Batch
 
     public override string Title => Format switch
     {
-        BatchExportFormat.Word => "Export to Word",
-        BatchExportFormat.Excel => "Export tables to Excel",
-        BatchExportFormat.PowerPoint => "Export to PowerPoint",
-        BatchExportFormat.Html => "Export to HTML",
-        BatchExportFormat.Text => "Export as plain text",
-        BatchExportFormat.CommentsXfdf => "Export comments (XFDF)",
-        BatchExportFormat.CommentsFdf => "Export comments (FDF)",
-        BatchExportFormat.CommentsCsv => "Export comments (CSV)",
-        BatchExportFormat.FormDataXfdf => "Export form data (XFDF)",
-        BatchExportFormat.FormDataFdf => "Export form data (FDF)",
-        BatchExportFormat.FormDataCsv => "Export form data (CSV)",
-        BatchExportFormat.FormDataJson => "Export form data (JSON)",
-        BatchExportFormat.CommentSummary => "Summarize comments",
-        BatchExportFormat.Png => "Export pages as PNG images",
-        _ => "Export pages as JPEG images",
+        BatchExportFormat.Word => PdfStrings.Batch_ExportWord,
+        BatchExportFormat.Excel => PdfStrings.Batch_ExportExcel,
+        BatchExportFormat.PowerPoint => PdfStrings.Batch_ExportPowerPoint,
+        BatchExportFormat.Html => PdfStrings.Batch_ExportHtml,
+        BatchExportFormat.Text => PdfStrings.Batch_ExportText,
+        BatchExportFormat.CommentsXfdf => PdfStrings.Batch_ExportCommentsXfdf,
+        BatchExportFormat.CommentsFdf => PdfStrings.Batch_ExportCommentsFdf,
+        BatchExportFormat.CommentsCsv => PdfStrings.Batch_ExportCommentsCsv,
+        BatchExportFormat.FormDataXfdf => PdfStrings.Batch_ExportFormXfdf,
+        BatchExportFormat.FormDataFdf => PdfStrings.Batch_ExportFormFdf,
+        BatchExportFormat.FormDataCsv => PdfStrings.Batch_ExportFormCsv,
+        BatchExportFormat.FormDataJson => PdfStrings.Batch_ExportFormJson,
+        BatchExportFormat.CommentSummary => PdfStrings.Batch_ExportCommentSummary,
+        BatchExportFormat.Png => PdfStrings.Batch_ExportPng,
+        _ => PdfStrings.Batch_ExportJpeg,
     };
 
     public bool IsImages => Format is BatchExportFormat.Png or BatchExportFormat.Jpeg;
@@ -379,33 +379,33 @@ public sealed record BatchPlan
     /// <summary>What is wrong with the plan (for the dialog), or null.</summary>
     public string? Validate(bool ocrAvailable)
     {
-        if (Steps.Count == 0) return "Add at least one action.";
+        if (Steps.Count == 0) return PdfStrings.Batch_PlanNoSteps;
         if (Steps.Select(s => s.Feature).FirstOrDefault(f => f is { } x && !Pro.Allows(x)) is { } locked) return Pro.Locked(locked);
-        if (string.IsNullOrWhiteSpace(OutputFolder) || !Path.IsPathFullyQualified(OutputFolder)) return "Choose a folder for the results.";
+        if (string.IsNullOrWhiteSpace(OutputFolder) || !Path.IsPathFullyQualified(OutputFolder)) return PdfStrings.Batch_PlanNoFolder;
         if (BatchNames.Validate(NameTemplate) is { } nameError) return nameError;
         var protect = Steps.ToList().FindIndex(s => s is ProtectStep);
         if (protect >= 0 && Steps.Skip(protect + 1).Any(s => s.ChangesPdf))
-            return "Put \"Protect with a password\" after the other changes: they would need its password.";
+            return PdfStrings.Batch_PlanProtectLast;
         if (Steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords))
-            return "Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them.";
+            return PdfStrings.Batch_PlanProtectNeedsPasswords;
         if (Steps.OfType<ProtectStep>().Any(p => string.IsNullOrEmpty(p.UserPassword) && string.IsNullOrEmpty(p.OwnerPassword)))
-            return "Protect with a password needs an open password, a permissions password, or both.";
+            return PdfStrings.Batch_PlanProtectNoPassword;
         var pdfa = Steps.ToList().FindIndex(s => s is SaveAsPdfAStep);
         if (pdfa >= 0 && Steps.Any(s => s is ProtectStep))
-            return "A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\".";
+            return PdfStrings.Batch_PlanPdfAProtected;
         if (pdfa >= 0 && Steps.Skip(pdfa + 1).Any(s => s.ChangesPdf))
-            return "Put \"Save as PDF/A\" after the other changes, so the result stays PDF/A.";
+            return PdfStrings.Batch_PlanPdfALast;
         if (Steps.OfType<ExportStep>().GroupBy(e => e.Format).FirstOrDefault(g => g.Count() > 1) is { } twice)
-            return $"\"{twice.First().Title}\" is in the list twice.";
+            return Loc.Format(PdfStrings.Batch_PlanTwice, twice.First().Title);
         if (Steps.OfType<RedactPatternsStep>().Any(r => r.Options.IsEmpty))
-            return "Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.";
+            return PdfStrings.Batch_PlanRedactEmpty;
         if (Steps.OfType<RedactPatternsStep>().Select(r => RedactionPatterns.Validate(r.Options)).FirstOrDefault(e => e is not null) is { } patternError)
             return patternError;
         var lastRedaction = Steps.ToList().FindLastIndex(s => s is RedactPatternsStep);
         if (lastRedaction > 0 && Steps.Take(lastRedaction).Any(s => s is ExportStep or ReportContentsStep))
-            return "Put \"Redact patterns\" before exports and reports: what they save would still hold what it removes.";
+            return PdfStrings.Batch_PlanRedactFirst;
         if (!ocrAvailable && Steps.Any(s => s is OcrStep))
-            return "Text recognition isn't available: Windows has no OCR language installed.";
+            return PdfStrings.Batch_PlanNoOcr;
         return null;
     }
 }
@@ -491,11 +491,11 @@ public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
         get
         {
             var parts = new List<string>();
-            if (Done > 0) parts.Add(ToLookAt > 0 ? $"{Done} done ({ToLookAt} to look at by hand)" : $"{Done} done");
-            if (Skipped > 0) parts.Add($"{Skipped} skipped");
-            if (Failed > 0) parts.Add($"{Failed} failed");
-            if (Cancelled > 0) parts.Add($"{Cancelled} cancelled");
-            var text = parts.Count == 0 ? "No files." : string.Join(", ", parts) + ".";
+            if (Done > 0) parts.Add(ToLookAt > 0 ? Loc.Plural(Done, PdfStrings.Batch_SumDoneLook_One, PdfStrings.Batch_SumDoneLook_Many, ToLookAt) : Loc.Plural(Done, PdfStrings.Batch_SumDone_One, PdfStrings.Batch_SumDone_Many));
+            if (Skipped > 0) parts.Add(Loc.Plural(Skipped, PdfStrings.Batch_SumSkipped_One, PdfStrings.Batch_SumSkipped_Many));
+            if (Failed > 0) parts.Add(Loc.Plural(Failed, PdfStrings.Batch_SumFailed_One, PdfStrings.Batch_SumFailed_Many));
+            if (Cancelled > 0) parts.Add(Loc.Plural(Cancelled, PdfStrings.Batch_SumCancelled_One, PdfStrings.Batch_SumCancelled_Many));
+            var text = parts.Count == 0 ? PdfStrings.Batch_NoFiles : string.Join(", ", parts) + ".";
             return RedactionReportProblem is { } problem ? $"{text} {problem}" : text;
         }
     }
@@ -586,11 +586,11 @@ public static class BatchRunner
         for (var i = 0; i < results.Length; i++)
         {
             if (results[i] is not null) continue;
-            results[i] = new BatchItemResult(files[i], BatchItemState.Cancelled, "Cancelled", [], [])
+            results[i] = new BatchItemResult(files[i], BatchItemState.Cancelled, PdfStrings.Batch_Cancelled, [], [])
             {
-                Redaction = plan.Steps.Any(s => s is RedactPatternsStep) ? new RedactionFileReport(ReportName(files[i]), [], [], "Cancelled") : null,
+                Redaction = plan.Steps.Any(s => s is RedactPatternsStep) ? new RedactionFileReport(ReportName(files[i]), [], [], PdfStrings.Batch_Cancelled) : null,
             };
-            progress?.Report(new BatchProgress(i, BatchItemState.Cancelled, "Cancelled", 0, results[i]));
+            progress?.Report(new BatchProgress(i, BatchItemState.Cancelled, PdfStrings.Batch_Cancelled, 0, results[i]));
         }
         var summary = new BatchSummary([.. results.Select(r => r!)]);
         if (summary.RedactionReport is not { } report) return summary;
@@ -603,7 +603,7 @@ public static class BatchRunner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // The results are made and said for; a folder that won't take the report mustn't lose them.
-            return summary with { RedactionReportProblem = "The redaction report couldn't be saved in the results folder." };
+            return summary with { RedactionReportProblem = PdfStrings.Batch_ReportNotSaved };
         }
     }
 
@@ -702,18 +702,18 @@ public static class BatchRunner
             try
             {
                 cancel.ThrowIfCancellationRequested();
-                Report("Reading…", 0);
+                Report(PdfStrings.Batch_Reading, 0);
                 _baseName = BatchNames.Expand(plan.NameTemplate, file.NamedAs, index + 1, plan.Date);
                 _folder = plan.KeepSubfolders && file.RelativeFolder.Length > 0 ? Path.Combine(plan.OutputFolder, file.RelativeFolder) : plan.OutputFolder;
                 var data = await File.ReadAllBytesAsync(file.Path, cancel).ConfigureAwait(false);
                 if (file.IsImage)
                 {
-                    Report("Making a PDF of the image…", 0);
+                    Report(PdfStrings.Batch_ImageToPdf, 0);
                     data = ImageImport.ImagesToPdf([(data, Path.GetFileName(file.Path))], plan.ImagePageSize);
                 }
                 else
                 {
-                    if (!LooksLikePdf(data)) return Result(BatchItemState.Failed, "This file isn't a PDF.");
+                    if (!LooksLikePdf(data)) return Result(BatchItemState.Failed, PdfStrings.Batch_NotPdf);
                     if (PdfSecurity.NeedsOpenPassword(data)) await UnlockAsync(data).ConfigureAwait(false);
                 }
                 var changes = plan.Steps.Any(s => s.ChangesPdf);
@@ -721,10 +721,10 @@ public static class BatchRunner
                 var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password);
                 // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
                 if (keepSigned && plan.Steps.Any(s => s is RedactPatternsStep))
-                    return Result(BatchItemState.Skipped, "Signed: not redacted, so its signatures stay valid. Choose to change signed PDFs to redact it");
+                    return Result(BatchItemState.Skipped, PdfStrings.Batch_SignedNotRedacted);
                 if (keepSigned && plan.Steps.All(s => s.ChangesPdf))
-                    return Result(BatchItemState.Skipped, "Signed: left as it is so its signatures stay valid");
-                if (keepSigned) _notes.Add("Signed: only exported, the PDF left as it is so its signatures stay valid");
+                    return Result(BatchItemState.Skipped, PdfStrings.Batch_SignedLeft);
+                if (keepSigned) _notes.Add(PdfStrings.Batch_SignedExportedOnly);
                 PageCount = Pages(data);
 
                 for (var s = 0; s < plan.Steps.Count; s++)
@@ -763,12 +763,12 @@ public static class BatchRunner
                 cancel.ThrowIfCancellationRequested();
                 if (plan.WritesPdf(file) && !keepSigned)
                     _outputs.Insert(0, names.Place(_folder, _baseName + ".pdf", temp => File.WriteAllBytes(temp, data)));
-                var finished = _outputs.Count == 0 ? "Done (nothing to save)" : "Done";
-                return Result(BatchItemState.Done, _redaction is { Looks.Count: > 0 } r ? $"{finished}: look by hand at {RedactionReport.Pages(r.Looks.Select(l => l.Page))}" : finished);
+                var finished = _outputs.Count == 0 ? PdfStrings.Batch_DoneNothingSaved : PdfStrings.Batch_Done;
+                return Result(BatchItemState.Done, _redaction is { Looks.Count: > 0 } r ? Loc.Format(PdfStrings.Batch_DoneLookByHand, finished, RedactionReport.Pages(r.Looks.Select(l => l.Page))) : finished);
             }
             catch (OperationCanceledException)
             {
-                return Result(BatchItemState.Cancelled, "Cancelled");
+                return Result(BatchItemState.Cancelled, PdfStrings.Batch_Cancelled);
             }
             catch (SkipException ex)
             {
@@ -787,7 +787,7 @@ public static class BatchRunner
             while (true)
             {
                 var given = await AskAsync(BatchPasswordKind.Open, wrong).ConfigureAwait(false)
-                            ?? throw new SkipException("Needs a password to open (skipped)");
+                            ?? throw new SkipException(PdfStrings.Batch_NeedsOpenPasswordSkipped);
                 try
                 {
                     using (PdfEngine.Open(data, InputFileTypes.PDF, given)) { }
@@ -836,12 +836,12 @@ public static class BatchRunner
                 catch (OwnerPasswordRequiredException ex)
                 {
                     _password = await AskAsync(BatchPasswordKind.Permissions, ex.WrongPassword && pw is not null).ConfigureAwait(false)
-                                ?? throw new SkipException("Restricted: needs its permissions password to be changed (skipped)");
+                                ?? throw new SkipException(PdfStrings.Batch_RestrictedSkipped);
                 }
                 catch (OpenPasswordUnknownException)
                 {
                     _openPassword = await AskAsync(BatchPasswordKind.KeepOpen, open is not null).ConfigureAwait(false)
-                                    ?? throw new SkipException("Needs its open password to keep it protected (skipped)");
+                                    ?? throw new SkipException(PdfStrings.Batch_NeedsOpenToKeepSkipped);
                 }
             }
         }
@@ -855,7 +855,7 @@ public static class BatchRunner
                 {
                     var r = Optimizer.Optimize(d, pw, o.Options);
                     if (r.IsWorthIt) return r.Data;
-                    _notes.Add("Already compact: size left as it was");
+                    _notes.Add(PdfStrings.Batch_AlreadyCompact);
                     return d;
                 }
                 case ProtectStep p: return PdfSecurity.Protect(d, pw, p.UserPassword, p.OwnerPassword, p.Permissions, p.Method);
@@ -874,7 +874,7 @@ public static class BatchRunner
                 {
                     var r = PdfA.Convert(d, pw, conformance: a.Conformance);
                     var level = a.Conformance == PdfAConformance.A ? "PDF/A-2a" : "PDF/A-2b";
-                    _notes.Add(r.Changes.Count == 0 ? $"{level}: nothing needed changing" : $"{level}: {string.Join("; ", r.Changes)}");
+                    _notes.Add(r.Changes.Count == 0 ? Loc.Format(PdfStrings.Batch_PdfANothingChanged, level) : $"{level}: {string.Join("; ", r.Changes)}");
                     return r.Data;
                 }
                 case MakeAccessibleStep m:
@@ -884,11 +884,12 @@ public static class BatchRunner
                     var title = tags.Title ?? Path.GetFileNameWithoutExtension(file.NamedAs);
                     var language = tags.Language ?? m.Language;
                     var tagged = AutoTag.Write(d, pw, tags, new AccessibleOptions { Title = title, Language = language }, cancel);
-                    _notes.Add($"Tagged: {tags.Blocks.Count} {(tags.Blocks.Count == 1 ? "piece" : "pieces")} in reading order, title \"{title}\", " +
-                               (language is null ? "no language (none could be told)" : $"language {language}{(tags.LanguageGuessed && tags.Language is not null ? " (read from the text)" : "")}") +
-                               (tags.WasTagged ? "; its earlier tags replaced" : ""));
+                    _notes.Add(Loc.Plural(tags.Blocks.Count, PdfStrings.Batch_Tagged_One, PdfStrings.Batch_Tagged_Many, title,
+                        language is null ? PdfStrings.Batch_TaggedNoLanguage
+                        : Loc.Format(tags.LanguageGuessed && tags.Language is not null ? PdfStrings.Batch_TaggedLanguageRead : PdfStrings.Batch_TaggedLanguage, language),
+                        tags.WasTagged ? PdfStrings.Batch_TaggedReplaced : ""));
                     if (tags.FiguresWithoutAlt > 0)
-                        _notes.Add($"{tags.FiguresWithoutAlt} {(tags.FiguresWithoutAlt == 1 ? "picture needs" : "pictures need")} alternate text: open the file and use Review › Reading Order and Alt Text");
+                        _notes.Add(Loc.Plural(tags.FiguresWithoutAlt, PdfStrings.Batch_FiguresNeedAlt_One, PdfStrings.Batch_FiguresNeedAlt_Many));
                     return tagged;
                 }
                 default: throw new NotSupportedException(step.Title);
@@ -905,12 +906,12 @@ public static class BatchRunner
             var options = step.Options;
             var ocr = host.Recognizer;
             IProgress<(int Done, int Total)> Pages(string doing) =>
-                new Progress<(int Done, int Total)>(p => Report($"{doing}: page {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+                new Progress<(int Done, int Total)>(p => Report(Loc.Format(PdfStrings.Batch_PageProgress, doing, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
 
             var found = await Task.Run(() =>
             {
                 using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
-                return RedactionSearch.Find(engine, options, ocr, Pages("Searching"), cancel);
+                return RedactionSearch.Find(engine, options, ocr, Pages(PdfStrings.Batch_SearchingPages), cancel);
             }, cancel).ConfigureAwait(false);
             var hits = found.Hits;
             var rows = hits.Select(h => RedactionReport.Row(h, RedactionOutcome.NotSaved)).ToList();
@@ -918,7 +919,7 @@ public static class BatchRunner
             _redaction = Merge(new RedactionFileReport(reportName, rows, found.Looks, null));
 
             if (found.UnreadScans.Any())
-                throw new RedactionCheckFailedException($"Can't be searched: {RedactionReport.Pages(found.UnreadScans)} {(found.UnreadScans.Count() == 1 ? "is a scan" : "are scans")} and Windows has no text recognition language. Nothing was saved.");
+                throw new RedactionCheckFailedException(Loc.Plural(found.UnreadScans.Count(), PdfStrings.Batch_CantSearch_One, PdfStrings.Batch_CantSearch_Many, RedactionReport.Pages(found.UnreadScans)));
 
             var result = data;
             if (hits.Count > 0)
@@ -929,32 +930,34 @@ public static class BatchRunner
                 _redactedValues.AddRange(RedactionSearch.SoughtValues(hits));
                 foreach (var (page, list) in areas)
                     (_redactedAreas.TryGetValue(page, out var all) ? all : _redactedAreas[page] = []).AddRange(list);
-                var remaining = await Task.Run(() => RedactionSearch.ReadBack(result, _password, options, ocr, areas.Keys.ToHashSet(), [], Pages("Reading the result back"), cancel), cancel).ConfigureAwait(false);
+                var remaining = await Task.Run(() => RedactionSearch.ReadBack(result, _password, options, ocr, areas.Keys.ToHashSet(), [], Pages(PdfStrings.Batch_ReadingBack), cancel), cancel).ConfigureAwait(false);
                 if (remaining.Count > 0)
                 {
                     _redaction = Merge(new RedactionFileReport(reportName, [.. remaining.Select(h => RedactionReport.Row(h, RedactionOutcome.StillThere))], [], null));
-                    throw new RedactionCheckFailedException($"Read back after redacting: {remaining.Count:N0} {(remaining.Count == 1 ? "match is" : "matches are")} still there, on {RedactionReport.Pages(remaining.Select(h => h.Page))}. Nothing was saved.");
+                    throw new RedactionCheckFailedException(Loc.Plural(remaining.Count, PdfStrings.Batch_StillThere_One, PdfStrings.Batch_StillThere_Many, RedactionReport.Pages(remaining.Select(h => h.Page))));
                 }
-                _notes.Add($"Redacted {hits.Count} {(hits.Count == 1 ? "match" : "matches")} on {areas.Count} {(areas.Count == 1 ? "page" : "pages")} ({RedactionPatterns.Summary(hits)})");
+                _notes.Add(areas.Count == 1
+                    ? Loc.Plural(hits.Count, PdfStrings.Batch_RedactedOnePage_One, PdfStrings.Batch_RedactedOnePage_Many, areas.Count, RedactionPatterns.Summary(hits))
+                    : Loc.Plural(hits.Count, PdfStrings.Batch_Redacted_One, PdfStrings.Batch_Redacted_Many, areas.Count, RedactionPatterns.Summary(hits)));
                 _redaction = _redaction with { Removals = [.. _redaction.Removals.Select(r => r.Outcome == RedactionOutcome.NotSaved ? r with { Outcome = RedactionOutcome.Removed } : r)] };
             }
-            else _notes.Add("Redact patterns: nothing found, left as it was");
+            else _notes.Add(PdfStrings.Batch_RedactNothingFound);
 
             // What no page shows: the values just removed, and whatever the patterns find, in comments, fields, properties, ...
             var check = await Task.Run(() => RedactionCheck.Run(result, _password, new RedactionCheckOptions { Values = _redactedValues, Patterns = options, ValuesOnly = true }, null, cancel), cancel).ConfigureAwait(false);
             if (!check.IsClean)
             {
                 foreach (var f in check.Findings.Take(10)) _notes.Add(NoteOn(f));
-                if (check.Findings.Count > 10) _notes.Add($"… and {check.Findings.Count - 10} more");
-                throw new RedactionCheckFailedException($"Redaction check: {check.Summary} Nothing was saved. Sanitize can remove most of these: add it before Redact Patterns.");
+                if (check.Findings.Count > 10) _notes.Add(Loc.Format(PdfStrings.Batch_AndMore, check.Findings.Count - 10));
+                throw new RedactionCheckFailedException(Loc.Format(PdfStrings.Batch_RedactionCheckFailed, check.Summary));
             }
-            if (check.Incomplete) throw new RedactionCheckFailedException($"Redaction check: {string.Join(" ", check.Notes)} Nothing was saved.");
+            if (check.Incomplete) throw new RedactionCheckFailedException(Loc.Format(PdfStrings.Batch_RedactionCheckIncomplete, string.Join(" ", check.Notes)));
             _notes.AddRange(check.Notes);
 
             if (found.Looks.Where(l => l.Reason == RedactionLookReason.PicturesNotRead).Select(l => l.Page).ToList() is { Count: > 0 } unread)
-                _notes.Add($"Look by hand at {RedactionReport.Pages(unread)}: pictures or drawn text that couldn't be read, no text recognition language");
+                _notes.Add(Loc.Format(PdfStrings.Batch_LookUnread, RedactionReport.Pages(unread)));
             if (found.Looks.Where(l => l.Reason != RedactionLookReason.PicturesNotRead).Select(l => l.Page).ToList() is { Count: > 0 } read)
-                _notes.Add($"Look by hand at {RedactionReport.Pages(read)}: read by text recognition, which can miss text");
+                _notes.Add(Loc.Format(PdfStrings.Batch_LookOcr, RedactionReport.Pages(read)));
             return result;
         }
 
@@ -962,7 +965,7 @@ public static class BatchRunner
         /// A finding as a note: its kind and page. Notes go to the console and to a watched folder's log, and where a finding is
         /// can be named by the file itself (an attachment called "123-45-6789.pdf", a field's name), which may be what was looked for.
         /// </summary>
-        private static string NoteOn(RedactionFinding f) => f.Page >= 0 ? $"Page {f.Page + 1}: {RedactionCheck.Name(f.Kind)}" : RedactionCheck.Name(f.Kind);
+        private static string NoteOn(RedactionFinding f) => f.Page >= 0 ? Loc.Format(PdfStrings.Batch_NotePage, f.Page + 1, RedactionCheck.Name(f.Kind)) : RedactionCheck.Name(f.Kind);
 
         /// <summary>This Redact Patterns action's report added to an earlier one's (a plan can hold two).</summary>
         private RedactionFileReport Merge(RedactionFileReport next) => _redaction is not { } before ? next : before with
@@ -994,41 +997,41 @@ public static class BatchRunner
                 Values = _redactedValues,
                 Areas = _redactedAreas.ToDictionary(kv => kv.Key, kv => (IReadOnlyList<RectD>)kv.Value),
                 Original = _beforeRedaction,
-            }, new Progress<(int Done, int Total)>(p => Report("Checking redaction…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+            }, new Progress<(int Done, int Total)>(p => Report(PdfStrings.Batch_CheckingRedaction, (double)p.Done / Math.Max(1, p.Total))), cancel);
             if (report.Incomplete) _notes.AddRange(report.Notes);
             if (report.IsClean) return;
             foreach (var f in report.Findings.Take(10)) _notes.Add(NoteOn(f));
-            if (report.Findings.Count > 10) _notes.Add($"… and {report.Findings.Count - 10} more");
-            throw new RedactionCheckFailedException($"Redaction check: {report.Summary}");
+            if (report.Findings.Count > 10) _notes.Add(Loc.Format(PdfStrings.Batch_AndMore, report.Findings.Count - 10));
+            throw new RedactionCheckFailedException(Loc.Format(PdfStrings.Batch_RedactionCheck, report.Summary));
         }
 
         /// <summary>The accessibility check: its report beside the result, and a failure or a part not checked fails the file (the first ones go in its notes).</summary>
         private void CheckAccessibility(byte[] data)
         {
             var report = AccessibilityCheck.Run(data, _password,
-                new Progress<(int Done, int Total)>(p => Report("Checking accessibility…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+                new Progress<(int Done, int Total)>(p => Report(PdfStrings.Batch_CheckingAccessibility, (double)p.Done / Math.Max(1, p.Total))), cancel);
             var html = AccessibilityReportHtml.Write(report, Path.GetFileName(file.NamedAs), DateTime.Now);
             _outputs.Add(names.Place(_folder, _baseName + " accessibility.html", temp => File.WriteAllText(temp, html, new UTF8Encoding(false))));
             if (report.Passed) return;
             foreach (var f in report.Failures.Take(10)) _notes.Add($"{f.Condition} · {f.Where}: {f.Problem}");
-            if (report.Failures.Count > 10) _notes.Add($"… and {report.Failures.Count - 10} more (see the report)");
-            foreach (var n in report.Notes.Take(10)) _notes.Add($"Not checked: {n}");
-            if (report.Notes.Count > 10) _notes.Add($"… and {report.Notes.Count - 10} more not checked (see the report)");
-            throw new AccessibilityCheckFailedException($"Accessibility check: {report.Summary}");
+            if (report.Failures.Count > 10) _notes.Add(Loc.Format(PdfStrings.Batch_AndMoreSeeReport, report.Failures.Count - 10));
+            foreach (var n in report.Notes.Take(10)) _notes.Add(Loc.Format(PdfStrings.Batch_NotChecked, n));
+            if (report.Notes.Count > 10) _notes.Add(Loc.Format(PdfStrings.Batch_AndMoreNotChecked, report.Notes.Count - 10));
+            throw new AccessibilityCheckFailedException(Loc.Format(PdfStrings.Batch_AccessibilityCheck, report.Summary));
         }
 
         /// <summary>What's in this PDF: its report beside the result, as a web page and as JSON.</summary>
         private void ReportContents(byte[] data)
         {
             var report = DocumentInventory.Run(data, _password,
-                new Progress<(int Done, int Total)>(p => Report("Looking through the file…", (double)p.Done / Math.Max(1, p.Total))), cancel);
+                new Progress<(int Done, int Total)>(p => Report(PdfStrings.Batch_LookingThrough, (double)p.Done / Math.Max(1, p.Total))), cancel);
             var name = Path.GetFileName(file.NamedAs);
             var now = DateTime.Now;
             var html = InventoryReportFiles.Html(report, name, now);
             var json = InventoryReportFiles.Json(report, name, now);
             _outputs.Add(names.Place(_folder, _baseName + " contents.html", temp => File.WriteAllText(temp, html, new UTF8Encoding(false))));
             _outputs.Add(names.Place(_folder, _baseName + " contents.json", temp => File.WriteAllText(temp, json, new UTF8Encoding(false))));
-            if (!report.IsEmpty) _notes.Add($"Contents: {report.Summary}");
+            if (!report.IsEmpty) _notes.Add(Loc.Format(PdfStrings.Batch_Contents, report.Summary));
         }
 
         private int Pages(byte[] data)
@@ -1045,7 +1048,7 @@ public static class BatchRunner
             for (var p = 0; p < engine.PageCount; p++)
             {
                 cancel.ThrowIfCancellationRequested();
-                Report($"Recognizing text: page {p + 1} of {engine.PageCount}…", (double)p / engine.PageCount);
+                Report(Loc.Format(PdfStrings.Batch_Recognizing, p + 1, engine.PageCount), (double)p / engine.PageCount);
                 if (TextLayer.HasText(engine, p))
                 {
                     hadText++;
@@ -1054,8 +1057,8 @@ public static class BatchRunner
                 var found = host.Recognize!(engine, p, cancel);
                 if (found.Count > 0) words[p] = found;
             }
-            if (words.Count > 0) _notes.Add($"Text recognized on {Plural(words.Count, "page")}");
-            else if (hadText < engine.PageCount) _notes.Add("No text recognized");
+            if (words.Count > 0) _notes.Add(Loc.Plural(words.Count, PdfStrings.Batch_TextRecognized_One, PdfStrings.Batch_TextRecognized_Many));
+            else if (hadText < engine.PageCount) _notes.Add(PdfStrings.Batch_NoTextRecognized);
             return words;
         }
 
@@ -1073,7 +1076,7 @@ public static class BatchRunner
                 for (var p = 0; p < engine.PageCount; p++)
                 {
                     cancel.ThrowIfCancellationRequested();
-                    Report($"Saving page {p + 1} of {engine.PageCount}…", (double)p / engine.PageCount);
+                    Report(Loc.Format(PdfStrings.Batch_SavingPage, p + 1, engine.PageCount), (double)p / engine.PageCount);
                     var dpi = PageImages.ClampDpi(engine.GetPage(p), step.Dpi);
                     _outputs.Add(names.Place(_folder, $"{_baseName} - page {p + 1}.{(jpeg ? "jpg" : "png")}",
                         temp => engine.SaveImage(p, dpi, temp, jpeg, cancel)));
@@ -1091,16 +1094,16 @@ public static class BatchRunner
             };
             using var ms = new MemoryStream();
             var report = DocumentExport.Export(engine, format, ms, new ExportOptions { Title = Path.GetFileNameWithoutExtension(file.Path), Source = data, SourcePassword = _password }, cancel);
-            foreach (var problem in report.Unreadable) _notes.Add($"Page {problem.Page + 1} couldn't be read");
+            foreach (var problem in report.Unreadable) _notes.Add(Loc.Format(PdfStrings.Batch_PageUnreadable, problem.Page + 1));
             if (!report.Saved)
             {
                 _notes.Add(format switch
                 {
-                    ExportFormat.Word => "Word: no text or pictures, nothing saved",
-                    ExportFormat.Excel => "Excel: no tables found, nothing saved",
-                    ExportFormat.PowerPoint => "PowerPoint: nothing on the pages, nothing saved",
-                    ExportFormat.Html => "HTML: no text or pictures, nothing saved",
-                    _ => "Text: no text found, nothing saved",
+                    ExportFormat.Word => PdfStrings.Batch_WordNothing,
+                    ExportFormat.Excel => PdfStrings.Batch_ExcelNothing,
+                    ExportFormat.PowerPoint => PdfStrings.Batch_PowerPointNothing,
+                    ExportFormat.Html => PdfStrings.Batch_HtmlNothing,
+                    _ => PdfStrings.Batch_TextNothing,
                 });
                 return;
             }
@@ -1127,7 +1130,7 @@ public static class BatchRunner
                     };
                     var export = CommentFiles.Export(data, _password, format, name);
                     if (export.Count > 0) bytes = export.Data;
-                    else _notes.Add("Comments: none, nothing saved");
+                    else _notes.Add(PdfStrings.Batch_CommentsNothing);
                     extension = (step.Format == BatchExportFormat.CommentsCsv ? " comments" : "") + CommentFiles.Extension(format);
                     break;
                 }
@@ -1138,7 +1141,7 @@ public static class BatchRunner
                     }
                     catch (InvalidOperationException)
                     {
-                        _notes.Add("Comment summary: no comments, nothing saved");
+                        _notes.Add(PdfStrings.Batch_CommentSummaryNothing);
                     }
                     extension = " comments.pdf";
                     break;
@@ -1152,7 +1155,7 @@ public static class BatchRunner
                         _ => FormDataFormat.Csv,
                     };
                     if (FormEditor.DataFields(data, _password).Count > 0) bytes = FormDataFiles.Export(data, _password, format, name);
-                    else _notes.Add("Form data: no form fields, nothing saved");
+                    else _notes.Add(PdfStrings.Batch_FormDataNothing);
                     extension = (format == FormDataFormat.Csv ? " data" : "") + FormDataFiles.Extension(format);
                     break;
                 }
@@ -1161,8 +1164,6 @@ public static class BatchRunner
             if (bytes is not null) _outputs.Add(names.Place(_folder, _baseName + extension, temp => File.WriteAllBytes(temp, bytes)));
         }
     }
-
-    private static string Plural(int n, string word) => n == 1 ? $"1 {word}" : $"{n} {word}s";
 
     private static bool LooksLikePdf(byte[] data) => data.AsSpan(0, Math.Min(data.Length, 1024)).IndexOf("%PDF-"u8) >= 0;
 
@@ -1182,12 +1183,12 @@ public static class BatchRunner
     /// <summary>Why a file failed, in words for the list.</summary>
     internal static string Describe(Exception ex) => ex switch
     {
-        PasswordRequiredException => "Needs a password to open",
-        OutOfMemoryException or InsufficientMemoryException => "Not enough memory for this file",
-        FileNotFoundException or DirectoryNotFoundException => "The file isn't there any more",
-        UnauthorizedAccessException => $"No access: {ex.Message}",
+        PasswordRequiredException => PdfStrings.Batch_NeedsOpenPassword,
+        OutOfMemoryException or InsufficientMemoryException => PdfStrings.Batch_NoMemory,
+        FileNotFoundException or DirectoryNotFoundException => PdfStrings.Batch_FileGone,
+        UnauthorizedAccessException => Loc.Format(PdfStrings.Batch_NoAccess, ex.Message),
         IOException => ex.Message,
-        MuPDFException => "This PDF is damaged and can't be read",
+        MuPDFException => PdfStrings.Batch_Damaged,
         _ when string.IsNullOrWhiteSpace(ex.Message) => ex.GetType().Name,
         _ => ex.Message,
     };

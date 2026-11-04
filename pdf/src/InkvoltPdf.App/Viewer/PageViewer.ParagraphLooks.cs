@@ -18,8 +18,8 @@ public sealed partial class PageViewer
     private double _paraK = 1; // the scale the editor's font sizes are at (screen pixels per point)
 
     /// <summary>Colors the bar offers, after the paragraph's own.</summary>
-    private static readonly (string Name, int Rgb)[] LookColors =
-        [("Black", 0x000000), ("Dark gray", 0x595959), ("Red", 0xC00000), ("Blue", 0x0070C0), ("Green", 0x00803C), ("Orange", 0xE36C09)];
+    private static (string Name, int Rgb)[] LookColors =>
+        [(Strings.Viewer_ColorBlack, 0x000000), (Strings.Viewer_ColorDarkGray, 0x595959), (Strings.Viewer_ColorRed, 0xC00000), (Strings.Viewer_ColorBlue, 0x0070C0), (Strings.Viewer_ColorGreen, 0x00803C), (Strings.Viewer_ColorOrange, 0xE36C09)];
 
     private static Color ToColor(int rgb) => Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb);
 
@@ -207,8 +207,8 @@ public sealed partial class PageViewer
             };
             return b;
         }
-        var fonts = new ComboBox { Width = 150, Height = 26, IsTabStop = false, ToolTip = "Font of the selected text" };
-        System.Windows.Automation.AutomationProperties.SetName(fonts, "Font of the selected text");
+        var fonts = new ComboBox { Width = 150, Height = 26, IsTabStop = false, ToolTip = Strings.Viewer_FontOfSelection };
+        System.Windows.Automation.AutomationProperties.SetName(fonts, Strings.Viewer_FontOfSelection);
         fonts.Items.Add(BaseFamily(p));
         foreach (var f in ContentEditor.LookFonts())
             if (!f.Equals(BaseFamily(p), StringComparison.OrdinalIgnoreCase)) fonts.Items.Add(f);
@@ -222,13 +222,13 @@ public sealed partial class PageViewer
         };
         _lookFont = fonts;
         bar.Children.Add(fonts);
-        bar.Children.Add(Btn("A−", "Smaller (1 point)", () => Resize(box, p, -1)));
-        bar.Children.Add(Btn("A+", "Larger (1 point)", () => Resize(box, p, +1)));
-        bar.Children.Add(Btn("B", "Bold", () => Toggle(box, TextElement.FontWeightProperty, FontWeights.Bold, FontWeights.Normal), FontWeights.Bold));
-        bar.Children.Add(Btn("I", "Italic", () => Toggle(box, TextElement.FontStyleProperty, FontStyles.Italic, FontStyles.Normal), style: FontStyles.Italic));
+        bar.Children.Add(Btn("A−", Strings.Viewer_Smaller, () => Resize(box, p, -1)));
+        bar.Children.Add(Btn("A+", Strings.Viewer_Larger, () => Resize(box, p, +1)));
+        bar.Children.Add(Btn("B", Strings.Viewer_Bold, () => Toggle(box, TextElement.FontWeightProperty, FontWeights.Bold, FontWeights.Normal), FontWeights.Bold));
+        bar.Children.Add(Btn("I", Strings.Viewer_Italic, () => Toggle(box, TextElement.FontStyleProperty, FontStyles.Italic, FontStyles.Normal), style: FontStyles.Italic));
         void Swatch(string name, int rgb)
         {
-            var b = Btn("", $"Color: {name}", () =>
+            var b = Btn("", Loc.Format(Strings.Viewer_ColorTip, name), () =>
             {
                 box.Selection.ApplyPropertyValue(TextElement.ForegroundProperty, new SolidColorBrush(ToColor(rgb)));
                 UpdateRunInfo();
@@ -237,7 +237,7 @@ public sealed partial class PageViewer
             b.Content = new Border { Width = 12, Height = 12, Background = new SolidColorBrush(ToColor(rgb)), BorderBrush = Brushes.Gray, BorderThickness = new Thickness(1) };
             bar.Children.Add(b);
         }
-        Swatch("the paragraph's own", ShownColor(p.Lead));
+        Swatch(Strings.Viewer_ColorParagraphOwn, ShownColor(p.Lead));
         foreach (var (name, rgb) in LookColors)
             if (rgb != ShownColor(p.Lead)) Swatch(name, rgb);
         _lookBar = new Border
@@ -249,7 +249,7 @@ public sealed partial class PageViewer
         };
         _lookBar.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorQuarternaryBrush");
         _lookBar.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
-        System.Windows.Automation.AutomationProperties.SetName(_lookBar, "Look of the selected text");
+        System.Windows.Automation.AutomationProperties.SetName(_lookBar, Strings.Viewer_LookBar);
         _overlay.Children.Add(_lookBar);
         box.SelectionChanged += (_, _) =>
         {

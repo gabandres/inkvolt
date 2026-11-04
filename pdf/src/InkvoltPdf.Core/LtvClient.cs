@@ -85,7 +85,7 @@ public sealed class LtvClient : IDisposable
                 var addresses = IPAddress.TryParse(host, out var literal) ? [literal] : await resolve(host, cancel).ConfigureAwait(false);
                 if (addresses.Length == 0) throw new SocketException((int)SocketError.HostNotFound);
                 // Any local address among the answers refuses the name: which one a connection ends up on can't be left to chance.
-                if (addresses.FirstOrDefault(a => !Allowed(a)) is { } local) throw new LtvFetchException($"{host} points at {Describe(local)}, so it wasn't contacted.");
+                if (addresses.FirstOrDefault(a => !Allowed(a)) is { } local) throw new LtvFetchException(Loc.Format(IPAddress.IsLoopback(local) ? PdfStrings.Ltv_HostIsThisPc : PdfStrings.Ltv_HostIsLocal, host));
                 var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
                 try
                 {
@@ -106,8 +106,6 @@ public sealed class LtvClient : IDisposable
     }
 
     private bool Allowed(IPAddress ip) => IsPublic(ip) || (_allowLoopback && IPAddress.IsLoopback(ip));
-
-    private static string Describe(IPAddress ip) => IPAddress.IsLoopback(ip) ? "this PC" : "an address on a local network";
 
     /// <summary>
     /// False for this PC, local and link-local networks, carrier NAT, multicast and reserved ranges, and for the IPv6 forms
@@ -137,25 +135,25 @@ public sealed class LtvClient : IDisposable
     /// <summary>Why <paramref name="url"/> won't be contacted, judged from the address as written; null when it may be.</summary>
     public static string? WhyRefused(string url, LtvAddressKind kind, bool allowLoopback = false, bool allowHttpTimestamp = false)
     {
-        if (url.Length > 2048 || !Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Host.Length == 0) return "it isn't a web address";
-        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return $"it isn't a web address ({u.Scheme}:)";
-        if (kind == LtvAddressKind.Timestamp && u.Scheme != Uri.UriSchemeHttps && !allowHttpTimestamp) return "a timestamp server must use https://";
-        if (u.UserInfo.Length > 0) return "it carries a user name or password";
+        if (url.Length > 2048 || !Uri.TryCreate(url, UriKind.Absolute, out var u) || u.Host.Length == 0) return PdfStrings.Ltv_NotWebAddress;
+        if (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps) return Loc.Format(PdfStrings.Ltv_NotWebAddressScheme, u.Scheme);
+        if (kind == LtvAddressKind.Timestamp && u.Scheme != Uri.UriSchemeHttps && !allowHttpTimestamp) return PdfStrings.Ltv_TsaHttps;
+        if (u.UserInfo.Length > 0) return PdfStrings.Ltv_HasUserInfo;
         // HttpClient connects to the IDNA form of a host, in which look-alikes become real dots and letters: only plain ASCII is taken.
         var authorityStart = url.IndexOf("://", StringComparison.Ordinal) + 3;
         var authorityEnd = url.IndexOfAny(['/', '?', '#'], authorityStart);
         if (u.Host.Any(c => c > 0x7E) || url.AsSpan(authorityStart, (authorityEnd < 0 ? url.Length : authorityEnd) - authorityStart).ContainsAnyExceptInRange((char)0x21, (char)0x7E))
-            return "its host name isn't plain letters and digits";
+            return PdfStrings.Ltv_HostNotPlain;
         var host = u.Host.TrimStart('[').TrimEnd(']');
         if (IPAddress.TryParse(host, out var ip))
         {
             if (allowLoopback && IPAddress.IsLoopback(ip)) return null;
-            return IsPublic(ip) ? null : $"it points at {Describe(ip)}";
+            return IsPublic(ip) ? null : IPAddress.IsLoopback(ip) ? PdfStrings.Ltv_PointsAtThisPc : PdfStrings.Ltv_PointsAtLocalIp;
         }
         var reach = AiEndpoint.Classify(host);
         if (reach == AiReach.Internet) return null;
         if (reach == AiReach.ThisPc && allowLoopback) return null;
-        return reach == AiReach.ThisPc ? "it points at this PC" : "it points at a local network";
+        return reach == AiReach.ThisPc ? PdfStrings.Ltv_PointsAtThisPc : PdfStrings.Ltv_PointsAtLocal;
     }
 
     private string? Refused(string url, LtvAddressKind kind) => WhyRefused(url, kind, _allowLoopback, _allowHttpTimestamp);
@@ -184,7 +182,7 @@ public sealed class LtvClient : IDisposable
             for (var hop = 0; ; hop++)
             {
                 if (Refused(url, kind) is { } why) throw new LtvFetchException($"{url} wasn't contacted: {why}.");
-                if (++_requests > MaxRequests) throw new LtvFetchException("This would take more requests than a check should.");
+                if (++_requests > MaxRequests) throw new LtvFetchException(PdfStrings.Ltv_TooManyRequests);
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancel);
                 limit.CancelAfter(_timeout);
                 using var request = new HttpRequestMessage(body is null ? HttpMethod.Get : HttpMethod.Post, new Uri(url));
@@ -196,18 +194,18 @@ public sealed class LtvClient : IDisposable
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, limit.Token).ConfigureAwait(false);
                 if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308)
                 {
-                    if (hop >= MaxRedirects) throw new LtvFetchException($"{Host(first)} redirected too many times.");
-                    if (body is not null && (int)response.StatusCode is not (307 or 308)) throw new LtvFetchException($"{Host(first)} answered with a redirect that drops the request.");
-                    if (response.Headers.Location is not { } location) throw new LtvFetchException($"{Host(first)} sent a redirect that leads nowhere.");
+                    if (hop >= MaxRedirects) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_TooManyRedirects, Host(first)));
+                    if (body is not null && (int)response.StatusCode is not (307 or 308)) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_RedirectDrops, Host(first)));
+                    if (response.Headers.Location is not { } location) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_RedirectNowhere, Host(first)));
                     var next = location.IsAbsoluteUri ? location : new Uri(new Uri(url), location);
-                    if (new Uri(url).Scheme == Uri.UriSchemeHttps && next.Scheme != Uri.UriSchemeHttps) throw new LtvFetchException($"{Host(first)} redirected from https to an address that isn't.");
+                    if (new Uri(url).Scheme == Uri.UriSchemeHttps && next.Scheme != Uri.UriSchemeHttps) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_RedirectInsecure, Host(first)));
                     url = next.AbsoluteUri;
                     continue;
                 }
-                if (!response.IsSuccessStatusCode) throw new LtvFetchException($"{Host(url)} answered with an error ({(int)response.StatusCode}).");
-                if (response.Content.Headers.ContentLength > maxBytes) throw new LtvFetchException($"{Host(url)} sent more than the {maxBytes / 1024} KB allowed.");
+                if (!response.IsSuccessStatusCode) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_HttpError, Host(url), (int)response.StatusCode));
+                if (response.Content.Headers.ContentLength > maxBytes) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_TooBig, Host(url), maxBytes / 1024));
                 var bytes = await ReadCapped(response, maxBytes, url, limit.Token).ConfigureAwait(false);
-                _contacts.Add(new LtvContact(kind, first, $"answered ({bytes.Length:N0} bytes)"));
+                _contacts.Add(new LtvContact(kind, first, Loc.Format(PdfStrings.Ltv_Answered, bytes.Length)));
                 return bytes;
             }
         }
@@ -217,7 +215,7 @@ public sealed class LtvClient : IDisposable
         }
         catch (OperationCanceledException ex)
         {
-            throw Failed(kind, first, new LtvFetchException($"{Host(url)} didn't answer in time.", ex));
+            throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_NoAnswerInTime, Host(url)), ex));
         }
         catch (LtvFetchException ex)
         {
@@ -226,14 +224,14 @@ public sealed class LtvClient : IDisposable
         catch (IOException ex)
         {
             // The connection broke while the reply was being read.
-            throw Failed(kind, first, new LtvFetchException($"{Host(url)} stopped answering.", ex));
+            throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_StoppedAnswering, Host(url)), ex));
         }
         catch (HttpRequestException ex)
         {
             // A refusal from the connection's own check arrives wrapped.
             for (Exception? e = ex; e is not null; e = e.InnerException)
                 if (e is LtvFetchException refused) throw Failed(kind, first, refused);
-            throw Failed(kind, first, new LtvFetchException($"{Host(url)} can't be reached. Check that this PC is online.", ex));
+            throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_Unreachable, Host(url)), ex));
         }
     }
 
@@ -252,7 +250,7 @@ public sealed class LtvClient : IDisposable
         {
             var n = await stream.ReadAsync(chunk, cancel).ConfigureAwait(false);
             if (n == 0) return buffer.ToArray();
-            if (buffer.Length + n > maxBytes) throw new LtvFetchException($"{Host(url)} sent more than the {maxBytes / 1024} KB allowed.");
+            if (buffer.Length + n > maxBytes) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_TooBig, Host(url), maxBytes / 1024));
             buffer.Write(chunk, 0, n);
         }
     }

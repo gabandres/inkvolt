@@ -28,11 +28,11 @@ public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOn
     public string Short =>
         (Reason switch
         {
-            RedactionLookReason.ScanReadByOcr => "A scan, read by OCR.",
-            RedactionLookReason.PicturesReadByOcr => "Pictures or drawn text, read by OCR.",
-            RedactionLookReason.ScanNotRead => "A scan that couldn't be read: no OCR language.",
-            _ => "Pictures or drawn text that couldn't be read: no OCR language.",
-        }) + (Unread.Count switch { 0 => "", 1 => " Tick to black out the 1 place nothing was read.", _ => $" Tick to black out the {Unread.Count} places nothing was read." });
+            RedactionLookReason.ScanReadByOcr => PdfStrings.Redact_LookScanOcrShort,
+            RedactionLookReason.PicturesReadByOcr => PdfStrings.Redact_LookPicturesOcrShort,
+            RedactionLookReason.ScanNotRead => PdfStrings.Redact_LookScanUnreadShort,
+            _ => PdfStrings.Redact_LookPicturesUnreadShort,
+        }) + (Unread.Count switch { 0 => "", _ => Loc.Plural(Unread.Count, PdfStrings.Redact_LookTickUnread_One, PdfStrings.Redact_LookTickUnread_Many) });
 
     /// <summary>Why these pages need a person's eyes, as the end of a sentence: read badly, or not read at all. Never says a page is clean.</summary>
     public static string Why(IEnumerable<RedactionLook> looks)
@@ -40,9 +40,7 @@ public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOn
         var list = looks.ToList();
         var read = list.Any(l => l.Reason is RedactionLookReason.ScanReadByOcr or RedactionLookReason.PicturesReadByOcr);
         var unread = list.Any(l => l.Reason is RedactionLookReason.ScanNotRead or RedactionLookReason.PicturesNotRead);
-        const string readBadly = "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines";
-        const string notRead = "scans and pictures with text in them couldn't be read, as Windows has no text recognition language";
-        return read && unread ? $"{readBadly}, and some {notRead}" : unread ? notRead : readBadly;
+        return read && unread ? PdfStrings.Redact_WhyBoth : unread ? PdfStrings.Redact_WhyNotRead : PdfStrings.Redact_WhyReadBadly;
     }
 
     /// <summary>What to tell the person. Never says a page is clean.</summary>
@@ -52,16 +50,15 @@ public sealed record RedactionLook(int Page, RedactionLookReason Reason, IReadOn
         {
             var why = Reason switch
             {
-                RedactionLookReason.ScanReadByOcr => "A scan, read by text recognition, which can misread words and miss whole lines.",
-                RedactionLookReason.PicturesReadByOcr => "Has pictures or drawn text, read by text recognition, which can misread words and miss whole lines.",
-                RedactionLookReason.ScanNotRead => "A scan, and Windows has no text recognition language: only a text layer, if it has one, was searched.",
-                _ => "Has pictures or drawn text that couldn't be read: Windows has no text recognition language.",
+                RedactionLookReason.ScanReadByOcr => PdfStrings.Redact_LookScanOcr,
+                RedactionLookReason.PicturesReadByOcr => PdfStrings.Redact_LookPicturesOcr,
+                RedactionLookReason.ScanNotRead => PdfStrings.Redact_LookScanUnread,
+                _ => PdfStrings.Redact_LookPicturesUnread,
             };
             return Unread.Count switch
             {
                 0 => why,
-                1 => why + " 1 place has ink where nothing was read.",
-                _ => $"{why} {Unread.Count} places have ink where nothing was read.",
+                _ => why + Loc.Plural(Unread.Count, PdfStrings.Redact_LookInk_One, PdfStrings.Redact_LookInk_Many),
             };
         }
     }

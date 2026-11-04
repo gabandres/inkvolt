@@ -11,7 +11,7 @@ public static class PageRange
         error = null;
         if (string.IsNullOrWhiteSpace(text))
         {
-            error = "Enter one or more pages, e.g. 1-3, 5, 8-";
+            error = PdfStrings.Page_RangeEnter;
             return false;
         }
 
@@ -37,7 +37,7 @@ public static class PageRange
 
             if (from < 1 || to > pageCount || from > to)
             {
-                error = $"\"{raw}\" is outside 1–{pageCount}.";
+                error = Loc.Format(PdfStrings.Page_RangeOutside, raw, pageCount);
                 return false;
             }
             for (var p = from; p <= to; p++) set.Add(p - 1);
@@ -82,7 +82,7 @@ public static class PageRange
 
     private static bool Fail(string raw, out string? error)
     {
-        error = $"\"{raw}\" is not a valid page range.";
+        error = Loc.Format(PdfStrings.Page_RangeInvalid, raw);
         return false;
     }
 }

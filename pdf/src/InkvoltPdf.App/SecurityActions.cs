@@ -27,32 +27,32 @@ public static class SecurityActions
     /// <summary>One line for Document Properties: "AES-256 · needs a password to open · no copying".</summary>
     public static string? Describe(DocumentSession s)
     {
-        if (!s.IsPdf) return s.Engine.IsEncrypted ? "Encrypted" : null;
-        if (Read(s) is not { } info) return s.Engine.IsEncrypted ? "Encrypted" : null;
-        if (!info.IsEncrypted) return "Not protected";
+        if (!s.IsPdf) return s.Engine.IsEncrypted ? Strings.Security_Encrypted : null;
+        if (Read(s) is not { } info) return s.Engine.IsEncrypted ? Strings.Security_Encrypted : null;
+        if (!info.IsEncrypted) return Strings.Security_NotProtected;
         var parts = new List<string>
         {
             info.Method switch
             {
                 EncryptionMethod.Aes256 => "AES-256",
                 EncryptionMethod.Aes128 => "AES-128",
-                EncryptionMethod.Rc4With128Bits => "RC4 128-bit (outdated)",
-                EncryptionMethod.Rc4With40Bits => "RC4 40-bit (outdated)",
-                _ => "Encrypted",
+                EncryptionMethod.Rc4With128Bits => Strings.Security_Rc4128,
+                EncryptionMethod.Rc4With40Bits => Strings.Security_Rc440,
+                _ => Strings.Security_Encrypted,
             },
-            info.RequiresOpenPassword ? "needs a password to open" : "opens without a password",
+            info.RequiresOpenPassword ? Strings.Security_NeedsOpen : Strings.Security_OpensWithout,
         };
         var p = info.Permissions;
-        if (p.IsUnrestricted) parts.Add("no restrictions");
+        if (p.IsUnrestricted) parts.Add(Strings.Security_NoRestrictions);
         else
         {
-            if (p.Print == PrintPermission.None) parts.Add("no printing");
-            else if (p.Print == PrintPermission.LowResolution) parts.Add("low-resolution printing");
-            if (!p.Copy) parts.Add("no copying");
-            if (!p.Modify) parts.Add("no editing");
-            if (!p.Annotate) parts.Add("no comments");
-            if (!p.FillForms) parts.Add("no form filling");
-            if (!p.Assemble) parts.Add("no page changes");
+            if (p.Print == PrintPermission.None) parts.Add(Strings.Security_NoPrinting);
+            else if (p.Print == PrintPermission.LowResolution) parts.Add(Strings.Security_LowResPrinting);
+            if (!p.Copy) parts.Add(Strings.Security_NoCopying);
+            if (!p.Modify) parts.Add(Strings.Security_NoEditing);
+            if (!p.Annotate) parts.Add(Strings.Security_NoComments);
+            if (!p.FillForms) parts.Add(Strings.Security_NoFilling);
+            if (!p.Assemble) parts.Add(Strings.Security_NoPageChanges);
         }
         return string.Join(" · ", parts);
     }
@@ -62,20 +62,20 @@ public static class SecurityActions
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
         var current = Read(tab.Session);
         var encrypted = current?.IsEncrypted == true;
-        var choice = AskProtection(owner, encrypted ? "Change Password Protection" : "Protect with Password", "Protect", current,
+        var choice = AskProtection(owner, encrypted ? Strings.Security_ChangeTitle : Strings.Security_ProtectTitle, Strings.Security_Protect, current,
             encrypted
-                ? "Set new passwords and permissions. The old passwords stop working once you save."
-                : "Encrypts the document. Keep the passwords somewhere safe: a forgotten open password can't be recovered.");
+                ? Strings.Security_ChangeNote
+                : Strings.Security_ProtectNote);
         if (choice is null) return;
         var (user, ownerPw, permissions, encryption) = choice;
         // Without a permissions password the open password doubles as one (nothing is restricted then).
         var sessionPassword = ownerPw ?? user;
-        if (await tab.RunEdit(encrypted ? "Change password protection" : "Protect with password",
+        if (await tab.RunEdit(encrypted ? Strings.Security_ChangeLabel : Strings.Security_ProtectLabel,
                 (d, pw) => PdfSecurity.Protect(d, pw, user, ownerPw, permissions, encryption), quiet: true,
                 newPasswords: (sessionPassword, user)))
             tab.ShowNotice(user is not null
-                ? "Protected: the saved file needs its password to open. Save to keep it."
-                : "Restrictions set. Save to keep them.");
+                ? Strings.Security_ProtectedSave
+                : Strings.Security_RestrictionsSet);
     }
 
     /// <summary>Passwords and permissions chosen in <see cref="AskProtection"/> (null passwords: not set).</summary>
@@ -92,29 +92,29 @@ public static class SecurityActions
         dlg.AddNote(note);
 
         // Open (user) password
-        var needOpen = dlg.Add("Opening", new CheckBox { Content = "Require a password to open the document", IsChecked = current?.RequiresOpenPassword == true });
+        var needOpen = dlg.Add(Strings.Security_Opening, new CheckBox { Content = Strings.Security_RequireOpen, IsChecked = current?.RequiresOpenPassword == true });
         var openBox = new PasswordBox { MaxLength = 127 };
         var openConfirm = new PasswordBox { MaxLength = 127 };
         var meter = new StrengthMeter();
-        var openPanel = Fields(("Open password", openBox), ("Confirm", openConfirm));
+        var openPanel = Fields((Strings.Security_OpenPassword, openBox), (Strings.Security_Confirm, openConfirm));
         openPanel.Children.Add(meter);
         dlg.Add(null, openPanel);
         openBox.PasswordChanged += (_, _) => meter.Show(openBox.Password);
 
         // Permissions (owner) password and what it restricts
-        var restrict = dlg.Add("Permissions", new CheckBox { Content = "Restrict printing, copying and editing", IsChecked = !perms.IsUnrestricted });
+        var restrict = dlg.Add(Strings.Security_Permissions, new CheckBox { Content = Strings.Security_Restrict, IsChecked = !perms.IsUnrestricted });
         var ownerBox = new PasswordBox { MaxLength = 127 };
         var ownerConfirm = new PasswordBox { MaxLength = 127 };
-        var permPanel = Fields(("Permissions password", ownerBox), ("Confirm", ownerConfirm));
+        var permPanel = Fields((Strings.Security_PermissionsPassword, ownerBox), (Strings.Security_Confirm, ownerConfirm));
         var print = new ComboBox
         {
-            ItemsSource = new[] { "High resolution", "Low resolution (150 dpi)", "Not allowed" },
+            ItemsSource = new[] { Strings.Security_HighRes, Strings.Security_LowRes, Strings.Security_NotAllowed },
             SelectedIndex = perms.Print switch { PrintPermission.HighResolution => 0, PrintPermission.LowResolution => 1, _ => 2 },
             Margin = new Thickness(0, 4, 0, 6),
             HorizontalAlignment = HorizontalAlignment.Left,
             MinWidth = 220,
         };
-        permPanel.Children.Add(new TextBlock { Text = "Printing", Margin = new Thickness(0, 8, 0, 2) });
+        permPanel.Children.Add(new TextBlock { Text = Strings.Security_Printing, Margin = new Thickness(0, 8, 0, 2) });
         permPanel.Children.Add(print);
         CheckBox Allow(string text, bool on)
         {
@@ -122,15 +122,15 @@ public static class SecurityActions
             permPanel.Children.Add(c);
             return c;
         }
-        var copy = Allow("Copy text and images", perms.Copy);
-        var edit = Allow("Change the document", perms.Modify);
-        var comment = Allow("Add comments", perms.Annotate);
-        var fill = Allow("Fill in form fields and sign", perms.FillForms);
-        var assemble = Allow("Insert, delete and rotate pages", perms.Assemble);
+        var copy = Allow(Strings.Security_AllowCopy, perms.Copy);
+        var edit = Allow(Strings.Security_AllowEdit, perms.Modify);
+        var comment = Allow(Strings.Security_AllowComment, perms.Annotate);
+        var fill = Allow(Strings.Security_AllowFill, perms.FillForms);
+        var assemble = Allow(Strings.Security_AllowAssemble, perms.Assemble);
         dlg.Add(null, permPanel);
 
-        var method = dlg.AddChoice("Encryption",
-            ["AES-256 (Acrobat X and later, recommended)", "AES-128 (for Acrobat 7-9 and older readers)"],
+        var method = dlg.AddChoice(Strings.Security_Encryption,
+            [Strings.Security_Aes256, Strings.Security_Aes128],
             current?.Method == EncryptionMethod.Aes128 ? 1 : 0);
 
         void Sync()
@@ -146,17 +146,17 @@ public static class SecurityActions
         {
             var wantOpen = needOpen.IsChecked == true;
             var wantRestrict = restrict.IsChecked == true;
-            if (!wantOpen && !wantRestrict) return "Choose an open password, restrictions, or both.";
+            if (!wantOpen && !wantRestrict) return Strings.Security_ChooseSomething;
             if (wantOpen)
             {
-                if (openBox.Password.Length == 0) return "Enter the open password.";
-                if (openBox.Password != openConfirm.Password) return "The open passwords don't match.";
+                if (openBox.Password.Length == 0) return Strings.Security_EnterOpen;
+                if (openBox.Password != openConfirm.Password) return Strings.Security_OpenMismatch;
             }
             if (wantRestrict)
             {
-                if (ownerBox.Password.Length == 0) return "Enter a permissions password: it is needed to lift the restrictions later.";
-                if (ownerBox.Password != ownerConfirm.Password) return "The permissions passwords don't match.";
-                if (wantOpen && ownerBox.Password == openBox.Password) return "Use a permissions password different from the open password, or anyone who can open the document could lift the restrictions.";
+                if (ownerBox.Password.Length == 0) return Strings.Security_EnterPerms;
+                if (ownerBox.Password != ownerConfirm.Password) return Strings.Security_PermsMismatch;
+                if (wantOpen && ownerBox.Password == openBox.Password) return Strings.Security_PermsSame;
             }
             return null;
         });
@@ -176,9 +176,9 @@ public static class SecurityActions
     public static async Task RemoveProtection(Window owner, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (!Prompt.Confirm(owner, "Remove password protection?",
-                "The saved file opens without a password, and anyone can print, copy and change it.", "Remove protection", warning: true)) return;
-        await tab.RunEdit("Remove password protection", (d, pw) => PdfSecurity.Unprotect(d, pw), newPasswords: (null, null));
+        if (!Prompt.Confirm(owner, Strings.Security_RemoveTitle,
+                Strings.Security_RemoveBody, Strings.Security_RemoveButton, warning: true)) return;
+        await tab.RunEdit(Strings.Security_RemoveLabel, (d, pw) => PdfSecurity.Unprotect(d, pw), newPasswords: (null, null));
     }
 
     /// <summary>
@@ -187,17 +187,16 @@ public static class SecurityActions
     /// </summary>
     public static OpenPasswordAnswer? PromptOpenPassword(Window? owner, string name, byte[] data)
     {
-        var dlg = new FormDialog(owner!, "Keep the open password?", "Keep it", 480);
-        dlg.AddNote($"\"{name}\" needs a password to open. You opened it with its permissions password, which can't reveal the open " +
-                    "password, so enter it once to keep it on the edited file.");
-        var box = dlg.Add("Open password", new PasswordBox());
+        var dlg = new FormDialog(owner!, Strings.Security_KeepOpenTitle, Strings.Security_KeepIt, 480);
+        dlg.AddNote(Loc.Format(Strings.Security_KeepOpenNote, name));
+        var box = dlg.Add(Strings.Security_OpenPassword, new PasswordBox());
         OpenPasswordAnswer? answer = null;
         var drop = dlg.Add(null, new Button
         {
-            Content = "Save without an open password instead",
+            Content = Strings.Security_SaveWithoutOpen,
             Style = (Style)Application.Current.FindResource("TextButton"),
             HorizontalAlignment = HorizontalAlignment.Left,
-            ToolTip = "The permissions password and the restrictions stay; anyone can open the edited file.",
+            ToolTip = Strings.Security_SaveWithoutOpenTip,
         });
         drop.Click += (_, _) =>
         {
@@ -205,8 +204,8 @@ public static class SecurityActions
             dlg.DialogResult = true;
         };
         dlg.Loaded += (_, _) => box.Focus();
-        dlg.Validate(() => box.Password.Length == 0 ? "Enter the open password."
-            : PdfSecurity.IsOpenPassword(data, box.Password) ? null : "That isn't this document's open password.");
+        dlg.Validate(() => box.Password.Length == 0 ? Strings.Security_EnterOpen
+            : PdfSecurity.IsOpenPassword(data, box.Password) ? null : Strings.Security_NotOpenPassword);
         if (!dlg.ShowModal()) return null;
         return answer ?? new OpenPasswordAnswer(box.Password, false);
     }
@@ -253,7 +252,7 @@ public static class SecurityActions
             var key = score switch { 1 => "SystemFillColorCriticalBrush", 2 => "SystemFillColorCautionBrush", _ => "SystemFillColorSuccessBrush" };
             for (var i = 0; i < 4; i++)
                 _bars[i].SetResourceReference(Border.BackgroundProperty, i < score ? key : "ControlStrongFillColorDisabledBrush");
-            System.Windows.Automation.AutomationProperties.SetName(this, label.Length == 0 ? "Password strength" : $"Password strength: {label}");
+            System.Windows.Automation.AutomationProperties.SetName(this, label.Length == 0 ? Strings.Security_Strength : Loc.Format(Strings.Security_StrengthIs, label));
         }
     }
 }

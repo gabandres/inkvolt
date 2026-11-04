@@ -196,7 +196,7 @@ public sealed partial class PageViewer
     /// <summary>"Click to sign" over an unsigned signature field.</summary>
     private void ShowWidgetTip(FormWidget? w)
     {
-        var tip = w is { Kind: FormFieldKind.Signature, Signed: false } ? "Click to sign" : null;
+        var tip = w is { Kind: FormFieldKind.Signature, Signed: false } ? Strings.Viewer_ClickToSign : null;
         if (tip is null)
         {
             _tipWidget = null;
@@ -411,7 +411,7 @@ public sealed partial class PageViewer
         {
             case FormFieldKind.CheckBox when w.OnState is null:
                 // No checked appearance: the document could only store "Off" for it, so don't pretend to check it.
-                StatusMessage?.Invoke(this, "This check box can't be changed: the form doesn't define its checked look.");
+                StatusMessage?.Invoke(this, Strings.Viewer_CheckBoxNoLook);
                 break;
             case FormFieldKind.CheckBox:
                 SetValue(w, ValueOf(w) == w.OnState ? "Off" : w.OnState);
@@ -481,7 +481,7 @@ public sealed partial class PageViewer
                 BorderThickness = new Thickness(1.5),
                 Background = Brushes.White,
                 Foreground = Brushes.Black,
-                ToolTip = "Space or click picks options; Enter or Tab saves; Esc cancels.",
+                ToolTip = Strings.Viewer_ListTip,
             };
             for (var i = 0; i < w.Options.Count; i++)
                 list.Items.Add(new ListBoxItem { Content = labels[i], Tag = w.Options[i], IsSelected = chosen.Contains(w.Options[i]), Padding = new Thickness(4, 0, 4, 0) });
@@ -576,10 +576,10 @@ public sealed partial class PageViewer
             Background = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
             Foreground = Brushes.Black,
             CaretBrush = Brushes.Black,
-            ToolTip = "Type, then click elsewhere. Enter adds a line; Esc cancels; empty text removes it.",
+            ToolTip = Strings.Viewer_TextBoxTip,
         };
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
-        System.Windows.Automation.AutomationProperties.SetName(box, "Text on the page");
+        System.Windows.Automation.AutomationProperties.SetName(box, Strings.Viewer_TextOnPage);
         ShowEditor(box, null, (page, topLeftPt, id, sizePt));
         box.CaretIndex = box.Text.Length;
     }

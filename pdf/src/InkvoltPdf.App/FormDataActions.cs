@@ -11,8 +11,8 @@ namespace InkvoltPdf.App;
 /// </summary>
 internal static class FormDataActions
 {
-    private const string Filter = "XFDF, for Acrobat and other PDF apps (*.xfdf)|*.xfdf|FDF (*.fdf)|*.fdf|CSV, a header and a row of values (*.csv)|*.csv|JSON (*.json)|*.json";
-    private const string OpenFilter = "Form data (*.xfdf;*.fdf;*.csv;*.json;*.xml)|*.xfdf;*.fdf;*.csv;*.json;*.xml|All files (*.*)|*.*";
+    private static string Filter => Strings.FormData_ExportFilter;
+    private static string OpenFilter => Strings.FormData_OpenFilter;
 
     public static async Task Export(MainWindow host, DocumentTab tab)
     {
@@ -20,26 +20,26 @@ internal static class FormDataActions
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
-        if (!Organize.ConfirmUnprotected(host, tab, "The form data is saved without the document's password protection: anyone can read it.", "Export anyway")) return;
-        if (CommentFileActions.PickSave(host, "Export Form Data", Filter, name + " data.xfdf", Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
+        if (!Organize.ConfirmUnprotected(host, tab, Strings.FormData_ExportUnprotected, Strings.Comments_ExportAnyway)) return;
+        if (CommentFileActions.PickSave(host, Strings.FormData_ExportTitle, Filter, Loc.Format(Strings.FormData_FileName, name), Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
         var format = FormDataFiles.FormatOf(path) ?? FormDataFormat.Xfdf;
         try
         {
             var bytes = await Task.Run(() => FormDataFiles.Export(data, password, format, tab.Session.DisplayName));
             await File.WriteAllBytesAsync(path, bytes);
             Log.Write($"Export form data as {format} to {Log.Name(path)}");
-            host.ShowStatus($"Form data exported to {Path.GetFileName(path)}.");
+            host.ShowStatus(Loc.Format(Strings.FormData_Exported, Path.GetFileName(path)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            Prompt.Error(host, "Can't export the form data", ex.Message);
+            Prompt.Error(host, Strings.FormData_CantExport, ex.Message);
         }
     }
 
     public static async Task Import(MainWindow host, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (CommentFileActions.PickOpen(host, "Import Form Data", OpenFilter) is not { } path) return;
+        if (CommentFileActions.PickOpen(host, Strings.FormData_ImportTitle, OpenFilter) is not { } path) return;
         byte[] file;
         try
         {
@@ -48,27 +48,27 @@ internal static class FormDataActions
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Prompt.Error(host, $"Can't import {Path.GetFileName(path)}", ex.Message);
+            Prompt.Error(host, Loc.Format(Strings.Comments_CantImport, Path.GetFileName(path)), ex.Message);
             return;
         }
         FormDataImport? result = null;
-        var outcome = await tab.TryEdit("Import form data", (d, pw) =>
+        var outcome = await tab.TryEdit(Strings.FormData_ImportLabel, (d, pw) =>
         {
             result = FormDataFiles.Import(d, pw, file);
             return result.Data;
         }, contentOnly: true, quiet: true);
         if (result is null || outcome is not (EditOutcome.Done or EditOutcome.NoChange)) return;
         Log.Write($"Import form data from {Log.Name(path)}: {result.Filled} filled, {result.Rejected.Count} refused, {result.Unknown.Count} unknown");
-        var summary = $"{CommentFileActions.Count(result.Filled, "value was", "values were")} filled in.";
+        var summary = Loc.Plural(result.Filled, Strings.FormData_Filled_One, Strings.FormData_Filled_Many);
         if (result.Rejected.Count == 0 && result.Unknown.Count == 0 && result.Notes.Count == 0)
         {
             host.ShowStatus(summary);
             return;
         }
         var lines = new List<string>();
-        lines.AddRange(result.Rejected.Select(r => r.Message.Length > 0 ? r.Message : $"{r.FieldName}: refused by the form"));
-        if (result.Unknown.Count > 0) lines.Add($"Not fields of this form: {string.Join(", ", result.Unknown.Take(30))}{(result.Unknown.Count > 30 ? ", …" : "")}");
-        Prompt.Info(host, "Form data imported", string.Join("\n\n", [summary, .. lines, .. result.Notes]));
+        lines.AddRange(result.Rejected.Select(r => r.Message.Length > 0 ? r.Message : Loc.Format(Strings.FormData_Refused, r.FieldName)));
+        if (result.Unknown.Count > 0) lines.Add(Loc.Format(Strings.FormData_NotFields, string.Join(", ", result.Unknown.Take(30)) + (result.Unknown.Count > 30 ? ", …" : "")));
+        Prompt.Info(host, Strings.FormData_Imported, string.Join("\n\n", [summary, .. lines, .. result.Notes]));
     }
 
     public static async Task FillFromCsv(MainWindow host, DocumentTab tab)
@@ -79,10 +79,10 @@ internal static class FormDataActions
         var formPath = tab.Session.FilePath ?? Path.Combine(AppSettings.Current.LastFolder ?? Path.GetTempPath(), tab.Session.DisplayName);
         if (FormEditor.DataFields(form, password).Count == 0)
         {
-            Prompt.Info(host, "No form fields", "This document has no form fields to fill. Edit › Forms › Prepare Form adds them.");
+            Prompt.Info(host, Strings.FormData_NoFields, Strings.FormData_NoFieldsBody);
             return;
         }
-        if (CommentFileActions.PickOpen(host, "Fill Forms from CSV: choose the CSV", "CSV files (*.csv;*.txt)|*.csv;*.txt|All files (*.*)|*.*") is not { } csvPath) return;
+        if (CommentFileActions.PickOpen(host, Strings.FormData_ChooseCsv, Strings.FormData_CsvFilter) is not { } csvPath) return;
         byte[] csv;
         IReadOnlyList<string> columns;
         try
@@ -92,40 +92,40 @@ internal static class FormDataActions
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Prompt.Error(host, $"Can't read {Path.GetFileName(csvPath)}", ex.Message);
+            Prompt.Error(host, Loc.Format(Strings.FormData_CantRead, Path.GetFileName(csvPath)), ex.Message);
             return;
         }
 
-        var dlg = new FormDialog(host, "Fill Forms from CSV", "Fill", 560);
-        dlg.AddNote($"Each row of {Path.GetFileName(csvPath)} fills a copy of this form. Its header names the fields; a row with a value the form " +
-                    "refuses isn't saved and is listed in the report.");
-        var folder = dlg.AddText("Save the forms in", Path.Combine(Path.GetDirectoryName(csvPath)!, Path.GetFileNameWithoutExtension(formPath) + " forms"));
-        dlg.AddFooterButton("Choose Folder…").Click += (_, _) =>
+        var dlg = new FormDialog(host, Strings.FormData_FillTitle, Strings.FormData_Fill, 560);
+        dlg.AddNote(Loc.Format(Strings.FormData_FillNote, Path.GetFileName(csvPath)));
+        var folder = dlg.AddText(Strings.FormData_SaveIn, Path.Combine(Path.GetDirectoryName(csvPath)!, Loc.Format(Strings.FormData_FormsFolder, Path.GetFileNameWithoutExtension(formPath))));
+        dlg.AddFooterButton(Strings.FormData_ChooseFolder).Click += (_, _) =>
         {
-            if (PdfFiles.PickFolder(dlg, "Save the forms in", Directory.Exists(folder.Text) ? folder.Text : null) is { } picked) folder.Text = picked;
+            if (PdfFiles.PickFolder(dlg, Strings.FormData_SaveIn, Directory.Exists(folder.Text) ? folder.Text : null) is { } picked) folder.Text = picked;
         };
-        var pattern = dlg.AddText("File names", FormMergeOptions.DefaultTemplate);
+        var pattern = dlg.AddText(Strings.FormData_FileNames, FormMergeOptions.DefaultTemplate);
         var named = columns.Where(c => c.Length > 0 && !FormMerge.IsBatchToken(c)).ToList();
-        dlg.AddNote("<<name>> the form's name, <<n>> the row (<<n:3>> as 001), <<date>>" +
-                    (named.Count > 0 ? $", or a column: {string.Join(", ", named.Take(12).Select(c => $"<<{c}>>"))}{(named.Count > 12 ? ", …" : "")}" : ""));
-        var flatten = dlg.AddCheck("Flatten the forms (the values become part of the pages)");
+        dlg.AddNote(named.Count > 0
+                ? Loc.Format(Strings.FormData_PatternNoteColumns, string.Join(", ", named.Take(12).Select(c => $"<<{c}>>")) + (named.Count > 12 ? ", …" : ""))
+                : Strings.FormData_PatternNote);
+        var flatten = dlg.AddCheck(Strings.FormData_Flatten);
         dlg.Validate(() =>
-            string.IsNullOrWhiteSpace(folder.Text) || !Path.IsPathFullyQualified(folder.Text.Trim()) ? "Choose a folder for the forms." : FormMerge.ValidateTemplate(pattern.Text, columns));
+            string.IsNullOrWhiteSpace(folder.Text) || !Path.IsPathFullyQualified(folder.Text.Trim()) ? Strings.FormData_ChooseFolderForms : FormMerge.ValidateTemplate(pattern.Text, columns));
         if (!dlg.ShowModal()) return;
 
         var options = new FormMergeOptions { OutputFolder = folder.Text.Trim(), NameTemplate = pattern.Text, Flatten = flatten.IsChecked == true };
         FormMergeReport report;
-        using (var progress = new ProgressPrompt(host, "Fill Forms from CSV", "Filling the forms…"))
+        using (var progress = new ProgressPrompt(host, Strings.FormData_FillTitle, Strings.FormData_Filling))
         {
             try
             {
-                var report1 = new Progress<(int Done, int Total)>(p => progress.Report($"Row {p.Done:N0} of {p.Total:N0}…", (double)p.Done / Math.Max(1, p.Total)));
+                var report1 = new Progress<(int Done, int Total)>(p => progress.Report(Loc.Format(Strings.FormData_RowOf, p.Done, p.Total), (double)p.Done / Math.Max(1, p.Total)));
                 report = await Task.Run(() => FormMerge.Run(form, password, csv, formPath, options, report1, progress.Token));
             }
             catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or IOException or UnauthorizedAccessException)
             {
                 progress.Dispose();
-                Prompt.Error(host, "The forms couldn't be filled", ex.Message);
+                Prompt.Error(host, Strings.FormData_CouldntFill, ex.Message);
                 return;
             }
         }
@@ -150,16 +150,16 @@ internal static class FormDataActions
 
     private static void ShowReport(Window owner, FormMergeReport report, string folder, string? reportPath)
     {
-        var dlg = new FormDialog(owner, "Forms Filled", "Close", 600);
+        var dlg = new FormDialog(owner, Strings.FormData_FilledTitle, Strings.Common_Close, 600);
         dlg.HideCancel();
-        dlg.AddNote(report.Text + (reportPath is null ? "" : $" The report is saved as {Path.GetFileName(reportPath)} beside the forms."));
+        dlg.AddNote(report.Text + (reportPath is null ? "" : " " + Loc.Format(Strings.FormData_ReportSaved, Path.GetFileName(reportPath))));
         if (report.UnknownColumns.Count > 0)
-            dlg.AddNote($"Columns that aren't fields of the form were left out: {string.Join(", ", report.UnknownColumns.Take(20))}{(report.UnknownColumns.Count > 20 ? ", …" : "")}.");
+            dlg.AddNote(Loc.Format(Strings.FormData_ColumnsLeftOut, string.Join(", ", report.UnknownColumns.Take(20)) + (report.UnknownColumns.Count > 20 ? ", …" : "")));
         if (report.Failed.Count > 0)
         {
-            var text = string.Join("\n", report.Failed.Take(1000).Select(r => $"Row {r.Row}: {string.Join("; ", r.Problems)}"));
-            if (report.Failed.Count > 1000) text += $"\n… and {report.Failed.Count - 1000:N0} more (see the report)";
-            dlg.Add("Rows not saved", new System.Windows.Controls.TextBox
+            var text = string.Join("\n", report.Failed.Take(1000).Select(r => Loc.Format(Strings.FormData_RowProblems, r.Row, string.Join("; ", r.Problems))));
+            if (report.Failed.Count > 1000) text += "\n" + Loc.Format(Strings.FormData_AndMore, report.Failed.Count - 1000);
+            dlg.Add(Strings.FormData_RowsNotSaved, new System.Windows.Controls.TextBox
             {
                 Text = text,
                 IsReadOnly = true,
@@ -168,7 +168,7 @@ internal static class FormDataActions
                 MaxHeight = 280,
             });
         }
-        if (report.Made.Count > 0) dlg.AddFooterButton("Open Folder").Click += (_, _) => Shell.Open(folder);
+        if (report.Made.Count > 0) dlg.AddFooterButton(Strings.FormData_OpenFolder).Click += (_, _) => Shell.Open(folder);
         dlg.ShowModal();
     }
 }

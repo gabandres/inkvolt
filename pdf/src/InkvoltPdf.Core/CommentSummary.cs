@@ -62,13 +62,13 @@ public static class CommentSummary
     {
         culture ??= CultureInfo.CurrentCulture;
         var plan = Plan(Annotations.Read(data, password));
-        if (plan.Count == 0) throw new InvalidOperationException("This PDF has no comments to summarize.");
+        if (plan.Count == 0) throw new InvalidOperationException(PdfStrings.Comment_NoneToSummarize);
 
         // The pages as they print, comments included (drawn into them), so the summary shows what the reviewers marked.
         var flat = SignedEdits.Run(() => Flattener.Flatten(data, password, new FlattenOptions { Annotations = true, FormFields = true }), allowRewrite: true).Data;
-        using var src = PdfObj.Open(flat, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        using var src = PdfObj.Open(flat, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
         using var doc = new PdfDocument();
-        doc.Info.Title = $"Comments on {title}";
+        doc.Info.Title = Loc.Format(PdfStrings.Comment_SummaryTitle, title);
         doc.Info.Creator = "Inkvolt PDF";
 
         var texts = new List<string> { doc.Info.Title };
@@ -106,7 +106,7 @@ public static class CommentSummary
                 var ops = new StringBuilder();
                 ops.Append(CultureInfo.InvariantCulture, $"q {F(scale)} 0 0 {F(scale)} {F(ox)} {F(oy)} cm /Pg Do Q\n");
                 ops.Append(CultureInfo.InvariantCulture, $"q 0.6 G 0.5 w {F(ox)} {F(oy)} {F(w * scale)} {F(h * scale)} re S Q\n");
-                bold.Draw($"Page {pageIndex + 1}{(continued ? " (continued)" : "")}", Margin, SheetH - Margin - 12, 12);
+                bold.Draw(Loc.Format(continued ? PdfStrings.Comment_SummaryPageContinued : PdfStrings.Comment_SummaryPage, pageIndex + 1),Margin, SheetH - Margin - 12, 12);
                 AppendText(ops, bold, "/F2", Black);
                 regular.Draw(doc.Info.Title, ListX, SheetH - Margin - 12, MetaSize + 1);
                 AppendText(ops, regular, "/F1", Gray);
@@ -188,7 +188,7 @@ public static class CommentSummary
     private static string Meta(Entry e, CultureInfo culture)
     {
         var c = e.Comment;
-        var kind = e.Depth > 0 ? "Reply" : Capital(CommentFiles.KindName(c.Subtype));
+        var kind = e.Depth > 0 ? PdfStrings.Comment_SummaryReply : Capital(CommentFiles.KindName(c.Subtype));
         var parts = new List<string> { kind };
         if (!string.IsNullOrWhiteSpace(c.Author)) parts.Add(c.Author.Trim());
         if (c.Modified is { } m) parts.Add(m.ToLocalTime().ToString("g", culture));

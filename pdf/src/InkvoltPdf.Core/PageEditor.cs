@@ -32,7 +32,7 @@ public static class PageEditor
         return Edit(data, password, doc =>
         {
             if (pages.Distinct().Count() >= doc.PageCount)
-                throw new InvalidOperationException("A document must keep at least one page.");
+                throw new InvalidOperationException(PdfStrings.Page_KeepOne);
             PdfStructure.RemovePages(doc, pages.Distinct());
             SignedEdits.NoteRemoval();
         });
@@ -44,7 +44,7 @@ public static class PageEditor
         return Edit(data, password, doc =>
         {
             if (order.Count != doc.PageCount || order.Distinct().Count() != order.Count || order.Any(i => i < 0 || i >= doc.PageCount))
-                throw new ArgumentException("Order must be a permutation of the document's pages.", nameof(order));
+                throw new ArgumentException(PdfStrings.Page_OrderPermutation, nameof(order));
 
             var current = Enumerable.Range(0, doc.PageCount).ToList();
             for (var target = 0; target < order.Count; target++)
@@ -77,7 +77,7 @@ public static class PageEditor
     /// <summary>Rotates pages by a multiple of 90° (positive = clockwise).</summary>
     public static byte[] Rotate(byte[] data, string? password, IReadOnlyCollection<int> pages, int degrees)
     {
-        if (degrees % 90 != 0) throw new ArgumentException("Rotation must be a multiple of 90°.", nameof(degrees));
+        if (degrees % 90 != 0) throw new ArgumentException(PdfStrings.Page_RotationMultiple, nameof(degrees));
         return Edit(data, password, doc =>
         {
             foreach (var i in pages.Distinct())
@@ -146,7 +146,7 @@ public static class PageEditor
         var keep = pages.ToHashSet();
         return Edit(data, password, doc =>
         {
-            if (!keep.Any(i => i >= 0 && i < doc.PageCount)) throw new InvalidOperationException("No pages selected.");
+            if (!keep.Any(i => i >= 0 && i < doc.PageCount)) throw new InvalidOperationException(PdfStrings.Page_NoneSelected);
             KeptProtection.Forget(doc); // a new document: saved without the password protection
             PdfStructure.RemovePages(doc, Enumerable.Range(0, doc.PageCount).Where(i => !keep.Contains(i)));
         }, rewrite: true);
@@ -162,7 +162,7 @@ public static class PageEditor
     /// </summary>
     public static byte[] Merge(IReadOnlyList<PdfSource> sources, bool bookmarkPerFile)
     {
-        if (sources.Count == 0) throw new ArgumentException("Nothing to combine.", nameof(sources));
+        if (sources.Count == 0) throw new ArgumentException(PdfStrings.Page_NothingToCombine, nameof(sources));
         using var doc = new PdfDocument();
         var outline = new List<PdfStructure.OutlineItem>();
         foreach (var source in sources)
@@ -207,7 +207,7 @@ public static class PageEditor
                 var x2 = bx2 - r;
                 var y2 = by2 - t;
                 if (x2 - x1 < 1 || y2 - y1 < 1)
-                    throw new InvalidOperationException($"The margins are larger than page {i + 1}.");
+                    throw new InvalidOperationException(Loc.Format(PdfStrings.Page_MarginsTooLarge, i + 1));
                 page.CropBox = new PdfRectangle(new PdfSharp.Drawing.XPoint(x1, y1), new PdfSharp.Drawing.XPoint(x2, y2));
             }
         });
@@ -297,7 +297,7 @@ public static class PageEditor
     private static PdfDocument OpenImport(byte[] data, string? password) => Open(data, password, PdfDocumentOpenMode.Import);
 
     private static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode) =>
-        PdfObj.Open(data, password, mode, "This PDF can't be edited");
+        PdfObj.Open(data, password, mode, PdfStrings.Doc_CantEdit);
 
     /// <param name="xmp">The XMP packet the document had before the edit, if any. PDFsharp always replaces it with one of
     /// its own (unescaped, ModifyDate = CreationDate), so the original is written back updated from the Info values.</param>

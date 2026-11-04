@@ -112,7 +112,7 @@ public sealed partial class FolderIndex : IDisposable
         }
         catch (IOException ex) when (ex is not FileNotFoundException and not DirectoryNotFoundException)
         {
-            throw new FolderIndexBusyException("Another Inkvolt PDF has this folder's index open.");
+            throw new FolderIndexBusyException(PdfStrings.Index_Busy);
         }
         try
         {

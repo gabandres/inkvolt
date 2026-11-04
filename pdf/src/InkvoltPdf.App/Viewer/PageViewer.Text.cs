@@ -42,7 +42,7 @@ public sealed partial class PageViewer
         _selActive = new TextPos(PageCount - 1, int.MaxValue);
         _surface.InvalidateVisual();
         SelectionChanged?.Invoke(this, EventArgs.Empty);
-        if (PageCount > LargeCopyPages) StatusMessage?.Invoke(this, $"Selected the text of all {PageCount:N0} pages");
+        if (PageCount > LargeCopyPages) StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_SelectedAllText, PageCount));
     }
 
     private const int LargeCopyPages = 20;
@@ -84,7 +84,7 @@ public sealed partial class PageViewer
     {
         var pages = SelectedPageCount;
         if (pages == 0) return 0;
-        if (pages > LargeCopyPages) StatusMessage?.Invoke(this, $"Copying the text of {pages:N0} pages…");
+        if (pages > LargeCopyPages) StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_CopyingText, pages));
         string text;
         try
         {
@@ -92,7 +92,7 @@ public sealed partial class PageViewer
         }
         catch (ObjectDisposedException)
         {
-            StatusMessage?.Invoke(this, "Couldn't copy: the document changed meanwhile. Try again.");
+            StatusMessage?.Invoke(this, Strings.Viewer_CopyChanged);
             return 0;
         }
         catch (OperationCanceledException)
@@ -103,11 +103,11 @@ public sealed partial class PageViewer
         try
         {
             Clipboard.SetText(text);
-            StatusMessage?.Invoke(this, $"Copied {text.Length:N0} characters");
+            StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_CopiedChars, text.Length));
         }
         catch (COMException ex)
         {
-            StatusMessage?.Invoke(this, $"Couldn't copy: {ex.Message}");
+            StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_CopyFailed, ex.Message));
             return 0;
         }
         return text.Length;
@@ -177,8 +177,8 @@ public sealed partial class PageViewer
             }
             _surface.InvalidateVisual();
             StatusMessage?.Invoke(this, value
-                ? "Caret browsing on: arrow keys move through the text, Shift+arrows select. F7 turns it off."
-                : "Caret browsing off");
+                ? Strings.Viewer_CaretOn
+                : Strings.Viewer_CaretOff);
         }
     }
 

@@ -188,7 +188,7 @@ public static class Signatures
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
                     results.Add(new SignatureFacts(new SignatureInfo(f.Name, page, rect, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
-                        $"The signature can't be read: {ex.Message}", null)));
+                        Loc.Format(PdfStrings.Sign_CantRead, ex.Message), null)));
                 }
             }
         }
@@ -196,7 +196,7 @@ public static class Signatures
         return results;
     }
 
-    private const string AfterSigning = "The document was changed after it was signed.";
+    private static string AfterSigning => PdfStrings.Sign_ChangedAfterSigning;
 
     /// <summary>Fallback when the file can't be parsed: find /ByteRange entries in the raw bytes.</summary>
     private static List<SignatureFacts> RawScan(byte[] data, X509Certificate2Collection? anchors)
@@ -220,7 +220,7 @@ public static class Signatures
             catch (Exception ex) when (ex is not OutOfMemoryException)
             {
                 list.Add(new SignatureFacts(new SignatureInfo(name, -1, default, SignatureStatus.Invalid, null, null, null, null, null, false, false, false, "", null,
-                    $"The signature can't be read: {ex.Message}", null)));
+                    Loc.Format(PdfStrings.Sign_CantRead, ex.Message), null)));
             }
         }
         return list;
@@ -234,7 +234,7 @@ public static class Signatures
 
         // Each entry is checked against the file length first, so the sums below can't overflow.
         if (br.Any(x => x < 0 || x > data.Length) || br[2] < br[0] + br[1] || br[2] + br[3] > data.Length)
-            return Result(SignatureStatus.Invalid, "The signature's byte range doesn't fit the file.");
+            return Result(SignatureStatus.Invalid, PdfStrings.Sign_RangeDoesntFit);
         var covers = br[0] == 0 && data.AsSpan((int)(br[2] + br[3])).ToArray().All(b => b is (byte)' ' or (byte)'\r' or (byte)'\n' or 0 or (byte)'\t');
 
         var signed = new byte[br[1] + br[3]];
@@ -243,9 +243,9 @@ public static class Signatures
         var gap = data.AsSpan((int)(br[0] + br[1]), (int)(br[2] - br[0] - br[1]));
         // The unsigned gap must hold nothing but the hex signature value: anything else there (objects slipped in where
         // the zero padding was) would be unsigned content shown as signed.
-        if (!IsHexStringOnly(gap)) return Result(SignatureStatus.Invalid, "The signature's unsigned gap holds more than the signature value.");
+        if (!IsHexStringOnly(gap)) return Result(SignatureStatus.Invalid, PdfStrings.Sign_GapTooBig);
         var contents = HexContents(gap);
-        if (contents is null || contents.Length == 0) return Result(SignatureStatus.Invalid, "The signature value is missing.");
+        if (contents is null || contents.Length == 0) return Result(SignatureStatus.Invalid, PdfStrings.Sign_ValueMissing);
 
         X509Certificate2? cert = null;
         X509Certificate2Collection extra = [];
@@ -277,28 +277,28 @@ public static class Signatures
                     if (ok && !content.AsSpan().SequenceEqual(SHA1.HashData(signed)))
                     {
                         ok = false;
-                        detail = "The document digest doesn't match.";
+                        detail = PdfStrings.Sign_DigestMismatch;
                     }
                     break;
                 }
                 case "ETSI.RFC3161":
                 {
                     if (!Rfc3161TimestampToken.TryDecode(contents, out var token, out _))
-                        return Result(SignatureStatus.Invalid, "The timestamp token can't be read.", covers);
+                        return Result(SignatureStatus.Invalid, PdfStrings.Sign_TokenCantRead, covers);
                     docTimestamp = true;
                     claimed = trustTime = token.TokenInfo.Timestamp;
                     extra = token.AsSignedCms().Certificates;
                     ok = token.VerifySignatureForData(signed, out cert, extra);
-                    if (!ok) detail = "The timestamp doesn't match the document.";
+                    if (!ok) detail = PdfStrings.Sign_TimestampMismatch;
                     break;
                 }
                 default:
-                    return Result(SignatureStatus.Unsupported, $"Signature format {subFilter ?? "(none)"} isn't supported.", covers);
+                    return Result(SignatureStatus.Unsupported, Loc.Format(PdfStrings.Sign_FormatUnsupported, subFilter ?? PdfStrings.Sign_FormatNone), covers);
             }
         }
         catch (CryptographicException ex)
         {
-            return Result(SignatureStatus.Invalid, $"The signature can't be read: {ex.Message}", covers);
+            return Result(SignatureStatus.Invalid, Loc.Format(PdfStrings.Sign_CantRead, ex.Message), covers);
         }
 
         // The certificate is judged at a time someone other than the signer vouches for (a verified timestamp), else now:
@@ -315,9 +315,9 @@ public static class Signatures
             if (note is not null) detail = detail is null ? note : $"{detail} {note}";
         }
         var time = stamped ?? claimed ?? mDate;
-        var (trusted, chainStatus) = cert is null ? (false, "No certificate") : Trust(cert, Pooled(extra, cert, pool), trustTime, anchors, docTimestamp ? TimestampingEku : null);
+        var (trusted, chainStatus) = cert is null ? (false, PdfStrings.Sign_NoCertificate) : Trust(cert, Pooled(extra, cert, pool), trustTime, anchors, docTimestamp ? TimestampingEku : null);
         if (!trusted && trustTime is null && chainStatus.Contains(nameof(X509ChainStatusFlags.NotTimeValid)))
-            chainStatus = $"{chainStatus}: the certificate has expired (or isn't valid yet), and no trusted timestamp proves it was valid when the document was signed";
+            chainStatus = Loc.Format(PdfStrings.Sign_ExpiredNoTimestamp, chainStatus);
         bool? validAtTime = cert is null || time is null ? null : cert.NotBefore <= time.Value.LocalDateTime && time.Value.LocalDateTime <= cert.NotAfter;
         var status = !ok ? SignatureStatus.Invalid : covers ? SignatureStatus.Valid : SignatureStatus.ModifiedAfterSigning;
         if (status == SignatureStatus.ModifiedAfterSigning) detail ??= AfterSigning;
@@ -384,7 +384,7 @@ public static class Signatures
     {
         if (cms.SignerInfos.Count == 0)
         {
-            detail = "The signature has no signer.";
+            detail = PdfStrings.Sign_NoSigner;
             return false;
         }
         try
@@ -394,7 +394,7 @@ public static class Signatures
         }
         catch (CryptographicException ex)
         {
-            detail = $"The signature doesn't match the document: {ex.Message}";
+            detail = Loc.Format(PdfStrings.Sign_DoesntMatch, ex.Message);
             return false;
         }
     }
@@ -424,13 +424,13 @@ public static class Signatures
         {
             if (attr.Oid.Value != TimestampTokenOid || attr.Values.Count == 0) continue;
             if (!Rfc3161TimestampToken.TryDecode(attr.Values[0].RawData, out var token, out _))
-                return (null, false, "The embedded timestamp can't be read, so it was ignored.", null, extra);
+                return (null, false, PdfStrings.Sign_EmbeddedTsUnreadable, null, extra);
             var candidates = new X509Certificate2Collection(extra);
             candidates.AddRange(token.AsSignedCms().Certificates);
             if (!token.VerifySignatureForSignerInfo(si, out var tsa, candidates) || tsa is null)
-                return (null, false, "The embedded timestamp doesn't belong to this signature, so it was ignored.", null, extra);
+                return (null, false, PdfStrings.Sign_EmbeddedTsOther, null, extra);
             var (trusted, status) = Trust(tsa, Pooled(candidates, tsa, pool), token.TokenInfo.Timestamp, anchors, TimestampingEku);
-            return (token.TokenInfo.Timestamp, trusted, trusted ? null : $"The timestamp authority isn't trusted ({status}), so the certificate was checked at the current time.", tsa, candidates);
+            return (token.TokenInfo.Timestamp, trusted, trusted ? null : Loc.Format(PdfStrings.Sign_TsaUntrusted, status), tsa, candidates);
         }
         return (null, false, null, null, extra);
     }
@@ -477,7 +477,7 @@ public static class Signatures
         }
         catch (Exception ex) when (ex is CryptographicException or ArgumentException)
         {
-            return (false, $"Chain can't be built: {ex.Message}");
+            return (false, Loc.Format(PdfStrings.Sign_ChainCantBuild, ex.Message));
         }
     }
 
@@ -488,11 +488,11 @@ public static class Signatures
             switch (ext)
             {
                 case X509KeyUsageExtension ku when eku is null && (ku.KeyUsages & (X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.NonRepudiation)) == 0:
-                    return "The certificate's key usage doesn't allow signatures";
+                    return PdfStrings.Sign_KeyUsage;
                 case X509EnhancedKeyUsageExtension e:
                     var oids = e.EnhancedKeyUsages.Cast<Oid>().Select(o => o.Value).ToList();
                     if (eku is null ? !oids.Any(o => o is not null && SigningEkus.Contains(o)) : !oids.Contains(eku) && !oids.Contains("2.5.29.37.0"))
-                        return eku is null ? "The certificate isn't meant for signing documents (e.g. a website certificate)" : "The certificate isn't meant for timestamps";
+                        return eku is null ? PdfStrings.Sign_NotForDocuments : PdfStrings.Sign_NotForTimestamps;
                     break;
             }
         return null;

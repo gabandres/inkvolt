@@ -54,12 +54,12 @@ public static partial class FormEditor
     public static (string? Value, string? Problem) CheckValue(FormDataField f, string value)
     {
         value = value.Replace("\r\n", "\n");
-        if (f.ReadOnly) return value == f.Value ? (null, null) : (null, "it is read-only");
-        if (f.Required && value.Trim().Length == 0 && f.Kind is not (FormFieldKind.CheckBox or FormFieldKind.Radio)) return (null, "it is required, and the value is empty");
+        if (f.ReadOnly) return value == f.Value ? (null, null) : (null, PdfStrings.Form_ValReadOnly);
+        if (f.Required && value.Trim().Length == 0 && f.Kind is not (FormFieldKind.CheckBox or FormFieldKind.Radio)) return (null, PdfStrings.Form_ValRequired);
         switch (f.Kind)
         {
             case FormFieldKind.Text:
-                return f.MaxLength > 0 && value.Length > f.MaxLength ? (null, $"it takes at most {f.MaxLength} characters ({value.Length} given)") : (value, null);
+                return f.MaxLength > 0 && value.Length > f.MaxLength ? (null, Loc.Format(PdfStrings.Form_ValTooLong, f.MaxLength, value.Length)) : (value, null);
             case FormFieldKind.Choice:
             {
                 var parts = f.MultiSelect ? value.Split('\n', StringSplitOptions.RemoveEmptyEntries).ToList() : value.Length == 0 ? [] : [value];
@@ -67,7 +67,7 @@ public static partial class FormEditor
                 if (f.Editable) return (value, null);
                 foreach (var p in parts)
                     if (!f.Options.Contains(p) && !f.Labels.Contains(p))
-                        return (null, $"\"{Short(p)}\" isn't one of its choices ({string.Join(", ", f.Options.Take(8).Select(o => Short(o)))}{(f.Options.Count > 8 ? ", …" : "")})");
+                        return (null, Loc.Format(f.Options.Count > 8 ? PdfStrings.Form_ValNotChoiceMore : PdfStrings.Form_ValNotChoice, Short(p), string.Join(", ", f.Options.Take(8).Select(o => Short(o)))));
                 return (value, null);
             }
             default:
@@ -82,7 +82,7 @@ public static partial class FormEditor
                     if (trimmed.ToLowerInvariant() is "true" or "yes" or "1" or "x" or "on" or "checked") return (on, null);
                     if (trimmed.ToLowerInvariant() is "false" or "no" or "0" or "unchecked") return ("Off", null);
                 }
-                return (null, $"\"{Short(trimmed)}\" isn't one of its states ({string.Join(", ", f.Options.Append("Off"))})");
+                return (null, Loc.Format(PdfStrings.Form_ValNotState, Short(trimmed), string.Join(", ", f.Options.Append("Off"))));
             }
         }
 

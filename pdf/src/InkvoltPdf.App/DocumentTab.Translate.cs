@@ -23,7 +23,7 @@ public partial class DocumentTab
         if (_disposed || IsTranslating || Window.GetWindow(this) is not { } owner) return;
         if (AiService.Current(out var problem) is not { } config)
         {
-            if (!AiActions.ShowSettings(owner, problem + " Set it up here, or Cancel.")) return;
+            if (!AiActions.ShowSettings(owner, Loc.Format(Strings.TabAi_SetUpHere, problem))) return;
             if (AiService.Current(out _) is not { } now) return;
             config = now;
         }
@@ -41,15 +41,15 @@ public partial class DocumentTab
             TranslationPlan plan;
             IReadOnlyList<TranslationJob> jobs;
             IReadOnlyList<IReadOnlyList<AiMessage>> requests;
-            using (var reading = new ProgressPrompt(owner, "Translate with AI", "Reading the paragraphs…"))
+            using (var reading = new ProgressPrompt(owner, Strings.Translate_Title, Strings.Translate_ReadingParagraphs))
             {
                 reading.Cancelled += run.Cancel;
                 if (config.IsOllama)
                 {
-                    reading.Report("Asking Ollama how much text the model reads at once…");
+                    reading.Report(Strings.TabAi_AskingOllama);
                     config = await AiService.ResolveAsync(config, run.Token);
                 }
-                var read = new Progress<int>(done => reading.Report($"Reading the paragraphs… page {Math.Min(done + 1, pages.Length):N0} of {pages.Length:N0}", (double)done / Math.Max(1, pages.Length)));
+                var read = new Progress<int>(done => reading.Report(Loc.Format(Strings.Translate_ReadingPage, Math.Min(done + 1, pages.Length), pages.Length), (double)done / Math.Max(1, pages.Length)));
                 var pieceTokens = Translation.PieceTokens(config.ContextTokens);
                 var wrong = false;
                 var openPassword = Session.OpenPassword;
@@ -90,7 +90,7 @@ public partial class DocumentTab
             if (_disposed) return;
             if (jobs.Count == 0)
             {
-                Prompt.Info(owner, "Nothing to translate", NothingToTranslate(plan, pages));
+                Prompt.Info(owner, Strings.Translate_NothingTitle, NothingToTranslate(plan, pages));
                 return;
             }
 
@@ -99,15 +99,17 @@ public partial class DocumentTab
             if (_disposed) return;
             var repeats = plan.ParagraphCount - jobs.Count;
             var outgoing = new AiOutgoing(requests,
-                $"The paragraphs of {AiText.PagesText(pages)} ({plan.ParagraphCount:N0}{(repeats > 0 ? $", of which {repeats:N0} repeat and go once" : "")}), one by one, to be put into {language}",
-                "any whose answer can't be used, once more");
-            if (!AiActions.ConfirmSend(owner, config, outgoing, restricted, title: "Send for translation?")) return;
+                repeats > 0
+                    ? Loc.Format(Strings.Translate_SentParagraphsRepeats, AiText.PagesText(pages), plan.ParagraphCount, language, repeats)
+                    : Loc.Format(Strings.Translate_SentParagraphs, AiText.PagesText(pages), plan.ParagraphCount, language),
+                Strings.Translate_SentRetries);
+            if (!AiActions.ConfirmSend(owner, config, outgoing, restricted, title: Strings.Translate_SendTitle)) return;
 
             // ── Translate ──
             Log.Write($"Translate: {requests.Count} request(s), {outgoing.Characters:N0} characters to {config.Endpoint.Host}"); // never the text
             TranslationAnswers answers;
             using var client = AiService.CreateClient(config);
-            using (var sending = new ProgressPrompt(owner, $"Translating into {language}", $"Sending to {config.Endpoint.Host}…"))
+            using (var sending = new ProgressPrompt(owner, Loc.Format(Strings.Translate_TranslatingInto, language), Loc.Format(Strings.TabAi_Sending, config.Endpoint.Host)))
             {
                 sending.Cancelled += run.Cancel;
                 var started = Environment.TickCount64;
@@ -118,9 +120,9 @@ public partial class DocumentTab
                     {
                         var ms = (Environment.TickCount64 - started) * (p.Total - p.Done) / p.Done;
                         var minutes = (int)Math.Ceiling(ms / 60000.0);
-                        left = minutes <= 1 ? " About a minute left." : $" About {minutes:N0} minutes left.";
+                        left = minutes <= 1 ? Strings.Translate_AboutAMinute : Loc.Format(Strings.Translate_AboutMinutes, minutes);
                     }
-                    sending.Report($"Paragraph {Math.Min(p.Done + 1, p.Total):N0} of {p.Total:N0}, on page {p.Page + 1:N0}.{left}{(p.Failed > 0 ? $" {p.Failed:N0} without a usable answer." : "")}", (double)p.Done / Math.Max(1, p.Total));
+                    sending.Report(Loc.Format(Strings.Translate_ParagraphProgress, Math.Min(p.Done + 1, p.Total), p.Total, p.Page + 1) + left + (p.Failed > 0 ? Loc.Format(Strings.Translate_WithoutAnswer, p.Failed) : ""), (double)p.Done / Math.Max(1, p.Total));
                 });
                 answers = await Task.Run(() => Translation.TranslateAsync(jobs, language,
                     (messages, onText, cancel) => client.ChatAsync(messages, onText, cancel), null, progress, run.Token));
@@ -130,32 +132,32 @@ public partial class DocumentTab
             // ── What to do with a part ──
             if (answers.Done.Count == 0)
             {
-                if (!answers.Cancelled) Prompt.Error(owner, "Nothing was translated", answers.StoppedBecause ?? FirstFailure(answers));
+                if (!answers.Cancelled) Prompt.Error(owner, Strings.Translate_NothingTranslated, answers.StoppedBecause ?? FirstFailure(answers));
                 return;
             }
             if (answers.Cancelled || answers.StoppedBecause is not null)
             {
-                var head = answers.Cancelled ? "Stopped." : answers.StoppedBecause + "\n";
-                var keep = Prompt.Choose(owner, "Keep what was translated?",
-                    $"{head} {answers.Done.Count:N0} of {jobs.Count:N0} texts are translated. A copy can be made with those, and the rest left in the original language.",
-                    ("Make the copy", true), ("Discard", false));
+                var body = answers.Cancelled ? Loc.Format(Strings.Translate_KeepStopped, answers.Done.Count, jobs.Count)
+                    : answers.StoppedBecause + "\n " + Loc.Format(Strings.Translate_KeepCount, answers.Done.Count, jobs.Count);
+                var keep = Prompt.Choose(owner, Strings.Translate_KeepTitle, body,
+                    (Strings.Translate_MakeCopy, true), (Strings.Common_Discard, false));
                 if (keep != 0) return;
             }
 
             // ── Write the copy, in a new tab beside the original ──
             TranslationResult result;
             PdfEngine? original;
-            using (var writing = new ProgressPrompt(owner, "Translate with AI", "Writing the translated copy…"))
+            using (var writing = new ProgressPrompt(owner, Strings.Translate_Title, Strings.Translate_Writing))
             {
                 using var stop = new CancellationTokenSource();
                 writing.Cancelled += stop.Cancel;
-                var wrote = new Progress<int>(done => writing.Report($"Writing the translated copy… page {Math.Min(done + 1, plan.Pages.Count):N0} of {plan.Pages.Count:N0}", (double)done / Math.Max(1, plan.Pages.Count)));
+                var wrote = new Progress<int>(done => writing.Report(Loc.Format(Strings.Translate_WritingPage, Math.Min(done + 1, plan.Pages.Count), plan.Pages.Count), (double)done / Math.Max(1, plan.Pages.Count)));
                 result = await Task.Run(() => Translation.Apply(plan, answers, languageTag, progress: wrote, cancel: stop.Token));
                 original = result.Data is null ? null : await Task.Run(() => PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password));
             }
             if (result.Data is null)
             {
-                Prompt.Info(owner, "Nothing was translated", Summary(result.Report, language, plan));
+                Prompt.Info(owner, Strings.Translate_NothingTranslated, Summary(result.Report, language, plan));
                 return;
             }
             var copy = DocumentSession.FromBytes(result.Data, Translation.CopyName(name, language), password);
@@ -169,8 +171,8 @@ public partial class DocumentTab
             if (result.Report.Notes > 0) tab.ShowPane(NavPaneKind.Comments);
             var summary = Summary(result.Report, language, plan);
             LastTranslationSummary = summary;
-            Prompt.Info(owner, "Translated copy ready", summary);
-            tab.Notify("The original is on the left, and they scroll together. Save the copy to keep it.");
+            Prompt.Info(owner, Strings.Translate_CopyReady, summary);
+            tab.Notify(Strings.Translate_OriginalLeft);
         }
         catch (OperationCanceledException)
         {
@@ -180,7 +182,7 @@ public partial class DocumentTab
         {
             // Called without awaiting by the menu: nothing may get out of here, running out of memory on a crafted file included.
             Log.Write($"Translate failed: {ex.GetType().Name}"); // not the message: a server may echo text back
-            if (!_disposed) Prompt.Error(owner, "The translation couldn't be finished", ex is AiException or ContentEditException or OpenPasswordUnknownException ? ex.Message : "This PDF's pages couldn't be read for translating. The document wasn't changed.");
+            if (!_disposed) Prompt.Error(owner, Strings.Translate_CouldntFinish, ex is AiException or ContentEditException or OpenPasswordUnknownException ? ex.Message : Strings.Translate_PagesUnreadable);
         }
         finally
         {
@@ -195,15 +197,16 @@ public partial class DocumentTab
     private void CancelTranslation() => _translating?.Cancel();
 
     private static string FirstFailure(TranslationAnswers answers) =>
-        answers.Failed.Values.FirstOrDefault() is { } why ? $"No answer could be used: {why}." : "The endpoint gave no answer.";
+        answers.Failed.Values.FirstOrDefault() is { } why ? Loc.Format(Strings.Translate_NoUsableAnswer, why) : Strings.Translate_NoAnswer;
 
     private static string NothingToTranslate(TranslationPlan plan, int[] pages)
     {
         if (plan.ScanPages.Count > 0)
-            return $"{Capital(AiText.PagesText(plan.ScanPages))} {(plan.ScanPages.Count == 1 ? "is a scan: its" : "are scans: their")} words are part of a picture, and a translated copy can't rewrite them.";
-        if (plan.CrowdedPages.Count > 0) return $"{Capital(AiText.PagesText(plan.CrowdedPages))} {(plan.CrowdedPages.Count == 1 ? "has" : "have")} too many pieces of text to work out paragraphs from. Nothing was sent.";
-        if (plan.Blocked.Count > 0) return $"The text of {AiText.PagesText(plan.Blocked.Select(b => b.Page))} can't be rewritten: {plan.Blocked[0].Why}. Nothing was sent.";
-        return $"{Capital(AiText.PagesText(pages))} {(pages.Length == 1 ? "has" : "have")} no words to translate. Nothing was sent.";
+            return Loc.Plural(plan.ScanPages.Count, Strings.Translate_NothingScans_One, Strings.Translate_NothingScans_Many, Capital(AiText.PagesText(plan.ScanPages)));
+        if (plan.CrowdedPages.Count > 0)
+            return Loc.Plural(plan.CrowdedPages.Count, Strings.Translate_NothingCrowded_One, Strings.Translate_NothingCrowded_Many, Capital(AiText.PagesText(plan.CrowdedPages)));
+        if (plan.Blocked.Count > 0) return Loc.Format(Strings.Translate_NothingBlocked, AiText.PagesText(plan.Blocked.Select(b => b.Page)), plan.Blocked[0].Why);
+        return Loc.Plural(pages.Length, Strings.Translate_NothingWords_One, Strings.Translate_NothingWords_Many, Capital(AiText.PagesText(pages)));
     }
 
     private static string Capital(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
@@ -211,22 +214,26 @@ public partial class DocumentTab
     /// <summary>What the copy holds, in words. The model's text never appears here, only counts and pages.</summary>
     internal static string Summary(TranslationReport r, string language, TranslationPlan plan)
     {
-        string Count(int n, string one, string many) => n == 1 ? $"1 {one}" : $"{n:N0} {many}";
         var sb = new StringBuilder();
-        sb.Append($"{Count(r.Translated, "paragraph", "paragraphs")} in {language}");
-        sb.Append(r.Shrunk > 0 ? $", {r.Shrunk:N0} in smaller type to stay in {(r.Shrunk == 1 ? "its box" : "their boxes")}." : ".");
-        if (r.DoNotFit > 0) sb.Append($"\n{Count(r.DoNotFit, "doesn't", "don't")} fit even at the smallest size ({AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.DoesNotFit).Select(f => f.Page))}).");
-        if (r.NotTranslated > 0) sb.Append($"\n{Count(r.NotTranslated, "paragraph stays", "paragraphs stay")} in the original language ({AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.NotTranslated).Select(f => f.Page).DefaultIfEmpty(plan.Pages.Count > 0 ? plan.Pages[0].Page : 0))}).");
-        if (r.Unchanged > 0) sb.Append($"\nThe model gave {Count(r.Unchanged, "paragraph", "paragraphs")} back unchanged (a name or a code, perhaps).");
-        if (r.Notes > 0) sb.Append($"\n{Count(r.Notes, "comment in the copy marks", "comments in the copy mark")} what to look at (the Comments pane lists them).");
-        if (r.Cancelled) sb.Append("\nThe translation was stopped before the end.");
-        else if (r.StoppedBecause is { } why) sb.Append($"\nThe endpoint stopped the translation: {why}");
-        if (r.Fonts.Count > 0) sb.Append($"\nThe page's fonts don't have all the letters, so some text is drawn in {string.Join(", ", r.Fonts)}.");
-        if (r.ScanPages.Count > 0) sb.Append($"\nNot translated: {AiText.PagesText(r.ScanPages)}, scanned (the words are part of a picture).");
-        if (r.TurnedTextPages.Count > 0) sb.Append($"\nNot translated: turned text on {AiText.PagesText(r.TurnedTextPages)}.");
-        if (r.CrowdedPages.Count > 0) sb.Append($"\nNot translated: {AiText.PagesText(r.CrowdedPages)}, with too many pieces of text to work out.");
-        if (r.FailedPages.Count > 0) sb.Append($"\nNot translated: {AiText.PagesText(r.FailedPages)}, which couldn't be read or rewritten.");
-        sb.Append("\n\nAI-generated: check it against the original. Comments, form fields, bookmarks and text inside pictures aren't translated.");
+        sb.Append(r.Shrunk == 0 ? Loc.Plural(r.Translated, Strings.Translate_SumParagraphs_One, Strings.Translate_SumParagraphs_Many, language)
+            : r.Shrunk == 1 ? Loc.Plural(r.Translated, Strings.Translate_SumShrunkOne_One, Strings.Translate_SumShrunkOne_Many, language)
+            : Loc.Format(Strings.Translate_SumShrunkMany, r.Translated, language, r.Shrunk));
+        if (r.DoNotFit > 0)
+            sb.Append('\n').Append(Loc.Plural(r.DoNotFit, Strings.Translate_SumDoNotFit_One, Strings.Translate_SumDoNotFit_Many,
+                AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.DoesNotFit).Select(f => f.Page))));
+        if (r.NotTranslated > 0)
+            sb.Append('\n').Append(Loc.Plural(r.NotTranslated, Strings.Translate_SumNotTranslated_One, Strings.Translate_SumNotTranslated_Many,
+                AiText.PagesText(r.Flags.Where(f => f.Kind == TranslationFlagKind.NotTranslated).Select(f => f.Page).DefaultIfEmpty(plan.Pages.Count > 0 ? plan.Pages[0].Page : 0))));
+        if (r.Unchanged > 0) sb.Append('\n').Append(Loc.Plural(r.Unchanged, Strings.Translate_SumUnchanged_One, Strings.Translate_SumUnchanged_Many));
+        if (r.Notes > 0) sb.Append('\n').Append(Loc.Plural(r.Notes, Strings.Translate_SumNotes_One, Strings.Translate_SumNotes_Many));
+        if (r.Cancelled) sb.Append('\n').Append(Strings.Translate_SumStopped);
+        else if (r.StoppedBecause is { } why) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumStoppedBecause, why));
+        if (r.Fonts.Count > 0) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumFonts, string.Join(", ", r.Fonts)));
+        if (r.ScanPages.Count > 0) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumScanPages, AiText.PagesText(r.ScanPages)));
+        if (r.TurnedTextPages.Count > 0) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumTurnedPages, AiText.PagesText(r.TurnedTextPages)));
+        if (r.CrowdedPages.Count > 0) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumCrowdedPages, AiText.PagesText(r.CrowdedPages)));
+        if (r.FailedPages.Count > 0) sb.Append('\n').Append(Loc.Format(Strings.Translate_SumFailedPages, AiText.PagesText(r.FailedPages)));
+        sb.Append("\n\n").Append(Strings.Translate_SumAiGenerated);
         return sb.ToString();
     }
 

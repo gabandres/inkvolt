@@ -11,8 +11,8 @@ public static partial class Annotations
     public static byte[] AddReply(byte[] data, string? password, string parentId, string text, string author, string? id = null)
     {
         using var doc = OpenForEdit(data, password);
-        var (p, parent) = Find(doc, parentId) ?? throw new InvalidOperationException("That comment no longer exists.");
-        if (parent.Reference is null) throw new InvalidOperationException("That comment can't be replied to.");
+        var (p, parent) = Find(doc, parentId) ?? throw new InvalidOperationException(PdfStrings.Annot_Gone);
+        if (parent.Reference is null) throw new InvalidOperationException(PdfStrings.Annot_CantReply);
         var page = doc.Pages[p];
         var r = PdfObj.Array(parent.Elements["/Rect"]);
         double x = r is null ? 0 : Math.Min(PdfObj.Num(r, 0), PdfObj.Num(r, 2)), top = r is null ? 20 : Math.Max(PdfObj.Num(r, 1), PdfObj.Num(r, 3));

@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using InkvoltPdf.Core;
 using Microsoft.Win32;
 
 namespace InkvoltPdf.App;
@@ -28,8 +29,8 @@ public partial class MainWindow
         }
         var dlg = new OpenFileDialog
         {
-            Title = $"Choose a PDF: {tool.Title}",
-            Filter = "PDF files (*.pdf)|*.pdf",
+            Title = Loc.Format(Strings.Start_ChoosePdf, tool.Title),
+            Filter = Strings.Start_PdfFilter,
             InitialDirectory = AppSettings.Current.LastFolder,
         };
         if (dlg.ShowDialog(this) != true) return;
@@ -50,7 +51,7 @@ public partial class MainWindow
             if (ActiveTab != tab) return;
         }
         if (command.CanExecute(null, this)) command.Execute(null, this);
-        else ShowToast(new Toast($"{name} isn't available for {Path.GetFileName(full)}.", IsError: true));
+        else ShowToast(new Toast(Loc.Format(Strings.Start_ToolUnavailable, name, Path.GetFileName(full)), IsError: true));
     }
 
     private void OnCreateCard(object sender, RoutedEventArgs e)

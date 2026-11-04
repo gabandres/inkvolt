@@ -22,29 +22,27 @@ public sealed record AiOutgoing(IReadOnlyList<IReadOnlyList<AiMessage>> Requests
 /// </summary>
 public static class AiActions
 {
-    private static readonly string[] PresetLabels = ["Ollama (on this PC)", "LM Studio (on this PC)", "Custom: any OpenAI-compatible endpoint"];
+    private static string[] PresetLabels => [Strings.Ai_PresetOllama, Strings.Ai_PresetLmStudio, Strings.Ai_PresetCustom];
 
     /// <summary>The settings dialog. Returns true when saved. <paramref name="why"/> heads it when a use found the assistant off.</summary>
     public static bool ShowSettings(Window owner, string? why = null)
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(owner, "AI assistant", "Save", 580);
+        var dlg = new FormDialog(owner, Strings.Ai_Assistant, Strings.Common_Save, 580);
         if (why is not null) dlg.AddNote(why).FontWeight = FontWeights.SemiBold;
-        dlg.AddNote("Inkvolt PDF has no AI of its own. If you want one, connect a model you run (Ollama, LM Studio) or an " +
-                    "OpenAI-compatible service you have an account with. Only text you pick is sent, after you see it, to the " +
-                    "endpoint below. Bermudez Systems receives nothing.");
+        dlg.AddNote(Strings.Ai_SettingsNote);
         var enabled = dlg.Add(null, new CheckBox
         {
             IsChecked = s.AiEnabled,
-            Content = new TextBlock { Text = "Use an AI assistant: Summarize, Ask about this document, Explain selection", TextWrapping = TextWrapping.Wrap },
+            Content = new TextBlock { Text = Strings.Ai_UseAssistantLong, TextWrapping = TextWrapping.Wrap },
         });
-        AutomationProperties.SetName(enabled, "Use an AI assistant");
+        AutomationProperties.SetName(enabled, Strings.Ai_UseAssistant);
 
-        var preset = dlg.AddChoice("Endpoint", PresetLabels, Math.Max(0, Array.IndexOf(AiService.PresetNames, s.AiPreset)));
-        AutomationProperties.SetName(preset, "Endpoint");
+        var preset = dlg.AddChoice(Strings.Ai_Endpoint, PresetLabels, Math.Max(0, Array.IndexOf(AiService.PresetNames, s.AiPreset)));
+        AutomationProperties.SetName(preset, Strings.Ai_Endpoint);
         var url = dlg.Add(null, new TextBox { Text = AiService.UrlOf(s.AiPreset, s.AiCustomUrl) });
-        AutomationProperties.SetName(url, "Base URL");
-        url.ToolTip = "The endpoint's base URL, usually ending in /v1";
+        AutomationProperties.SetName(url, Strings.Ai_BaseUrl);
+        url.ToolTip = Strings.Ai_BaseUrlTip;
         var reach = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         var reachIcon = new TextBlock { Style = (Style)Application.Current.FindResource("Icon"), FontSize = 14, Margin = new Thickness(0, 0, 8, 0) };
         var reachRow = new DockPanel();
@@ -56,55 +54,51 @@ public static class AiActions
 
         // Model, with Test connection beside it (it fills the list)
         var model = new ComboBox { IsEditable = true, Text = s.AiModel };
-        AutomationProperties.SetName(model, "Model");
-        AutomationProperties.SetHelpText(model, "Pick one of the endpoint's models (Test connection lists them) or type its name, as in \"ollama list\"");
-        var test = new Button { Content = "Test connection", MinWidth = 120, Margin = new Thickness(8, 0, 0, 0), ToolTip = "Asks the endpoint for its models: sends the API key (if any), no document text" };
+        AutomationProperties.SetName(model, Strings.Ai_Model);
+        AutomationProperties.SetHelpText(model, Strings.Ai_ModelHelp);
+        var test = new Button { Content = Strings.Ai_TestConnection, MinWidth = 120, Margin = new Thickness(8, 0, 0, 0), ToolTip = Strings.Ai_TestTip };
         var modelRow = new DockPanel();
         DockPanel.SetDock(test, Dock.Right);
         modelRow.Children.Add(test);
         modelRow.Children.Add(model);
-        dlg.Add("Model", modelRow);
+        dlg.Add(Strings.Ai_Model, modelRow);
         var testResult = dlg.AddNote("");
         testResult.Visibility = Visibility.Collapsed;
         AutomationProperties.SetLiveSetting(testResult, AutomationLiveSetting.Polite);
 
         var key = new PasswordBox();
-        AutomationProperties.SetName(key, "API key");
-        var forgetKey = new Button { Content = "Remove saved key", Margin = new Thickness(8, 0, 0, 0) };
+        AutomationProperties.SetName(key, Strings.Ai_ApiKey);
+        var forgetKey = new Button { Content = Strings.Ai_RemoveKey, Margin = new Thickness(8, 0, 0, 0) };
         var keyRow = new DockPanel();
         DockPanel.SetDock(forgetKey, Dock.Right);
         keyRow.Children.Add(forgetKey);
         keyRow.Children.Add(key);
-        dlg.Add("API key (optional)", keyRow);
+        dlg.Add(Strings.Ai_ApiKeyOptional, keyRow);
         var keyNote = dlg.AddNote("");
 
         var sizes = AiText.ContextSizes.Select(n => n.ToString("N0")).ToList();
         // Ollama is asked for the model's context before each use; other servers can't be asked, so the size is set here.
         var context = new ComboBox { IsEditable = true, ItemsSource = sizes, Text = s.AiContextTokens.ToString("N0"), Width = 160, HorizontalAlignment = HorizontalAlignment.Left };
-        AutomationProperties.SetName(context, "Context size in tokens");
+        AutomationProperties.SetName(context, Strings.Ai_ContextName);
         var contextPanel = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        contextPanel.Children.Add(new TextBlock { Text = "Context size (tokens the model reads at once)", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
+        contextPanel.Children.Add(new TextBlock { Text = Strings.Ai_ContextLabel, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 4) });
         contextPanel.Children.Add(context);
         contextPanel.Children.Add(new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 6, 0, 0),
             Style = (Style)Application.Current.FindResource("Caption"),
-            Text = "Set it to the context the server runs the model with (LM Studio: Context Length when loading the model; " +
-                   "4,096 by default). Larger than that, the server cuts the text and answers go wrong; smaller, long documents " +
-                   "are summarized in more parts.",
+            Text = Strings.Ai_ContextNote,
         });
         dlg.Add(null, contextPanel);
-        var ollamaContext = dlg.AddNote("Context size: asked from Ollama before each use (the model as loaded, or its num_ctx; 4,096 when " +
-                                        "Ollama can't tell, its usual default). To give the model more, set OLLAMA_CONTEXT_LENGTH or the " +
-                                        "context length in Ollama's settings.");
+        var ollamaContext = dlg.AddNote(Strings.Ai_OllamaContextNote);
 
         var trusted = s.AiNoPreview.ToList();
         var trustNote = dlg.AddNote("");
-        var resetTrust = dlg.Add(null, new Button { Content = "Ask before every send again", HorizontalAlignment = HorizontalAlignment.Left });
+        var resetTrust = dlg.Add(null, new Button { Content = Strings.Ai_AskAgain, HorizontalAlignment = HorizontalAlignment.Left });
         void ShowTrust()
         {
-            trustNote.Text = $"Sends without showing what goes first to: {string.Join(", ", trusted)}. (Text the PDF forbids copying is always asked about.)";
+            trustNote.Text = Loc.Format(Strings.Ai_TrustNote, string.Join(", ", trusted));
             trustNote.Visibility = resetTrust.Visibility = trusted.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         }
         resetTrust.Click += (_, _) =>
@@ -142,8 +136,8 @@ public static class AiActions
             else
             {
                 reach.Text = ep.Reach == AiReach.Internet
-                    ? $"{ep.ReachText}. Text you send is handled under that provider's terms."
-                    : ep.ReachText + (ep.Reach == AiReach.ThisPc ? ": text goes only to the server running on this computer." : ".");
+                    ? Loc.Format(Strings.Ai_ReachInternet, ep.ReachText)
+                    : Loc.Format(ep.Reach == AiReach.ThisPc ? Strings.Ai_ReachThisPc : Strings.Ai_ReachOther, ep.ReachText);
                 reachIcon.Text = ep.Reach == AiReach.Internet ? "\uE7BA" : "\uE73E"; // warning / check mark
                 reachBox.SetResourceReference(Border.BackgroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBackgroundBrush" : "SubtleFillColorSecondaryBrush");
                 reachIcon.SetResourceReference(TextBlock.ForegroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush");
@@ -151,8 +145,8 @@ public static class AiActions
             if (draft.EndpointChanged(ep?.Key) && key.Password.Length > 0) key.Password = "";
             var saved = ep is not null && AiKeyStore.Has(ep.Key) && !draft.Remove;
             keyNote.Text = saved
-                ? "A key is saved for this endpoint, encrypted for your Windows account. Leave the box empty to keep it."
-                : "Only if the endpoint needs one (local servers don't). Kept encrypted for your Windows account (DPAPI), sent only to this endpoint.";
+                ? Strings.Ai_KeySaved
+                : Strings.Ai_KeyOnlyIf;
             forgetKey.Visibility = saved ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -194,7 +188,7 @@ public static class AiActions
             var mine = testing;
             test.IsEnabled = false;
             testResult.Visibility = Visibility.Visible;
-            testResult.Text = $"Connecting to {ep.Host}…";
+            testResult.Text = Loc.Format(Strings.Scan_Connecting, ep.Host);
             try
             {
                 var apiKey = draft.KeyToUse(AiKeyStore.Get);
@@ -205,17 +199,17 @@ public static class AiActions
                 model.ItemsSource = models;
                 model.Text = typed.Length > 0 ? typed : models.FirstOrDefault() ?? "";
                 testResult.Text = models.Count == 0
-                    ? $"Connected to {ep.Host}, but it doesn't list its models: type the model's name."
+                    ? Loc.Format(Strings.Ai_ConnectedNoList, ep.Host)
                     : typed.Length > 0 && !models.Contains(typed, StringComparer.OrdinalIgnoreCase)
-                        ? $"Connected: {Plural(models.Count, "model")}, but not \"{typed}\". Pick one from the list."
-                        : $"Connected to {ep.Host}: {Plural(models.Count, "model")} available.";
+                        ? Loc.Plural(models.Count, Strings.Ai_ConnectedNotTyped_One, Strings.Ai_ConnectedNotTyped_Many, typed)
+                        : Loc.Plural(models.Count, Strings.Ai_Connected_One, Strings.Ai_Connected_Many, ep.Host);
                 if (preset.SelectedIndex == 0 && model.Text.Trim() is { Length: > 0 } chosen)
                 {
                     using var probe = AiService.CreateClient(ep, chosen, apiKey);
                     var (ctx, source) = await probe.OllamaContextAsync(mine.Token);
                     if (!mine.IsCancellationRequested)
-                        testResult.Text += ctx is { } n ? $" {chosen} reads {n:N0} tokens at once ({source})."
-                            : $" Ollama didn't say how much {chosen} reads at once (it isn't loaded yet): Inkvolt PDF assumes {AiText.DefaultContextTokens:N0} tokens, its usual default.";
+                        testResult.Text += ctx is { } n ? " " + Loc.Format(Strings.Ai_ModelReads, chosen, n, source)
+                            : " " + Loc.Format(Strings.Ai_OllamaDidntSay, chosen, AiText.DefaultContextTokens);
                 }
             }
             catch (AiException ex)
@@ -236,10 +230,10 @@ public static class AiActions
         dlg.Validate(() =>
         {
             if (!int.TryParse(context.Text.Replace(",", "").Replace(".", "").Replace(" ", "").Replace(" ", ""), out contextTokens) || contextTokens < 1024 || contextTokens > 2_000_000)
-                return "Enter a context size from 1,024 to 2,000,000 tokens.";
+                return Strings.Ai_ContextRange;
             if (enabled.IsChecked != true) return null;
             if (Parsed(out var error) is null) return error;
-            if (model.Text.Trim().Length == 0) return "Choose or type a model (Test connection lists the endpoint's models).";
+            if (model.Text.Trim().Length == 0) return Strings.Ai_ChooseModelTest;
             return null;
         });
         Refresh();
@@ -260,7 +254,7 @@ public static class AiActions
             }
             catch (InvalidOperationException ex)
             {
-                Prompt.Error(owner, "API key not saved", ex.Message);
+                Prompt.Error(owner, Strings.Ai_KeyNotSavedTitle, ex.Message);
             }
         }
         s.Save();
@@ -270,10 +264,10 @@ public static class AiActions
     /// <summary>The one-line state for Settings: "Off", or "On: model at host (stays on this PC)".</summary>
     public static string Describe()
     {
-        if (!AppSettings.Current.AiEnabled) return "Off. Inkvolt PDF has no AI of its own; you can connect one you choose.";
+        if (!AppSettings.Current.AiEnabled) return Strings.Ai_DescribeOff;
         return AiService.Current(out var problem) is { } c
-            ? $"On: {c.Model} at {c.ServerLabel}. {c.Endpoint.ReachText}."
-            : $"On, but not set up: {problem}";
+            ? Loc.Format(Strings.Ai_DescribeOn, c.Model, c.ServerLabel, c.Endpoint.ReachText)
+            : Loc.Format(Strings.Ai_DescribeNotSetUp, problem);
     }
 
     /// <summary>
@@ -288,28 +282,28 @@ public static class AiActions
         var firstCloud = !AiService.WarnedAbout(ep);
         if (AiService.SkipsPreview(ep) && !copyRestricted && !firstCloud && !force) return true;
 
-        var dlg = new FormDialog(owner, title ?? "Send to the AI assistant?", "Send", 600);
+        var dlg = new FormDialog(owner, title ?? Strings.Ai_SendTitle, Strings.Ai_Send, 600);
         var to = new DockPanel();
         var icon = new TextBlock { Style = (Style)Application.Current.FindResource("Icon"), FontSize = 16, Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Top };
         DockPanel.SetDock(icon, Dock.Left);
         to.Children.Add(icon);
         var toText = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        toText.Inlines.Add(new System.Windows.Documents.Run($"To {ep.Host}") { FontWeight = FontWeights.SemiBold });
-        toText.Inlines.Add(new System.Windows.Documents.Run((config.ServerLabel == ep.Host ? "" : $" ({config.ServerLabel})") + $", model {config.Model}\n{ep.ReachText}."));
+        toText.Inlines.Add(new System.Windows.Documents.Run(Loc.Format(Strings.Ai_To, ep.Host)) { FontWeight = FontWeights.SemiBold });
+        toText.Inlines.Add(new System.Windows.Documents.Run((config.ServerLabel == ep.Host ? "" : $" ({config.ServerLabel})") + Loc.Format(Strings.Ai_ModelReach, config.Model, ep.ReachText)));
         to.Children.Add(toText);
-        var toBox = dlg.Add("Where", new Border { Child = to, CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8) });
+        var toBox = dlg.Add(Strings.Ai_Where, new Border { Child = to, CornerRadius = new CornerRadius(6), Padding = new Thickness(12, 8, 12, 8) });
         icon.Text = ep.Reach == AiReach.Internet ? "\uE7BA" : "\uE73E";
         icon.SetResourceReference(TextBlock.ForegroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBrush" : "SystemFillColorSuccessBrush");
         toBox.SetResourceReference(Border.BackgroundProperty, ep.Reach == AiReach.Internet ? "SystemFillColorCautionBackgroundBrush" : "SubtleFillColorSecondaryBrush");
 
-        var requests = outgoing.Requests.Count == 1 ? "1 request" : $"{outgoing.Requests.Count} requests";
-        dlg.Add("What", new TextBlock
+        dlg.Add(Strings.Ai_What, new TextBlock
         {
             TextWrapping = TextWrapping.Wrap,
-            Text = $"{outgoing.What}: {outgoing.Characters:N0} characters (about {outgoing.Tokens:N0} tokens) in {requests}" +
-                   (outgoing.FollowUp is null ? "." : $", then {outgoing.FollowUp}."),
+            Text = outgoing.FollowUp is null
+                ? Loc.Plural(outgoing.Requests.Count, Strings.Ai_Outgoing_One, Strings.Ai_Outgoing_Many, outgoing.What, outgoing.Characters, outgoing.Tokens)
+                : Loc.Plural(outgoing.Requests.Count, Strings.Ai_OutgoingThen_One, Strings.Ai_OutgoingThen_Many, outgoing.What, outgoing.Characters, outgoing.Tokens, outgoing.FollowUp),
         });
-        dlg.AddNote("Only this text, the instructions shown below and the model's name are sent: no file name, folder, document properties or other documents.");
+        dlg.AddNote(Strings.Ai_OnlyThisText);
 
         var preview = new TextBox
         {
@@ -320,19 +314,19 @@ public static class AiActions
             FontFamily = new FontFamily("Cascadia Mono, Consolas"),
             FontSize = 12,
         };
-        AutomationProperties.SetName(preview, "Exactly what will be sent");
+        AutomationProperties.SetName(preview, Strings.Ai_ExactlySent);
         const int MaxShown = 400_000;
         string? full = null;
-        var copyAll = new Button { Content = "Copy all", HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
+        var copyAll = new Button { Content = Strings.Ai_CopyAll, HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 6, 0, 0) };
         var previewPanel = new StackPanel();
         previewPanel.Children.Add(preview);
         previewPanel.Children.Add(copyAll);
-        var expander = dlg.Add(null, new Expander { Header = "Show exactly what will be sent", Content = previewPanel, Margin = new Thickness(0, 10, 0, 0) });
+        var expander = dlg.Add(null, new Expander { Header = Strings.Ai_ShowExactly, Content = previewPanel, Margin = new Thickness(0, 10, 0, 0) });
         expander.Expanded += (_, _) =>
         {
             if (full is not null) return;
             full = AiPrompts.Preview(outgoing.Requests);
-            preview.Text = full.Length <= MaxShown ? full : full[..MaxShown] + $"\n… and {full.Length - MaxShown:N0} more characters (Copy all has everything).";
+            preview.Text = full.Length <= MaxShown ? full : full[..MaxShown] + "\n" + Loc.Format(Strings.Ai_MoreChars, full.Length - MaxShown);
         };
         copyAll.Click += (_, _) =>
         {
@@ -349,25 +343,24 @@ public static class AiActions
         CheckBox? cloudOk = null, restrictedOk = null;
         if (firstCloud)
         {
-            dlg.AddNote($"This is the first time you send text to {ep.Host}. It leaves this PC, and that provider may keep and use it under its own " +
-                        "terms, not Inkvolt PDF's. Only send documents you're allowed to share with it.").FontWeight = FontWeights.SemiBold;
-            cloudOk = dlg.AddCheck($"I understand: this text leaves this PC for {ep.Host}");
+            dlg.AddNote(Loc.Format(Strings.Ai_FirstCloud, ep.Host)).FontWeight = FontWeights.SemiBold;
+            cloudOk = dlg.AddCheck(Loc.Format(Strings.Ai_IUnderstand, ep.Host));
         }
         if (copyRestricted)
         {
-            dlg.AddNote("The author of this PDF restricted copying its text. Sending it to an AI copies it out of the document.").FontWeight = FontWeights.SemiBold;
-            restrictedOk = dlg.AddCheck("Send it anyway: I'm allowed to use this text");
+            dlg.AddNote(Strings.Ai_RestrictedNote).FontWeight = FontWeights.SemiBold;
+            restrictedOk = dlg.AddCheck(Strings.Ai_SendAnyway);
         }
         // A window shown regardless of that choice (combining partial summaries for an internet endpoint) doesn't offer it.
         CheckBox? dontAsk = null;
         if (!force)
         {
-            dontAsk = dlg.AddCheck($"Don't ask again for {ep.Host} (change this in Settings › AI assistant)", AiService.SkipsPreview(ep));
+            dontAsk = dlg.AddCheck(Loc.Format(Strings.Ai_DontAsk, ep.Host), AiService.SkipsPreview(ep));
             dontAsk.Margin = new Thickness(0, 14, 0, 0);
         }
         dlg.Validate(() =>
-            cloudOk is { IsChecked: not true } ? $"Tick \"I understand\" to send text to {ep.Host}, or Cancel."
-            : restrictedOk is { IsChecked: not true } ? "Tick \"Send it anyway\" to send text the author restricted, or Cancel."
+            cloudOk is { IsChecked: not true } ? Loc.Format(Strings.Ai_TickUnderstand, ep.Host)
+            : restrictedOk is { IsChecked: not true } ? Strings.Ai_TickAnyway
             : null);
         if (!dlg.ShowModal()) return false;
 
@@ -412,10 +405,10 @@ public static class AiActions
     /// <summary>Review › AI Assistant › Summarize: which pages. Null when cancelled.</summary>
     public static int[]? AskSummaryPages(Window owner, DocumentTab tab)
     {
-        var dlg = new FormDialog(owner, "Summarize with AI", "Next", 440);
-        var range = dlg.AddRange(tab, "Pages to summarize", preferSelection: tab.SelectedPages.Length > 1);
+        var dlg = new FormDialog(owner, Strings.Ai_SummarizeTitle, Strings.Common_Next, 440);
+        var range = dlg.AddRange(tab, Strings.Ai_PagesToSummarize, preferSelection: tab.SelectedPages.Length > 1);
         if (tab.SelectedPages.Length <= 1) range.SelectAll();
-        dlg.AddNote("Next shows exactly what will be sent before anything is.");
+        dlg.AddNote(Strings.Ai_NextShows);
         int[] pages = [];
         dlg.Validate(() => range.TryGet(out pages, out var error) ? null : error);
         return dlg.ShowModal() ? pages : null;
@@ -425,17 +418,17 @@ public static class AiActions
     public static (string Language, string? Tag, int[] Pages)? AskTranslate(Window owner, DocumentTab tab)
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(owner, "Translate with AI", "Next", 480);
-        dlg.AddNote("Makes a translated copy that opens beside this document and scrolls with it. This document isn't changed.");
+        var dlg = new FormDialog(owner, Strings.Ai_TranslateTitle, Strings.Common_Next, 480);
+        dlg.AddNote(Strings.Ai_TranslateNote);
         var names = Translation.Languages.Select(l => l.Name).ToList();
-        var language = dlg.Add("Into", new ComboBox { IsEditable = true, ItemsSource = names, Text = s.AiTranslateLanguage });
-        AutomationProperties.SetName(language, "Translate into");
-        AutomationProperties.SetHelpText(language, "Pick a language, or type one the model knows");
-        var range = dlg.AddRange(tab, "Pages to translate", preferSelection: tab.SelectedPages.Length > 1);
+        var language = dlg.Add(Strings.Ai_Into, new ComboBox { IsEditable = true, ItemsSource = names, Text = s.AiTranslateLanguage });
+        AutomationProperties.SetName(language, Strings.Ai_TranslateInto);
+        AutomationProperties.SetHelpText(language, Strings.Ai_TranslateIntoHelp);
+        var range = dlg.AddRange(tab, Strings.Ai_PagesToTranslate, preferSelection: tab.SelectedPages.Length > 1);
         if (tab.SelectedPages.Length <= 1) range.SelectAll();
-        dlg.AddNote("Next shows exactly what will be sent before anything is. A long document goes one paragraph at a time, and a local model can take a while: you can stop whenever you like and keep what's done.");
+        dlg.AddNote(Strings.Ai_TranslateNextNote);
         int[] pages = [];
-        dlg.Validate(() => language.Text.Trim().Length == 0 ? "Choose the language to translate into."
+        dlg.Validate(() => language.Text.Trim().Length == 0 ? Strings.Ai_ChooseLanguage
             : range.TryGet(out pages, out var error) ? null : error);
         if (!dlg.ShowModal()) return null;
         var chosen = language.Text.Trim();
@@ -450,6 +443,4 @@ public static class AiActions
         AutomationProperties.SetName(target, message);
         UIElementAutomationPeer.CreatePeerForElement(target)?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
     }
-
-    private static string Plural(int n, string word) => n == 1 ? $"1 {word}" : $"{n:N0} {word}s";
 }

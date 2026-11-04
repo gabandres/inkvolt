@@ -8,7 +8,7 @@ namespace InkvoltPdf.Core;
 /// <see cref="SignedEdits.Run"/> with the rewrite allowed once the user agrees.
 /// </summary>
 public sealed class SignaturesWouldBreakException(int signatureCount, string reason)
-    : InvalidOperationException($"This edit can't be added to the signed file as an update ({reason}), so saving it would invalidate {(signatureCount == 1 ? "its signature" : $"its {signatureCount} signatures")}.")
+    : InvalidOperationException(Loc.Plural(signatureCount, PdfStrings.Sign_WouldBreak_One, PdfStrings.Sign_WouldBreak_Many, reason))
 {
     /// <summary>Signatures in the file (at least 1).</summary>
     public int SignatureCount { get; } = signatureCount;
@@ -67,7 +67,7 @@ public static class SignedEdits
     /// </summary>
     public static byte[] Flatten(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sign_PdfCantEdit);
         return PdfObj.Save(doc, rewrite: true);
     }
 

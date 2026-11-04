@@ -44,15 +44,15 @@ internal static class FolderSearches
     /// <summary>What is wrong with indexing <paramref name="folder"/>, or null.</summary>
     public static string? Validate(string folder)
     {
-        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return "Choose a folder.";
-        if (!Directory.Exists(folder)) return $"There is no folder {folder}.";
+        if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder)) return Strings.Folder_ChooseFolder;
+        if (!Directory.Exists(folder)) return Loc.Format(Strings.Folder_NoSuchFolder, folder);
         var full = WithSeparator(folder);
         foreach (var other in All)
         {
             var known = WithSeparator(other.Folder);
-            if (string.Equals(known, full, StringComparison.OrdinalIgnoreCase)) return "That folder is indexed already.";
-            if (full.StartsWith(known, StringComparison.OrdinalIgnoreCase)) return $"That folder is inside {other.Folder}, which is indexed already.";
-            if (known.StartsWith(full, StringComparison.OrdinalIgnoreCase)) return $"{other.Folder}, indexed already, is inside that folder. Remove it first, then add the larger one.";
+            if (string.Equals(known, full, StringComparison.OrdinalIgnoreCase)) return Strings.Folder_AlreadyIndexed;
+            if (full.StartsWith(known, StringComparison.OrdinalIgnoreCase)) return Loc.Format(Strings.Folder_InsideIndexed, other.Folder);
+            if (known.StartsWith(full, StringComparison.OrdinalIgnoreCase)) return Loc.Format(Strings.Folder_ContainsIndexed, other.Folder);
         }
         return null;
     }
@@ -146,7 +146,7 @@ internal sealed class FolderResult(string folder, FolderHit hit)
     public string FullPath { get; } = Path.Combine(folder, hit.RelativePath);
     public string Name { get; } = Path.GetFileName(hit.RelativePath);
     public int Page { get; } = hit.Page;
-    public string Where { get; } = $"page {hit.Page + 1}{(hit.Hits > 1 ? $", {hit.Hits} times" : "")}";
+    public string Where { get; } = hit.Hits > 1 ? Loc.Format(Strings.Folder_WherePageTimes, hit.Page + 1, hit.Hits) : Loc.Format(Strings.Folder_WherePage, hit.Page + 1);
     public string Location { get; } = Path.GetDirectoryName(Path.Combine(folder, hit.RelativePath)) ?? folder;
     public string Before { get; } = hit.Excerpt[..hit.MatchStart];
     public string Match { get; } = hit.Excerpt.Substring(hit.MatchStart, hit.MatchLength);
@@ -165,9 +165,9 @@ internal sealed class FolderSearchWindow : Window
 
     private readonly MainWindow _host;
     private readonly TextBox _box = new() { Padding = new Thickness(8, 6, 8, 6) };
-    private readonly CheckBox _matchCase = new() { Content = "Match _case", Margin = new Thickness(0, 0, 14, 0) };
-    private readonly CheckBox _wholeWords = new() { Content = "_Whole words", Margin = new Thickness(0, 0, 14, 0) };
-    private readonly CheckBox _ignoreAccents = new() { Content = "Ignore _accents", IsChecked = true, ToolTip = "Find é, è and ê when you type e" };
+    private readonly CheckBox _matchCase = new() { Content = Strings.Folder_MatchCase, Margin = new Thickness(0, 0, 14, 0) };
+    private readonly CheckBox _wholeWords = new() { Content = Strings.Folder_WholeWords, Margin = new Thickness(0, 0, 14, 0) };
+    private readonly CheckBox _ignoreAccents = new() { Content = Strings.Folder_IgnoreAccents, IsChecked = true, ToolTip = Strings.Folder_IgnoreAccentsTip };
     private readonly ObservableCollection<FolderResult> _results = [];
     private readonly ListBox _list = new() { BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
@@ -212,7 +212,7 @@ internal sealed class FolderSearchWindow : Window
     private FolderSearchWindow(MainWindow host)
     {
         _host = host;
-        Title = "Search Folders";
+        Title = Strings.Folder_Title;
         Width = Math.Min(900, SystemParameters.WorkArea.Width * 0.9);
         Height = Math.Min(720, SystemParameters.WorkArea.Height * 0.9);
         MinWidth = 520;
@@ -276,10 +276,10 @@ internal sealed class FolderSearchWindow : Window
     {
         var caption = (Style)Application.Current.FindResource("Caption");
         var heading = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
-        heading.Children.Add(new TextBlock { Text = "Search Folders", FontSize = 20, FontWeight = FontWeights.SemiBold });
+        heading.Children.Add(new TextBlock { Text = Strings.Folder_Title, FontSize = 20, FontWeight = FontWeights.SemiBold });
         heading.Children.Add(new TextBlock
         {
-            Text = "Find a word in every PDF of a folder and its subfolders. The index stays on this PC, kept up to date while Inkvolt PDF is open, and holds the text of those PDFs (never of files with a password). Scans are found once they have a text layer: Recognize Text adds one.",
+            Text = Strings.Folder_Intro,
             Style = caption, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0),
         });
 
@@ -287,14 +287,14 @@ internal sealed class FolderSearchWindow : Window
         var lockedText = new StackPanel();
         lockedText.Children.Add(new TextBlock { Text = Pro.Locked(ProFeature.FolderSearch), FontWeight = FontWeights.SemiBold });
         lockedText.Children.Add(new TextBlock { Text = Pro.Describe(ProFeature.FolderSearch), TextWrapping = TextWrapping.Wrap, Style = caption, Margin = new Thickness(0, 4, 0, 8) });
-        var about = new Button { Content = "About Inkvolt Pro…", HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 3, 10, 3) };
+        var about = new Button { Content = Strings.Batch_AboutPro, HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 3, 10, 3) };
         about.Click += (_, _) => ProWindow.Open(this, ProFeature.FolderSearch);
         lockedText.Children.Add(about);
         _locked.Child = lockedText;
 
-        AutomationProperties.SetName(_box, "Search the indexed folders");
-        Placeholder.SetText(_box, "A word or phrase");
-        var find = new Button { Content = "Search", MinWidth = 88, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+        AutomationProperties.SetName(_box, Strings.Folder_SearchName);
+        Placeholder.SetText(_box, Strings.Folder_Placeholder);
+        var find = new Button { Content = Strings.Folder_Search, MinWidth = 88, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
         find.SetResourceReference(StyleProperty, "AccentButtonStyle");
         find.Click += (_, _) => Search();
         var searchRow = new DockPanel();
@@ -324,15 +324,15 @@ internal sealed class FolderSearchWindow : Window
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, ScrollBarVisibility.Disabled);
         VirtualizingPanel.SetIsVirtualizing(_list, true);
         VirtualizingPanel.SetVirtualizationMode(_list, VirtualizationMode.Recycling);
-        AutomationProperties.SetName(_list, "Results");
+        AutomationProperties.SetName(_list, Strings.Folder_Results);
 
         var foldersHeader = new DockPanel { Margin = new Thickness(0, 12, 0, 6) };
-        var add = new Button { Content = "A_dd a Folder…", Padding = new Thickness(10, 3, 10, 3) };
+        var add = new Button { Content = Strings.Folder_AddFolder, Padding = new Thickness(10, 3, 10, 3) };
         add.Click += (_, _) => AskAdd();
         DockPanel.SetDock(add, Dock.Right);
         foldersHeader.Children.Add(add);
-        foldersHeader.Children.Add(new TextBlock { Text = "Folders", FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-        AutomationProperties.SetName(_folders, "Indexed folders");
+        foldersHeader.Children.Add(new TextBlock { Text = Strings.Folder_Folders, FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+        AutomationProperties.SetName(_folders, Strings.Folder_IndexedFolders);
         var foldersScroll = new ScrollViewer { Content = _folders, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, MaxHeight = 190 };
 
         var top = new StackPanel();
@@ -355,7 +355,7 @@ internal sealed class FolderSearchWindow : Window
         body.Children.Add(bottom);
         body.Children.Add(listBorder);
 
-        var close = new Button { Content = "Close", MinWidth = 104 };
+        var close = new Button { Content = Strings.Common_Close, MinWidth = 104 };
         close.Click += (_, _) => Close();
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(24, 12, 24, 12) };
         buttons.Children.Add(close);
@@ -405,13 +405,13 @@ internal sealed class FolderSearchWindow : Window
         var folders = FolderSearches.All.Where(f => f.Indexer?.Index is not null).ToList();
         if (folders.Count == 0)
         {
-            _status.Text = FolderSearches.All.Count == 0 ? "No folder is indexed yet. Add a Folder chooses one." : "The index isn't open yet. Try again in a moment.";
+            _status.Text = FolderSearches.All.Count == 0 ? Strings.Folder_NoneIndexed : Strings.Folder_NotOpenYet;
             return;
         }
         const int Limit = 500;
         var options = new FolderSearchOptions(_matchCase.IsChecked == true, _wholeWords.IsChecked == true, _ignoreAccents.IsChecked == true, Limit);
         _last = (query, options);
-        _status.Text = "Searching…";
+        _status.Text = Strings.Folder_Searching;
         var clock = System.Diagnostics.Stopwatch.StartNew();
         var candidates = 0;
         var hasWords = true;
@@ -448,7 +448,7 @@ internal sealed class FolderSearchWindow : Window
                     {
                         // Its text is all in the PDFs: the search goes on with what the others have.
                         folder.Indexer?.Rebuild();
-                        problems.Add($"The index of {folder.Folder} was damaged and is being built again.");
+                        problems.Add(Loc.Format(Strings.Folder_Damaged, folder.Folder));
                     }
                     catch (ObjectDisposedException)
                     {
@@ -465,18 +465,18 @@ internal sealed class FolderSearchWindow : Window
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             Log.Write($"Folder search failed: {ex.Message}");
-            if (!cts.IsCancellationRequested) _status.Text = $"The search stopped on an error: {ex.Message}";
+            if (!cts.IsCancellationRequested) _status.Text = Loc.Format(Strings.Folder_SearchError, ex.Message);
             return;
         }
         if (cts.IsCancellationRequested) return;
         var ms = clock.Elapsed.TotalMilliseconds;
         var pages = _results.Select(r => r.FullPath).Distinct(StringComparer.OrdinalIgnoreCase).Count();
         string said;
-        if (!hasWords) said = "Type a word with letters or digits: the index keeps those. To find punctuation, use Find in an open document.";
-        else if (_results.Count == 0) said = $"No matches for \"{query}\".";
-        else if (_results.Count >= Limit) said = candidates > Limit ? $"The first {Limit:N0} pages are listed, of up to {candidates:N0} with these words." : $"The first {Limit:N0} pages are listed.";
-        else said = $"{_results.Count:N0} {(_results.Count == 1 ? "page" : "pages")} in {pages:N0} {(pages == 1 ? "file" : "files")}.";
-        if (FolderSearches.All.Any(f => f.Indexer?.Status.Phase is IndexerPhase.Indexing or IndexerPhase.Scanning)) said += " Still indexing: more may turn up.";
+        if (!hasWords) said = Strings.Folder_TypeWord;
+        else if (_results.Count == 0) said = Loc.Format(Strings.Folder_NoMatches, query);
+        else if (_results.Count >= Limit) said = candidates > Limit ? Loc.Format(Strings.Folder_FirstOfUpTo, Limit, candidates) : Loc.Format(Strings.Folder_First, Limit);
+        else said = Loc.Format(Strings.Folder_Found, Loc.Plural(_results.Count, Strings.Folder_Pages_One, Strings.Folder_Pages_Many), Loc.Plural(pages, Strings.Folder_Files_One, Strings.Folder_Files_Many));
+        if (FolderSearches.All.Any(f => f.Indexer?.Status.Phase is IndexerPhase.Indexing or IndexerPhase.Scanning)) said += " " + Strings.Folder_StillIndexing;
         foreach (var problem in problems) said += " " + problem;
         _status.Text = said;
         Log.Write($"Folder search: {_results.Count} results in {ms:0} ms");
@@ -499,10 +499,10 @@ internal sealed class FolderSearchWindow : Window
     private void AskAdd()
     {
         if (!ProGate.Check(this, ProFeature.FolderSearch)) return;
-        if (PdfFiles.PickFolder(this, "Index this folder and its subfolders") is not { } folder) return;
+        if (PdfFiles.PickFolder(this, Strings.Folder_IndexThis) is not { } folder) return;
         if (FolderSearches.Validate(folder) is { } problem)
         {
-            Prompt.Info(this, "Can't index this folder", problem);
+            Prompt.Info(this, Strings.Folder_CantIndex, problem);
             return;
         }
         FolderSearches.Add(folder);
@@ -519,7 +519,7 @@ internal sealed class FolderSearchWindow : Window
             _cards.Remove(gone);
         }
         if (FolderSearches.All.Count == 0 && _folders.Children.Count == 0)
-            _folders.Children.Add(new TextBlock { Text = "No folder is indexed yet. Add a Folder chooses one.", Style = (Style)Application.Current.FindResource("Caption"), TextWrapping = TextWrapping.Wrap });
+            _folders.Children.Add(new TextBlock { Text = Strings.Folder_NoneIndexed, Style = (Style)Application.Current.FindResource("Caption"), TextWrapping = TextWrapping.Wrap });
         else if (FolderSearches.All.Count > 0 && _folders.Children.Count > 0 && _folders.Children[0] is TextBlock)
             _folders.Children.RemoveAt(0);
         foreach (var f in FolderSearches.All)
@@ -555,23 +555,23 @@ internal sealed class FolderSearchWindow : Window
             panel.Children.Add(_status);
             AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Off);
             var actions = new WrapPanel();
-            _pause = Small("Pause", () =>
+            _pause = Small(Strings.Read_Pause, () =>
             {
                 folder.SetPaused(!folder.IsPaused);
                 Refresh();
             });
             actions.Children.Add(_pause);
-            _skipped = Small("Skipped Files…", () => ShowSkipped(window, folder));
+            _skipped = Small(Strings.Folder_SkippedFilesButton, () => ShowSkipped(window, folder));
             actions.Children.Add(_skipped);
-            actions.Children.Add(Small("Open Folder", () => Shell.Open(folder.Folder)));
-            actions.Children.Add(Small("Rebuild", () =>
+            actions.Children.Add(Small(Strings.FormData_OpenFolder, () => Shell.Open(folder.Folder)));
+            actions.Children.Add(Small(Strings.Folder_Rebuild, () =>
             {
-                if (Prompt.Confirm(window, "Build this index again?", $"Every PDF in {folder.Folder} is read again, and files skipped earlier get another chance. Searches find what has been read so far.", "Rebuild"))
+                if (Prompt.Confirm(window, Strings.Folder_RebuildTitle, Loc.Format(Strings.Folder_RebuildBody, folder.Folder), Strings.Folder_Rebuild))
                     folder.Indexer?.Rebuild();
             }));
-            actions.Children.Add(Small("Remove", () =>
+            actions.Children.Add(Small(Strings.Common_Remove, () =>
             {
-                if (Prompt.Confirm(window, "Stop indexing this folder?", $"Its index file is deleted. The PDFs in {folder.Folder} aren't touched.", "Remove"))
+                if (Prompt.Confirm(window, Strings.Folder_StopIndexing, Loc.Format(Strings.Folder_StopIndexingBody, folder.Folder), Strings.Common_Remove))
                     FolderSearches.Remove(folder);
             }));
             panel.Children.Add(actions);
@@ -582,10 +582,10 @@ internal sealed class FolderSearchWindow : Window
         {
             var status = _folder.StatusText;
             _status.Text = status;
-            _pause.Content = _folder.IsPaused ? "Resume" : "Pause";
+            _pause.Content = _folder.IsPaused ? Strings.Read_Resume : Strings.Read_Pause;
             _pause.IsEnabled = _folder.Indexer is not null;
             _skipped.IsEnabled = _folder.Indexer?.Index?.Files.Values.Any(f => f.State != IndexedState.Indexed || f.FailedPages > 0) == true;
-            AutomationProperties.SetName(Root, $"{_folder.Folder}: {status}");
+            AutomationProperties.SetName(Root, $"{_folder.Folder}: {status}"); // in every language: only names and values, no words
         }
 
         private static Button Small(string text, Action onClick)
@@ -599,10 +599,10 @@ internal sealed class FolderSearchWindow : Window
         {
             if (folder.Indexer is not { } indexer) return;
             var skipped = indexer.Skipped();
-            var dlg = new FormDialog(owner, "Skipped Files", "Close", 620);
-            dlg.AddNote($"{skipped.Count:N0} {(skipped.Count == 1 ? "file" : "files")} in {folder.Folder} the index has no text, or not all the text, of. They are read again when they change, or with Rebuild.");
+            var dlg = new FormDialog(owner, Strings.Folder_SkippedTitle, Strings.Common_Close, 620);
+            dlg.AddNote(Loc.Plural(skipped.Count, Strings.Folder_SkippedNote_One, Strings.Folder_SkippedNote_Many, folder.Folder));
             var list = new ListBox { MaxHeight = 320, ItemsSource = skipped.Select(s => $"{s.RelativePath}: {s.Reason}").ToList() };
-            AutomationProperties.SetName(list, "Skipped files");
+            AutomationProperties.SetName(list, Strings.Folder_SkippedFiles);
             VirtualizingPanel.SetIsVirtualizing(list, true);
             dlg.Add(null, list);
             dlg.ShowModal();

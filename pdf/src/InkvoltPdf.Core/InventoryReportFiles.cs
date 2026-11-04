@@ -21,25 +21,26 @@ public static class InventoryReportFiles
     {
         var sb = new StringBuilder();
         string E(string s) => WebUtility.HtmlEncode(s);
-        var date = madeAt.ToString("d MMMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+        // The page's words in the interface's language (English on the command line), its dates' month names too.
+        var date = madeAt.ToString(PdfStrings.Inventory_DateFormat, PdfLanguage.Culture);
         var sections = Enum.GetValues<InventorySection>();
 
-        sb.Append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
+        sb.Append("<!DOCTYPE html>\n<html lang=\"").Append(PdfStrings.A11y_ReportLang).Append("\">\n<head>\n<meta charset=\"utf-8\">\n")
           .Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
           .Append("<meta name=\"generator\" content=\"Inkvolt PDF\">\n")
-          .Append("<title>What's in this PDF: ").Append(E(fileName)).Append("</title>\n<style>\n").Append(Css).Append("</style>\n</head>\n<body>\n")
-          .Append("<a class=\"skip\" href=\"#main\">Skip to the summary</a>\n")
-          .Append("<header>\n<h1>What's in this PDF</h1>\n<p class=\"file\">").Append(E(fileName)).Append("</p>\n")
-          .Append("<p>Looked at on ").Append(E(date)).Append(" by Inkvolt PDF. ").Append(report.Pages == 1 ? "1 page." : $"{report.Pages:N0} pages.")
-          .Append(" Everything the file carries besides what its pages show, and what it does when it is opened.</p>\n</header>\n")
-          .Append("<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#summary\">Summary</a></li>\n");
+          .Append("<title>").Append(Loc.Format(PdfStrings.Inventory_ReportTitleOf, E(fileName))).Append("</title>\n<style>\n").Append(Css).Append("</style>\n</head>\n<body>\n")
+          .Append("<a class=\"skip\" href=\"#main\">").Append(PdfStrings.Inventory_ReportSkip).Append("</a>\n")
+          .Append("<header>\n<h1>").Append(PdfStrings.Inventory_ReportTitle).Append("</h1>\n<p class=\"file\">").Append(E(fileName)).Append("</p>\n")
+          .Append("<p>").Append(Loc.Format(PdfStrings.Inventory_ReportLookedAt, E(date)))
+          .Append(Loc.Plural(report.Pages, PdfStrings.Inventory_ReportPages_One, PdfStrings.Inventory_ReportPages_Many)).Append("</p>\n</header>\n")
+          .Append("<nav aria-label=\"").Append(PdfStrings.A11y_ReportSections).Append("\">\n<ul>\n<li><a href=\"#summary\">").Append(PdfStrings.Inventory_ReportSummary).Append("</a></li>\n");
         foreach (var s in sections)
             if (report.In(s).Any()) sb.Append("<li><a href=\"#").Append(Id(s)).Append("\">").Append(E(DocumentInventory.Title(s))).Append("</a></li>\n");
-        sb.Append("<li><a href=\"#sanitize\">What Sanitize removes</a></li>\n")
-          .Append(report.Notes.Count > 0 ? "<li><a href=\"#notes\">Not looked at</a></li>\n" : "")
+        sb.Append("<li><a href=\"#sanitize\">").Append(PdfStrings.Inventory_ReportSanitizeRemoves).Append("</a></li>\n")
+          .Append(report.Notes.Count > 0 ? "<li><a href=\"#notes\">" + PdfStrings.Inventory_ReportNotLookedAt + "</a></li>\n" : "")
           .Append("</ul>\n</nav>\n<main id=\"main\">\n");
 
-        sb.Append("<section aria-labelledby=\"summary\">\n<h2 id=\"summary\">Summary</h2>\n<p class=\"verdict ").Append(report.IsEmpty ? "clean" : "found").Append("\">")
+        sb.Append("<section aria-labelledby=\"summary\">\n<h2 id=\"summary\">").Append(PdfStrings.Inventory_ReportSummary).Append("</h2>\n<p class=\"verdict ").Append(report.IsEmpty ? "clean" : "found").Append("\">")
           .Append(E(report.Summary)).Append("</p>\n</section>\n");
 
         foreach (var s in sections)
@@ -50,35 +51,36 @@ public static class InventoryReportFiles
             var trigger = s is InventorySection.Scripts or InventorySection.Actions or InventorySection.Addresses;
             sb.Append("<section aria-labelledby=\"").Append(id).Append("\">\n<h2 id=\"").Append(id).Append("\">").Append(E(DocumentInventory.Title(s)))
               .Append(" (").Append(items.Count.ToString("N0", CultureInfo.InvariantCulture)).Append(")</h2>\n<table aria-labelledby=\"").Append(id).Append("\">\n<thead><tr>")
-              .Append("<th scope=\"col\">What</th><th scope=\"col\">Where</th>").Append(trigger ? "<th scope=\"col\">Runs</th>" : "")
-              .Append("<th scope=\"col\">Found</th></tr></thead>\n<tbody>\n");
+              .Append("<th scope=\"col\">").Append(PdfStrings.A11y_ReportColWhat).Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColWhere).Append("</th>")
+              .Append(trigger ? "<th scope=\"col\">" + PdfStrings.Inventory_ReportColRuns + "</th>" : "")
+              .Append("<th scope=\"col\">").Append(PdfStrings.Inventory_ReportColFound).Append("</th></tr></thead>\n<tbody>\n");
             foreach (var i in items)
             {
                 sb.Append("<tr").Append(i.WithoutClick ? " class=\"auto\"" : "").Append("><th scope=\"row\">").Append(E(i.What)).Append("</th><td>").Append(E(i.Where)).Append("</td>");
-                if (trigger) sb.Append("<td>").Append(E(DocumentInventory.Name(i.Trigger))).Append(i.WithoutClick ? " <strong>(no click needed)</strong>" : "").Append("</td>");
+                if (trigger) sb.Append("<td>").Append(E(DocumentInventory.Name(i.Trigger))).Append(i.WithoutClick ? " <strong>" + PdfStrings.Inventory_ReportNoClick + "</strong>" : "").Append("</td>");
                 sb.Append("<td><code>").Append(E(i.Detail)).Append("</code>");
-                if (i.Calls.Count > 0) sb.Append("<br><span class=\"calls\">It ").Append(E(string.Join(", ", i.Calls))).Append(".</span>");
+                if (i.Calls.Count > 0) sb.Append("<br><span class=\"calls\">").Append(Loc.Format(PdfStrings.Inventory_ReportCalls, E(string.Join(", ", i.Calls)))).Append("</span>");
                 sb.Append("</td></tr>\n");
             }
             sb.Append("</tbody>\n</table>\n</section>\n");
         }
 
-        sb.Append("<section aria-labelledby=\"sanitize\">\n<h2 id=\"sanitize\">What Sanitize removes</h2>\n")
-          .Append("<p>Review › Sanitize Document removes these kinds and rewrites the file as one version.</p>\n<table aria-labelledby=\"sanitize\">\n")
-          .Append("<thead><tr><th scope=\"col\">Kind</th><th scope=\"col\">Found</th></tr></thead>\n<tbody>\n");
+        sb.Append("<section aria-labelledby=\"sanitize\">\n<h2 id=\"sanitize\">").Append(PdfStrings.Inventory_ReportSanitizeRemoves).Append("</h2>\n")
+          .Append("<p>").Append(PdfStrings.Inventory_ReportSanitizeIntro).Append("</p>\n<table aria-labelledby=\"sanitize\">\n")
+          .Append("<thead><tr><th scope=\"col\">").Append(PdfStrings.Inventory_ReportColKind).Append("</th><th scope=\"col\">").Append(PdfStrings.Inventory_ReportColFound).Append("</th></tr></thead>\n<tbody>\n");
         foreach (var (item, label) in Kinds)
-            sb.Append("<tr><th scope=\"row\">").Append(E(label)).Append("</th><td>").Append(report.Counts[item].ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n");
-        sb.Append("<tr><th scope=\"row\">Earlier versions</th><td>").Append(report.Counts.EarlierRevisions.ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n")
-          .Append("<tr><th scope=\"row\">Objects nothing uses</th><td>").Append(report.Counts.UnusedObjects.ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n")
+            sb.Append("<tr><th scope=\"row\">").Append(E(label())).Append("</th><td>").Append(report.Counts[item].ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n");
+        sb.Append("<tr><th scope=\"row\">").Append(PdfStrings.Inventory_EarlierVersions).Append("</th><td>").Append(report.Counts.EarlierRevisions.ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n")
+          .Append("<tr><th scope=\"row\">").Append(PdfStrings.Inventory_ReportUnusedObjects).Append("</th><td>").Append(report.Counts.UnusedObjects.ToString("N0", CultureInfo.InvariantCulture)).Append("</td></tr>\n")
           .Append("</tbody>\n</table>\n</section>\n");
 
         if (report.Notes.Count > 0)
         {
-            sb.Append("<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">Not looked at</h2>\n<ul>\n");
+            sb.Append("<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">").Append(PdfStrings.Inventory_ReportNotLookedAt).Append("</h2>\n<ul>\n");
             foreach (var n in report.Notes) sb.Append("<li>").Append(E(n)).Append("</li>\n");
             sb.Append("</ul>\n</section>\n");
         }
-        sb.Append("</main>\n<footer>\n<p>Made by Inkvolt PDF on this computer; nothing was sent anywhere, and no address in the file was contacted.</p>\n</footer>\n</body>\n</html>\n");
+        sb.Append("</main>\n<footer>\n<p>").Append(PdfStrings.Inventory_ReportFooter).Append("</p>\n</footer>\n</body>\n</html>\n");
         return sb.ToString();
     }
 
@@ -135,19 +137,19 @@ public static class InventoryReportFiles
 
     private static string Id(InventorySection s) => JsonNamingPolicy.CamelCase.ConvertName(s.ToString());
 
-    private static readonly (SanitizeItem Item, string Label)[] Kinds =
+    private static readonly (SanitizeItem Item, Func<string> Label)[] Kinds =
     [
-        (SanitizeItem.Metadata, "Metadata"),
-        (SanitizeItem.HiddenLayers, "Hidden layers"),
-        (SanitizeItem.HiddenAnnotations, "Hidden comments and fields"),
-        (SanitizeItem.Comments, "Comments, markup, stamps and drawings"),
-        (SanitizeItem.FormValues, "Form values"),
-        (SanitizeItem.Bookmarks, "Bookmarks"),
-        (SanitizeItem.Thumbnails, "Page thumbnails"),
-        (SanitizeItem.ActiveContent, "Scripts and active content"),
-        (SanitizeItem.ExternalLinks, "Links to web pages and other files"),
-        (SanitizeItem.EmbeddedFiles, "Attached files"),
-        (SanitizeItem.Signatures, "Digital signatures"),
+        (SanitizeItem.Metadata, () => PdfStrings.Inventory_KindMetadata),
+        (SanitizeItem.HiddenLayers, () => PdfStrings.Inventory_KindHiddenLayers),
+        (SanitizeItem.HiddenAnnotations, () => PdfStrings.Inventory_KindHiddenAnnotations),
+        (SanitizeItem.Comments, () => PdfStrings.Inventory_KindComments),
+        (SanitizeItem.FormValues, () => PdfStrings.Inventory_FormValues),
+        (SanitizeItem.Bookmarks, () => PdfStrings.Inventory_KindBookmarks),
+        (SanitizeItem.Thumbnails, () => PdfStrings.Inventory_KindThumbnails),
+        (SanitizeItem.ActiveContent, () => PdfStrings.Inventory_KindActiveContent),
+        (SanitizeItem.ExternalLinks, () => PdfStrings.Inventory_KindExternalLinks),
+        (SanitizeItem.EmbeddedFiles, () => PdfStrings.Inventory_Attachments),
+        (SanitizeItem.Signatures, () => PdfStrings.Inventory_Signatures),
     ];
 
     private const string Css = """

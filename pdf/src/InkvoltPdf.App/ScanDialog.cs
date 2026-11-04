@@ -24,25 +24,23 @@ internal static class Scanning
 {
     public static void ScanToNewTab(MainWindow host)
     {
-        var name = $"Scan {DateTime.Now:yyyy-MM-dd HHmm}.pdf";
+        var name = Loc.Format(Strings.Scan_FileName, DateTime.Now);
         var dlg = new ScanDialog(host, name, insert: null);
         if (dlg.ShowDialog() != true || dlg.Result is not { } pdf) return;
         host.OpenSession(DocumentSession.FromBytes(pdf, name));
-        host.ShowStatus($"Scanned {Pages(dlg.PageCount)}. Save it to keep it.");
+        host.ShowStatus(Loc.Plural(dlg.PageCount, Strings.Scan_Scanned_One, Strings.Scan_Scanned_Many));
     }
 
     public static async Task InsertFromScanner(MainWindow host, DocumentTab tab)
     {
         if (!await tab.SettleAsync()) return;
-        var name = $"Scan {DateTime.Now:yyyy-MM-dd HHmm}.pdf";
+        var name = Loc.Format(Strings.Scan_FileName, DateTime.Now);
         var dlg = new ScanDialog(host, name, insert: (tab.PageView.PageCount, Organize.CurrentPage(tab)));
         if (dlg.ShowDialog() != true || dlg.Result is not { } pdf || !await tab.SettleAsync()) return;
         var before = Math.Clamp(dlg.InsertBefore, 0, tab.PageView.PageCount); // the document may have changed meanwhile
         var source = new PdfSource(pdf, null, name);
-        await tab.RunEdit($"Insert {Pages(dlg.PageCount)} from the scanner", (d, pw) => PageEditor.Insert(d, pw, source, null, before), before);
+        await tab.RunEdit(Loc.Plural(dlg.PageCount, Strings.Scan_InsertLabel_One, Strings.Scan_InsertLabel_Many), (d, pw) => PageEditor.Insert(d, pw, source, null, before), before);
     }
-
-    private static string Pages(int n) => n == 1 ? "1 page" : $"{n} pages";
 }
 
 /// <summary>
@@ -83,20 +81,20 @@ internal sealed class ScanDialog : Window
     private readonly ComboBox _size = new();
     private readonly TextBlock _twainNote = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0), FontSize = 12, Visibility = Visibility.Collapsed };
     private readonly ComboBox _preset = new() { MinWidth = 220 };
-    private readonly Button _savePreset = new() { Content = "Save as preset…", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
-    private readonly Button _deletePreset = new() { Content = "Delete preset", Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
-    private readonly CheckBox _ocr = new() { Content = "Make the text searchable (OCR)", Margin = new Thickness(0, 14, 0, 0) };
-    private readonly CheckBox _skipBlank = new() { Content = "Leave out blank pages", Margin = new Thickness(0, 8, 0, 0) };
+    private readonly Button _savePreset = new() { Content = Strings.Scan_SavePreset, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
+    private readonly Button _deletePreset = new() { Content = Strings.Scan_DeletePreset, Padding = new Thickness(10, 3, 10, 3), Margin = new Thickness(8, 0, 0, 0) };
+    private readonly CheckBox _ocr = new() { Content = Strings.Scan_Ocr, Margin = new Thickness(0, 14, 0, 0) };
+    private readonly CheckBox _skipBlank = new() { Content = Strings.Scan_SkipBlank, Margin = new Thickness(0, 8, 0, 0) };
     private readonly PositionPicker? _position;
     private readonly WrapPanel _thumbs = new();
     private readonly TextBlock _pageCount = new() { FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _removeLast = new() { Content = "Remove last page", Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Right };
+    private readonly Button _removeLast = new() { Content = Strings.Scan_RemoveLast, Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _message = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ProgressBar _progress = new() { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 8, 0, 0), Visibility = Visibility.Collapsed };
-    private readonly Button _scan = new() { Content = "Scan", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
-    private readonly Button _stop = new() { Content = "Stop scanning", MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
+    private readonly Button _scan = new() { Content = Strings.Scan_Scan, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
+    private readonly Button _stop = new() { Content = Strings.Scan_Stop, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), Visibility = Visibility.Collapsed };
     private readonly Button _finish = new() { MinWidth = 104, Margin = new Thickness(0, 0, 8, 0), IsEnabled = false };
-    private readonly Button _close = new() { Content = "Cancel", MinWidth = 104 };
+    private readonly Button _close = new() { Content = Strings.Common_Cancel, MinWidth = 104 };
 
     private PrinterDiscovery? _discovery;
     private DeviceHttp? _http;
@@ -123,7 +121,7 @@ internal sealed class ScanDialog : Window
         _title = Path.GetFileNameWithoutExtension(documentName);
         _insert = insert;
         Owner = owner;
-        Title = insert is null ? "Scan" : "Insert from Scanner";
+        Title = insert is null ? Strings.Scan_Scan : Strings.Scan_InsertTitle;
         Width = 560;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
@@ -131,27 +129,27 @@ internal sealed class ScanDialog : Window
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
         _scanner.ItemsSource = _scanners;
-        System.Windows.Automation.AutomationProperties.SetName(_scanner, "Scanner");
-        System.Windows.Automation.AutomationProperties.SetName(_source, "Source");
-        System.Windows.Automation.AutomationProperties.SetName(_color, "Color");
-        System.Windows.Automation.AutomationProperties.SetName(_resolution, "Resolution");
-        System.Windows.Automation.AutomationProperties.SetName(_size, "Page size");
-        System.Windows.Automation.AutomationProperties.SetName(_preset, "Preset");
+        System.Windows.Automation.AutomationProperties.SetName(_scanner, Strings.Scan_Scanner);
+        System.Windows.Automation.AutomationProperties.SetName(_source, Strings.Scan_Source);
+        System.Windows.Automation.AutomationProperties.SetName(_color, Strings.Scan_Color);
+        System.Windows.Automation.AutomationProperties.SetName(_resolution, Strings.File_Resolution);
+        System.Windows.Automation.AutomationProperties.SetName(_size, Strings.File_PageSize);
+        System.Windows.Automation.AutomationProperties.SetName(_preset, Strings.Batch_Preset);
         _scannerState.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _twainNote.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        _savePreset.ToolTip = "Saves the source, color, resolution, page size, OCR and blank page choices under a name, for any scanner.";
-        _finish.Content = insert is null ? "Open as new document" : "Insert pages";
+        _savePreset.ToolTip = Strings.Scan_SavePresetTip;
+        _finish.Content = insert is null ? Strings.Scan_OpenNew : Strings.Scan_InsertPages;
         _finish.SetResourceReference(StyleProperty, "AccentButtonStyle");
         _scan.SetResourceReference(StyleProperty, "AccentButtonStyle");
         _scan.IsDefault = true;
 
         var body = new StackPanel { Margin = new Thickness(24, 20, 24, 16) };
         body.Children.Add(new TextBlock { Text = Title, FontSize = 20, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 16) });
-        body.Children.Add(Heading("Scanner", 0));
+        body.Children.Add(Heading(Strings.Scan_Scanner, 0));
         body.Children.Add(_scanner);
         body.Children.Add(_scannerState);
         body.Children.Add(_twainNote);
-        body.Children.Add(Heading("Preset", 12));
+        body.Children.Add(Heading(Strings.Batch_Preset, 12));
         var presetRow = new DockPanel();
         DockPanel.SetDock(_deletePreset, Dock.Right);
         DockPanel.SetDock(_savePreset, Dock.Right);
@@ -174,26 +172,26 @@ internal sealed class ScanDialog : Window
             Grid.SetColumn(cell, col);
             grid.Children.Add(cell);
         }
-        Cell("Source", _source, 0, 0);
-        Cell("Color", _color, 0, 2);
-        Cell("Resolution", _resolution, 1, 0);
-        Cell("Page size", _size, 1, 2);
+        Cell(Strings.Scan_Source, _source, 0, 0);
+        Cell(Strings.Scan_Color, _color, 0, 2);
+        Cell(Strings.File_Resolution, _resolution, 1, 0);
+        Cell(Strings.File_PageSize, _size, 1, 2);
         body.Children.Add(grid);
 
         var ocrAvailable = PageOcr.Engine is not null;
         _ocr.IsChecked = ocrAvailable && AppSettings.Current.ScanOcr;
         _ocr.IsEnabled = ocrAvailable;
         _ocr.ToolTip = ocrAvailable
-            ? "Adds an invisible text layer with Windows' text recognition, so the scan can be searched, selected and copied."
+            ? Strings.Scan_OcrTip
             : PageOcr.Unavailable;
         body.Children.Add(_ocr);
         _skipBlank.IsChecked = AppSettings.Current.ScanSkipBlank;
-        _skipBlank.ToolTip = "Pages with almost no ink (the empty back of a one-sided sheet) aren't added. A page with as little as a short word is kept.";
+        _skipBlank.ToolTip = Strings.Scan_SkipBlankTip;
         body.Children.Add(_skipBlank);
 
         if (insert is { } ins)
         {
-            body.Children.Add(Heading("Insert", 14));
+            body.Children.Add(Heading(Strings.Scan_InsertHeading, 14));
             _position = new PositionPicker(ins.Count, ins.Current);
             body.Children.Add(_position);
         }
@@ -276,7 +274,7 @@ internal sealed class ScanDialog : Window
     /// </summary>
     private async Task LoadScannersAsync()
     {
-        _scannerState.Text = "Looking for scanners…";
+        _scannerState.Text = Strings.Scan_Looking;
         var known = await Task.Run(() => InkvoltPrinters.Load());
         foreach (var p in known.Printers.Where(p => p.EsclRoot is not null))
             AddOrUpdate(new ScannerItem(Key(p.Uuid), p.Name, ScannerKind.Network, p.Host, p.EsclRoot, Remembered: true));
@@ -330,7 +328,7 @@ internal sealed class ScanDialog : Window
             catch (Exception ex) when (ex is WiaException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
             {
                 Log.Write($"TWAIN sources unavailable: {ex.Message}");
-                twainError = ex is WiaException w ? WiaErrors.Message(w.Code, false) : "the TWAIN manager on this PC couldn't be loaded.";
+                twainError = ex is WiaException w ? WiaErrors.Message(w.Code, false) : Strings.Scan_TwainNotLoaded;
             }
         }
         _twainNote.Text = ScannerList.TwainNote(WindowsTwain.ManagerInstalled, twainError) ?? "";
@@ -400,7 +398,7 @@ internal sealed class ScanDialog : Window
         oldHttp?.Dispose();
         if (_pages.Count == 0 && !_busy) _message.Text = ""; // the last scanner's hint; the new one's comes once it's connected
         FillOptions();
-        _scannerState.Text = $"Connecting to {item.Name}…";
+        _scannerState.Text = Loc.Format(Strings.Scan_Connecting, item.Name);
         UpdateState();
         if (item.Driver is { } driver)
         {
@@ -431,7 +429,7 @@ internal sealed class ScanDialog : Window
             if (caps is null || client is null)
             {
                 http.Dispose();
-                _scannerState.Text = $"{item.Name} didn't answer as a scanner. Check that it's on and on this network.";
+                _scannerState.Text = Loc.Format(Strings.Scan_NoAnswer, item.Name);
                 UpdateState();
                 return;
             }
@@ -476,7 +474,7 @@ internal sealed class ScanDialog : Window
     {
         _device = device;
         _caps = caps;
-        _scannerState.Text = $"Ready: {caps.MakeAndModel ?? item.Name}";
+        _scannerState.Text = Loc.Format(Strings.Scan_Ready, caps.MakeAndModel ?? item.Name);
         FillOptions();
         if (_pendingPreset is { } preset)
         {
@@ -516,9 +514,9 @@ internal sealed class ScanDialog : Window
             var dpiWanted = (_resolution.SelectedItem as Choice<int>)?.Value ?? s.ScanResolution;
             var dpis = ScanChoices.Resolutions(caps, source.Value).Select(d => new Choice<int>(d, d switch
             {
-                <= 150 => $"{d} dpi (smaller files)",
-                <= 200 => $"{d} dpi",
-                _ => $"{d} dpi (best for text)",
+                <= 150 => Loc.Format(Strings.Scan_DpiSmall, d),
+                <= 200 => Loc.Format(Strings.File_Dpi, d),
+                _ => Loc.Format(Strings.Scan_DpiText, d),
             })).ToList();
             _resolution.ItemsSource = dpis;
             _resolution.SelectedItem = dpis.MinBy(d => Math.Abs(d.Value - dpiWanted));
@@ -556,7 +554,7 @@ internal sealed class ScanDialog : Window
         using var cts = _scanCts = new CancellationTokenSource();
         int added = 0, blank = 0, unreadable = 0;
         SetBusy(true, scanning: true);
-        _message.Text = "Scanning… (the first page takes longer if the scanner was asleep)";
+        _message.Text = Strings.Scan_Scanning;
         try
         {
             await foreach (var page in ScanRun.PagesAsync(device, request, skipBlank ? Analysis : null, cts.Token))
@@ -571,17 +569,17 @@ internal sealed class ScanDialog : Window
                 _thumbs.Children.Add(await ThumbnailAsync(page.Jpeg, _pages.Count));
                 added++;
                 UpdateState();
-                _message.Text = $"Scanned page {_pages.Count}{(blank > 0 ? $" ({blank} blank left out)" : "")}. Scanning…";
+                _message.Text = blank > 0 ? Loc.Format(Strings.Scan_ScannedPageBlank, _pages.Count, blank) : Loc.Format(Strings.Scan_ScannedPage, _pages.Count);
             }
             _message.Text = ScanRun.DoneText(added, blank, unreadable, IsGlass, (string)_finish.Content);
         }
         catch (OperationCanceledException)
         {
-            _message.Text = added == 0 ? "Scan stopped." : $"Scan stopped. The {ScanRun.Pages(added)} scanned so far are kept.";
+            _message.Text = added == 0 ? Strings.Scan_Stopped : Loc.Plural(added, Strings.Scan_StoppedKept_One, Strings.Scan_StoppedKept_Many);
         }
         catch (ScanException ex)
         {
-            _message.Text = added == 0 ? ex.Message : $"{ex.Message} The {ScanRun.Pages(added)} scanned before it are kept.";
+            _message.Text = added == 0 ? ex.Message : Loc.Plural(added, Strings.Scan_ErrorKept_One, Strings.Scan_ErrorKept_Many, ex.Message);
         }
         catch (WiaException ex)
         {
@@ -592,7 +590,7 @@ internal sealed class ScanDialog : Window
                                        or System.Xml.XmlException or IOException)
         {
             Log.Write($"Scan failed: {ex.GetType().Name}: {ex.Message}");
-            _message.Text = $"Scanning didn't work: {ex.Message}";
+            _message.Text = Loc.Format(Strings.Scan_Failed, ex.Message);
         }
         finally
         {
@@ -621,7 +619,7 @@ internal sealed class ScanDialog : Window
             else
                 panel.Children.Add(new Border { Width = 72, Height = 96 });
             panel.Children.Add(new TextBlock { Text = number.ToString(CultureInfo.CurrentCulture), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11 });
-            System.Windows.Automation.AutomationProperties.SetName(panel, $"Scanned page {number}");
+            System.Windows.Automation.AutomationProperties.SetName(panel, Loc.Format(Strings.Scan_ScannedPageName, number));
             return (FrameworkElement)panel;
         }, TaskScheduler.FromCurrentSynchronizationContext());
 
@@ -639,25 +637,25 @@ internal sealed class ScanDialog : Window
         var ocr = _ocr.IsChecked == true ? PageOcr.Engine : null;
         AppSettings.Current.ScanOcr = _ocr.IsChecked == true;
         SetBusy(true);
-        _message.Text = "Making the PDF…";
+        _message.Text = Strings.Web_Making;
         try
         {
             var title = _title;
             var pdf = await Task.Run(() => ScanRun.ToPdf(pages, title));
             if (ocr is not null)
             {
-                using var progress = new ProgressPrompt(this, "Recognizing text", "Starting…");
+                using var progress = new ProgressPrompt(this, Strings.Scan_Recognizing, Strings.Scan_Starting);
                 try
                 {
                     pdf = await Task.Run(() =>
                     {
-                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, "Recognizing text").Words;
+                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, Strings.Scan_Recognizing).Words;
                         return words.Count == 0 ? pdf : TextLayer.AddInvisibleText(pdf, null, words, ocr.Language);
                     }, progress.Token);
                 }
                 catch (OperationCanceledException)
                 {
-                    _message.Text = "Text recognition cancelled. Your pages are still here; clear \"Make the text searchable\" to skip it.";
+                    _message.Text = Strings.Scan_OcrCancelled;
                     return;
                 }
             }
@@ -670,7 +668,7 @@ internal sealed class ScanDialog : Window
         catch (Exception ex) when (ex is InvalidOperationException or FormatException or IOException or ArgumentException or PdfSharp.PdfSharpException)
         {
             Log.Write($"Scan to PDF failed: {ex}");
-            _message.Text = $"The scan couldn't be made into a PDF: {ex.Message}";
+            _message.Text = Loc.Format(Strings.Scan_CouldntMake, ex.Message);
         }
         finally
         {
@@ -694,21 +692,21 @@ internal sealed class ScanDialog : Window
         _savePreset.IsEnabled = ready;
         _deletePreset.IsEnabled = !_busy && _preset.SelectedItem is Choice<ScanPreset?> { Value: not null };
         _scan.IsEnabled = ready;
-        _scan.Content = _pages.Count == 0 ? "Scan" : IsGlass ? "Scan another page" : "Scan more pages";
+        _scan.Content = _pages.Count == 0 ? Strings.Scan_Scan : IsGlass ? Strings.Scan_Another : Strings.Scan_More;
         _finish.IsEnabled = _pages.Count > 0 && !_busy;
         _finish.IsDefault = _pages.Count > 0;
         _scan.IsDefault = _pages.Count == 0;
         _removeLast.Visibility = _pages.Count > 0 ? Visibility.Visible : Visibility.Hidden;
         _removeLast.IsEnabled = !_busy;
-        _pageCount.Text = _pages.Count switch { 0 => "No pages yet", 1 => "1 page", var n => $"{n} pages" };
+        _pageCount.Text = _pages.Count == 0 ? Strings.Scan_NoPages : Loc.Plural(_pages.Count, Strings.Print_Pages_One, Strings.Scan_PagesCount_Many);
         if (_pages.Count == 0 && _thumbs.Children.Count == 0 && !_busy && _message.Text.Length == 0 && _caps is not null)
-            _message.Text = IsGlass ? "Put a page face down on the scanner glass, then press Scan." : "Put the pages face up in the document feeder, then press Scan.";
+            _message.Text = IsGlass ? Strings.Scan_PutGlass : Strings.Scan_PutFeeder;
     }
 
     /// <summary>The preset list: "No preset" first, then the saved presets; <paramref name="select"/> chosen (without applying it).</summary>
     private void FillPresets(string? select)
     {
-        var items = new List<Choice<ScanPreset?>> { new(null, "No preset") };
+        var items = new List<Choice<ScanPreset?>> { new(null, Strings.Scan_NoPreset) };
         items.AddRange(Presets().Select(p => new Choice<ScanPreset?>(p, p.Name)));
         _filling = true;
         try
@@ -761,7 +759,7 @@ internal sealed class ScanDialog : Window
         FillOptions();
         _ocr.IsChecked = plan.Ocr;
         _skipBlank.IsChecked = preset.SkipBlank;
-        _message.Text = plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : $"Preset \"{preset.Name}\" chosen.";
+        _message.Text = plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : Loc.Format(Strings.Scan_PresetChosen, preset.Name);
         UpdateState();
     }
 
@@ -770,10 +768,9 @@ internal sealed class ScanDialog : Window
     {
         if (_busy || _source.SelectedItem is not Choice<ScanSource> source || _resolution.SelectedItem is not Choice<int> dpi) return;
         var list = Presets();
-        var dlg = new FormDialog(this, "Save as preset", "Save");
-        dlg.AddNote("Saves the source, color, resolution, page size, text recognition and blank page choices. A preset works with any " +
-                    "scanner: what one can't do is matched as closely as it allows.");
-        var name = dlg.AddText("Name", ScanPresets.UniqueName(list.Select(p => p.Name), "My scan"));
+        var dlg = new FormDialog(this, Strings.Scan_SavePresetTitle, Strings.Common_Save);
+        dlg.AddNote(Strings.Scan_SavePresetNote);
+        var name = dlg.AddText(Strings.Sign_Name, ScanPresets.UniqueName(list.Select(p => p.Name), Strings.Scan_MyScan));
         dlg.Validate(() => ScanPresets.NameProblem(list, "", name.Text));
         dlg.Loaded += (_, _) =>
         {
@@ -787,18 +784,18 @@ internal sealed class ScanDialog : Window
         AppSettings.Current.ScanPresets = list;
         AppSettings.Current.Save();
         FillPresets(preset.Id);
-        _message.Text = $"Saved the preset \"{preset.Name}\".";
+        _message.Text = Loc.Format(Strings.Scan_PresetSaved, preset.Name);
         UpdateState();
     }
 
     private void DeletePreset()
     {
         if (_busy || _preset.SelectedItem is not Choice<ScanPreset?> { Value: { } preset }
-            || !Prompt.Confirm(this, $"Delete the preset \"{preset.Name}\"?", "Its choices are forgotten; pages already scanned stay.", "Delete")) return;
+            || !Prompt.Confirm(this, Loc.Format(Strings.Scan_DeletePresetTitle, preset.Name), Strings.Scan_DeletePresetBody, Strings.Common_Delete)) return;
         AppSettings.Current.ScanPresets = [.. Presets().Where(p => p.Id != preset.Id)];
         AppSettings.Current.Save();
         FillPresets(null);
-        _message.Text = $"Deleted the preset \"{preset.Name}\".";
+        _message.Text = Loc.Format(Strings.Scan_PresetDeleted, preset.Name);
         UpdateState();
     }
 
@@ -827,7 +824,7 @@ internal sealed class ScanDialog : Window
             scanning.Cancel(); // stops the job on the device; the dialog closes once it has
             _closeRequested = true;
             e.Cancel = true;
-            _message.Text = "Stopping the scan…";
+            _message.Text = Strings.Scan_Stopping;
             return;
         }
         if (_busy)
@@ -835,8 +832,8 @@ internal sealed class ScanDialog : Window
             e.Cancel = true;
             return;
         }
-        if (_pages.Count > 0 && !Prompt.Confirm(this, $"Discard {(_pages.Count == 1 ? "the scanned page" : $"{_pages.Count} scanned pages")}?",
-                "They haven't been added to a document yet.", "Discard", warning: true))
+        if (_pages.Count > 0 && !Prompt.Confirm(this, Loc.Plural(_pages.Count, Strings.Scan_Discard_One, Strings.Scan_Discard_Many),
+                Strings.Scan_NotAddedYet, Strings.Common_Discard, warning: true))
             e.Cancel = true;
     }
 

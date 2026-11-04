@@ -85,13 +85,13 @@ public static partial class CommentFiles
         {
             throw new InvalidDataException(ex.Message, ex);
         }
-        if (rows.Count == 0) throw new InvalidDataException("The file is empty.");
+        if (rows.Count == 0) throw new InvalidDataException(PdfStrings.Comment_FileEmpty);
         var header = rows[0].Select(h => h.Trim()).ToList();
         int Col(string name) => header.FindIndex(h => h.Equals(name, StringComparison.OrdinalIgnoreCase));
         int page = Col("Page"), type = Col("Type");
         if (page < 0 || type < 0 || Col("Rect") < 0)
-            throw new InvalidDataException("The file isn't XFDF, FDF or a comments CSV: a CSV needs the columns Page, Type and Rect (export one to see them all).");
-        if (rows.Count - 1 > MaxComments) throw new InvalidDataException($"The file has more than {MaxComments:N0} comments, the most Inkvolt PDF imports.");
+            throw new InvalidDataException(PdfStrings.Comment_NotCommentFile);
+        if (rows.Count - 1 > MaxComments) throw new InvalidDataException(Loc.Format(PdfStrings.Comment_TooMany, MaxComments));
 
         var records = new List<Record>();
         for (var i = 1; i < rows.Count; i++)
@@ -103,7 +103,7 @@ public static partial class CommentFiles
             var subtype = Cell("Type").Trim();
             if (!XfdfElements.ContainsKey(subtype))
             {
-                skipped.Add($"Row {line}: \"{subtype}\" isn't a kind of comment Inkvolt PDF imports");
+                skipped.Add(Loc.Format(PdfStrings.Comment_CsvBadKind, line, subtype));
                 continue;
             }
             var d = new Dictionary<string, object?>(StringComparer.Ordinal) { ["Subtype"] = new Fdf.Name(subtype) };

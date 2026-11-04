@@ -42,12 +42,12 @@ public sealed record RedactionFileReport(string File, IReadOnlyList<RedactionRem
             var parts = new List<string>();
             int Count(RedactionOutcome o) => Removals.Count(r => r.Outcome == o);
             if (Failure is not null) parts.Add(Failure);
-            if (Count(RedactionOutcome.Removed) is > 0 and var removed) parts.Add($"{removed:N0} removed");
-            if (Count(RedactionOutcome.Kept) is > 0 and var kept) parts.Add($"{kept:N0} kept");
-            if (Count(RedactionOutcome.NotSaved) is > 0 and var unsaved) parts.Add($"{unsaved:N0} found, not saved");
+            if (Count(RedactionOutcome.Removed) is > 0 and var removed) parts.Add(Loc.Plural(removed, PdfStrings.Redact_PartRemoved_One, PdfStrings.Redact_PartRemoved_Many));
+            if (Count(RedactionOutcome.Kept) is > 0 and var kept) parts.Add(Loc.Plural(kept, PdfStrings.Redact_PartKept_One, PdfStrings.Redact_PartKept_Many));
+            if (Count(RedactionOutcome.NotSaved) is > 0 and var unsaved) parts.Add(Loc.Plural(unsaved, PdfStrings.Redact_PartNotSaved_One, PdfStrings.Redact_PartNotSaved_Many));
             if (MarkedAreas > 0) parts.Add(RedactionReport.MarkedText(MarkedAreas));
-            if (Removals.Count == 0 && Failure is null && MarkedAreas == 0) parts.Add("nothing found");
-            if (Looks.Count > 0) parts.Add($"look by hand at {RedactionReport.Pages(Looks.Select(l => l.Page))}");
+            if (Removals.Count == 0 && Failure is null && MarkedAreas == 0) parts.Add(PdfStrings.Redact_NothingFound);
+            if (Looks.Count > 0) parts.Add(Loc.Format(PdfStrings.Redact_LookByHandAt, RedactionReport.Pages(Looks.Select(l => l.Page))));
             return string.Join("; ", parts);
         }
     }
@@ -81,14 +81,16 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
         get
         {
             var (removed, kept, marked) = (Count(RedactionOutcome.Removed), Count(RedactionOutcome.Kept), Files.Sum(f => f.MarkedAreas));
-            var keptText = (kept > 0 ? $", {kept:N0} kept as you chose" : "") + (marked > 0 ? $", {MarkedText(marked)}" : "");
+            var keptText = (kept > 0 ? Loc.Plural(kept, PdfStrings.Redact_KeptAsChosen_One, PdfStrings.Redact_KeptAsChosen_Many) : "") + (marked > 0 ? $", {MarkedText(marked)}" : "");
             return removed + marked == 0
-                ? $"Nothing was removed{keptText}."
-                : $"Read back and searched again: none of what was removed is left in the text of the {(Files.Count > 1 ? "files" : "file")}. {removed:N0} removed{keptText}.";
+                ? Loc.Format(PdfStrings.Redact_HeadlineNothing, keptText)
+                : Files.Count > 1
+                    ? Loc.Plural(removed, PdfStrings.Redact_HeadlineFiles_One, PdfStrings.Redact_HeadlineFiles_Many, keptText)
+                    : Loc.Plural(removed, PdfStrings.Redact_HeadlineFile_One, PdfStrings.Redact_HeadlineFile_Many, keptText);
         }
     }
 
-    internal static string MarkedText(int areas) => areas == 1 ? "1 other marked area removed" : $"{areas:N0} other marked areas removed";
+    internal static string MarkedText(int areas) => Loc.Plural(areas, PdfStrings.Redact_MarkedAreas_One, PdfStrings.Redact_MarkedAreas_Many);
 
     /// <summary>What is left of a value in a report.</summary>
     public static string Mask(RedactionPattern pattern, string value)
@@ -114,10 +116,10 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
 
     public static string OutcomeText(RedactionOutcome outcome) => outcome switch
     {
-        RedactionOutcome.Removed => "Removed",
-        RedactionOutcome.Kept => "Kept by you",
-        RedactionOutcome.StillThere => "Still in the file",
-        _ => "Found, file not saved",
+        RedactionOutcome.Removed => PdfStrings.Redact_OutcomeRemoved,
+        RedactionOutcome.Kept => PdfStrings.Redact_OutcomeKept,
+        RedactionOutcome.StillThere => PdfStrings.Redact_OutcomeStillThere,
+        _ => PdfStrings.Redact_OutcomeNotSaved,
     };
 
     /// <summary>"page 3", "pages 3, 5 and 8", "12 pages".</summary>
@@ -126,10 +128,10 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
         var list = pages.Distinct().Order().Select(p => (p + 1).ToString(CultureInfo.CurrentCulture)).ToList();
         return list.Count switch
         {
-            0 => "no pages",
-            1 => $"page {list[0]}",
-            <= 6 => $"pages {string.Join(", ", list.Take(list.Count - 1))} and {list[^1]}",
-            _ => $"{list.Count:N0} pages",
+            0 => PdfStrings.Redact_NoPages,
+            1 => Loc.Format(PdfStrings.Redact_PageOne, list[0]),
+            <= 6 => Loc.Format(PdfStrings.Redact_PagesAnd, string.Join(", ", list.Take(list.Count - 1)), list[^1]),
+            _ => Loc.Format(PdfStrings.Redact_PagesCount, list.Count),
         };
     }
 
@@ -140,9 +142,9 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
         foreach (var file in Files)
         {
             var name = Cell(file.File);
-            rows.Add([name, "", "Result for this file", "", Cell((file.Failure is not null ? "Failed: " : file.Looks.Count > 0 ? "Look by hand: " : "Finished: ") + file.Summary)]);
+            rows.Add([name, "", PdfStrings.Redact_CsvFileResult, "", Cell(Loc.Format(file.Failure is not null ? PdfStrings.Redact_CsvFailed : file.Looks.Count > 0 ? PdfStrings.Redact_CsvLookByHandResult : PdfStrings.Redact_CsvFinished, file.Summary))]);
             foreach (var r in file.Removals) rows.Add([name, Number(r.Page), r.PatternName, Cell(r.Masked), r.OutcomeText]);
-            foreach (var look in file.Looks) rows.Add([name, Number(look.Page), Cell(look.Text), "", "Look by hand"]);
+            foreach (var look in file.Looks) rows.Add([name, Number(look.Page), Cell(look.Text), "", PdfStrings.Redact_CsvLookByHand]);
         }
         return Csv.Write(rows);
 

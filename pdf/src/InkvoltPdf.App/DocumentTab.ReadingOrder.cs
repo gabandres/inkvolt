@@ -22,17 +22,26 @@ public sealed class ReadingOrderItem(int index, int number, TagBlock block)
 
     public string Kind => Block.Kind switch
     {
-        TagBlockKind.Heading => $"Heading {Block.Level}",
-        TagBlockKind.List => $"List ({Block.Items.Count} {(Block.Items.Count == 1 ? "item" : "items")}{(Block.Items.Any(i => i.Level > 0) ? ", nested" : "")})",
-        TagBlockKind.Table => $"Table ({Block.Rows.Count} {(Block.Rows.Count == 1 ? "row" : "rows")}{(Block.HeaderRow ? ", column headers" : "")}{(Block.HeaderColumn ? ", row headers" : "")})",
-        TagBlockKind.Caption => "Caption",
-        TagBlockKind.Note => "Footnote",
-        TagBlockKind.Contents => $"Table of contents ({Block.Items.Count} {(Block.Items.Count == 1 ? "entry" : "entries")})",
-        TagBlockKind.Formula => "Formula",
-        TagBlockKind.Figure when Block.Decorative => "Picture (decorative)",
-        TagBlockKind.Figure => NeedsAlt ? "Picture: needs alternate text" : "Picture",
-        _ => Block.Lang is { } lang ? $"Paragraph ({lang})" : "Paragraph",
-    } + (Block.ReadWith is null ? "" : $" · from page {Block.Page + 1}");
+        TagBlockKind.Heading => Loc.Format(Strings.ReadingOrder_Heading, Block.Level),
+        TagBlockKind.List => Block.Items.Any(i => i.Level > 0)
+            ? Loc.Plural(Block.Items.Count, Strings.ReadingOrder_ListNested_One, Strings.ReadingOrder_ListNested_Many)
+            : Loc.Plural(Block.Items.Count, Strings.ReadingOrder_List_One, Strings.ReadingOrder_List_Many),
+        TagBlockKind.Table => Loc.Plural(Block.Rows.Count, Strings.ReadingOrder_Table_One, Strings.ReadingOrder_Table_Many,
+            (Block.HeaderRow, Block.HeaderColumn) switch
+            {
+                (true, true) => Strings.ReadingOrder_TableBothHeaders,
+                (true, false) => Strings.ReadingOrder_TableColumnHeaders,
+                (false, true) => Strings.ReadingOrder_TableRowHeaders,
+                _ => "",
+            }),
+        TagBlockKind.Caption => Strings.ReadingOrder_Caption,
+        TagBlockKind.Note => Strings.ReadingOrder_Footnote,
+        TagBlockKind.Contents => Loc.Plural(Block.Items.Count, Strings.ReadingOrder_Contents_One, Strings.ReadingOrder_Contents_Many),
+        TagBlockKind.Formula => Strings.ReadingOrder_Formula,
+        TagBlockKind.Figure when Block.Decorative => Strings.ReadingOrder_PictureDecorative,
+        TagBlockKind.Figure => NeedsAlt ? Strings.ReadingOrder_PictureNeedsAlt : Strings.ReadingOrder_Picture,
+        _ => Block.Lang is { } lang ? Loc.Format(Strings.ReadingOrder_ParagraphLang, lang) : Strings.ReadingOrder_Paragraph,
+    } + (Block.ReadWith is null ? "" : Loc.Format(Strings.ReadingOrder_FromPage, Block.Page + 1));
 
     public string Preview => Block.Kind is TagBlockKind.Figure or TagBlockKind.Formula ? Block.Alt ?? Block.Text : Block.Text.Replace('\n', ' ');
 
@@ -252,11 +261,14 @@ public partial class DocumentTab
         Viewer.SetReadingOrder(boxes);
         var missing = plan.FiguresWithoutAlt;
         RoSummary.Text = stale
-            ? "The document changed since this reading order was made. Choose Make Accessible again to read it anew."
-            : $"{items.Count} {(items.Count == 1 ? "piece" : "pieces")} on page {page + 1}, in the order a screen reader reads them. " +
-              (readElsewhere == 0 ? "" : $"{readElsewhere} {(readElsewhere == 1 ? "piece here is" : "pieces here are")} read with another page. ") +
-              (missing == 0 ? "Every picture has alternate text or is decorative." : $"{missing} {(missing == 1 ? "picture needs" : "pictures need")} alternate text.") +
-              (_tagPlanWritten ? " The document is tagged this way." : " Apply changes to tag the document this way.");
+            ? Strings.ReadingOrder_Stale
+            : string.Join(" ", new[]
+            {
+                Loc.Plural(items.Count, Strings.ReadingOrder_Summary_One, Strings.ReadingOrder_Summary_Many, page + 1),
+                readElsewhere == 0 ? null : Loc.Plural(readElsewhere, Strings.ReadingOrder_ReadElsewhere_One, Strings.ReadingOrder_ReadElsewhere_Many),
+                missing == 0 ? Strings.ReadingOrder_AllAlt : Loc.Plural(missing, Strings.ReadingOrder_MissingAlt_One, Strings.ReadingOrder_MissingAlt_Many),
+                _tagPlanWritten ? Strings.ReadingOrder_Tagged : Strings.ReadingOrder_ApplyToTag,
+            }.OfType<string>());
         RoUp.IsEnabled = RoDown.IsEnabled = RoList.IsEnabled = RoFigure.IsEnabled = !stale;
         RoPageBefore.IsEnabled = !stale && page > 0;
         RoPageAfter.IsEnabled = !stale && page < plan.Pages - 1;
@@ -277,7 +289,7 @@ public partial class DocumentTab
         RoAlt.IsEnabled = !figure.Block.Decorative;
         RoDecorative.IsChecked = figure.Block.Decorative;
         RoDecorative.Visibility = RoSuggest.Visibility = formula ? Visibility.Collapsed : Visibility.Visible;
-        RoAltLabel.Text = formula ? $"How formula {figure.Number} is read" : $"Alternate text for picture {figure.Number}";
+        RoAltLabel.Text = Loc.Format(formula ? Strings.ReadingOrder_FormulaRead : Strings.ReadingOrder_AltFor, figure.Number);
         _roUpdating = was;
     }
 
@@ -305,7 +317,7 @@ public partial class DocumentTab
         FillReadingOrder(select: index);
         FocusSelectedPiece();
         var item2 = RoList.SelectedItem as ReadingOrderItem;
-        AiActions.Announce(RoList, $"Read with page {page + 1}, place {item2?.Number}");
+        AiActions.Announce(RoList, Loc.Format(Strings.ReadingOrder_ReadWith, page + 1, item2?.Number));
     }
 
     /// <summary>Shows another page's pieces (keyboard: Page Up/Down in the list), the first one selected.</summary>
@@ -316,7 +328,7 @@ public partial class DocumentTab
         Viewer.GoToPage(page);
         FillReadingOrder();
         FocusSelectedPiece();
-        AiActions.Announce(RoList, $"Page {page + 1}: {RoList.Items.Count} {(RoList.Items.Count == 1 ? "piece" : "pieces")}");
+        AiActions.Announce(RoList, Loc.Plural(RoList.Items.Count, Strings.ReadingOrder_PagePieces_One, Strings.ReadingOrder_PagePieces_Many, page + 1));
     }
 
     /// <summary>Keyboard focus on the selected piece in the list (its row, so arrows and Alt+arrows go on from there).</summary>
@@ -338,7 +350,7 @@ public partial class DocumentTab
         if (ReferenceEquals(moved, _tagPlan)) return;
         SetPlan(moved, select: item.Index + Math.Sign(by));
         if (RoList.ItemContainerGenerator.ContainerFromItem(RoList.SelectedItem) is ListBoxItem c) c.Focus();
-        AiActions.Announce(RoList, $"Moved to place {(RoList.SelectedItem as ReadingOrderItem)?.Number}");
+        AiActions.Announce(RoList, Loc.Format(Strings.ReadingOrder_MovedTo, (RoList.SelectedItem as ReadingOrderItem)?.Number));
     }
 
     /// <summary>Writes the tags from the plan as it is now (title and language asked first when they never were).</summary>
@@ -364,7 +376,7 @@ public partial class DocumentTab
         if (AiService.Current(out var problem) is not { } config)
         {
             if (!AiActions.ShowSettings(owner, (problem is null ? "" : problem + " ") +
-                    "Alternate text suggestions use your own AI model: one that reads pictures (a vision model such as llava or gemma3 in Ollama, or a cloud model)."))
+                    Strings.ReadingOrder_AiSettingsNote))
                 return;
             if (AiService.Current(out _) is not { } now) return;
             config = now;
@@ -376,20 +388,20 @@ public partial class DocumentTab
         }
         catch (Exception ex) when (ex is InvalidOperationException or MuPDFCore.MuPDFException)
         {
-            Notify("The picture couldn't be rendered to send.", error: true);
+            Notify(Strings.ReadingOrder_RenderFailed, error: true);
             return;
         }
         var messages = AiPrompts.AltText(png, AutoTag.NearbyText(plan, item.Index), plan.Language, item.Block.Page);
-        var outgoing = new AiOutgoing([messages], $"picture {item.Number} of page {item.Block.Page + 1} (as an image) and the text near it", null);
+        var outgoing = new AiOutgoing([messages], Loc.Format(Strings.ReadingOrder_AiWhat, item.Number, item.Block.Page + 1), null);
         var restricted = await AiActions.IsCopyRestrictedAsync(Session);
-        if (!AiActions.ConfirmSend(owner, config, outgoing, restricted, title: "Suggest alternate text?")) return;
+        if (!AiActions.ConfirmSend(owner, config, outgoing, restricted, title: Strings.ReadingOrder_SuggestTitle)) return;
 
         _roSuggest?.Cancel();
         using var cts = _roSuggest = new CancellationTokenSource();
         RoSuggest.IsEnabled = false;
         RoAlt.IsReadOnly = true;
         var before = RoAlt.Text;
-        SetAltQuietly("Asking your AI model…");
+        SetAltQuietly(Strings.ReadingOrder_Asking);
         Log.Write($"AI: alternate text, 1 picture ({png.Length:N0} bytes) to {config.Endpoint.Host}"); // never the content
         try
         {
@@ -400,8 +412,8 @@ public partial class DocumentTab
             RoAlt.IsReadOnly = false;
             SetAltQuietly(before);
             if (alt.Length > 0) RoAlt.Text = alt; // goes into the plan through TextChanged
-            if (alt.Length == 0) Notify("The model sent no text. Type the alternate text, or try another model.", error: true);
-            else AiActions.Announce(RoAlt, "Suggested alternate text: " + alt);
+            if (alt.Length == 0) Notify(Strings.ReadingOrder_NoText, error: true);
+            else AiActions.Announce(RoAlt, Loc.Format(Strings.ReadingOrder_Suggested, alt));
             RoAlt.Focus();
             RoAlt.SelectAll();
         }
@@ -415,7 +427,7 @@ public partial class DocumentTab
             RoAlt.IsReadOnly = false;
             SetAltQuietly(before);
             Log.Write($"AI: alternate text failed: {ex.GetType().Name}");
-            Prompt.Error(owner, "No suggestion", ex is AiException ? ex.Message : AiClient.DescribeConnectionFailure(config.Endpoint, ex));
+            Prompt.Error(owner, Strings.ReadingOrder_NoSuggestion, ex is AiException ? ex.Message : AiClient.DescribeConnectionFailure(config.Endpoint, ex));
         }
         finally
         {

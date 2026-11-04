@@ -118,7 +118,7 @@ public static partial class AccessibilityCheck
                         Kids(e, d.Elements["/K"], depth + 1);
                     }
                     else if (d.Elements.ContainsKey("/S") && !_elems.ContainsKey(d))
-                        NoteOnce("The document's tags are too many or too deeply nested; the rest weren't checked.");
+                        NoteOnce(PdfStrings.A11y_TagsTooMany);
                     break;
             }
         }
@@ -185,26 +185,36 @@ public static partial class AccessibilityCheck
         }
 
         private static string Label(Elem e) =>
-            e.Std is null ? $"Tag “{e.Type}”" : e.Std == e.Type ? Describe(e.Std) : $"{Describe(e.Std)} (tagged “{e.Type}”)";
+            e.Std is null ? Loc.Format(PdfStrings.A11y_TagLabel, e.Type) : e.Std == e.Type ? Describe(e.Std) : Loc.Format(PdfStrings.A11y_TagLabelTagged, Describe(e.Std), e.Type);
 
         private static string Describe(string std) => std switch
         {
-            "H" => "Heading",
-            "P" => "Paragraph",
-            "L" => "List",
-            "LI" => "List item",
-            "LBody" => "List item body",
-            "Lbl" => "List label",
-            "TR" => "Table row",
-            "TH" => "Table header cell",
-            "TD" => "Table cell",
-            "THead" => "Table header group",
-            "TBody" => "Table body",
-            "TFoot" => "Table footer group",
-            "TOC" => "Table of contents",
-            "TOCI" => "Contents item",
-            _ when std.Length == 2 && std[0] == 'H' && char.IsDigit(std[1]) => $"Heading {std}",
+            "H" => PdfStrings.A11y_TagHeading,
+            "P" => PdfStrings.A11y_TagParagraph,
+            "L" => PdfStrings.A11y_TagList,
+            "LI" => PdfStrings.A11y_TagListItem,
+            "LBody" => PdfStrings.A11y_TagListItemBody,
+            "Lbl" => PdfStrings.A11y_TagListLabel,
+            "TR" => PdfStrings.A11y_TagTableRow,
+            "TH" => PdfStrings.A11y_TagTableHeaderCell,
+            "TD" => PdfStrings.A11y_TagTableCell,
+            "THead" => PdfStrings.A11y_TagTableHeaderGroup,
+            "TBody" => PdfStrings.A11y_TagTableBody,
+            "TFoot" => PdfStrings.A11y_TagTableFooterGroup,
+            "TOC" => PdfStrings.A11y_TagToc,
+            "TOCI" => PdfStrings.A11y_TagContentsItem,
+            _ when std.Length == 2 && std[0] == 'H' && char.IsDigit(std[1]) => Loc.Format(PdfStrings.A11y_TagHeadingN, std),
             _ => std,
+        };
+
+        /// <summary>"this table body": a table part as a sentence names it (the first letter capitalized where it starts one).</summary>
+        private static string ThisPart(string std) => std switch
+        {
+            "THead" => PdfStrings.A11y_ThisTHead,
+            "TBody" => PdfStrings.A11y_ThisTBody,
+            "TFoot" => PdfStrings.A11y_ThisTFoot,
+            "TH" => PdfStrings.A11y_ThisTH,
+            _ => PdfStrings.A11y_ThisTD,
         };
 
         private void AddAt(Elem e, string condition, string problem, string? fix = null)
@@ -261,80 +271,80 @@ public static partial class AccessibilityCheck
             foreach (var e in _ordered)
             {
                 cancel.ThrowIfCancellationRequested();
-                if (!e.Dict.Elements.ContainsKey("/P")) AddAt(e, "UA 7.1-P", "This tag has no link to its parent tag (no P entry).");
+                if (!e.Dict.Elements.ContainsKey("/P")) AddAt(e, "UA 7.1-P", PdfStrings.A11y_TagNoParent);
                 if (PdfObj.Text(e.Dict.Elements["/Lang"]) is { } lang && !IsLanguage(lang))
-                    AddAt(e, "UA 7.2-Lang", $"This tag's language is “{Short(lang)}”, which isn't a language code.");
+                    AddAt(e, "UA 7.2-Lang", Loc.Format(PdfStrings.A11y_TagLangNotCode, Short(lang)));
 
                 MapRole(e.Type, out var how);
                 switch (how)
                 {
                     case Mapping.Remapped when roleReported.Add(("02-004", e.Type)):
-                        AddAt(e, "02-004", $"The standard type {e.Type} is mapped to {_roleMap[e.Type]} in the role map.");
+                        AddAt(e, "02-004", Loc.Format(PdfStrings.A11y_StandardRemapped, e.Type, _roleMap[e.Type]));
                         break;
                     case Mapping.Circular when roleReported.Add(("02-003", e.Type)):
-                        AddAt(e, "02-003", $"The role map sends the type “{e.Type}” round in a circle.");
+                        AddAt(e, "02-003", Loc.Format(PdfStrings.A11y_RoleMapCircle, e.Type));
                         break;
                     case Mapping.Unmapped when roleReported.Add(("02-001", e.Type)):
-                        AddAt(e, "02-001", e.Type.Length == 0 ? "A tag has no type (no S entry)." : $"The tag type “{e.Type}” isn't standard and isn't mapped to a standard type.");
+                        AddAt(e, "02-001", e.Type.Length == 0 ? PdfStrings.A11y_TagNoType : Loc.Format(PdfStrings.A11y_TagTypeUnmapped, e.Type));
                         break;
                 }
 
                 if (!_docLang && !HasLang(e))
                 {
-                    var which = new[] { ("/Alt", "alternate text"), ("/ActualText", "actual text"), ("/E", "expansion text") }
+                    var which = new[] { ("/Alt", PdfStrings.A11y_AltText), ("/ActualText", PdfStrings.A11y_ActualText), ("/E", PdfStrings.A11y_ExpansionText) }
                         .Where(x => e.Dict.Elements.ContainsKey(x.Item1)).Select(x => x.Item2).ToList();
-                    if (which.Count > 0) AddAt(e, "11-002", $"This tag's {string.Join(" and ", which)} has no language, and neither the tags around it nor the document have one.");
+                    if (which.Count > 0) AddAt(e, "11-002", Loc.Format(PdfStrings.A11y_TagNoLang, which.Count == 1 ? which[0] : Loc.Format(PdfStrings.A11y_ListAnd, string.Join(", ", which[..^1]), which[^1])));
                 }
 
                 var kids = e.Kids.Select(k => k.Kind).ToList();
                 switch (e.Std)
                 {
                     case "Figure" when !HasText(e.Dict, "/Alt") && !e.Dict.Elements.ContainsKey("/ActualText"):
-                        AddAt(e, "13-004", "This figure has no alternate text, so a screen reader can't say what it shows.");
+                        AddAt(e, "13-004", PdfStrings.A11y_FigureNoAlt);
                         break;
                     case "Formula" when !HasText(e.Dict, "/Alt") && !e.Dict.Elements.ContainsKey("/ActualText"):
-                        AddAt(e, "17-002", "This formula has no alternate text, so a screen reader can't read it out.");
+                        AddAt(e, "17-002", PdfStrings.A11y_FormulaNoAlt);
                         break;
                     case "Note":
                         var id = PdfObj.Text(e.Dict.Elements["/ID"]);
-                        if (string.IsNullOrEmpty(id)) AddAt(e, "19-003", "This note has no ID.");
-                        else if (!noteIds.TryAdd(id, e)) AddAt(e, "19-004", $"This note's ID “{Short(id)}” is used by another note too.");
+                        if (string.IsNullOrEmpty(id)) AddAt(e, "19-003", PdfStrings.A11y_NoteNoId);
+                        else if (!noteIds.TryAdd(id, e)) AddAt(e, "19-004", Loc.Format(PdfStrings.A11y_NoteIdUsed, Short(id)));
                         break;
                     case "Table":
                         Table(e, kids);
                         break;
                     case "TR":
-                        if (e.Parent?.Kind is not ("Table" or "THead" or "TBody" or "TFoot")) AddAt(e, "09-004", "This table row isn't inside a table, or a table's header, body or footer group.");
-                        if (kids.Any(k => k is not ("TH" or "TD"))) AddAt(e, "09-004", $"This table row holds {Others(kids, "TH", "TD")}; a row may hold only TH and TD cells.");
+                        if (e.Parent?.Kind is not ("Table" or "THead" or "TBody" or "TFoot")) AddAt(e, "09-004", PdfStrings.A11y_RowNotInTable);
+                        if (kids.Any(k => k is not ("TH" or "TD"))) AddAt(e, "09-004", Loc.Format(PdfStrings.A11y_RowHolds, Others(kids, "TH", "TD")));
                         break;
                     case "THead" or "TBody" or "TFoot":
-                        if (e.Parent?.Kind != "Table") AddAt(e, "09-004", $"This {Describe(e.Std).ToLowerInvariant()} isn't directly inside a table.");
-                        if (kids.Any(k => k != "TR")) AddAt(e, "09-004", $"This {Describe(e.Std).ToLowerInvariant()} holds {Others(kids, "TR")}; it may hold only rows (TR).");
+                        if (e.Parent?.Kind != "Table") AddAt(e, "09-004", Cap(Loc.Format(PdfStrings.A11y_GroupNotInTable, ThisPart(e.Std))));
+                        if (kids.Any(k => k != "TR")) AddAt(e, "09-004", Cap(Loc.Format(PdfStrings.A11y_GroupHolds, ThisPart(e.Std), Others(kids, "TR"))));
                         break;
                     case "TH" or "TD":
-                        if (e.Parent?.Kind != "TR") AddAt(e, "09-004", $"This {Describe(e.Std).ToLowerInvariant()} isn't inside a table row (TR).");
+                        if (e.Parent?.Kind != "TR") AddAt(e, "09-004", Cap(Loc.Format(PdfStrings.A11y_CellNotInRow, ThisPart(e.Std))));
                         break;
                     case "L":
-                        if (kids.Any(k => k is not ("L" or "LI" or "Caption"))) AddAt(e, "09-005", $"This list holds {Others(kids, "L", "LI", "Caption")}; a list may hold only list items (LI), lists and a caption.");
-                        if (kids.Skip(1).Contains("Caption")) AddAt(e, "09-005", "This list's caption isn't its first part.");
+                        if (kids.Any(k => k is not ("L" or "LI" or "Caption"))) AddAt(e, "09-005", Loc.Format(PdfStrings.A11y_ListHolds, Others(kids, "L", "LI", "Caption")));
+                        if (kids.Skip(1).Contains("Caption")) AddAt(e, "09-005", PdfStrings.A11y_ListCaptionNotFirst);
                         break;
                     case "LI":
-                        if (e.Parent?.Kind != "L") AddAt(e, "09-005", "This list item isn't inside a list (L).");
-                        if (kids.Any(k => k is not ("Lbl" or "LBody"))) AddAt(e, "09-005", $"This list item holds {Others(kids, "Lbl", "LBody")}; a list item may hold only a label (Lbl) and a body (LBody).");
+                        if (e.Parent?.Kind != "L") AddAt(e, "09-005", PdfStrings.A11y_ListItemNotInList);
+                        if (kids.Any(k => k is not ("Lbl" or "LBody"))) AddAt(e, "09-005", Loc.Format(PdfStrings.A11y_ListItemHolds, Others(kids, "Lbl", "LBody")));
                         break;
                     case "LBody":
-                        if (e.Parent?.Kind != "LI") AddAt(e, "09-005", "This list item body (LBody) isn't inside a list item (LI).");
+                        if (e.Parent?.Kind != "LI") AddAt(e, "09-005", PdfStrings.A11y_LBodyNotInLi);
                         break;
                     case "TOC":
-                        if (kids.Any(k => k is not ("TOC" or "TOCI" or "Caption"))) AddAt(e, "09-006", $"This table of contents holds {Others(kids, "TOC", "TOCI", "Caption")}; it may hold only contents items (TOCI), nested contents and a caption.");
-                        if (kids.Skip(1).Contains("Caption")) AddAt(e, "09-006", "This table of contents' caption isn't its first part.");
+                        if (kids.Any(k => k is not ("TOC" or "TOCI" or "Caption"))) AddAt(e, "09-006", Loc.Format(PdfStrings.A11y_TocHolds, Others(kids, "TOC", "TOCI", "Caption")));
+                        if (kids.Skip(1).Contains("Caption")) AddAt(e, "09-006", PdfStrings.A11y_TocCaptionNotFirst);
                         break;
                     case "TOCI":
-                        if (e.Parent?.Kind != "TOC") AddAt(e, "09-006", "This contents item (TOCI) isn't inside a table of contents (TOC).");
+                        if (e.Parent?.Kind != "TOC") AddAt(e, "09-006", PdfStrings.A11y_ToCiNotInToc);
                         break;
                     case "Form":
                         if (Attribute(e, "/PrintField", "/Role") is null && !(e.KidCount == 1 && e.Objects.Count == 1 && PdfObj.NameOf(e.Objects[0], "/Subtype") == "/Widget"))
-                            AddAt(e, "28-010", "This Form tag holds more than its form field (or no form field): without a Role attribute it must hold just the field.");
+                            AddAt(e, "28-010", PdfStrings.A11y_FormTagHoldsMore);
                         break;
                     case "H":
                         firstH ??= e;
@@ -344,15 +354,15 @@ public static partial class AccessibilityCheck
                         var level = h[1] - '0';
                         if (level > lastLevel + 1)
                             AddAt(e, lastLevel == 0 ? "14-002" : "14-003", lastLevel == 0
-                                ? $"The first numbered heading is {h}, not H1."
-                                : $"This {h} heading follows an H{lastLevel}: heading level {string.Join(", ", Enumerable.Range(lastLevel + 1, level - lastLevel - 1).Select(n => "H" + n))} is skipped.");
+                                ? Loc.Format(PdfStrings.A11y_FirstHeadingNotH1, h)
+                                : Loc.Format(PdfStrings.A11y_HeadingSkipped, h, lastLevel, string.Join(", ", Enumerable.Range(lastLevel + 1, level - lastLevel - 1).Select(n => "H" + n))));
                         lastLevel = level;
                         break;
                 }
-                if (kids.Count(k => k == "H") > 1) AddAt(e, "14-006", $"This tag holds {kids.Count(k => k == "H")} H headings; a tag may hold one.");
+                if (kids.Count(k => k == "H") > 1) AddAt(e, "14-006", Loc.Format(PdfStrings.A11y_TagHoldsHeadings, kids.Count(k => k == "H")));
             }
             if (firstH is not null && firstHn is not null)
-                AddAt(firstH, "14-007", "The document uses H headings and numbered headings (H1-H6) both.");
+                AddAt(firstH, "14-007", PdfStrings.A11y_BothHeadingKinds);
         }
 
         private static bool HasText(PdfDictionary d, string key) => !string.IsNullOrEmpty(PdfObj.Text(d.Elements[key]));
@@ -360,20 +370,20 @@ public static partial class AccessibilityCheck
         /// <summary>"a P and a Span": the kinds in <paramref name="kids"/> other than <paramref name="allowed"/>.</summary>
         private static string Others(List<string> kids, params string[] allowed)
         {
-            var others = kids.Where(k => !allowed.Contains(k)).Distinct().Take(3).Select(k => k.Length == 0 ? "an untyped tag" : $"a {k}").ToList();
-            return others.Count switch { 0 => "nothing else", 1 => others[0], _ => string.Join(", ", others[..^1]) + " and " + others[^1] };
+            var others = kids.Where(k => !allowed.Contains(k)).Distinct().Take(3).Select(k => k.Length == 0 ? PdfStrings.A11y_UntypedTag : Loc.Format(PdfStrings.A11y_OtherKind, k)).ToList();
+            return others.Count switch { 0 => PdfStrings.A11y_NothingElse, 1 => others[0], _ => Loc.Format(PdfStrings.A11y_ListAnd, string.Join(", ", others[..^1]), others[^1]) };
         }
 
         private void Table(Elem table, List<string> kids)
         {
             if (kids.Any(k => k is not ("TR" or "THead" or "TBody" or "TFoot" or "Caption")))
-                AddAt(table, "09-004", $"This table holds {Others(kids, "TR", "THead", "TBody", "TFoot", "Caption")}; a table may hold only rows (TR), header, body and footer groups and a caption.");
-            if (kids.Count(k => k == "THead") > 1) AddAt(table, "09-004", "This table has more than one header group (THead).");
-            if (kids.Count(k => k == "TFoot") > 1) AddAt(table, "09-004", "This table has more than one footer group (TFoot).");
+                AddAt(table, "09-004", Loc.Format(PdfStrings.A11y_TableHolds, Others(kids, "TR", "THead", "TBody", "TFoot", "Caption")));
+            if (kids.Count(k => k == "THead") > 1) AddAt(table, "09-004", PdfStrings.A11y_TableTwoTHead);
+            if (kids.Count(k => k == "TFoot") > 1) AddAt(table, "09-004", PdfStrings.A11y_TableTwoTFoot);
             if ((kids.Contains("THead") || kids.Contains("TFoot")) && !kids.Contains("TBody"))
-                AddAt(table, "09-004", "This table has a header or footer group but no body group (TBody).");
-            if (kids.Count(k => k == "Caption") > 1) AddAt(table, "09-004", "This table has more than one caption.");
-            else if (kids.Count > 2 && kids.Skip(1).SkipLast(1).Contains("Caption")) AddAt(table, "09-004", "This table's caption is neither its first nor its last part.");
+                AddAt(table, "09-004", PdfStrings.A11y_TableNoTBody);
+            if (kids.Count(k => k == "Caption") > 1) AddAt(table, "09-004", PdfStrings.A11y_TableTwoCaptions);
+            else if (kids.Count > 2 && kids.Skip(1).SkipLast(1).Contains("Caption")) AddAt(table, "09-004", PdfStrings.A11y_TableCaptionMiddle);
 
             // The cells on a grid, spans taken into account.
             var rows = new List<Elem>();
@@ -392,7 +402,7 @@ public static partial class AccessibilityCheck
             {
                 while (grid.Count <= r) grid.Add([]);
                 var c = 0;
-                if (rows[r].Kids.Count(x => x.Kind is "TH" or "TD") > 1000) NoteOnce("A table's row has more than 1,000 cells; only the first 1,000 were compared.");
+                if (rows[r].Kids.Count(x => x.Kind is "TH" or "TD") > 1000) NoteOnce(PdfStrings.A11y_RowTooManyCells);
                 foreach (var cell in rows[r].Kids.Where(x => x.Kind is "TH" or "TD").Take(1000))
                 {
                     while (c < grid[r].Count && grid[r][c] is not null) c++;
@@ -408,7 +418,7 @@ public static partial class AccessibilityCheck
                         places += Math.Max(0, c + cs - row.Count) + cs;
                         if (places > MaxTablePlaces)
                         {
-                            NoteOnce("A table's rows and columns are too many to lay out; its cells weren't compared.");
+                            NoteOnce(PdfStrings.A11y_TableTooBig);
                             return;
                         }
                         while (row.Count < c + cs) row.Add(null);
@@ -421,11 +431,11 @@ public static partial class AccessibilityCheck
                     c += cs;
                 }
             }
-            if (overlap) AddAt(table, "09-004", "Cells of this table overlap (their row and column spans cover the same place).");
+            if (overlap) AddAt(table, "09-004", PdfStrings.A11y_CellsOverlap);
             var widths = grid.Select(row => row.Count(x => x is not null)).ToList();
-            if (spanPast) AddAt(table, "09-004", "A cell of this table spans more rows than the table has.");
+            if (spanPast) AddAt(table, "09-004", PdfStrings.A11y_CellSpansPast);
             else if (widths.Distinct().Count() > 1)
-                AddAt(table, "09-004", $"The rows of this table don't have the same number of cells (spans counted): {string.Join(", ", widths.Distinct().Order().Take(4))}.");
+                AddAt(table, "09-004", Loc.Format(PdfStrings.A11y_RowWidthsDiffer, string.Join(", ", widths.Distinct().Order().Take(4))));
 
             // Headers (Matterhorn 15-003): in a table that doesn't tie its data cells to header cells through Headers and IDs,
             // every header cell needs a scope. Checked on regular tables only (an irregular one already fails above).
@@ -447,11 +457,10 @@ public static partial class AccessibilityCheck
                 else unlinked++;
             }
             if (unlinked + unknown == 0) return;
-            AddAt(table, "15-003", $"{Count(unscoped, "header cell")} of this table {(unscoped == 1 ? "has" : "have")} no scope, and " +
-                                   (unlinked > 0 ? $"{Count(unlinked, "data cell")} don't name their header cells (Headers)" : $"{Count(unknown, "data cell")} name header cells the table doesn't have") +
-                                   ", so a screen reader can't tell which header goes with which cell.");
+            var cells = unlinked > 0
+                ? Loc.Plural(unlinked, PdfStrings.A11y_Unlinked_One, PdfStrings.A11y_Unlinked_Many)
+                : Loc.Plural(unknown, PdfStrings.A11y_UnknownHeaders_One, PdfStrings.A11y_UnknownHeaders_Many);
+            AddAt(table, "15-003", Loc.Plural(unscoped, PdfStrings.A11y_Unscoped_One, PdfStrings.A11y_Unscoped_Many, cells));
         }
-
-        private static string Count(int n, string one) => n == 1 ? $"1 {one}" : $"{n} {one}s";
     }
 }

@@ -99,9 +99,9 @@ public static class Sanitizer
         byte[] saved;
         int pages;
         List<string> originalIds;
-        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited"))
+        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Sanitize_CantEdit))
         {
-            SignedEdits.RequireRewrite(data, doc, "sanitizing rewrites the whole file");
+            SignedEdits.RequireRewrite(data, doc, PdfStrings.Sanitize_RewriteReason);
             pages = doc.PageCount;
             originalIds = [.. new[] { doc.Internals.FirstDocumentID, doc.Internals.SecondDocumentID }.Where(id => !string.IsNullOrEmpty(id))];
             removed = new Pass(doc, items).Run(EarlierRevisions(data));
@@ -121,7 +121,7 @@ public static class Sanitizer
         try
         {
             using var check = PdfEngine.Open(saved, InputFileTypes.PDF, password);
-            if (check.PageCount != pages) throw new InvalidOperationException($"The sanitized file has {check.PageCount} pages instead of {pages}.");
+            if (check.PageCount != pages) throw new InvalidOperationException(Loc.Format(PdfStrings.Sanitize_PageCountChanged, check.PageCount, pages));
         }
         catch (PasswordRequiredException)
         {
@@ -129,7 +129,7 @@ public static class Sanitizer
         }
         catch (Exception ex) when (ex is MuPDFException or ArgumentException)
         {
-            throw new InvalidOperationException("The sanitized file couldn't be read back, so nothing was changed: " + ex.Message, ex);
+            throw new InvalidOperationException(Loc.Format(PdfStrings.Sanitize_ReadBackFailed, ex.Message), ex);
         }
 
         SanitizeReport? remaining;
@@ -517,7 +517,7 @@ public static class Sanitizer
                 {
                     // XFA-only: the pages are a placeholder, the form is all there is.
                     if (apply is null || Removing(SanitizeItem.ActiveContent))
-                        _notes.Add("The XFA form (with its scripts and data) was kept: the document has no other form, so removing it would leave only a placeholder page.");
+                        _notes.Add(PdfStrings.Sanitize_XfaKept);
                 }
                 else if (Hit(SanitizeItem.ActiveContent)) acro.Elements.Remove("/XFA");
             }
@@ -814,7 +814,7 @@ public static class Sanitizer
                 }
                 if (bytes.Length == 0 && d.Stream.Value.Length > 0)
                 {
-                    if (MentionsHidden(res)) KeepLayerContent("A drawing that uses a hidden layer couldn't be decoded");
+                    if (MentionsHidden(res)) KeepLayerContent(PdfStrings.Sanitize_DrawingUndecodable);
                     continue;
                 }
                 if (Strip(bytes, res, out var why) is { } stripped) SetStream(d, stripped);
@@ -839,7 +839,8 @@ public static class Sanitizer
 
         private void KeepLayerContent(string why)
         {
-            if (!_notes.Contains(why + ": hidden layers were kept (still hidden) so it stays hidden.")) _notes.Add(why + ": hidden layers were kept (still hidden) so it stays hidden.");
+            var note = Loc.Format(PdfStrings.Sanitize_LayersKept, why);
+            if (!_notes.Contains(note)) _notes.Add(note);
             _layerContentKept = true;
         }
 
@@ -879,14 +880,14 @@ public static class Sanitizer
                 }
                 if (bytes.Length == 0 && s.Stream!.Value.Length > 0)
                 {
-                    if (MentionsHidden(res)) KeepLayerContent($"Page {index + 1} has content that couldn't be decoded");
+                    if (MentionsHidden(res)) KeepLayerContent(Loc.Format(PdfStrings.Sanitize_PageUndecodable, index + 1));
                     return;
                 }
                 ms.Write(bytes);
                 ms.WriteByte((byte)'\n');
             }
             var stripped = Strip(ms.ToArray(), res, out var why);
-            if (why is not null) KeepLayerContent($"Page {index + 1}: {why}");
+            if (why is not null) KeepLayerContent(Loc.Format(PdfStrings.Sanitize_PageWhy, index + 1, why));
             if (stripped is null) return;
             var stream = PdfObj.AddStream(doc, stripped);
             page.Elements["/Contents"] = stream.Reference!;
@@ -939,7 +940,7 @@ public static class Sanitizer
             {
                 var used = new HashSet<PdfDictionary>(RefEq);
                 CollectVe(PdfObj.Array(m.Elements["/VE"]), used, new HashSet<PdfArray>(RefEq), 0);
-                if (used.Overlaps(gone)) _notes.Add("A layer visibility expression uses a hidden layer, so that layer was kept (still hidden; its content was removed).");
+                if (used.Overlaps(gone)) _notes.Add(PdfStrings.Sanitize_VisibilityExpression);
                 gone.ExceptWith(used);
             }
             foreach (var m in ocmds.Where(m => !m.Elements.ContainsKey("/VE")))
@@ -1076,18 +1077,18 @@ internal static class HiddenContent
             }
             if (end < 0 && broken)
             {
-                kept = "hidden content runs into data that can't be read";
+                kept = PdfStrings.Sanitize_KeptUnreadable;
                 continue;
             }
             var last = end < 0 ? ops.Count : end;
             if (Section(ops, i + 1, last, inText) is not { } plan)
             {
-                kept = "hidden content can't be cut without moving visible text";
+                kept = PdfStrings.Sanitize_KeptWouldMove;
                 continue;
             }
             if (inText && plan.ShowsText && !NextTextRepositions(ops, last + 1))
             {
-                kept = "hidden text can't be cut without moving the visible text after it";
+                kept = PdfStrings.Sanitize_KeptTextAfter;
                 continue;
             }
             CopyTo(op.Start);

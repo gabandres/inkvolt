@@ -101,7 +101,7 @@ public partial class DocumentTab
         Viewer.Tool = ViewerTool.PlaceSignature;
         var wait = new TaskCompletionSource<SignaturePlacement?>(TaskCreationOptions.RunContinuationsAsynchronously);
         _sigBoxWait = wait;
-        Notify("Drag a box on the page where the signature goes (Esc cancels).");
+        Notify(Strings.TabSign_DragBox);
         Viewer.Focus();
         return wait.Task;
     }
@@ -109,7 +109,7 @@ public partial class DocumentTab
     /// <summary>Signs the document (off the UI thread; smart card and Windows Hello PIN prompts come from Windows).</summary>
     public async Task<EditOutcome> ApplySignatureAsync(SignRequest request)
     {
-        var outcome = await TryEdit("Sign", (d, pw) => Signing.Sign(d, pw, request), quiet: true, contentOnly: true);
+        var outcome = await TryEdit(Strings.TabSign_EditSign, (d, pw) => Signing.Sign(d, pw, request), quiet: true, contentOnly: true);
         if (outcome == EditOutcome.Done) _sigBarDismissed = false;
         return outcome;
     }
@@ -118,7 +118,7 @@ public partial class DocumentTab
     public async Task<(EditOutcome Outcome, LtvResult? Result)> AddVerificationAsync(LtvClient client, string? timestampUrl)
     {
         LtvResult? result = null;
-        var outcome = await TryEdit("Add Verification Information", (d, pw) =>
+        var outcome = await TryEdit(Strings.TabSign_EditAddVerification, (d, pw) =>
         {
             result = Ltv.AddVerificationAsync(d, pw, client, timestampUrl is null ? null : client.TimestampSender(timestampUrl)).GetAwaiter().GetResult();
             return result.Pdf;
@@ -134,7 +134,7 @@ public partial class DocumentTab
     public void ShowOnlineCheck(LtvOnlineResult result)
     {
         _onlineRevocation = result.Snapshot;
-        ShowLongTermOutcome(result.Problem is { } p ? $"Checked online, but not everything could be asked. {p} The file wasn't changed." : "Checked online. The file wasn't changed.",
+        ShowLongTermOutcome(result.Problem is { } p ? Loc.Format(Strings.TabSign_CheckedOnlinePartly, p) : Strings.TabSign_CheckedOnline,
             LtvDialogs.Describe(result.Certificates, result.Contacts));
         _ = LoadReviewAsync();
     }
@@ -166,7 +166,7 @@ public partial class DocumentTab
         }
         catch (Exception ex) when (ex is System.IO.IOException or NotSupportedException or UnauthorizedAccessException)
         {
-            Notify($"The saved signature can't be read: {ex.Message}", error: true);
+            Notify(Loc.Format(Strings.TabSign_SavedUnreadable, ex.Message), error: true);
             return;
         }
         SetOrganizing(false);
@@ -176,7 +176,7 @@ public partial class DocumentTab
         Viewer.Tool = ViewerTool.AddSignature;
         _pendingSigImage = image;
         _pendingSigLabel = saved.Initials ? "Initials" : "Signature";
-        Notify($"Click where the {(saved.Initials ? "initials go" : "signature goes")}. Drag it to move it, drag its corner to resize, Delete removes it.");
+        Notify(saved.Initials ? Strings.TabSign_ClickWhereInitials : Strings.TabSign_ClickWhereSignature);
         Viewer.Focus();
     }
 
@@ -184,12 +184,12 @@ public partial class DocumentTab
     {
         if (_pendingSigImage is not { } image)
         {
-            Notify("Choose a signature first (Fill & Sign → Sign).");
+            Notify(Strings.TabSign_ChooseFirst);
             return;
         }
         var label = _pendingSigLabel;
         Viewer.Tool = ViewerTool.Hand;
-        await RunStampEdit(label == "Initials" ? "Add initials" : "Add signature",
+        await RunStampEdit(label == "Initials" ? Strings.TabSign_EditAddInitials : Strings.TabSign_EditAddSignature,
             (d, pw) => SignatureStamps.Put(d, pw, p.PageIndex, p.Rect, image, null, label));
     }
 
@@ -197,11 +197,12 @@ public partial class DocumentTab
     private Task ChangeSignatureStamp(SignatureStampChange c)
     {
         var kind = Viewer.PlacedStampKind(c.Id);
-        var what = kind switch { StampKind.Image => "image", StampKind.Stamp => "stamp", _ => "signature" };
-        if (c.Rect is not { } r) return RunStampEdit($"Remove {what}", (d, pw) => TextStamps.Remove(d, pw, c.Id));
+        if (c.Rect is not { } r)
+            return RunStampEdit(kind switch { StampKind.Image => Strings.TabSign_EditRemoveImage, StampKind.Stamp => Strings.TabSign_EditRemoveStamp, _ => Strings.TabSign_EditRemoveSignature },
+                (d, pw) => TextStamps.Remove(d, pw, c.Id));
         return kind == StampKind.Stamp
-            ? RunStampEdit($"Move {what}", (d, pw) => RubberStamps.Move(d, pw, c.Id, c.PageIndex, r))
-            : RunStampEdit($"Move {what}", (d, pw) => SignatureStamps.Put(d, pw, c.PageIndex, r, null, c.Id));
+            ? RunStampEdit(Strings.TabSign_EditMoveStamp, (d, pw) => RubberStamps.Move(d, pw, c.Id, c.PageIndex, r))
+            : RunStampEdit(kind == StampKind.Image ? Strings.TabSign_EditMoveImage : Strings.TabSign_EditMoveSignature, (d, pw) => SignatureStamps.Put(d, pw, c.PageIndex, r, null, c.Id));
     }
 
     /// <summary>An undoable stamp edit; waits while another edit (or its prompt) holds the tab.</summary>

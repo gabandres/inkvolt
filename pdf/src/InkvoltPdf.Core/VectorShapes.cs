@@ -24,7 +24,7 @@ public static class VectorShapes
 
     public static IReadOnlyList<PageShape> Read(byte[] data, string? password, int pageIndex, CancellationToken cancel = default)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
         return Read(doc, pageIndex, cancel);
     }
 

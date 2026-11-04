@@ -29,7 +29,7 @@ public static class FieldDetection
     {
         var names = existing.Select(f => f.Name).ToList();
         var result = new List<FieldSuggestion>();
-        using var doc = PdfObj.Open(data, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, "This PDF's pages can't be read");
+        using var doc = PdfObj.Open(data, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, PdfStrings.Form_PagesCantRead);
         var list = pages.ToList();
         var done = 0;
         foreach (var p in list)

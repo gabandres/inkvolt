@@ -36,7 +36,7 @@ public static class ImageImport
     /// <exception cref="InvalidOperationException">A file isn't an image that can be read (the message names it).</exception>
     public static byte[] ImagesToPdf(IReadOnlyList<(byte[] Bytes, string Name)> images, PageSizeOption pageSize = PageSizeOption.FitImage)
     {
-        if (images.Count == 0) throw new ArgumentException("There are no images to convert.", nameof(images));
+        if (images.Count == 0) throw new ArgumentException(PdfStrings.Doc_NoImagesToConvert, nameof(images));
         using var doc = new PdfDocument();
         foreach (var (bytes, name) in images)
         {
@@ -45,7 +45,7 @@ public static class ImageImport
                 InputFileTypes.JPEG when Jpeg(doc, bytes) is { } jpeg => [jpeg],
 
                 { } type => Decoded(doc, bytes, type, name),
-                null => throw new InvalidOperationException($"\"{name}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF)."),
+                null => throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_NotAnImage, name)),
             };
             foreach (var p in pictures) AddPage(doc, p, pageSize);
         }
@@ -64,7 +64,7 @@ public static class ImageImport
         {
             InputFileTypes.JPEG when Jpeg(doc, bytes) is { } jpeg => jpeg,
             { } type => Decoded(doc, bytes, type, name, maxPages: 1)[0],
-            null => throw new InvalidOperationException($"\"{name}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF)."),
+            null => throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_NotAnImage, name)),
         };
         return (p.Image, p.Width, p.Height, p.DpiX, p.DpiY, p.Orientation);
     }
@@ -222,7 +222,7 @@ public static class ImageImport
         }
         catch (Exception ex) when (ex is MuPDFException or ArgumentException)
         {
-            throw new InvalidOperationException($"\"{name}\" can't be read as an image: {ex.Message}", ex);
+            throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_ImageUnreadable, name, ex.Message), ex);
         }
         try
         {
@@ -235,14 +235,14 @@ public static class ImageImport
                 var scale = pxW > 0 ? pxW / bounds.Width : 1;
                 var px = bounds.Round(scale);
                 if ((double)px.Width * px.Height > PdfEngine.MaxPixels)
-                    throw new InvalidOperationException($"\"{name}\" is too large ({px.Width} x {px.Height} pixels).");
+                    throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_ImageFileTooLarge, name, px.Width, px.Height));
                 var rgba = mu.Render(i, scale, PixelFormats.RGBA, includeAnnotations: false);
                 if (rgba.Length != px.Width * px.Height * 4) continue;
                 var dx = dpiX ?? (pxW > 0 ? DefaultDpi : 72);
                 var dy = dpiY ?? dpiX ?? (pxW > 0 ? DefaultDpi : 72);
                 list.Add(new Picture(Store(doc, px.Width, px.Height, rgba), px.Width, px.Height, dx, dy, 1));
             }
-            if (list.Count == 0) throw new InvalidOperationException($"\"{name}\" has no image MuPDF can draw.");
+            if (list.Count == 0) throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_ImageNothingToDraw, name));
             return list;
         }
         finally

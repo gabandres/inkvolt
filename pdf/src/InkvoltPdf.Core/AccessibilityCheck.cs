@@ -39,7 +39,7 @@ public sealed record AccessibilityFinding(string Condition, string Problem)
     public RectD Box { get; init; }
 
     /// <summary>What it is ("Figure", "Link annotation", "Font Arial-BoldMT", "Document").</summary>
-    public string Element { get; init; } = "Document";
+    public string Element { get; init; } = PdfStrings.A11y_Document;
 
     /// <summary>How many times the same thing happens here (content items of a page are counted, not listed one by one).</summary>
     public int Count { get; init; } = 1;
@@ -51,7 +51,7 @@ public sealed record AccessibilityFinding(string Condition, string Problem)
     public string? FixOverride { get; init; }
 
     /// <summary>"Page 3", or "Document".</summary>
-    public string Where => Page >= 0 ? $"Page {Page + 1}" : "Document";
+    public string Where => Page >= 0 ? Loc.Format(PdfStrings.A11y_PageN, Page + 1) : PdfStrings.A11y_Document;
 }
 
 /// <summary>A check a person makes (the machine can't tell whether alternate text means anything).</summary>
@@ -89,9 +89,9 @@ public sealed record AccessibilityReport(IReadOnlyList<AccessibilityFinding> Fai
     /// <summary>The result in a few words: what the report's verdict and the log say.</summary>
     public string Verdict => Outcome switch
     {
-        AccessibilityOutcome.Passes => "Passes the machine checks.",
-        AccessibilityOutcome.NotFullyChecked => "Not fully checked.",
-        _ => "Fails.",
+        AccessibilityOutcome.Passes => PdfStrings.A11y_VerdictPasses,
+        AccessibilityOutcome.NotFullyChecked => PdfStrings.A11y_VerdictNotFullyChecked,
+        _ => PdfStrings.A11y_VerdictFails,
     };
 
     /// <summary>The conditions that fail, each once, in order.</summary>
@@ -106,29 +106,29 @@ public sealed record AccessibilityReport(IReadOnlyList<AccessibilityFinding> Fai
         get
         {
             if (Outcome == AccessibilityOutcome.Passes)
-                return $"Passes every machine check ({AccessibilityCheck.Conditions.Count(c => c.How == ConditionCheck.Machine)} conditions). " +
-                       $"{AccessibilityCheck.HumanChecks.Count} checks are left for a person.";
+                return Loc.Format(PdfStrings.A11y_SummaryPasses, AccessibilityCheck.Conditions.Count(c => c.How == ConditionCheck.Machine), AccessibilityCheck.HumanChecks.Count);
             if (Outcome == AccessibilityOutcome.NotFullyChecked)
-                return "Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass.";
+                return PdfStrings.A11y_SummaryNotFullyChecked;
             var conditions = FailedConditions.Count;
             var problems = Failures.Count;
-            return $"Fails {conditions} {(conditions == 1 ? "condition" : "conditions")} ({problems} {(problems == 1 ? "problem" : "problems")})" +
-                   (Tagged ? "." : ": the document isn't tagged, so a screen reader can't tell its headings, lists, tables or reading order.") +
-                   (Notes.Count > 0 ? " Part of the file wasn't checked." : "");
+            var fails = conditions == 1
+                ? Loc.Plural(problems, PdfStrings.A11y_SummaryFailsOneCondition_One, PdfStrings.A11y_SummaryFailsOneCondition_Many, conditions)
+                : Loc.Plural(problems, PdfStrings.A11y_SummaryFails_One, PdfStrings.A11y_SummaryFails_Many, conditions);
+            return fails + (Tagged ? "." : PdfStrings.A11y_SummaryUntaggedEnd) + (Notes.Count > 0 ? PdfStrings.A11y_SummaryPartNotChecked : "");
         }
     }
 
     /// <summary>The pane's line at the top: the result, and what couldn't be checked.</summary>
     public string PaneSummary =>
-        (Passed ? "Passes the machine checks of PDF/UA-1. " : "") + Summary + (Notes.Count == 0 ? "" : " Not checked: " + string.Join(" ", Notes));
+        (Passed ? PdfStrings.A11y_PanePasses : "") + Summary + (Notes.Count == 0 ? "" : Loc.Format(PdfStrings.A11y_PaneNotChecked, string.Join(" ", Notes)));
 
     /// <summary>The title of the pane's list of failures.</summary>
-    public string FailuresTitle => Failures.Count > 0 ? $"Fails ({Failures.Count})" : Passed ? "Fails (none)" : "Fails (none found so far)";
+    public string FailuresTitle => Failures.Count > 0 ? Loc.Format(PdfStrings.A11y_FailsTitle, Failures.Count) : Passed ? PdfStrings.A11y_FailsTitleNone : PdfStrings.A11y_FailsTitleNoneSoFar;
 
     /// <summary>What the pane's list of failures says when it is empty.</summary>
     public string NothingFailsText => Passed
-        ? "Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist."
-        : "Nothing fails in what was checked, but part of the file wasn't checked (see above), so it can't be called a pass.";
+        ? PdfStrings.A11y_NothingFailsPassed
+        : PdfStrings.A11y_NothingFailsPartial;
 }
 
 /// <summary>
@@ -142,267 +142,268 @@ public sealed record AccessibilityReport(IReadOnlyList<AccessibilityFinding> Fai
 public static partial class AccessibilityCheck
 {
     /// <summary>The checkpoints' titles, by number ("00": PDF/UA's basic rules).</summary>
-    public static readonly IReadOnlyDictionary<string, string> Checkpoints = new Dictionary<string, string>
+    public static IReadOnlyDictionary<string, string> Checkpoints => CheckpointTable.Value;
+
+    private static readonly PerLanguage<IReadOnlyDictionary<string, string>> CheckpointTable = new(() => new Dictionary<string, string>
     {
-        ["00"] = "PDF/UA basics",
-        ["01"] = "Real content tagged",
-        ["02"] = "Role mapping",
-        ["03"] = "Flickering",
-        ["04"] = "Color and contrast",
-        ["05"] = "Sound",
-        ["06"] = "Metadata",
-        ["07"] = "Dictionary",
-        ["08"] = "OCR validation",
-        ["09"] = "Appropriate tags",
-        ["10"] = "Character mappings",
-        ["11"] = "Declared natural language",
-        ["12"] = "Stretched characters",
-        ["13"] = "Graphics",
-        ["14"] = "Headings",
-        ["15"] = "Tables",
-        ["16"] = "Lists",
-        ["17"] = "Mathematical expressions",
-        ["18"] = "Page headers and footers",
-        ["19"] = "Notes and references",
-        ["20"] = "Optional content",
-        ["21"] = "Embedded files",
-        ["22"] = "Article threads",
-        ["23"] = "Digital signatures",
-        ["24"] = "Non-interactive forms",
+        ["00"] = PdfStrings.A11y_Cp00,
+        ["01"] = PdfStrings.A11y_Cp01,
+        ["02"] = PdfStrings.A11y_Cp02,
+        ["03"] = PdfStrings.A11y_Cp03,
+        ["04"] = PdfStrings.A11y_Cp04,
+        ["05"] = PdfStrings.A11y_Cp05,
+        ["06"] = PdfStrings.A11y_Cp06,
+        ["07"] = PdfStrings.A11y_Cp07,
+        ["08"] = PdfStrings.A11y_Cp08,
+        ["09"] = PdfStrings.A11y_Cp09,
+        ["10"] = PdfStrings.A11y_Cp10,
+        ["11"] = PdfStrings.A11y_Cp11,
+        ["12"] = PdfStrings.A11y_Cp12,
+        ["13"] = PdfStrings.A11y_Cp13,
+        ["14"] = PdfStrings.A11y_Cp14,
+        ["15"] = PdfStrings.A11y_Cp15,
+        ["16"] = PdfStrings.A11y_Cp16,
+        ["17"] = PdfStrings.A11y_Cp17,
+        ["18"] = PdfStrings.A11y_Cp18,
+        ["19"] = PdfStrings.A11y_Cp19,
+        ["20"] = PdfStrings.A11y_Cp20,
+        ["21"] = PdfStrings.A11y_Cp21,
+        ["22"] = PdfStrings.A11y_Cp22,
+        ["23"] = PdfStrings.A11y_Cp23,
+        ["24"] = PdfStrings.A11y_Cp24,
         ["25"] = "XFA",
-        ["26"] = "Security",
-        ["27"] = "Navigation",
-        ["28"] = "Annotations",
-        ["29"] = "Actions",
+        ["26"] = PdfStrings.A11y_Cp26,
+        ["27"] = PdfStrings.A11y_Cp27,
+        ["28"] = PdfStrings.A11y_Cp28,
+        ["29"] = PdfStrings.A11y_Cp29,
         ["30"] = "XObjects",
-        ["31"] = "Fonts",
-    };
+        ["31"] = PdfStrings.A11y_Cp31,
+    });
 
-    private const string Tag = "Tag the document (Word: File › Save As › PDF › Options › Document structure tags for accessibility; " +
-                               "InDesign: Export › Create Tagged PDF), or tag it in an editor that can.";
+    private static string Tag => PdfStrings.A11y_FixTag;
 
-    private const string MakeArtifact = "Mark decorative content (page numbers, running headers, background shapes) as an artifact, and " +
-                                        "everything else with a tag, in the program that made the PDF or a tag editor.";
+    private static string MakeArtifact => PdfStrings.A11y_FixArtifact;
 
-    private const string Person = "A person checks this (see the checklist).";
+    private static string Person => PdfStrings.A11y_FixPerson;
 
-    private const string Language = "Set the document's language in the program that made it (Word: Review › Language, then save as PDF again), " +
-                                    "or in a PDF editor's document properties (Advanced › Language).";
+    private static string Language => PdfStrings.A11y_FixLanguage;
 
-    private const string FontFix = "Make the PDF again with the font embedded in full (Word: File › Options › Save › Embed fonts in the file; " +
-                                   "most PDF printers: “embed all fonts”), or use another font.";
+    private static string FontFix => PdfStrings.A11y_FixFont;
 
-    private const string FontRemake = "Make the PDF again from its source with a current PDF writer; this font's data is written wrong. " +
-                                      "A different font can also fix it.";
+    private static string FontRemake => PdfStrings.A11y_FixFontRemake;
 
     private static AccessibilityCondition M(string id, string text, string fix) => new(id, id.StartsWith("UA", StringComparison.Ordinal) ? "00" : id[..2], text, ConditionCheck.Machine, fix);
     private static AccessibilityCondition H(string id, string text, string how) => new(id, id[..2], text, ConditionCheck.Human, how);
     private static AccessibilityCondition N(string id, string text, string note) => new(id, id[..2], text, ConditionCheck.NotChecked, "", note);
 
     /// <summary>Every condition, in order: the basic rules, then the Matterhorn Protocol's 137.</summary>
-    public static readonly IReadOnlyList<AccessibilityCondition> Conditions =
+    public static IReadOnlyList<AccessibilityCondition> Conditions => ConditionTable.Value;
+
+    private static readonly PerLanguage<IReadOnlyList<AccessibilityCondition>> ConditionTable = new(() =>
     [
-        M("UA 7.1", "The document has no structure tree: it isn't tagged.", Tag),
-        M("UA 6.2", "The document doesn't say it is tagged (MarkInfo with Marked true).", Tag),
-        M("UA 6.1", "The file doesn't start with a PDF 1.x header.", "Save it again as a PDF 1.7 file (PDF/UA-1 is based on PDF 1.7)."),
-        M("UA 7.1-P", "A tag has no link to its parent tag (its P entry is missing).", "Re-tag the document, or rebuild its tags in a tag editor."),
-        M("UA 7.2-Lang", "A language is written in a form that isn't a language code (such as en-US).", "Set the language to a code such as en, en-US or es (in a PDF editor's document properties, or the tag's language in a tag editor)."),
+        M("UA 7.1", PdfStrings.A11y_UA7_1, Tag),
+        M("UA 6.2", PdfStrings.A11y_UA6_2, Tag),
+        M("UA 6.1", PdfStrings.A11y_UA6_1, PdfStrings.A11y_UA6_1_Fix),
+        M("UA 7.1-P", PdfStrings.A11y_UA7_1_P, PdfStrings.A11y_UA7_1_P_Fix),
+        M("UA 7.2-Lang", PdfStrings.A11y_UA7_2_Lang, PdfStrings.A11y_UA7_2_Lang_Fix),
 
-        H("01-001", "Decorative content is tagged as real content.", "Check that page numbers, running headers and background art are artifacts."),
-        H("01-002", "Real content is marked as an artifact.", "Check that nothing a reader needs is hidden from screen readers as an artifact."),
-        M("01-003", "Content marked as an artifact is inside tagged content.", MakeArtifact),
-        M("01-004", "Tagged content is inside content marked as an artifact.", MakeArtifact),
-        M("01-005", "Content is neither tagged nor marked as an artifact.", MakeArtifact),
-        H("01-006", "A tag's type or attributes don't fit its content.", Person),
-        M("01-007", "The document says its tags may be wrong (Suspects is true).", "Check and fix the tags, then clear Suspects (re-saving from a tag editor does it)."),
+        H("01-001", PdfStrings.A11y_01_001, PdfStrings.A11y_01_001_How),
+        H("01-002", PdfStrings.A11y_01_002, PdfStrings.A11y_01_002_How),
+        M("01-003", PdfStrings.A11y_01_003, MakeArtifact),
+        M("01-004", PdfStrings.A11y_01_004, MakeArtifact),
+        M("01-005", PdfStrings.A11y_01_005, MakeArtifact),
+        H("01-006", PdfStrings.A11y_01_006, Person),
+        M("01-007", PdfStrings.A11y_01_007, PdfStrings.A11y_01_007_Fix),
 
-        M("02-001", "A custom tag type doesn't map to a standard type.", "Map each custom tag type to the standard type that fits it (the role map), in the program that made the PDF or a tag editor."),
-        H("02-002", "A custom tag type maps to a standard type that doesn't fit it.", Person),
-        M("02-003", "The role map goes round in a circle.", "Fix the role map so every custom type ends at a standard type."),
-        M("02-004", "A standard tag type is mapped to another type.", "Remove standard types (P, H1, Figure…) from the role map."),
+        M("02-001", PdfStrings.A11y_02_001, PdfStrings.A11y_02_001_Fix),
+        H("02-002", PdfStrings.A11y_02_002, Person),
+        M("02-003", PdfStrings.A11y_02_003, PdfStrings.A11y_02_003_Fix),
+        M("02-004", PdfStrings.A11y_02_004, PdfStrings.A11y_02_004_Fix),
 
-        H("03-001", "An action makes something flicker.", Person),
-        H("03-002", "A video or animation flickers.", Person),
-        H("03-003", "A script makes something flicker.", Person),
-        H("04-001", "Meaning is carried by color, contrast, format or layout alone.", Person),
-        H("05-001", "A video's sound isn't available in another form.", Person),
-        H("05-002", "A sound isn't available in another form.", Person),
-        H("05-003", "A script beeps without another way of telling.", Person),
+        H("03-001", PdfStrings.A11y_03_001, Person),
+        H("03-002", PdfStrings.A11y_03_002, Person),
+        H("03-003", PdfStrings.A11y_03_003, Person),
+        H("04-001", PdfStrings.A11y_04_001, Person),
+        H("05-001", PdfStrings.A11y_05_001, Person),
+        H("05-002", PdfStrings.A11y_05_002, Person),
+        H("05-003", PdfStrings.A11y_05_003, Person),
 
-        M("06-001", "The document has no XMP metadata.", "Give it a title in File › Document Properties and save: Inkvolt PDF writes XMP metadata when it saves."),
-        M("06-002", "The metadata doesn't say the file is PDF/UA (pdfuaid:part 1).", "Save it as PDF/UA from the program that made it (Word: PDF options › “PDF/UA compliant”), or add the PDF/UA identifier in a tag editor."),
-        M("06-003", "The metadata has no title (dc:title).", "Give the document a title: File › Document Properties › Title in Inkvolt PDF, then save."),
-        H("06-004", "The title doesn't say what the document is.", Person),
+        M("06-001", PdfStrings.A11y_06_001, PdfStrings.A11y_06_001_Fix),
+        M("06-002", PdfStrings.A11y_06_002, PdfStrings.A11y_06_002_Fix),
+        M("06-003", PdfStrings.A11y_06_003, PdfStrings.A11y_06_003_Fix),
+        H("06-004", PdfStrings.A11y_06_004, Person),
 
-        M("07-001", "The document doesn't ask viewers to show its title (DisplayDocTitle is missing).", "Turn on “Show document title” in a PDF editor's document properties (Initial View), or save the PDF again from Word with document properties included."),
-        M("07-002", "The document asks viewers to show its file name instead of its title (DisplayDocTitle is false).", "Turn on “Show document title” in a PDF editor's document properties (Initial View), or save the PDF again from Word with document properties included."),
+        M("07-001", PdfStrings.A11y_07_001, PdfStrings.A11y_07_001_Fix),
+        M("07-002", PdfStrings.A11y_07_002, PdfStrings.A11y_07_001_Fix),
 
-        H("08-001", "Recognized (OCR) text has many mistakes.", Person),
-        H("08-002", "Recognized (OCR) text isn't tagged.", Person),
+        H("08-001", PdfStrings.A11y_08_001, Person),
+        H("08-002", PdfStrings.A11y_08_002, Person),
 
-        H("09-001", "The tags aren't in a sensible reading order.", Person),
-        H("09-002", "Tags are nested in a way that makes no sense (a table inside a heading).", Person),
-        H("09-003", "A tag's type doesn't fit its content.", Person),
-        M("09-004", "A table's tags are put together wrongly (rows, cells, header and body groups).", "Rebuild the table's tags: Table › TR (or THead/TBody/TFoot › TR) › TH or TD, every row with the same number of cells."),
-        M("09-005", "A list's tags are put together wrongly.", "Rebuild the list's tags: L › LI › Lbl and LBody."),
-        M("09-006", "A table of contents' tags are put together wrongly.", "Rebuild the contents' tags: TOC › TOCI (an optional Caption first)."),
-        N("09-007", "A Ruby tag is put together wrongly.", "Not checked yet (Ruby is rare; veraPDF doesn't check it either)."),
-        N("09-008", "A Warichu tag is put together wrongly.", "Not checked yet (Warichu is rare; veraPDF doesn't check it either)."),
+        H("09-001", PdfStrings.A11y_09_001, Person),
+        H("09-002", PdfStrings.A11y_09_002, Person),
+        H("09-003", PdfStrings.A11y_09_003, Person),
+        M("09-004", PdfStrings.A11y_09_004, PdfStrings.A11y_09_004_Fix),
+        M("09-005", PdfStrings.A11y_09_005, PdfStrings.A11y_09_005_Fix),
+        M("09-006", PdfStrings.A11y_09_006, PdfStrings.A11y_09_006_Fix),
+        N("09-007", PdfStrings.A11y_09_007, PdfStrings.A11y_09_007_Note),
+        N("09-008", PdfStrings.A11y_09_008, PdfStrings.A11y_09_008_Note),
 
-        N("10-001", "A character can't be turned into text (it has no Unicode value).", "Checked as 31-027, font by font (each character a font draws must have a Unicode value)."),
+        N("10-001", PdfStrings.A11y_10_001, PdfStrings.A11y_10_001_Note),
 
-        M("11-001", "The language of text on the page can't be told.", Language + " Or set the language of the tags that hold the text, in a tag editor."),
-        M("11-002", "The language of alternate, actual or expansion text can't be told.", Language),
-        M("11-003", "The language of the bookmarks can't be told.", Language),
-        M("11-004", "The language of a comment's or link's text can't be told.", Language),
-        M("11-005", "The language of a form field's description can't be told.", Language),
-        M("11-006", "The language of the metadata (title, description) can't be told.", Language),
-        H("11-007", "The declared language is wrong.", Person),
-        H("12-001", "Stretched characters aren't shown properly.", Person),
+        M("11-001", PdfStrings.A11y_11_001, PdfStrings.A11y_FixLanguageOrTags),
+        M("11-002", PdfStrings.A11y_11_002, Language),
+        M("11-003", PdfStrings.A11y_11_003, Language),
+        M("11-004", PdfStrings.A11y_11_004, Language),
+        M("11-005", PdfStrings.A11y_11_005, Language),
+        M("11-006", PdfStrings.A11y_11_006, Language),
+        H("11-007", PdfStrings.A11y_11_007, Person),
+        H("12-001", PdfStrings.A11y_12_001, Person),
 
-        H("13-001", "A picture or drawing that means something isn't tagged as a Figure.", Person),
-        H("13-002", "A Figure holds things that don't belong together.", Person),
-        H("13-003", "A caption isn't tagged as a Caption.", Person),
-        M("13-004", "A figure has no alternate text.", "Give the figure alternate text that says what it shows (Word: right-click › Edit Alt Text, before making the PDF), or mark it as an artifact if it is decoration."),
-        H("13-005", "A figure uses actual text where alternate text fits better.", Person),
-        H("13-006", "A drawing that only means something with others is tagged on its own.", Person),
-        H("13-007", "A more accessible form isn't used.", Person),
-        H("13-008", "A figure meant to be read as text has no actual text.", Person),
+        H("13-001", PdfStrings.A11y_13_001, Person),
+        H("13-002", PdfStrings.A11y_13_002, Person),
+        H("13-003", PdfStrings.A11y_13_003, Person),
+        M("13-004", PdfStrings.A11y_13_004, PdfStrings.A11y_13_004_Fix),
+        H("13-005", PdfStrings.A11y_13_005, Person),
+        H("13-006", PdfStrings.A11y_13_006, Person),
+        H("13-007", PdfStrings.A11y_13_007, Person),
+        H("13-008", PdfStrings.A11y_13_008, Person),
 
-        H("14-001", "Headings aren't tagged as headings.", Person),
-        M("14-002", "The first numbered heading isn't H1.", "Start with an H1 heading (Word: use the Heading 1 style for the first heading)."),
-        M("14-003", "A heading level is skipped (an H3 right after an H1).", "Use heading levels in order without gaps (Word: Heading 1, then Heading 2, …)."),
-        H("14-004", "Numbered headings don't use Arabic numerals.", Person),
-        H("14-005", "A 7th-level heading doesn't use H7.", Person),
-        M("14-006", "A tag holds more than one H heading.", "Use numbered headings (H1-H6), or give each H heading its own section."),
-        M("14-007", "The document uses both H and H1-H6 headings.", "Use one kind of heading: numbered headings (H1-H6) throughout."),
+        H("14-001", PdfStrings.A11y_14_001, Person),
+        M("14-002", PdfStrings.A11y_14_002, PdfStrings.A11y_14_002_Fix),
+        M("14-003", PdfStrings.A11y_14_003, PdfStrings.A11y_14_003_Fix),
+        H("14-004", PdfStrings.A11y_14_004, Person),
+        H("14-005", PdfStrings.A11y_14_005, Person),
+        M("14-006", PdfStrings.A11y_14_006, PdfStrings.A11y_14_006_Fix),
+        M("14-007", PdfStrings.A11y_14_007, PdfStrings.A11y_14_007_Fix),
 
-        H("15-001", "A row's header cell isn't tagged as a header.", Person),
-        H("15-002", "A column's header cell isn't tagged as a header.", Person),
-        M("15-003", "A header cell (TH) has no scope, and the table doesn't link cells to headers.", "Give each header cell a scope (Row, Column or Both) in a tag editor, or link data cells to their headers (Headers and IDs)."),
-        H("15-004", "Something that isn't a table is tagged as one.", Person),
-        H("15-005", "A cell's header can't be told for sure.", Person),
+        H("15-001", PdfStrings.A11y_15_001, Person),
+        H("15-002", PdfStrings.A11y_15_002, Person),
+        M("15-003", PdfStrings.A11y_15_003, PdfStrings.A11y_15_003_Fix),
+        H("15-004", PdfStrings.A11y_15_004, Person),
+        H("15-005", PdfStrings.A11y_15_005, Person),
 
-        H("16-001", "An ordered list has no numbering attribute.", Person),
-        H("16-002", "An ordered list's numbering attribute isn't a known kind.", Person),
-        H("16-003", "A list isn't tagged as a list.", Person),
+        H("16-001", PdfStrings.A11y_16_001, Person),
+        H("16-002", PdfStrings.A11y_16_002, Person),
+        H("16-003", PdfStrings.A11y_16_003, Person),
 
-        H("17-001", "A formula isn't tagged as a Formula.", Person),
-        M("17-002", "A formula has no alternate text.", "Give the formula alternate text that reads it out (in a tag editor, or with a LaTeX package that writes it)."),
-        N("17-003", "A formula's characters can't be turned into text.", "Checked as 10-001 for every character, formulas included."),
+        H("17-001", PdfStrings.A11y_17_001, Person),
+        M("17-002", PdfStrings.A11y_17_002, PdfStrings.A11y_17_002_Fix),
+        N("17-003", PdfStrings.A11y_17_003, PdfStrings.A11y_17_003_Note),
 
-        H("18-001", "Running headers and footers aren't marked as pagination artifacts.", Person),
-        H("18-002", "Running header or footer artifacts aren't marked as Header or Footer.", Person),
+        H("18-001", PdfStrings.A11y_18_001, Person),
+        H("18-002", PdfStrings.A11y_18_002, Person),
 
-        H("19-001", "Footnotes or endnotes aren't tagged as Note.", Person),
-        H("19-002", "References aren't tagged as Reference.", Person),
-        M("19-003", "A note has no ID.", "Give each Note tag an ID (re-tag, or add it in a tag editor)."),
-        M("19-004", "Two notes have the same ID.", "Give each Note tag its own ID."),
+        H("19-001", PdfStrings.A11y_19_001, Person),
+        H("19-002", PdfStrings.A11y_19_002, Person),
+        M("19-003", PdfStrings.A11y_19_003, PdfStrings.A11y_19_003_Fix),
+        M("19-004", PdfStrings.A11y_19_004, PdfStrings.A11y_19_004_Fix),
 
-        M("20-001", "A layer configuration in Configs has no name.", "Name every layer configuration (in the program that made the layers)."),
-        M("20-002", "The default layer configuration has no name.", "Name the default layer configuration (in the program that made the layers)."),
-        M("20-003", "A layer configuration has an AS entry (layers switched automatically).", "Remove the automatic layer states (AS) from the layer configurations."),
+        M("20-001", PdfStrings.A11y_20_001, PdfStrings.A11y_20_001_Fix),
+        M("20-002", PdfStrings.A11y_20_002, PdfStrings.A11y_20_002_Fix),
+        M("20-003", PdfStrings.A11y_20_003, PdfStrings.A11y_20_003_Fix),
 
-        M("21-001", "An attached file's description lacks its file names (F and UF).", "Attach the file again (Review › Attach a File… writes both names)."),
-        H("22-001", "Article threads don't follow the reading order.", Person),
-        new("23-001", "23", "Digital signatures: no test of their own (their form fields are checked).", ConditionCheck.NoTest, ""),
-        H("24-001", "A non-interactive form isn't tagged with PrintField attributes.", Person),
-        M("25-001", "The file holds a dynamic XFA form (dynamicRender required).", "Save the form as a static (AcroForm) PDF form."),
-        M("26-001", "The file is encrypted without saying what readers may do (no P entry).", "Remove the protection, or protect it again (File › Protect with Password…) with copying for accessibility allowed."),
-        M("26-002", "The file's protection stops screen readers from reading it.", "Protect it again allowing copying for accessibility, or remove the protection (File › Remove Protection…)."),
-        new("27-001", "27", "Navigation: no test of its own (use the right tags).", ConditionCheck.NoTest, ""),
+        M("21-001", PdfStrings.A11y_21_001, PdfStrings.A11y_21_001_Fix),
+        H("22-001", PdfStrings.A11y_22_001, Person),
+        new("23-001", "23", PdfStrings.A11y_23_001, ConditionCheck.NoTest, ""),
+        H("24-001", PdfStrings.A11y_24_001, Person),
+        M("25-001", PdfStrings.A11y_25_001, PdfStrings.A11y_25_001_Fix),
+        M("26-001", PdfStrings.A11y_26_001, PdfStrings.A11y_26_001_Fix),
+        M("26-002", PdfStrings.A11y_26_002, PdfStrings.A11y_26_002_Fix),
+        new("27-001", "27", PdfStrings.A11y_27_001, ConditionCheck.NoTest, ""),
 
-        H("28-001", "A comment or link isn't in the reading order.", Person),
-        M("28-002", "A comment isn't inside an Annot tag.", "Tag each comment with an Annot tag, or flatten the comments that are only marks (File › Flatten…), then tag the page."),
-        H("28-003", "A comment is used for looks but isn't tagged for what it means.", Person),
-        M("28-004", "A comment or link has no description (no Contents, no alternate text).", "Give the comment text, or the link a description (in a tag editor, its Contents or alternate text)."),
-        M("28-005", "A form field has no description (no tooltip, no alternate text).", "Give each form field a tooltip (in Inkvolt PDF: Forms › field properties › Tooltip); screen readers read it as the field's name."),
-        N("28-006", "An annotation of a type ISO 32000 doesn't define doesn't follow the rules for annotations.", "Checked as 28-002 and 28-004, which every annotation must meet."),
-        M("28-007", "The file holds a trap network annotation (TrapNet).", "Remove the trap network (it is for printing presses, not readers)."),
-        M("28-008", "A page with annotations doesn't set its tab order (Tabs is missing).", "Set the page's tab order to follow the tags (Tabs = S): re-save from a program that does, or set it in an editor's page properties."),
-        M("28-009", "A page with annotations sets a tab order that doesn't follow the tags (Tabs isn't S).", "Set the page's tab order to follow the tags (Tabs = S)."),
-        M("28-010", "A form field isn't inside a Form tag.", "Tag each form field with a Form tag (in a tag editor, or re-tag the form)."),
-        M("28-011", "A link isn't inside a Link tag.", "Tag each link with a Link tag holding the link and its text."),
-        M("28-012", "A link has no description (Contents).", "Give each link a description of where it goes (its Contents)."),
-        H("28-013", "An image map's links aren't available another way.", Person),
-        M("28-014", "A video or sound clip doesn't say its type (CT).", "Embed the media again from a program that writes its type."),
-        M("28-015", "A video or sound clip has no alternate description (Alt).", "Give the media clip an alternate description."),
-        M("28-016", "An attached-file comment's file lacks its file names (F and UF).", "Attach the file again."),
-        M("28-017", "A printer's mark is in the tags.", "Take printer's marks out of the tags (they are artifacts)."),
-        N("28-018", "A printer's mark's appearance isn't marked as an artifact.", "Not checked yet (printer's marks are for printing presses; rare in documents for reading)."),
-        H("29-001", "A script needs keys pressed with a particular timing.", Person),
+        H("28-001", PdfStrings.A11y_28_001, Person),
+        M("28-002", PdfStrings.A11y_28_002, PdfStrings.A11y_28_002_Fix),
+        H("28-003", PdfStrings.A11y_28_003, Person),
+        M("28-004", PdfStrings.A11y_28_004, PdfStrings.A11y_28_004_Fix),
+        M("28-005", PdfStrings.A11y_28_005, PdfStrings.A11y_28_005_Fix),
+        N("28-006", PdfStrings.A11y_28_006, PdfStrings.A11y_28_006_Note),
+        M("28-007", PdfStrings.A11y_28_007, PdfStrings.A11y_28_007_Fix),
+        M("28-008", PdfStrings.A11y_28_008, PdfStrings.A11y_28_008_Fix),
+        M("28-009", PdfStrings.A11y_28_009, PdfStrings.A11y_28_009_Fix),
+        M("28-010", PdfStrings.A11y_28_010, PdfStrings.A11y_28_010_Fix),
+        M("28-011", PdfStrings.A11y_28_011, PdfStrings.A11y_28_011_Fix),
+        M("28-012", PdfStrings.A11y_28_012, PdfStrings.A11y_28_012_Fix),
+        H("28-013", PdfStrings.A11y_28_013, Person),
+        M("28-014", PdfStrings.A11y_28_014, PdfStrings.A11y_28_014_Fix),
+        M("28-015", PdfStrings.A11y_28_015, PdfStrings.A11y_28_015_Fix),
+        M("28-016", PdfStrings.A11y_28_016, PdfStrings.A11y_28_016_Fix),
+        M("28-017", PdfStrings.A11y_28_017, PdfStrings.A11y_28_017_Fix),
+        N("28-018", PdfStrings.A11y_28_018, PdfStrings.A11y_28_018_Note),
+        H("29-001", PdfStrings.A11y_29_001, Person),
 
-        M("30-001", "The file holds a reference XObject (content taken from another file).", "Make the PDF again with the referenced content included."),
-        M("30-002", "A form XObject with tagged content is drawn more than once.", "Make the PDF again so repeated content is either an artifact or tagged each time it appears."),
+        M("30-001", PdfStrings.A11y_30_001, PdfStrings.A11y_30_001_Fix),
+        M("30-002", PdfStrings.A11y_30_002, PdfStrings.A11y_30_002_Fix),
 
-        M("31-001", "A composite font's CID system registry doesn't match its CMap's.", FontRemake),
-        M("31-002", "A composite font's CID system ordering doesn't match its CMap's.", FontRemake),
-        M("31-003", "A composite font's CID system supplement is lower than its CMap's.", FontRemake),
-        M("31-004", "A TrueType CID font's glyph map (CIDToGIDMap) is neither a stream nor Identity.", FontRemake),
-        M("31-005", "A TrueType CID font has no glyph map (CIDToGIDMap).", FontRemake),
-        M("31-006", "A CMap is neither a standard one nor embedded.", FontRemake),
-        M("31-007", "A CMap's writing mode (WMode) differs between its dictionary and its data.", FontRemake),
-        M("31-008", "A CMap uses another CMap that isn't a standard one.", FontRemake),
-        M("31-009", "A font isn't embedded.", FontFix),
-        H("31-010", "A font is embedded that may not be embedded for all uses (its licence).", Person),
-        M("31-011", "An embedded font lacks a glyph the text uses.", FontFix),
-        M("31-012", "A Type 1 font's CharSet doesn't list every glyph in the font.", FontRemake),
-        M("31-013", "A Type 1 font's CharSet lists a glyph the font doesn't have.", FontRemake),
-        M("31-014", "A CID font's CIDSet doesn't list every glyph in the font.", FontRemake),
-        M("31-015", "A CID font's CIDSet lists a glyph the font doesn't have.", FontRemake),
-        M("31-016", "A glyph's width in the PDF differs from its width in the font.", FontRemake),
-        M("31-017", "A non-symbolic TrueType font has no Unicode or Mac character map (cmap).", FontRemake),
-        N("31-018", "A non-symbolic TrueType font's glyph can't be found through its character maps.", "Checked as 31-011 and 31-030 (a glyph that can't be found is missing or .notdef)."),
-        M("31-019", "A non-symbolic TrueType font has no Encoding.", FontRemake),
-        M("31-020", "A non-symbolic TrueType font's Encoding dictionary has no base encoding.", FontRemake),
-        M("31-021", "A non-symbolic TrueType font's encoding is neither WinAnsi nor MacRoman.", FontRemake),
-        M("31-022", "A non-symbolic TrueType font's Differences use glyph names outside the Adobe Glyph List.", FontRemake),
-        N("31-023", "A non-symbolic TrueType font has Differences but no Windows Unicode cmap.", "Not checked yet (veraPDF's PDF/UA-1 rules don't either)."),
-        M("31-024", "A symbolic TrueType font has an Encoding.", FontRemake),
-        M("31-025", "A symbolic TrueType font has no character map (cmap).", FontRemake),
-        M("31-026", "A symbolic TrueType font has several character maps but no Windows Symbol (3,0) one.", FontRemake),
-        M("31-027", "A font doesn't say which characters its glyphs are (no ToUnicode, no standard encoding).", FontRemake),
-        M("31-028", "A font's ToUnicode map gives a character the value 0.", FontRemake),
-        M("31-029", "A font's ToUnicode map gives a character the value U+FEFF or U+FFFE.", FontRemake),
-        M("31-030", "Text draws the .notdef glyph (a placeholder box).", FontFix),
-    ];
+        M("31-001", PdfStrings.A11y_31_001, FontRemake),
+        M("31-002", PdfStrings.A11y_31_002, FontRemake),
+        M("31-003", PdfStrings.A11y_31_003, FontRemake),
+        M("31-004", PdfStrings.A11y_31_004, FontRemake),
+        M("31-005", PdfStrings.A11y_31_005, FontRemake),
+        M("31-006", PdfStrings.A11y_31_006, FontRemake),
+        M("31-007", PdfStrings.A11y_31_007, FontRemake),
+        M("31-008", PdfStrings.A11y_31_008, FontRemake),
+        M("31-009", PdfStrings.A11y_31_009, FontFix),
+        H("31-010", PdfStrings.A11y_31_010, Person),
+        M("31-011", PdfStrings.A11y_31_011, FontFix),
+        M("31-012", PdfStrings.A11y_31_012, FontRemake),
+        M("31-013", PdfStrings.A11y_31_013, FontRemake),
+        M("31-014", PdfStrings.A11y_31_014, FontRemake),
+        M("31-015", PdfStrings.A11y_31_015, FontRemake),
+        M("31-016", PdfStrings.A11y_31_016, FontRemake),
+        M("31-017", PdfStrings.A11y_31_017, FontRemake),
+        N("31-018", PdfStrings.A11y_31_018, PdfStrings.A11y_31_018_Note),
+        M("31-019", PdfStrings.A11y_31_019, FontRemake),
+        M("31-020", PdfStrings.A11y_31_020, FontRemake),
+        M("31-021", PdfStrings.A11y_31_021, FontRemake),
+        M("31-022", PdfStrings.A11y_31_022, FontRemake),
+        N("31-023", PdfStrings.A11y_31_023, PdfStrings.A11y_31_023_Note),
+        M("31-024", PdfStrings.A11y_31_024, FontRemake),
+        M("31-025", PdfStrings.A11y_31_025, FontRemake),
+        M("31-026", PdfStrings.A11y_31_026, FontRemake),
+        M("31-027", PdfStrings.A11y_31_027, FontRemake),
+        M("31-028", PdfStrings.A11y_31_028, FontRemake),
+        M("31-029", PdfStrings.A11y_31_029, FontRemake),
+        M("31-030", PdfStrings.A11y_31_030, FontFix),
+    ]);
 
-    private static readonly Dictionary<string, AccessibilityCondition> ById = Conditions.ToDictionary(c => c.Id);
+    private static readonly PerLanguage<Dictionary<string, AccessibilityCondition>> ById = new(() => Conditions.ToDictionary(c => c.Id));
 
     /// <summary>The condition with this id, or null.</summary>
-    public static AccessibilityCondition? Condition(string id) => ById.GetValueOrDefault(id);
+    public static AccessibilityCondition? Condition(string id) => ById.Value.GetValueOrDefault(id);
 
     /// <summary>The checks for a person, in the order to do them.</summary>
-    public static readonly IReadOnlyList<HumanCheck> HumanChecks =
+    public static IReadOnlyList<HumanCheck> HumanChecks => HumanCheckTable.Value;
+
+    private static readonly PerLanguage<IReadOnlyList<HumanCheck>> HumanCheckTable = new(() =>
     [
-        new("title", ["06-004"], "Does the title say what the document is?",
-            "File › Document Properties › Title. A file name or “Document1” isn't a title."),
-        new("reading-order", ["09-001", "28-001", "22-001"], "Is the reading order sensible?",
-            "Turn on Read Aloud (Ctrl+Shift+Y) or a screen reader and listen to a few pages: columns, sidebars, captions and footnotes should come where a reader expects them."),
-        new("tags-fit", ["01-006", "09-002", "09-003", "02-002", "28-003"], "Does each tag fit its content?",
-            "Headings are tagged as headings, lists as lists, tables as tables, quotes as quotes; nothing is a heading just to look big."),
-        new("artifacts", ["01-001", "01-002", "18-001", "18-002"], "Are decorations artifacts, and is all real content tagged?",
-            "Page numbers, running headers and footers, background shapes and lines are artifacts (marked Header or Footer where they are). Nothing a reader needs is an artifact."),
-        new("alt-text", ["13-001", "13-002", "13-005", "13-006", "13-007", "13-008"], "Does every meaningful picture have alternate text that says what it shows?",
-            "Read each figure's alternate text: it says what the picture shows or means, not “image1.png”. Decorative pictures are artifacts instead. Pictures that only mean something together are one figure."),
-        new("captions", ["13-003"], "Are captions tagged as captions?", "A figure's or table's caption is a Caption tag inside it, not a separate paragraph."),
-        new("color", ["04-001"], "Is anything said by color, contrast or layout alone, and is there enough contrast?",
-            "“Fields in red are required” needs words too. Text needs a contrast of at least 4.5:1 with its background (3:1 for large text); check with a contrast tool."),
-        new("headings", ["14-001", "14-004", "14-005"], "Are all headings tagged, at the right level?",
-            "Every visual heading is an H1-H6 tag at the level it looks; a seventh level uses H7."),
-        new("tables", ["15-001", "15-002", "15-004", "15-005"], "Do tables have their header cells marked, and are only real tables tagged as tables?",
-            "Header rows and columns are TH cells; layout grids aren't tables; each data cell's header can be told."),
-        new("lists", ["16-001", "16-002", "16-003"], "Are lists tagged as lists, numbered lists with their numbering?",
-            "Bulleted and numbered lists are L tags; a numbered list says its numbering (Decimal, UpperRoman, …)."),
-        new("language", ["11-007"], "Is the declared language right, also for passages in another language?",
-            "The document's language should be the language it is written in; quotes in another language carry their own language on their tags."),
-        new("ocr", ["08-001", "08-002"], "If pages were scanned, is the recognized text right and tagged?",
-            "Select text on scanned pages (or listen with Read Aloud): it matches the page and is in the tags."),
-        new("notes", ["19-001", "19-002", "17-001", "12-001"], "Are notes, references and formulas tagged as such?",
-            "Footnotes and endnotes are Note tags, references Reference tags, math Formula tags with alternate text."),
-        new("media", ["03-001", "03-002", "03-003", "05-001", "05-002", "05-003", "29-001", "28-013"], "Do sounds, videos and scripts have another way, and does nothing flicker?",
-            "Media has captions or a transcript; nothing flashes more than three times a second; scripts don't need timed key presses; image maps' links are also listed."),
-        new("forms", ["24-001", "31-010"], "Are printed (non-interactive) forms tagged, and are the fonts allowed to be embedded?",
-            "Form-like layouts without fields use PrintField attributes; the fonts' licences allow embedding (most fonts do)."),
-    ];
+        new("title", ["06-004"], PdfStrings.A11y_CheckTitle,
+            PdfStrings.A11y_CheckTitleHow),
+        new("reading-order", ["09-001", "28-001", "22-001"], PdfStrings.A11y_CheckReadingOrder,
+            PdfStrings.A11y_CheckReadingOrderHow),
+        new("tags-fit", ["01-006", "09-002", "09-003", "02-002", "28-003"], PdfStrings.A11y_CheckTagsFit,
+            PdfStrings.A11y_CheckTagsFitHow),
+        new("artifacts", ["01-001", "01-002", "18-001", "18-002"], PdfStrings.A11y_CheckArtifacts,
+            PdfStrings.A11y_CheckArtifactsHow),
+        new("alt-text", ["13-001", "13-002", "13-005", "13-006", "13-007", "13-008"], PdfStrings.A11y_CheckAltText,
+            PdfStrings.A11y_CheckAltTextHow),
+        new("captions", ["13-003"], PdfStrings.A11y_CheckCaptions, PdfStrings.A11y_CheckCaptionsHow),
+        new("color", ["04-001"], PdfStrings.A11y_CheckColor,
+            PdfStrings.A11y_CheckColorHow),
+        new("headings", ["14-001", "14-004", "14-005"], PdfStrings.A11y_CheckHeadings,
+            PdfStrings.A11y_CheckHeadingsHow),
+        new("tables", ["15-001", "15-002", "15-004", "15-005"], PdfStrings.A11y_CheckTables,
+            PdfStrings.A11y_CheckTablesHow),
+        new("lists", ["16-001", "16-002", "16-003"], PdfStrings.A11y_CheckLists,
+            PdfStrings.A11y_CheckListsHow),
+        new("language", ["11-007"], PdfStrings.A11y_CheckLanguage,
+            PdfStrings.A11y_CheckLanguageHow),
+        new("ocr", ["08-001", "08-002"], PdfStrings.A11y_CheckOcr,
+            PdfStrings.A11y_CheckOcrHow),
+        new("notes", ["19-001", "19-002", "17-001", "12-001"], PdfStrings.A11y_CheckNotes,
+            PdfStrings.A11y_CheckNotesHow),
+        new("media", ["03-001", "03-002", "03-003", "05-001", "05-002", "05-003", "29-001", "28-013"], PdfStrings.A11y_CheckMedia,
+            PdfStrings.A11y_CheckMediaHow),
+        new("forms", ["24-001", "31-010"], PdfStrings.A11y_CheckForms,
+            PdfStrings.A11y_CheckFormsHow),
+    ]);
 }

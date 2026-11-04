@@ -19,42 +19,44 @@ public static class AccessibilityReportHtml
         var sb = new StringBuilder();
         string E(string s) => WebUtility.HtmlEncode(s);
         var counts = report.Failures.GroupBy(f => f.Condition).ToDictionary(g => g.Key, g => g.Count());
-        var date = checkedAt.ToString("d MMMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+        // The page's words in the interface's language (English on the command line), its dates' month names too.
+        var date = checkedAt.ToString(PdfStrings.A11y_ReportDateFormat, PdfLanguage.Culture);
 
-        sb.Append("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
+        sb.Append("<!DOCTYPE html>\n<html lang=\"").Append(PdfStrings.A11y_ReportLang).Append("\">\n<head>\n<meta charset=\"utf-8\">\n")
           .Append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n")
           .Append("<meta name=\"generator\" content=\"Inkvolt PDF\">\n")
-          .Append("<title>Accessibility report: ").Append(E(fileName)).Append("</title>\n<style>\n").Append(Css).Append("</style>\n</head>\n<body>\n")
-          .Append("<a class=\"skip\" href=\"#main\">Skip to the result</a>\n")
-          .Append("<header>\n<h1>Accessibility report</h1>\n<p class=\"file\">").Append(E(fileName)).Append("</p>\n")
-          .Append("<p>Checked on ").Append(E(date)).Append(" by Inkvolt PDF against the machine-checkable conditions of the Matterhorn Protocol 1.1, ")
-          .Append("which spells out PDF/UA-1 (ISO 14289-1). ")
-          .Append(report.Pages == 1 ? "1 page" : $"{report.Pages} pages").Append(report.Tagged ? ", tagged." : ", not tagged.").Append("</p>\n</header>\n")
-          .Append("<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#result\">Result</a></li>\n")
-          .Append(report.Failures.Count == 0 ? "" : "<li><a href=\"#failures\">What fails</a></li>\n")
-          .Append("<li><a href=\"#person\">Checks for a person</a></li>\n<li><a href=\"#conditions\">Every condition</a></li>\n")
-          .Append(report.Notes.Count > 0 ? "<li><a href=\"#notes\">Not checked</a></li>\n" : "")
+          .Append("<title>").Append(Loc.Format(PdfStrings.A11y_ReportTitleOf, E(fileName))).Append("</title>\n<style>\n").Append(Css).Append("</style>\n</head>\n<body>\n")
+          .Append("<a class=\"skip\" href=\"#main\">").Append(PdfStrings.A11y_ReportSkip).Append("</a>\n")
+          .Append("<header>\n<h1>").Append(PdfStrings.A11y_ReportTitle).Append("</h1>\n<p class=\"file\">").Append(E(fileName)).Append("</p>\n")
+          .Append("<p>").Append(Loc.Format(PdfStrings.A11y_ReportCheckedOn, E(date)))
+          .Append(Loc.Plural(report.Pages, report.Tagged ? PdfStrings.A11y_ReportPagesTagged_One : PdfStrings.A11y_ReportPagesUntagged_One,
+                                           report.Tagged ? PdfStrings.A11y_ReportPagesTagged_Many : PdfStrings.A11y_ReportPagesUntagged_Many)).Append("</p>\n</header>\n")
+          .Append("<nav aria-label=\"").Append(PdfStrings.A11y_ReportSections).Append("\">\n<ul>\n<li><a href=\"#result\">").Append(PdfStrings.A11y_ReportResult).Append("</a></li>\n")
+          .Append(report.Failures.Count == 0 ? "" : "<li><a href=\"#failures\">" + PdfStrings.A11y_ReportWhatFails + "</a></li>\n")
+          .Append("<li><a href=\"#person\">").Append(PdfStrings.A11y_ReportPersonChecks).Append("</a></li>\n<li><a href=\"#conditions\">").Append(PdfStrings.A11y_ReportEveryCondition).Append("</a></li>\n")
+          .Append(report.Notes.Count > 0 ? "<li><a href=\"#notes\">" + PdfStrings.A11y_ReportNotChecked + "</a></li>\n" : "")
           .Append("</ul>\n</nav>\n<main id=\"main\">\n");
 
         // Result
         var verdict = report.Outcome switch { AccessibilityOutcome.Passes => "pass", AccessibilityOutcome.NotFullyChecked => "partly", _ => "fail" };
-        sb.Append("<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict ").Append(verdict).Append("\"><strong>")
+        sb.Append("<section aria-labelledby=\"result\">\n<h2 id=\"result\">").Append(PdfStrings.A11y_ReportResult).Append("</h2>\n<p class=\"verdict ").Append(verdict).Append("\"><strong>")
           .Append(report.Verdict).Append("</strong> ").Append(E(report.Summary)).Append("</p>\n");
         var ticked = report.HumanChecks.Count(h => done.Contains(h.Id));
-        sb.Append("<p>Checks for a person: ").Append(ticked).Append(" of ").Append(report.HumanChecks.Count).Append(" done. ")
-          .Append("A document is accessible only when it passes the machine checks and a person has made these checks.</p>\n</section>\n");
+        sb.Append("<p>").Append(Loc.Format(PdfStrings.A11y_ReportTicked, ticked, report.HumanChecks.Count)).Append("</p>\n</section>\n");
 
         // What fails, by checkpoint
         if (report.Failures.Count > 0)
         {
-            sb.Append("<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">What fails (").Append(report.Failures.Count).Append(")</h2>\n");
+            sb.Append("<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">").Append(Loc.Format(PdfStrings.A11y_ReportWhatFailsN, report.Failures.Count)).Append("</h2>\n");
             foreach (var group in report.Failures.GroupBy(f => AccessibilityCheck.Condition(f.Condition)?.Checkpoint ?? "00"))
             {
                 var title = AccessibilityCheck.Checkpoints.GetValueOrDefault(group.Key, "");
-                var heading = group.Key == "00" ? title : $"Checkpoint {group.Key}: {title}";
+                var heading = group.Key == "00" ? title : Loc.Format(PdfStrings.A11y_ReportCheckpoint, group.Key, title);
                 var id = "cp" + group.Key;
                 sb.Append("<h3 id=\"").Append(id).Append("\">").Append(E(heading)).Append("</h3>\n<table aria-labelledby=\"").Append(id).Append("\">\n<thead><tr>")
-                  .Append("<th scope=\"col\">Condition</th><th scope=\"col\">Where</th><th scope=\"col\">What</th><th scope=\"col\">What's wrong</th><th scope=\"col\">How to fix it</th>")
+                  .Append("<th scope=\"col\">").Append(PdfStrings.A11y_ReportColCondition).Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColWhere)
+                  .Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColWhat).Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColWrong)
+                  .Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColFix).Append("</th>")
                   .Append("</tr></thead>\n<tbody>\n");
                 foreach (var f in group)
                     sb.Append("<tr><th scope=\"row\">").Append(E(f.Condition)).Append("</th><td>").Append(E(f.Where)).Append("</td><td>").Append(E(f.Element))
@@ -65,32 +67,33 @@ public static class AccessibilityReportHtml
         }
 
         // The person's checklist
-        sb.Append("<section aria-labelledby=\"person\">\n<h2 id=\"person\">Checks for a person (").Append(report.HumanChecks.Count).Append(")</h2>\n")
-          .Append("<p>The machine can't tell whether these make sense. Each was ")
-          .Append("marked done or not done in Inkvolt PDF when this report was saved.</p>\n<ul class=\"checklist\">\n");
+        sb.Append("<section aria-labelledby=\"person\">\n<h2 id=\"person\">").Append(Loc.Format(PdfStrings.A11y_ReportPersonChecksN, report.HumanChecks.Count)).Append("</h2>\n")
+          .Append("<p>").Append(PdfStrings.A11y_ReportPersonIntro).Append("</p>\n<ul class=\"checklist\">\n");
         foreach (var h in report.HumanChecks)
         {
             var ok = done.Contains(h.Id);
             sb.Append("<li class=\"").Append(ok ? "done" : "todo").Append("\"><span class=\"mark\" aria-hidden=\"true\">").Append(ok ? "&#x2611;" : "&#x2610;")
-              .Append("</span> <strong>").Append(E(h.Question)).Append("</strong> <span class=\"state\">(").Append(ok ? "done" : "not done yet").Append(")</span>")
+              .Append("</span> <strong>").Append(E(h.Question)).Append("</strong> <span class=\"state\">(").Append(ok ? PdfStrings.A11y_ReportDone : PdfStrings.A11y_ReportNotDone).Append(")</span>")
               .Append("<br>").Append(E(h.How)).Append(" <span class=\"ids\">Matterhorn ").Append(E(string.Join(", ", h.Conditions))).Append("</span></li>\n");
         }
         sb.Append("</ul>\n</section>\n");
 
         // Every condition
-        sb.Append("<section aria-labelledby=\"conditions\">\n<h2 id=\"conditions\">Every condition</h2>\n")
-          .Append("<p>The Matterhorn Protocol's 137 failure conditions, and PDF/UA's basic rules (marked UA), with what this check found for each.</p>\n")
-          .Append("<table aria-labelledby=\"conditions\">\n<thead><tr><th scope=\"col\">Condition</th><th scope=\"col\">Checkpoint</th><th scope=\"col\">Fails when</th><th scope=\"col\">Result</th></tr></thead>\n<tbody>\n");
+        sb.Append("<section aria-labelledby=\"conditions\">\n<h2 id=\"conditions\">").Append(PdfStrings.A11y_ReportEveryCondition).Append("</h2>\n")
+          .Append("<p>").Append(PdfStrings.A11y_ReportConditionsIntro).Append("</p>\n")
+          .Append("<table aria-labelledby=\"conditions\">\n<thead><tr><th scope=\"col\">").Append(PdfStrings.A11y_ReportColCondition)
+          .Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColCheckpoint).Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportColFailsWhen)
+          .Append("</th><th scope=\"col\">").Append(PdfStrings.A11y_ReportResult).Append("</th></tr></thead>\n<tbody>\n");
         foreach (var c in AccessibilityCheck.Conditions)
         {
             var (css, result) = c.How switch
             {
-                ConditionCheck.Machine when counts.TryGetValue(c.Id, out var n) => ("fail", n == 1 ? "Fails (1 problem)" : $"Fails ({n} problems)"),
-                ConditionCheck.Machine when report.Notes.Count > 0 => ("none", "Nothing found in what was checked"),
-                ConditionCheck.Machine => ("pass", "Passes"),
-                ConditionCheck.Human => ("human", "For a person to check"),
-                ConditionCheck.NotChecked => ("none", c.Note ?? "Not checked"),
-                _ => ("none", "No test of its own"),
+                ConditionCheck.Machine when counts.TryGetValue(c.Id, out var n) => ("fail", Loc.Plural(n, PdfStrings.A11y_ReportFailsN_One, PdfStrings.A11y_ReportFailsN_Many)),
+                ConditionCheck.Machine when report.Notes.Count > 0 => ("none", PdfStrings.A11y_ReportNothingFound),
+                ConditionCheck.Machine => ("pass", PdfStrings.A11y_ReportPasses),
+                ConditionCheck.Human => ("human", PdfStrings.A11y_ReportForPerson),
+                ConditionCheck.NotChecked => ("none", c.Note ?? PdfStrings.A11y_ReportNotChecked),
+                _ => ("none", PdfStrings.A11y_ReportNoTest),
             };
             sb.Append("<tr class=\"").Append(css).Append("\"><th scope=\"row\">").Append(E(c.Id)).Append("</th><td>")
               .Append(E(AccessibilityCheck.Checkpoints.GetValueOrDefault(c.Checkpoint, c.Checkpoint))).Append("</td><td>").Append(E(c.Text))
@@ -100,12 +103,11 @@ public static class AccessibilityReportHtml
 
         if (report.Notes.Count > 0)
         {
-            sb.Append("<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">Not checked in this file</h2>\n<ul>\n");
+            sb.Append("<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">").Append(PdfStrings.A11y_ReportNotCheckedHere).Append("</h2>\n<ul>\n");
             foreach (var n in report.Notes) sb.Append("<li>").Append(E(n)).Append("</li>\n");
             sb.Append("</ul>\n</section>\n");
         }
-        sb.Append("</main>\n<footer>\n<p>Made by Inkvolt PDF. The checks run on this computer; nothing was sent anywhere. ")
-          .Append("Condition numbers are the Matterhorn Protocol 1.1's (PDF Association).</p>\n</footer>\n</body>\n</html>\n");
+        sb.Append("</main>\n<footer>\n<p>").Append(PdfStrings.A11y_ReportFooter).Append("</p>\n</footer>\n</body>\n</html>\n");
         return sb.ToString();
     }
 

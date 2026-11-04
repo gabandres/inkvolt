@@ -216,14 +216,14 @@ public partial class DocumentTab
             menu.Items.Add(mi);
             return mi;
         }
-        var add = Item("_Add Bookmark", _ => AddBookmarkForView(), Cmd.GestureText(Cmd.AddBookmark));
-        var child = Item("Add _Child Bookmark", n => AddBookmarkForView(asChildOf: n));
-        var rename = Item("_Rename", n => { if (n is not null) BeginRename(n); }, "F2");
-        var delete = Item("_Delete", n => { if (n is not null) _ = DeleteBookmark(n); }, "Del");
-        var retarget = Item("Set Destination to Current _View", n => { if (n is not null) _ = SetBookmarkDestination(n); });
+        var add = Item(Strings.Bookmarks_MenuAdd, _ => AddBookmarkForView(), Cmd.GestureText(Cmd.AddBookmark));
+        var child = Item(Strings.Bookmarks_MenuAddChild, n => AddBookmarkForView(asChildOf: n));
+        var rename = Item(Strings.Bookmarks_MenuRename, n => { if (n is not null) BeginRename(n); }, "F2");
+        var delete = Item(Strings.Bookmarks_MenuDelete, n => { if (n is not null) _ = DeleteBookmark(n); }, "Del");
+        var retarget = Item(Strings.Bookmarks_MenuSetDestination, n => { if (n is not null) _ = SetBookmarkDestination(n); });
         menu.Items.Add(new Separator());
-        Item("_Expand All", _ => ExpandAll(true));
-        Item("C_ollapse All", _ => ExpandAll(false));
+        Item(Strings.Bookmarks_MenuExpandAll, _ => ExpandAll(true));
+        Item(Strings.Bookmarks_MenuCollapseAll, _ => ExpandAll(false));
         menu.Opened += (_, _) =>
         {
             var editable = BookmarksEditable && !IsBusy;
@@ -301,8 +301,8 @@ public partial class DocumentTab
                 if (expanded.Contains(PathKey(n.PathIn(_bookmarks)))) n.IsExpanded = true;
         NoBookmarks.Visibility = _bookmarks.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         NoBookmarksText.Text = Session.IsPdf
-            ? $"This document doesn't have a table of contents. Press {Cmd.GestureText(Cmd.AddBookmark)} to add a bookmark for the page you're reading."
-            : "This document doesn't have a table of contents.";
+            ? Loc.Format(Strings.Bookmarks_NoneAdd, Cmd.GestureText(Cmd.AddBookmark))
+            : Strings.Bookmarks_None;
     }
 
     private BookmarkNode? Find(int[] path)
@@ -335,7 +335,7 @@ public partial class DocumentTab
     private bool CanEditBookmarks()
     {
         if (BookmarksEditable && !IsBusy) return true;
-        Notify(!Session.IsPdf ? "Only PDF bookmarks can be edited." : IsBusy ? "Wait for the current change to finish." : "The bookmarks are still loading. Try again in a moment.");
+        Notify(!Session.IsPdf ? Strings.Bookmarks_OnlyPdf : IsBusy ? Strings.Bookmarks_WaitForChange : Strings.Bookmarks_StillLoading);
         return false;
     }
 
@@ -358,7 +358,7 @@ public partial class DocumentTab
         CancelNewBookmarks();
         var (page, top) = Viewer.ViewTarget();
         var title = Viewer.HasSelection && Viewer.SelectionIsOnOnePage ? Viewer.GetSelectedText().ReplaceLineEndings(" ").Trim() : "";
-        if (title.Length is 0 or > 120) title = $"Page {page + 1}";
+        if (title.Length is 0 or > 120) title = Loc.Format(Strings.Bookmarks_PageTitle, page + 1);
 
         var selected = Outline.SelectedItem as BookmarkNode;
         BookmarkNode node;
@@ -455,13 +455,13 @@ public partial class DocumentTab
             Detach(node); // the reload after the edit shows the real one
             if (title.Length == 0 || !CanEditBookmarks()) return;
             var bookmark = new Bookmark(title, node.PageIndex, node.Top);
-            await EditBookmarks($"Add bookmark \"{Short(title)}\"", t => BookmarkTree.Insert(t, path[..^1], path[^1], bookmark), path);
+            await EditBookmarks(Loc.Format(Strings.Bookmarks_UndoAdd, Short(title)), t => BookmarkTree.Insert(t, path[..^1], path[^1], bookmark), path);
             return;
         }
         if (title.Length == 0 || title == node.Title || !CanEditBookmarks()) return;
         var at = node.PathIn(_bookmarks);
         node.Title = title; // shown at once; the reload confirms it
-        await EditBookmarks($"Rename bookmark to \"{Short(title)}\"", t => BookmarkTree.Replace(t, at, b => b with { Title = title }), at);
+        await EditBookmarks(Loc.Format(Strings.Bookmarks_UndoRename, Short(title)), t => BookmarkTree.Replace(t, at, b => b with { Title = title }), at);
     }
 
     private async Task DeleteBookmark(BookmarkNode node)
@@ -477,7 +477,7 @@ public partial class DocumentTab
         var siblings = node.Parent?.Children ?? _bookmarks;
         // Select the next bookmark afterwards (or the previous, or the parent).
         int[]? next = siblings.Count > 1 ? [.. path[..^1], Math.Min(path[^1], siblings.Count - 2)] : path.Length > 1 ? path[..^1] : null;
-        await EditBookmarks(count == 1 ? $"Delete bookmark \"{Short(node.Title)}\"" : $"Delete bookmark \"{Short(node.Title)}\" and {count - 1} inside it",
+        await EditBookmarks(count == 1 ? Loc.Format(Strings.Bookmarks_UndoDelete, Short(node.Title)) : Loc.Format(Strings.Bookmarks_UndoDeleteWithInside, Short(node.Title), count - 1),
             t => BookmarkTree.Remove(t, path), next);
     }
 
@@ -486,7 +486,7 @@ public partial class DocumentTab
         if (!CanEditBookmarks()) return;
         var (page, top) = Viewer.ViewTarget();
         var path = node.PathIn(_bookmarks);
-        await EditBookmarks($"Set destination of \"{Short(node.Title)}\" to page {page + 1}",
+        await EditBookmarks(Loc.Format(Strings.Bookmarks_UndoSetDestination, Short(node.Title), page + 1),
             t => BookmarkTree.Replace(t, path, b => b with { PageIndex = page, Top = top }), path);
     }
 
@@ -626,7 +626,7 @@ public partial class DocumentTab
                 index = target[^1] + 1;
                 break;
         }
-        var label = t.Place == DropPlace.Inside ? $"Move \"{Short(dragged.Title)}\" into \"{Short(t.Target.Title)}\"" : $"Move bookmark \"{Short(dragged.Title)}\"";
+        var label = t.Place == DropPlace.Inside ? Loc.Format(Strings.Bookmarks_UndoMoveInto, Short(dragged.Title), Short(t.Target.Title)) : Loc.Format(Strings.Bookmarks_UndoMove, Short(dragged.Title));
         // Run after the drop completes, so the drag source isn't held while the edit runs.
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, () =>
             _ = EditBookmarks(label, tree => BookmarkTree.Move(tree, from, parent, index)));

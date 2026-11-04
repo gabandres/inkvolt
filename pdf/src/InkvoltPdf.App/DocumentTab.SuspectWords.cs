@@ -19,7 +19,7 @@ public sealed class SuspectWordItem(int page, int index, OcrWord word, string pa
     public OcrWord Word { get; } = word;
     public string? Language { get; } = language;
     public string Text => Word.Text;
-    public string Where { get; } = $"Page {pageLabel}";
+    public string Where { get; } = Loc.Format(Strings.Suspects_Where, pageLabel);
 
     /// <summary>The turn that shows the word's picture level (it was cut from the page at the word's angle).</summary>
     public double Level => -Word.Angle;
@@ -29,11 +29,11 @@ public sealed class SuspectWordItem(int page, int index, OcrWord word, string pa
         get
         {
             var why = new List<string>();
-            if (Word.Suspect.HasFlag(SuspectReasons.NotInDictionary)) why.Add("not in the dictionary");
-            if (Word.Suspect.HasFlag(SuspectReasons.LettersAndDigits)) why.Add("letters and digits mixed");
-            if (Word.Suspect.HasFlag(SuspectReasons.OddCharacters)) why.Add("odd characters");
-            if (Word.Suspect.HasFlag(SuspectReasons.ReadDifferently)) why.Add("read differently before cleaning");
-            return string.Join(", ", why);
+            if (Word.Suspect.HasFlag(SuspectReasons.NotInDictionary)) why.Add(Strings.Suspects_WhyNotInDictionary);
+            if (Word.Suspect.HasFlag(SuspectReasons.LettersAndDigits)) why.Add(Strings.Suspects_WhyLettersDigits);
+            if (Word.Suspect.HasFlag(SuspectReasons.OddCharacters)) why.Add(Strings.Suspects_WhyOddCharacters);
+            if (Word.Suspect.HasFlag(SuspectReasons.ReadDifferently)) why.Add(Strings.Suspects_WhyReadDifferently);
+            return string.Join(Strings.Suspects_WhySeparator, why);
         }
     }
 
@@ -51,7 +51,7 @@ public sealed class SuspectWordItem(int page, int index, OcrWord word, string pa
     }
 
     /// <summary>What a screen reader says for the item.</summary>
-    public string Spoken => $"{Text}. {Where}. {Why}";
+    public string Spoken => Loc.Format(Strings.Suspects_Spoken, Text, Where, Why);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }
@@ -152,10 +152,12 @@ public partial class DocumentTab
                 SuspectList.ItemsSource = items;
                 var pages = items.Select(i => i.Page).Distinct().Count();
                 SuspectSummary.Text = items.Count > 0
-                    ? $"{items.Count} suspect word{(items.Count == 1 ? "" : "s")} on {pages} page{(pages == 1 ? "" : "s")}. Correct a word or keep it as read."
+                    ? pages == 1
+                        ? Loc.Plural(items.Count, Strings.Suspects_SummaryOnePage_One, Strings.Suspects_SummaryOnePage_Many)
+                        : Loc.Format(Strings.Suspects_SummaryPages, items.Count, pages)
                     : layers.Count == 0
-                        ? "No recognized text to check here. Use Recognize Text (OCR) on scanned pages first."
-                        : "No suspect words left: every recognized word has been checked or looked right.";
+                        ? Strings.Suspects_NoText
+                        : Strings.Suspects_NoneLeft;
                 UpdatePaneDetail();
                 if (items.Count > 0) SuspectList.SelectedIndex = Math.Clamp(_suspectSelect, 0, items.Count - 1);
                 else ShowSelectedSuspect();
@@ -229,7 +231,7 @@ public partial class DocumentTab
             // Keep what was around the word ("rlver," → "river,").
             var start = item.Text.IndexOf(core, StringComparison.Ordinal);
             var whole = start < 0 ? s : item.Text[..start] + s + item.Text[(start + core.Length)..];
-            var b = new Button { Content = whole, Margin = new Thickness(0, 0, 6, 4), ToolTip = $"Correct to \"{whole}\"" };
+            var b = new Button { Content = whole, Margin = new Thickness(0, 0, 6, 4), ToolTip = Loc.Format(Strings.Suspects_CorrectTo, whole) };
             b.Click += (_, _) => _ = CorrectSuspectAsync(whole);
             SuspectSuggestions.Children.Add(b);
         }
@@ -243,22 +245,22 @@ public partial class DocumentTab
         text = text.Trim();
         if (text.Length == 0)
         {
-            Notify("A word can't be empty: type the correction, or choose Keep as read.");
+            Notify(Strings.Suspects_EmptyWord);
             return;
         }
         if (text.Contains(' ') || text.Contains('\n'))
         {
-            Notify("Type one word: a correction replaces one recognized word.");
+            Notify(Strings.Suspects_OneWord);
             return;
         }
-        var outcome = await TryEdit("Correct recognized word", (d, pw) => TextLayer.Correct(d, pw, item.Page, item.Index, text), quiet: true);
-        if (outcome == EditOutcome.Done) Notify($"\"{item.Text}\" is now \"{text}\" on page {PageLabel(item.Page)}; search finds it.");
+        var outcome = await TryEdit(Strings.Suspects_EditCorrect, (d, pw) => TextLayer.Correct(d, pw, item.Page, item.Index, text), quiet: true);
+        if (outcome == EditOutcome.Done) Notify(Loc.Format(Strings.Suspects_Corrected, item.Text, text, PageLabel(item.Page)));
     }
 
     private async Task KeepSuspectAsync()
     {
         if (SuspectList.SelectedItem is not SuspectWordItem item) return;
-        await TryEdit("Keep recognized word", (d, pw) => TextLayer.Keep(d, pw, item.Page, item.Index), quiet: true);
+        await TryEdit(Strings.Suspects_EditKeep, (d, pw) => TextLayer.Keep(d, pw, item.Page, item.Index), quiet: true);
     }
 
     /// <summary>Dev/test: the pane's words as "text (page, why)".</summary>

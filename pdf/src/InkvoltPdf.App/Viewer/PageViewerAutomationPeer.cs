@@ -18,7 +18,7 @@ public sealed partial class PageViewer
         _peer?.PageChanged();
     }
 
-    internal string AccessibleName => PageCount == 0 ? "Document" : $"Page {_currentPage + 1} of {PageCount}";
+    internal string AccessibleName => PageCount == 0 ? Strings.Viewer_Document : Loc.Format(Strings.Viewer_PageOf, _currentPage + 1, PageCount);
 
     /// <summary>Visible pages, for screen readers.</summary>
     internal IReadOnlyList<int> AccessiblePages => _engine is null ? [] : VisiblePages(Viewport).ToList();
@@ -51,11 +51,10 @@ public sealed class PageViewerAutomationPeer(PageViewer owner) : ScrollViewerAut
     protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Document;
     protected override string GetClassNameCore() => nameof(PageViewer);
     protected override string GetNameCore() => Viewer.AccessibleName;
-    protected override string GetItemStatusCore() => Viewer.FocusedItemDescription ?? $"Zoom {Viewer.Zoom:P0}";
+    protected override string GetItemStatusCore() => Viewer.FocusedItemDescription ?? Loc.Format(Strings.Viewer_ZoomStatus, Viewer.Zoom);
 
     protected override string GetHelpTextCore() =>
-        "Page Up and Page Down move through the pages. Tab moves through links and form fields; Enter follows a link. " +
-        "F7 turns caret browsing on: arrow keys move through the text and Shift with arrows selects it.";
+        Strings.Viewer_Help;
 
     protected override List<AutomationPeer>? GetChildrenCore()
     {
@@ -97,7 +96,7 @@ public sealed class PageAutomationPeer(PageViewer viewer, int page) : Automation
 {
     public int Page { get; } = page;
 
-    protected override string GetNameCore() => $"Page {Page + 1}";
+    protected override string GetNameCore() => Loc.Format(Strings.Viewer_PageN, Page + 1);
     protected override AutomationControlType GetAutomationControlTypeCore() => AutomationControlType.Custom;
     protected override string GetLocalizedControlTypeCore() => "page";
     protected override string GetClassNameCore() => "Page";
@@ -113,7 +112,7 @@ public sealed class PageAutomationPeer(PageViewer viewer, int page) : Automation
     protected override string GetAcceleratorKeyCore() => "";
     protected override string GetAccessKeyCore() => "";
     protected override string GetHelpTextCore() => "";
-    protected override string GetItemStatusCore() => viewer.AccessibleText(Page) is null ? "Loading text" : "";
+    protected override string GetItemStatusCore() => viewer.AccessibleText(Page) is null ? Strings.Viewer_LoadingText : "";
     protected override string GetItemTypeCore() => "";
     protected override AutomationPeer? GetLabeledByCore() => null;
     protected override AutomationOrientation GetOrientationCore() => AutomationOrientation.None;

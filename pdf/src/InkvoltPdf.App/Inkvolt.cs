@@ -3,6 +3,7 @@ using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Windows.Printing;
 using InkvoltPrint.Windows.Suite;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
@@ -108,7 +109,7 @@ internal static class PrinterCheck
             }
             catch (OperationCanceledException)
             {
-                health = PrinterHealth.Offline("Not responding");
+                health = PrinterHealth.Offline(Strings.Print_NotResponding);
             }
             return new Result(printer, health);
         }
@@ -160,7 +161,7 @@ internal static class PrinterCheck
                 if (!conn.Probe.Reachable)
                 {
                     conn.Dispose();
-                    return PrinterHealth.Offline("Not responding");
+                    return PrinterHealth.Offline(Strings.Print_NotResponding);
                 }
                 lock (Gate)
                 {
@@ -175,11 +176,11 @@ internal static class PrinterCheck
         }
         catch (OperationCanceledException)
         {
-            return PrinterHealth.Offline("Not responding");
+            return PrinterHealth.Offline(Strings.Print_NotResponding);
         }
         catch (Exception ex) when (PrinterConnection.IsOffline(ex))
         {
-            return PrinterHealth.Offline("Not responding");
+            return PrinterHealth.Offline(Strings.Print_NotResponding);
         }
     }
 
@@ -196,9 +197,9 @@ internal static class PrinterCheck
     }
 
     /// <summary>"is offline", "needs attention"…: the warning's title after the printer's name.</summary>
-    public static string Problem(PrinterHealth h) => h.State switch
+    public static string Problem(PrinterHealth h, string printer) => Loc.Format(h.State switch
     {
-        Readiness.Offline => "isn't responding",
-        _ => "has a problem",
-    };
+        Readiness.Offline => Strings.Print_PrinterNotResponding,
+        _ => Strings.Print_PrinterHasProblem,
+    }, printer);
 }

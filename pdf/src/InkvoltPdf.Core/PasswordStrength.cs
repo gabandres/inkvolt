@@ -14,7 +14,7 @@ public static class PasswordStrength
     {
         if (string.IsNullOrEmpty(password)) return (0, "");
         var lower = password.ToLowerInvariant();
-        if (password.Length < 6 || Common.Any(c => lower == c) || password.Distinct().Count() <= 2) return (1, "Weak");
+        if (password.Length < 6 || Common.Any(c => lower == c) || password.Distinct().Count() <= 2) return (1, PdfStrings.Password_Weak);
 
         var classes = 0;
         if (password.Any(char.IsLower)) classes++;
@@ -28,7 +28,7 @@ public static class PasswordStrength
         if (classes == 1 && password.Length < 16) score--;
         if (Common.Any(c => c.Length >= 5 && lower.Contains(c)) || IsRun(lower)) score--;
         score = Math.Clamp(score, 1, 4);
-        return (score, score switch { 1 => "Weak", 2 => "Fair", 3 => "Good", _ => "Strong" });
+        return (score, score switch { 1 => PdfStrings.Password_Weak, 2 => PdfStrings.Password_Fair, 3 => PdfStrings.Password_Good, _ => PdfStrings.Password_Strong });
     }
 
     /// <summary>The whole password is one ascending or descending run ("abcdefgh", "98765432").</summary>

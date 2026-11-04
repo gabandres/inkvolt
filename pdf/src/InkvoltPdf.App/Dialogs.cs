@@ -20,7 +20,7 @@ public sealed class FormDialog : Window
     private readonly Button _cancel;
     private readonly StackPanel _footerLeft = new() { Orientation = Orientation.Horizontal };
 
-    public FormDialog(Window owner, string title, string okText = "OK", double width = 440)
+    public FormDialog(Window owner, string title, string? okText = null, double width = 440)
     {
         Owner = owner;
         Title = title;
@@ -32,9 +32,9 @@ public sealed class FormDialog : Window
         ShowInTaskbar = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-        var ok = _ok = new Button { Content = okText, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
+        var ok = _ok = new Button { Content = okText ?? Strings.Common_OK, IsDefault = true, MinWidth = 104, Margin = new Thickness(0, 0, 8, 0) };
         ok.SetResourceReference(StyleProperty, "AccentButtonStyle");
-        var cancel = _cancel = new Button { Content = "Cancel", IsCancel = true, MinWidth = 104 };
+        var cancel = _cancel = new Button { Content = Strings.Common_Cancel, IsCancel = true, MinWidth = 104 };
         ok.Click += (_, _) =>
         {
             var err = _validate?.Invoke();
@@ -109,11 +109,11 @@ public sealed class FormDialog : Window
         return Add(label, combo);
     }
 
-    public PageRangePicker AddRange(DocumentTab tab, string label = "Pages", bool preferSelection = true) =>
-        Add(label, new PageRangePicker(tab, preferSelection));
+    public PageRangePicker AddRange(DocumentTab tab, string? label = null, bool preferSelection = true) =>
+        Add(label ?? Strings.Common_Pages, new PageRangePicker(tab, preferSelection));
 
-    public PositionPicker AddPosition(int pageCount, int currentPage, string label = "Position") =>
-        Add(label, new PositionPicker(pageCount, currentPage));
+    public PositionPicker AddPosition(int pageCount, int currentPage, string? label = null) =>
+        Add(label ?? Strings.Dialog_Position, new PositionPicker(pageCount, currentPage));
 
     /// <summary>A button at the left of the footer (Reset to defaults, Copy) that leaves the dialog open.</summary>
     public Button AddFooterButton(string text)
@@ -154,12 +154,12 @@ public sealed class FormDialog : Window
 /// <summary>"All / Current / Selected / Range" page choice with an even/odd filter.</summary>
 public sealed class PageRangePicker : StackPanel
 {
-    private readonly RadioButton _all = new() { Content = "All pages" };
+    private readonly RadioButton _all = new() { Content = Strings.Common_AllPages };
     private readonly RadioButton _current;
     private readonly RadioButton _selected;
-    private readonly RadioButton _range = new() { Content = "Pages:", VerticalAlignment = VerticalAlignment.Center };
+    private readonly RadioButton _range = new() { Content = Strings.Dialog_PagesColon, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _rangeText = new() { Width = 200, Margin = new Thickness(8, 0, 0, 0) };
-    private readonly ComboBox _subset = new() { ItemsSource = new[] { "All pages in range", "Even pages only", "Odd pages only" }, SelectedIndex = 0, Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly ComboBox _subset = new() { ItemsSource = new[] { Strings.Dialog_AllInRange, Strings.Dialog_EvenOnly, Strings.Dialog_OddOnly }, SelectedIndex = 0, Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly int _pageCount;
     private readonly int _currentPage;
     private readonly int[] _selection;
@@ -171,12 +171,12 @@ public sealed class PageRangePicker : StackPanel
         _selection = tab.SelectedPages;
         var group = $"range{GetHashCode()}";
         _all.GroupName = _range.GroupName = group;
-        _current = new RadioButton { Content = $"Current page ({_currentPage + 1})", GroupName = group };
-        _selected = new RadioButton { Content = $"Selected pages ({PageRange.Format(_selection)})", GroupName = group };
+        _current = new RadioButton { Content = Loc.Format(Strings.Dialog_CurrentPage, _currentPage + 1), GroupName = group };
+        _selected = new RadioButton { Content = Loc.Format(Strings.Dialog_SelectedPages, PageRange.Format(_selection)), GroupName = group };
         _rangeText.Text = PageRange.Format(_selection);
         _rangeText.GotFocus += (_, _) => _range.IsChecked = true;
-        System.Windows.Automation.AutomationProperties.SetName(_rangeText, "Pages, e.g. 1-3, 5, 8-");
-        System.Windows.Automation.AutomationProperties.SetName(_subset, "Which pages in the range");
+        System.Windows.Automation.AutomationProperties.SetName(_rangeText, Strings.Dialog_PagesBoxName);
+        System.Windows.Automation.AutomationProperties.SetName(_subset, Strings.Dialog_WhichInRange);
 
         Children.Add(_all);
         Children.Add(_current);
@@ -185,7 +185,7 @@ public sealed class PageRangePicker : StackPanel
         row.Children.Add(_range);
         row.Children.Add(_rangeText);
         Children.Add(row);
-        Children.Add(new TextBlock { Text = $"e.g. 1-3, 5, 8-  (document has {_pageCount} pages)", Margin = new Thickness(0, 4, 0, 8), Style = (Style)Application.Current.FindResource("Caption") });
+        Children.Add(new TextBlock { Text = Loc.Format(Strings.Dialog_RangeHint, _pageCount), Margin = new Thickness(0, 4, 0, 8), Style = (Style)Application.Current.FindResource("Caption") });
         Children.Add(_subset);
 
         if (preferSelection && _selection.Length > 1) _selected.IsChecked = true;
@@ -206,7 +206,7 @@ public sealed class PageRangePicker : StackPanel
         pages = PageRange.Apply(pages, (PageSubset)_subset.SelectedIndex);
         if (pages.Length == 0)
         {
-            error = "No pages match that choice.";
+            error = Strings.Dialog_NoPagesMatch;
             return false;
         }
         return true;
@@ -216,7 +216,7 @@ public sealed class PageRangePicker : StackPanel
 /// <summary>"Before/After page N" (plus First/Last shortcuts), resolved to an insertion index 0..count.</summary>
 public sealed class PositionPicker : StackPanel
 {
-    private readonly ComboBox _where = new() { ItemsSource = new[] { "After page", "Before page" }, SelectedIndex = 0, Width = 130 };
+    private readonly ComboBox _where = new() { ItemsSource = new[] { Strings.Dialog_AfterPage, Strings.Dialog_BeforePage }, SelectedIndex = 0, Width = 130 };
     private readonly TextBox _page = new() { Width = 70, Margin = new Thickness(8, 0, 0, 0) };
     private readonly int _pageCount;
 
@@ -225,13 +225,13 @@ public sealed class PositionPicker : StackPanel
         _pageCount = pageCount;
         Orientation = Orientation.Horizontal;
         _page.Text = (currentPage + 1).ToString();
-        System.Windows.Automation.AutomationProperties.SetName(_where, "Before or after the page");
-        System.Windows.Automation.AutomationProperties.SetName(_page, "Page number");
+        System.Windows.Automation.AutomationProperties.SetName(_where, Strings.Dialog_BeforeOrAfter);
+        System.Windows.Automation.AutomationProperties.SetName(_page, Strings.Dialog_PageNumber);
         Children.Add(_where);
         Children.Add(_page);
-        Children.Add(new TextBlock { Text = $"of {pageCount}", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
-        var first = new Button { Content = "First", Margin = new Thickness(12, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
-        var last = new Button { Content = "Last", Margin = new Thickness(4, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        Children.Add(new TextBlock { Text = Loc.Format(Strings.Dialog_OfCount, pageCount), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) });
+        var first = new Button { Content = Strings.Dialog_First, Margin = new Thickness(12, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        var last = new Button { Content = Strings.Dialog_Last, Margin = new Thickness(4, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
         first.Click += (_, _) => { _where.SelectedIndex = 1; _page.Text = "1"; };
         last.Click += (_, _) => { _where.SelectedIndex = 0; _page.Text = pageCount.ToString(); };
         Children.Add(first);
@@ -244,7 +244,7 @@ public sealed class PositionPicker : StackPanel
         error = null;
         if (!int.TryParse(_page.Text.Trim(), out var page) || page < 1 || page > _pageCount)
         {
-            error = $"Enter a page number from 1 to {_pageCount}.";
+            error = Loc.Format(Strings.Dialog_EnterPage, _pageCount);
             return false;
         }
         before = _where.SelectedIndex == 0 ? page : page - 1;
@@ -255,17 +255,17 @@ public sealed class PositionPicker : StackPanel
 /// <summary>Opening PDFs for import (insert, combine) with a password prompt when needed.</summary>
 public static class PdfFiles
 {
-    public const string OpenFilter =
-        "Supported documents|*.pdf;*.xps;*.oxps;*.epub;*.cbz;*.fb2;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.gif|PDF files (*.pdf)|*.pdf|All files (*.*)|*.*";
+    public static string OpenFilter =>
+        $"{Strings.Convert_FilterSupported}|*.pdf;*.xps;*.oxps;*.epub;*.cbz;*.fb2;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.gif|{Strings.Compare_FilterPdf}|*.pdf|{Strings.Compare_FilterAll}|*.*";
 
-    public const string PdfFilter = "PDF files (*.pdf)|*.pdf";
+    public static string PdfFilter => $"{Strings.Compare_FilterPdf}|*.pdf";
 
     public static string? PromptPassword(Window owner, string name, bool wrong)
     {
-        var dlg = new FormDialog(owner, "Password required", "Open");
-        if (wrong) dlg.AddNote("That password is incorrect. Try again.");
-        dlg.AddNote($"\"{name}\" is protected. Enter its password to open it.");
-        var box = dlg.Add("Password", new PasswordBox());
+        var dlg = new FormDialog(owner, Strings.Dialog_PasswordRequired, Strings.Common_Open);
+        if (wrong) dlg.AddNote(Strings.PdfA_PasswordWrong);
+        dlg.AddNote(Loc.Format(Strings.Dialog_PasswordNote, name));
+        var box = dlg.Add(Strings.PdfA_Password, new PasswordBox());
         dlg.Loaded += (_, _) => box.Focus();
         return dlg.ShowModal() ? box.Password : null;
     }
@@ -273,10 +273,10 @@ public static class PdfFiles
     /// <summary>Asks for the permissions (owner) password an edit needs. Null if the user cancels.</summary>
     public static string? PromptOwnerPassword(Window owner, string name, bool wrong)
     {
-        var dlg = new FormDialog(owner, "Permissions password required", "Edit");
-        if (wrong) dlg.AddNote("That password is incorrect. Try again.");
-        dlg.AddNote($"\"{name}\" opens without a password, but its author restricted changes. Enter its permissions (owner) password to edit it.");
-        var box = dlg.Add("Password", new PasswordBox());
+        var dlg = new FormDialog(owner, Strings.PdfA_PasswordTitle, Strings.Common_Edit);
+        if (wrong) dlg.AddNote(Strings.PdfA_PasswordWrong);
+        dlg.AddNote(Loc.Format(Strings.Dialog_OwnerPasswordNote, name));
+        var box = dlg.Add(Strings.PdfA_Password, new PasswordBox());
         dlg.Loaded += (_, _) => box.Focus();
         return dlg.ShowModal() ? box.Password : null;
     }
@@ -291,7 +291,7 @@ public static class PdfFiles
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(owner, $"Couldn't read {Path.GetFileName(path)}", ex.Message);
+            Prompt.Error(owner, Loc.Format(Strings.Compare_CouldntRead, Path.GetFileName(path)), ex.Message);
             return null;
         }
 
@@ -312,7 +312,7 @@ public static class PdfFiles
             }
             catch (Exception ex) when (ex is MuPDFCore.MuPDFException or InvalidOperationException)
             {
-                Prompt.Error(owner, $"{Path.GetFileName(path)} isn't a readable PDF", ex.Message);
+                Prompt.Error(owner, Loc.Format(Strings.Dialog_NotReadablePdf, Path.GetFileName(path)), ex.Message);
                 return null;
             }
         }
@@ -329,7 +329,7 @@ public static class PdfFiles
         if (DevScript.TakeSavePath(out var scripted)) return scripted;
         var dlg = new SaveFileDialog
         {
-            Title = "Save As",
+            Title = Strings.Dialog_SaveAsTitle,
             Filter = PdfFilter,
             FileName = suggestedName,
             DefaultExt = ".pdf",
@@ -374,7 +374,7 @@ public static class PdfFiles
 
         // Room for the folder, a separator, " (999)" and the extension.
         var room = Math.Min(MaxStem, MaxPath - Path.GetFullPath(folder).TrimEnd('\\').Length - 1 - 6 - ext.Length);
-        if (room < 8) throw new IOException("The folder path is too long. Choose a folder with a shorter path.");
+        if (room < 8) throw new IOException(Strings.Dialog_PathTooLong);
         if (stem.Length > room) stem = Truncate(stem, room).TrimEnd('.', ' ');
 
         var path = Path.Combine(folder, stem + ext);
@@ -429,7 +429,7 @@ public static class PdfFiles
 
 /// <summary>A batch write failed partway; <see cref="Written"/> lists the files that were completed.</summary>
 public sealed class BatchWriteException(IReadOnlyList<string> written, string failedPath, Exception inner)
-    : IOException($"Couldn't write {Path.GetFileName(failedPath)}: {inner.Message}", inner)
+    : IOException(Loc.Format(Strings.Dialog_CouldntWrite, Path.GetFileName(failedPath), inner.Message), inner)
 {
     public IReadOnlyList<string> Written { get; } = written;
     public string FailedPath { get; } = failedPath;
@@ -440,7 +440,7 @@ public sealed class CombineDialog : Window
 {
     private readonly ObservableCollection<string> _files = [];
     private readonly ListBox _list;
-    private readonly CheckBox _bookmarks = new() { Content = "Add a bookmark for each file", IsChecked = true, Margin = new Thickness(0, 10, 0, 0) };
+    private readonly CheckBox _bookmarks = new() { Content = Strings.Dialog_BookmarkEach, IsChecked = true, Margin = new Thickness(0, 10, 0, 0) };
 
     public IReadOnlyList<string> Files => _files;
     public bool BookmarkPerFile => _bookmarks.IsChecked == true;
@@ -448,7 +448,7 @@ public sealed class CombineDialog : Window
     public CombineDialog(Window owner, IEnumerable<string> initial)
     {
         Owner = owner;
-        Title = "Combine Files into PDF";
+        Title = Strings.Dialog_CombineTitle;
         Width = 620;
         Height = 480;
         MinWidth = 420;
@@ -472,30 +472,30 @@ public sealed class CombineDialog : Window
         }
 
         var side = new StackPanel { Width = 130, Margin = new Thickness(12, 0, 0, 0) };
-        side.Children.Add(B("Add Files…", AddFiles));
-        side.Children.Add(B("Remove", () => { foreach (var f in _list.SelectedItems.Cast<string>().ToList()) _files.Remove(f); }));
-        side.Children.Add(B("Move Up", () => MoveSelected(-1)));
-        side.Children.Add(B("Move Down", () => MoveSelected(1)));
-        side.Children.Add(B("Sort by Name", () =>
+        side.Children.Add(B(Strings.Dialog_AddFiles, AddFiles));
+        side.Children.Add(B(Strings.Common_Remove, () => { foreach (var f in _list.SelectedItems.Cast<string>().ToList()) _files.Remove(f); }));
+        side.Children.Add(B(Strings.Dialog_MoveUp, () => MoveSelected(-1)));
+        side.Children.Add(B(Strings.Dialog_MoveDown, () => MoveSelected(1)));
+        side.Children.Add(B(Strings.Dialog_SortByName, () =>
         {
             var sorted = _files.Order(StringComparer.CurrentCultureIgnoreCase).ToList();
             _files.Clear();
             foreach (var f in sorted) _files.Add(f);
         }));
 
-        var ok = new Button { Content = "Combine", IsDefault = true, MinWidth = 96, Margin = new Thickness(0, 0, 8, 0) };
+        var ok = new Button { Content = Strings.Dialog_Combine, IsDefault = true, MinWidth = 96, Margin = new Thickness(0, 0, 8, 0) };
         ok.Click += (_, _) =>
         {
             if (_files.Count == 0)
             {
-                Prompt.Info(this, "Nothing to combine yet", "Add at least one PDF with Add Files, or drag PDFs into the list.");
+                Prompt.Info(this, Strings.Dialog_NothingToCombine, Strings.Dialog_NothingToCombineBody);
                 return;
             }
             DialogResult = true;
         };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 16, 0, 0) };
         buttons.Children.Add(ok);
-        buttons.Children.Add(new Button { Content = "Cancel", IsCancel = true, MinWidth = 96 });
+        buttons.Children.Add(new Button { Content = Strings.Common_Cancel, IsCancel = true, MinWidth = 96 });
 
         var grid = new Grid { Margin = new Thickness(20) };
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -505,13 +505,13 @@ public sealed class CombineDialog : Window
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var hint = new TextBlock { Text = "Files are combined in this order. Drag PDFs here to add them.", Margin = new Thickness(0, 0, 0, 8), Style = (Style)Application.Current.FindResource("Caption") };
+        var hint = new TextBlock { Text = Strings.Dialog_CombineHint, Margin = new Thickness(0, 0, 0, 8), Style = (Style)Application.Current.FindResource("Caption") };
         Grid.SetColumnSpan(hint, 2);
         grid.Children.Add(hint);
         // Empty state inside the list: what to do, where it will happen
         var empty = new TextBlock
         {
-            Text = "No files yet. Press Add Files…, or drop PDFs here.", TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
+            Text = Strings.Dialog_CombineEmpty, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
             Margin = new Thickness(24), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false,
             Style = (Style)Application.Current.FindResource("Caption"),
         };
@@ -543,7 +543,7 @@ public sealed class CombineDialog : Window
 
     private void AddFiles()
     {
-        var dlg = new OpenFileDialog { Title = "Add PDF files", Filter = PdfFiles.PdfFilter, Multiselect = true, InitialDirectory = AppSettings.Current.LastFolder };
+        var dlg = new OpenFileDialog { Title = Strings.Dialog_AddPdfFiles, Filter = PdfFiles.PdfFilter, Multiselect = true, InitialDirectory = AppSettings.Current.LastFolder };
         if (dlg.ShowDialog(this) != true) return;
         foreach (var f in dlg.FileNames) _files.Add(f);
     }

@@ -73,16 +73,17 @@ public static class DrawStyles
 /// </summary>
 public partial class DocumentTab
 {
-    private static readonly (string Name, AnnotColor Color)[] Swatches =
+    /// <summary>The style bar's colors; names are read when the bar is built (after the language is set).</summary>
+    private static readonly (Func<string> Name, AnnotColor Color)[] Swatches =
     [
-        ("Black", new AnnotColor(0, 0, 0)),
-        ("Red", new AnnotColor(0.9, 0.1, 0.1)),
-        ("Orange", new AnnotColor(1, 0.55, 0)),
-        ("Yellow", new AnnotColor(1, 0.85, 0.1)),
-        ("Green", new AnnotColor(0.1, 0.6, 0.25)),
-        ("Blue", new AnnotColor(0.1, 0.4, 0.9)),
-        ("Purple", new AnnotColor(0.55, 0.25, 0.75)),
-        ("Gray", new AnnotColor(0.5, 0.5, 0.5)),
+        (() => Strings.Drawing_ColorBlack, new AnnotColor(0, 0, 0)),
+        (() => Strings.Drawing_ColorRed, new AnnotColor(0.9, 0.1, 0.1)),
+        (() => Strings.Drawing_ColorOrange, new AnnotColor(1, 0.55, 0)),
+        (() => Strings.Drawing_ColorYellow, new AnnotColor(1, 0.85, 0.1)),
+        (() => Strings.Drawing_ColorGreen, new AnnotColor(0.1, 0.6, 0.25)),
+        (() => Strings.Drawing_ColorBlue, new AnnotColor(0.1, 0.4, 0.9)),
+        (() => Strings.Drawing_ColorPurple, new AnnotColor(0.55, 0.25, 0.75)),
+        (() => Strings.Drawing_ColorGray, new AnnotColor(0.5, 0.5, 0.5)),
     ];
 
     private static readonly double[] WidthSteps = [0.5, 1, 1.5, 2, 3, 4, 6, 8, 10, 12, 16, 20, 24, 32];
@@ -107,8 +108,9 @@ public partial class DocumentTab
         };
         Viewer.ToolChanged += (_, _) => UpdateStyleBar();
 
-        foreach (var (name, color) in Swatches)
+        foreach (var (nameOf, color) in Swatches)
         {
+            var name = nameOf();
             var dot = new Border
             {
                 Width = 16,
@@ -121,28 +123,28 @@ public partial class DocumentTab
             var button = new ToggleButton { Content = dot, ToolTip = name, MinWidth = 28, Height = 30, Padding = new Thickness(5, 4, 5, 4), Tag = color };
             button.SetResourceReference(StyleProperty, "IconButton");
             AutomationProperties.SetName(button, name);
-            button.Click += (_, _) => ApplyStyle("color", s => WithColor(s, color));
+            button.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleColor, s => WithColor(s, color));
             StyleSwatches.Children.Add(button);
         }
         StyleCustomColor.Click += (_, _) =>
         {
             if (StyleTarget() is not { } t) return;
             var current = IsTextTool(t.Tool) ? t.Style.TextColor : t.Style.Color ?? AnnotStyle.Black;
-            if (PickColor(current) is { } picked) ApplyStyle("color", s => WithColor(s, picked));
+            if (PickColor(current) is { } picked) ApplyStyle(Strings.Drawing_RestyleColor, s => WithColor(s, picked));
         };
-        StyleThinner.Click += (_, _) => ApplyStyle("line width", s => s with { Width = Step(WidthSteps, s.Width, -1) });
-        StyleThicker.Click += (_, _) => ApplyStyle("line width", s => s with { Width = Step(WidthSteps, s.Width, 1) });
-        StyleSmaller.Click += (_, _) => ApplyStyle("text size", s => s with { FontSize = Step(FontSteps, s.FontSize, -1) });
-        StyleLarger.Click += (_, _) => ApplyStyle("text size", s => s with { FontSize = Step(FontSteps, s.FontSize, 1) });
-        StyleMoreClear.Click += (_, _) => ApplyStyle("opacity", s => s with { Opacity = Math.Max(0.1, Math.Round(s.Opacity * 10 - 1) / 10) });
-        StyleLessClear.Click += (_, _) => ApplyStyle("opacity", s => s with { Opacity = Math.Min(1, Math.Round(s.Opacity * 10 + 1) / 10) });
-        StyleFill.Click += (_, _) => ApplyStyle("fill", s => s with
+        StyleThinner.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleLineWidth, s => s with { Width = Step(WidthSteps, s.Width, -1) });
+        StyleThicker.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleLineWidth, s => s with { Width = Step(WidthSteps, s.Width, 1) });
+        StyleSmaller.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleTextSize, s => s with { FontSize = Step(FontSteps, s.FontSize, -1) });
+        StyleLarger.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleTextSize, s => s with { FontSize = Step(FontSteps, s.FontSize, 1) });
+        StyleMoreClear.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleOpacity, s => s with { Opacity = Math.Max(0.1, Math.Round(s.Opacity * 10 - 1) / 10) });
+        StyleLessClear.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleOpacity, s => s with { Opacity = Math.Min(1, Math.Round(s.Opacity * 10 + 1) / 10) });
+        StyleFill.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleFill, s => s with
         {
             Fill = s.Fill is not null ? null : StyleTarget() is { } t && IsTextTool(t.Tool) ? new AnnotColor(1, 1, 1) : Tint(s.Color ?? AnnotStyle.Black),
         });
-        StyleBorder.Click += (_, _) => ApplyStyle("border", s => s.Color is null ? s with { Color = s.TextColor, Width = 1 } : s with { Color = null, Width = 0 });
-        StyleStartArrow.Click += (_, _) => ApplyStyle("arrowheads", s => s with { StartEnding = s.StartEnding == LineEnding.None ? LineEnding.OpenArrow : LineEnding.None });
-        StyleEndArrow.Click += (_, _) => ApplyStyle("arrowheads", s => s with { EndEnding = s.EndEnding == LineEnding.None ? LineEnding.OpenArrow : LineEnding.None });
+        StyleBorder.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleBorder, s => s.Color is null ? s with { Color = s.TextColor, Width = 1 } : s with { Color = null, Width = 0 });
+        StyleStartArrow.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleArrowheads, s => s with { StartEnding = s.StartEnding == LineEnding.None ? LineEnding.OpenArrow : LineEnding.None });
+        StyleEndArrow.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleArrowheads, s => s with { EndEnding = s.EndEnding == LineEnding.None ? LineEnding.OpenArrow : LineEnding.None });
         StyleDelete.Click += (_, _) =>
         {
             if (Viewer.SelectedDrawing is { } a) _ = ChangeDrawing(new DrawingChange(a, DrawingEdit.Delete, null));
@@ -219,7 +221,8 @@ public partial class DocumentTab
     }
 
     /// <summary>Applies a style change from the bar to its target (one undo step for a drawing in the document).</summary>
-    private void ApplyStyle(string what, Func<AnnotStyle, AnnotStyle> change)
+    /// <param name="label">The edit's name as a format string, {0} the drawing ("Change {0} color").</param>
+    private void ApplyStyle(string label, Func<AnnotStyle, AnnotStyle> change)
     {
         var mouse = InputManager.Current.MostRecentInputDevice is MouseDevice or StylusDevice;
         if (StyleTarget() is { } t)
@@ -236,7 +239,7 @@ public partial class DocumentTab
                 {
                     var id = a.Id;
                     _pendingStyle = (id, next);
-                    _ = RestyleDrawing($"Change {CommentItem.TitleOf(a).ToLowerInvariant()} {what}", id, next);
+                    _ = RestyleDrawing(Loc.Format(label, CommentItem.TitleOf(a).ToLowerInvariant()), id, next);
                 }
                 else
                 {
@@ -303,7 +306,7 @@ public partial class DocumentTab
             _ => (d, pw) => Annotations.AddLine(d, pw, page, g.Paths[0][0], g.Paths[0][1], s, author, id),
         };
         // Quiet: what was drawn is on the page (Ctrl+Z undoes it); a toast per stroke would only get in the way.
-        return RunDrawingEdit($"Add {DrawTools.Title(r.Tool).ToLowerInvariant()}", edit, id, quiet: true);
+        return RunDrawingEdit(Loc.Format(Strings.Drawing_EditAdd, DrawTools.Title(r.Tool).ToLowerInvariant()), edit, id, quiet: true);
     }
 
     private Task<bool> ChangeDrawing(DrawingChange c)
@@ -311,9 +314,9 @@ public partial class DocumentTab
         var id = c.Annotation.Id;
         var title = CommentItem.TitleOf(c.Annotation).ToLowerInvariant();
         if (c.Geometry is not { } g)
-            return RunDrawingEdit($"Delete {title}", (d, pw) => Annotations.Delete(d, pw, id), id);
-        var verb = c.Edit switch { DrawingEdit.Move => "Move", DrawingEdit.Resize => "Resize", _ => "Reshape" };
-        return RunDrawingEdit($"{verb} {title}", (d, pw) => Annotations.UpdateGeometry(d, pw, id, g), id, quiet: true);
+            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditDelete, title), (d, pw) => Annotations.Delete(d, pw, id), id);
+        var label = c.Edit switch { DrawingEdit.Move => Strings.Drawing_EditMove, DrawingEdit.Resize => Strings.Drawing_EditResize, _ => Strings.Drawing_EditReshape };
+        return RunDrawingEdit(Loc.Format(label, title), (d, pw) => Annotations.UpdateGeometry(d, pw, id, g), id, quiet: true);
     }
 
     private Task<bool> SaveDrawingText(DrawingTextCommit t)
@@ -323,12 +326,12 @@ public partial class DocumentTab
         if (t.Id is not { } id)
         {
             var newId = t.NewId;
-            return RunDrawingEdit($"Add {title}", (d, pw) => Annotations.AddFreeText(d, pw, page, g.Box, text, s, author, g.Callout.Count > 0 ? g.Callout : null, newId),
+            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditAdd, title), (d, pw) => Annotations.AddFreeText(d, pw, page, g.Box, text, s, author, g.Callout.Count > 0 ? g.Callout : null, newId),
                 quiet: true);
         }
-        if (text.Length == 0) return RunDrawingEdit($"Delete {title}", (d, pw) => Annotations.Delete(d, pw, id));
+        if (text.Length == 0) return RunDrawingEdit(Loc.Format(Strings.Drawing_EditDelete, title), (d, pw) => Annotations.Delete(d, pw, id));
         if (!t.TextChanged && !t.GeometryChanged && !t.StyleChanged) return Task.FromResult(false);
-        return RunDrawingEdit(t.TextChanged ? $"Edit {title}" : $"Change {title}", (d, pw) =>
+        return RunDrawingEdit(Loc.Format(t.TextChanged ? Strings.Drawing_EditEdit : Strings.Drawing_EditChange, title), (d, pw) =>
         {
             if (t.TextChanged) d = Annotations.SetContents(d, pw, id, text);
             if (t.StyleChanged) d = Annotations.UpdateStyle(d, pw, id, s);
@@ -404,7 +407,7 @@ public partial class DocumentTab
     {
         switch (what)
         {
-            case "color" when DrawStyles.Parse(value) is { } c: ApplyStyle("color", s => WithColor(s, c)); break;
+            case "color" when DrawStyles.Parse(value) is { } c: ApplyStyle(Strings.Drawing_RestyleColor, s => WithColor(s, c)); break;
             case "thinner": StyleThinner.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); break;
             case "thicker": StyleThicker.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); break;
             case "smaller": StyleSmaller.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent)); break;

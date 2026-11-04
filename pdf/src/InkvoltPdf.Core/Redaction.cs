@@ -26,11 +26,11 @@ public static class Redaction
         dpi = Math.Clamp(dpi, 36, 1200);
         data = ClearRedactedFields(data, password, pages);
 
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Redact_CantEdit);
         using var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
         foreach (var (index, areas) in pages)
         {
-            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(areasByPage), $"There is no page {index + 1}.");
+            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(areasByPage), Loc.Format(PdfStrings.Redact_NoPage, index + 1));
             var scale = dpi / 72;
             var img = engine.Render(index, scale);
             var rgb = new byte[img.Width * img.Height * 3];
@@ -59,7 +59,7 @@ public static class Redaction
     /// </summary>
     private static byte[] ClearRedactedFields(byte[] data, string? password, List<KeyValuePair<int, IReadOnlyList<RectD>>> pages)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Redact_CantEdit);
         var hit = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         foreach (var (index, areas) in pages)
         {

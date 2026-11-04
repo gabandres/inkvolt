@@ -165,7 +165,7 @@ public static partial class RedactionCheck
                         {
                             bytes = bytes[..MaxStreamBytes];
                             _incomplete = true;
-                            _notes.Add($"{PartName(owner, xmp)}: only its first {MaxStreamBytes >> 20} MB were searched.");
+                            _notes.Add(Loc.Format(PdfStrings.Redact_OnlyFirstMb, PartName(owner, xmp), MaxStreamBytes >> 20));
                         }
                         text += '\n' + (xmp ? ProgramInXmp().Replace(PlainText(bytes), m => ProgramVersion().Replace(m.Value, "")) : owner?.Part == Part.Attachment ? FileText(bytes) + AttachedPdfText(bytes, PartName(owner, xmp)) : PlainText(bytes));
                     }
@@ -177,7 +177,7 @@ public static partial class RedactionCheck
                     {
                         // A filter that fails on its data: its strings were read, what it holds wasn't.
                         _incomplete = true;
-                        _notes.Add($"{PartName(owner, xmp)} couldn't be read, so it wasn't searched.");
+                        _notes.Add(Loc.Format(PdfStrings.Redact_PartUnreadable, PartName(owner, xmp)));
                     }
                 }
                 Search(text, xmp || signature || owner?.Part == Part.Info ? properties : patterns, PartName(owner, xmp));
@@ -199,7 +199,7 @@ public static partial class RedactionCheck
                 if (layers == 0) return;
                 _hiddenLayers = Math.Max(_hiddenLayers, layers);
                 // No page text holds what a hidden layer draws: its text is read from the content, as the page's own.
-                const string note = "A hidden layer's text was searched, but a picture in one can't be.";
+                var note = PdfStrings.Redact_HiddenLayerPicture;
                 if (options.ValuesOnly && !_notes.Contains(note)) _notes.Add(note);
                 foreach (var (o, owner) in all)
                 {
@@ -211,7 +211,7 @@ public static partial class RedactionCheck
                     }
                     catch (StreamTooLargeException)
                     {
-                        TooLarge($"Page {owner.Page + 1}'s content");
+                        TooLarge(Loc.Format(PdfStrings.Redact_PartPageContent, owner.Page + 1));
                     }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
                     {
@@ -234,7 +234,7 @@ public static partial class RedactionCheck
                     catch (Exception ex) when (ex is TimeoutException or TooManyHitsException)
                     {
                         _incomplete = true;
-                        _notes.Add($"{name} couldn't be searched to the end: {ex.Message}");
+                        _notes.Add(Loc.Format(PdfStrings.Redact_NotSearchedToEnd, name, ex.Message));
                         return;
                     }
                 }
@@ -255,14 +255,14 @@ public static partial class RedactionCheck
             catch (Exception ex) when (ex is InvalidOperationException or MuPDFException or PasswordRequiredException or ArgumentException)
             {
                 _incomplete = true;
-                _notes.Add($"{name} is a PDF that couldn't be opened, so its pages weren't searched.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_PdfNotOpened, name));
                 return "";
             }
         }
 
         /// <summary>What a part of the file is, in words that hold nothing the file itself named (a note can end up in a log).</summary>
         private static string PartName(Owner? owner, bool xmp) =>
-            xmp ? "XMP metadata" : RedactionCheck.Name(owner is null ? RedactionLeak.FileData : Finding(owner, "").Kind);
+            xmp ? PdfStrings.Redact_PartXmp : RedactionCheck.Name(owner is null ? RedactionLeak.FileData : Finding(owner, "").Kind);
 
         /// <summary>
         /// A part whose stream unpacks past <see cref="PdfObj.MaxStreamBytes"/> isn't searched, and the check says so: read as
@@ -271,7 +271,7 @@ public static partial class RedactionCheck
         private void TooLarge(string part)
         {
             _incomplete = true;
-            var note = $"{part} is too large to search (it unpacks to more than {PdfObj.MaxStreamBytes >> 20} MB), so it wasn't.";
+            var note = Loc.Format(PdfStrings.Redact_TooLarge, part, PdfObj.MaxStreamBytes >> 20);
             if (!_notes.Contains(note)) _notes.Add(note);
         }
 
@@ -293,23 +293,23 @@ public static partial class RedactionCheck
                 {
                     if (patterns.Pages is { } only && !only.Contains(p)) continue;
                     if (RedactionPatterns.FindOnPage(pages.GetText(p, cache: false, cancel), p, patterns, custom).Count > 0)
-                        Add(new RedactionFinding(RedactionLeak.EarlierRevision, $"{where}, page {p + 1}", "Text the patterns find, no longer on the pages") { Rewrite = true });
+                        Add(new RedactionFinding(RedactionLeak.EarlierRevision, Loc.Format(PdfStrings.Redact_WhereVersionPage, where, p + 1), PdfStrings.Redact_PatternTextGone) { Rewrite = true });
                 }
             }
             catch (Exception ex) when (ex is TimeoutException or TooManyHitsException or InvalidOperationException or MuPDFException or PasswordRequiredException or ArgumentException)
             {
                 _incomplete = true;
-                _notes.Add($"{where} couldn't be searched.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_CouldntSearch, where));
             }
             try
             {
                 using var old = PdfObj.Open(prefix, password, PdfDocumentOpenMode.Import);
                 if (PatternValues(old).Count > 0)
-                    Add(new RedactionFinding(RedactionLeak.EarlierRevision, where, "Something the patterns find in what it held besides its pages") { Rewrite = true });
+                    Add(new RedactionFinding(RedactionLeak.EarlierRevision, where, PdfStrings.Redact_PatternBesidePages) { Rewrite = true });
             }
             catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or PdfSharp.PdfSharpException or ArgumentException)
             {
-                _notes.Add($"{where}: what it held besides its pages couldn't be read on its own.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_BesidePagesUnreadable, where));
             }
         }
 
@@ -373,7 +373,7 @@ public static partial class RedactionCheck
                     }
                     catch (StreamTooLargeException)
                     {
-                        TooLarge($"Page {p + 1}'s content");
+                        TooLarge(Loc.Format(PdfStrings.Redact_PartPageContent, p + 1));
                         continue;
                     }
                     catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or ArgumentException or NotSupportedException or NotImplementedException or IndexOutOfRangeException)
@@ -390,7 +390,7 @@ public static partial class RedactionCheck
                 {
                     if (count <= shown.GetValueOrDefault(v)) continue;
                     _hit.Add(v);
-                    Add(new RedactionFinding(RedactionLeak.HiddenText, $"Page {p + 1}, in its content but not shown", matcher.Values[v])
+                    Add(new RedactionFinding(RedactionLeak.HiddenText, Loc.Format(PdfStrings.Redact_WhereInContentNotShown, p + 1), matcher.Values[v])
                         { Page = p, Box = OffPage, Sanitize = _hiddenLayers > 0 ? SanitizeItem.HiddenLayers : null });
                 }
             }
@@ -418,14 +418,14 @@ public static partial class RedactionCheck
             var d = o as PdfDictionary;
             var type = d is null ? "" : PdfObj.NameOf(d, "/Type");
             var number = o.Reference?.ObjectNumber ?? 0;
-            if (type == "/Metadata") return new(RedactionLeak.Metadata, "XMP metadata", text) { Sanitize = SanitizeItem.Metadata };
+            if (type == "/Metadata") return new(RedactionLeak.Metadata, PdfStrings.Redact_PartXmp, text) { Sanitize = SanitizeItem.Metadata };
             if (d is not null && (d.Elements.ContainsKey("/JS") || PdfObj.NameOf(d, "/S") == "/JavaScript"))
-                return new(RedactionLeak.FileData, "A script (JavaScript)", text) { Sanitize = SanitizeItem.ActiveContent };
-            if (type is "/Filespec" or "/EmbeddedFile") return new(RedactionLeak.Attachment, "An attached file", text) { Sanitize = SanitizeItem.EmbeddedFiles };
-            if (type == "/Annot") return new(RedactionLeak.Annotation, "A comment", text) { Sanitize = SanitizeItem.Comments };
-            if (type == "/StructElem") return new(RedactionLeak.StructureTree, "Tags (structure tree)", text);
-            if (!used) return new(RedactionLeak.FileData, $"Object {number}, which nothing in the document uses", text) { Rewrite = true };
-            return new(RedactionLeak.FileData, $"Object {number} of the file", text);
+                return new(RedactionLeak.FileData, PdfStrings.Redact_PartScript, text) { Sanitize = SanitizeItem.ActiveContent };
+            if (type is "/Filespec" or "/EmbeddedFile") return new(RedactionLeak.Attachment, PdfStrings.Redact_PartAttachment, text) { Sanitize = SanitizeItem.EmbeddedFiles };
+            if (type == "/Annot") return new(RedactionLeak.Annotation, PdfStrings.Redact_PartComment, text) { Sanitize = SanitizeItem.Comments };
+            if (type == "/StructElem") return new(RedactionLeak.StructureTree, PdfStrings.Redact_PartTags, text);
+            if (!used) return new(RedactionLeak.FileData, Loc.Format(PdfStrings.Redact_PartUnusedObject, number), text) { Rewrite = true };
+            return new(RedactionLeak.FileData, Loc.Format(PdfStrings.Redact_PartObject, number), text);
         }
 
         /// <summary>The objects the document reaches from its catalog and its properties.</summary>
@@ -467,7 +467,7 @@ public static partial class RedactionCheck
             if (ends.Count == 0) return;
             if (ends.Count > MaxRevisions)
             {
-                _notes.Add($"Only the last {MaxRevisions} of the file's {ends.Count} earlier versions were checked.");
+                _notes.Add(Loc.Format(PdfStrings.Redact_OnlyLastVersions, MaxRevisions, ends.Count));
                 _incomplete |= options is { ValuesOnly: true, Patterns: not null };
             }
             var current = new HashSet<string>(_texts.SelectMany(t => Words(t.Text)));
@@ -477,7 +477,7 @@ public static partial class RedactionCheck
             {
                 cancel.ThrowIfCancellationRequested();
                 var prefix = data.AsSpan(0, ends[k]).ToArray();
-                var where = $"Earlier version {k + 1} of the file";
+                var where = Loc.Format(PdfStrings.Redact_PartEarlierVersion, k + 1);
                 if (options is { ValuesOnly: true, Patterns: { IsEmpty: false } patterns }) PatternsInEarlierVersion(prefix, where, patterns);
                 try
                 {
@@ -494,7 +494,7 @@ public static partial class RedactionCheck
                             }
                             catch (StreamTooLargeException)
                             {
-                                TooLarge($"{PartName(owners.GetValueOrDefault(o), false)} in {where}");
+                                TooLarge(Loc.Format(PdfStrings.Redact_PartIn, PartName(owners.GetValueOrDefault(o), false), where));
                                 continue;
                             }
                             foreach (var (v, start, length) in matcher.Matches(text).DistinctBy(m => m.Value).ToList())
@@ -510,13 +510,13 @@ public static partial class RedactionCheck
                     {
                         var gone = Words(pages.GetText(p, cache: false, cancel).Text).Where(w => !current.Contains(w)).Distinct().ToList();
                         if (gone.Count == 0) continue;
-                        Add(new RedactionFinding(RedactionLeak.EarlierRevision, $"{where}, page {p + 1}",
-                            "Text no longer on the pages: " + string.Join(" ", gone.Take(12)) + (gone.Count > 12 ? " …" : "")) { Rewrite = true });
+                        Add(new RedactionFinding(RedactionLeak.EarlierRevision, Loc.Format(PdfStrings.Redact_WhereVersionPage, where, p + 1),
+                            PdfStrings.Redact_TextGone + string.Join(" ", gone.Take(12)) + (gone.Count > 12 ? " …" : "")) { Rewrite = true });
                     }
                 }
                 catch (Exception ex) when (ex is InvalidOperationException or MuPDFException or PasswordRequiredException or PdfSharp.PdfSharpException or ArgumentException)
                 {
-                    _notes.Add($"{where} couldn't be read on its own.");
+                    _notes.Add(Loc.Format(PdfStrings.Redact_ReadOnItsOwn, where));
                 }
                 Step();
             }
@@ -537,7 +537,7 @@ public static partial class RedactionCheck
             foreach (var (v, start, length) in matcher.Matches(text).DistinctBy(m => m.Value).ToList())
             {
                 if (!_hit.Add(v) || inFile.Contains(v)) continue;
-                Add(new RedactionFinding(RedactionLeak.FileData, "The file's bytes, outside the objects the document reads", Excerpt(text, start, length)) { Rewrite = true });
+                Add(new RedactionFinding(RedactionLeak.FileData, PdfStrings.Redact_PartFileBytes, Excerpt(text, start, length)) { Rewrite = true });
             }
         }
     }
@@ -606,7 +606,7 @@ public static partial class RedactionCheck
         {
             if (o is not PdfDictionary d || (PdfObj.NameOf(d, "/Type") != "/Filespec" && !d.Elements.ContainsKey("/EF"))) continue;
             var name = PdfObj.Text(d.Elements["/UF"]) ?? PdfObj.Text(d.Elements["/F"]) ?? "";
-            var owner = new Owner(Part.Attachment, -1, name.Length > 0 ? $"Attached file '{name}'" : "An attached file", SanitizeItem.EmbeddedFiles);
+            var owner = new Owner(Part.Attachment, -1, name.Length > 0 ? Loc.Format(PdfStrings.Redact_PartAttachmentNamed, name) : PdfStrings.Redact_PartAttachment, SanitizeItem.EmbeddedFiles);
             map.TryAdd(d, owner);
             if (PdfObj.Dict(d.Elements["/EF"]) is { } ef)
                 foreach (var key in ef.Elements.Keys.ToList()) Set(ef.Elements[key], owner);
@@ -616,8 +616,8 @@ public static partial class RedactionCheck
         {
             cancel.ThrowIfCancellationRequested();
             var page = doc.Pages[p];
-            map.TryAdd(page, new Owner(Part.Page, p, $"Page {p + 1}'s own data", SanitizeItem.Metadata));
-            Content(page.Elements["/Contents"], new Owner(Part.Content, p, $"Page {p + 1}", null, PdfObj.Dict(page.Elements["/Resources"])));
+            map.TryAdd(page, new Owner(Part.Page, p, Loc.Format(PdfStrings.Redact_PartPageData, p + 1), SanitizeItem.Metadata));
+            Content(page.Elements["/Contents"], new Owner(Part.Content, p, Loc.Format(PdfStrings.Redact_WherePage, p + 1), null, PdfObj.Dict(page.Elements["/Resources"])));
             if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) continue;
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
             {
@@ -645,12 +645,12 @@ public static partial class RedactionCheck
             void Field(PdfDictionary f, int depth)
             {
                 if (depth > 32 || !seen.Add(f)) return;
-                map.TryAdd(f, new Owner(Part.Field, -1, $"Form field '{FieldName(f)}'", SanitizeItem.FormValues));
+                map.TryAdd(f, new Owner(Part.Field, -1, Loc.Format(PdfStrings.Redact_PartField, FieldName(f)), SanitizeItem.FormValues));
                 if (PdfObj.Array(f.Elements["/Kids"]) is { } kids)
                     foreach (var k in kids.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) Field(k, depth + 1);
             }
             foreach (var f in PdfObj.Array(acro.Elements["/Fields"])?.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>() ?? []) Field(f, 0);
-            var xfa = new Owner(Part.Xfa, -1, "The form's XFA data", SanitizeItem.FormValues);
+            var xfa = new Owner(Part.Xfa, -1, PdfStrings.Redact_PartXfa, SanitizeItem.FormValues);
             switch (PdfObj.Resolve(acro.Elements["/XFA"]))
             {
                 case PdfDictionary { Stream: not null } s:
@@ -663,7 +663,7 @@ public static partial class RedactionCheck
         }
 
         // The outline: siblings by /Next, children by /First, each item once.
-        var bookmark = new Owner(Part.Bookmark, -1, "Bookmark", SanitizeItem.Bookmarks);
+        var bookmark = new Owner(Part.Bookmark, -1, PdfStrings.Redact_PartBookmark, SanitizeItem.Bookmarks);
         var stack = new Stack<PdfDictionary>();
         if (PdfObj.Dict(PdfObj.Dict(catalog.Elements["/Outlines"])?.Elements["/First"]) is { } top) stack.Push(top);
         for (var guard = 0; stack.Count > 0 && guard < 200_000; guard++)
@@ -675,9 +675,9 @@ public static partial class RedactionCheck
             if (PdfObj.Dict(item.Elements["/First"]) is { } child) stack.Push(child);
         }
 
-        map.TryAdd(doc.Info, new Owner(Part.Info, -1, "Document properties", SanitizeItem.Metadata));
+        map.TryAdd(doc.Info, new Owner(Part.Info, -1, PdfStrings.Redact_PartProperties, SanitizeItem.Metadata));
 
-        var structure = new Owner(Part.Structure, -1, "Tags (structure tree)", null);
+        var structure = new Owner(Part.Structure, -1, PdfStrings.Redact_PartTags, null);
         var elems = new Stack<(PdfItem? Item, int Depth)>();
         elems.Push((PdfObj.Dict(catalog.Elements["/StructTreeRoot"])?.Elements["/K"], 0));
         for (var guard = 0; elems.Count > 0 && guard < 500_000; guard++)
@@ -703,25 +703,25 @@ public static partial class RedactionCheck
         var subtype = PdfObj.NameOf(a, "/Subtype").TrimStart('/');
         var flags = PdfObj.Int(a.Elements["/F"]) ?? 0;
         if (subtype == "Widget" || a.Elements.ContainsKey("/FT"))
-            return new Owner(Part.Annotation, p, $"Form field '{FieldName(a)}' on page {p + 1}", (flags & (2 | 32)) != 0 ? SanitizeItem.HiddenAnnotations : SanitizeItem.FormValues);
+            return new Owner(Part.Annotation, p, Loc.Format(PdfStrings.Redact_PartFieldOnPage, FieldName(a), p + 1), (flags & (2 | 32)) != 0 ? SanitizeItem.HiddenAnnotations : SanitizeItem.FormValues);
         var what = subtype switch
         {
-            "Text" => "Note",
-            "FreeText" => "Text box",
-            "Square" => "Rectangle",
-            "Circle" => "Ellipse",
-            "Ink" => "Drawing",
-            "Popup" => "Pop-up note",
-            "FileAttachment" => "Attached file (comment)",
-            "" => "Comment",
+            "Text" => PdfStrings.Redact_AnnotNote,
+            "FreeText" => PdfStrings.Redact_AnnotTextBox,
+            "Square" => PdfStrings.Redact_AnnotRectangle,
+            "Circle" => PdfStrings.Redact_AnnotEllipse,
+            "Ink" => PdfStrings.Redact_AnnotDrawing,
+            "Popup" => PdfStrings.Redact_AnnotPopup,
+            "FileAttachment" => PdfStrings.Redact_AnnotAttachment,
+            "" => PdfStrings.Redact_AnnotComment,
             _ => subtype,
         };
-        if ((flags & (2 | 32)) != 0) return new Owner(Part.Annotation, p, $"Hidden {what.ToLowerInvariant()} on page {p + 1}", SanitizeItem.HiddenAnnotations);
+        if ((flags & (2 | 32)) != 0) return new Owner(Part.Annotation, p, Loc.Format(PdfStrings.Redact_PartHiddenAnnot, what.ToLowerInvariant(), p + 1), SanitizeItem.HiddenAnnotations);
         return subtype switch
         {
-            "Link" => new Owner(Part.Annotation, p, $"Link on page {p + 1}", SanitizeItem.ExternalLinks),
-            "FileAttachment" => new Owner(Part.Annotation, p, $"{what} on page {p + 1}", SanitizeItem.EmbeddedFiles),
-            _ => new Owner(Part.Annotation, p, $"{what} on page {p + 1}", SanitizeItem.Comments),
+            "Link" => new Owner(Part.Annotation, p, Loc.Format(PdfStrings.Redact_PartLinkOnPage, p + 1), SanitizeItem.ExternalLinks),
+            "FileAttachment" => new Owner(Part.Annotation, p, Loc.Format(PdfStrings.Redact_PartOnPage, what, p + 1), SanitizeItem.EmbeddedFiles),
+            _ => new Owner(Part.Annotation, p, Loc.Format(PdfStrings.Redact_PartOnPage, what, p + 1), SanitizeItem.Comments),
         };
     }
 

@@ -85,7 +85,7 @@ public static partial class CommentFiles
     /// <param name="pdfFileName">The PDF's file name, written as the file the comments belong to (XFDF and FDF <c>f</c>).</param>
     public static CommentExport Export(byte[] data, string? password, CommentFileFormat format, string? pdfFileName = null)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's comments can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Comment_CantRead);
         var (records, left) = Collect(doc);
         var bytes = format switch
         {
@@ -128,7 +128,7 @@ public static partial class CommentFiles
             Dict = portable.Annotation(f.Annot),
             ReplyTo = PdfObj.Dict(f.Annot.Elements["/IRT"]) is { } target && keys.TryGetValue(target, out var k) ? k : null,
         }).ToList();
-        var lines = left.Select(kv => $"{Plural(kv.Value, KindName(kv.Key))}: not exported (they hold files or media)").ToList();
+        var lines = left.Select(kv => Loc.Format(PdfStrings.Comment_NotExported, CountOf(kv.Value, kv.Key))).ToList();
         return (records, lines);
     }
 
@@ -267,32 +267,34 @@ public static partial class CommentFiles
         foreach (var r in records)
         {
             var subtype = r.Subtype;
-            string Where() => $"Page {r.Page + 1}, {KindName(subtype)}{(r.Dict.GetValueOrDefault("T") is string { Length: > 0 } t ? " by " + t : "")}";
+            string Where() => r.Dict.GetValueOrDefault("T") is string { Length: > 0 } t
+                ? Loc.Format(PdfStrings.Comment_WhereBy, r.Page + 1, KindName(subtype), t)
+                : Loc.Format(PdfStrings.Comment_Where, r.Page + 1, KindName(subtype));
             if (r.Page < 0 || r.Page >= doc.PageCount)
             {
-                skipped.Add($"{Where()}: the document has no page {r.Page + 1}");
+                skipped.Add(Loc.Format(PdfStrings.Comment_SkippedNoPage, Where(), r.Page + 1));
                 continue;
             }
             if (NotComments.Contains(subtype) || NotCarried.Contains(subtype))
             {
-                skipped.Add($"{Where()}: {(NotCarried.Contains(subtype) ? "files and media aren't imported" : "not a comment")}");
+                skipped.Add(Loc.Format(NotCarried.Contains(subtype) ? PdfStrings.Comment_SkippedMedia : PdfStrings.Comment_SkippedNotComment, Where()));
                 continue;
             }
             if (byKey.ContainsKey(r.Key))
             {
-                skipped.Add($"{Where()}: already in the document");
+                skipped.Add(Loc.Format(PdfStrings.Comment_SkippedAlreadyIn, Where()));
                 continue;
             }
             var rect = Numbers(r.Dict.GetValueOrDefault("Rect"));
             if (rect is not { Count: 4 } || rect.Any(v => !double.IsFinite(v)))
             {
-                skipped.Add($"{Where()}: it has no position");
+                skipped.Add(Loc.Format(PdfStrings.Comment_SkippedNoPosition, Where()));
                 continue;
             }
             if (byLook.TryGetValue(Look(r.Page, subtype, rect, r.Dict.GetValueOrDefault("Contents") as string, r.Dict.GetValueOrDefault("T") as string), out var same))
             {
                 byKey[r.Key] = same;
-                skipped.Add($"{Where()}: already in the document");
+                skipped.Add(Loc.Format(PdfStrings.Comment_SkippedAlreadyIn, Where()));
                 continue;
             }
 
@@ -326,7 +328,7 @@ public static partial class CommentFiles
             }
         }
         if (orphans > 0)
-            notes.Add($"{Plural(orphans, "reply", "replies")} kept as comments of their own: the comment they answer is neither in the document nor in the file.");
+            notes.Add(Loc.Format(orphans == 1 ? PdfStrings.Comment_OrphanReplies_One : PdfStrings.Comment_OrphanReplies_Many, orphans.ToString("N0", CultureInfo.InvariantCulture)));
         if (added.Count == 0) return new CommentImport(data, 0, skipped, notes);
         return new CommentImport(PdfObj.Save(doc), added.Count, skipped, notes);
     }
@@ -338,8 +340,8 @@ public static partial class CommentFiles
     /// <summary>The comments in an XFDF, FDF or CSV file, and lines for those that can't be read.</summary>
     internal static (List<Record> Records, List<string> Skipped) Parse(byte[] file)
     {
-        if (file.Length == 0) throw new InvalidDataException("The file is empty.");
-        if (file.Length > MaxFileBytes) throw new InvalidDataException($"The file is larger than {MaxFileBytes >> 20} MB, the most Inkvolt PDF imports.");
+        if (file.Length == 0) throw new InvalidDataException(PdfStrings.Comment_FileEmpty);
+        if (file.Length > MaxFileBytes) throw new InvalidDataException(Loc.Format(PdfStrings.Comment_FileTooLarge, MaxFileBytes >> 20));
         var skipped = new List<string>();
         var start = file.Length >= 3 && file[0] == 0xEF && file[1] == 0xBB && file[2] == 0xBF ? 3 : 0;
         while (start < file.Length && file[start] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n') start++;
@@ -347,7 +349,7 @@ public static partial class CommentFiles
         if (start < file.Length && file[start] == (byte)'<') records = ReadXfdf(file, skipped);
         else if (file.AsSpan(start).StartsWith("%FDF"u8)) records = ReadFdf(file, skipped);
         else records = ReadCsv(file, skipped);
-        if (records.Count > MaxComments) throw new InvalidDataException($"The file has more than {MaxComments:N0} comments, the most Inkvolt PDF imports.");
+        if (records.Count > MaxComments) throw new InvalidDataException(Loc.Format(PdfStrings.Comment_TooMany, MaxComments));
         return (records, skipped);
     }
 
@@ -360,11 +362,11 @@ public static partial class CommentFiles
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException or IndexOutOfRangeException)
         {
-            throw new InvalidDataException("The FDF file is damaged.", ex);
+            throw new InvalidDataException(PdfStrings.Comment_FdfDamaged, ex);
         }
-        if (fdf.FdfDict() is not { } root) throw new InvalidDataException("The FDF file has no /FDF dictionary.");
+        if (fdf.FdfDict() is not { } root) throw new InvalidDataException(PdfStrings.Comment_FdfNoDict);
         if (fdf.Resolve(root.GetValueOrDefault("Annots")) is not List<object?> list) return [];
-        if (list.Count > MaxComments) throw new InvalidDataException($"The file has more than {MaxComments:N0} comments, the most Inkvolt PDF imports.");
+        if (list.Count > MaxComments) throw new InvalidDataException(Loc.Format(PdfStrings.Comment_TooMany, MaxComments));
 
         var cleaner = new Cleaner(fdf.Resolve);
         var dicts = list.Select(fdf.Resolve).OfType<Dictionary<string, object?>>().ToList();
@@ -450,7 +452,7 @@ public static partial class CommentFiles
 
         public object? Value(object? v, int depth)
         {
-            if (++_nodes > MaxNodes) throw new InvalidDataException("The file holds more objects than Inkvolt PDF imports.");
+            if (++_nodes > MaxNodes) throw new InvalidDataException(PdfStrings.Comment_TooManyObjects);
             if (depth > 32) return null;
             v = resolve(v);
             if (v is Dictionary<string, object?> or Fdf.Stream or List<object?>)
@@ -559,30 +561,37 @@ public static partial class CommentFiles
 
     // ---------------- Words ----------------
 
-    /// <summary>What a comment of <paramref name="subtype"/> is called ("highlight", "note", "drawing").</summary>
-    public static string KindName(string subtype) => subtype switch
+    /// <summary>What a comment of <paramref name="subtype"/> is called ("highlight", "note", "drawing"), </summary>
+    public static string KindName(string subtype) => KindNames(subtype).One;
+
+    /// <summary>A kind's name for one comment and for several.</summary>
+    private static (string One, string Many) KindNames(string subtype) => subtype switch
     {
-        "Text" => "note",
-        "FreeText" => "text box",
-        "Highlight" => "highlight",
-        "Underline" => "underline",
-        "StrikeOut" => "strike-through",
-        "Squiggly" => "squiggly underline",
-        "Ink" => "drawing",
-        "Square" => "rectangle",
-        "Circle" => "ellipse",
-        "Line" => "line",
-        "Polygon" => "polygon",
-        "PolyLine" => "connected lines",
-        "Stamp" => "stamp",
-        "Caret" => "insert mark",
-        "Redact" => "redaction mark",
-        "FileAttachment" => "file attachment",
-        "Sound" => "sound",
-        "" => "comment",
-        _ => subtype,
+        "Text" => (PdfStrings.Comment_KindNote, PdfStrings.Comment_KindNotes),
+        "FreeText" => (PdfStrings.Comment_KindTextBox, PdfStrings.Comment_KindTextBoxes),
+        "Highlight" => (PdfStrings.Comment_KindHighlight, PdfStrings.Comment_KindHighlights),
+        "Underline" => (PdfStrings.Comment_KindUnderline, PdfStrings.Comment_KindUnderlines),
+        "StrikeOut" => (PdfStrings.Comment_KindStrikeOut, PdfStrings.Comment_KindStrikeOuts),
+        "Squiggly" => (PdfStrings.Comment_KindSquiggly, PdfStrings.Comment_KindSquigglies),
+        "Ink" => (PdfStrings.Comment_KindInk, PdfStrings.Comment_KindInks),
+        "Square" => (PdfStrings.Comment_KindSquare, PdfStrings.Comment_KindSquares),
+        "Circle" => (PdfStrings.Comment_KindCircle, PdfStrings.Comment_KindCircles),
+        "Line" => (PdfStrings.Comment_KindLine, PdfStrings.Comment_KindLines),
+        "Polygon" => (PdfStrings.Comment_KindPolygon, PdfStrings.Comment_KindPolygons),
+        "PolyLine" => (PdfStrings.Comment_KindPolyLine, PdfStrings.Comment_KindPolyLines),
+        "Stamp" => (PdfStrings.Comment_KindStamp, PdfStrings.Comment_KindStamps),
+        "Caret" => (PdfStrings.Comment_KindCaret, PdfStrings.Comment_KindCarets),
+        "Redact" => (PdfStrings.Comment_KindRedact, PdfStrings.Comment_KindRedacts),
+        "FileAttachment" => (PdfStrings.Comment_KindFileAttachment, PdfStrings.Comment_KindFileAttachments),
+        "Sound" => (PdfStrings.Comment_KindSound, PdfStrings.Comment_KindSounds),
+        "" => (PdfStrings.Comment_KindComment, PdfStrings.Comment_KindComments),
+        _ => (subtype, subtype.EndsWith('s') ? subtype : subtype + "s"),
     };
 
-    private static string Plural(int n, string word, string? plural = null) =>
-        n == 1 ? $"1 {word}" : $"{n.ToString("N0", CultureInfo.InvariantCulture)} {plural ?? (word.EndsWith('s') ? word : word + "s")}";
+    /// <summary>"1 highlight", "12 highlights": a count of comments of one kind.</summary>
+    private static string CountOf(int n, string subtype)
+    {
+        var (one, many) = KindNames(subtype);
+        return n == 1 ? $"1 {one}" : $"{n.ToString("N0", CultureInfo.InvariantCulture)} {many}";
+    }
 }

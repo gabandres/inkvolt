@@ -70,21 +70,21 @@ internal static class Incremental
         if (!force && !signed) return;
         if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
         {
-            why.Value = "it is encrypted";
+            why.Value = PdfStrings.Doc_AppendEncrypted;
             return;
         }
         try
         {
             if (Tail(data) is not { } tail)
             {
-                why.Value = "its last cross-reference section can't be found";
+                why.Value = PdfStrings.Doc_AppendNoXref;
                 return;
             }
             using var orig = PdfObj.Read(new MemoryStream(data, writable: false), password, PdfDocumentOpenMode.Import);
             var pairs = Pair(orig, doc, tail.HasInfo);
             if (pairs is null)
             {
-                why.Value = "its objects can't be matched up";
+                why.Value = PdfStrings.Doc_AppendNoMatch;
                 return;
             }
 
@@ -120,7 +120,7 @@ internal static class Incremental
             } while (changed);
             if (map.Count == 0)
             {
-                why.Value = "its objects can't be matched up";
+                why.Value = PdfStrings.Doc_AppendNoMatch;
                 return;
             }
 
@@ -154,7 +154,7 @@ internal static class Incremental
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             // Not trackable: the edit can only be saved by rewriting the file.
-            why.Value = $"its structure can't be extended ({ex.Message})";
+            why.Value = Loc.Format(PdfStrings.Doc_AppendNoExtend, ex.Message);
         }
     }
 
@@ -172,7 +172,7 @@ internal static class Incremental
             return appended;
         }
         if (!Signed.TryGetValue(doc, out var why) || SignedEdits.RewriteAllowed) return null;
-        throw new SignaturesWouldBreakException(CountSignatures(doc), why.Value is { Length: > 0 } reason ? reason : "the update can't be written");
+        throw new SignaturesWouldBreakException(CountSignatures(doc), why.Value is { Length: > 0 } reason ? reason : PdfStrings.Doc_AppendCantWrite);
     }
 
     /// <summary>Signature dictionaries (a /ByteRange and /Contents) in the document, at least 1.</summary>
@@ -209,7 +209,7 @@ internal static class Incremental
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            if (Signed.TryGetValue(doc, out var why)) why.Value = $"the update can't be written ({ex.Message})";
+            if (Signed.TryGetValue(doc, out var why)) why.Value = Loc.Format(PdfStrings.Doc_AppendCantWriteDetail, ex.Message);
             return null;
         }
     }

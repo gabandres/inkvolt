@@ -27,27 +27,25 @@ internal static class Comparing
         foreach (var t in host.OpenTabs.Where(t => t.Session.IsPdf && !t.IsDisposed))
         {
             var unsaved = t.Session.IsDirty || t.HasPendingEdits;
-            choices.Add(new Choice(unsaved ? $"{t.Session.DisplayName} (open, with unsaved changes)" : $"{t.Session.DisplayName} (open)", t, null));
+            choices.Add(new Choice(Loc.Format(unsaved ? Strings.Compare_OpenUnsaved : Strings.Compare_Open, t.Session.DisplayName), t, null));
             if (unsaved && t.Session.FilePath is { } path && File.Exists(path))
-                choices.Add(new Choice($"{t.Session.DisplayName} (as saved on disk)", t, path, Saved: true));
+                choices.Add(new Choice(Loc.Format(Strings.Compare_AsSaved, t.Session.DisplayName), t, path, Saved: true));
         }
 
         // Recent files that aren't open, for the other side.
         foreach (var path in AppSettings.Current.RecentFiles.Where(p => p.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)).Take(10))
         {
             if (choices.Exists(c => c.Tab?.Session.FilePath is { } open && string.Equals(open, path, StringComparison.OrdinalIgnoreCase)) || !File.Exists(path)) continue;
-            choices.Add(new Choice($"{Path.GetFileName(path)} (recent)", null, path));
+            choices.Add(new Choice(Loc.Format(Strings.Compare_Recent, Path.GetFileName(path)), null, path));
         }
 
-        var dlg = new FormDialog(host, "Compare Files", "Compare", 520);
-        dlg.AddNote("Shows what changed from the original to the changed version: text side by side with the differences " +
-                    "highlighted, moves and formatting listed apart, or the pages overlaid to spot changes in drawings and scans. " +
-                    "Either one can be a Word, Excel or PowerPoint file, or a scan: its words are recognized on this PC.");
-        var original = Picker(dlg, host, "Original (older version)", choices);
-        var changed = Picker(dlg, host, "Changed (newer version)", choices);
-        var swap = new Button { Content = "Swap", Padding = new Thickness(12, 4, 12, 4), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
+        var dlg = new FormDialog(host, Strings.Compare_Title, Strings.Compare_Compare, 520);
+        dlg.AddNote(Strings.Compare_Note);
+        var original = Picker(dlg, host, Strings.Compare_Original, Strings.Compare_BrowseOriginal, Strings.Compare_OriginalFile, choices);
+        var changed = Picker(dlg, host, Strings.Compare_Changed, Strings.Compare_BrowseChanged, Strings.Compare_ChangedFile, choices);
+        var swap = new Button { Content = Strings.Compare_Swap, Padding = new Thickness(12, 4, 12, 4), HorizontalAlignment = HorizontalAlignment.Left, Margin = new Thickness(0, 10, 0, 0) };
         swap.Click += (_, _) => (original.SelectedItem, changed.SelectedItem) = (changed.SelectedItem, original.SelectedItem);
-        System.Windows.Automation.AutomationProperties.SetName(swap, "Swap original and changed");
+        System.Windows.Automation.AutomationProperties.SetName(swap, Strings.Compare_SwapName);
         dlg.Add(null, swap);
 
         // An open document with unsaved changes: compare them against its saved file. Otherwise the open document is
@@ -65,9 +63,9 @@ internal static class Comparing
 
         dlg.Validate(() =>
         {
-            if (original.SelectedItem is null) return "Choose the original: an open document or a file (Browse…).";
-            if (changed.SelectedItem is null) return "Choose the changed version: an open document or a file (Browse…).";
-            return original.SelectedItem == changed.SelectedItem ? "Choose two different documents." : null;
+            if (original.SelectedItem is null) return Strings.Compare_ChooseOriginal;
+            if (changed.SelectedItem is null) return Strings.Compare_ChooseChanged;
+            return original.SelectedItem == changed.SelectedItem ? Strings.Compare_ChooseTwo : null;
         });
         if (!dlg.ShowModal()) return;
 
@@ -79,15 +77,15 @@ internal static class Comparing
         CompareWindow.Open(host, oldSide, newSide);
     }
 
-    private static ComboBox Picker(FormDialog dlg, Window owner, string label, List<Choice> choices)
+    private static ComboBox Picker(FormDialog dlg, Window owner, string label, string browseName, string pickTitle, List<Choice> choices)
     {
         var combo = new ComboBox { ItemsSource = choices, MinWidth = 340 };
         System.Windows.Automation.AutomationProperties.SetName(combo, label);
-        var browse = new Button { Content = "Browse…", Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
-        System.Windows.Automation.AutomationProperties.SetName(browse, $"Browse for the {label.Split(' ')[0].ToLowerInvariant()} file");
+        var browse = new Button { Content = Strings.Common_Browse, Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
+        System.Windows.Automation.AutomationProperties.SetName(browse, browseName);
         browse.Click += (_, _) =>
         {
-            if (PickFile(owner, $"{label.Split(' ')[0]} file") is not { } path) return;
+            if (PickFile(owner, pickTitle) is not { } path) return;
             var existing = choices.FirstOrDefault(c => c.Path is not null && !c.Saved && string.Equals(c.Path, path, StringComparison.OrdinalIgnoreCase));
             if (existing is null)
             {
@@ -114,9 +112,9 @@ internal static class Comparing
         {
             Title = title,
             InitialDirectory = AppSettings.Current.LastFolder,
-            Filter = $"Documents|*.pdf;{(office.Length > 0 ? office + ";" : "")}{Pictures}|PDF files (*.pdf)|*.pdf" +
-                     (office.Length > 0 ? $"|Office files (converted with Microsoft Office)|{office}" : "") +
-                     $"|Pictures of scanned pages|{Pictures}|All files (*.*)|*.*",
+            Filter = $"{Strings.Compare_FilterDocuments}|*.pdf;{(office.Length > 0 ? office + ";" : "")}{Pictures}|{Strings.Compare_FilterPdf}|*.pdf" +
+                     (office.Length > 0 ? $"|{Strings.Compare_FilterOffice}|{office}" : "") +
+                     $"|{Strings.Compare_FilterScans}|{Pictures}|{Strings.Compare_FilterAll}|*.*",
         };
         return dlg.ShowDialog(owner) == true ? dlg.FileName : null;
     }
@@ -137,7 +135,7 @@ internal static class Comparing
         {
             if (tab.IsDisposed)
             {
-                Prompt.Info(owner, "That document was closed", "Choose it again from a file.");
+                Prompt.Info(owner, Strings.Compare_Closed, Strings.Compare_ChooseAgain);
                 return null;
             }
             return new CompareSide(tab.Session.DisplayName, tab.Session.Data, tab.Session.Password);
@@ -150,7 +148,7 @@ internal static class Comparing
             {
                 var data = File.ReadAllBytes(path);
                 using (PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, t.Session.Password)) { }
-                return new CompareSide($"{t.Session.DisplayName} (saved)", data, t.Session.Password);
+                return new CompareSide(Loc.Format(Strings.Compare_Saved, t.Session.DisplayName), data, t.Session.Password);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PasswordRequiredException or MuPDFCore.MuPDFException or InvalidOperationException)
             {
@@ -160,7 +158,7 @@ internal static class Comparing
         if (!choice.Saved && !path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
             return await LoadFile(owner, path);
         return PdfFiles.LoadForImport(owner, path) is { } source
-            ? new CompareSide(choice.Saved ? $"{source.Name} (saved)" : source.Name, source.Data, source.Password)
+            ? new CompareSide(choice.Saved ? Loc.Format(Strings.Compare_Saved, source.Name) : source.Name, source.Data, source.Password)
             : null;
     }
 
@@ -173,18 +171,17 @@ internal static class Comparing
         {
             if (OfficeConverter.Precheck(path, app) is { } problem)
             {
-                Prompt.Info(owner, $"Can't compare {name}", problem);
+                Prompt.Info(owner, Loc.Format(Strings.Compare_CantCompare, name), problem);
                 return null;
             }
             var appName = OfficeFiles.AppName(app);
             // As for opening one: automation opens files without Protected View, so one from the internet needs an OK first.
             var internet = OfficeConverter.ZoneOf(path) >= 3;
-            if (internet && !Prompt.Confirm(owner, $"{name} came from the internet",
-                    $"Windows marks this file as downloaded from the internet. {appName} opens it here without Protected View: its macros stay off, " +
-                    "but it could still fetch content linked from elsewhere (a template, pictures, linked data). Convert it only if you trust where it came from.",
-                    "Convert Anyway", warning: true))
+            if (internet && !Prompt.Confirm(owner, Loc.Format(Strings.Compare_FromInternet, name),
+                    Loc.Format(Strings.Compare_FromInternetBody, appName),
+                    Strings.Compare_ConvertAnyway, warning: true))
                 return null;
-            using var progress = new ProgressPrompt(owner, $"Comparing {name}", $"Converting with {appName}…");
+            using var progress = new ProgressPrompt(owner, Loc.Format(Strings.Compare_Comparing, name), Loc.Format(Strings.Compare_ConvertingWith, appName));
             try
             {
                 var made = await OfficeConverter.ConvertAsync(path, app, internet, progress.Token);
@@ -197,7 +194,7 @@ internal static class Comparing
             catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or ArgumentException)
             {
                 progress.Dispose();
-                Prompt.Error(owner, $"Couldn't convert {name}", ex.Message);
+                Prompt.Error(owner, Loc.Format(Strings.Compare_CouldntConvert, name), ex.Message);
                 return null;
             }
         }
@@ -210,7 +207,7 @@ internal static class Comparing
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException or NotSupportedException)
             {
-                Prompt.Error(owner, $"Couldn't read {name}", ex.Message);
+                Prompt.Error(owner, Loc.Format(Strings.Compare_CouldntRead, name), ex.Message);
                 return null;
             }
         }

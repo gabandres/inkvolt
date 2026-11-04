@@ -169,11 +169,11 @@ public static partial class Annotations
     private static byte[] Redraw(byte[] data, string? password, string id, Func<AnnotGeometry, AnnotStyle, (AnnotGeometry, AnnotStyle)> change)
     {
         using var doc = OpenForEdit(data, password);
-        var (p, annot) = Find(doc, id) ?? throw new InvalidOperationException("That comment no longer exists.");
+        var (p, annot) = Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Annot_Gone);
         var page = doc.Pages[p];
         var subtype = PdfObj.Name(annot.Elements["/Subtype"]) ?? "";
         if (!IsDrawing(annot, subtype) || Describe(page, annot, subtype) is not { } current)
-            throw new InvalidOperationException("This comment can't be reshaped or restyled.");
+            throw new InvalidOperationException(PdfStrings.Annot_CantReshape);
         var (g, s) = change(current.Geometry, current.Style);
         Validate(subtype, g, s);
         Apply(doc, page, annot, subtype, g, s);
@@ -217,32 +217,32 @@ public static partial class Annotations
         ArgumentNullException.ThrowIfNull(g);
         ArgumentNullException.ThrowIfNull(s);
         var points = g.Paths.SelectMany(p => p).Concat(g.Callout).ToList();
-        if (points.Count > MaxPoints) throw new ArgumentException("Too many points.", nameof(g));
+        if (points.Count > MaxPoints) throw new ArgumentException(PdfStrings.Annot_TooManyPoints, nameof(g));
         if (points.Any(p => !double.IsFinite(p.X) || !double.IsFinite(p.Y))
             || !double.IsFinite(g.Box.X) || !double.IsFinite(g.Box.Y) || !double.IsFinite(g.Box.Width) || !double.IsFinite(g.Box.Height))
-            throw new ArgumentException("The position isn't a number.", nameof(g));
+            throw new ArgumentException(PdfStrings.Annot_PositionNotNumber, nameof(g));
         if (!double.IsFinite(s.Width) || !double.IsFinite(s.Opacity) || !double.IsFinite(s.FontSize) || s.Dash?.Any(d => !double.IsFinite(d)) == true)
-            throw new ArgumentException("The style isn't valid.", nameof(s));
+            throw new ArgumentException(PdfStrings.Annot_StyleInvalid, nameof(s));
         switch (subtype)
         {
             case "Ink":
-                if (!g.Paths.Any(p => p.Count > 0)) throw new ArgumentException("Nothing was drawn.", nameof(g));
+                if (!g.Paths.Any(p => p.Count > 0)) throw new ArgumentException(PdfStrings.Annot_NothingDrawn, nameof(g));
                 break;
             case "Line":
-                if (g.Paths.Count != 1 || g.Paths[0].Count != 2) throw new ArgumentException("A line needs a start and an end.", nameof(g));
+                if (g.Paths.Count != 1 || g.Paths[0].Count != 2) throw new ArgumentException(PdfStrings.Annot_LineNeedsEnds, nameof(g));
                 break;
             case "Polygon" or "PolyLine":
-                if (g.Paths.Count != 1 || g.Paths[0].Count < (subtype == "Polygon" ? 3 : 2)) throw new ArgumentException("Not enough vertices.", nameof(g));
+                if (g.Paths.Count != 1 || g.Paths[0].Count < (subtype == "Polygon" ? 3 : 2)) throw new ArgumentException(PdfStrings.Annot_NotEnoughVertices, nameof(g));
                 break;
             case "Square" or "Circle" or "FreeText":
-                if (g.Box.IsEmpty) throw new ArgumentException("The box is empty.", nameof(g));
-                if (g.Callout.Count > 2) throw new ArgumentException("A callout has a tip and at most one knee.", nameof(g));
+                if (g.Box.IsEmpty) throw new ArgumentException(PdfStrings.Annot_BoxEmpty, nameof(g));
+                if (g.Callout.Count > 2) throw new ArgumentException(PdfStrings.Annot_CalloutShape, nameof(g));
                 break;
         }
         if (subtype is "Ink" or "Line" or "PolyLine" && (s.Color is null || s.Width <= 0))
-            throw new ArgumentException("A line needs a color and a width.", nameof(s));
+            throw new ArgumentException(PdfStrings.Annot_LineNeedsColor, nameof(s));
         if (subtype is "Square" or "Circle" or "Polygon" && (s.Color is null || s.Width <= 0) && s.Fill is null)
-            throw new ArgumentException("A shape needs a border or a fill.", nameof(s));
+            throw new ArgumentException(PdfStrings.Annot_ShapeNeedsPaint, nameof(s));
     }
 
     private static AnnotStyle Normalize(AnnotStyle s) => s with

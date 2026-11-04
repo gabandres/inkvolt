@@ -64,8 +64,8 @@ public static class Optimizer
     public static OptimizeResult Optimize(byte[] data, string? password, OptimizeOptions? options = null)
     {
         options ??= new OptimizeOptions();
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
-        SignedEdits.RequireRewrite(data, doc, "optimizing rewrites the whole file");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Optimize_CantEdit);
+        SignedEdits.RequireRewrite(data, doc, PdfStrings.Optimize_RewriteReason);
 
         RemoveExtras(doc, options);
         var duplicates = options.DeduplicateStreams ? Deduplicate(doc) : 0;

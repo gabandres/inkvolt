@@ -33,7 +33,7 @@ public partial class DocumentTab
     private void InitAi()
     {
         if (Viewer.ContextMenu is not { } menu) return;
-        _ctxExplain = new MenuItem { Command = Cmd.AiExplain, Header = "E_xplain with AI" };
+        _ctxExplain = new MenuItem { Command = Cmd.AiExplain, Header = Strings.TabAi_ExplainMenu };
         menu.Items.Insert(menu.Items.IndexOf(CtxMarkupSeparator), _ctxExplain);
         Viewer.ContextMenuOpening += (_, _) =>
             _ctxExplain.Visibility = AiService.IsEnabled && Viewer.HasSelection ? Visibility.Visible : Visibility.Collapsed;
@@ -56,7 +56,7 @@ public partial class DocumentTab
                 KeyboardIncrement = 24,
                 Focusable = true,
             };
-            System.Windows.Automation.AutomationProperties.SetName(_aiSplitter, "Resize the AI assistant");
+            System.Windows.Automation.AutomationProperties.SetName(_aiSplitter, Strings.TabAi_ResizePane);
             root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             _aiColumn = new ColumnDefinition { Width = new GridLength(360), MinWidth = 260, MaxWidth = 900 };
             root.ColumnDefinitions.Add(_aiColumn);
@@ -72,7 +72,7 @@ public partial class DocumentTab
                 _aiCancel?.Cancel();
                 _aiTurns.Clear();
                 _aiPane.Clear();
-                _aiPane.ShowStatus("Conversation cleared");
+                _aiPane.ShowStatus(Strings.TabAi_Cleared);
             };
             _aiPane.AskRequested += (_, q) => _ = AiAsk(q);
             _aiPane.SummarizeRequested += (_, _) => Cmd.AiSummarize.Execute(null, Window.GetWindow(this));
@@ -127,18 +127,18 @@ public partial class DocumentTab
         var chunks = AiText.Chunk(texts, config.InputTokens);
         if (chunks.Count == 0)
         {
-            _aiPane!.ShowStatus($"Not sent: {AiText.PagesText(pages)} {(pages.Length == 1 ? "has" : "have")} no text. Scanned pages need Recognize Text (OCR) first.");
+            _aiPane!.ShowStatus(Loc.Plural(pages.Length, Strings.TabAi_NoTextOcr_One, Strings.TabAi_NoTextOcr_Many, AiText.PagesText(pages)));
             return;
         }
         var first = AiPrompts.SummaryRequests(chunks);
-        var label = $"Summarize {AiText.PagesText(pages)}";
+        var label = Loc.Format(Strings.TabAi_SummarizeLabel, AiText.PagesText(pages));
         // The combining requests carry the model's own partial summaries: they are shown before they go (always for an
         // internet endpoint; on this PC or the network unless the user chose not to be asked for it).
         var showCombine = config.Endpoint.Reach == AiReach.Internet || !AiService.SkipsPreview(config.Endpoint);
-        var outgoing = new AiOutgoing(first, $"The text of {AiText.PagesText(pages)}",
+        var outgoing = new AiOutgoing(first, Loc.Format(Strings.TabAi_SentTextOf, AiText.PagesText(pages)),
             first.Count == 1 ? null
-            : showCombine ? "the partial summaries the model writes, which you'll see before they're sent back to it to be combined"
-            : "the partial summaries the model writes, sent back to it to be combined (without asking, as chosen for this endpoint)");
+            : showCombine ? Strings.TabAi_SentPartialsShown
+            : Strings.TabAi_SentPartialsUnasked);
         await AiRun(config, label, outgoing, async (client, onFinal, onStep, ct) =>
         {
             string? finish = null;
@@ -153,8 +153,8 @@ public partial class DocumentTab
             {
                 await Task.Yield();
                 var ok = Window.GetWindow(this) is { } w && !_disposed && AiActions.ConfirmSend(w, config,
-                    new AiOutgoing(round, $"The partial summaries the model wrote about {AiText.PagesText(pages)}", null),
-                    _aiCopyRestricted, force: config.Endpoint.Reach == AiReach.Internet, title: "Send the partial summaries to combine them?");
+                    new AiOutgoing(round, Loc.Format(Strings.TabAi_SentPartialsAbout, AiText.PagesText(pages)), null),
+                    _aiCopyRestricted, force: config.Endpoint.Reach == AiReach.Internet, title: Strings.TabAi_SendPartialsTitle);
                 declined = !ok;
                 return ok;
             });
@@ -175,7 +175,7 @@ public partial class DocumentTab
         if (scope.Length == 0 || scope.Equals("all", StringComparison.OrdinalIgnoreCase)) pages = [.. Enumerable.Range(0, Viewer.PageCount)];
         else if (!Core.PageRange.TryParse(scope, Viewer.PageCount, out pages, out var error))
         {
-            _aiPane.ShowStatus($"Pages: {error}");
+            _aiPane.ShowStatus(Loc.Format(Strings.TabAi_PagesError, error));
             _aiPane.Scope.Focus();
             return;
         }
@@ -184,16 +184,19 @@ public partial class DocumentTab
         var request = AiPrompts.Ask(question, _aiTurns, texts, config.InputTokens);
         if (request.Pages.Count == 0)
         {
-            _aiPane.ShowStatus($"Not sent: {AiText.PagesText(pages)} {(pages.Length == 1 ? "has" : "have")} no text to ask about.");
+            _aiPane.ShowStatus(Loc.Plural(pages.Length, Strings.TabAi_NoTextAsk_One, Strings.TabAi_NoTextAsk_Many, AiText.PagesText(pages)));
             return;
         }
         var what = request.Trimmed
-            ? $"Your question, the parts of {AiText.PagesText(request.Pages)} most related to it (all of {AiText.PagesText(pages)} doesn't fit the model's context)"
-            : $"Your question and the text of {AiText.PagesText(request.Pages)}";
-        if (_aiTurns.Count > 0) what += $", and the conversation so far ({_aiTurns.Count} earlier {(_aiTurns.Count == 1 ? "answer" : "answers")})";
+            ? _aiTurns.Count > 0
+                ? Loc.Plural(_aiTurns.Count, Strings.TabAi_SentTrimmedHistory_One, Strings.TabAi_SentTrimmedHistory_Many, AiText.PagesText(request.Pages), AiText.PagesText(pages))
+                : Loc.Format(Strings.TabAi_SentTrimmed, AiText.PagesText(request.Pages), AiText.PagesText(pages))
+            : _aiTurns.Count > 0
+                ? Loc.Plural(_aiTurns.Count, Strings.TabAi_SentQuestionHistory_One, Strings.TabAi_SentQuestionHistory_Many, AiText.PagesText(request.Pages))
+                : Loc.Format(Strings.TabAi_SentQuestion, AiText.PagesText(request.Pages));
         if (await AiRun(config, question, new AiOutgoing([request.Messages], what, null), async (client, onFinal, onStep, ct) =>
             {
-                onStep(new AiStep(1, 1, true, "Asking"));
+                onStep(new AiStep(1, 1, true, Strings.TabAi_StepAsking));
                 return await client.ChatAsync(request.Messages, onFinal, ct);
             }))
             _aiPane.Input.Clear();
@@ -211,7 +214,7 @@ public partial class DocumentTab
         }
         catch (Exception ex) when (ex is ObjectDisposedException or OperationCanceledException)
         {
-            _aiPane!.ShowStatus("Not sent: the document changed meanwhile. Select the text again.");
+            _aiPane!.ShowStatus(Strings.TabAi_ChangedMeanwhile);
             return;
         }
         IReadOnlyList<AiMessage> messages;
@@ -225,10 +228,10 @@ public partial class DocumentTab
             return;
         }
         var shown = AiText.Clean(selection);
-        var label = $"Explain: “{AiProtocol.Shorten(shown.Replace('\n', ' '), 120)}”";
-        await AiRun(config, label, new AiOutgoing([messages], $"The selected text ({AiText.PagesText(page, page)})", null), async (client, onFinal, onStep, ct) =>
+        var label = Loc.Format(Strings.TabAi_ExplainLabel, AiProtocol.Shorten(shown.Replace('\n', ' '), 120));
+        await AiRun(config, label, new AiOutgoing([messages], Loc.Format(Strings.TabAi_SentSelection, AiText.PagesText(page, page)), null), async (client, onFinal, onStep, ct) =>
         {
-            onStep(new AiStep(1, 1, true, "Explaining"));
+            onStep(new AiStep(1, 1, true, Strings.TabAi_StepExplaining));
             return await client.ChatAsync(messages, onFinal, ct);
         }, historyQuestion: $"Explain this passage from page {page + 1}: \"{AiProtocol.Shorten(shown, 600)}\"");
     }
@@ -241,14 +244,14 @@ public partial class DocumentTab
         if (_disposed || Window.GetWindow(this) is not { } owner) return null;
         if (AiService.Current(out var problem) is not { } config)
         {
-            if (!AiActions.ShowSettings(owner, problem + " Set it up here, or Cancel.")) return null;
+            if (!AiActions.ShowSettings(owner, Loc.Format(Strings.TabAi_SetUpHere, problem))) return null;
             if (AiService.Current(out _) is not { } now) return null;
             config = now;
         }
         ShowAiPane(focusQuestion: false);
         if (IsAiBusy)
         {
-            _aiPane!.ShowStatus("Wait for the current answer, or Stop it first.");
+            _aiPane!.ShowStatus(Strings.TabAi_WaitOrStop);
             return null;
         }
         if (config.IsOllama)
@@ -257,14 +260,14 @@ public partial class DocumentTab
             using var cts = new CancellationTokenSource();
             _aiCancel = cts;
             _aiPane!.SetBusy(true);
-            _aiPane.ShowStatus("Asking Ollama how much text the model reads at once…");
+            _aiPane.ShowStatus(Strings.TabAi_AskingOllama);
             try
             {
                 config = await AiService.ResolveAsync(config, cts.Token);
             }
             catch (OperationCanceledException)
             {
-                _aiPane.ShowStatus("Stopped. Nothing was sent.");
+                _aiPane.ShowStatus(Strings.TabAi_StoppedNothingSent);
                 return null;
             }
             finally
@@ -272,7 +275,7 @@ public partial class DocumentTab
                 _aiCancel = null;
                 if (!_disposed) _aiPane.SetBusy(false);
             }
-            _aiPane.ShowStatus($"{config.Model} reads {config.ContextTokens:N0} tokens at once ({config.ContextSource}).");
+            _aiPane.ShowStatus(Loc.Format(Strings.TabAi_ContextTokens, config.Model, config.ContextTokens, config.ContextSource));
         }
         await Task.Yield();
         return config;
@@ -293,10 +296,10 @@ public partial class DocumentTab
             using var cts = new CancellationTokenSource();
             _aiCancel = cts;
             _aiPane!.SetBusy(true);
-            _aiPane.ShowStatus($"Reading the text of {AiText.PagesText(missing)}…");
+            _aiPane.ShowStatus(Loc.Format(Strings.TabAi_ReadingTextOf, AiText.PagesText(missing)));
             try
             {
-                var progress = new Progress<int>(done => _aiPane.ShowStatus($"Reading the text… {done:N0} of {missing.Length:N0} pages"));
+                var progress = new Progress<int>(done => _aiPane.ShowStatus(Loc.Format(Strings.TabAi_ReadingProgress, done, missing.Length)));
                 var read = await Task.Run(() =>
                 {
                     var result = new Dictionary<int, string>();
@@ -322,18 +325,18 @@ public partial class DocumentTab
             }
             catch (OperationCanceledException)
             {
-                _aiPane.ShowStatus("Stopped. Nothing was sent.");
+                _aiPane.ShowStatus(Strings.TabAi_StoppedNothingSent);
                 return null;
             }
             catch (ObjectDisposedException)
             {
-                _aiPane.ShowStatus("Not sent: the document changed while its text was read. Try again.");
+                _aiPane.ShowStatus(Strings.TabAi_ChangedWhileReading);
                 return null;
             }
             catch (Exception ex)
             {
                 Log.Write($"AI: reading the pages' text failed: {ex.GetType().Name}");
-                _aiPane.ShowStatus("Not sent: the pages' text couldn't be read.");
+                _aiPane.ShowStatus(Strings.TabAi_TextUnreadable);
                 return null;
             }
             finally
@@ -358,7 +361,7 @@ public partial class DocumentTab
         _aiCopyRestricted = restricted;
         if (!AiActions.ConfirmSend(owner, config, outgoing, restricted))
         {
-            _aiPane.ShowStatus("Not sent.");
+            _aiPane.ShowStatus(Strings.TabAi_NotSent);
             return false;
         }
 
@@ -367,7 +370,7 @@ public partial class DocumentTab
         using var cts = new CancellationTokenSource();
         _aiCancel = cts;
         _aiPane.SetBusy(true);
-        _aiPane.ShowStatus($"Sending to {config.Endpoint.Host}…");
+        _aiPane.ShowStatus(Loc.Format(Strings.TabAi_Sending, config.Endpoint.Host));
         RaiseState();
         Log.Write($"AI: {outgoing.Requests.Count} request(s), {outgoing.Characters:N0} characters to {config.Endpoint.Host}"); // never the text
         var dispatcher = Dispatcher;
@@ -386,7 +389,7 @@ public partial class DocumentTab
                 piece => Ui(() => card.Append(piece)),
                 step => Ui(() =>
                 {
-                    var text = step.Total > 1 ? $"{step.What} ({step.Index} of {step.Total})…" : $"{step.What}…";
+                    var text = step.Total > 1 ? Loc.Format(Strings.TabAi_StepOf, step.What, step.Index, step.Total) : Loc.Format(Strings.TabAi_Step, step.What);
                     _aiPane.ShowStatus(text);
                     card.Progress(text);
                 }),
@@ -394,18 +397,18 @@ public partial class DocumentTab
             await dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background); // streamed pieces first
             finished = true;
             var answer = AiText.WithoutThinking(reply.Text, out _).Trim();
-            card.Finish(answer, reply.FinishReason == NotCombined ? "The partial summaries, not combined: you chose not to send them back to the model."
-                : reply.WasCutOff ? "The answer was cut off at the model's length limit."
-                : answer.Length == 0 ? "The model sent an empty answer." : null);
+            card.Finish(answer, reply.FinishReason == NotCombined ? Strings.TabAi_NotCombined
+                : reply.WasCutOff ? Strings.TabAi_CutOff
+                : answer.Length == 0 ? Strings.TabAi_EmptyAnswer : null);
             if (answer.Length > 0) _aiTurns.Add(new AiTurn(historyQuestion ?? question, answer));
-            _aiPane.ShowStatus("Answer ready. AI-generated: check it against the pages.");
+            _aiPane.ShowStatus(Strings.TabAi_AnswerReady);
             return true;
         }
         catch (OperationCanceledException)
         {
             finished = true;
-            card.Finish(null, "Stopped.");
-            _aiPane.ShowStatus("Stopped.");
+            card.Finish(null, Strings.TabAi_Stopped);
+            _aiPane.ShowStatus(Strings.TabAi_Stopped);
         }
         catch (AiException ex)
         {
@@ -419,7 +422,7 @@ public partial class DocumentTab
             // Anything unexpected still ends the card (the callers don't await this): an error, never a lasting "…".
             finished = true;
             Log.Write($"AI: the request to {config.Endpoint.Host} failed unexpectedly: {ex.GetType().Name}");
-            var message = $"Something went wrong with the answer from {config.Endpoint.Host} ({ex.GetType().Name}). Nothing more was sent.";
+            var message = Loc.Format(Strings.TabAi_Unexpected, config.Endpoint.Host, ex.GetType().Name);
             card.Finish(null, message, error: true);
             _aiPane.ShowStatus(message);
         }

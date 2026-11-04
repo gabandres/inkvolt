@@ -38,7 +38,7 @@ public static partial class ContentEditor
     internal static PageContent ReadRaw(PdfPage page, int pageIndex, CancellationToken cancel)
     {
         var walk = Walk(page, pageIndex, Parse(page, cancel), cancel);
-        return walk.CutShort ? throw new ContentEditException("This page's drawings draw each other too many times to read.") : walk.Content;
+        return walk.CutShort ? throw new ContentEditException(PdfStrings.Edit_DrawingsTooDeep) : walk.Content;
     }
 
     /// <summary>
@@ -706,14 +706,14 @@ public static partial class ContentEditor
             }
             if (text.Length > MaxTextToLayOut)
             {
-                refused.Add(new TranslationRefused(i, "its translation is far too long for any box"));
+                refused.Add(new TranslationRefused(i, PdfStrings.Translate_TooLongForBox));
                 continue;
             }
             var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills);
             var (layout, fit, fits, dropped) = FitText(framed, bottom, text);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
-                refused.Add(new TranslationRefused(i, "no font on this PC can draw it"));
+                refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));
                 continue;
             }
 
@@ -744,7 +744,7 @@ public static partial class ContentEditor
                     {
                         if (place.Outer is not null)
                         {
-                            refused.Add(new TranslationRefused(i, "it is inside a drawing that other pages share, drawn through another drawing"));
+                            refused.Add(new TranslationRefused(i, PdfStrings.Translate_SharedDrawing));
                             continue;
                         }
                         var copy = CopiedForm(doc, page, place, out var name);

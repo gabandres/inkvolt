@@ -41,9 +41,9 @@ public static class UpdateCheck
 {
     public static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(30);
 
-    public const string NotFromStoreText = "This copy of Inkvolt PDF isn't from the Microsoft Store, so it can't be updated from here.";
-    public const string UpToDateText = "Inkvolt PDF is up to date.";
-    public const string FailedText = "Couldn't reach the Microsoft Store. Check your connection, or look for updates in the Store app.";
+    public static string NotFromStoreText => PdfStrings.Store_NotFromStore;
+    public static string UpToDateText => PdfStrings.Store_UpToDate;
+    public static string FailedText => PdfStrings.Store_Failed;
 
     public static async Task<UpdateCheckResult> RunAsync(IStoreUpdates store, UpdateCheckTrigger trigger, bool packaged, bool checkAtStartup,
         Action<string>? log = null, CancellationToken cancel = default)
@@ -84,14 +84,14 @@ public static class UpdateCheck
 
     /// <summary>The notice's text; a mandatory update says so more firmly (reading still goes on).</summary>
     public static string NoticeText(bool mandatory) => mandatory
-        ? "A required update to Inkvolt PDF is ready. Please update now."
-        : "An update to Inkvolt PDF is ready";
+        ? PdfStrings.Store_RequiredReady
+        : PdfStrings.Store_UpdateReady;
 
     /// <summary>What to say after the install request comes back (when Windows hasn't already closed the app).</summary>
     public static string? InstallMessage(StoreInstallOutcome outcome) => outcome switch
     {
         StoreInstallOutcome.Completed => null,
-        StoreInstallOutcome.Canceled => "The update was canceled. You can update later from Help › Check for Updates.",
-        _ => "The update couldn't be installed now. Try again later, or update from the Microsoft Store app.",
+        StoreInstallOutcome.Canceled => PdfStrings.Store_Canceled,
+        _ => PdfStrings.Store_InstallFailed,
     };
 }

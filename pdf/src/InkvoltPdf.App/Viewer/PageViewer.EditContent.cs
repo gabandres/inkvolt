@@ -184,7 +184,7 @@ public sealed partial class PageViewer
             _contentFocus = (page, content.Runs.ToList().IndexOf(run));
             if (run.Blocked is { } why)
             {
-                ContentRefused?.Invoke(this, $"This text can't be edited: {why}.");
+                ContentRefused?.Invoke(this, Loc.Format(Strings.Viewer_TextCantEdit, why));
                 _surface.InvalidateVisual();
                 return true;
             }
@@ -196,7 +196,7 @@ public sealed partial class PageViewer
         {
             SelectImage(page, image.Box);
             _contentFocus = (page, content.Runs.Count + content.Images.ToList().IndexOf(image));
-            if (image.Blocked is { } why) ContentRefused?.Invoke(this, $"This picture can't be edited: {why}.");
+            if (image.Blocked is { } why) ContentRefused?.Invoke(this, Loc.Format(Strings.Viewer_PictureCantEdit, why));
             else if (e.ClickCount >= 2) ContentActionRequested?.Invoke(this, ContentAction.Replace);
             else StartImageDrag(image, -1, sp);
             return true;
@@ -334,11 +334,11 @@ public sealed partial class PageViewer
         _paraK = 1;
         var box = NewParagraphEditor(p);
         ScaleParagraphEditor(box, p, _zoom * PtToDip); // its sizes at the zoom before anything reads them
-        box.ToolTip = "Type, then press Enter or click elsewhere. Shift+Enter starts a new line. Esc cancels. The bar above changes the selection's look.";
+        box.ToolTip = Strings.Viewer_ParagraphTip;
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
-        System.Windows.Automation.AutomationProperties.SetName(box, "Paragraph text");
+        System.Windows.Automation.AutomationProperties.SetName(box, Strings.Viewer_ParagraphText);
         System.Windows.Automation.AutomationProperties.SetHelpText(box,
-            "Edits this paragraph in its own font; the text rewraps in the paragraph's box. The bar above gives the selected text another font, size, color, bold or italic. Enter applies, Shift+Enter starts a new line, Escape cancels.");
+            Strings.Viewer_ParagraphHelp);
         ShowEditor(box, null, null);
         _editorRun = run; // ShowEditor closes any previous editor first
         _editorParagraph = p;
@@ -353,10 +353,10 @@ public sealed partial class PageViewer
     {
         var box = NewTextEditor(run, run.Text);
         box.AcceptsReturn = false;
-        box.ToolTip = "Type, then press Enter or click elsewhere. Esc cancels.";
+        box.ToolTip = Strings.Viewer_RunTip;
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
-        System.Windows.Automation.AutomationProperties.SetName(box, "Page text");
-        System.Windows.Automation.AutomationProperties.SetHelpText(box, "Edits this text in its own font. Enter applies, Escape cancels.");
+        System.Windows.Automation.AutomationProperties.SetName(box, Strings.Viewer_PageText);
+        System.Windows.Automation.AutomationProperties.SetHelpText(box, Strings.Viewer_RunHelp);
         _editorRun = run;
         ShowEditor(box, null, null);
         _editorRun = run; // ShowEditor closes any previous editor first
@@ -404,21 +404,20 @@ public sealed partial class PageViewer
         if (check.Missing.Count > 0)
         {
             problem = true;
-            note = $"Neither the font “{run.FontName}” nor any font on this PC has {CharList(check.Missing)}, so those can't be typed here.";
+            note = Loc.Format(Strings.Viewer_FontMissing, run.FontName, CharList(check.Missing));
         }
         else
         {
             var diff = check.Width - check.OldWidth;
             note = Math.Abs(diff) < 0.5
-                ? $"Width {check.Width.ToString("0", CultureInfo.CurrentCulture)} pt, as before."
+                ? Loc.Format(Strings.Viewer_WidthSame, check.Width)
                 : diff > 0
-                    ? $"{diff.ToString("0", CultureInfo.CurrentCulture)} pt wider than before: it may run into what follows (text doesn't reflow)."
-                    : $"{(-diff).ToString("0", CultureInfo.CurrentCulture)} pt narrower than before.";
+                    ? Loc.Format(Strings.Viewer_Wider, diff)
+                    : Loc.Format(Strings.Viewer_Narrower, -diff);
             problem = diff > 0.5;
             // Characters the font lacks: never drawn from another font silently.
             if (check.Borrowed.Count > 0)
-                note += $"\n{CharList(check.Borrowed)} {(check.Borrowed.Count == 1 ? "isn't" : "aren't")} in this PDF's copy of “{run.FontName}”: drawn in " +
-                        $"{string.Join(" and ", check.StandIns)}, the closest font on this PC.";
+                note += "\n" + Loc.Plural(check.Borrowed.Count, Strings.Viewer_Borrowed_One, Strings.Viewer_Borrowed_Many, CharList(check.Borrowed), run.FontName, string.Join(Strings.Viewer_ListAnd, check.StandIns));
         }
         _runInfoText.Text = note;
         if (problem) _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, check.Missing.Count > 0 ? "SystemFillColorCriticalBrush" : "SystemFillColorCautionBrush");
@@ -434,29 +433,28 @@ public sealed partial class PageViewer
         string? brush = null;
         if (check.Missing.Count > 0)
         {
-            note = $"Neither the font “{p.Lead.FontName}” nor any font on this PC has {CharList(check.Missing)}, so those can't be typed here.";
+            note = Loc.Format(Strings.Viewer_FontMissing, p.Lead.FontName, CharList(check.Missing));
             brush = "SystemFillColorCriticalBrush";
         }
         else
         {
-            var lines = check.LineCount == 1 ? "1 line" : $"{check.LineCount.ToString(CultureInfo.CurrentCulture)} lines";
-            var was = check.LineCount == p.Lines.Count ? "as before" : $"was {p.Lines.Count.ToString(CultureInfo.CurrentCulture)}";
+            var lines = check.LineCount == p.Lines.Count ? Loc.Plural(check.LineCount, Strings.Viewer_LinesAsBefore_One, Strings.Viewer_LinesAsBefore_Many)
+                : Loc.Plural(check.LineCount, Strings.Viewer_LinesWas_One, Strings.Viewer_LinesWas_Many, p.Lines.Count);
             if (check.LookProblem is { } lp)
             {
-                note = $"{lines} ({was}), but {lp}.";
+                note = Loc.Format(Strings.Viewer_LinesBut, lines, lp);
                 brush = "SystemFillColorCriticalBrush";
             }
             else if (check.Overlaps is not null)
             {
-                note = $"{lines} ({was}): it would run into what follows below. You'll be asked before it is written.";
+                note = Loc.Format(Strings.Viewer_LinesOverlap, lines);
                 brush = "SystemFillColorCautionBrush";
             }
-            else note = $"{lines} ({was}), in the paragraph's box. Enter applies, Shift+Enter starts a new line.";
+            else note = Loc.Format(Strings.Viewer_LinesFit, lines);
             // Characters the paragraph's font lacks: never drawn from another font silently.
             if (check.Borrowed.Count > 0)
-                note += $"\n{CharList(check.Borrowed)} {(check.Borrowed.Count == 1 ? "isn't" : "aren't")} in this PDF's copy of “{p.Lead.FontName}”: drawn in " +
-                        $"{string.Join(" and ", check.StandIns)}, the closest font on this PC.";
-            if (check.Faces.Count > 0) note += $"\nDrawn in {string.Join(", ", check.Faces)} where the look asks for it (fonts on this PC, embedded as used).";
+                note += "\n" + Loc.Plural(check.Borrowed.Count, Strings.Viewer_Borrowed_One, Strings.Viewer_Borrowed_Many, CharList(check.Borrowed), p.Lead.FontName, string.Join(Strings.Viewer_ListAnd, check.StandIns));
+            if (check.Faces.Count > 0) note += "\n" + Loc.Format(Strings.Viewer_DrawnInFaces, string.Join(", ", check.Faces));
         }
         _runInfoText!.Text = note;
         _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "TextFillColorSecondaryBrush");
@@ -466,7 +464,7 @@ public sealed partial class PageViewer
 
     /// <summary>Characters for a note: “@”, “#” (a space as "space"), at most ten.</summary>
     private static string CharList(IReadOnlyList<string> chars) =>
-        string.Join(", ", chars.Take(10).Select(c => c == " " ? "space" : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) == UnicodeCategory.PrivateUse ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”"))
+        string.Join(", ", chars.Take(10).Select(c => c == " " ? Strings.Viewer_Space : char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) == UnicodeCategory.PrivateUse ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”"))
         + (chars.Count > 10 ? " …" : "");
 
     /// <summary>Lays the paragraph editor over the paragraph's box (its width; as tall as its text), the look bar over it and the note under it.</summary>
@@ -576,7 +574,7 @@ public sealed partial class PageViewer
                 StepContentFocus((mods & ModifierKeys.Shift) != 0 ? -1 : 1);
                 return true;
             case Key.Enter or Key.F2 when mods == ModifierKeys.None && FocusedRun() is { } run:
-                if (run.Blocked is { } why) ContentRefused?.Invoke(this, $"This text can't be edited: {why}.");
+                if (run.Blocked is { } why) ContentRefused?.Invoke(this, Loc.Format(Strings.Viewer_TextCantEdit, why));
                 else OpenTextEditor(_contentByPage[_contentFocus!.Value.Page], run);
                 return true;
             case Key.Enter when mods == ModifierKeys.None && image is { Blocked: null }:
@@ -625,7 +623,7 @@ public sealed partial class PageViewer
                     var run = c.Runs[next];
                     SelectImage(page, null);
                     EnsureVisible(page, run.Box);
-                    ContentAnnounce?.Invoke(this, run.Blocked is null ? $"Text: {run.Text}. Enter edits it." : $"Text: {run.Text}. Can't be edited: {run.Blocked}.");
+                    ContentAnnounce?.Invoke(this, run.Blocked is null ? Loc.Format(Strings.Viewer_AnnounceText, run.Text) : Loc.Format(Strings.Viewer_AnnounceTextBlocked, run.Text, run.Blocked));
                 }
                 else
                 {
@@ -633,8 +631,8 @@ public sealed partial class PageViewer
                     SelectImage(page, img.Box);
                     EnsureVisible(page, img.Box);
                     ContentAnnounce?.Invoke(this, img.Blocked is null
-                        ? "Picture selected. Arrow keys move it, Delete removes it, Enter replaces it."
-                        : $"Picture. Can't be edited: {img.Blocked}.");
+                        ? Strings.Viewer_AnnouncePicture
+                        : Loc.Format(Strings.Viewer_AnnouncePictureBlocked, img.Blocked));
                 }
                 _surface.InvalidateVisual();
                 return;

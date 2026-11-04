@@ -232,5 +232,5 @@ public static class TextStamps
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
 
     private static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode) =>
-        PdfObj.Open(data, password, mode, "This PDF can't be edited");
+        PdfObj.Open(data, password, mode, PdfStrings.Doc_CantEdit);
 }

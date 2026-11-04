@@ -108,7 +108,7 @@ internal static class Csv
             EndField();
             if (row.Count > 1 || row[0].Length > 0)
             {
-                if (rows.Count >= MaxRows) throw new InvalidDataException($"The file has more than {MaxRows:N0} rows.");
+                if (rows.Count >= MaxRows) throw new InvalidDataException(Loc.Format(PdfStrings.Doc_CsvTooManyRows, MaxRows));
                 rows.Add(row);
             }
             row = [];

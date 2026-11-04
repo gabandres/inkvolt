@@ -35,9 +35,9 @@ public sealed record FormMergeReport(int Rows, IReadOnlyList<FormMergeRow> Made,
 {
     /// <summary>"198 forms made, 2 rows failed."</summary>
     public string Text =>
-        $"{FormDataFiles.Number(Made.Count)} form{(Made.Count == 1 ? "" : "s")} made" +
-        (Failed.Count > 0 ? $", {FormDataFiles.Number(Failed.Count)} row{(Failed.Count == 1 ? "" : "s")} failed" : "") +
-        (Stopped ? ", stopped before the end" : "") + ".";
+        Loc.Plural(Made.Count, PdfStrings.Form_MergeMade_One, PdfStrings.Form_MergeMade_Many, FormDataFiles.Number(Made.Count)) +
+        (Failed.Count > 0 ? Loc.Plural(Failed.Count, PdfStrings.Form_MergeFailed_One, PdfStrings.Form_MergeFailed_Many, FormDataFiles.Number(Failed.Count)) : "") +
+        (Stopped ? PdfStrings.Form_MergeStopped : "") + ".";
 
     /// <summary>The report as CSV: a line per failed row (row, problems), then the unknown columns.</summary>
     public byte[] Csv()
@@ -75,7 +75,7 @@ public static partial class FormMerge
         foreach (Match m in Token().Matches(template))
         {
             var name = m.Groups[1].Value;
-            if (!BatchTokens.Contains(name) && !known.Contains(name)) return $"<<{name}>> is neither a column of the CSV nor <<name>>, <<n>> or <<date>>.";
+            if (!BatchTokens.Contains(name) && !known.Contains(name)) return Loc.Format(PdfStrings.Form_MergeBadToken, name);
         }
         return null;
     }
@@ -94,7 +94,7 @@ public static partial class FormMerge
         var (header, rows) = FormDataFiles.ReadTable(csv);
         if (ValidateTemplate(options.NameTemplate, header) is { } templateError) throw new InvalidDataException(templateError);
         var fields = FormEditor.DataFields(form, password);
-        if (fields.Count == 0) throw new InvalidOperationException("This PDF has no form fields with data.");
+        if (fields.Count == 0) throw new InvalidOperationException(PdfStrings.Form_NoDataFields);
         var names = fields.Select(f => f.Name).ToHashSet(StringComparer.Ordinal);
         var unknown = header.Where(h => h.Length > 0 && !names.Contains(h)).ToList();
         var outputs = new OutputNames(!options.NeverOverwrite, [formPath]);
@@ -120,7 +120,7 @@ public static partial class FormMerge
                 if (problems.Count == 0 && good.Count > 0)
                 {
                     var result = FormEditor.Fill(form, password, good);
-                    problems.AddRange(result.Rejected.Select(r => r.Message.Length > 0 ? $"{r.FieldName}: {r.Message}" : $"{r.FieldName}: refused by the form"));
+                    problems.AddRange(result.Rejected.Select(r => r.Message.Length > 0 ? $"{r.FieldName}: {r.Message}" : Loc.Format(PdfStrings.Form_MergeRefused, r.FieldName)));
                     filled = result.Data;
                 }
                 if (problems.Count > 0)

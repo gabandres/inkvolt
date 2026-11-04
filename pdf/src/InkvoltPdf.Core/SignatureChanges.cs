@@ -65,17 +65,17 @@ internal static class SignatureChanges
                 Incremental.Tail(revision)?.HasInfo ?? false, Incremental.Tail(data)?.HasInfo ?? false);
             var problems = comparison.Run();
             if (problems.Count == 0) return new(true, null, entries, comparison.OnlyValidationData);
-            var what = string.Join("; ", problems.Distinct().Take(3)) + (problems.Distinct().Count() > 3 ? "; and more" : "");
+            var what = string.Join("; ", problems.Distinct().Take(3)) + (problems.Distinct().Count() > 3 ? PdfStrings.Sign_AndMore : "");
             return new(false, level switch
             {
-                1 => $"The document is certified with no changes allowed, but it was changed after certification: {what}.",
-                2 or 3 => $"The document was changed after certification in ways the certification doesn't allow: {what}.",
-                _ => $"The document was changed after signing in ways a signature doesn't allow: {what}.",
+                1 => Loc.Format(PdfStrings.Sign_CertifiedChanged, what),
+                2 or 3 => Loc.Format(PdfStrings.Sign_ChangedCertification, what),
+                _ => Loc.Format(PdfStrings.Sign_ChangedSignature, what),
             }, entries);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return new(true, "Inkvolt PDF couldn't work out what was changed after signing.", null);
+            return new(true, PdfStrings.Sign_ChangesUnknown, null);
         }
     }
 
@@ -161,8 +161,8 @@ internal static class SignatureChanges
                 if (!rb.Annots.ContainsKey(n))
                 {
                     _sawOther = true;
-                    if (an.Widget) Problem("form fields removed");
-                    else if (level < 3) Problem("comments removed");
+                    if (an.Widget) Problem(PdfStrings.Sign_ChFieldsRemoved);
+                    else if (level < 3) Problem(PdfStrings.Sign_ChCommentsRemoved);
                 }
             CompareDirectAnnots(ra, rb);
             // A field dropped from the form while its widget stays on the page is no timestamp's doing.
@@ -181,15 +181,15 @@ internal static class SignatureChanges
             {
                 if (had.Remove(Key(annot))) continue;
                 _sawOther = true;
-                if (annot.Widget ? level < Approval : level < 3) Problem(annot.Widget ? "form fields added" : "comments added");
+                if (annot.Widget ? level < Approval : level < 3) Problem(annot.Widget ? PdfStrings.Sign_ChFieldsAdded : PdfStrings.Sign_ChCommentsAdded);
             }
             var has = rb.DirectAnnots.Select(Key).ToList();
             foreach (var annot in ra.DirectAnnots)
             {
                 if (has.Remove(Key(annot))) continue;
                 _sawOther = true;
-                if (annot.Widget) Problem("form fields removed");
-                else if (level < 3) Problem("comments removed");
+                if (annot.Widget) Problem(PdfStrings.Sign_ChFieldsRemoved);
+                else if (level < 3) Problem(PdfStrings.Sign_ChCommentsRemoved);
             }
         }
 
@@ -197,7 +197,7 @@ internal static class SignatureChanges
         {
             // What follows counts as a change to the document, apart from the few cases that clear this again.
             var other = true;
-            if (ra.Content.TryGetValue(n, out var page)) Problem($"the content of page {page + 1}");
+            if (ra.Content.TryGetValue(n, out var page)) Problem(Loc.Format(PdfStrings.Sign_ChPageContent, page + 1));
             else if (n == ra.Catalog)
             {
                 CompareCatalog((PdfDictionary)objA, (PdfDictionary)objB);
@@ -205,15 +205,15 @@ internal static class SignatureChanges
             }
             else if (ra.Pages.TryGetValue(n, out page))
             {
-                if (!Same(objA, objB, ["/Annots"])) Problem($"page {page + 1} (its size, rotation or resources)");
+                if (!Same(objA, objB, ["/Annots"])) Problem(Loc.Format(PdfStrings.Sign_ChPageProps, page + 1));
                 else other = false; // what was added to /Annots is judged on its own
             }
-            else if (ra.PageNodes.Contains(n)) Problem("pages added, removed or moved");
+            else if (ra.PageNodes.Contains(n)) Problem(PdfStrings.Sign_ChPagesMoved);
             else if (ra.Annots.TryGetValue(n, out var an))
             {
                 if (!rb.Annots.ContainsKey(n)) return; // reported as removed
                 if (an.Widget) ChangedField(ra.FieldOf.GetValueOrDefault(n), (PdfDictionary)objA, (PdfDictionary)objB, WidgetKeys);
-                else if (level < 3) Problem("comments changed");
+                else if (level < 3) Problem(PdfStrings.Sign_ChCommentsChanged);
             }
             else if (ra.FieldNodes.Contains(n)) ChangedField(ra.FieldOf.GetValueOrDefault(n), (PdfDictionary)objA, (PdfDictionary)objB, FieldKeys);
             else if (n == ra.AcroForm)
@@ -222,7 +222,7 @@ internal static class SignatureChanges
                 other = false;
             }
             else if (n == ra.Names) CompareNames(objA as PdfDictionary, objB as PdfDictionary);
-            else if (ra.SigValues.Contains(n)) Problem("an earlier signature's details");
+            else if (ra.SigValues.Contains(n)) Problem(PdfStrings.Sign_ChEarlierSignature);
             else if (n == ra.Info) other = DiffKeys((PdfDictionary)objA, (PdfDictionary)objB).Any(k => k is not ("/ModDate" or "/Producer"));
             else if (ra.Arrays.Contains(n) || rb.Arrays.Contains(n)) other = false; // what went in or out is judged on its own
             // After every other role, and not for what a widget or comment draws with: a store in the signed revision can point
@@ -235,16 +235,16 @@ internal static class SignatureChanges
             else if (ra.Meta.Contains(n)) { }
             else if (ra.Widgets.Contains(n) || rb.Widgets.Contains(n))
             {
-                if (level < 2) Problem("form field appearances");
+                if (level < 2) Problem(PdfStrings.Sign_ChAppearances);
                 else if (ra.DrawnBy.GetValueOrDefault(n)?.Select(w => ra.FieldOf.GetValueOrDefault(w)).FirstOrDefault(f => f is not null && f.Type != "/Sig" && locked(f.Name)) is { } f)
-                    Problem($"locked field \"{f.Name}\" (its appearance)");
+                    Problem(Loc.Format(PdfStrings.Sign_ChLockedAppearance, f.Name));
             }
             else if (ra.Comments.Contains(n) || rb.Comments.Contains(n))
             {
-                if (level < 3) Problem("comments changed");
+                if (level < 3) Problem(PdfStrings.Sign_ChCommentsChanged);
             }
             else if (level == Approval && (ra.Harmless.Contains(n) || rb.Harmless.Contains(n))) { }
-            else Problem("other document data");
+            else Problem(PdfStrings.Sign_ChOtherData);
             _sawOther |= other;
         }
 
@@ -256,7 +256,7 @@ internal static class SignatureChanges
                 else
                 {
                     _sawOther = true;
-                    if (level < 3) Problem("comments added");
+                    if (level < 3) Problem(PdfStrings.Sign_ChCommentsAdded);
                 }
             }
             else if (rb.FieldOf.TryGetValue(n, out var f)) AddedField(f, ra);
@@ -274,14 +274,14 @@ internal static class SignatureChanges
                     return;
                 }
                 _sawOther = true;
-                if (level < 3) Problem("signature fields added");
+                if (level < 3) Problem(PdfStrings.Sign_ChSignatureFields);
             }
             else
             {
                 _sawOther = true;
-                if (level < Approval) Problem("form fields added");
+                if (level < Approval) Problem(PdfStrings.Sign_ChFieldsAdded);
                 // A new field under a locked field's name takes its place in a reader.
-                else if (f is not null && ra.FieldNames.Contains(f.Name) && locked(f.Name)) Problem($"locked field \"{f.Name}\" (a new field of the same name)");
+                else if (f is not null && ra.FieldNames.Contains(f.Name) && locked(f.Name)) Problem(Loc.Format(PdfStrings.Sign_ChLockedNewField, f.Name));
             }
         }
 
@@ -299,10 +299,10 @@ internal static class SignatureChanges
             // Signing locks fields by setting their read-only flag: that alone is fine.
             if (keys.Remove("/Ff") && (PdfObj.Int(objB.Elements["/Ff"]) ?? 0) != ((PdfObj.Int(objA.Elements["/Ff"]) ?? 0) | 1)) keys.Add("/Ff");
             var name = f?.Name ?? "?";
-            if (keys.Any(k => !allowed.Contains(k))) Problem($"form field \"{name}\" (its properties)");
+            if (keys.Any(k => !allowed.Contains(k))) Problem(Loc.Format(PdfStrings.Sign_ChFieldProps, name));
             else if (keys.Count == 0) { }
-            else if (level < 2) Problem("form fields filled in");
-            else if (f is not null && f.Type != "/Sig" && locked(f.Name)) Problem($"locked field \"{name}\"");
+            else if (level < 2) Problem(PdfStrings.Sign_ChFieldsFilled);
+            else if (f is not null && f.Type != "/Sig" && locked(f.Name)) Problem(Loc.Format(PdfStrings.Sign_ChLockedField, name));
         }
 
         private void CompareCatalog(PdfDictionary x, PdfDictionary y)
@@ -324,10 +324,10 @@ internal static class SignatureChanges
                 else if (CatalogKeys.Contains(key) || (level == Approval && ApprovalCatalogKeys.Contains(key))) { }
                 else Problem(key switch
                 {
-                    "/OCProperties" => "which layers are shown",
-                    "/OpenAction" or "/AA" => "what happens when the document opens",
-                    "/Pages" => "pages added, removed or moved",
-                    _ => $"document settings ({key.TrimStart('/')})",
+                    "/OCProperties" => PdfStrings.Sign_ChLayers,
+                    "/OpenAction" or "/AA" => PdfStrings.Sign_ChOpenAction,
+                    "/Pages" => PdfStrings.Sign_ChPagesMoved,
+                    _ => Loc.Format(PdfStrings.Sign_ChDocSettings, key.TrimStart('/')),
                 });
             }
         }
@@ -340,7 +340,7 @@ internal static class SignatureChanges
                 return;
             }
             var keys = DiffKeys(x, y);
-            if (keys.Any(k => !AcroFormKeys.Contains(k))) Problem("form settings (e.g. XFA data)");
+            if (keys.Any(k => !AcroFormKeys.Contains(k))) Problem(PdfStrings.Sign_ChFormSettings);
             // A form's /SigFlags and /Fields change for a timestamp's field too; a new field in them is judged on its own.
             if (keys.Any(k => k is not ("/Fields" or "/SigFlags"))) _sawOther = true;
         }
@@ -348,7 +348,7 @@ internal static class SignatureChanges
         private void CompareNames(PdfDictionary? x, PdfDictionary? y)
         {
             if (x is null || y is null) return;
-            if (level < Approval || DiffKeys(x, y).Any(k => !NamesKeys.Contains(k))) Problem("document scripts or named items");
+            if (level < Approval || DiffKeys(x, y).Any(k => !NamesKeys.Contains(k))) Problem(PdfStrings.Sign_ChScripts);
         }
 
         private HashSet<string> DiffKeys(PdfDictionary x, PdfDictionary y)

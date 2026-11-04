@@ -39,36 +39,36 @@ public static class DrawTools
     /// <summary>What the tool makes, as a noun ("Rectangle"); also the comment's title.</summary>
     public static string Title(ViewerTool tool) => tool switch
     {
-        ViewerTool.Pen => "Drawing",
-        ViewerTool.Highlighter => "Highlighter",
-        ViewerTool.Rectangle => "Rectangle",
-        ViewerTool.Ellipse => "Ellipse",
-        ViewerTool.Line => "Line",
-        ViewerTool.Arrow => "Arrow",
-        ViewerTool.TextBox => "Text box",
-        ViewerTool.Callout => "Callout",
+        ViewerTool.Pen => Strings.Viewer_ToolDrawing,
+        ViewerTool.Highlighter => Strings.Viewer_ToolHighlighter,
+        ViewerTool.Rectangle => Strings.Viewer_ToolRectangle,
+        ViewerTool.Ellipse => Strings.Viewer_ToolEllipse,
+        ViewerTool.Line => Strings.Viewer_ToolLine,
+        ViewerTool.Arrow => Strings.Viewer_ToolArrow,
+        ViewerTool.TextBox => Strings.Viewer_ToolTextBox,
+        ViewerTool.Callout => Strings.Viewer_ToolCallout,
         _ => tool.ToString(),
     };
 
     /// <summary>The line under the tool's name in the Draw flyout: what it does, in a few plain words.</summary>
     public static string Description(ViewerTool tool) => tool switch
     {
-        ViewerTool.Pen => "Draw freehand with the mouse, a pen or a finger",
-        ViewerTool.Highlighter => "Draw over the page in see-through color",
-        ViewerTool.Rectangle => "Drag a box; Shift makes a square",
-        ViewerTool.Ellipse => "Drag an oval; Shift makes a circle",
-        ViewerTool.Line => "Drag a straight line",
-        ViewerTool.Arrow => "Drag a line that ends in an arrowhead",
-        ViewerTool.TextBox => "Type a line, or drag a box for wrapped text",
-        ViewerTool.Callout => "A text box with a line pointing at something",
+        ViewerTool.Pen => Strings.Viewer_ToolPenDesc,
+        ViewerTool.Highlighter => Strings.Viewer_ToolHighlighterDesc,
+        ViewerTool.Rectangle => Strings.Viewer_ToolRectangleDesc,
+        ViewerTool.Ellipse => Strings.Viewer_ToolEllipseDesc,
+        ViewerTool.Line => Strings.Viewer_ToolLineDesc,
+        ViewerTool.Arrow => Strings.Viewer_ToolArrowDesc,
+        ViewerTool.TextBox => Strings.Viewer_ToolTextBoxDesc,
+        ViewerTool.Callout => Strings.Viewer_ToolCalloutDesc,
         _ => "",
     };
 
     /// <summary>The tool's name in menus and tooltips.</summary>
     public static string ToolName(ViewerTool tool) => tool switch
     {
-        ViewerTool.Pen => "Pen",
-        ViewerTool.Highlighter => "Highlighter pen",
+        ViewerTool.Pen => Strings.Viewer_ToolPen,
+        ViewerTool.Highlighter => Strings.Viewer_ToolHighlighterPen,
         _ => Title(tool),
     };
 

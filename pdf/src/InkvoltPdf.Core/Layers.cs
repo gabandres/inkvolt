@@ -19,7 +19,7 @@ public static class Layers
 {
     public static IReadOnlyList<LayerInfo> List(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's layers can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Layer_CantRead);
         return ListIn(doc);
     }
 
@@ -47,7 +47,7 @@ public static class Layers
     /// <summary>The layer panel tree from /D /Order (layers in the order the author arranged them); flat when absent.</summary>
     public static IReadOnlyList<LayerOrderNode> ReadOrder(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's layers can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Layer_CantRead);
         var props = PdfObj.Dict(doc.Internals.Catalog.Elements["/OCProperties"]);
         var known = ListIn(doc).Select(l => l.Id).ToHashSet();
         if (PdfObj.Array(PdfObj.Dict(props?.Elements["/D"])?.Elements["/Order"]) is not { } order)
@@ -104,8 +104,8 @@ public static class Layers
         // Layer ids are object numbers as read (List opens for reading); PDFsharp renumbers objects when it opens for
         // editing, so translate them by position in /OCGs.
         List<int> fileIds;
-        using (var view = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be edited")) fileIds = OcgNumbers(view);
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using (var view = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_CantEdit)) fileIds = OcgNumbers(view);
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var props = PdfObj.Dict(doc.Internals.Catalog.Elements["/OCProperties"]);
         if (PdfObj.Array(props?.Elements["/OCGs"]) is not { } ocgs) return data;
         var editIds = OcgNumbers(doc);

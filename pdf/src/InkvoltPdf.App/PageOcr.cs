@@ -90,8 +90,7 @@ internal static class PageOcr
         }
     }
 
-    public const string Unavailable =
-        "Windows has no text recognition (OCR) language installed. Add one in Settings > Time & language > Language & region (a language's options list \"Optical character recognition\").";
+    public static string Unavailable => Strings.Ocr_NoLanguage;
 
     /// <summary>
     /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first. For the callers

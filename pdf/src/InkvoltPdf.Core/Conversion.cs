@@ -123,24 +123,24 @@ public static class WebFiles
         text = text.Trim();
         if (text.Length == 0)
         {
-            error = "Type a web address, such as example.com.";
+            error = PdfStrings.Convert_TypeAddress;
             return false;
         }
         var hasScheme = text.Contains("://", StringComparison.Ordinal) || text.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
                         text.StartsWith("data:", StringComparison.OrdinalIgnoreCase) || text.StartsWith("file:", StringComparison.OrdinalIgnoreCase);
         if (!Uri.TryCreate(hasScheme ? text : "https://" + text, UriKind.Absolute, out var parsed))
         {
-            error = "That isn't a web address.";
+            error = PdfStrings.Convert_NotAddress;
             return false;
         }
         if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
         {
-            error = "Only web addresses (http or https) can be opened here. For a file on this PC, use Browse.";
+            error = PdfStrings.Convert_OnlyWeb;
             return false;
         }
         if (string.IsNullOrEmpty(parsed.Host))
         {
-            error = "That web address has no site name.";
+            error = PdfStrings.Convert_NoSiteName;
             return false;
         }
         uri = parsed;

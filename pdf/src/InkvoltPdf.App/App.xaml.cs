@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
@@ -226,9 +227,9 @@ public partial class App : Application
             _showingError = true;
             try
             {
-                if (Prompt.Confirm(null, "Inkvolt PDF keeps running into errors",
-                        $"Something keeps going wrong ({ex.Message}). Save your work if you can, or quit Inkvolt PDF now and start it again. Details were written to {Log.FilePath}",
-                        "Quit Inkvolt PDF", warning: true))
+                if (Prompt.Confirm(null, Strings.Dialog_KeepsFailingTitle,
+                        Loc.Format(Strings.Dialog_KeepsFailingBody, ex.Message, Log.FilePath),
+                        Strings.Dialog_QuitApp, warning: true))
                 {
                     Log.Write("Quitting after repeated errors (user choice).");
                     Shutdown(1);
@@ -247,7 +248,7 @@ public partial class App : Application
         _showingError = true;
         try
         {
-            Prompt.Error(null, "Something went wrong", $"{ex.Message}  Details were written to {Log.FilePath}");
+            Prompt.Error(null, Strings.Dialog_SomethingWrong, Loc.Format(Strings.Dialog_ErrorDetails, ex.Message, Log.FilePath));
         }
         finally
         {

@@ -66,9 +66,9 @@ public static partial class AiPrompts
     public static IReadOnlyList<IReadOnlyList<AiMessage>> SummaryRequests(IReadOnlyList<AiChunk> chunks)
     {
         if (chunks.Count == 1)
-            return [[AiMessage.System(SummarySystem), AiMessage.User($"Summarize this document text ({chunks[0].PagesText}): a short overview, then the key points.\n\n{chunks[0].Text}")]];
+            return [[AiMessage.System(SummarySystem), AiMessage.User($"Summarize this document text ({chunks[0].PagesTextEnglish}): a short overview, then the key points.\n\n{chunks[0].Text}")]];
         return [.. chunks.Select((c, i) => (IReadOnlyList<AiMessage>)
-            [AiMessage.System(SummarySystem), AiMessage.User($"This is part {i + 1} of {chunks.Count} of one document ({c.PagesText}). Summarize this part in a few bullet points.\n\n{c.Text}")])];
+            [AiMessage.System(SummarySystem), AiMessage.User($"This is part {i + 1} of {chunks.Count} of one document ({c.PagesTextEnglish}). Summarize this part in a few bullet points.\n\n{c.Text}")])];
     }
 
     /// <summary>The request that combines partial summaries (the reduce step).</summary>
@@ -77,7 +77,7 @@ public static partial class AiPrompts
         var sb = new StringBuilder(final
             ? "These are summaries of consecutive parts of one document. Combine them into one summary: a short overview, then the key points. Keep the [p. N] citations.\n"
             : "These are summaries of consecutive parts of one document. Combine them into one shorter summary of these parts, as bullet points. Keep the [p. N] citations.\n");
-        foreach (var (part, summary) in parts) sb.Append($"\n### {Capital(part.PagesText)}\n{summary.Trim()}\n");
+        foreach (var (part, summary) in parts) sb.Append($"\n### {Capital(part.PagesTextEnglish)}\n{summary.Trim()}\n");
         return [AiMessage.System(SummarySystem), AiMessage.User(sb.ToString())];
     }
 
@@ -92,9 +92,9 @@ public static partial class AiPrompts
         Func<IReadOnlyList<AiMessage>, AiStep, CancellationToken, Task<string>> ask, CancellationToken cancel = default,
         Func<IReadOnlyList<IReadOnlyList<AiMessage>>, CancellationToken, Task<bool>>? confirmCombine = null)
     {
-        if (chunks.Count == 0) throw new AiException("These pages have no text to summarize. Scanned pages need Recognize Text (OCR) first.");
+        if (chunks.Count == 0) throw new AiException(PdfStrings.Ai_NoTextToSummarize);
         var first = SummaryRequests(chunks);
-        if (first.Count == 1) return await ask(first[0], new AiStep(1, 1, true, $"Summarizing {chunks[0].PagesText}"), cancel);
+        if (first.Count == 1) return await ask(first[0], new AiStep(1, 1, true, Loc.Format(PdfStrings.Ai_Summarizing, chunks[0].PagesText)), cancel);
 
         var done = 0;
         var total = chunks.Count + 1; // grows if the summaries need more than one combining round
@@ -102,7 +102,7 @@ public static partial class AiPrompts
         for (var i = 0; i < chunks.Count; i++)
         {
             cancel.ThrowIfCancellationRequested();
-            var summary = await ask(first[i], new AiStep(++done, total, false, $"Summarizing part {i + 1} of {chunks.Count} ({chunks[i].PagesText})"), cancel);
+            var summary = await ask(first[i], new AiStep(++done, total, false, Loc.Format(PdfStrings.Ai_SummarizingPart, i + 1, chunks.Count, chunks[i].PagesText)), cancel);
             parts.Add((chunks[i], summary));
         }
 
@@ -116,7 +116,7 @@ public static partial class AiPrompts
             // A round where every summary is alone in its group sends nothing: no question, straight to shortening them.
             if (round.Count > 0 && confirmCombine is not null && !await confirmCombine(round, cancel)) return PartsAsAnswer(parts);
             if (groups.Count == 1)
-                return await ask(round[0], new AiStep(++done, total, true, "Combining the parts into one summary"), cancel);
+                return await ask(round[0], new AiStep(++done, total, true, PdfStrings.Ai_CombiningParts), cancel);
             total += round.Count; // the requests this round really makes (the final combine is already counted)
             var next = new List<(AiChunk Part, string Summary)>();
             var r = 0;
@@ -124,7 +124,7 @@ public static partial class AiPrompts
             {
                 var span = new AiChunk(g[0].Part.FirstPage, g[^1].Part.LastPage, "");
                 var summary = g.Count == 1 ? g[0].Summary
-                    : await ask(round[r++], new AiStep(++done, total, false, $"Combining the summaries of {span.PagesText}"), cancel);
+                    : await ask(round[r++], new AiStep(++done, total, false, Loc.Format(PdfStrings.Ai_CombiningSummaries, span.PagesText)), cancel);
                 next.Add((span, summary));
             }
             if (next.Count >= parts.Count) // no progress: the summaries alone are too long; keep the start of each
@@ -201,8 +201,8 @@ public static partial class AiPrompts
 
         var included = chosen.SelectMany(c => Enumerable.Range(c.FirstPage, c.LastPage - c.FirstPage + 1)).Distinct().Order().ToList();
         var scope = included.Count == 0 ? "(the chosen pages have no text)"
-            : trimmed ? $"Excerpts from {AiText.PagesText(included)} (the parts most related to the question):"
-            : $"Text of {AiText.PagesText(included)}:";
+            : trimmed ? $"Excerpts from {AiText.PagesText(included, english: true)} (the parts most related to the question):"
+            : $"Text of {AiText.PagesText(included, english: true)}:";
         var messages = new List<AiMessage> { AiMessage.System($"{AskSystem}\n\n{scope}\n\n{string.Join("\n\n", chosen.Select(c => c.Text))}") };
         foreach (var t in turns)
         {
@@ -218,10 +218,9 @@ public static partial class AiPrompts
     public static IReadOnlyList<AiMessage> Explain(string selection, int page, int inputTokens)
     {
         var text = AiText.Clean(selection);
-        if (text.Length == 0) throw new AiException("The selection has no text to explain.");
+        if (text.Length == 0) throw new AiException(PdfStrings.Ai_NothingToExplain);
         if (AiText.EstimateTokens(text) is var tokens && tokens > inputTokens)
-            throw new AiException($"The selection is too long to explain at once (about {tokens:N0} tokens; the model's context leaves room for about {inputTokens:N0}). " +
-                                  "Select less, or use Summarize for whole pages.");
+            throw new AiException(Loc.Format(PdfStrings.Ai_SelectionTooLong, tokens, inputTokens));
         return [AiMessage.System(ExplainSystem), AiMessage.User($"Explain this passage from page {page + 1}:\n\n\"\"\"\n{text}\n\"\"\"")];
     }
 

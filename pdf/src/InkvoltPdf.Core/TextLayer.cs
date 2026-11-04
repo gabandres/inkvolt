@@ -37,10 +37,10 @@ public static class TextLayer
     {
         var pages = wordsByPage.Where(kv => kv.Value.Any(Usable)).OrderBy(kv => kv.Key).ToList();
         if (pages.Count == 0) return data;
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         foreach (var (index, words) in pages)
         {
-            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(wordsByPage), $"There is no page {index + 1}.");
+            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(wordsByPage), Loc.Format(PdfStrings.Page_NoPageN, index + 1));
             SetLayer(doc, doc.Pages[index], words, language);
         }
         return PdfObj.Save(doc);
@@ -63,7 +63,7 @@ public static class TextLayer
     /// </summary>
     public static byte[] Correct(byte[] data, string? password, int page, int index, string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException("A word can't be empty.", nameof(text));
+        if (string.IsNullOrWhiteSpace(text)) throw new ArgumentException(PdfStrings.Edit_WordEmpty, nameof(text));
         return Change(data, password, page, index, w => w with { Text = text.Trim(), Suspect = SuspectReasons.None });
     }
 
@@ -76,9 +76,9 @@ public static class TextLayer
 
     private static byte[] Change(byte[] data, string? password, int page, int index, Func<OcrWord, OcrWord> change)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (page < 0 || page >= doc.PageCount || FindLayer(doc.Pages[page]) is not { } layer || ParseWords(layer.Text) is not { } words)
-            throw new InvalidOperationException("This page has no recognized text to correct.");
+            throw new InvalidOperationException(PdfStrings.Edit_NoRecognizedText);
         if (index < 0 || index >= words.Count) throw new ArgumentOutOfRangeException(nameof(index));
         words = InFrameOf(doc.Pages[page], words, layer.Text);
         words[index] = change(words[index]);
@@ -206,7 +206,7 @@ public static class TextLayer
         for (var n = 1; fonts.Elements.Keys.Any(k => k.StartsWith(prefix, StringComparison.Ordinal)); n++) prefix = $"/PdOcr{n}_";
         var writer = new CidFontWriter(prefix);
         var primary = SystemFonts.Get("arial.ttf") ?? SystemFonts.Get("segoeui.ttf")
-            ?? throw new InvalidOperationException("No font is available for the text layer.");
+            ?? throw new InvalidOperationException(PdfStrings.Edit_NoFontForTextLayer);
 
         var words = all.Where(Usable).ToList();
         var ops = new StringBuilder(Marker);

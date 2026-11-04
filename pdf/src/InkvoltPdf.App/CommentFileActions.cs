@@ -11,8 +11,8 @@ namespace InkvoltPdf.App;
 /// </summary>
 internal static class CommentFileActions
 {
-    private const string Filter = "XFDF, for Acrobat and other PDF apps (*.xfdf)|*.xfdf|FDF, keeps every appearance (*.fdf)|*.fdf|CSV, a row per comment (*.csv)|*.csv";
-    private const string OpenFilter = "Comment files (*.xfdf;*.fdf;*.csv;*.xml)|*.xfdf;*.fdf;*.csv;*.xml|All files (*.*)|*.*";
+    private static string Filter => Strings.Comments_ExportFilter;
+    private static string OpenFilter => Strings.Comments_OpenFilter;
 
     public static async Task Export(MainWindow host, DocumentTab tab)
     {
@@ -20,33 +20,33 @@ internal static class CommentFileActions
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
-        if (!Organize.ConfirmUnprotected(host, tab, "The comments are saved without the document's password protection: anyone can read them.", "Export anyway")) return;
-        if (PickSave(host, "Export Comments", Filter, name + ".xfdf", Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
+        if (!Organize.ConfirmUnprotected(host, tab, Strings.Comments_ExportUnprotected, Strings.Comments_ExportAnyway)) return;
+        if (PickSave(host, Strings.Comments_ExportTitle, Filter, name + ".xfdf", Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
         var format = CommentFiles.FormatOf(path) ?? CommentFileFormat.Xfdf;
         try
         {
             var export = await Task.Run(() => CommentFiles.Export(data, password, format, tab.Session.DisplayName));
             if (export.Count == 0)
             {
-                Prompt.Info(host, "No comments", "This document has no comments to export, so no file was saved." + Lines(export.Left));
+                Prompt.Info(host, Strings.Comments_NoComments, Strings.Comments_NoneToExport + Lines(export.Left));
                 return;
             }
             await File.WriteAllBytesAsync(path, export.Data);
             Log.Write($"Export comments: {export.Count} as {format} to {Log.Name(path)}");
-            host.ShowStatus($"Exported {Count(export.Count, "comment", "comments")} to {Path.GetFileName(path)}.");
-            if (export.Left.Count > 0) Prompt.Info(host, "Some annotations weren't exported", string.Join("\n", export.Left));
+            host.ShowStatus(Loc.Plural(export.Count, Strings.Comments_Exported_One, Strings.Comments_Exported_Many, Path.GetFileName(path)));
+            if (export.Left.Count > 0) Prompt.Info(host, Strings.Comments_SomeNotExported, string.Join("\n", export.Left));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             Log.Write($"Export comments failed: {ex.Message}");
-            Prompt.Error(host, "Can't export the comments", ex.Message);
+            Prompt.Error(host, Strings.Comments_CantExport, ex.Message);
         }
     }
 
     public static async Task Import(MainWindow host, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (PickOpen(host, "Import Comments", OpenFilter) is not { } path) return;
+        if (PickOpen(host, Strings.Comments_ImportTitle, OpenFilter) is not { } path) return;
         byte[] file;
         try
         {
@@ -55,37 +55,37 @@ internal static class CommentFileActions
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            Prompt.Error(host, $"Can't import {Path.GetFileName(path)}", ex.Message);
+            Prompt.Error(host, Loc.Format(Strings.Comments_CantImport, Path.GetFileName(path)), ex.Message);
             return;
         }
         CommentImport? result = null;
-        var outcome = await tab.TryEdit("Import comments", (d, pw) =>
+        var outcome = await tab.TryEdit(Strings.Comments_ImportLabel, (d, pw) =>
         {
             result = CommentFiles.Import(d, pw, file);
             return result.Data;
         }, contentOnly: true, quiet: true);
         if (result is null || outcome is not (EditOutcome.Done or EditOutcome.NoChange)) return;
         Log.Write($"Import comments from {Log.Name(path)}: {result.Added} added, {result.Skipped.Count} skipped");
-        var summary = result.Added == 0 ? "No comments were added." : $"{Count(result.Added, "comment was", "comments were")} added. You can undo this until you save.";
+        var summary = result.Added == 0 ? Strings.Comments_NoneAdded : Loc.Plural(result.Added, Strings.Comments_Added_One, Strings.Comments_Added_Many);
         if (result.Skipped.Count == 0 && result.Notes.Count == 0)
         {
             host.ShowStatus(summary);
             return;
         }
-        var dlg = new FormDialog(host, "Comments Imported", "Close", 560);
+        var dlg = new FormDialog(host, Strings.Comments_ImportedTitle, Strings.Common_Close, 560);
         dlg.HideCancel();
-        dlg.AddNote(summary + (result.Skipped.Count > 0 ? $" {Count(result.Skipped.Count, "was", "were")} skipped:" : ""));
+        dlg.AddNote(summary + (result.Skipped.Count > 0 ? " " + Loc.Plural(result.Skipped.Count, Strings.Comments_Skipped_One, Strings.Comments_Skipped_Many) : ""));
         if (result.Skipped.Count > 0)
         {
             var list = new System.Windows.Controls.TextBox
             {
-                Text = string.Join("\n", result.Skipped.Take(2000)) + (result.Skipped.Count > 2000 ? $"\n… and {result.Skipped.Count - 2000:N0} more" : ""),
+                Text = string.Join("\n", result.Skipped.Take(2000)) + (result.Skipped.Count > 2000 ? "\n" + Loc.Format(Strings.Comments_AndMore, result.Skipped.Count - 2000) : ""),
                 IsReadOnly = true,
                 TextWrapping = TextWrapping.Wrap,
                 VerticalScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility.Auto,
                 MaxHeight = 260,
             };
-            dlg.Add("Skipped", list);
+            dlg.Add(Strings.Comments_Skipped, list);
         }
         foreach (var n in result.Notes) dlg.AddNote(n);
         dlg.ShowModal();
@@ -97,12 +97,12 @@ internal static class CommentFileActions
         var data = tab.Session.Data;
         var password = tab.Session.Password;
         var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
-        if (!Organize.ConfirmUnprotected(host, tab, "The summary is saved without the document's password protection: anyone can open it.", "Summarize anyway")) return;
-        if (PickSave(host, "Summarize Comments", PdfFiles.PdfFilter, name + " comments.pdf", Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
+        if (!Organize.ConfirmUnprotected(host, tab, Strings.Comments_SummaryUnprotected, Strings.Comments_SummarizeAnyway)) return;
+        if (PickSave(host, Strings.Comments_SummarizeTitle, PdfFiles.PdfFilter, Loc.Format(Strings.Comments_SummaryFileName, name), Path.GetDirectoryName(tab.Session.FilePath)) is not { } path) return;
         try
         {
             byte[] summary;
-            using (new ProgressPrompt(host, "Summarize Comments", "Laying out the pages and their comments…"))
+            using (new ProgressPrompt(host, Strings.Comments_SummarizeTitle, Strings.Comments_LayingOut))
                 summary = await Task.Run(() => CommentSummary.Make(data, password, tab.Session.DisplayName));
             await File.WriteAllBytesAsync(path, summary);
             Log.Write($"Summarize comments to {Log.Name(path)}");
@@ -110,11 +110,11 @@ internal static class CommentFileActions
         }
         catch (Exception ex) when (ex is InvalidOperationException)
         {
-            Prompt.Info(host, "No comments", ex.Message);
+            Prompt.Info(host, Strings.Comments_NoComments, ex.Message);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(host, "Can't save the summary", ex.Message);
+            Prompt.Error(host, Strings.Comments_CantSaveSummary, ex.Message);
         }
     }
 

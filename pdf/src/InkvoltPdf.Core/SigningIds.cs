@@ -57,12 +57,12 @@ public static class DigitalIds
         catch (CryptographicException ex)
         {
             throw new SigningException(ex.Message.Contains("password", StringComparison.OrdinalIgnoreCase)
-                ? "The password for this digital ID file is incorrect." : $"This file isn't a usable digital ID: {ex.Message}", ex);
+                ? PdfStrings.Sign_IdWrongPassword : Loc.Format(PdfStrings.Sign_IdUnusable, ex.Message), ex);
         }
         var signer = all.FirstOrDefault(c => c.HasPrivateKey);
         foreach (var c in all)
             if (!ReferenceEquals(c, signer)) c.Dispose();
-        return signer ?? throw new SigningException("This digital ID file holds no private key.");
+        return signer ?? throw new SigningException(PdfStrings.Sign_IdNoPrivateKey);
     }
 
     /// <summary>
@@ -71,7 +71,7 @@ public static class DigitalIds
     /// </summary>
     public static byte[] CreatePersonalPfx(string name, string? email, string? organization, string password, int years = 5)
     {
-        if (string.IsNullOrWhiteSpace(name)) throw new SigningException("A name is required.");
+        if (string.IsNullOrWhiteSpace(name)) throw new SigningException(PdfStrings.Sign_NameRequired);
         var dn = new X500DistinguishedNameBuilder();
         dn.AddCommonName(name.Trim());
         if (!string.IsNullOrWhiteSpace(organization)) dn.AddOrganizationName(organization.Trim());
@@ -114,6 +114,6 @@ public static class DigitalIds
         var name = c.GetNameInfo(X509NameType.SimpleName, false);
         var issuer = c.GetNameInfo(X509NameType.SimpleName, true);
         var self = c.SubjectName.RawData.AsSpan().SequenceEqual(c.IssuerName.RawData);
-        return $"{name} ({(self ? "self-signed" : issuer)}, expires {c.NotAfter:yyyy-MM-dd})";
+        return self ? Loc.Format(PdfStrings.Sign_IdDescribeSelf, name, c.NotAfter) : Loc.Format(PdfStrings.Sign_IdDescribe, name, issuer, c.NotAfter);
     }
 }

@@ -23,9 +23,9 @@ internal static class Converting
         var office = OfficeFiles.FilterPattern(OfficeConverter.InstalledApps);
         var web = string.Join(";", WebFiles.Extensions.Select(e => "*" + e));
         var all = "*.pdf;*.xps;*.oxps;*.epub;*.cbz;*.fb2;*.png;*.jpg;*.jpeg;*.tif;*.tiff;*.bmp;*.gif" + (office.Length > 0 ? ";" + office : "") + ";" + web;
-        return $"Supported documents|{all}|PDF files (*.pdf)|*.pdf" +
-               (office.Length > 0 ? $"|Office files (converted with Microsoft Office)|{office}" : "") +
-               $"|Web pages (*.html, *.mht)|{web}|All files (*.*)|*.*";
+        return $"{Strings.Convert_FilterSupported}|{all}|{Strings.Compare_FilterPdf}|*.pdf" +
+               (office.Length > 0 ? $"|{Strings.Compare_FilterOffice}|{office}" : "") +
+               $"|{Strings.Convert_FilterWeb}|{web}|{Strings.Compare_FilterAll}|*.*";
     }
 
     /// <summary>Converts <paramref name="path"/> and opens the PDF in a new tab. False when it wasn't (cancelled or failed; said so).</summary>
@@ -37,35 +37,34 @@ internal static class Converting
             var appName = OfficeFiles.AppName(app);
             if (OfficeConverter.Precheck(path, app) is { } problem)
             {
-                Prompt.Info(host, $"Can't open {name}", problem);
+                Prompt.Info(host, Loc.Format(Strings.Convert_CantOpen, name), problem);
                 return false;
             }
             // Automation opens files without Office's Protected View: one marked as from the internet needs an OK first.
             var internet = OfficeConverter.ZoneOf(path) >= 3;
-            if (internet && !Prompt.Confirm(host, $"{name} came from the internet",
-                    $"Windows marks this file as downloaded from the internet. {appName} opens it here without Protected View: its macros stay off, " +
-                    "but it could still fetch content linked from elsewhere (a template, pictures, linked data). Convert it only if you trust where it came from.",
-                    "Convert Anyway", warning: true))
+            if (internet && !Prompt.Confirm(host, Loc.Format(Strings.Compare_FromInternet, name),
+                    Loc.Format(Strings.Compare_FromInternetBody, appName),
+                    Strings.Compare_ConvertAnyway, warning: true))
                 return false;
             string? note = null;
-            var ok = await Run(host, $"Opening {name}", $"Converting with {appName}…", OfficeFiles.PdfName(path), async token =>
+            var ok = await Run(host, Loc.Format(Strings.Convert_Opening, name), Loc.Format(Strings.Compare_ConvertingWith, appName), OfficeFiles.PdfName(path), async token =>
             {
                 var r = await OfficeConverter.ConvertAsync(path, app, internet, token);
                 note = r.Note;
                 return r.Pdf;
-            }, $"Made from {name} with {appName}. Save it to keep it.");
+            }, Loc.Format(Strings.Convert_MadeWith, name, appName));
             if (note is not null) host.ShowStatus(note);
             return ok;
         }
         if (WebCapture.RuntimeVersion is null)
         {
-            Prompt.Info(host, $"Can't open {name}", WebCapture.Unavailable);
+            Prompt.Info(host, Loc.Format(Strings.Convert_CantOpen, name), WebCapture.Unavailable);
             return false;
         }
         var options = SavedWebOptions();
-        return await Run(host, $"Opening {name}", "Opening the page…", Path.GetFileNameWithoutExtension(path) + ".pdf",
+        return await Run(host, Loc.Format(Strings.Convert_Opening, name), Strings.Convert_OpeningPage, Path.GetFileNameWithoutExtension(path) + ".pdf",
             token => WebCapture.PrintAsync(new Uri(Path.GetFullPath(path)), options, null, token),
-            $"Made from {name} ({Describe(options)}). File › Create PDF › From Web Page… has the page options. Save it to keep it.");
+            Loc.Format(Strings.Convert_MadeFromPage, name, Describe(options)));
     }
 
     /// <summary>File › Create PDF › From Office File…</summary>
@@ -74,13 +73,13 @@ internal static class Converting
         var apps = OfficeConverter.InstalledApps;
         if (apps.Count == 0)
         {
-            Prompt.Info(host, "Microsoft Office isn't installed", "Making PDFs from Word, Excel and PowerPoint files uses Microsoft Office on this PC, and it wasn't found.");
+            Prompt.Info(host, Strings.Convert_NoOffice, Strings.Convert_NoOfficeBody);
             return;
         }
         var dlg = new OpenFileDialog
         {
-            Title = "Create PDF from Office File",
-            Filter = $"Office files|{OfficeFiles.FilterPattern(apps)}" + string.Concat(apps.Select(a => $"|{OfficeFiles.AppName(a)}|{OfficeFiles.FilterPattern([a])}")),
+            Title = Strings.Convert_FromOfficeTitle,
+            Filter = $"{Strings.Convert_FilterOffice}|{OfficeFiles.FilterPattern(apps)}" + string.Concat(apps.Select(a => $"|{OfficeFiles.AppName(a)}|{OfficeFiles.FilterPattern([a])}")),
             Multiselect = true,
             InitialDirectory = AppSettings.Current.LastFolder,
         };
@@ -94,39 +93,39 @@ internal static class Converting
     {
         if (WebCapture.RuntimeVersion is null)
         {
-            Prompt.Info(host, "Web pages can't be converted", WebCapture.Unavailable);
+            Prompt.Info(host, Strings.Convert_WebCantConvert, WebCapture.Unavailable);
             return;
         }
         var saved = SavedWebOptions();
-        var dlg = new FormDialog(host, "Create PDF from Web Page", "Create PDF", 520);
+        var dlg = new FormDialog(host, Strings.Convert_FromWebTitle, Strings.Convert_CreatePdf, 520);
         var address = new TextBox();
-        System.Windows.Automation.AutomationProperties.SetName(address, "Web address or file");
-        var browse = new Button { Content = "Browse…", Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
+        System.Windows.Automation.AutomationProperties.SetName(address, Strings.Convert_WebAddressOrFile);
+        var browse = new Button { Content = Strings.Common_Browse, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(10, 4, 10, 4) };
         var row = new DockPanel();
         DockPanel.SetDock(browse, Dock.Right);
         row.Children.Add(browse);
         row.Children.Add(address);
-        dlg.Add("Web address, or a saved page (.html, .mht)", row);
+        dlg.Add(Strings.Convert_WebAddressLabel, row);
         browse.Click += (_, _) =>
         {
-            var pick = new OpenFileDialog { Title = "Saved web page", Filter = $"Web pages|{string.Join(";", WebFiles.Extensions.Select(e => "*" + e))}|All files (*.*)|*.*" };
+            var pick = new OpenFileDialog { Title = Strings.Convert_SavedWebPage, Filter = $"{Strings.Convert_FilterWebPages}|{string.Join(";", WebFiles.Extensions.Select(e => "*" + e))}|{Strings.Compare_FilterAll}|*.*" };
             if (pick.ShowDialog(dlg) == true) address.Text = pick.FileName;
         };
         dlg.Loaded += (_, _) => address.Focus();
-        var paper = dlg.AddChoice("Paper", ["Letter", "A4", "Legal"], (int)saved.Paper);
-        var orientation = dlg.AddChoice("Orientation", ["Portrait", "Landscape"], saved.Landscape ? 1 : 0);
-        var margins = dlg.AddChoice("Margins", ["None", "Narrow (0.25 in)", "Normal (0.4 in)", "Wide (1 in)"], (int)saved.Margins);
-        var backgrounds = dlg.AddCheck("Background colors and pictures", saved.Backgrounds);
+        var paper = dlg.AddChoice(Strings.Convert_Paper, [Strings.Convert_PaperLetter, Strings.Convert_PaperA4, Strings.Convert_PaperLegal], (int)saved.Paper);
+        var orientation = dlg.AddChoice(Strings.Convert_Orientation, [Strings.Convert_Portrait, Strings.Convert_Landscape], saved.Landscape ? 1 : 0);
+        var margins = dlg.AddChoice(Strings.Convert_Margins, [Strings.Common_None, Strings.Convert_MarginsNarrow, Strings.Convert_MarginsNormal, Strings.Convert_MarginsWide], (int)saved.Margins);
+        var backgrounds = dlg.AddCheck(Strings.Convert_Backgrounds, saved.Backgrounds);
         backgrounds.Margin = new Thickness(0, 12, 0, 0);
-        var headers = dlg.AddCheck("Header and footer (title, address, date, page numbers)", saved.HeaderAndFooter);
-        dlg.AddNote("The page is loaded on this PC by Microsoft Edge WebView2: an address from the internet, as a browser would, in a private session that keeps no cookies or history. Scripts on the page run; pop-ups, downloads and permission requests are blocked.");
+        var headers = dlg.AddCheck(Strings.Convert_HeaderFooter, saved.HeaderAndFooter);
+        dlg.AddNote(Strings.Convert_WebNote);
         Uri? source = null;
         dlg.Validate(() =>
         {
             var text = address.Text.Trim().Trim('"');
             if (text.Length > 0 && (File.Exists(text) || Path.IsPathFullyQualified(text)))
             {
-                if (!File.Exists(text)) return "That file wasn't found.";
+                if (!File.Exists(text)) return Strings.Convert_FileNotFound;
                 source = new Uri(Path.GetFullPath(text));
                 return null;
             }
@@ -147,8 +146,8 @@ internal static class Converting
         s.Save();
         var name = source.IsFile ? Path.GetFileNameWithoutExtension(source.LocalPath) + ".pdf" : WebFiles.PdfName(source);
         var label = source.IsFile ? Path.GetFileName(source.LocalPath) : source.Host;
-        await Run(host, "Create PDF from Web Page", source.IsFile ? "Opening the file…" : $"Loading {source.Host}…", name,
-            token => WebCapture.PrintAsync(source, options, null, token), $"Made from {label}. Save it to keep it.");
+        await Run(host, Strings.Convert_FromWebTitle, source.IsFile ? Strings.Web_OpeningFile : Loc.Format(Strings.Web_Loading, source.Host), name,
+            token => WebCapture.PrintAsync(source, options, null, token), Loc.Format(Strings.Convert_MadeFrom, label));
     }
 
     /// <summary>The page options last used (paper by the region's measurement system at first).</summary>
@@ -166,7 +165,9 @@ internal static class Converting
         };
     }
 
-    private static string Describe(WebPdfOptions o) => $"{o.Paper}{(o.Landscape ? " landscape" : "")}, {o.Margins.ToString().ToLowerInvariant()} margins";
+    private static string Describe(WebPdfOptions o) => Loc.Format(o.Landscape ? Strings.Convert_DescribeLandscape : Strings.Convert_DescribePortrait,
+        o.Paper switch { WebPaper.A4 => Strings.Convert_PaperA4, WebPaper.Legal => Strings.Convert_PaperLegal, _ => Strings.Convert_PaperLetter },
+        o.Margins switch { WebMargins.None => Strings.Convert_MarginsPhraseNone, WebMargins.Narrow => Strings.Convert_MarginsPhraseNarrow, WebMargins.Wide => Strings.Convert_MarginsPhraseWide, _ => Strings.Convert_MarginsPhraseNormal });
 
     /// <summary>Runs a conversion behind a progress window with Cancel, then opens the PDF in a new tab.</summary>
     private static async Task<bool> Run(MainWindow host, string title, string text, string pdfName, Func<CancellationToken, Task<byte[]>> convert, string done)
@@ -185,14 +186,14 @@ internal static class Converting
         catch (OperationCanceledException ex)
         {
             progress.Dispose();
-            host.ShowStatus("Cancelled. Nothing was opened." + (ex.Message.Contains("left running", StringComparison.Ordinal) ? " " + ex.Message : ""));
+            host.ShowStatus(Strings.Convert_CancelledNothing + (ex.Data[OfficeConverter.LeftRunning] is true ? " " + ex.Message : ""));
             return false;
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or ArgumentException)
         {
             progress.Dispose();
             Log.Write($"Conversion failed: {ex.Message}");
-            Prompt.Error(host, "Couldn't make the PDF", ex.Message);
+            Prompt.Error(host, Strings.Convert_CouldntMake, ex.Message);
             return false;
         }
     }

@@ -17,16 +17,16 @@ internal static class ExportActions
 
     private static Kind Describe(ExportFormat format) => format switch
     {
-        ExportFormat.Word => new("Export to Word", ".docx", "Word document (*.docx)|*.docx",
-            "Paragraphs, headings, lists, tables, pictures, running headers and footers and page sizes are rebuilt from the page layout, so the document can be edited; complex layouts may need tidying."),
-        ExportFormat.Excel => new("Export Tables to Excel", ".xlsx", "Excel workbook (*.xlsx)|*.xlsx",
-            "Each table found (ruled grids, or text lined up in columns) becomes a sheet, named after its page. Plain numbers become numbers; other values stay text as shown."),
-        ExportFormat.PowerPoint => new("Export to PowerPoint", ".pptx", "PowerPoint presentation (*.pptx)|*.pptx",
-            "One slide per page: text in editable text boxes where the page has it, headings as slide titles, tables, pictures and simple shapes. A presentation has one slide size, so pages of another size are shrunk to fit it."),
-        ExportFormat.Html => new("Export to HTML", ".html", "Web page (*.html)|*.html",
-            "One file that reflows to any screen: headings, lists, tables and pictures in reading order, with the alternate text the PDF's tags give. It holds no scripts and loads nothing from anywhere; the look and positions of the pages aren't kept."),
-        _ => new("Export as Plain Text", ".txt", "Text file (*.txt)|*.txt",
-            "The text in reading order (columns one after another), a paragraph per line, table rows as tab-separated cells. UTF-8."),
+        ExportFormat.Word => new(Strings.Export_WordTitle, ".docx", Strings.Export_WordFilter,
+            Strings.Export_WordNote),
+        ExportFormat.Excel => new(Strings.Export_ExcelTitle, ".xlsx", Strings.Export_ExcelFilter,
+            Strings.Export_ExcelNote),
+        ExportFormat.PowerPoint => new(Strings.Export_PowerPointTitle, ".pptx", Strings.Export_PowerPointFilter,
+            Strings.Export_PowerPointNote),
+        ExportFormat.Html => new(Strings.Export_HtmlTitle, ".html", Strings.Export_HtmlFilter,
+            Strings.Export_HtmlNote),
+        _ => new(Strings.Export_TextTitle, ".txt", Strings.Export_TextFilter,
+            Strings.Export_TextNote),
     };
 
     public static async Task Export(Window owner, DocumentTab tab, MainWindow host, ExportFormat format)
@@ -34,9 +34,9 @@ internal static class ExportActions
         if (!await tab.SettleAsync()) return;
         var kind = Describe(format);
         var ocr = PageOcr.Engine;
-        var dlg = new FormDialog(owner, kind.Title, "Export…", 480);
+        var dlg = new FormDialog(owner, kind.Title, Strings.Export_ExportButton, 480);
         var range = dlg.AddRange(tab, preferSelection: false);
-        var useOcr = dlg.AddCheck("Recognize text on scanned pages (OCR)", ocr is not null && AppSettings.Current.ExportOcr);
+        var useOcr = dlg.AddCheck(Strings.Export_UseOcr, ocr is not null && AppSettings.Current.ExportOcr);
         useOcr.Margin = new Thickness(0, 14, 0, 0);
         if (ocr is null)
         {
@@ -44,14 +44,14 @@ internal static class ExportActions
             System.Windows.Automation.AutomationProperties.SetHelpText(useOcr, PageOcr.Unavailable);
             dlg.AddNote(PageOcr.Unavailable);
         }
-        var open = dlg.AddCheck("Open the file when done", AppSettings.Current.ExportOpen);
-        dlg.AddNote(kind.Note + (ocr is null ? "" : $" Text recognition uses Windows' {ocr.LanguageName} OCR; check important text."));
+        var open = dlg.AddCheck(Strings.Export_OpenWhenDone, AppSettings.Current.ExportOpen);
+        dlg.AddNote(kind.Note + (ocr is null ? "" : " " + Loc.Format(Strings.Export_OcrNote, ocr.LanguageName)));
         int[] pages = [];
         dlg.Validate(() => range.TryGet(out pages, out var err) ? null : err);
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
         pages = [.. pages.Where(p => p < tab.PageView.PageCount)];
         if (pages.Length == 0) return;
-        if (!Organize.ConfirmUnprotected(owner, tab, "The exported file is saved without its password protection: anyone can open it.", "Export anyway")) return;
+        if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
         var recognize = ocr is not null && useOcr.IsChecked == true;
         AppSettings.Current.ExportOpen = open.IsChecked == true;
         if (ocr is not null) AppSettings.Current.ExportOcr = recognize;
@@ -62,12 +62,12 @@ internal static class ExportActions
         AppSettings.Current.Save();
 
         // Busy from here, so nothing replaces the engine this export reads.
-        using var busy = tab.BeginBusy($"Exporting {Pages(pages.Length)}…");
+        using var busy = tab.BeginBusy(Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
         var engine = tab.ViewEngine; // what is shown (chosen layers included)
         // PowerPoint and HTML read the language and alternate text from the PDF itself; the others have no use for its bytes.
         var source = format is ExportFormat.PowerPoint or ExportFormat.Html && tab.Session.IsPdf ? tab.Session.Data : null;
         var sourcePassword = tab.Session.Password;
-        using var progress = new ProgressPrompt(owner, kind.Title, "Reading the pages…");
+        using var progress = new ProgressPrompt(owner, kind.Title, Strings.Access_ReadingPages);
         var cancel = progress.Token;
         var options = new ExportOptions
         {
@@ -78,9 +78,9 @@ internal static class ExportActions
             SourcePassword = sourcePassword,
             Progress = at => progress.Report(at.Stage switch
             {
-                ExportStage.Reading => $"Reading page {at.Page + 1} ({at.Index + 1} of {at.Count})…",
-                ExportStage.Recognizing => $"Recognizing text on page {at.Page + 1} ({at.Index + 1} of {at.Count})…",
-                _ => "Writing the file…",
+                ExportStage.Reading => Loc.Format(Strings.Export_ReadingPage, at.Page + 1, at.Index + 1, at.Count),
+                ExportStage.Recognizing => Loc.Format(Strings.Export_RecognizingPage, at.Page + 1, at.Index + 1, at.Count),
+                _ => Strings.Export_Writing,
             }, at.Fraction),
         };
 
@@ -95,52 +95,54 @@ internal static class ExportActions
             var (unreadable, ocrFailed) = (report.Unreadable.Count, report.RecognitionFailed.Count);
             if (!report.Saved)
             {
-                var these = pages.Length == 1 ? "this page" : "these pages";
+                var one = pages.Length == 1;
                 var why = "";
                 if (noText > 0)
                 {
-                    why = noText == pages.Length ? (pages.Length == 1 ? " The page has no text" : " None of the pages has text") : $" {Pages(noText)} had no text";
-                    why += recognize ? (ocrFailed > 0 ? "; text recognition failed on some of them." : ", even after text recognition.")
-                        : ocr is null ? ", and Windows has no text recognition (OCR) language installed."
-                        : ": turn on \"Recognize text on scanned pages\" to read scans.";
+                    var clause = noText == pages.Length ? (one ? Strings.Export_PageNoText : Strings.Export_NoPagesText) : Loc.Plural(noText, Strings.Export_PagesNoText_One, Strings.Export_PagesNoText_Many);
+                    why = " " + Loc.Format(recognize ? (ocrFailed > 0 ? Strings.Export_WhyOcrFailed : Strings.Export_WhyEvenOcr)
+                        : ocr is null ? Strings.Export_WhyNoOcr
+                        : Strings.Export_WhyTurnOn, clause);
                 }
                 if (format == ExportFormat.Excel)
-                    Prompt.Info(owner, "No tables found", $"No tables were found on {these}, so no workbook was saved. Tables are found from ruled grids, or from text lined up in columns over three rows or more.{why}");
+                    Prompt.Info(owner, Strings.Export_NoTables, Loc.Format(one ? Strings.Export_NoTablesPage : Strings.Export_NoTablesPages, why));
                 else
-                    Prompt.Info(owner, "No text found", $"Nothing could be extracted from {these}, so no file was saved.{why}");
+                    Prompt.Info(owner, Strings.Export_NoText, Loc.Format(one ? Strings.Export_NothingPage : Strings.Export_NothingPages, why));
                 return;
             }
             var notes = new List<string>();
-            if (recognized > 0) notes.Add($"{Pages(recognized)} recognized with OCR");
-            if (noText > 0) notes.Add($"{Pages(noText)} without text{(format != ExportFormat.Excel && format != ExportFormat.Text && withPictures > 0 ? " (pictures kept)" : "")}");
-            if (ocrFailed > 0) notes.Add($"text recognition failed on {Pages(ocrFailed)}");
-            if (unreadable > 0) notes.Add($"{Pages(unreadable)} couldn't be read and {(unreadable == 1 ? "is" : "are")} empty");
-            if (format == ExportFormat.Excel) notes.Insert(0, tables == 1 ? "1 table" : $"{tables} tables");
+            if (recognized > 0) notes.Add(Loc.Plural(recognized, Strings.Export_NoteOcr_One, Strings.Export_NoteOcr_Many));
+            if (noText > 0) notes.Add(format != ExportFormat.Excel && format != ExportFormat.Text && withPictures > 0
+                ? Loc.Plural(noText, Strings.Export_NoteNoTextPictures_One, Strings.Export_NoteNoTextPictures_Many)
+                : Loc.Plural(noText, Strings.Export_NoteNoText_One, Strings.Export_NoteNoText_Many));
+            if (ocrFailed > 0) notes.Add(Loc.Plural(ocrFailed, Strings.Export_NoteOcrFailed_One, Strings.Export_NoteOcrFailed_Many));
+            if (unreadable > 0) notes.Add(Loc.Plural(unreadable, Strings.Export_NoteUnreadable_One, Strings.Export_NoteUnreadable_Many));
+            if (format == ExportFormat.Excel) notes.Insert(0, Loc.Plural(tables, Strings.Access_Tables_One, Strings.Access_Tables_Many));
             Log.Write($"Export {format}: {pages.Length} page(s) to {Log.Name(path)}{(notes.Count > 0 ? "; " + string.Join("; ", notes) : "")}");
-            host.ShowStatus($"Exported {Pages(pages.Length)} to {Path.GetFileName(path)}{(notes.Count > 0 ? $" ({string.Join(", ", notes)})" : "")}.");
+            host.ShowStatus(notes.Count > 0
+                ? Loc.Plural(pages.Length, Strings.Export_ExportedNotes_One, Strings.Export_ExportedNotes_Many, Path.GetFileName(path), string.Join(", ", notes))
+                : Loc.Plural(pages.Length, Strings.Export_Exported_One, Strings.Export_Exported_Many, Path.GetFileName(path)));
             if (open.IsChecked == true) Shell.Open(path);
         }
         catch (OperationCanceledException)
         {
             progress.Dispose();
             Log.Write($"Export {format} cancelled");
-            host.ShowStatus("Export cancelled. Nothing was saved.");
+            host.ShowStatus(Strings.Export_Cancelled);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             progress.Dispose(); // the progress window closes before the error shows, not behind it
             Log.Write($"Export {format} failed: {ex.Message}");
-            Prompt.Error(owner, "Can't save the export", $"{ex.Message}\n\nIf the file is open in another program, close it there or choose another name.");
+            Prompt.Error(owner, Strings.Export_CantSave, Loc.Format(Strings.PdfA_SaveFailed, ex.Message));
         }
         catch (Exception ex)
         {
             progress.Dispose();
             Log.Write($"Export {format} failed: {ex}");
-            Prompt.Error(owner, "Export failed", ex.Message);
+            Prompt.Error(owner, Strings.Export_Failed, ex.Message);
         }
     }
-
-    private static string Pages(int n) => n == 1 ? "1 page" : $"{n} pages";
 
     private static string? PickPath(Window owner, Kind kind, string suggested, string folder)
     {

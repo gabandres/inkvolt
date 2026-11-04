@@ -15,10 +15,10 @@ public static class ScanPage
     public static byte[] WriteBack(byte[] data, string? password, IReadOnlyDictionary<int, CleanedPageImage> pages)
     {
         if (pages.Count == 0) return data;
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         foreach (var (index, img) in pages.OrderBy(kv => kv.Key))
         {
-            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pages), $"There is no page {index + 1}.");
+            if (index < 0 || index >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pages), Loc.Format(PdfStrings.Page_NoPageN, index + 1));
             Replace(doc, doc.Pages[index], img);
         }
         return PdfObj.Save(doc);

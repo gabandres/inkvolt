@@ -211,7 +211,7 @@ public sealed partial class PageViewer
 
     /// <summary>Where a link goes, shown before following it (so a misleading link text can't hide its target).</summary>
     internal static string LinkDescription(PageLink link) =>
-        link.Uri is { } u ? (u.Length > 300 ? u[..300] + "…" : u) : $"Go to page {link.PageIndex + 1}";
+        link.Uri is { } u ? (u.Length > 300 ? u[..300] + "…" : u) : Loc.Format(Strings.Viewer_GoToPage, link.PageIndex + 1);
 
     private void ShowLinkTip(int page, PageLink link, bool keyboard)
     {
@@ -243,7 +243,7 @@ public sealed partial class PageViewer
 
     /// <summary>What has keyboard focus inside the page (for screen readers).</summary>
     internal string? FocusedItemDescription =>
-        _focusLink is { } fl ? $"Link: {LinkDescription(fl.Link)}"
-        : _focusWidget is { } w ? $"{w.Kind switch { FormFieldKind.CheckBox => "Check box", FormFieldKind.Radio => "Radio button", FormFieldKind.Choice => "List", _ => "Field" }} {w.FieldName}: {ValueOf(w)}"
+        _focusLink is { } fl ? Loc.Format(Strings.Viewer_FocusLink, LinkDescription(fl.Link))
+        : _focusWidget is { } w ? Loc.Format(w.Kind switch { FormFieldKind.CheckBox => Strings.Viewer_FocusCheckBox, FormFieldKind.Radio => Strings.Viewer_FocusRadio, FormFieldKind.Choice => Strings.Viewer_FocusList, _ => Strings.Viewer_FocusField }, w.FieldName, ValueOf(w))
         : null;
 }

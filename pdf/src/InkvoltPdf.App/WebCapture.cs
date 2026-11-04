@@ -44,8 +44,7 @@ internal static class WebCapture
         }
     }
 
-    public const string Unavailable =
-        "This needs the Microsoft Edge WebView2 Runtime, which comes with Windows 11 and recent Windows 10 updates. Install it from Microsoft (search for \"WebView2 Runtime\") and try again.";
+    public static string Unavailable => Strings.Web_Unavailable;
 
     /// <summary>Loads <paramref name="source"/> (a web address or a local file) and prints it to PDF bytes.</summary>
     /// <exception cref="InvalidOperationException">The page couldn't be loaded or printed (the message says why).</exception>
@@ -84,7 +83,7 @@ internal static class WebCapture
 
             var loaded = new TaskCompletionSource<CoreWebView2NavigationCompletedEventArgs>(TaskCreationOptions.RunContinuationsAsynchronously);
             web.NavigationCompleted += (_, e) => loaded.TrySetResult(e);
-            status?.Invoke(source.IsFile ? "Opening the file…" : $"Loading {source.Host}…");
+            status?.Invoke(source.IsFile ? Strings.Web_OpeningFile : Loc.Format(Strings.Web_Loading, source.Host));
             web.Navigate(source.AbsoluteUri);
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancel))
             {
@@ -96,14 +95,14 @@ internal static class WebCapture
                 }
                 catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
                 {
-                    throw new InvalidOperationException($"The page didn't finish loading within {LoadTimeout.TotalSeconds:0} seconds.");
+                    throw new InvalidOperationException(Loc.Format(Strings.Web_LoadTimeout, LoadTimeout.TotalSeconds));
                 }
                 if (!done.IsSuccess) throw new InvalidOperationException(Describe(done.WebErrorStatus, done.HttpStatusCode));
             }
 
             // Let late content arrive: wait for the document to be complete, then scroll to the end and back so pictures
             // that load as they come into view are fetched.
-            status?.Invoke("Waiting for the page to settle…");
+            status?.Invoke(Strings.Web_Settling);
             // A page whose own scripts never let go (a busy loop) would never answer: every call has a time limit and
             // Cancel, and the WebView is torn down when this ends (finally).
             Task<string> Script(string js) => web.ExecuteScriptAsync(js).WaitAsync(ScriptTimeout, cancel);
@@ -117,10 +116,10 @@ internal static class WebCapture
             }
             catch (TimeoutException)
             {
-                throw new InvalidOperationException("The page stopped answering (its own scripts keep it busy), so it can't be printed.");
+                throw new InvalidOperationException(Strings.Web_Busy);
             }
 
-            status?.Invoke("Making the PDF…");
+            status?.Invoke(Strings.Web_Making);
             var print = env.CreatePrintSettings();
             var (w, h) = options.PageInches;
             print.PageWidth = w;
@@ -138,9 +137,9 @@ internal static class WebCapture
             }
             catch (TimeoutException)
             {
-                throw new InvalidOperationException($"Printing the page didn't finish within {PrintTimeout.TotalSeconds:0} seconds.");
+                throw new InvalidOperationException(Loc.Format(Strings.Web_PrintTimeout, PrintTimeout.TotalSeconds));
             }
-            if (!printed) throw new InvalidOperationException("The page couldn't be printed to PDF.");
+            if (!printed) throw new InvalidOperationException(Strings.Web_PrintFailed);
             cancel.ThrowIfCancellationRequested();
             return await File.ReadAllBytesAsync(temp, CancellationToken.None);
         }
@@ -162,16 +161,16 @@ internal static class WebCapture
 
     private static string Describe(CoreWebView2WebErrorStatus status, int http) => status switch
     {
-        CoreWebView2WebErrorStatus.HostNameNotResolved => "The site wasn't found. Check the address and the internet connection.",
+        CoreWebView2WebErrorStatus.HostNameNotResolved => Strings.Web_NotFound,
         CoreWebView2WebErrorStatus.CannotConnect or CoreWebView2WebErrorStatus.ServerUnreachable or CoreWebView2WebErrorStatus.Disconnected
-            => "The site couldn't be reached. Check the internet connection.",
-        CoreWebView2WebErrorStatus.Timeout => "The site took too long to answer.",
+            => Strings.Web_Unreachable,
+        CoreWebView2WebErrorStatus.Timeout => Strings.Web_Timeout,
         CoreWebView2WebErrorStatus.CertificateCommonNameIsIncorrect or CoreWebView2WebErrorStatus.CertificateExpired
             or CoreWebView2WebErrorStatus.ClientCertificateContainsErrors or CoreWebView2WebErrorStatus.CertificateRevoked
-            or CoreWebView2WebErrorStatus.CertificateIsInvalid => "The site's security certificate isn't valid, so the page wasn't loaded.",
-        CoreWebView2WebErrorStatus.ConnectionAborted or CoreWebView2WebErrorStatus.ConnectionReset => "The connection was interrupted.",
-        CoreWebView2WebErrorStatus.OperationCanceled => "The page didn't load (it was stopped or left for a download).",
-        _ when http >= 400 => $"The site answered with an error ({http}).",
-        _ => $"The page couldn't be loaded ({status}).",
+            or CoreWebView2WebErrorStatus.CertificateIsInvalid => Strings.Web_BadCertificate,
+        CoreWebView2WebErrorStatus.ConnectionAborted or CoreWebView2WebErrorStatus.ConnectionReset => Strings.Web_Interrupted,
+        CoreWebView2WebErrorStatus.OperationCanceled => Strings.Web_Stopped,
+        _ when http >= 400 => Loc.Format(Strings.Web_HttpError, http),
+        _ => Loc.Format(Strings.Web_LoadFailed, status),
     };
 }

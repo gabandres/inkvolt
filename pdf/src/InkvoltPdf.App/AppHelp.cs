@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using InkvoltPrint.Core.Suite;
+using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
@@ -48,15 +49,15 @@ internal static class AppHelp
 
     public static void ShowWhatsNew(Window owner, IReadOnlyList<ReleaseNote> notes)
     {
-        var dlg = new FormDialog(owner, "What's new in Inkvolt PDF", "Close", 540);
+        var dlg = new FormDialog(owner, Strings.Help_WhatsNewTitle, Strings.Common_Close, 540);
         dlg.HideCancel();
         var list = new StackPanel();
-        if (notes.Count == 0) list.Children.Add(new TextBlock { Text = "No release notes in this build.", TextWrapping = TextWrapping.Wrap });
+        if (notes.Count == 0) list.Children.Add(new TextBlock { Text = Strings.Help_NoNotes, TextWrapping = TextWrapping.Wrap });
         foreach (var note in notes)
         {
             list.Children.Add(new TextBlock
             {
-                Text = $"Version {note.Version}", FontWeight = FontWeights.SemiBold, FontSize = 15,
+                Text = Loc.Format(Strings.Help_Version, note.Version), FontWeight = FontWeights.SemiBold, FontSize = 15,
                 Margin = new Thickness(0, list.Children.Count == 0 ? 0 : 16, 0, 6),
             });
             foreach (var item in note.Items)
@@ -80,18 +81,16 @@ internal static class AppHelp
 
     public static void ShowReport(Window owner, int openDocuments)
     {
-        var dlg = new FormDialog(owner, "Report a problem", "Close", 700);
+        var dlg = new FormDialog(owner, Strings.Help_ReportTitle, Strings.Common_Close, 700);
         dlg.HideCancel();
-        dlg.AddNote("These details help find the problem: the version, Windows, a few settings and the end of Inkvolt PDF's log. "
-                    + "IP addresses, file paths and your names are masked; document contents are never in the log. Nothing is sent: "
-                    + "copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share.");
+        dlg.AddNote(Strings.Help_ReportNote);
         var details = dlg.Add(null, new TextBox
         {
             Text = Report(openDocuments), IsReadOnly = true, TextWrapping = TextWrapping.NoWrap, Height = 320, Margin = new Thickness(0, 12, 0, 0),
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             FontFamily = new FontFamily("Cascadia Mono, Consolas"), FontSize = 12,
         });
-        System.Windows.Automation.AutomationProperties.SetName(details, "Details to report");
+        System.Windows.Automation.AutomationProperties.SetName(details, Strings.Help_DetailsToReport);
         var status = dlg.AddNote("");
         status.Visibility = Visibility.Collapsed;
         bool Copy()
@@ -99,13 +98,13 @@ internal static class AppHelp
             try
             {
                 Clipboard.SetText(details.Text);
-                status.Text = "Copied.";
+                status.Text = Strings.Help_CopiedShort;
                 return true;
             }
             catch (COMException ex) // another app holds the clipboard
             {
                 Log.Write($"Diagnostics not copied: {ex.Message}");
-                status.Text = "The clipboard is busy; try again, or select the text and press Ctrl+C.";
+                status.Text = Strings.Help_ClipboardBusy;
                 return false;
             }
             finally
@@ -113,15 +112,15 @@ internal static class AppHelp
                 status.Visibility = Visibility.Visible;
             }
         }
-        var issue = dlg.AddFooterButton("Copy and open a GitHub issue");
-        issue.ToolTip = "Copies the details, then opens a new issue on GitHub in your browser to paste them in";
+        var issue = dlg.AddFooterButton(Strings.Help_CopyOpenIssue);
+        issue.ToolTip = Strings.Help_CopyOpenIssueTip;
         issue.Click += (_, _) =>
         {
             if (!Copy()) return;
             Shell.Open(Diagnostics.IssueUrl(Repository, "Inkvolt PDF", Version, RuntimeInformation.OSDescription));
-            status.Text = "Copied. Paste the details into the issue under Details, then submit it.";
+            status.Text = Strings.Help_Copied;
         };
-        dlg.AddFooterButton("Copy").Click += (_, _) => Copy();
+        dlg.AddFooterButton(Strings.Common_Copy).Click += (_, _) => Copy();
         dlg.ShowModal();
     }
 

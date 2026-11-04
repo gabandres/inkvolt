@@ -33,23 +33,23 @@ internal sealed class ReviewRow : INotifyPropertyChanged
 
     public int Page => Hit?.Page ?? Look?.Page ?? Earlier!.PageIndex;
 
-    public string Where => $"Page {Page + 1}";
+    public string Where => Loc.Format(Strings.Viewer_PageN, Page + 1);
 
-    public string Kind => Hit is { } h ? RedactionPatterns.Name(h.Pattern) + (h.FromOcr ? " (read by OCR)" : "") : Earlier is not null ? "An area you marked earlier" : "Look at this page by hand";
+    public string Kind => Hit is { } h ? (h.FromOcr ? Loc.Format(Strings.Redact_ReadByOcr, RedactionPatterns.Name(h.Pattern)) : RedactionPatterns.Name(h.Pattern)) : Earlier is not null ? Strings.Redact_MarkedEarlier : Strings.Redact_LookByHandPage;
 
     public string Before => Hit is { } h ? (h.Before.Length > 28 ? "…" + h.Before[^28..] : h.Before) : "";
 
     public string Value => Hit is { } h ? RedactionPatterns.Displayable(h.Text) : "";
 
-    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Earlier is not null ? "Goes with the rest. Untick to leave it as a mark." : Look!.Short;
+    public string After => Hit is { } h ? (h.After.Length > 28 ? h.After[..28] + "…" : h.After) : Earlier is not null ? Strings.Redact_GoesWithRest : Look!.Short;
 
     public Visibility CheckVisibility => Hit is not null || Earlier is not null || Look!.Unread.Count > 0 ? Visibility.Visible : Visibility.Hidden;
 
     /// <summary>What the check box does, for a screen reader.</summary>
     public string Spoken => Hit is not null
-        ? $"{Where}, {Kind}: {Before}{Value}{After}. Checked: it will be redacted."
-        : Earlier is not null ? $"{Where}, {Kind}. Checked: it will be redacted."
-        : $"{Where}: {Look!.Text} Checked: the places where nothing was read will be blacked out.";
+        ? Loc.Format(Strings.Redact_SpokenHit, Where, Kind, Before + Value + After)
+        : Earlier is not null ? Loc.Format(Strings.Redact_SpokenEarlier, Where, Kind)
+        : Loc.Format(Strings.Redact_SpokenLook, Where, Look!.Text);
 
     public bool Accepted
     {
@@ -94,7 +94,7 @@ internal sealed class RedactReviewDialog
                 .Concat(earlier.Select(m => new ReviewRow { Earlier = m, Accepted = true }))
                 .OrderBy(r => r.Page).ThenBy(r => r.Look is null).ThenBy(r => r.Hit?.Rects[0].Y ?? r.Earlier?.Rect.Y ?? 0).ThenBy(r => r.Hit?.Rects[0].X ?? r.Earlier?.Rect.X ?? 0),
         ];
-        _dialog = new FormDialog(owner, "Check What Was Found", "Redact", 1000);
+        _dialog = new FormDialog(owner, Strings.Redact_ReviewTitle, Strings.Redact_Redact, 1000);
         Build(found, earlier);
     }
 
@@ -122,19 +122,16 @@ internal sealed class RedactReviewDialog
     private void Build(RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
     {
         var hits = found.Hits.Count;
-        _dialog.AddNote((hits == 0 ? "Nothing matching was found. " : hits == 1 ? "1 match was found. Untick it to keep it. " : $"{hits:N0} matches were found. Untick any you want to keep. ") +
-                        "Nothing is removed until you press Redact. Pages with something to remove become images, and you can undo it until you save.");
+        _dialog.AddNote((hits == 0 ? Strings.Redact_NoMatches : Loc.Plural(hits, Strings.Redact_Matches_One, Strings.Redact_Matches_Many)) + " " + Strings.Redact_NothingUntil);
         if (found.Looks.Count > 0)
         {
-            var warn = _dialog.AddNote($"Look at {RedactionReport.Pages(found.Looks.Select(l => l.Page))} yourself, whatever the list says: " +
-                                       $"{RedactionLook.Why(found.Looks)}, so these pages can't be taken as clean. Each is flagged in the list.");
+            var warn = _dialog.AddNote(Loc.Format(Strings.Redact_LookYourself, RedactionReport.Pages(found.Looks.Select(l => l.Page)), RedactionLook.Why(found.Looks)));
             warn.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
             AutomationProperties.SetLiveSetting(warn, AutomationLiveSetting.Polite);
         }
         if (earlier.Count > 0)
         {
-            var also = _dialog.AddNote($"{(earlier.Count == 1 ? "1 area you marked earlier" : $"{earlier.Count:N0} areas you marked earlier")}, on {RedactionReport.Pages(earlier.Select(m => m.PageIndex))}, will go too. " +
-                                       $"{(earlier.Count == 1 ? "It is" : "They are")} in the list: select one to see it, untick to leave it as a mark, or Cancel to change nothing.");
+            var also = _dialog.AddNote(Loc.Plural(earlier.Count, Strings.Redact_EarlierToo_One, Strings.Redact_EarlierToo_Many, RedactionReport.Pages(earlier.Select(m => m.PageIndex))));
             also.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
             AutomationProperties.SetLiveSetting(also, AutomationLiveSetting.Polite);
         }
@@ -153,7 +150,7 @@ internal sealed class RedactReviewDialog
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, ScrollBarVisibility.Disabled);
         VirtualizingPanel.SetIsVirtualizing(_list, true);
         VirtualizingPanel.SetVirtualizationMode(_list, VirtualizationMode.Recycling);
-        AutomationProperties.SetName(_list, "What was found");
+        AutomationProperties.SetName(_list, Strings.Redact_WhatWasFound);
         _list.SelectionChanged += (_, _) =>
         {
             if (_list.SelectedItem is { } selected) _list.ScrollIntoView(selected);
@@ -184,8 +181,8 @@ internal sealed class RedactReviewDialog
         grid.Children.Add(pane);
         _dialog.Add(null, grid);
 
-        _dialog.AddFooterButton("Accept All").Click += (_, _) => SetAll(true);
-        _dialog.AddFooterButton("Skip All").Click += (_, _) => SetAll(false);
+        _dialog.AddFooterButton(Strings.Redact_AcceptAll).Click += (_, _) => SetAll(true);
+        _dialog.AddFooterButton(Strings.Redact_SkipAll).Click += (_, _) => SetAll(false);
         if (_rows.Count > 0) _list.SelectedIndex = 0;
     }
 
@@ -203,7 +200,7 @@ internal sealed class RedactReviewDialog
         if (_settingAll) return;
         var hits = _rows.Count(r => r.Hit is not null && r.Accepted);
         var areas = _rows.Where(r => r.Look is not null && r.Accepted).Sum(r => r.Look!.Unread.Count) + _rows.Count(r => r.Earlier is not null && r.Accepted);
-        _dialog.SetOkText(hits + areas == 0 ? "Keep All" : areas == 0 ? (hits == 1 ? "Redact 1" : $"Redact {hits:N0}") : $"Redact {hits + areas:N0}");
+        _dialog.SetOkText(hits + areas == 0 ? Strings.Redact_KeepAll : Loc.Format(Strings.Redact_RedactN, hits + areas));
     }
 
     /// <summary>The selected line's page, with what the line is about outlined.</summary>
@@ -229,7 +226,7 @@ internal sealed class RedactReviewDialog
         var source = BitmapSource.Create(image.Width, image.Height, 96, 96, PixelFormats.Bgr24, null, image.Pixels, image.Width * 3);
         source.Freeze();
         _page.Source = source;
-        AutomationProperties.SetName(_page, $"{row.Where}, as it is now");
+        AutomationProperties.SetName(_page, Loc.Format(Strings.Redact_AsItIsNow, row.Where));
         _marks.Children.Clear();
         _marks.Width = image.Width;
         _marks.Height = image.Height;

@@ -37,7 +37,7 @@ public static partial class ContentEditor
         if (walk.FormUses.GetValueOrDefault(form) > 1 || SharedElsewhere(doc, page, place))
         {
             if (place.Outer is not null)
-                throw new ContentEditException("This text can't be edited: it is inside a drawing (a form XObject) that other pages share, drawn through another drawing, and an edit would change every copy.");
+                throw new ContentEditException(PdfStrings.Edit_TextInSharedForm);
             form = CopyForm(doc, page, streams, pageOps, place);
             place = place with { Form = form };
         }

@@ -213,16 +213,16 @@ internal sealed class OcspResponse
             {
                 problem = status switch
                 {
-                    OcspResponseStatus.TryLater => "the responder says to try later",
-                    OcspResponseStatus.Unauthorized => "the responder doesn't answer for this certificate",
-                    _ => "the responder reported an error",
+                    OcspResponseStatus.TryLater => PdfStrings.Ltv_OcspTryLater,
+                    OcspResponseStatus.Unauthorized => PdfStrings.Ltv_OcspUnauthorized,
+                    _ => PdfStrings.Ltv_OcspError,
                 };
                 return null;
             }
             var bytes = outer.ReadSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true)).ReadSequence();
             if (bytes.ReadObjectIdentifier() != BasicOid)
             {
-                problem = "the response is of an unknown kind";
+                problem = PdfStrings.Ltv_OcspUnknownKind;
                 return null;
             }
             var basic = new AsnReader(bytes.ReadOctetString(), AsnEncodingRules.BER).ReadSequence();
@@ -256,7 +256,7 @@ internal sealed class OcspResponse
         }
         catch (Exception ex) when (ex is AsnContentException or CryptographicException or ArgumentException or OverflowException)
         {
-            problem = "the response can't be read";
+            problem = PdfStrings.Ltv_OcspUnreadable;
             return null;
         }
     }

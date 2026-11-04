@@ -74,9 +74,8 @@ public sealed class AiClient : IDisposable
         var allowed = resolved.Where(endpoint.Allows).ToArray();
         if (allowed.Length == 0)
             throw new AiAddressException(resolved.Length == 0
-                ? $"Couldn't find {host}. Check the address, and that this PC is online."
-                : $"{host} leads to {resolved[0]}, outside {(endpoint.Reach == AiReach.ThisPc ? "this PC" : "your network")}, so nothing was sent. " +
-                  "If the endpoint is on the internet, enter its public https:// address.");
+                ? Loc.Format(PdfStrings.Ai_HostNotFound, host)
+                : Loc.Format(endpoint.Reach == AiReach.ThisPc ? PdfStrings.Ai_OutsideThisPc : PdfStrings.Ai_OutsideNetwork, host, resolved[0]));
         return new NetworkStream(await ConnectFirst(allowed, target.Port, cancel), ownsSocket: true);
     }
 
@@ -142,10 +141,10 @@ public sealed class AiClient : IDisposable
         {
             // Not Ollama, or not answering: the request itself will say why.
         }
-        var (context, source) = loaded is { } l ? (l, "as Ollama loaded it")
-            : numCtx is { } n ? (n, "the model's num_ctx in Ollama")
+        var (context, source) = loaded is { } l ? (l, PdfStrings.Ai_CtxAsLoaded)
+            : numCtx is { } n ? (n, PdfStrings.Ai_CtxNumCtx)
             : ((int?)null, "");
-        if (context is { } c && trained is { } t && t < c) (context, source) = (t, "the model's own limit");
+        if (context is { } c && trained is { } t && t < c) (context, source) = (t, PdfStrings.Ai_CtxModelLimit);
         return (context, source);
     }
 
@@ -217,7 +216,7 @@ public sealed class AiClient : IDisposable
                 var piece = parser.Line(line);
                 if (piece.Length == 0) continue;
                 if (text.Length + piece.Length > MaxAnswerChars)
-                    throw new AiException($"The answer from {_endpoint.Host} grew far longer than an answer should; it was stopped.");
+                    throw new AiException(Loc.Format(PdfStrings.Ai_AnswerTooLong, _endpoint.Host));
                 text.Append(piece);
                 onText?.Invoke(piece);
             }
@@ -230,13 +229,13 @@ public sealed class AiClient : IDisposable
         }
         catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
         {
-            throw new AiException($"{_endpoint.Host} stopped answering (nothing for {_timeouts.Idle.TotalSeconds:0} seconds).");
+            throw new AiException(Loc.Format(PdfStrings.Ai_StoppedAnswering, _endpoint.Host, _timeouts.Idle.TotalSeconds));
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException && !cancel.IsCancellationRequested)
         {
             throw new AiException(ClosedEarly(_endpoint), ex);
         }
-        if (!parser.SawData) throw new AiException($"{_endpoint.Host} answered with an empty stream. Is the model name right?");
+        if (!parser.SawData) throw new AiException(Loc.Format(PdfStrings.Ai_EmptyStream, _endpoint.Host));
         return new AiReply(text.ToString(), parser.FinishReason);
     }
 
@@ -254,8 +253,8 @@ public sealed class AiClient : IDisposable
         }
         catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
         {
-            throw new AiException($"{_endpoint.Host} didn't answer within {Describe(wait)}." +
-                                  (_endpoint.Reach == AiReach.ThisPc ? " A large model may still be loading: try again in a moment." : ""));
+            throw new AiException(Loc.Format(PdfStrings.Ai_NoAnswerWithin, _endpoint.Host, Describe(wait)) +
+                                  (_endpoint.Reach == AiReach.ThisPc ? PdfStrings.Ai_ModelMayBeLoading : ""));
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or SocketException && !cancel.IsCancellationRequested)
         {
@@ -266,8 +265,7 @@ public sealed class AiClient : IDisposable
         {
             var to = response.Headers.Location is { } loc ? new Uri(_endpoint.BaseUrl, loc) : null;
             response.Dispose();
-            throw new AiException($"{_endpoint.Host} redirects to {(to is null ? "another address" : to.GetLeftPart(UriPartial.Path))}. " +
-                                  "Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.") { Status = status };
+            throw new AiException(Loc.Format(to is null ? PdfStrings.Ai_RedirectsElsewhere : PdfStrings.Ai_Redirects, _endpoint.Host, to?.GetLeftPart(UriPartial.Path))) { Status = status };
         }
         return response;
     }
@@ -288,7 +286,7 @@ public sealed class AiClient : IDisposable
             {
                 if (ms.Length + n > MaxBodyBytes)
                 {
-                    if (!truncate) throw new AiException($"{_endpoint.Host} sent more than {MaxBodyBytes >> 20} MB in one answer; it was stopped.");
+                    if (!truncate) throw new AiException(Loc.Format(PdfStrings.Ai_BodyTooLarge, _endpoint.Host, MaxBodyBytes >> 20));
                     ms.Write(buffer, 0, (int)(MaxBodyBytes - ms.Length));
                     break;
                 }
@@ -298,7 +296,7 @@ public sealed class AiClient : IDisposable
         }
         catch (OperationCanceledException) when (!cancel.IsCancellationRequested)
         {
-            throw new AiException("The endpoint took too long to send its answer.");
+            throw new AiException(PdfStrings.Ai_TookTooLong);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException && !cancel.IsCancellationRequested)
         {
@@ -328,7 +326,7 @@ public sealed class AiClient : IDisposable
                         _pos++;
                         return Take();
                     }
-                    if (_line.Length >= MaxLineChars) throw new AiException("The endpoint sent a line too long to be part of a streamed answer.");
+                    if (_line.Length >= MaxLineChars) throw new AiException(PdfStrings.Ai_LineTooLong);
                     _line.Append(c);
                 }
                 if (_ended) return _line.Length > 0 ? Take() : null;
@@ -354,28 +352,29 @@ public sealed class AiClient : IDisposable
         if (FindInner<AiAddressException>(ex) is { } refused) return refused.Message;
         var socket = FindInner<SocketException>(ex);
         if (socket?.SocketErrorCode == SocketError.TimedOut || FindInner<TimeoutException>(ex) is not null)
-            return $"{endpoint.Host} didn't respond. Check the address, the network and any firewall.";
+            return Loc.Format(PdfStrings.Ai_NoResponse, endpoint.Host);
         if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.NameResolutionError || socket?.SocketErrorCode is SocketError.HostNotFound or SocketError.NoData)
-            return $"Couldn't find {endpoint.BaseUrl.Host}. Check the address, and that this PC is online.";
+            return Loc.Format(PdfStrings.Ai_HostNotFound, endpoint.BaseUrl.Host);
         if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.SecureConnectionError || FindInner<AuthenticationException>(ex) is not null)
-            return $"Couldn't make a secure connection to {endpoint.Host}: its certificate isn't trusted by Windows, or it doesn't speak https.";
+            return Loc.Format(PdfStrings.Ai_NotSecure, endpoint.Host);
         if ((ex as HttpRequestException)?.HttpRequestError == HttpRequestError.ResponseEnded ||
             socket?.SocketErrorCode is SocketError.ConnectionReset or SocketError.ConnectionAborted or SocketError.Shutdown)
             return ClosedEarly(endpoint);
         if (socket?.SocketErrorCode == SocketError.ConnectionRefused || (ex as HttpRequestException)?.HttpRequestError == HttpRequestError.ConnectionError)
-            return $"Couldn't connect to {endpoint.Host}: nothing is listening there. " + endpoint.ServerName switch
+            return Loc.Format(endpoint.ServerName switch
             {
-                "Ollama" => "Is Ollama running? Start it (or run: ollama serve) and try again.",
-                "LM Studio" => "Is LM Studio's local server running? Start it in LM Studio (Developer › Start server) and try again.",
-                _ => "Is the server running, and is the port right?",
-            };
-        return $"The request to {endpoint.Host} failed ({ex.Message.Trim().TrimEnd('.')}).";
+                "Ollama" => PdfStrings.Ai_NotListeningOllama,
+                "LM Studio" => PdfStrings.Ai_NotListeningLmStudio,
+                _ => PdfStrings.Ai_NotListening,
+            }, endpoint.Host);
+        return Loc.Format(PdfStrings.Ai_RequestFailed, endpoint.Host, ex.Message.Trim().TrimEnd('.'));
     }
 
     /// <summary>The server was reached but the connection ended before the answer did (the server stopped or crashed).</summary>
     public static string ClosedEarly(AiEndpoint endpoint) =>
-        $"The connection to {endpoint.Host} closed before the answer finished" +
-        (endpoint.ServerName is { } name ? $": did {name} stop or crash?" : ".") + "";
+        endpoint.ServerName is { } name
+            ? Loc.Format(PdfStrings.Ai_ClosedEarlyNamed, endpoint.Host, name)
+            : Loc.Format(PdfStrings.Ai_ClosedEarly, endpoint.Host);
 
     private static T? FindInner<T>(Exception? ex) where T : Exception
     {
@@ -384,7 +383,9 @@ public sealed class AiClient : IDisposable
         return null;
     }
 
-    private static string Describe(TimeSpan t) => t.TotalMinutes >= 1 ? $"{t.TotalMinutes:0} minute{(t.TotalMinutes >= 2 ? "s" : "")}" : $"{t.TotalSeconds:0} seconds";
+    private static string Describe(TimeSpan t) => t.TotalMinutes >= 1
+        ? Loc.Format(t.TotalMinutes >= 2 ? PdfStrings.Ai_Minutes_Many : PdfStrings.Ai_Minutes_One, t.TotalMinutes)
+        : Loc.Format(PdfStrings.Ai_Seconds, t.TotalSeconds);
 
     public void Dispose() => _http.Dispose();
 }

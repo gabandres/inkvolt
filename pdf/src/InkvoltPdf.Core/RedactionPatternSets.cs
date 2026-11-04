@@ -77,7 +77,7 @@ public static class RedactionPatternSets
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            problems.Add($"The saved sets can't be read: {ex.Message}");
+            problems.Add(Loc.Format(PdfStrings.Redact_SetsUnreadable, ex.Message));
             return (sets, problems);
         }
         foreach (var path in files.Order(StringComparer.OrdinalIgnoreCase).Take(MaxListed))
@@ -103,13 +103,13 @@ public static class RedactionPatternSets
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists) throw new RedactionPatternSetException($"The saved set {name} isn't there any more.");
-            if (info.Length > MaxBytes) throw new RedactionPatternSetException($"{name} is too large to be a saved set.");
+            if (!info.Exists) throw new RedactionPatternSetException(Loc.Format(PdfStrings.Redact_SetGone, name));
+            if (info.Length > MaxBytes) throw new RedactionPatternSetException(Loc.Format(PdfStrings.Redact_SetTooLarge, name));
             json = File.ReadAllText(path, Encoding.UTF8);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
-            throw new RedactionPatternSetException($"The saved set {name} can't be read: {ex.Message}", ex);
+            throw new RedactionPatternSetException(Loc.Format(PdfStrings.Redact_SetUnreadable, name, ex.Message), ex);
         }
         return Read(json, name);
     }
@@ -120,9 +120,9 @@ public static class RedactionPatternSets
     public static string Save(RedactionPatternSet set, string folder)
     {
         var name = CleanName(set.Name);
-        if (name.Length == 0) throw new RedactionPatternSetException("Name the set.");
+        if (name.Length == 0) throw new RedactionPatternSetException(PdfStrings.Redact_SetNoName);
         if (RedactionPatterns.Validate(set.Options) is { } problem) throw new RedactionPatternSetException(problem);
-        if (set.Options.IsEmpty) throw new RedactionPatternSetException("Choose something to look for first.");
+        if (set.Options.IsEmpty) throw new RedactionPatternSetException(PdfStrings.Redact_SetNothing);
         Directory.CreateDirectory(folder);
         var path = Path.Combine(folder, FileName(name));
         var temp = path + $".{Guid.NewGuid():N}.tmp";
@@ -168,7 +168,7 @@ public static class RedactionPatternSets
     /// <exception cref="RedactionPatternSetException">It isn't a set this version can use whole.</exception>
     public static RedactionPatternSet Read(string json, string fileName)
     {
-        RedactionPatternSetException Bad(string why) => new($"The saved set {fileName} can't be used: {why}");
+        RedactionPatternSetException Bad(string why) => new(Loc.Format(PdfStrings.Redact_SetUnusable, fileName, why));
         JsonDocument doc;
         try
         {
@@ -176,43 +176,43 @@ public static class RedactionPatternSets
         }
         catch (JsonException ex)
         {
-            throw new RedactionPatternSetException($"The saved set {fileName} can't be used: it isn't valid JSON.", ex);
+            throw new RedactionPatternSetException(Loc.Format(PdfStrings.Redact_SetNotJson, fileName), ex);
         }
         using var opened = doc;
         try
         {
             var root = doc.RootElement;
-            if (root.ValueKind != JsonValueKind.Object) throw Bad("it isn't a set.");
+            if (root.ValueKind != JsonValueKind.Object) throw Bad(PdfStrings.Redact_SetWhyNotSet);
             string Text(string key, bool required)
             {
                 if (!root.TryGetProperty(key, out var e) || e.ValueKind == JsonValueKind.Null)
-                    return required ? throw Bad($"\"{key}\" is missing.") : "";
-                return e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Bad($"\"{key}\" should be text.");
+                    return required ? throw Bad(Loc.Format(PdfStrings.Redact_SetWhyMissing, key)) : "";
+                return e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Bad(Loc.Format(PdfStrings.Redact_SetWhyText, key));
             }
             bool Flag(string key, bool otherwise)
             {
                 if (!root.TryGetProperty(key, out var e)) return otherwise;
-                return e.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => throw Bad($"\"{key}\" should be true or false.") };
+                return e.ValueKind switch { JsonValueKind.True => true, JsonValueKind.False => false, _ => throw Bad(Loc.Format(PdfStrings.Redact_SetWhyBool, key)) };
             }
             List<string> List(string key)
             {
                 if (!root.TryGetProperty(key, out var e)) return [];
-                if (e.ValueKind != JsonValueKind.Array) throw Bad($"\"{key}\" should be a list.");
-                if (e.GetArrayLength() > RedactionPatterns.MaxPhrases) throw Bad($"\"{key}\" has too many items.");
-                return [.. e.EnumerateArray().Select(i => i.ValueKind == JsonValueKind.String ? i.GetString()! : throw Bad($"\"{key}\" should list text."))];
+                if (e.ValueKind != JsonValueKind.Array) throw Bad(Loc.Format(PdfStrings.Redact_SetWhyList, key));
+                if (e.GetArrayLength() > RedactionPatterns.MaxPhrases) throw Bad(Loc.Format(PdfStrings.Redact_SetWhyTooMany, key));
+                return [.. e.EnumerateArray().Select(i => i.ValueKind == JsonValueKind.String ? i.GetString()! : throw Bad(Loc.Format(PdfStrings.Redact_SetWhyListText, key)))];
             }
 
-            if (Text("format", true) != Format) throw Bad("it isn't a set of redaction patterns.");
-            if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1) throw Bad("its version is missing.");
-            if (v > Version) throw Bad("it comes from a newer version of Inkvolt PDF.");
+            if (Text("format", true) != Format) throw Bad(PdfStrings.Redact_SetWhyNotPatterns);
+            if (!root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var v) || v < 1) throw Bad(PdfStrings.Redact_SetWhyNoVersion);
+            if (v > Version) throw Bad(PdfStrings.Redact_SetWhyNewer);
 
             var name = CleanName(Text("name", true));
-            if (name.Length == 0) throw Bad("it has no name.");
+            if (name.Length == 0) throw Bad(PdfStrings.Redact_SetWhyNoName);
             var kinds = new HashSet<RedactionPattern>();
             foreach (var word in List("kinds"))
             {
                 var i = Array.IndexOf(Words, word);
-                if (i < 0) throw Bad($"it asks for a kind this version doesn't know ({RedactionPatterns.Displayable(word, 40)}).");
+                if (i < 0) throw Bad(Loc.Format(PdfStrings.Redact_SetWhyUnknownKind, RedactionPatterns.Displayable(word, 40)));
                 kinds.Add(Kinds[i]);
             }
             var options = new RedactionPatternOptions
@@ -225,13 +225,13 @@ public static class RedactionPatternSets
                 SetName = name,
             };
             if (RedactionPatterns.Validate(options) is { } problem) throw Bad(problem);
-            if (options.IsEmpty) throw Bad("it has nothing to look for.");
+            if (options.IsEmpty) throw Bad(PdfStrings.Redact_SetWhyNothing);
             return new RedactionPatternSet(name, options);
         }
         catch (InvalidOperationException ex)
         {
             // JSON text that holds half a surrogate pair ("\uD800") parses, and only fails when it is read.
-            throw new RedactionPatternSetException($"The saved set {fileName} can't be used: it holds text that can't be read.", ex);
+            throw new RedactionPatternSetException(Loc.Format(PdfStrings.Redact_SetBadText, fileName), ex);
         }
     }
 }

@@ -49,9 +49,9 @@ public sealed record AiEndpoint
     /// <summary>"Stays on this PC", "Stays on your network (nas.local:11434)", "Leaves this PC: sent to api.example.com".</summary>
     public string ReachText => Reach switch
     {
-        AiReach.ThisPc => "Stays on this PC",
-        AiReach.LocalNetwork => $"Stays on your network ({Host})",
-        _ => $"Leaves this PC: sent to {Host}",
+        AiReach.ThisPc => PdfStrings.Ai_StaysOnPc,
+        AiReach.LocalNetwork => Loc.Format(PdfStrings.Ai_StaysOnNetwork, Host),
+        _ => Loc.Format(PdfStrings.Ai_LeavesPc, Host),
     };
 
     /// <summary>What usually serves this address, for "Is Ollama running?" hints (by its well-known port on this PC).</summary>
@@ -72,14 +72,14 @@ public sealed record AiEndpoint
         text = text?.Trim() ?? "";
         if (text.Length == 0)
         {
-            error = "Enter the endpoint's address, e.g. https://api.example.com/v1";
+            error = PdfStrings.Ai_EnterAddress;
             return false;
         }
         var guessed = !text.Contains("://", StringComparison.Ordinal);
         if (guessed) text = "http://" + text;
         if (!Uri.TryCreate(text, UriKind.Absolute, out var uri) || uri.Host.Length == 0)
         {
-            error = "That isn't a web address. Enter one such as https://api.example.com/v1";
+            error = PdfStrings.Ai_NotWebAddress;
             return false;
         }
         // HttpClient connects to the IDNA (punycode) form of a host, in which look-alike dots such as "。" become real
@@ -89,22 +89,22 @@ public sealed record AiEndpoint
         var authority = text.AsSpan(start, (end < 0 ? text.Length : end) - start);
         if (uri.Host.Any(c => c > 0x7E) || authority.ContainsAnyExceptInRange((char)0x21, (char)0x7E))
         {
-            error = "Type the host name in plain letters and digits (an international domain name in its xn-- form).";
+            error = PdfStrings.Ai_PlainHostName;
             return false;
         }
         if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
         {
-            error = "The address must start with https:// (or http:// for this PC or your network).";
+            error = PdfStrings.Ai_HttpsRequired;
             return false;
         }
         if (uri.UserInfo.Length > 0)
         {
-            error = "Leave the user name and password out of the address; put an API key in the key box instead.";
+            error = PdfStrings.Ai_NoCredentialsInAddress;
             return false;
         }
         if (uri.Query.Length > 0 || uri.Fragment.Length > 0)
         {
-            error = "Leave out the part after ? or #: enter just the base address, e.g. https://api.example.com/v1";
+            error = PdfStrings.Ai_NoQuery;
             return false;
         }
         var reach = Classify(uri.Host);
@@ -112,7 +112,7 @@ public sealed record AiEndpoint
             uri = new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = uri.IsDefaultPort ? -1 : uri.Port }.Uri;
         if (uri.Scheme == Uri.UriSchemeHttp && reach == AiReach.Internet)
         {
-            error = $"Use https:// for {uri.Host}: it is outside your network, and http:// would send the text unencrypted.";
+            error = Loc.Format(PdfStrings.Ai_UseHttps, uri.Host);
             return false;
         }
 

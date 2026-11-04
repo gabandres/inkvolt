@@ -1,0 +1,122 @@
+# Inkvolt PDF in Spanish: the shots in docs/ux-review/spanish-pdf/ and the UIA audit (a11yaudit: 0 findings).
+# Run: InkvoltPdf.exe --lang es --script docs/ux-review/pdf-spanish.txt (Debug, or INKVOLTPDF_DEVSCRIPT=1).
+# Samples in C:\ux2\samples (from the tests, INKVOLTPDF_SAMPLES); shots in C:\ux-es.
+wait 1200
+theme light
+size 1400 900
+shot C:\ux-es\start.png
+a11yaudit
+open C:\ux2\samples\features.pdf
+wait 1500
+barstate
+shot C:\ux-es\main.png
+a11yaudit
+barclick FillSign
+wait 400
+menushot C:\ux-es\flyout-fillsign.png
+key Escape
+barclick Comment
+wait 400
+menushot C:\ux-es\flyout-comment.png
+key Escape
+barclick Draw
+wait 400
+menushot C:\ux-es\flyout-draw.png
+key Escape
+barclick More
+wait 400
+menushot C:\ux-es\bar-more.png
+key Escape
+tabmenu
+wait 400
+menushot C:\ux-es\tab-menu.png
+key Escape
+pane comments
+wait 400
+shot C:\ux-es\pane-comments.png
+a11yaudit
+a11y
+wait 2500
+shot C:\ux-es\a11y-check.png
+a11yaudit
+cmd CommandPalette
+wait 400
+keys gir
+wait 400
+shot C:\ux-es\palette.png
+key Escape
+cmd CommandPalette
+wait 400
+keys rotate
+wait 400
+shot C:\ux-es\palette-english.png
+key Escape
+later 900 dialogshot C:\ux-es\settings.png
+later 1100 a11yaudit
+later 1500 closedialog
+cmd Settings
+later 900 dialogshot C:\ux-es\properties.png
+later 1500 closedialog
+cmd Properties
+later 900 dialogshot C:\ux-es\shortcuts.png
+later 1500 closedialog
+cmd Shortcuts
+later 900 dialogshot C:\ux-es\crop.png
+later 1100 a11yaudit
+later 1500 closedialog
+cmd CropPages
+later 900 dialogshot C:\ux-es\header-footer.png
+later 1500 closedialog
+cmd AddHeaderFooter
+later 900 dialogshot C:\ux-es\watermark.png
+later 1500 closedialog
+cmd AddWatermark
+later 900 dialogshot C:\ux-es\protect.png
+later 1500 closedialog
+cmd ProtectPassword
+later 900 dialogshot C:\ux-es\redact-patterns.png
+later 1100 a11yaudit
+later 1500 closedialog
+cmd RedactPatterns
+later 900 dialogshot C:\ux-es\sanitize.png
+later 1500 closedialog
+cmd Sanitize
+later 900 dialogshot C:\ux-es\whats-in.png
+later 1500 closedialog
+cmd WhatsInThisPdf
+batch C:\ux2\samples\plain.pdf
+wait 800
+batchshot C:\ux-es\batch.png
+batchclose
+proshot C:\ux-es\pro.png
+cmd Organize
+wait 800
+shot C:\ux-es\organize.png
+key Escape
+textscale 1.5
+wait 600
+barstate
+shot C:\ux-es\main-150.png
+a11yaudit
+barclick FillSign
+wait 400
+menushot C:\ux-es\flyout-fillsign-150.png
+key Escape
+later 900 dialogshot C:\ux-es\settings-150.png
+later 1500 closedialog
+cmd Settings
+size 1100 760
+wait 600
+barstate
+shot C:\ux-es\main-1100-150.png
+textscale system
+size 1400 900
+wait 400
+select 1
+delete
+wait 400
+later 900 dialogshot C:\ux-es\save-changes.png
+later 1600 closedialog
+cmd CloseDoc
+wait 1500
+exit

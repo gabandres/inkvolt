@@ -71,7 +71,7 @@ public static partial class Annotations
 
     public static IReadOnlyList<AnnotationInfo> Read(byte[] data, string? password)
     {
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF's comments can't be read");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Comment_CantRead);
         var list = new List<AnnotationInfo>();
         for (var p = 0; p < doc.PageCount; p++)
         {
@@ -120,7 +120,7 @@ public static partial class Annotations
     public static byte[] AddTextMarkup(byte[] data, string? password, int pageIndex, TextMarkupKind kind, IReadOnlyList<RectD> lineRects,
         AnnotColor color, string? note, string author, string? id = null)
     {
-        if (lineRects.Count == 0 || lineRects.All(r => r.IsEmpty)) throw new ArgumentException("No text to mark.", nameof(lineRects));
+        if (lineRects.Count == 0 || lineRects.All(r => r.IsEmpty)) throw new ArgumentException(PdfStrings.Annot_NoTextToMark, nameof(lineRects));
         using var doc = OpenForEdit(data, password);
         AddTextMarkupIn(doc, pageIndex, kind, lineRects, color, note, author, id);
         return PdfObj.Save(doc);
@@ -241,7 +241,7 @@ public static partial class Annotations
     public static byte[] SetContents(byte[] data, string? password, string id, string text)
     {
         using var doc = OpenForEdit(data, password);
-        var (p, annot) = Find(doc, id) ?? throw new InvalidOperationException("That comment no longer exists.");
+        var (p, annot) = Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Annot_Gone);
         annot.Elements["/Contents"] = PdfObj.MakeString(text);
         annot.Elements["/M"] = PdfObj.DateString(DateTimeOffset.Now);
         if (PdfObj.Name(annot.Elements["/Subtype"]) == "FreeText" && IsDrawing(annot, "FreeText") && Describe(doc.Pages[p], annot, "FreeText") is { } ft)
@@ -253,7 +253,7 @@ public static partial class Annotations
     public static byte[] Delete(byte[] data, string? password, string id)
     {
         using var doc = OpenForEdit(data, password);
-        if (!DeleteIn(doc, id)) throw new InvalidOperationException("That comment no longer exists.");
+        if (!DeleteIn(doc, id)) throw new InvalidOperationException(PdfStrings.Annot_Gone);
         return PdfObj.Save(doc);
     }
 
@@ -363,5 +363,5 @@ public static partial class Annotations
     };
 
     internal static PdfDocument OpenForEdit(byte[] data, string? password) =>
-        PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
 }

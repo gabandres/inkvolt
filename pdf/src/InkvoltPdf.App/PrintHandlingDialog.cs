@@ -15,7 +15,7 @@ namespace InkvoltPdf.App;
 public static class PrintHandlingDialog
 {
     /// <summary>Poster overlaps offered, in DIPs (1/96 in).</summary>
-    private static readonly (string Name, double Dips)[] Overlaps = [("None", 0), ("¼ in (6 mm)", 24), ("½ in (13 mm)", 48), ("1 in (25 mm)", 96)];
+    private static (string Name, double Dips)[] Overlaps => [(Strings.Common_None, 0), ("¼ in (6 mm)", 24), ("½ in (13 mm)", 48), ("1 in (25 mm)", 96)]; // in every language: measurements
 
     /// <summary>The setup chosen, or null when cancelled.</summary>
     /// <param name="size">A page's size as shown, in DIPs.</param>
@@ -24,7 +24,7 @@ public static class PrintHandlingDialog
     public static PrintSetup? Ask(Window owner, IReadOnlyList<int> pages, Func<int, (double W, double H)> size, Size paper, RectD area, bool duplex)
     {
         var s = AppSettings.Current;
-        var dlg = new FormDialog(owner, "Page Sizing & Handling", "Print", 760);
+        var dlg = new FormDialog(owner, Strings.Print_SizingTitle, Strings.Common_Print, 760);
         var group = $"ph{dlg.GetHashCode()}";
         RadioButton Choice(string text, PrintHandling h) => new()
         {
@@ -32,26 +32,26 @@ public static class PrintHandlingDialog
             IsChecked = string.Equals(s.PrintHandling, h.ToString(), StringComparison.Ordinal),
         };
 
-        var fit = Choice("Fit: one page per sheet", PrintHandling.Fit);
-        var actual = new RadioButton { Content = "Actual size (only pages larger than the paper shrink)", GroupName = group + "s", IsChecked = !s.PrintFitToPaper, Margin = new Thickness(24, 2, 0, 0) };
-        var fill = new RadioButton { Content = "Fit to paper (small pages grow too)", GroupName = group + "s", IsChecked = s.PrintFitToPaper, Margin = new Thickness(24, 2, 0, 0) };
+        var fit = Choice(Strings.Print_FitOne, PrintHandling.Fit);
+        var actual = new RadioButton { Content = Strings.Print_SizingActual, GroupName = group + "s", IsChecked = !s.PrintFitToPaper, Margin = new Thickness(24, 2, 0, 0) };
+        var fill = new RadioButton { Content = Strings.Print_SizingFit, GroupName = group + "s", IsChecked = s.PrintFitToPaper, Margin = new Thickness(24, 2, 0, 0) };
 
-        var multiple = Choice("Multiple pages per sheet", PrintHandling.PagesPerSheet);
-        var perSheet = Combo(PrintSetup.PagesPerSheetChoices.Select(n => n.ToString(CultureInfo.CurrentCulture)), Math.Max(0, PrintSetup.PagesPerSheetChoices.ToList().IndexOf(s.PrintPagesPerSheet)), "Pages per sheet");
-        var order = Combo(["Across, then down", "Down, then across"], s.PrintOrderDown ? 1 : 0, "Page order");
-        var borders = new CheckBox { Content = "Page borders", IsChecked = s.PrintBorders, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        var multiple = Choice(Strings.Print_Multiple, PrintHandling.PagesPerSheet);
+        var perSheet = Combo(PrintSetup.PagesPerSheetChoices.Select(n => n.ToString(CultureInfo.CurrentCulture)), Math.Max(0, PrintSetup.PagesPerSheetChoices.ToList().IndexOf(s.PrintPagesPerSheet)), Strings.Print_PagesPerSheet);
+        var order = Combo([Strings.Print_AcrossDown, Strings.Print_DownAcross], s.PrintOrderDown ? 1 : 0, Strings.Print_PageOrder);
+        var borders = new CheckBox { Content = Strings.Print_PageBorders, IsChecked = s.PrintBorders, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
         var multipleRow = Row(perSheet, order, borders);
 
-        var booklet = Choice("Booklet: fold the printed stack in the middle and staple along the fold", PrintHandling.Booklet);
-        var binding = Combo(["Binding on the left", "Binding on the right (right-to-left languages)"], s.PrintRightBinding ? 1 : 0, "Binding");
+        var booklet = Choice(Strings.Print_Booklet, PrintHandling.Booklet);
+        var binding = Combo([Strings.Print_BindingLeft, Strings.Print_BindingRight], s.PrintRightBinding ? 1 : 0, Strings.Print_Binding);
         var bookletRow = Row(binding);
 
-        var poster = Choice("Poster: one page across several sheets", PrintHandling.Poster);
+        var poster = Choice(Strings.Print_Poster, PrintHandling.Poster);
         var percent = new TextBox { Text = s.PrintPosterPercent.ToString(CultureInfo.CurrentCulture), Width = 64, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetName(percent, "Poster size in percent");
-        var overlap = Combo(Overlaps.Select(o => o.Name), Math.Clamp(s.PrintPosterOverlap, 0, Overlaps.Length - 1), "Overlap");
-        var marks = new CheckBox { Content = "Cut marks", IsChecked = s.PrintCutMarks, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
-        var posterRow = Row(Labeled("Size (%)", percent), Labeled("Overlap", overlap), marks);
+        AutomationProperties.SetName(percent, Strings.Print_PosterSize);
+        var overlap = Combo(Overlaps.Select(o => o.Name), Math.Clamp(s.PrintPosterOverlap, 0, Overlaps.Length - 1), Strings.Print_Overlap);
+        var marks = new CheckBox { Content = Strings.Print_CutMarks, IsChecked = s.PrintCutMarks, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        var posterRow = Row(Labeled(Strings.Print_SizePercent, percent), Labeled(Strings.Print_Overlap, overlap), marks);
 
         if (new[] { fit, multiple, booklet, poster }.All(r => r.IsChecked != true)) fit.IsChecked = true;
 
@@ -59,7 +59,7 @@ public static class PrintHandlingDialog
         var form = new StackPanel();
         foreach (var e in new UIElement[] { fit, actual, fill, multiple, multipleRow, booklet, bookletRow, poster, posterRow, summary }) form.Children.Add(e);
         var sketch = new SheetSketch(paper, area) { Width = 200, Height = 260, Margin = new Thickness(20, 4, 0, 0), VerticalAlignment = VerticalAlignment.Top };
-        AutomationProperties.SetName(sketch, "Sketch of the first sheet");
+        AutomationProperties.SetName(sketch, Strings.Print_Sketch);
         var both = new DockPanel();
         DockPanel.SetDock(sketch, Dock.Right);
         both.Children.Add(sketch);
@@ -76,7 +76,7 @@ public static class PrintHandlingDialog
             var pct = 100.0;
             if (handling == PrintHandling.Poster && !FormDialog.TryNumber(percent.Text, 25, 1000, out pct))
             {
-                error = "Type a poster size from 25 to 1000 (%).";
+                error = Strings.Print_PosterRange;
                 return null;
             }
             return new PrintSetup
@@ -106,8 +106,8 @@ public static class PrintHandlingDialog
                 return;
             }
             var plan = new PrintPlan(pages, size, area, setup);
-            sketch.Show(plan.SheetCount > 0 ? plan.Sheet(0) : null, setup.Handling == PrintHandling.Booklet ? $"Sheet 1 of {plan.PaperCount:N0}, front"
-                : plan.SheetCount == 1 ? "1 sheet" : $"Sheet 1 of {plan.SheetCount:N0}");
+            sketch.Show(plan.SheetCount > 0 ? plan.Sheet(0) : null, setup.Handling == PrintHandling.Booklet ? Loc.Format(Strings.Print_SheetFront, plan.PaperCount)
+                : plan.SheetCount == 1 ? Loc.Plural(1, Strings.Print_Sheets_One, Strings.Print_Sheets_Many) : Loc.Format(Strings.Print_SheetOf, plan.SheetCount));
             summary.Text = Summary(pages.Count, plan, setup, duplex);
         }
         foreach (var r in new[] { fit, actual, fill, multiple, booklet, poster }) r.Checked += (_, _) => Update();
@@ -144,18 +144,16 @@ public static class PrintHandlingDialog
     /// <summary>What the job takes, and for a booklet how to print and fold it.</summary>
     internal static string Summary(int pageCount, PrintPlan plan, PrintSetup setup, bool duplex)
     {
-        string Pages(int n) => n == 1 ? "1 page" : $"{n:N0} pages";
-        string Sheets(int n) => n == 1 ? "1 sheet" : $"{n:N0} sheets";
+        string Pages(int n) => Loc.Plural(n, Strings.Print_Pages_One, Strings.Print_Pages_Many);
+        string Sheets(int n) => Loc.Plural(n, Strings.Print_Sheets_One, Strings.Print_Sheets_Many);
         return setup.Handling switch
         {
             PrintHandling.Booklet =>
-                $"{Pages(pageCount)} on {Sheets(plan.PaperCount)}, both sides{(pageCount % 4 != 0 ? $" ({4 - pageCount % 4} blank at the end)" : "")}. " +
-                (duplex
-                    ? "Prints two-sided, flipping on the short edge (set for you). "
-                    : "Print two-sided, flipping on the short edge: choose it in the printer's preferences if it can; this printer doesn't say it can print both sides. ") +
-                "Then fold the stack in the middle and staple along the fold.",
-            PrintHandling.Poster => $"{Pages(pageCount)} on {Sheets(plan.SheetCount)}. Trim the sheets{(setup.CutMarks ? " at the cut marks" : "")} and tape or glue them together.",
-            _ => $"{Pages(pageCount)} on {Sheets(plan.SheetCount)}.",
+                (pageCount % 4 != 0 ? Loc.Format(Strings.Print_BookletBlank, Pages(pageCount), Sheets(plan.PaperCount), 4 - pageCount % 4)
+                    : Loc.Format(Strings.Print_BookletSheets, Pages(pageCount), Sheets(plan.PaperCount))) + " " +
+                (duplex ? Strings.Print_BookletDuplex : Strings.Print_BookletManualDuplex) + " " + Strings.Print_BookletFold,
+            PrintHandling.Poster => Loc.Format(setup.CutMarks ? Strings.Print_PosterSummaryMarks : Strings.Print_PosterSummary, Pages(pageCount), Sheets(plan.SheetCount)),
+            _ => Loc.Format(Strings.Print_SummaryOn, Pages(pageCount), Sheets(plan.SheetCount)),
         };
     }
 

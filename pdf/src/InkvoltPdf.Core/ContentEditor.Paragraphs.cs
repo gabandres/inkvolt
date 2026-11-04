@@ -400,14 +400,14 @@ public static partial class ContentEditor
         // with a look of its own); else (an edit gave all of it another look) its first run's.
         var own = PlainRun(runs);
         if (blocked is null && !translating && runs.Any(r => !SameLook(own, r)))
-            blocked = "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only";
-        if (blocked is null && runs.Any(r => r.Info is null)) blocked = "part of it can't be read for editing";
+            blocked = PdfStrings.Edit_BlockedMixedLooks;
+        if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
-            blocked = "part of it is inside a form XObject (a drawing the page reuses) and part outside, and a paragraph is rewritten in one piece of content only";
+            blocked = PdfStrings.Edit_BlockedPartInForm;
         // Rewrapping lays words out left to right, so right-to-left text would come out in the wrong order.
         if (blocked is null && !translating && runs.Any(r => TrueTypeFont.CodePoints(r.Text).Any(c => Bidi.Classify(c) is Bidi.Cls.R or Bidi.Cls.AL)))
-            blocked = "it is written right to left, and this version rewraps left-to-right text only";
+            blocked = PdfStrings.Edit_BlockedRightToLeft;
 
         var text = new StringBuilder();
         var at = new List<(TextRun Run, int Start, int Length)>(); // where each run's text is in the paragraph's
@@ -447,7 +447,7 @@ public static partial class ContentEditor
             if (r.Text.Trim().Length > 0)
             {
                 if (translating) continue;
-                blocked ??= "it has other text inside it (a raised mark, a symbol or words in another font), and this version rewrites a paragraph in one font only";
+                blocked ??= PdfStrings.Edit_BlockedTextInside;
             }
             else if (r.Info is not null && Math.Abs(r.Angle) < 0.5) spaces.Add(r);
         }
@@ -598,7 +598,7 @@ public static partial class ContentEditor
         var box = RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1));
         RectD? overlaps = p.Below is { } b && box.Bottom > b.Y + 0.5 && b.Right > box.X && b.X < box.Right ? b : null;
         var problem = enc.Colored && anchor.Info?.FillOp is null
-            ? "this paragraph's color is a special ink (a pattern or spot color), so part of it can't be given another color"
+            ? PdfStrings.Edit_SpecialInkColor
             : null;
         var check = new ParagraphCheck(box, placed.Count, [], overlaps) { Borrowed = enc.Borrowed, StandIns = enc.Names, Faces = enc.Faces, LookProblem = problem };
         return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))]);
@@ -808,11 +808,11 @@ public static partial class ContentEditor
     public static byte[] ReplaceParagraph(byte[] data, string? password, TextParagraph paragraph, string text, bool allowOverlap = false,
         IReadOnlyList<TextSpan>? spans = null)
     {
-        if (paragraph.Blocked is { } why0) throw new ContentEditException($"This paragraph can't be edited: {why0}.");
+        if (paragraph.Blocked is { } why0) throw new ContentEditException(Loc.Format(PdfStrings.Edit_ParagraphCantBeEdited, why0));
         text = ParagraphText(text);
         spans ??= Carry(paragraph.Text, text, paragraph.Spans);
         if (text == paragraph.Text && SameSpans(text, spans, paragraph.Spans)) return data;
-        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, "This PDF can't be edited");
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         var page = PageOf(doc, paragraph.PageIndex);
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes);
@@ -822,15 +822,15 @@ public static partial class ContentEditor
         {
             var found = walk.Content.Runs.FirstOrDefault(r => r.Id == run.Id && r.Text == run.Text)
                         ?? walk.Content.Runs.Where(r => r.Text == run.Text && Near(r.Box, run.Box)).MinBy(r => Math.Abs(r.Box.X - run.Box.X) + Math.Abs(r.Box.Y - run.Box.Y));
-            if (found is { Blocked: { } why }) throw new ContentEditException($"This text can't be edited: {why}.");
+            if (found is { Blocked: { } why }) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, why));
             if (found?.Info is null || now.Any(r => r.Id == found.Id))
-                throw new ContentEditException("The page changed since this paragraph was picked. Pick it again.");
+                throw new ContentEditException(PdfStrings.Edit_PageChangedParagraph);
             now.Add(found);
         }
         var anchor = Anchor(now);
         var plain = PlainRun(now);
         if (now.Any(r => !ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)))
-            throw new ContentEditException("The page changed since this paragraph was picked. Pick it again.");
+            throw new ContentEditException(PdfStrings.Edit_PageChangedParagraph);
         // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
         var spaces = paragraph.Spaces
             .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
@@ -841,12 +841,12 @@ public static partial class ContentEditor
         {
             var list = string.Join(", ", layout.Check.Missing.Take(12).Select(c => char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) is System.Globalization.UnicodeCategory.PrivateUse or System.Globalization.UnicodeCategory.Surrogate
                 ? $"U+{char.ConvertToUtf32(c, 0):X4}" : $"“{c}”"));
-            throw new ContentEditException($"Neither this paragraph's font nor any font on this PC has {list}, so it can't be written. Leave {(layout.Check.Missing.Count == 1 ? "it" : "them")} out, or add a text box instead.", layout.Check.Missing);
+            throw new ContentEditException(Loc.Plural(layout.Check.Missing.Count, PdfStrings.Edit_ParagraphMissingGlyphs_One, PdfStrings.Edit_ParagraphMissingGlyphs_Many, list), layout.Check.Missing);
         }
-        if (layout.Check.LookProblem is { } lp) throw new ContentEditException($"This can't be written: {lp}.");
+        if (layout.Check.LookProblem is { } lp) throw new ContentEditException(Loc.Format(PdfStrings.Edit_CantBeWritten, lp));
         if (layout.Check.Overlaps is { } o && !allowOverlap)
             throw new ContentEditException(
-                $"The new text takes {layout.Check.LineCount} lines and would run into what follows below it. Shorten it, or confirm to write it anyway.")
+                Loc.Format(PdfStrings.Edit_TextRunsIntoBelow, layout.Check.LineCount))
             { Overlaps = o };
         foreach (var (font, codes, written) in layout.Fonts) font.Prepare(doc, codes, written);
 
@@ -921,7 +921,7 @@ public static partial class ContentEditor
         if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc ");
         var tw = run.WordSpacing;
         if (Math.Abs(tw) > 1e-9) sb.Append("0 Tw ");
-        var toText = info.Tm.Times(info.Ctm).Invert() ?? throw new ContentEditException("This text is drawn squashed flat, so it can't be rewritten.");
+        var toText = info.Tm.Times(info.Ctm).Invert() ?? throw new ContentEditException(PdfStrings.Edit_TextSquashed);
         foreach (var (origin, parts) in layout.Lines)
         {
             if (parts.Count == 0) continue;

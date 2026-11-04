@@ -32,8 +32,8 @@ public partial class MainWindow
             if (t.IsDisposed) return;
             if (t.Session.HasEncryption) // also a PDF that only restricts printing or copying: signing can't keep its encryption
             {
-                Prompt.Info(this, "Protected PDFs can't be signed",
-                    "Remove the protection first (File › Remove Protection), then sign: the signed copy is saved as a new file.");
+                Prompt.Info(this, Strings.Main_SignProtectedTitle,
+                    Strings.Main_SignProtectedBody);
                 return;
             }
             var (aspect, fieldVisible) = field is null ? (3.6, true) : t.SignatureFieldShape(field);
@@ -47,7 +47,7 @@ public partial class MainWindow
                 var plan = await Task.Run(() => Ltv.Plan(cert, choice.TimestampUrl, client));
                 if (!LtvDialogs.ConfirmSign(this, plan, choice.LongTerm))
                 {
-                    ShowStatus("Signing cancelled");
+                    ShowStatus(Strings.Main_SigningCancelled);
                     return;
                 }
             }
@@ -58,11 +58,11 @@ public partial class MainWindow
                 box = scriptedBox ?? await t.PickSignatureBoxAsync();
                 if (box is null || t.IsDisposed)
                 {
-                    ShowStatus("Signing cancelled");
+                    ShowStatus(Strings.Main_SigningCancelled);
                     return;
                 }
             }
-            ShowStatus(choice.LongTerm != LongTermLevel.None ? "Signing and getting the long-term data…" : choice.Timestamp ? "Signing and getting a timestamp…" : "Signing…");
+            ShowStatus(choice.LongTerm != LongTermLevel.None ? Strings.Main_SigningLongTerm : choice.Timestamp ? Strings.Main_SigningTimestamp : Strings.Main_Signing);
             var request = new SignRequest
             {
                 Certificate = cert,
@@ -79,15 +79,15 @@ public partial class MainWindow
                 LongTermClient = choice.LongTerm != LongTermLevel.None ? client : null,
             };
             var outcome = await t.ApplySignatureAsync(request);
-            if (outcome == EditOutcome.Declined) ShowStatus("Signing cancelled"); // e.g. the PIN prompt was cancelled
+            if (outcome == EditOutcome.Declined) ShowStatus(Strings.Main_SigningCancelled); // e.g. the PIN prompt was cancelled
             if (outcome != EditOutcome.Done || t.IsDisposed) return;
 
             // The signature must be the file's last change: save the signed bytes as they are.
             var name = Path.GetFileNameWithoutExtension(t.Session.DisplayName);
             if (!await SaveAsDialogAsync(t, name.EndsWith("-signed", StringComparison.OrdinalIgnoreCase) ? name + ".pdf" : name + "-signed.pdf"))
             {
-                if (!t.IsDisposed && t.Session.UndoLabel == "Sign") t.Undo();
-                ShowStatus("Not signed: the signed copy wasn't saved");
+                if (!t.IsDisposed && t.Session.UndoLabel == Strings.TabSign_EditSign) t.Undo();
+                ShowStatus(Strings.Main_NotSigned);
                 return;
             }
             t.ShowSignatureDetails(field);
@@ -113,8 +113,8 @@ public partial class MainWindow
             if (t.IsDisposed || !ProGate.Check(this, ProFeature.LongTermValidation)) return;
             if (t.Session.HasEncryption)
             {
-                Prompt.Info(this, "Protected PDFs can't take long-term data",
-                    "An update can't be appended to an encrypted PDF without breaking its signatures, so nothing can be added to this file.");
+                Prompt.Info(this, Strings.Main_LtvProtectedTitle,
+                    Strings.Main_LtvProtectedBody);
                 return;
             }
             var data = t.Session.Data;
@@ -124,26 +124,26 @@ public partial class MainWindow
             if (t.IsDisposed) return;
             var url = LtvDialogs.ConfirmAdd(this, plan, client);
             if (url is null) return;
-            ShowStatus("Getting the long-term data…");
+            ShowStatus(Strings.Main_GettingLongTerm);
             var (outcome, result) = await t.AddVerificationAsync(client, url.Length == 0 ? null : url);
             if (outcome != EditOutcome.Done || result is null || t.IsDisposed) return;
             if (!result.Changed)
             {
                 // Same bytes back: nothing to keep in the undo list or to save.
-                if (t.Session.UndoLabel == "Add Verification Information") t.Undo();
-                t.ShowLongTermOutcome("The file already holds everything that could be added. It wasn't changed.", LtvDialogs.Describe(result.Certificates, result.Contacts));
+                if (t.Session.UndoLabel == Strings.TabSign_EditAddVerification) t.Undo();
+                t.ShowLongTermOutcome(Strings.Main_LtvNothingToAdd, LtvDialogs.Describe(result.Certificates, result.Contacts));
                 return;
             }
             // The data must be the file's last change for the signatures to read as they do: save the bytes as they are.
             var name = Path.GetFileNameWithoutExtension(t.Session.DisplayName);
             if (!await SaveAsDialogAsync(t, name.EndsWith("-ltv", StringComparison.OrdinalIgnoreCase) ? name + ".pdf" : name + "-ltv.pdf"))
             {
-                if (!t.IsDisposed && t.Session.UndoLabel == "Add Verification Information") t.Undo();
-                ShowStatus("Not added: the copy wasn't saved");
+                if (!t.IsDisposed && t.Session.UndoLabel == Strings.TabSign_EditAddVerification) t.Undo();
+                ShowStatus(Strings.Main_LtvNotAdded);
                 return;
             }
             var gaps = result.Certificates.Count(c => !c.Covered);
-            t.ShowLongTermOutcome(gaps == 0 ? "Long-term data added." : $"Long-term data added, but {gaps} certificate{(gaps == 1 ? " has" : "s have")} none: see what was asked.",
+            t.ShowLongTermOutcome(gaps == 0 ? Strings.Main_LtvAdded : Loc.Plural(gaps, Strings.Main_LtvAddedGaps_One, Strings.Main_LtvAddedGaps_Many),
                 LtvDialogs.Describe(result.Certificates, result.Contacts));
         }
         finally
@@ -167,15 +167,15 @@ public partial class MainWindow
             using var client = NewLtvClient();
             var plan = await Task.Run(() => Ltv.Plan(data, password, client, onlyMissing: false));
             if (t.IsDisposed || !LtvDialogs.ConfirmOnline(this, plan)) return;
-            ShowStatus("Checking the signatures online…");
+            ShowStatus(Strings.Main_CheckingSignaturesOnline);
             LtvOnlineResult result;
-            using (t.BeginBusy("Checking the signatures online…"))
+            using (t.BeginBusy(Strings.Main_CheckingSignaturesOnline))
                 result = await Task.Run(() => Ltv.CheckOnlineAsync(data, password, client));
             if (!t.IsDisposed) t.ShowOnlineCheck(result);
         }
         catch (Exception ex) when (ex is SigningException or LtvFetchException)
         {
-            Prompt.Error(this, "The check didn't work", ex.Message);
+            Prompt.Error(this, Strings.Main_CheckFailed, ex.Message);
         }
         finally
         {
@@ -209,36 +209,36 @@ public partial class MainWindow
             }
             header.Children.Add(new TextBlock { Text = s.Name, Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center });
             var item = new MenuItem { Header = header };
-            System.Windows.Automation.AutomationProperties.SetName(item, $"Place {s.Name}");
+            System.Windows.Automation.AutomationProperties.SetName(item, Loc.Format(Strings.Main_PlaceSignature, s.Name));
             item.Click += (_, _) => t.BeginPlaceSignature(sig);
             menu.Items.Add(item);
         }
         if (menu.Items.Count > 0) menu.Items.Add(new Separator());
         var signatures = saved.Count(s => !s.Initials);
-        var add = new MenuItem { Header = "Add a _signature…", IsEnabled = signatures < SignatureLibrary.MaxSignatures };
-        if (!add.IsEnabled) add.ToolTip = $"Up to {SignatureLibrary.MaxSignatures} signatures: delete one first.";
+        var add = new MenuItem { Header = Strings.Main_AddSignatureMenu, IsEnabled = signatures < SignatureLibrary.MaxSignatures };
+        if (!add.IsEnabled) add.ToolTip = Loc.Format(Strings.Main_SignatureLimit, SignatureLibrary.MaxSignatures);
         add.Click += (_, _) => CaptureSignature(t, initials: false);
         menu.Items.Add(add);
-        var initials = new MenuItem { Header = saved.Any(s => s.Initials) ? "Replace the _initials…" : "Add _initials…" };
+        var initials = new MenuItem { Header = saved.Any(s => s.Initials) ? Strings.Main_ReplaceInitialsMenu : Strings.Main_AddInitialsMenu };
         initials.Click += (_, _) => CaptureSignature(t, initials: true);
         menu.Items.Add(initials);
         if (saved.Count > 0)
         {
-            var delete = new MenuItem { Header = "_Delete a saved signature" };
+            var delete = new MenuItem { Header = Strings.Main_DeleteSignatureMenu };
             foreach (var s in saved)
             {
                 var sig = s;
                 var d = new MenuItem { Header = s.Name };
                 d.Click += (_, _) =>
                 {
-                    if (!Prompt.Confirm(this, $"Delete {sig.Name}?", "It is removed from this PC. Signatures already placed in documents stay.", "Delete")) return;
+                    if (!Prompt.Confirm(this, Loc.Format(Strings.Main_DeleteSignatureTitle, sig.Name), Strings.Main_DeleteSignatureBody, Strings.Common_Delete)) return;
                     try
                     {
                         SignatureLibrary.Delete(sig);
                     }
                     catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                     {
-                        Prompt.Error(this, "Couldn't delete it", ex.Message);
+                        Prompt.Error(this, Strings.Main_DeleteSignatureFailed, ex.Message);
                     }
                 };
                 delete.Items.Add(d);
@@ -266,12 +266,12 @@ public partial class MainWindow
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Prompt.Error(this, "Couldn't save the signature", ex.Message);
+            Prompt.Error(this, Strings.Main_SaveSignatureFailed, ex.Message);
             return;
         }
         if (saved is null)
         {
-            Prompt.Info(this, "No room for another signature", $"Up to {SignatureLibrary.MaxSignatures} signatures can be saved: delete one first.");
+            Prompt.Info(this, Strings.Main_NoRoomTitle, Loc.Format(Strings.Main_NoRoomBody, SignatureLibrary.MaxSignatures));
             return;
         }
         t.BeginPlaceSignature(saved);

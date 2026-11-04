@@ -35,6 +35,30 @@ public static class PdfLanguage
 }
 
 /// <summary>
+/// A table made of translated text (<see cref="PdfStrings"/>), built when first read and again if the language has changed
+/// since: never a static field built before the app chose its language.
+/// </summary>
+internal sealed class PerLanguage<T>(Func<T> build) where T : class
+{
+    private sealed record Built(CultureInfo? Culture, T Value);
+
+    private volatile Built? _built;
+
+    public T Value
+    {
+        get
+        {
+            var culture = PdfStrings.Culture;
+            var built = _built;
+            if (built is not null && Equals(built.Culture, culture)) return built.Value;
+            built = new Built(culture, build());
+            _built = built;
+            return built.Value;
+        }
+    }
+}
+
+/// <summary>
 /// Sentences from resource strings: one format string per sentence ({0}, {1}), never pieces put together, and a count's
 /// two forms (one, many) as two strings. Numbers and dates take the regional format (CurrentCulture). A translation whose
 /// placeholders are broken shows its words and values instead of throwing: a wrong resource never crashes the app.

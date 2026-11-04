@@ -94,12 +94,12 @@ public sealed record InventoryReport(IReadOnlyList<InventoryItem> Items, Sanitiz
     {
         get
         {
-            if (IsEmpty) return "Nothing but its pages: no scripts, actions, addresses, attachments, metadata, earlier versions, hidden content or form values.";
-            var parts = Items.GroupBy(i => i.Section).OrderBy(g => g.Key).Select(g => $"{DocumentInventory.Lower(DocumentInventory.Title(g.Key))} ({g.Count():N0})");
+            if (IsEmpty) return PdfStrings.Inventory_NothingButPages;
+            var parts = Items.GroupBy(i => i.Section).OrderBy(g => g.Key).Select(g => Loc.Format(PdfStrings.Inventory_SectionCount, DocumentInventory.Lower(DocumentInventory.Title(g.Key)), g.Count()));
             var outward = Items.Count(i => i.Section == InventorySection.Addresses && i.WithoutClick);
             var text = string.Join(", ", parts);
             return char.ToUpperInvariant(text[0]) + text[1..] + "." +
-                   (outward > 0 ? $" {(outward == 1 ? "1 address is" : $"{outward:N0} addresses are")} reached without a click." : "");
+                   (outward > 0 ? Loc.Plural(outward, PdfStrings.Inventory_AddressesOutward_One, PdfStrings.Inventory_AddressesOutward_Many) : "");
         }
     }
 }
@@ -123,24 +123,24 @@ public static partial class DocumentInventory
 
     public static string Title(InventorySection s) => s switch
     {
-        InventorySection.Scripts => "Scripts",
-        InventorySection.Actions => "Actions that run by themselves",
-        InventorySection.Addresses => "Web addresses, files and programs",
-        InventorySection.Attachments => "Attached files",
-        InventorySection.Metadata => "Metadata and authors",
-        InventorySection.Signatures => "Digital signatures",
-        InventorySection.EarlierVersions => "Earlier versions",
-        InventorySection.Hidden => "Hidden content",
-        InventorySection.FormValues => "Form values",
-        InventorySection.Redaction => "Text and pictures under covers",
+        InventorySection.Scripts => PdfStrings.Inventory_Scripts,
+        InventorySection.Actions => PdfStrings.Inventory_Actions,
+        InventorySection.Addresses => PdfStrings.Inventory_Addresses,
+        InventorySection.Attachments => PdfStrings.Inventory_Attachments,
+        InventorySection.Metadata => PdfStrings.Inventory_Metadata,
+        InventorySection.Signatures => PdfStrings.Inventory_Signatures,
+        InventorySection.EarlierVersions => PdfStrings.Inventory_EarlierVersions,
+        InventorySection.Hidden => PdfStrings.Inventory_Hidden,
+        InventorySection.FormValues => PdfStrings.Inventory_FormValues,
+        InventorySection.Redaction => PdfStrings.Inventory_Covers,
         _ => s.ToString(),
     };
 
     public static string Name(InventoryTrigger t) => t switch
     {
-        InventoryTrigger.Automatic => "By itself",
-        InventoryTrigger.Pointer => "When the pointer passes over",
-        InventoryTrigger.Use => "On a click or other use",
+        InventoryTrigger.Automatic => PdfStrings.Inventory_ByItself,
+        InventoryTrigger.Pointer => PdfStrings.Inventory_OnPointer,
+        InventoryTrigger.Use => PdfStrings.Inventory_OnUse,
         _ => "",
     };
 
@@ -153,7 +153,7 @@ public static partial class DocumentInventory
         var notes = new List<string>(counts.Notes);
         var walk = new Walk();
         int pages;
-        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, "This PDF can't be read"))
+        using (var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Inventory_CantRead))
         {
             pages = doc.PageCount;
             walk.Run(doc, cancel);
@@ -161,13 +161,12 @@ public static partial class DocumentInventory
         var items = walk.Items;
 
         foreach (var a in Attachments.List(data, password))
-            items.Add(new InventoryItem(InventorySection.Attachments, "Attached file", a.PageIndex >= 0 ? $"Page {a.PageIndex + 1}, an attachment comment" : "The document's attachments",
+            items.Add(new InventoryItem(InventorySection.Attachments, PdfStrings.Inventory_AttachedFile, a.PageIndex >= 0 ? Loc.Format(PdfStrings.Inventory_PageAttachmentComment, a.PageIndex + 1) : PdfStrings.Inventory_DocumentAttachments,
                 $"{a.FileName} ({Size(a.Size)}{(string.IsNullOrWhiteSpace(a.Description) ? "" : ", " + a.Description)})") { Page = a.PageIndex, RemovedBy = SanitizeItem.EmbeddedFiles });
 
         if (counts.EarlierRevisions > 0)
-            items.Add(new InventoryItem(InventorySection.EarlierVersions, "Earlier versions", "Kept by incremental saves",
-                (counts.EarlierRevisions == 1 ? "1 earlier version" : $"{counts.EarlierRevisions:N0} earlier versions") +
-                " of the file can be opened from it, with everything they held."));
+            items.Add(new InventoryItem(InventorySection.EarlierVersions, PdfStrings.Inventory_EarlierVersions, PdfStrings.Inventory_KeptByIncremental,
+                Loc.Plural(counts.EarlierRevisions, PdfStrings.Inventory_EarlierVersions_One, PdfStrings.Inventory_EarlierVersions_Many)));
 
         // The redaction check's own findings: what the pages hold that doesn't show, covers, earlier versions' text. (Its
         // echoes of that text elsewhere in the file are left out: those places are listed here in their own right.)
@@ -191,7 +190,7 @@ public static partial class DocumentInventory
         {
             var list = g.ToList();
             kept.AddRange(list.Take(MaxPerSection));
-            if (list.Count > MaxPerSection) notes.Add($"{Title(g.Key)}: only the first {MaxPerSection:N0} of {list.Count:N0} are listed.");
+            if (list.Count > MaxPerSection) notes.Add(Loc.Format(PdfStrings.Inventory_OnlyFirstListed, Title(g.Key), MaxPerSection, list.Count));
         }
         return new InventoryReport(kept, counts, pages, [.. notes.Distinct()]);
     }
@@ -270,23 +269,23 @@ public static partial class DocumentInventory
         /// <summary>An action in words, its target (an address, a file, a page) and what Sanitize removes it as.</summary>
         private (string What, string? Target, SanitizeItem? RemovedBy) Describe(PdfDictionary a, string s) => s switch
         {
-            "/URI" => ("Opens a web address", Clean(PdfObj.Str(a.Elements["/URI"])), SanitizeItem.ExternalLinks),
-            "/SubmitForm" => ("Sends the form's data", FileName(a.Elements["/F"]), SanitizeItem.ActiveContent),
-            "/ImportData" => ("Reads form data from a file", FileName(a.Elements["/F"]), SanitizeItem.ActiveContent),
-            "/Launch" => ("Starts a program or opens a file", FileName(a.Elements["/F"]) ?? FileName(PdfObj.Dict(a.Elements["/Win"])?.Elements["/F"]), SanitizeItem.ActiveContent),
-            "/GoToR" => ("Opens another PDF", FileName(a.Elements["/F"]), SanitizeItem.ExternalLinks),
-            "/GoToE" => ("Opens an embedded or other PDF", FileName(a.Elements["/F"]) ?? "an attached PDF", SanitizeItem.ExternalLinks),
-            "/Thread" when a.Elements.ContainsKey("/F") => ("Opens an article in another file", FileName(a.Elements["/F"]), SanitizeItem.ExternalLinks),
-            "/Rendition" or "/Movie" or "/Sound" or "/RichMediaExecute" or "/GoTo3DView" => ("Plays media", null, SanitizeItem.ActiveContent),
-            "/GoTo" => ("Goes to a page", DocumentFeatures.ResolveDestination(_doc, a.Elements["/D"]) is { } d ? $"page {d.PageIndex + 1}" : null, null),
-            "/Named" => ("Runs a viewer command", PdfObj.Name(a.Elements["/N"]), null),
-            "/Hide" => ("Shows or hides fields", null, null),
-            "/ResetForm" => ("Clears the form", null, null),
-            "/SetOCGState" => ("Shows or hides layers", null, null),
-            _ => ("Action", s.TrimStart('/'), null),
+            "/URI" => (PdfStrings.Inventory_OpensWebAddress, Clean(PdfObj.Str(a.Elements["/URI"])), SanitizeItem.ExternalLinks),
+            "/SubmitForm" => (PdfStrings.Inventory_SendsFormData, FileName(a.Elements["/F"]), SanitizeItem.ActiveContent),
+            "/ImportData" => (PdfStrings.Inventory_ReadsFormData, FileName(a.Elements["/F"]), SanitizeItem.ActiveContent),
+            "/Launch" => (PdfStrings.Inventory_StartsProgram, FileName(a.Elements["/F"]) ?? FileName(PdfObj.Dict(a.Elements["/Win"])?.Elements["/F"]), SanitizeItem.ActiveContent),
+            "/GoToR" => (PdfStrings.Inventory_OpensOtherPdf, FileName(a.Elements["/F"]), SanitizeItem.ExternalLinks),
+            "/GoToE" => (PdfStrings.Inventory_OpensEmbeddedPdf, FileName(a.Elements["/F"]) ?? PdfStrings.Inventory_AnAttachedPdf, SanitizeItem.ExternalLinks),
+            "/Thread" when a.Elements.ContainsKey("/F") => (PdfStrings.Inventory_OpensArticle, FileName(a.Elements["/F"]), SanitizeItem.ExternalLinks),
+            "/Rendition" or "/Movie" or "/Sound" or "/RichMediaExecute" or "/GoTo3DView" => (PdfStrings.Inventory_PlaysMedia, null, SanitizeItem.ActiveContent),
+            "/GoTo" => (PdfStrings.Inventory_GoesToPage, DocumentFeatures.ResolveDestination(_doc, a.Elements["/D"]) is { } d ? Loc.Format(PdfStrings.Inventory_PageNPage, d.PageIndex + 1) : null, null),
+            "/Named" => (PdfStrings.Inventory_RunsViewerCommand, PdfObj.Name(a.Elements["/N"]), null),
+            "/Hide" => (PdfStrings.Inventory_ShowsHidesFields, null, null),
+            "/ResetForm" => (PdfStrings.Inventory_ClearsForm, null, null),
+            "/SetOCGState" => (PdfStrings.Inventory_ShowsHidesLayers, null, null),
+            _ => (PdfStrings.Inventory_Action, s.TrimStart('/'), null),
         };
 
-        private static string Words(string s) => s.Length > 1 ? s[1..] : "(no type)";
+        private static string Words(string s) => s.Length > 1 ? s[1..] : PdfStrings.Inventory_NoType;
 
         private static string? FileName(PdfItem? f) => PdfObj.Resolve(f) switch
         {
@@ -306,7 +305,7 @@ public static partial class DocumentInventory
         private void Script(string source, string where, InventoryTrigger trigger, int page)
         {
             var calls = ScriptCalls(source);
-            Items.Add(new InventoryItem(InventorySection.Scripts, "Script", where, Clip(source.Trim()))
+            Items.Add(new InventoryItem(InventorySection.Scripts, PdfStrings.Inventory_Script, where, Clip(source.Trim()))
             {
                 Page = page,
                 Trigger = trigger,
@@ -314,7 +313,7 @@ public static partial class DocumentInventory
                 RemovedBy = SanitizeItem.ActiveContent,
             });
             foreach (Match m in UrlPattern().Matches(source))
-                Address(m.Value.TrimEnd('.', ',', ';'), "Web address in a script", where, trigger, page, SanitizeItem.ActiveContent);
+                Address(m.Value.TrimEnd('.', ',', ';'), PdfStrings.Inventory_WebAddressInScript, where, trigger, page, SanitizeItem.ActiveContent);
         }
 
         /// <summary>The additional actions (/AA) of a document, page, comment or field.</summary>
@@ -332,32 +331,32 @@ public static partial class DocumentInventory
             switch (PdfObj.Resolve(catalog.Elements["/OpenAction"]))
             {
                 case PdfDictionary:
-                    Action(catalog.Elements["/OpenAction"], "When the document opens", InventoryTrigger.Automatic, -1);
+                    Action(catalog.Elements["/OpenAction"], PdfStrings.Inventory_WhenDocOpens, InventoryTrigger.Automatic, -1);
                     break;
             }
             AdditionalActions(catalog, key => key switch
             {
-                "/WC" => ("Before the document closes", InventoryTrigger.Automatic),
-                "/WS" => ("Before the document is saved", InventoryTrigger.Automatic),
-                "/DS" => ("After the document is saved", InventoryTrigger.Automatic),
-                "/WP" => ("Before the document is printed", InventoryTrigger.Automatic),
-                "/DP" => ("After the document is printed", InventoryTrigger.Automatic),
-                _ => ($"Document event {key.TrimStart('/')}", InventoryTrigger.Automatic),
+                "/WC" => (PdfStrings.Inventory_BeforeDocCloses, InventoryTrigger.Automatic),
+                "/WS" => (PdfStrings.Inventory_BeforeDocSaved, InventoryTrigger.Automatic),
+                "/DS" => (PdfStrings.Inventory_AfterDocSaved, InventoryTrigger.Automatic),
+                "/WP" => (PdfStrings.Inventory_BeforeDocPrinted, InventoryTrigger.Automatic),
+                "/DP" => (PdfStrings.Inventory_AfterDocPrinted, InventoryTrigger.Automatic),
+                _ => (Loc.Format(PdfStrings.Inventory_DocumentEvent, key.TrimStart('/')), InventoryTrigger.Automatic),
             }, -1);
 
             var names = PdfObj.Dict(catalog.Elements["/Names"]);
             foreach (var (key, value) in PdfObj.NameTree(PdfObj.Dict(names?.Elements["/JavaScript"])))
-                Action(value, $"When the document opens (document script \u201c{key}\u201d)", InventoryTrigger.Automatic, -1);
+                Action(value, Loc.Format(PdfStrings.Inventory_WhenDocOpensScript, key), InventoryTrigger.Automatic, -1);
             if (PdfObj.Str(PdfObj.Dict(catalog.Elements["/URI"])?.Elements["/Base"]) is { Length: > 0 } baseUri)
-                Address(baseUri, "Base of relative web addresses", "The document", InventoryTrigger.None, -1, SanitizeItem.ExternalLinks);
+                Address(baseUri, PdfStrings.Inventory_BaseAddress, PdfStrings.Inventory_TheDocument, InventoryTrigger.None, -1, SanitizeItem.ExternalLinks);
         }
 
         private void Page(PdfPage page, int p)
         {
             AdditionalActions(page, key => key switch
             {
-                "/O" => ($"When page {p + 1} opens", InventoryTrigger.Automatic),
-                "/C" => ($"When page {p + 1} closes", InventoryTrigger.Automatic),
+                "/O" => (Loc.Format(PdfStrings.Inventory_WhenPageOpens, p + 1), InventoryTrigger.Automatic),
+                "/C" => (Loc.Format(PdfStrings.Inventory_WhenPageCloses, p + 1), InventoryTrigger.Automatic),
                 _ => null,
             }, p);
             if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) return;
@@ -367,21 +366,21 @@ public static partial class DocumentInventory
                 if (subtype == "/Popup") continue;
                 var kind = subtype switch
                 {
-                    "/Link" => "a link",
-                    "/Widget" => FieldNameOf(a) is { } f ? $"field \u201c{f}\u201d" : "a form field",
-                    _ => "a comment",
+                    "/Link" => PdfStrings.Inventory_ALink,
+                    "/Widget" => FieldNameOf(a) is { } f ? Loc.Format(PdfStrings.Inventory_FieldNamed, f) : PdfStrings.Inventory_AFormField,
+                    _ => PdfStrings.Inventory_AComment,
                 };
-                var at = $"Page {p + 1}, {kind}";
+                var at = Loc.Format(PdfStrings.Inventory_PageKind, p + 1, kind);
                 if (subtype != "/Widget") // a widget's actions go with its field (Form)
                 {
-                    Action(a.Elements["/A"], $"When {kind} on page {p + 1} is clicked", InventoryTrigger.Use, p);
+                    Action(a.Elements["/A"], Loc.Format(PdfStrings.Inventory_WhenClicked, kind, p + 1), InventoryTrigger.Use, p);
                     AdditionalActions(a, key => Event(key, at, p, null), p);
                 }
                 if (subtype is "/RichMedia" or "/3D" or "/Sound" or "/Movie" or "/Screen")
-                    Items.Add(new InventoryItem(InventorySection.Scripts, "Multimedia or 3D", at, subtype.TrimStart('/')) { Page = p, Trigger = InventoryTrigger.Use, RemovedBy = SanitizeItem.ActiveContent });
+                    Items.Add(new InventoryItem(InventorySection.Scripts, PdfStrings.Inventory_Multimedia, at, subtype.TrimStart('/')) { Page = p, Trigger = InventoryTrigger.Use, RemovedBy = SanitizeItem.ActiveContent });
                 var flags = PdfObj.Int(a.Elements["/F"]) ?? 0;
                 if ((flags & (AnnotHidden | AnnotNoView)) != 0)
-                    Items.Add(new InventoryItem(InventorySection.Hidden, subtype == "/Widget" ? "Hidden form field" : "Hidden comment", at,
+                    Items.Add(new InventoryItem(InventorySection.Hidden, subtype == "/Widget" ? PdfStrings.Inventory_HiddenField : PdfStrings.Inventory_HiddenComment, at,
                         Clip(PdfObj.Text(a.Elements["/Contents"]) ?? PdfObj.Str(FormEditor.Inherited(a, "/V")) ?? subtype.TrimStart('/'))) { Page = p, RemovedBy = SanitizeItem.HiddenAnnotations });
             }
         }
@@ -389,20 +388,20 @@ public static partial class DocumentInventory
         /// <summary>An annotation or field event (/AA key) in words.</summary>
         private static (string Where, InventoryTrigger Trigger)? Event(string key, string at, int p, string? field) => key switch
         {
-            "/E" => ($"{at}: when the pointer enters it", InventoryTrigger.Pointer),
-            "/X" => ($"{at}: when the pointer leaves it", InventoryTrigger.Pointer),
-            "/D" => ($"{at}: when the mouse button is pressed on it", InventoryTrigger.Use),
-            "/U" => ($"{at}: when it is clicked", InventoryTrigger.Use),
-            "/Fo" => ($"{at}: when it gets the focus", InventoryTrigger.Use),
-            "/Bl" => ($"{at}: when it loses the focus", InventoryTrigger.Use),
-            "/PO" => ($"{at}: when page {p + 1} opens", InventoryTrigger.Automatic),
-            "/PC" => ($"{at}: when page {p + 1} closes", InventoryTrigger.Automatic),
-            "/PV" => ($"{at}: when page {p + 1} comes into view", InventoryTrigger.Automatic),
-            "/PI" => ($"{at}: when page {p + 1} goes out of view", InventoryTrigger.Automatic),
-            "/K" when field is not null => ($"Field \u201c{field}\u201d: as it is typed in", InventoryTrigger.Use),
-            "/V" when field is not null => ($"Field \u201c{field}\u201d: when its value changes", InventoryTrigger.Use),
-            "/C" when field is not null => ($"Field \u201c{field}\u201d: when the form recalculates", InventoryTrigger.Use),
-            "/F" when field is not null => ($"Field \u201c{field}\u201d: whenever it is shown", InventoryTrigger.Automatic),
+            "/E" => (Loc.Format(PdfStrings.Inventory_PointerEnters, at), InventoryTrigger.Pointer),
+            "/X" => (Loc.Format(PdfStrings.Inventory_PointerLeaves, at), InventoryTrigger.Pointer),
+            "/D" => (Loc.Format(PdfStrings.Inventory_MousePressed, at), InventoryTrigger.Use),
+            "/U" => (Loc.Format(PdfStrings.Inventory_Clicked, at), InventoryTrigger.Use),
+            "/Fo" => (Loc.Format(PdfStrings.Inventory_GetsFocus, at), InventoryTrigger.Use),
+            "/Bl" => (Loc.Format(PdfStrings.Inventory_LosesFocus, at), InventoryTrigger.Use),
+            "/PO" => (Loc.Format(PdfStrings.Inventory_AtPageOpens, at, p + 1), InventoryTrigger.Automatic),
+            "/PC" => (Loc.Format(PdfStrings.Inventory_AtPageCloses, at, p + 1), InventoryTrigger.Automatic),
+            "/PV" => (Loc.Format(PdfStrings.Inventory_AtPageInView, at, p + 1), InventoryTrigger.Automatic),
+            "/PI" => (Loc.Format(PdfStrings.Inventory_AtPageOutOfView, at, p + 1), InventoryTrigger.Automatic),
+            "/K" when field is not null => (Loc.Format(PdfStrings.Inventory_FieldTyped, field), InventoryTrigger.Use),
+            "/V" when field is not null => (Loc.Format(PdfStrings.Inventory_FieldChanges, field), InventoryTrigger.Use),
+            "/C" when field is not null => (Loc.Format(PdfStrings.Inventory_FieldRecalculates, field), InventoryTrigger.Use),
+            "/F" when field is not null => (Loc.Format(PdfStrings.Inventory_FieldShown, field), InventoryTrigger.Automatic),
             _ => null,
         };
 
@@ -430,7 +429,7 @@ public static partial class DocumentInventory
             while (stack.Count > 0 && n < 200_000)
                 for (var item = stack.Pop(); item is not null && seen.Add(item) && n++ < 200_000; item = PdfObj.Dict(item.Elements["/Next"]))
                 {
-                    Action(item.Elements["/A"], $"When the bookmark \u201c{Clip(PdfObj.Str(item.Elements["/Title"]) ?? "", 80)}\u201d is chosen", InventoryTrigger.Use, -1);
+                    Action(item.Elements["/A"], Loc.Format(PdfStrings.Inventory_WhenBookmark, Clip(PdfObj.Str(item.Elements["/Title"]) ?? "", 80)), InventoryTrigger.Use, -1);
                     if (PdfObj.Dict(item.Elements["/First"]) is { } child) stack.Push(child);
                 }
         }
@@ -444,11 +443,11 @@ public static partial class DocumentInventory
             {
                 var widgets = f.Widgets.Count > 0 ? f.Widgets : [f.Dict];
                 var page = widgets.Select(PageOf).FirstOrDefault(p => p >= 0, -1);
-                var at = $"Field \u201c{f.Name}\u201d" + (page >= 0 ? $", page {page + 1}" : "");
+                var at = page >= 0 ? Loc.Format(PdfStrings.Inventory_FieldWherePage, f.Name, page + 1) : Loc.Format(PdfStrings.Inventory_FieldWhere, f.Name);
                 // The field's own actions and each widget's (a widget may be the field itself).
                 foreach (var node in widgets.Prepend(f.Dict).Distinct(RefEq).Cast<PdfDictionary>())
                 {
-                    Action(node.Elements["/A"], $"When field \u201c{f.Name}\u201d is clicked", InventoryTrigger.Use, page);
+                    Action(node.Elements["/A"], Loc.Format(PdfStrings.Inventory_FieldClicked, f.Name), InventoryTrigger.Use, page);
                     AdditionalActions(node, key => Event(key, at, Math.Max(page, 0), f.Name), page);
                 }
                 if (f.Type == "/Sig")
@@ -457,23 +456,23 @@ public static partial class DocumentInventory
                     continue;
                 }
                 if (Value(f) is { } value)
-                    Items.Add(new InventoryItem(InventorySection.FormValues, "Value", at, Clip(value)) { Page = page, RemovedBy = SanitizeItem.FormValues });
+                    Items.Add(new InventoryItem(InventorySection.FormValues, PdfStrings.Inventory_Value, at, Clip(value)) { Page = page, RemovedBy = SanitizeItem.FormValues });
             }
             if (acro.Elements.ContainsKey("/XFA"))
-                Items.Add(new InventoryItem(InventorySection.Scripts, "XFA form", "The document's form",
-                    "An XFA form: it can hold scripts and its own copy of the form's data.") { RemovedBy = fields.Count > 0 ? SanitizeItem.ActiveContent : null });
+                Items.Add(new InventoryItem(InventorySection.Scripts, PdfStrings.Inventory_XfaForm, PdfStrings.Inventory_TheDocumentsForm,
+                    PdfStrings.Inventory_XfaFormDetail) { RemovedBy = fields.Count > 0 ? SanitizeItem.ActiveContent : null });
         }
 
         private void Signature(PdfDictionary sig, string at, int page)
         {
             var parts = new List<string>();
             if (PdfObj.Str(sig.Elements["/Name"]) is { Length: > 0 } name) parts.Add(name);
-            if (PdfObj.ParseDate(PdfObj.Str(sig.Elements["/M"])) is { } when) parts.Add(when.ToString("d MMMM yyyy, HH:mm", CultureInfo.InvariantCulture));
-            if (PdfObj.Str(sig.Elements["/Reason"]) is { Length: > 0 } reason) parts.Add("reason: " + reason);
-            if (PdfObj.Str(sig.Elements["/Location"]) is { Length: > 0 } location) parts.Add("at " + location);
-            if (PdfObj.Str(sig.Elements["/ContactInfo"]) is { Length: > 0 } contact) parts.Add("contact: " + contact);
-            if (parts.Count == 0) parts.Add("a signature (with the signer's certificate)");
-            Items.Add(new InventoryItem(InventorySection.Signatures, "Signed", at, Clip(string.Join(", ", parts))) { Page = page, RemovedBy = SanitizeItem.Signatures });
+            if (PdfObj.ParseDate(PdfObj.Str(sig.Elements["/M"])) is { } when) parts.Add(when.ToString(PdfStrings.Inventory_DateFormat, PdfLanguage.Culture));
+            if (PdfObj.Str(sig.Elements["/Reason"]) is { Length: > 0 } reason) parts.Add(Loc.Format(PdfStrings.Inventory_Reason, reason));
+            if (PdfObj.Str(sig.Elements["/Location"]) is { Length: > 0 } location) parts.Add(Loc.Format(PdfStrings.Inventory_At, location));
+            if (PdfObj.Str(sig.Elements["/ContactInfo"]) is { Length: > 0 } contact) parts.Add(Loc.Format(PdfStrings.Inventory_Contact, contact));
+            if (parts.Count == 0) parts.Add(PdfStrings.Inventory_ASignature);
+            Items.Add(new InventoryItem(InventorySection.Signatures, PdfStrings.Inventory_Signed, at, Clip(string.Join(", ", parts))) { Page = page, RemovedBy = SanitizeItem.Signatures });
         }
 
         /// <summary>A field's value in words (as Sanitize counts values: text, choices, a box that is on, a default).</summary>
@@ -484,11 +483,11 @@ public static partial class DocumentInventory
                 case "/Tx" or "/Ch":
                     var v = Text(FormEditor.Inherited(f.Dict, "/V"));
                     var dv = Text(f.Dict.Elements["/DV"]);
-                    return v is { Length: > 0 } ? v : dv is { Length: > 0 } ? $"{dv} (its default)" : null;
+                    return v is { Length: > 0 } ? v : dv is { Length: > 0 } ? Loc.Format(PdfStrings.Inventory_ItsDefault, dv) : null;
                 case "/Btn" when (f.Flags & FfPushButton) == 0:
                     var on = PdfObj.Name(FormEditor.Inherited(f.Dict, "/V")) is { } n && n != "Off" ? n
                         : f.Widgets.Select(w => PdfObj.Name(w.Elements["/AS"])).FirstOrDefault(s => s is not null && s != "Off");
-                    return on is null ? null : $"on ({on})";
+                    return on is null ? null : Loc.Format(PdfStrings.Inventory_On, on);
                 default:
                     return null;
             }
@@ -511,8 +510,8 @@ public static partial class DocumentInventory
             var baseOff = PdfObj.Name(d?.Elements["/BaseState"]) == "OFF";
             foreach (var ocg in list.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>().Distinct(RefEq).Cast<PdfDictionary>())
                 if (off.Contains(ocg) || (baseOff && !on.Contains(ocg)))
-                    Items.Add(new InventoryItem(InventorySection.Hidden, "Hidden layer", "The document's layers",
-                        $"\u201c{Clip(PdfObj.Str(ocg.Elements["/Name"]) ?? "(no name)", 120)}\u201d, off when the document opens, with what it draws") { RemovedBy = SanitizeItem.HiddenLayers });
+                    Items.Add(new InventoryItem(InventorySection.Hidden, PdfStrings.Inventory_HiddenLayer, PdfStrings.Inventory_TheDocumentsLayers,
+                        Loc.Format(PdfStrings.Inventory_LayerOff, Clip(PdfObj.Str(ocg.Elements["/Name"]) ?? PdfStrings.Inventory_NoName, 120))) { RemovedBy = SanitizeItem.HiddenLayers });
         }
 
         private static HashSet<PdfDictionary> Members(PdfItem? item) => PdfObj.Resolve(item) switch
@@ -531,8 +530,8 @@ public static partial class DocumentInventory
             {
                 var value = PdfObj.Str(info[key]) ?? PdfObj.Resolve(info[key])?.ToString() ?? "";
                 if (key is "/Producer" or "/Creator" && value.StartsWith("PDFsharp", StringComparison.Ordinal)) continue; // what a save writes itself
-                if (key is "/CreationDate" or "/ModDate" && PdfObj.ParseDate(value) is { } t) value = t.ToString("d MMMM yyyy, HH:mm zzz", CultureInfo.InvariantCulture);
-                Items.Add(new InventoryItem(InventorySection.Metadata, InfoName(key), "Document properties", Clip(value)) { RemovedBy = SanitizeItem.Metadata });
+                if (key is "/CreationDate" or "/ModDate" && PdfObj.ParseDate(value) is { } t) value = t.ToString(PdfStrings.Inventory_DateFormatZone, PdfLanguage.Culture);
+                Items.Add(new InventoryItem(InventorySection.Metadata, InfoName(key), PdfStrings.Inventory_DocumentProperties, Clip(value)) { RemovedBy = SanitizeItem.Metadata });
             }
 
             var authors = new Dictionary<string, (int Count, SortedSet<int> Pages)>();
@@ -544,7 +543,7 @@ public static partial class DocumentInventory
             while (stack.Count > 0)
             {
                 var (item, depth, page) = stack.Pop();
-                var where = page >= 0 ? $"Page {page + 1}" : "The document";
+                var where = page >= 0 ? Loc.Format(PdfStrings.Inventory_PageN, page + 1) : PdfStrings.Inventory_TheDocument;
                 if (depth > 64) continue;
                 var dict = PdfObj.Dict(item);
                 if (dict is null)
@@ -565,22 +564,22 @@ public static partial class DocumentInventory
                     authors[author] = (c + 1, pages);
                 }
                 if (PdfObj.Dict(dict.Elements["/PieceInfo"]) is { } piece)
-                    Items.Add(new InventoryItem(InventorySection.Metadata, "Private data of other apps", owner,
+                    Items.Add(new InventoryItem(InventorySection.Metadata, PdfStrings.Inventory_PrivateData, owner,
                         string.Join(", ", piece.Elements.Keys.Select(k => k.TrimStart('/')))) { RemovedBy = SanitizeItem.Metadata });
                 if (PdfObj.Dict(dict.Elements["/Metadata"]) is { Stream: not null } xmp)
                 {
                     var props = Sanitizer.XmpProperties(xmp);
                     if (props is null)
-                        Items.Add(new InventoryItem(InventorySection.Metadata, "XMP metadata", owner, "a packet that can't be read") { RemovedBy = SanitizeItem.Metadata });
+                        Items.Add(new InventoryItem(InventorySection.Metadata, PdfStrings.Inventory_XmpMetadata, owner, PdfStrings.Inventory_PacketUnreadable) { RemovedBy = SanitizeItem.Metadata });
                     else if (props.Count > 0)
                         foreach (var (name, value) in props)
-                            Items.Add(new InventoryItem(InventorySection.Metadata, XmpName(name), $"{owner}, XMP metadata", Clip(value)) { RemovedBy = SanitizeItem.Metadata });
+                            Items.Add(new InventoryItem(InventorySection.Metadata, XmpName(name), Loc.Format(PdfStrings.Inventory_OwnerXmp, owner), Clip(value)) { RemovedBy = SanitizeItem.Metadata });
                     else if (!ReferenceEquals(dict, catalog))
-                        Items.Add(new InventoryItem(InventorySection.Metadata, "XMP metadata", owner, "a packet (empty)") { RemovedBy = SanitizeItem.Metadata });
+                        Items.Add(new InventoryItem(InventorySection.Metadata, PdfStrings.Inventory_XmpMetadata, owner, PdfStrings.Inventory_PacketEmpty) { RemovedBy = SanitizeItem.Metadata });
                 }
                 if (PdfObj.Array(dict.Elements["/AF"]) is { Elements.Count: > 0 } af)
-                    Items.Add(new InventoryItem(InventorySection.Attachments, "Associated file", owner,
-                        string.Join(", ", af.Elements.Select(e => FileName(e) ?? "(no name)"))) { RemovedBy = SanitizeItem.EmbeddedFiles });
+                    Items.Add(new InventoryItem(InventorySection.Attachments, PdfStrings.Inventory_AssociatedFile, owner,
+                        string.Join(", ", af.Elements.Select(e => FileName(e) ?? PdfStrings.Inventory_NoName))) { RemovedBy = SanitizeItem.EmbeddedFiles });
 
                 foreach (var (key, v) in dict.Elements)
                 {
@@ -589,60 +588,63 @@ public static partial class DocumentInventory
                 }
             }
             foreach (var (author, (count, pages)) in authors.OrderByDescending(a => a.Value.Count))
-                Items.Add(new InventoryItem(InventorySection.Metadata, "Comment author", count == 1 ? "1 comment" : $"{count:N0} comments",
-                    author + (pages.Count > 0 ? $" (page{(pages.Count == 1 ? "" : "s")} {string.Join(", ", pages.Take(20))}{(pages.Count > 20 ? ", …" : "")})" : "")) { RemovedBy = SanitizeItem.Metadata });
+            {
+                var pageList = string.Join(", ", pages.Take(20)) + (pages.Count > 20 ? ", …" : "");
+                Items.Add(new InventoryItem(InventorySection.Metadata, PdfStrings.Inventory_CommentAuthor, Loc.Plural(count, PdfStrings.Inventory_CommentsCount_One, PdfStrings.Inventory_CommentsCount_Many),
+                    pages.Count > 0 ? Loc.Plural(pages.Count, PdfStrings.Inventory_AuthorPages_One, PdfStrings.Inventory_AuthorPages_Many, author, pageList) : author) { RemovedBy = SanitizeItem.Metadata });
+            }
 
             if (PdfObj.Array(catalog.Elements["/Threads"]) is { } threads)
                 foreach (var t in threads.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
                     if (PdfObj.Dict(t.Elements["/I"]) is { Elements.Count: > 0 } ti)
                         foreach (var (key, v) in ti.Elements)
-                            Items.Add(new InventoryItem(InventorySection.Metadata, InfoName(key), "An article's properties", Clip(PdfObj.Str(v) ?? v?.ToString() ?? "")) { RemovedBy = SanitizeItem.Metadata });
+                            Items.Add(new InventoryItem(InventorySection.Metadata, InfoName(key), PdfStrings.Inventory_ArticleProperties, Clip(PdfObj.Str(v) ?? v?.ToString() ?? "")) { RemovedBy = SanitizeItem.Metadata });
         }
 
         private static string Owner(PdfDictionary d, string subtype, string where, bool catalog) =>
-            catalog ? "The document" :
+            catalog ? PdfStrings.Inventory_TheDocument :
             d is PdfPage ? where :
             subtype switch
             {
-                "/Image" => $"{where}, a picture",
-                "/Form" => $"{where}, a drawing",
-                "/Widget" => $"{where}, a form field",
-                "/Type1" or "/TrueType" or "/Type0" or "/Type3" or "/CIDFontType0" or "/CIDFontType2" => $"{where}, a font",
-                _ when d.Elements.ContainsKey("/Rect") => $"{where}, a comment",
-                _ when PdfObj.NameOf(d, "/Type") == "/FontDescriptor" => $"{where}, a font",
-                _ => $"{where}, an object",
+                "/Image" => Loc.Format(PdfStrings.Inventory_WherePicture, where),
+                "/Form" => Loc.Format(PdfStrings.Inventory_WhereDrawing, where),
+                "/Widget" => Loc.Format(PdfStrings.Inventory_WhereFormField, where),
+                "/Type1" or "/TrueType" or "/Type0" or "/Type3" or "/CIDFontType0" or "/CIDFontType2" => Loc.Format(PdfStrings.Inventory_WhereFont, where),
+                _ when d.Elements.ContainsKey("/Rect") => Loc.Format(PdfStrings.Inventory_WhereComment, where),
+                _ when PdfObj.NameOf(d, "/Type") == "/FontDescriptor" => Loc.Format(PdfStrings.Inventory_WhereFont, where),
+                _ => Loc.Format(PdfStrings.Inventory_WhereObject, where),
             };
 
         private static string InfoName(string key) => key switch
         {
-            "/Title" => "Title",
-            "/Author" => "Author",
-            "/Subject" => "Subject",
-            "/Keywords" => "Keywords",
-            "/Creator" => "Made with",
-            "/Producer" => "Written by",
-            "/CreationDate" => "Created",
-            "/ModDate" => "Modified",
-            "/Trapped" => "Trapped",
+            "/Title" => PdfStrings.Inventory_Title,
+            "/Author" => PdfStrings.Inventory_Author,
+            "/Subject" => PdfStrings.Inventory_Subject,
+            "/Keywords" => PdfStrings.Inventory_Keywords,
+            "/Creator" => PdfStrings.Inventory_MadeWith,
+            "/Producer" => PdfStrings.Inventory_WrittenBy,
+            "/CreationDate" => PdfStrings.Inventory_Created,
+            "/ModDate" => PdfStrings.Inventory_Modified,
+            "/Trapped" => PdfStrings.Inventory_Trapped,
             _ => key.TrimStart('/'),
         };
 
         private static string XmpName(string name) => name switch
         {
-            "creator" => "Author (XMP)",
-            "title" => "Title (XMP)",
-            "description" => "Subject (XMP)",
-            "subject" => "Keywords (XMP)",
-            "rights" => "Rights (XMP)",
-            "CreateDate" => "Created (XMP)",
-            "ModifyDate" => "Modified (XMP)",
-            "MetadataDate" => "Metadata changed (XMP)",
-            "DocumentID" => "Document ID (XMP)",
-            "InstanceID" => "Version ID (XMP)",
-            "OriginalDocumentID" => "Original document ID (XMP)",
-            "History" => "Editing history (XMP)",
-            "DerivedFrom" => "Made from (XMP)",
-            _ => $"{name} (XMP)",
+            "creator" => PdfStrings.Inventory_XmpAuthor,
+            "title" => PdfStrings.Inventory_XmpTitle,
+            "description" => PdfStrings.Inventory_XmpSubject,
+            "subject" => PdfStrings.Inventory_XmpKeywords,
+            "rights" => PdfStrings.Inventory_XmpRights,
+            "CreateDate" => PdfStrings.Inventory_XmpCreated,
+            "ModifyDate" => PdfStrings.Inventory_XmpModified,
+            "MetadataDate" => PdfStrings.Inventory_XmpMetadataDate,
+            "DocumentID" => PdfStrings.Inventory_XmpDocumentId,
+            "InstanceID" => PdfStrings.Inventory_XmpInstanceId,
+            "OriginalDocumentID" => PdfStrings.Inventory_XmpOriginalId,
+            "History" => PdfStrings.Inventory_XmpHistory,
+            "DerivedFrom" => PdfStrings.Inventory_XmpDerivedFrom,
+            _ => Loc.Format(PdfStrings.Inventory_XmpOther, name),
         };
 
         /// <summary>Streams whose data is in another file or on the web (/F): read when the page is drawn.</summary>
@@ -650,7 +652,7 @@ public static partial class DocumentInventory
         {
             foreach (var o in doc.Internals.GetAllObjects())
                 if (o is PdfDictionary { Stream: not null } d && d.Elements.ContainsKey("/F") && FileName(d.Elements["/F"]) is { } target)
-                    Address(target, "Data read from outside the file", "When the page using it is drawn", InventoryTrigger.Automatic, -1, null);
+                    Address(target, PdfStrings.Inventory_ExternalData, PdfStrings.Inventory_WhenPageDrawn, InventoryTrigger.Automatic, -1, null);
         }
     }
 
@@ -660,28 +662,28 @@ public static partial class DocumentInventory
     internal static List<string> ScriptCalls(string source)
     {
         var calls = new List<string>();
-        foreach (var (pattern, words) in Calls)
-            if (pattern.IsMatch(source) && !calls.Contains(words)) calls.Add(words);
+        foreach (var (pattern, says) in Calls)
+            if (pattern.IsMatch(source) && says() is var words && !calls.Contains(words)) calls.Add(words);
         return calls;
     }
 
-    private static readonly (Regex Pattern, string Words)[] Calls =
+    private static readonly (Regex Pattern, Func<string> Words)[] Calls =
     [
-        (new(@"\b(launchURL|getURL)\s*\(", RegexOptions.CultureInvariant), "opens a web address"),
-        (new(@"\bsubmitForm\s*\(", RegexOptions.CultureInvariant), "sends the form's data"),
-        (new(@"\b(mailDoc|mailForm|mailMsg|mailGetAddrs)\s*\(", RegexOptions.CultureInvariant), "sends email"),
-        (new(@"\b(Net\.HTTP|SOAP\.|Net\.SOAP|Net\.Discovery|Collab\.)", RegexOptions.CultureInvariant), "connects to the internet"),
-        (new(@"\bopenDoc\s*\(", RegexOptions.CultureInvariant), "opens another file"),
-        (new(@"\b(exportDataObject|exportAsFDF|exportAsXFDF|exportAsText|exportXFAData|saveAs|extractPages)\s*\(", RegexOptions.CultureInvariant), "writes a file"),
-        (new(@"\b(importDataObject|importAnFDF|importAnXFDF|importTextData|importXFAData|importIcon|importSound|readFileIntoStream|browseForDoc)\s*\(", RegexOptions.CultureInvariant), "reads a file"),
-        (new(@"\b(launch|openDataObject)\s*\(", RegexOptions.CultureInvariant), "opens an attached file"),
-        (new(@"\b(print|printWithParams)\s*\(", RegexOptions.CultureInvariant), "prints"),
-        (new(@"\bexecMenuItem\s*\(", RegexOptions.CultureInvariant), "runs a menu command"),
-        (new(@"\b(setTimeOut|setInterval)\s*\(", RegexOptions.CultureInvariant), "runs on a timer"),
-        (new(@"\b(eval|Function)\s*\(", RegexOptions.CultureInvariant), "runs code it builds as it goes"),
-        (new(@"\b(addScript|setAction|setPageAction)\s*\(", RegexOptions.CultureInvariant), "adds scripts"),
-        (new(@"\b(alert|response)\s*\(", RegexOptions.CultureInvariant), "shows a message or asks a question"),
-        (new(@"\b(identity|app\.platform|app\.viewerVersion)\b", RegexOptions.CultureInvariant), "reads who you are or what your computer runs"),
+        (new(@"\b(launchURL|getURL)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallOpensWebAddress),
+        (new(@"\bsubmitForm\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallSendsFormData),
+        (new(@"\b(mailDoc|mailForm|mailMsg|mailGetAddrs)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallSendsEmail),
+        (new(@"\b(Net\.HTTP|SOAP\.|Net\.SOAP|Net\.Discovery|Collab\.)", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallConnects),
+        (new(@"\bopenDoc\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallOpensFile),
+        (new(@"\b(exportDataObject|exportAsFDF|exportAsXFDF|exportAsText|exportXFAData|saveAs|extractPages)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallWritesFile),
+        (new(@"\b(importDataObject|importAnFDF|importAnXFDF|importTextData|importXFAData|importIcon|importSound|readFileIntoStream|browseForDoc)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallReadsFile),
+        (new(@"\b(launch|openDataObject)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallOpensAttached),
+        (new(@"\b(print|printWithParams)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallPrints),
+        (new(@"\bexecMenuItem\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallMenuCommand),
+        (new(@"\b(setTimeOut|setInterval)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallTimer),
+        (new(@"\b(eval|Function)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallBuildsCode),
+        (new(@"\b(addScript|setAction|setPageAction)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallAddsScripts),
+        (new(@"\b(alert|response)\s*\(", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallMessage),
+        (new(@"\b(identity|app\.platform|app\.viewerVersion)\b", RegexOptions.CultureInvariant), () => PdfStrings.Inventory_CallIdentity),
     ];
 
     [GeneratedRegex(@"(?:https?|ftp)://[^\s'""\\()<>\[\]{}]+|mailto:[^\s'""\\()<>\[\]{}]+", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

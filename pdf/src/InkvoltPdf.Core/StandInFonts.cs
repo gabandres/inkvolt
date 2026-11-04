@@ -194,7 +194,7 @@ internal static class StandInFonts
             return face;
         if (family is not null && InstalledFamilies.Value.TryGetValue(family, out var listed) && Face(listed, bold, italic) is { } other)
             return other;
-        return RankFor(font, bold, italic).FirstOrDefault() ?? throw new ContentEditException("No font on this PC can draw this text.");
+        return RankFor(font, bold, italic).FirstOrDefault() ?? throw new ContentEditException(PdfStrings.Font_NoneOnPc);
     }
 
     /// <summary>A family's face closest to the style asked (its regular one when it has no bold or italic); null when not installed.</summary>
