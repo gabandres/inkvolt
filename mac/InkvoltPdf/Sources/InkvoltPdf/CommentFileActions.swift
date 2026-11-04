@@ -69,7 +69,7 @@ extension DocumentWindowController {
             return nil
         case .success(let export):
             if export.count == 0 {
-                commentAlert("No comments", (["This document has no comments to export, so no file was saved."] + export.left).joined(separator: "\n\n"))
+                infoSheet("No comments", (["This document has no comments to export, so no file was saved."] + export.left).joined(separator: "\n\n"))
                 return nil
             }
             do {
@@ -79,7 +79,7 @@ extension DocumentWindowController {
                 return nil
             }
             notify("Exported \(Self.commentCount(export.count, "comment", "comments")) to \(url.lastPathComponent).")
-            if !export.left.isEmpty { commentAlert("Some annotations weren't exported", export.left.joined(separator: "\n")) }
+            if !export.left.isEmpty { infoSheet("Some annotations weren't exported", export.left.joined(separator: "\n")) }
             return export
         }
     }
@@ -113,7 +113,7 @@ extension DocumentWindowController {
         let file: [UInt8]
         switch checked {
         case .failure(let error):
-            commentAlert("Can't import \(name)", (error as? PdfEditError)?.message ?? error.localizedDescription)
+            infoSheet("Can't import \(name)", (error as? PdfEditError)?.message ?? error.localizedDescription)
             return nil
         case .success(let bytes):
             file = bytes
@@ -134,13 +134,13 @@ extension DocumentWindowController {
             if !result.skipped.isEmpty { text += " \(Self.commentCount(result.skipped.count, "was", "were")) skipped:" }
             let list = result.skipped.prefix(2000).joined(separator: "\n")
                 + (result.skipped.count > 2000 ? "\n… and \((result.skipped.count - 2000).formatted()) more" : "")
-            commentAlert("Comments Imported", ([text] + result.notes).joined(separator: "\n\n"), list: result.skipped.isEmpty ? nil : list)
+            infoSheet("Comments Imported", ([text] + result.notes).joined(separator: "\n\n"), list: result.skipped.isEmpty ? nil : list)
         }
         return result
     }
 
     /// An informational alert (a sheet), with an optional scrolling list of lines; in the self-test a notice instead.
-    func commentAlert(_ message: String, _ detail: String, list: String? = nil) {
+    func infoSheet(_ message: String, _ detail: String, list: String? = nil, listName: String = "Skipped comments") {
         if Report.skipsDialogs { return notify("\(message). \(detail)") }
         let alert = NSAlert()
         alert.messageText = message
@@ -154,7 +154,7 @@ extension DocumentWindowController {
             text.string = list
             text.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             text.autoresizingMask = [.width]
-            text.setAccessibilityLabel("Skipped comments")
+            text.setAccessibilityLabel(listName)
             scroll.documentView = text
             alert.accessoryView = scroll
         }

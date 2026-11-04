@@ -281,8 +281,9 @@ extension DocumentWindowController {
 
 /// Split Document's Choose…: a folder's path in the folder box.
 @MainActor
-private final class FolderButton: NSButton {
+final class FolderButton: NSButton {
     weak var field: NSTextField?
+    var message = "Save the split files to"
 
     @objc func browse() {
         let panel = NSOpenPanel()
@@ -290,7 +291,7 @@ private final class FolderButton: NSButton {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.prompt = "Choose"
-        panel.message = "Save the split files to"
+        panel.message = message
         if let path = field?.stringValue, !path.isEmpty { panel.directoryURL = URL(fileURLWithPath: path) }
         if panel.runModal() == .OK, let url = panel.url { field?.stringValue = url.path }
     }

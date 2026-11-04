@@ -1,9 +1,9 @@
 import Foundation
 
-public enum CommandKind: Sendable { case help, batch, watch }
+public enum CommandKind: Sendable { case help, batch, watch, fill }
 
 /// A parsed command line (see `BatchCommandLine.usage`). `preset`: the preset file; `inputs`: --batch's files and
-/// folders; `folder`: --watch's folder.
+/// folders, --fill's form and CSV; `folder`: --watch's folder; `name`: --fill's file name pattern.
 public struct CommandLineRequest: Equatable, Sendable {
     public var kind: CommandKind
     public var preset: String?
@@ -13,9 +13,11 @@ public struct CommandLineRequest: Equatable, Sendable {
     public var recursive = false
     public var once = false
     public var quiet = false
+    public var name: String?
+    public var flatten = false
 
     public init(_ kind: CommandKind, preset: String? = nil, inputs: [String]? = nil, folder: String? = nil, output: String? = nil,
-                recursive: Bool = false, once: Bool = false, quiet: Bool = false) {
+                recursive: Bool = false, once: Bool = false, quiet: Bool = false, name: String? = nil, flatten: Bool = false) {
         self.kind = kind
         self.preset = preset
         self.inputs = inputs
@@ -24,6 +26,8 @@ public struct CommandLineRequest: Equatable, Sendable {
         self.recursive = recursive
         self.once = once
         self.quiet = quiet
+        self.name = name
+        self.flatten = flatten
     }
 }
 
@@ -64,7 +68,7 @@ public final class MemoryLines: LineWriter, @unchecked Sendable {
 /// it went (`done`, `someFailed`, `wrong`, `stopped`). Nothing is asked: files that need a password to open are skipped,
 /// and Protect's passwords come from `openPasswordVariable` and `permissionsPasswordVariable` (presets never keep them).
 /// The app's entry point passes the recognizer (OCR); everything else is here, so tests run it in-process. `--fill`
-/// (the form merge) comes with roadmap 1.4 on the Mac.
+/// is the form merge (`FormMerge`, roadmap 1.4), free like the app's Fill Forms from CSV.
 public enum BatchCommandLine {
     /// Exit codes: every file done; a file failed or was skipped; the command line, preset or folder is wrong (nothing
     /// was done); stopped (Ctrl+C) before the end.
@@ -91,6 +95,14 @@ public enum BatchCommandLine {
               --out <folder>   where the results go (default: the preset's folder, else <folder>/results)
               --once           handle the files there now, then stop (for a launchd job)
 
+          inkvoltpdf --fill <form.pdf> <data.csv> [--out <folder>] [--name <pattern>] [--flatten] [--quiet]
+              Fills one copy of the form for each row of the CSV (its header names the fields), a line per row.
+              A row with a value the form refuses is not saved; a report CSV lists why.
+              --out <folder>   where the forms go (default: "<form> forms" beside the CSV)
+              --name <pattern> file names: <<name>> the form's name, <<n>> or <<n:3>> the row, <<date>>, and any
+                               column as <<Column>> (default: "<<name>> <<n:3>>")
+              --flatten        the values become part of the pages
+
           inkvoltpdf --help
 
         inkvoltpdf is \(command).
@@ -105,23 +117,24 @@ public enum BatchCommandLine {
     /// The arguments ask for the command line (rather than opening files in the app).
     public static func isCommand(_ args: [String]) -> Bool {
         guard let first = args.first?.lowercased() else { return false }
-        return ["--batch", "--watch", "--help", "-h", "-?"].contains(first)
+        return ["--batch", "--watch", "--fill", "--help", "-h", "-?"].contains(first)
     }
 
     /// - Throws: `CommandLineError` when the arguments are wrong.
     public static func parse(_ args: [String]) throws -> CommandLineRequest {
-        guard let first = args.first else { throw CommandLineError("Say what to do: --batch, --watch or --help.") }
+        guard let first = args.first else { throw CommandLineError("Say what to do: --batch, --watch, --fill or --help.") }
         let kind: CommandKind
         switch first.lowercased() {
         case "--batch": kind = .batch
         case "--watch": kind = .watch
+        case "--fill": kind = .fill
         case "--help", "-h", "-?": kind = .help
-        default: throw CommandLineError("\"\(first)\" isn't a command: use --batch, --watch or --help.")
+        default: throw CommandLineError("\"\(first)\" isn't a command: use --batch, --watch, --fill or --help.")
         }
         if kind == .help { return CommandLineRequest(kind) }
 
-        var firstValue: String?, preset: String?, output: String?
-        var recursive = false, once = false, quiet = false
+        var firstValue: String?, preset: String?, output: String?, name: String?
+        var recursive = false, once = false, quiet = false, flatten = false
         var inputs: [String] = []
         var i = 1
         func value(_ name: String) throws -> String {
@@ -137,11 +150,18 @@ public enum BatchCommandLine {
             case "--recursive": recursive = true
             case "--once": once = true
             case "--quiet": quiet = true
+            case "--name" where kind == .fill: name = try value("--name")
+            case "--flatten" where kind == .fill: flatten = true
             default:
                 if a.hasPrefix("--") { throw CommandLineError("\"\(a)\" isn't an option Inkvolt PDF knows (--help lists them).") }
                 if firstValue == nil { firstValue = a } else { inputs.append(a) }
             }
             i += 1
+        }
+        if kind == .fill {
+            guard let firstValue, inputs.count == 1 else { throw CommandLineError("--fill needs the form (a PDF), then the CSV of values.") }
+            if preset != nil || recursive || once { throw CommandLineError("--fill takes --out, --name, --flatten and --quiet.") }
+            return CommandLineRequest(kind, inputs: [firstValue, inputs[0]], output: output, quiet: quiet, name: name, flatten: flatten)
         }
         if kind == .batch {
             guard let firstValue else { throw CommandLineError("--batch needs a preset file, then the files or folders to run it on.") }
@@ -176,6 +196,7 @@ public enum BatchCommandLine {
             stdout.writeLine(usage)
             return done
         }
+        if request.kind == .fill { return fill(request, stdout, stderr, environment(openPasswordVariable), cancel) } // free (roadmap 1.4)
         if !Pro.allows(.commandLine) {
             stderr.writeLine(Pro.locked(.commandLine) + " " + Pro.howToGet)
             return wrong
@@ -321,5 +342,48 @@ public enum BatchCommandLine {
             n += 1
             return n
         }
+    }
+
+    /// --fill: a form merge (`FormMerge`), a line per row; a report CSV beside the forms when a row failed.
+    private static func fill(_ request: CommandLineRequest, _ stdout: LineWriter, _ stderr: LineWriter, _ password: String?, _ cancel: CancelToken?) -> Int {
+        let form = full(request.inputs?[0] ?? ""), csv = full(request.inputs?[1] ?? "")
+        if let missing = [form, csv].first(where: { !FileManager.default.fileExists(atPath: $0) }) {
+            stderr.writeLine("There is no file \(missing).")
+            return wrong
+        }
+        let stem = ((form as NSString).lastPathComponent as NSString).deletingPathExtension
+        let outFolder = full(request.output ?? ((csv as NSString).deletingLastPathComponent as NSString).appendingPathComponent(stem + " forms"))
+        var options = FormMergeOptions(outputFolder: outFolder, nameTemplate: request.name ?? FormMergeOptions.defaultTemplate)
+        options.flatten = request.flatten
+        let report: FormMergeReport
+        do {
+            let formData = [UInt8](try Data(contentsOf: URL(fileURLWithPath: form)))
+            let csvData = [UInt8](try Data(contentsOf: URL(fileURLWithPath: csv)))
+            report = try FormMerge.run(formData, password, csvData, formPath: form, options, cancel: cancel)
+        } catch {
+            stderr.writeLine((error as? PdfEditError)?.message ?? error.localizedDescription)
+            return wrong
+        }
+        for c in report.unknownColumns { stderr.writeLine("column   \"\(c)\" isn't a field of the form: left out") }
+        for r in (report.made + report.failed).sorted(by: { $0.row < $1.row }) {
+            if let file = r.file {
+                if !request.quiet { stdout.writeLine("made     row \(r.row) -> \(file)") }
+            } else {
+                stderr.writeLine("failed   row \(r.row): \(r.problems.joined(separator: "; "))")
+            }
+        }
+        if !report.failed.isEmpty {
+            let path = (outFolder as NSString).appendingPathComponent(stem + " merge report.csv")
+            do {
+                try FileManager.default.createDirectory(atPath: outFolder, withIntermediateDirectories: true)
+                try Data(report.csv()).write(to: URL(fileURLWithPath: path))
+                stdout.writeLine("Report: \(path)")
+            } catch {
+                stderr.writeLine("The report can't be saved: \(error.localizedDescription)")
+            }
+        }
+        stdout.writeLine(report.text)
+        if report.stopped { return stopped }
+        return report.failed.isEmpty ? done : someFailed
     }
 }

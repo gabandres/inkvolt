@@ -258,9 +258,42 @@ struct FeatureTest {
         form.resetForm(nil)
         await settle()
         let reset = form.value("name") == "" && form.value("size") == "M" && form.value("agree") == "Off"
-        let imported = await form.importData(readBack(xfdf) ?? [])
+        let imported = await form.importData(readBack(xfdf) ?? []) != nil
         let back = form.value("name") == "Ada Lovelace" && form.value("color") == "Blue" && widget("total")?.value == "42.5"
         check(exported && reset && imported && back, "Export Form Data (XFDF), Reset Form (defaults back), Import Form Data (values and total back)")
+
+        // CSV and JSON: exported, the form reset, imported back; then Fill Forms from CSV with a row the form refuses.
+        var formats: [String] = []
+        for (format, name) in [(FormDataFormat.csv, "form.csv"), (.json, "form.json")] {
+            let url = URL(fileURLWithPath: (folder as NSString).appendingPathComponent(name))
+            guard form.exportData(to: url, format) else { continue }
+            form.resetForm(nil)
+            await settle()
+            let r = await controller.importFormData(from: url)
+            await settle()
+            // A calculated read-only field (the total) is refused while it differs: the calculation brings it back.
+            let refused = r?.rejected.filter { !$0.message.contains("read-only") }.map(\.message) ?? ["nothing imported"]
+            if refused.isEmpty && form.value("name") == "Ada Lovelace" && form.value("size") == "L" && widget("total")?.value == "42.5" {
+                formats.append(name)
+            } else {
+                lines.append("INFO \(name): \(refused.joined(separator: "; ")); name \(form.value("name") ?? "-"), size \(form.value("size") ?? "-")")
+            }
+        }
+        check(formats.count == 2, "Export and Import Form Data as CSV and JSON: \(formats.joined(separator: ", ")) read back")
+        let table = (try? Csv.read(Csv.decode(readBack(URL(fileURLWithPath: (folder as NSString).appendingPathComponent("form.csv"))) ?? []))) ?? []
+        if table.count == 2, let size = table[0].firstIndex(of: "size") {
+            var bad = table[1]
+            bad[size] = "XXL"
+            let rows = Csv.write([table[0], table[1], table[1], bad])
+            let out = (folder as NSString).appendingPathComponent("merged")
+            let report = await controller.fillForms(csv: rows, csvName: "rows.csv", formPath: (folder as NSString).appendingPathComponent("form.pdf"),
+                                                    FormMergeOptions(outputFolder: out))
+            let files = ((try? FileManager.default.contentsOfDirectory(atPath: out)) ?? []).sorted()
+            check(report?.made.count == 2 && report?.failed.map(\.row) == [3] && files.contains("form 001.pdf") && files.contains("form merge report.csv"),
+                  "Fill Forms from CSV: 2 forms made, row 3 refused (\(report?.failed.first?.problems.first ?? "none")), the report beside them")
+        } else {
+            check(false, "Fill Forms from CSV: the exported CSV has \(table.count) rows")
+        }
 
         // Saved and read back by a fresh session.
         let saved = await saveAs("form.pdf")

@@ -40,7 +40,7 @@ struct FormDataExchangeTests {
 
     @Test func exportedDataImportsBackInEitherFormat() throws {
         let original = Self.form()
-        for format in FormDataFormat.allCases {
+        for format in [FormDataFormat.fdf, .xfdf] { // CSV and JSON: FormDataTests
             let exported = try FormEditor.exportData(original, nil, format, file: "form.pdf")
             let text = String(decoding: exported, as: UTF8.self)
             #expect(format == .xfdf ? text.hasPrefix("<?xml") : text.hasPrefix("%FDF"))

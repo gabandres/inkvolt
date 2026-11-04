@@ -170,7 +170,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   any failure (2 for a wrong command line or preset, 3 stopped), `--help`; Protect's passwords from environment
   variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
   with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
-  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` comes with 1.4). Still to do: a
+  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` with 1.4, 2026-11-03). Still to do: a
   500-file run over a real network share; `--batch` and `--watch` through the alias of an installed package (the pack's
   smoke run starts the app through the alias, with a dev script only).
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
@@ -234,13 +234,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Still to do: the round trip through Acrobat itself (not run here: checked against the spec's rules and Adobe-style
   samples instead); a highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF
   keeps it). Mac: Export and Import Comments done 2026-11-03 (`CommentFiles`, Tools › Annotate); form data as CSV and
-  JSON, Fill Forms from CSV, `--fill`, Summarize Comments and Batch's three actions still to do.
+  JSON, Fill Forms from CSV and `--fill` done 2026-11-03 (`FormDataFiles`, `FormMerge`, File › Form Data); Summarize
+  Comments and Batch's three actions still to do.
 - **Beat it when:** comments export and import as XFDF and FDF (replies, colors, authors, appearances of stamps and
   drawings kept) and as CSV; form data exports as XFDF, FDF, CSV and JSON and imports from them, and a CSV of many rows
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
   and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
   makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac: comments in and out done, the rest still to do.
+- **Effort** S-M. Windows; Mac: comments and form data in and out and the merge done, the summary still to do.
 
 ### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case

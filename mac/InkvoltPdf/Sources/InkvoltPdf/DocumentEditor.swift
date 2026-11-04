@@ -395,11 +395,11 @@ extension DocumentEditor {
         await run("Reset form", contentOnly: true) { data, pw in try FormEditor.resetForm(data, pw) }
     }
 
-    func importFormData(_ file: [UInt8], host: FormActionHost?) async -> (committed: Bool, result: FormFillResult?) {
-        let box = EditBox<FormFillResult>()
+    func importFormData(_ file: [UInt8], host: FormActionHost?) async -> (committed: Bool, result: FormDataImport?) {
+        let box = EditBox<FormDataImport>()
         let host = host.map(SendableHost.init)
         let ok = await run("Import form data", contentOnly: true) { data, pw in
-            let r = try FormEditor.importData(data, pw, file, host: host?.host)
+            let r = try FormDataFiles.importData(data, pw, file, host: host?.host)
             box.value = r
             return r.data
         }

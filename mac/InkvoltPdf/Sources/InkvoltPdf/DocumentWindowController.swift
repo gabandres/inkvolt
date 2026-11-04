@@ -501,32 +501,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     @objc func resetForm(_ sender: Any?) { form.resetForm(sender) }
 
-    @objc func exportFormData(_ sender: Any?) {
-        guard let window, let session = pdf.session else { return }
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = (session.displayName as NSString).deletingPathExtension + ".xfdf"
-        panel.allowedContentTypes = FormDataPanel.types
-        panel.message = "Save the form's values as XFDF (or FDF: name the file .fdf)."
-        panel.beginSheetModal(for: window) { response in
-            MainActor.assumeIsolated {
-                guard response == .OK, let url = panel.url else { return }
-                _ = self.form.exportData(to: url, url.pathExtension.lowercased() == "fdf" ? .fdf : .xfdf)
-            }
-        }
-    }
-
-    @objc func importFormData(_ sender: Any?) {
-        guard let window else { return }
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = FormDataPanel.types
-        panel.message = "Choose an XFDF or FDF file of form values."
-        panel.beginSheetModal(for: window) { response in
-            MainActor.assumeIsolated {
-                guard response == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }
-                self.startLongTask { _ = await self.form.importData([UInt8](data)) }
-            }
-        }
-    }
+    // Export Form Data…, Import Form Data… and Fill Forms from CSV…: FormDataActions.swift.
 
     private func popUp(_ menu: NSMenu?, _ view: NSView, _ rect: NSRect) {
         let y: CGFloat = view.isFlipped ? rect.maxY + 4 : rect.minY - 4

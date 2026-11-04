@@ -190,6 +190,8 @@ enum MainMenu {
         formData.addItem(item("Reset Form…", #selector(DocumentWindowController.resetForm(_:))))
         formData.addItem(item("Import Form Data…", #selector(DocumentWindowController.importFormData(_:))))
         formData.addItem(item("Export Form Data…", #selector(DocumentWindowController.exportFormData(_:))))
+        formData.addItem(.separator())
+        formData.addItem(item("Fill Forms from CSV…", #selector(DocumentWindowController.fillFormsFromCsv(_:))))
         let formItem = item("Form Data", nil)
         formItem.submenu = formData
         menu.addItem(formItem)

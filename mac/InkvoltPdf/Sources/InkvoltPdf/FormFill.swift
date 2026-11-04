@@ -491,11 +491,11 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         }
     }
 
-    /// Export Form Data: the values as XFDF or FDF, to `url` (the save panel's choice).
+    /// Export Form Data: the values as XFDF, FDF, CSV or JSON (`FormDataFiles`), to `url` (the save panel's choice).
     func exportData(to url: URL, _ format: FormDataFormat) -> Bool {
         guard let session = editor?.session else { return false }
         do {
-            let bytes = try FormEditor.exportData(session.data, session.password, format, file: session.displayName)
+            let bytes = try FormDataFiles.export(session.data, session.password, format, pdfFileName: session.displayName)
             try Data(bytes).write(to: url, options: .atomic)
             controller?.notify("Form data exported to \(url.lastPathComponent).")
             return true
@@ -505,15 +505,28 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         }
     }
 
-    /// Import Form Data from an FDF or XFDF file's bytes.
-    func importData(_ bytes: [UInt8]) async -> Bool {
+    /// Import Form Data from an XFDF, FDF, CSV or JSON file's bytes (one undo step): says how many values went in, and
+    /// lists the ones refused, the names that aren't fields and anything else worth knowing.
+    @discardableResult
+    func importData(_ bytes: [UInt8]) async -> FormDataImport? {
         commitEditor()
         await settle()
-        guard let editor else { return false }
-        let (ok, result) = await editor.importFormData(bytes, host: host)
-        if let result { report(result) }
-        if ok { controller?.notify("Form data imported.") }
-        return ok
+        guard let editor else { return nil }
+        let (_, result) = await editor.importFormData(bytes, host: host)
+        guard let result else { return nil }
+        if !result.rejected.isEmpty { reload() }
+        let summary = "\(DocumentWindowController.commentCount(result.filled, "value was", "values were")) filled in."
+        if result.rejected.isEmpty && result.unknown.isEmpty && result.notes.isEmpty {
+            controller?.notify(summary, canUndo: result.filled > 0)
+        } else {
+            var lines = result.rejected.map { $0.message.isEmpty ? "\($0.fieldName): refused by the form" : $0.message }
+            if !result.unknown.isEmpty {
+                lines.append("Not fields of this form: " + result.unknown.prefix(30).joined(separator: ", ") + (result.unknown.count > 30 ? ", …" : ""))
+            }
+            controller?.infoSheet("Form Data Imported", ([summary] + result.notes).joined(separator: "\n\n"),
+                                  list: lines.isEmpty ? nil : lines.joined(separator: "\n"), listName: "Values not filled in")
+        }
+        return result
     }
 }
 

@@ -182,7 +182,7 @@ public enum FormEditor {
 
     /// A check box or radio field's /Opt: the export value of each widget, by its position among the field's widgets
     /// (Acrobat writes it, with states named "0", "1"…, when export values aren't plain ASCII or repeat); nil without.
-    private static func buttonOptions(_ f: FormField) -> [String]? {
+    static func buttonOptions(_ f: FormField) -> [String]? {
         guard f.type == "Btn", let arr = inherited(f.dict, "Opt"), arr.isArray, arr.count > 0 else { return nil }
         return arr.elements.map { $0.text ?? "" }
     }

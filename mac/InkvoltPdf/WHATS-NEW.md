@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 
 ## Next
 - Export and import comments (Tools › Annotate): XFDF for Acrobat and other PDF apps, FDF, or a CSV for spreadsheets. Replies, colors, authors and shapes come along; importing adds only what the document doesn't have yet, and one Undo takes it back.
+- Form data as CSV and JSON too (File › Form Data): values are checked against their fields, and the ones the form doesn't take are listed.
+- Fill Forms from CSV (File › Form Data): one filled copy of the form for each row of a spreadsheet, named as you like (any column can go in the name); rows the form refuses are listed in a report. Also from Terminal: `--fill`.
 
 ## 1.6.1
 - Typing "inf" or a huge number as a watermark's picture width no longer makes Add Watermark quit the app the next time; Crop Pages refuses it too.

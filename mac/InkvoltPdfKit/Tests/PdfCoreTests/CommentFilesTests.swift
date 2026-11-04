@@ -342,7 +342,7 @@ struct CommentFilesTests {
             + "<xfdf xmlns=\"http://ns.adobe.com/xfdf/\"><annots><text page=\"0\" rect=\"0,0,20,20\"><contents>&lol2;</contents></text></annots></xfdf>"
         #expect(throws: PdfEditError.self) { try CommentFiles.importComments(TestPdf.make(1), nil, Array(laughs.utf8)) }
         let fields = xxe.replacingOccurrences(of: "<annots>", with: "<fields><field name=\"name\"><value>&secret;</value></field></fields><annots>")
-        #expect(throws: PdfEditError.self) { try FormEditor.importData(FormDataExchangeTests.form(), nil, Array(fields.utf8)) }
+        #expect(throws: PdfEditError.self) { try FormDataFiles.importData(FormDataTests.form(), nil, Array(fields.utf8)) }
     }
 
     @Test func bringsNoScriptsOrActionsIn() throws {
@@ -426,6 +426,11 @@ struct CommentFilesTests {
             Issue.record("too many comments were read")
         } catch let e as PdfEditError {
             #expect(e.message.contains("more than"))
+        }
+
+        #expect(throws: PdfEditError.self) { try FormDataFiles.readValues([UInt8](repeating: 0, count: FormDataFiles.maxFileBytes + 1)) }
+        #expect(throws: PdfEditError.self) {
+            try FormDataFiles.readValues(Array((String(repeating: "[", count: 10_000) + String(repeating: "]", count: 10_000)).utf8))
         }
     }
 
