@@ -42,8 +42,10 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 **Inkvolt PDF for Windows.**
 1. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
-2. PDF 2.2 leftovers (suspect words for Batch, Scan and export; "1111", which Windows' recognizer never reads; a dropped
-   word inside a line that was read), 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans).
+2. 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans). PDF 2.2's three leftovers are done
+   (2026-11-04, `pdf/ROADMAP.md` 2.2): suspect words for Batch, Scan and export; "1111" read three strokes at a time
+   (`skipped-lines` 21.7% → 8.7%); a word left out inside a read line read again (probe: 752 → 747 edits). Still for a
+   person: a real scanner's pages through Scan with OCR, then Review Suspect Words.
 3. Speed: `drawings.pdf` misses Find (39.5 s) and scrolling (about 1 s a sheet) (`pdf/tools/bench`, RESULTS.md of
    2026-11-04, a loaded PC); `comments.pdf` scrolls on screen at 36 fps. Recheck the on-screen numbers on an idle PC.
 4. UX leftovers (UX-REVIEW round 3): Comment still goes to "…" at 150 % on 1200 DIPs; Organize's page pictures.

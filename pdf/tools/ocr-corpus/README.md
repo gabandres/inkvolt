@@ -57,7 +57,8 @@ them), in the order recognized. Three readings per file, all with Windows' recog
 on which Windows' recognizer skips two whole lines, cleaned or not, measured the same three ways; "lower than today's"
 leaves them out. `probe` makes more pages like the corpus's (other seeds, sizes a point up and down) and prints, per page,
 the error rate cleaned and re-read, the longest run of true words left out (a skipped line shows as a run as long as a
-line: `WordErrorRate.LongestMissedRun`) and the words re-reading added; it exits 1 when re-reading makes a page worse.
+line: `WordErrorRate.LongestMissedRun`) and the words re-reading added (lines skipped, and words left out inside lines
+read), then the edits over all pages both ways; it exits 1 when re-reading makes a page worse.
 
 The cleanup's settings came from trying variants on this corpus: whitening at 86% of the paper level cost thin serifs
 (the light file got worse, 1.8% → 2.5%); 92% with the median and despeckling was lower on every file.

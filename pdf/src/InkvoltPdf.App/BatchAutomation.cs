@@ -117,12 +117,14 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
             return;
         }
         var ocrGate = new Lock();
+        var suspects = AppSettings.Current.OcrSuspects;
         var host = new BatchHost
         {
             Recognize = ocr is null ? null : (engine, page, cancel) =>
             {
-                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
+                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel, suspects);
             },
+            RecognizeLanguage = ocr?.Language,
             Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         var progress = new Progress<WatchProgress>(p =>

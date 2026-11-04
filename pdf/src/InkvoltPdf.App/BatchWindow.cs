@@ -934,14 +934,17 @@ internal sealed class BatchWindow : Window
         Log.Write($"Batch: {rows.Count} file(s); {string.Join(", ", plan.Steps.Select(x => x.Title))}; to {Log.Name(plan.OutputFolder)}");
 
         var ocrGate = new Lock();
+        var suspects = AppSettings.Current.OcrSuspects;
         var host = new BatchHost
         {
             AskPassword = AskPasswordAsync,
-            // Windows' recognizer, one page at a time (the engine is shared by the files running together).
+            // Windows' recognizer, one page at a time (the engine is shared by the files running together); suspect words
+            // marked as Recognize Text marks them, for review when the file is opened.
             Recognize = ocr is null ? null : (engine, page, cancel) =>
             {
-                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
+                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel, suspects);
             },
+            RecognizeLanguage = ocr?.Language,
             Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
             LongTermClient = longTermClient,
         };

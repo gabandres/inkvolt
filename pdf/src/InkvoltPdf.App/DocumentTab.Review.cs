@@ -425,7 +425,8 @@ public partial class DocumentTab
         ViewerPrefs? Prefs,
         string? Title,
         IReadOnlyList<TextStamp> SignatureStamps,
-        IReadOnlyList<LinkInfo> Links);
+        IReadOnlyList<LinkInfo> Links,
+        bool SuspectWords);
 
     /// <summary>Reads labels, comments, attachments, layers and signatures off the UI thread (the latest request wins).</summary>
     private async Task LoadReviewAsync()
@@ -477,6 +478,7 @@ public partial class DocumentTab
 
         if (first)
         {
+            if (info.SuspectWords) SuspectRail.Visibility = Visibility.Visible;
             if (info.Xfa is { XfaOnly: true } && !_xfaBarDismissed) XfaBar.Visibility = Visibility.Visible;
             if (info.Prefs is { } prefs)
             {
@@ -522,7 +524,9 @@ public partial class DocumentTab
         var title = wantTitle ? Try<string?>("title", ["/Title"], d => PageEditor.ReadMetadata(d, pw).Title, null, "") : null;
         var sigStamps = Try<IReadOnlyList<TextStamp>>("signature stamps", annots, d => SignatureStamps.Read(d, pw), [], []);
         var links = Try<IReadOnlyList<LinkInfo>>("links", annots, d => Links.Read(d, pw), [], []);
-        return new ReviewInfo(labels, comments, files, layers, order, sigs, xfa, prefs, title, sigStamps, links);
+        // A file recognized by Batch or a scan (or Recognize Text, then saved) with suspect words left: they can be reviewed.
+        var suspects = first && Try("suspect words", [TextLayer.FontPrefix], d => TextLayer.HasSuspectWords(d, pw), false, false);
+        return new ReviewInfo(labels, comments, files, layers, order, sigs, xfa, prefs, title, sigStamps, links, suspects);
     }
 
     /// <summary>Honors the document's opening settings (only for files without a remembered position).</summary>

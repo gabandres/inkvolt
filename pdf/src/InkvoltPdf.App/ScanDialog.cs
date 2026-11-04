@@ -27,8 +27,9 @@ internal static class Scanning
         var name = Loc.Format(Strings.Scan_FileName, DateTime.Now);
         var dlg = new ScanDialog(host, name, insert: null);
         if (dlg.ShowDialog() != true || dlg.Result is not { } pdf) return;
-        host.OpenSession(DocumentSession.FromBytes(pdf, name));
+        if (!host.OpenSession(DocumentSession.FromBytes(pdf, name))) return;
         host.ShowStatus(Loc.Plural(dlg.PageCount, Strings.Scan_Scanned_One, Strings.Scan_Scanned_Many));
+        if (dlg.SuspectWords > 0) host.ActiveTab?.OfferSuspectWords(dlg.SuspectWords);
     }
 
     public static async Task InsertFromScanner(MainWindow host, DocumentTab tab)
@@ -40,6 +41,7 @@ internal static class Scanning
         var before = Math.Clamp(dlg.InsertBefore, 0, tab.PageView.PageCount); // the document may have changed meanwhile
         var source = new PdfSource(pdf, null, name);
         await tab.RunEdit(Loc.Plural(dlg.PageCount, Strings.Scan_InsertLabel_One, Strings.Scan_InsertLabel_Many), (d, pw) => PageEditor.Insert(d, pw, source, null, before), before);
+        if (dlg.SuspectWords > 0) tab.OfferSuspectWords(dlg.SuspectWords);
     }
 }
 
@@ -623,6 +625,9 @@ internal sealed class ScanDialog : Window
             return (FrameworkElement)panel;
         }, TaskScheduler.FromCurrentSynchronizationContext());
 
+    /// <summary>Of the words recognized in <see cref="Result"/>, those marked as suspect words.</summary>
+    public int SuspectWords { get; private set; }
+
     /// <summary>Builds the PDF (JPEG pages as they are), adds the OCR text layer if chosen, then closes with the result.</summary>
     private async Task FinishAsync()
     {
@@ -647,11 +652,18 @@ internal sealed class ScanDialog : Window
                 using var progress = new ProgressPrompt(this, Strings.Scan_Recognizing, Strings.Scan_Starting);
                 try
                 {
+                    // Suspect words marked as Recognize Text marks them (its choice), for the Suspect words pane.
+                    var options = new RecognizeOptions(CheckWords: AppSettings.Current.OcrSuspects);
+                    var spelling = options.CheckWords ? PageOcr.Spelling(ocr.Language) : null;
+                    var suspect = 0;
                     pdf = await Task.Run(() =>
                     {
-                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, Strings.Scan_Recognizing).Words;
+                        var words = DocumentTab.RecognizePages(ocr, pdf, null, [.. Enumerable.Range(0, pages.Count)], progress, Strings.Scan_Recognizing,
+                            options: options, spelling: spelling).Words;
+                        suspect = words.Values.Sum(w => w.Count(x => x.Suspect != SuspectReasons.None));
                         return words.Count == 0 ? pdf : TextLayer.AddInvisibleText(pdf, null, words, ocr.Language);
                     }, progress.Token);
+                    SuspectWords = suspect;
                 }
                 catch (OperationCanceledException)
                 {

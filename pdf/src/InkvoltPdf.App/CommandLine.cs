@@ -33,13 +33,16 @@ internal static class CommandLine
         Log.Write($"Command line: {args[0]}");
         var ocr = args[0].ToLowerInvariant() is "--batch" or "--watch" ? PageOcr.Engine : null;
         var ocrGate = new Lock();
+        var suspects = ocr is not null && AppSettings.Current.OcrSuspects;
         var host = new BatchHost
         {
-            // Windows' recognizer, one page at a time (one engine for the files running together).
+            // Windows' recognizer, one page at a time (one engine for the files running together); suspect words marked as
+            // the app's Recognize Text marks them.
             Recognize = ocr is null ? null : (engine, page, cancel) =>
             {
-                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
+                lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel, suspects);
             },
+            RecognizeLanguage = ocr?.Language,
             Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
         };
         int code;

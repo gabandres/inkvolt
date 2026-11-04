@@ -446,8 +446,14 @@ public sealed class BatchHost
     /// <summary>Asks for a file's password (one prompt at a time); null skips the file. Unset: files that need one are skipped.</summary>
     public Func<BatchPasswordRequest, CancellationToken, Task<string?>>? AskPassword { get; init; }
 
-    /// <summary>Recognizes a page's words (page points, top-left origin); called from worker threads.</summary>
+    /// <summary>
+    /// Recognizes a page's words (page points, top-left origin); called from worker threads. Words it marks as suspect
+    /// (<see cref="OcrWord.Suspect"/>) stay marked in the text layer, for the Suspect words pane when the file is opened.
+    /// </summary>
     public Func<PdfEngine, int, CancellationToken, IReadOnlyList<OcrWord>>? Recognize { get; init; }
+
+    /// <summary>The language <see cref="Recognize"/> reads in (a BCP-47 tag), kept with the text layer for its review.</summary>
+    public string? RecognizeLanguage { get; init; }
 
     /// <summary>The same recognizer for Redact Patterns, which also reads single places of a page again; called from worker
     /// threads, one call at a time. Unset: scanned pages can't be searched, and a file that has them fails that action.</summary>
@@ -787,7 +793,7 @@ public static class BatchRunner
                             break;
                         case OcrStep:
                             var words = await Task.Run(() => Recognize(data), cancel).ConfigureAwait(false);
-                            if (words.Count > 0) data = await EditAsync(data, (d, pw) => TextLayer.AddInvisibleText(d, pw, words)).ConfigureAwait(false);
+                            if (words.Count > 0) data = await EditAsync(data, (d, pw) => TextLayer.AddInvisibleText(d, pw, words, host.RecognizeLanguage)).ConfigureAwait(false);
                             break;
                         case RedactPatternsStep redact:
                             data = await RedactPatternsAsync(data, redact).ConfigureAwait(false);
@@ -1139,6 +1145,8 @@ public static class BatchRunner
                 if (found.Count > 0) words[p] = found;
             }
             if (words.Count > 0) _notes.Add(Loc.Plural(words.Count, PdfStrings.Batch_TextRecognized_One, PdfStrings.Batch_TextRecognized_Many));
+            if (words.Values.Sum(w => w.Count(x => x.Suspect != SuspectReasons.None)) is var suspect and > 0)
+                _notes.Add(Loc.Plural(suspect, PdfStrings.Batch_SuspectWords_One, PdfStrings.Batch_SuspectWords_Many));
             else if (hadText < engine.PageCount) _notes.Add(PdfStrings.Batch_NoTextRecognized);
             return words;
         }

@@ -108,6 +108,17 @@ public partial class DocumentTab
         };
     }
 
+    /// <summary>
+    /// After text was recognized elsewhere (a scan with OCR): shows the Suspect words button and says how many there are,
+    /// with Review to open them.
+    /// </summary>
+    public void OfferSuspectWords(int count)
+    {
+        if (count <= 0 || !Session.IsPdf) return;
+        SuspectRail.Visibility = Visibility.Visible;
+        Notify(Loc.Plural(count, Strings.Suspects_Found_One, Strings.Suspects_Found_Many), Strings.Review_OcrReviewAction, () => _ = ShowSuspectWordsAsync());
+    }
+
     /// <summary>Opens the pane on the document's suspect words.</summary>
     public async Task ShowSuspectWordsAsync()
     {

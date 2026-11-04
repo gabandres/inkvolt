@@ -93,9 +93,11 @@ internal static class PageOcr
     public static string Unavailable => Strings.Ocr_NoLanguage;
 
     /// <summary>
-    /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first. For the callers
-    /// that only need words (Batch, export, re-recognizing after redaction): no suspect words, nothing written back.
+    /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, nothing written
+    /// back. With <paramref name="suspects"/> (Batch, export: Recognize Text's choice, <see cref="AppSettings.OcrSuspects"/>),
+    /// suspect words are marked as Recognize Text marks them, with the spell checker for the recognizer's language; without
+    /// (Compare, re-recognizing after redaction), none are.
     /// </summary>
-    public static List<OcrWord> Recognize(ITextRecognizer engine, PdfEngine pdf, int page, CancellationToken cancel) =>
-        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: false), null, cancel).Words];
+    public static List<OcrWord> Recognize(WindowsRecognizer engine, PdfEngine pdf, int page, CancellationToken cancel, bool suspects = false) =>
+        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: suspects), suspects ? Spelling(engine.Language) : null, cancel).Words];
 }

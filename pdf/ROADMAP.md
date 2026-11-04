@@ -382,14 +382,29 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (its RESULTS.md). Lines the recognizer skips (2026-11-03): Windows' recognizer now and then leaves out a whole line
   that is plainly on the page; `ScanText` finds the cleaned page's ink no word covers, in line-sized bands that look like
   type (not specks, rules, blocks or pictures, nor beside a word read on the same row), reads each again alone (at most
-  12 places and 40 readings a page; what a place leaves unread is read word by word), and puts the words in reading
+  12 places and 60 readings a page; what a place leaves unread is read word by word), and puts the words in reading
   order. Recognize Text and Redact by Pattern both read through it. The corpus's scans have no skipped line (numbers
-  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. A page whose lines don't say which way up it is
+  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. **"1111"**
+  (2026-11-04): what made it skip them is four 1s in a row, which Windows' recognizer never reads (alone or in a line, any
+  size, margin or font tried: Helvetica, Times, Courier 9-18 pt) and for which it leaves out the whole line; one 1 alone it
+  never reads either, and two not always, three always. So a run of four strokes or more alike and evenly apart, left
+  unread, is read three strokes at a time and kept when each reading is three digits (`MissedLines.ReadOnes`):
+  `skipped-lines` 21.7% → 8.7% (what is left: two commas). **A word left out inside a line that was read**
+  (2026-11-04): unread ink on a read line's row, a word's gap clear of the words beside it (not the rest of a word read
+  short), as tall as a digit, is read alone and kept only as plain words or numbers (`MissedLines.FindInLines`; at most
+  16 places and, with the rest, 60 readings a page). The six scans are unchanged (the words they lack inside lines are two
+  words read as one, "journeyxletter", not words left out); on `probe --count 18` (36 pages, 14,108 words) 752 → 747
+  edits, 7 words found, no page worse. **Suspect words for Batch, Scan and export** (2026-11-04): Batch's Recognize Text
+  action (window, watched folders, `--batch`), File › Scan and Insert from Scanner, and the exports' OCR mark suspect
+  words as Recognize Text does when its "Mark suspect words to check" is on (it reads each page a second time as
+  scanned); Batch and Scan keep them in the text layer with its language, so the Suspect words button shows when such a
+  file is opened (`TextLayer.HasSuspectWords`) and they are reviewed there; Batch's notes and Scan's message count them;
+  an export, which has no text layer to review, counts them in its message. A page whose lines don't say which way up it is
   (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
   more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
   9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
-  "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
-  Batch, Scan or export (they get the cleaning, not the review). Mac: stage A done with E14 (2026-11-02,
+  "make the text editable", straightened lines and trapezoid correction (ABBYY's); on the Mac, suspect words for Batch,
+  Scan and export, and checking Vision on "1111". Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
   Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there.
 - **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,

@@ -14,6 +14,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Saving a large file while a Word, Excel or PowerPoint file converts to PDF no longer fails.
 - Text recognition reads again, on their own, the lines Windows' recognizer skips on a page, so Recognize Text and Redact by Pattern find words they missed.
 - Text recognition no longer turns a page of numbers upside down, so card numbers on a scan read right and Redact by Pattern finds them.
+- Text recognition now reads "1111" (four 1s in a row), which Windows' recognizer never reads and which made it leave out the whole line, so card numbers like 4111 1111 1111 1111 are found. A word left out inside a line is read again too.
+- Batch, File › Scan and the exports to Word, Excel, PowerPoint, HTML and text mark suspect words as Recognize Text does. Open a file made by Batch or a scan and the Suspect words button is there to review them; an export says how many it found.
 - An AI server whose answer isn't a chat reply gets a clear message instead of an error.
 - A PDF with a part that unpacks to hundreds of megabytes is refused with a message instead of using up the memory. The redaction check says when such a part couldn't be searched.
 - That limit now holds while a file opens and for every way a part can be packed, so a file built to unpack to gigabytes as it opens gets the same message. Optimize leaves such a part as it is, and a page holding one keeps its pictures.

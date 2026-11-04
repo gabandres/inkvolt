@@ -27,7 +27,7 @@ public sealed record ExportOptions
 
     /// <summary>
     /// Text recognition for pages without text (scans): the words on a page of the engine. Null reads only the text the
-    /// pages have. The app passes Windows' OCR.
+    /// pages have. The app passes Windows' OCR; the words it marks as suspect are counted in <see cref="ExportReport.SuspectWords"/>.
     /// </summary>
     public Func<PdfEngine, int, CancellationToken, IReadOnlyList<OcrWord>>? Recognize { get; init; }
 
@@ -56,8 +56,9 @@ public readonly record struct ExportProblem(int Page, string Message);
 /// <param name="Tables">Excel: the tables found (one sheet each).</param>
 /// <param name="Unreadable">Damaged pages: exported empty.</param>
 /// <param name="RecognitionFailed">Pages whose recognition failed: exported without text.</param>
+/// <param name="SuspectWords">Of the words recognized, those <see cref="ExportOptions.Recognize"/> marked as suspect (worth checking against the page).</param>
 public sealed record ExportReport(bool Saved, int Pages, int Recognized, int NoText, int NoTextWithPictures, int Tables,
-    IReadOnlyList<ExportProblem> Unreadable, IReadOnlyList<ExportProblem> RecognitionFailed);
+    IReadOnlyList<ExportProblem> Unreadable, IReadOnlyList<ExportProblem> RecognitionFailed, int SuspectWords = 0);
 
 /// <summary>
 /// Export to Word, Excel, plain text, PowerPoint and HTML. <see cref="Export"/> (to a stream) and <see cref="ExportToFile"/> read the pages
@@ -121,7 +122,7 @@ public static class DocumentExport
                 break;
             }
         }
-        return new ExportReport(saved, pages.Count, run.Recognized, run.NoText, run.NoTextWithPictures, tables, run.Unreadable, run.RecognitionFailed);
+        return new ExportReport(saved, pages.Count, run.Recognized, run.NoText, run.NoTextWithPictures, tables, run.Unreadable, run.RecognitionFailed, run.SuspectWords);
     }
 
     /// <summary>
@@ -157,7 +158,7 @@ public static class DocumentExport
     /// <summary>Reads the pages one at a time (lazily: Word stores each page's pictures as it arrives), counting as it goes.</summary>
     private sealed class Run(PdfEngine engine, IReadOnlyList<int> pages, bool images, bool shapes, ExportTags tags, ExportOptions options, CancellationToken cancel)
     {
-        public int Recognized, NoText, NoTextWithPictures, WithShapes;
+        public int Recognized, NoText, NoTextWithPictures, WithShapes, SuspectWords;
         public readonly List<ExportProblem> Unreadable = [], RecognitionFailed = [];
 
         public IEnumerable<(int Number, ExportPage Page)> Read()
@@ -191,6 +192,7 @@ public static class DocumentExport
                         {
                             page = page with { Lines = ExportPage.LinesFromOcr(words), FromOcr = true };
                             Recognized++;
+                            SuspectWords += words.Count(w => w.Suspect != SuspectReasons.None);
                         }
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)

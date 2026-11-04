@@ -30,6 +30,9 @@ public static class TextLayer
     /// <summary>The first line of an Inkvolt text layer (a content-stream comment; viewers skip it).</summary>
     public const string Marker = "%InkvoltOCR 1";
 
+    /// <summary>The start of the names of a text layer's fonts in a page's resources: a file without it has no Inkvolt text layer.</summary>
+    public const string FontPrefix = "/PdOcr";
+
     /// <param name="wordsByPage">Words per page index, in reading order. A page that already has an Inkvolt text layer gets
     /// it replaced.</param>
     /// <param name="language">The language they were recognized in (a BCP-47 tag), kept with them for their review.</param>
@@ -55,6 +58,19 @@ public static class TextLayer
             if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { Count: > 0 } words)
                 result[i] = new OcrLayer(InFrameOf(doc.Pages[i], words, layer.Text), LanguageOf(layer.Text));
         return result;
+    }
+
+    /// <summary>
+    /// Whether any page's Inkvolt text layer has a suspect word left to check (Recognize Text's, or Batch's, Scan's: a file
+    /// opened later shows them for review).
+    /// </summary>
+    public static bool HasSuspectWords(byte[] data, string? password)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import);
+        for (var i = 0; i < doc.PageCount; i++)
+            if (FindLayer(doc.Pages[i]) is { } layer && ParseWords(layer.Text) is { } words && words.Any(w => w.Suspect != SuspectReasons.None))
+                return true;
+        return false;
     }
 
     /// <summary>
@@ -200,9 +216,9 @@ public static class TextLayer
         var existing = FindLayer(page);
         var fonts = FontDictionary(doc, page);
         if (existing is { } old)
-            foreach (var key in fonts.Elements.Keys.Where(k => k.StartsWith("/PdOcr", StringComparison.Ordinal) && old.Text.Contains(k + " ", StringComparison.Ordinal)).ToList())
+            foreach (var key in fonts.Elements.Keys.Where(k => k.StartsWith(FontPrefix, StringComparison.Ordinal) && old.Text.Contains(k + " ", StringComparison.Ordinal)).ToList())
                 fonts.Elements.Remove(key);
-        var prefix = "/PdOcr";
+        var prefix = FontPrefix;
         for (var n = 1; fonts.Elements.Keys.Any(k => k.StartsWith(prefix, StringComparison.Ordinal)); n++) prefix = $"/PdOcr{n}_";
         var writer = new CidFontWriter(prefix);
         var primary = SystemFonts.Get("arial.ttf") ?? SystemFonts.Get("segoeui.ttf")

@@ -449,6 +449,37 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public async Task OcrKeepsTheRecognizersSuspectWordsForReview()
+    {
+        var scan = Put("in/scan.png", TestImages.Png(200, 100, (_, _) => (255, 255, 255, 255)));
+        var host = new BatchHost
+        {
+            Recognize = (_, _, _) =>
+            [
+                new OcrWord("Recognized", new RectD(10, 10, 80, 12)),
+                new OcrWord("c0de", new RectD(10, 30, 40, 12), Suspect: SuspectReasons.LettersAndDigits),
+                new OcrWord("riv;er", new RectD(60, 30, 40, 12), Suspect: SuspectReasons.OddCharacters | SuspectReasons.NotInDictionary),
+            ],
+            RecognizeLanguage = "en-US",
+        };
+        var summary = await Run([scan], Plan(new OcrStep()), host);
+        var item = Assert.Single(summary.Items);
+        Assert.Contains(item.Notes, n => n.StartsWith("2 suspect words to check", StringComparison.Ordinal));
+        // In the text layer as Recognize Text writes them: the Suspect words pane lists them when the file is opened.
+        var output = File.ReadAllBytes(Path.Combine(Out, "scan.pdf"));
+        Assert.True(TextLayer.HasSuspectWords(output, null));
+        var layer = TextLayer.Words(output, null)[0];
+        Assert.Equal("en-US", layer.Language);
+        Assert.Equal([SuspectReasons.None, SuspectReasons.LettersAndDigits, SuspectReasons.OddCharacters | SuspectReasons.NotInDictionary], layer.Words.Select(w => w.Suspect));
+
+        // None marked: no note, nothing to review.
+        Directory.Delete(Out, true);
+        var plain = await Run([scan], Plan(new OcrStep()), new BatchHost { Recognize = (_, _, _) => [new OcrWord("Recognized", new RectD(10, 10, 80, 12))] });
+        Assert.DoesNotContain(plain.Items[0].Notes, n => n.Contains("suspect", StringComparison.Ordinal));
+        Assert.False(TextLayer.HasSuspectWords(File.ReadAllBytes(Path.Combine(Out, "scan.pdf")), null));
+    }
+
+    [Fact]
     public async Task ParallelismIsBounded()
     {
         var files = Enumerable.Range(0, 8).Select(i => Put($"in/f{i}.pdf", TestPdf.Make(1))).ToList();

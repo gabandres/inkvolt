@@ -72,7 +72,7 @@ public sealed partial class DocumentSession : IDisposable
     internal static readonly string[] ScannedNames =
     [
         "/Annots", "/AcroForm", "/EmbeddedFiles", "/OCProperties", "/PageLabels", "/ByteRange", "/XFA", "/PageMode", "/PageLayout",
-        "/ViewerPreferences", "/OpenAction", "/Title", "/Encrypt", "/ObjStm",
+        "/ViewerPreferences", "/OpenAction", "/Title", "/Encrypt", "/ObjStm", TextLayer.FontPrefix,
     ];
 
     private readonly Lock _dataGate = new();
