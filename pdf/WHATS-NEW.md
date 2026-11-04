@@ -8,7 +8,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Inkvolt PDF speaks Spanish: it follows Windows' language, or choose under Settings › Language (Same as Windows, English or Español). It takes effect the next time the app starts. The command palette still finds commands by their English names.
 - On a small or scaled laptop screen, the window's size when not maximized fits the screen, so Minimize and Close stay in sight.
 - When you certify a form, you can lock all its fields, only the ones you choose, or all but those. A later change to a locked field shows as not allowed when the signatures are checked. It's part of Inkvolt Pro.
-- Batch can add long-term validation data to many signed files at once, with a document timestamp if you like, from the window or the command line. You see every address it will ask first, and each file says what happened. It's part of Inkvolt Pro.
+- Batch can add long-term validation data to many signed files at once, with a document timestamp if you like, from the window or the command line. You see every address it will ask first, and each file says what happened. It's part of Inkvolt Pro. A watched folder whose preset adds long-term data says so when you start it, instead of failing every file: it can't go online on its own (the command line's --watch can, with --online).
 - The Fill & Sign, Comment, pointer and Draw menus say in a line under each tool what it does.
 - With large text (Windows' Text size), the command bar keeps more of its buttons on a smaller window, and its menus get the larger text too.
 - Saving a large file while a Word, Excel or PowerPoint file converts to PDF no longer fails.

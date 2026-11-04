@@ -8375,6 +8375,10 @@ Antes de enviar nada, ves exactamente qué va adónde. Las respuestas las genera
     <value>Sin vigilar: {0}</value>
     <comment>A watched folder's status; {0} the problem</comment>
   </data>
+  <data name="Batch_WatchNotOnline" xml:space="preserve">
+    <value>el ajuste predefinido agrega datos de validación a largo plazo, que se conectan a internet, y una carpeta vigilada en la aplicación nunca lo hace. Ejecuta el ajuste predefinido desde En lote, o vigila la carpeta con inkvoltpdf --watch &lt;folder&gt; --preset &lt;file&gt; --online.</value>
+    <comment>Why a watched folder doesn't start: its preset has the long-term action, which needs a person to see the addresses asked. "inkvoltpdf --watch ... --online" is the command line and stays as it is</comment>
+  </data>
   <data name="Batch_WatchPasswordsTitle" xml:space="preserve">
     <value>Contraseñas para la carpeta vigilada</value>
     <comment>Window title</comment>

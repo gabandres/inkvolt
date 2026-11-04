@@ -91,6 +91,13 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         }
         PresetName = preset.Name;
         var steps = preset.Steps;
+        // Long-term data goes online, which needs a person to see the addresses each run asks (LtvDialogs): said once,
+        // here, rather than as a failure on every file the folder receives.
+        if (steps.Any(s => s is AddLongTermStep))
+        {
+            Show(Loc.Format(Strings.Batch_NotWatching, Strings.Batch_WatchNotOnline), problem: true);
+            return;
+        }
         if (steps.OfType<ProtectStep>().Any(p => p.NeedsPasswords))
         {
             if (owner is null || SecurityActions.AskProtection(owner, Strings.Batch_WatchPasswordsTitle, Strings.Batch_Start, null,
