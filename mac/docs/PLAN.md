@@ -344,7 +344,7 @@ Unlike PrintCore, PdfCore needs MuPDF, so it builds and tests on the Mac and in 
 
 Ported since 1.0 with their steps (D5a-D5c, E1-E16): the rest of the list that stood here (`ContentEditor`, the export
 writers, `Signatures`, `Signing`, compare, `PdfA`, `Batch`, `Layers`, `Attachments`, `Conversion`, `Ai*` and the others).
-Not on the Mac yet: `CommentFiles`, `FormDataFiles`, `FormMerge`, `CommentSummary` (1.4), the long-term validation code
+Not on the Mac yet: `FormDataFiles`, `FormMerge`, `CommentSummary` (1.4; `CommentFiles` came 2026-11-03, see 1.4 under Mac differences), the long-term validation code
 (3.4), `RedactionPatternSets`, `RedactionReport` and the scan search (1.1's 2026-11-01 additions), `CompareLooks`,
 `CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5), Translate (3.1), paragraph editing (2.1).
 
@@ -908,6 +908,26 @@ Decided 2026-11-03 in the Mac UX review's round 2 (`docs/UX-REVIEW.md`, branch `
   everywhere.
 - `--ux-shots` also opens, shoots, audits and cancels every sheet and alert of the document window (`UxDialogs`);
   `--ux-main` leaves them out. `DialogNames` names a dialog's controls for VoiceOver from the labels beside them.
+
+### Comments and form data in and out (roadmap 1.4)
+
+- Stage A, 2026-11-03: `CommentFiles` in `PdfCore/Annotations` (`CommentFiles.swift`, `CommentFilesXfdf.swift`,
+  `CommentFilesCsv.swift`), with `Fdf` (Windows' FDF reader and writer: values as `FdfValue`, streams as `FdfStream`,
+  nesting past 64 skipped without recursion), `Csv` (`PdfCore/Export`, Windows' `Csv`, its formula guard included) and
+  `Annotations.makeAppearance` (Windows' `Annotations.MakeAppearance`). CommentFilesTests' 11 tests ported with the same
+  names, plus `malformedFdfDoesntCrash` (50,000 nested arrays, a reference cycle, a stream running off the file's end).
+  Mac differences: Foundation has no XSD validator, so `exportedXfdfFollowsTheXfdfRules` checks the Windows test's XSD
+  rules attribute by attribute; XML is read by `XMLDocument` after any `<!DOCTYPE` or `<!ENTITY` anywhere in the file is
+  refused (Windows looks at the first 4 KB and reads with DTDs prohibited); refusals are `PdfEditError`s (Windows'
+  `InvalidDataException`); exported entries are in key order (Windows: the file's). The app: Tools › Annotate › Import
+  Comments… and Export Comments… (`CommentFileActions.swift`): the save panel's Format pop-up (XFDF, FDF, CSV; remembered),
+  the protected-file question as Extract's, the file checked before the edit, one undo step, a sheet listing what was
+  skipped and why. `FeatureTest` adds 1 check (a note exported as XFDF and CSV, undone, imported back as one undo step,
+  the CSV again adding nothing): the `--edit --synthetic --quit` run 482 PASS, 0 FAIL; 1,148 tests in the package, 0
+  warnings, on `ignia-mac`.
+- A person must look at: Export Comments' save panel with its Format row (light and dark), the file type following the
+  pop-up; Import Comments' open panel; the Comments Imported sheet with a long skipped list (scrolling, VoiceOver
+  reading "Skipped comments"); comments exported here opened in Acrobat or Preview, and Acrobat's XFDF imported here.
 
 ### What a person must look at (unattended run, 2026-11-03)
 

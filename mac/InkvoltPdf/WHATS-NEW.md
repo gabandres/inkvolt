@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Export and import comments (Tools › Annotate): XFDF for Acrobat and other PDF apps, FDF, or a CSV for spreadsheets. Replies, colors, authors and shapes come along; importing adds only what the document doesn't have yet, and one Undo takes it back.
 
 ## 1.6.1
 - Typing "inf" or a huge number as a watermark's picture width no longer makes Add Watermark quit the app the next time; Crop Pages refuses it too.

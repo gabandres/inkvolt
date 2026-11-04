@@ -116,7 +116,7 @@ extension Annotations {
             || subtype == "FreeText" && !TextStamps.isOwnId(a.text("NM"))
     }
 
-    private static func validate(_ subtype: String, _ g: AnnotGeometry, _ s: AnnotStyle) throws {
+    static func validate(_ subtype: String, _ g: AnnotGeometry, _ s: AnnotStyle) throws {
         let points = g.paths.joined() + g.callout
         if points.count > maxPoints { throw PdfEditError("Too many points.") }
         let box = g.box

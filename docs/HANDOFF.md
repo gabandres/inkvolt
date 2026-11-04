@@ -32,6 +32,9 @@ One agent, cheapest first, one commit each, in this order:
    (`CommentFiles` with its XFDF and CSV parts, `FormDataFiles`, `FormMerge`, `CommentSummary`) and 22 tests, plus the
    app's commands, Batch's three actions and `--fill`: well past the run's 90 minutes an item. Split it into its own
    session or two (CommentFiles first; then FormDataFiles' CSV and JSON with FormMerge and `--fill`; then the summary).
+   **Stage A done 2026-11-03**: Export and Import Comments (`CommentFiles`, XFDF, FDF, CSV; Tools › Annotate), 11 tests
+   ported plus one. Left: B (FormDataFiles' CSV and JSON, FormMerge, Fill Forms from CSV, `--fill`), C (CommentSummary,
+   Summarize Comments, Batch's comment exports and summary).
 9. Redaction by pattern, Windows' additions of 2026-11-01 (roadmap 1.1, "Finished on Windows 2026-11-01"): named sets,
    scans searched through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's
    new failure rules, the Pro split.

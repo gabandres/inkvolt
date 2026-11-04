@@ -351,6 +351,10 @@ enum MainMenu {
         annotate.addItem(item("Link Selected Text…", #selector(DocumentWindowController.linkSelectedText(_:)), "k"))
         annotate.addItem(.separator())
         annotate.addItem(item("Reply to Comment…", #selector(DocumentWindowController.replyToSelected(_:)), "r", [.command, .control]))
+        annotate.addItem(.separator())
+        // Comments in and out (Windows: Review › Import Comments…, Export Comments…).
+        annotate.addItem(item("Import Comments…", #selector(DocumentWindowController.importComments(_:))))
+        annotate.addItem(item("Export Comments…", #selector(DocumentWindowController.exportComments(_:))))
         sub("Annotate", annotate)
 
         let fill = ToolsMenu(title: "Fill & Sign")

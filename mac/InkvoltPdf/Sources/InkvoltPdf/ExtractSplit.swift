@@ -265,7 +265,7 @@ extension DocumentWindowController {
     }
 
     /// Asks once (Windows asks once per tab) before writing pages of a password-protected PDF without the password.
-    private func confirmUnprotected(_ text: String, _ confirm: String) -> Bool {
+    func confirmUnprotected(_ text: String, _ confirm: String) -> Bool {
         if Report.skipsDialogs || unprotectedConfirmed { return true }
         let alert = NSAlert()
         alert.messageText = "This PDF is password-protected"

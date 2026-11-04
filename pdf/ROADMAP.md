@@ -233,13 +233,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   reported per row; DTD, entity-expansion, script, action, attachment and oversized files are refused or cleaned.
   Still to do: the round trip through Acrobat itself (not run here: checked against the spec's rules and Adobe-style
   samples instead); a highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF
-  keeps it); the Mac.
+  keeps it). Mac: Export and Import Comments done 2026-11-03 (`CommentFiles`, Tools › Annotate); form data as CSV and
+  JSON, Fill Forms from CSV, `--fill`, Summarize Comments and Batch's three actions still to do.
 - **Beat it when:** comments export and import as XFDF and FDF (replies, colors, authors, appearances of stamps and
   drawings kept) and as CSV; form data exports as XFDF, FDF, CSV and JSON and imports from them, and a CSV of many rows
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
   and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
   makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac still to do.
+- **Effort** S-M. Windows; Mac: comments in and out done, the rest still to do.
 
 ### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case

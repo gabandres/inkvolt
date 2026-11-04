@@ -158,6 +158,7 @@ struct FeatureTest {
             await fillAndSign()
             await editContent()
             await export()
+            await commentFiles()
             await recognize()
         }
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
@@ -489,6 +490,34 @@ struct FeatureTest {
     }
 
     // MARK: Export
+
+    // MARK: Comments in and out
+
+    /// Tools › Annotate › Export Comments… (XFDF and CSV) and Import Comments…: a note exported, undone, imported back as
+    /// one undo step; the same comments again add nothing (each listed as already there).
+    private mutating func commentFiles() async {
+        let id = "inkvoltpdf-selftest-note"
+        let added = await editor.run("Add note", contentOnly: true) { d, pw in
+            try Annotations.addNote(d, pw, 0, 120, 120, "Self-test note, \"quoted\"", author: "Self-test", id: id)
+        }
+        let xfdf = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("comments.xfdf"))
+        let csv = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("comments.csv"))
+        let exported = await controller.exportComments(to: xfdf, .xfdf)
+        let exportedCsv = await controller.exportComments(to: csv, .csv)
+        let undo = controller.window?.undoManager
+        undo?.undo()
+        await settle()
+        let gone = editor.comment(id) == nil
+        let imported = await controller.importComments(from: xfdf)
+        await settle()
+        let back = editor.comment(id)?.contents == "Self-test note, \"quoted\""
+        let undoTitle = undo?.undoMenuItemTitle ?? ""
+        let again = await controller.importComments(from: csv)
+        check(added && exported != nil && exportedCsv?.count == exported?.count && gone && imported?.added == 1 && back
+              && undoTitle == "Undo Import comments" && again?.added == 0 && again?.skipped.count == exported?.count,
+              "Export Comments (XFDF \(exported?.count ?? -1), CSV), the note undone, Import Comments (1 added, one undo step), "
+                + "the CSV again adds nothing (\(again?.skipped.count ?? -1) skipped)")
+    }
 
     private mutating func export() async {
         let count = controller.engine.pageCount
