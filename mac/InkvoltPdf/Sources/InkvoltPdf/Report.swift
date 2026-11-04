@@ -33,34 +33,39 @@ enum Report {
     private(set) static var path: String?
     private(set) static var password: String?
     private(set) static var edits = false
-    /// `--only-redaction`: with `--edit`, only `RedactTest` (quicker runs while working on redaction).
-    private(set) static var onlyRedaction = false
-    /// `--only-measure`: with `--edit`, only `MeasureTest` (quicker runs while working on Measure).
-    private(set) static var onlyMeasure = false
-    /// `--only-prepare-form`: with `--edit`, only `PrepareFormTest` (quicker runs while working on Prepare Form).
-    private(set) static var onlyPrepareForm = false
-    /// `--only-accessibility`: with `--edit`, only `AccessibilityTest` (quicker runs while working on the check).
-    private(set) static var onlyAccessibility = false
-    /// `--only-pdfa`: with `--edit`, only `PdfATest` (quicker runs while working on Save as PDF/A).
-    private(set) static var onlyPdfA = false
-    /// `--only-accessible`: with `--edit`, only `AccessibleTest` (quicker runs while working on Make Accessible).
-    private(set) static var onlyAccessible = false
-    /// `--only-read-aloud`: with `--edit`, only `ReadAloudTest` (quicker runs while working on Read Aloud).
-    private(set) static var onlyReadAloud = false
-    /// `--only-attachments-layers`: with `--edit`, only `AttachmentsLayersTest` (quicker runs while working on E9).
-    private(set) static var onlyAttachmentsLayers = false
-    /// `--only-split`: with `--edit`, only `SplitTest` (quicker runs while working on split view).
-    private(set) static var onlySplit = false
-    /// `--only-view`: with `--edit`, only `ViewTest` (rotate view, dark pages, reading modes).
-    private(set) static var onlyView = false
-    /// `--only-ocr`: with `--edit`, only `OcrTest` (quicker runs while working on Recognize Text).
-    private(set) static var onlyOcr = false
-    /// `--only-export`: with `--edit`, only `ExportTest` (quicker runs while working on export).
-    private(set) static var onlyExport = false
-    /// `--only-ai`: with `--edit`, only `AiTest` (quicker runs while working on the AI assistant).
-    private(set) static var onlyAi = false
-    /// `--only-menus`: with `--edit`, only `MenuTest` (the menu bar and the palette listed, to diff a menu change by).
-    private(set) static var onlyMenus = false
+    /// A check `--only-<name>` runs alone (with `--edit`, for quicker runs while working on one feature), on the documents
+    /// it is for: the synthetic text document, any but the synthetic form, or every document.
+    struct Scenario {
+        enum Documents { case synthetic, notForm, all }
+        let flag: String
+        let documents: Documents
+        let run: @MainActor (DocumentWindowController, String) async -> Void
+    }
+
+    /// The checks that run alone, in the order a run with several flags picks the first of.
+    static let scenarios: [Scenario] = [
+        Scenario(flag: "--only-prepare-form", documents: .notForm) { c, n in var t = PrepareFormTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-accessible", documents: .notForm) { c, n in var t = AccessibleTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-accessibility", documents: .notForm) { c, n in var t = AccessibilityTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-pdfa", documents: .notForm) { c, n in var t = PdfATest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-ai", documents: .notForm) { c, n in var t = AiTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-attachments-layers", documents: .notForm) { c, n in var t = AttachmentsLayersTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-export", documents: .notForm) { c, n in var t = ExportTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-ocr", documents: .notForm) { c, n in var t = OcrTest(controller: c, name: n); await t.run() },
+        // Rotate view, dark pages, reading modes.
+        Scenario(flag: "--only-view", documents: .notForm) { c, n in var t = ViewTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-split", documents: .notForm) { c, n in var t = SplitTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-read-aloud", documents: .notForm) { c, n in var t = ReadAloudTest(controller: c, name: n); await t.run() },
+        // The menu bar and the palette listed, to diff a menu change by.
+        Scenario(flag: "--only-menus", documents: .synthetic) { c, n in var t = MenuTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
+        Scenario(flag: "--only-redaction", documents: .all) { c, n in
+            var t = RedactTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
+            await t.run()
+        },
+    ]
+    /// The check `--only-…` asked to run alone, if any.
+    private(set) static var only: Scenario?
     private(set) static var snapshots: String?
     /// `--ux-shots` (with `--snapshots <dir>` and `--synthetic`): only `UxShots`, the UX review's screens and audit.
     private(set) static var uxShots = false
@@ -90,20 +95,7 @@ enum Report {
         password = value("--password")
         quit = args.contains("--quit")
         edits = args.contains("--edit")
-        onlyRedaction = args.contains("--only-redaction")
-        onlyMeasure = args.contains("--only-measure")
-        onlyPrepareForm = args.contains("--only-prepare-form")
-        onlyAccessibility = args.contains("--only-accessibility")
-        onlyPdfA = args.contains("--only-pdfa")
-        onlyAccessible = args.contains("--only-accessible")
-        onlyAi = args.contains("--only-ai")
-        onlyReadAloud = args.contains("--only-read-aloud")
-        onlyAttachmentsLayers = args.contains("--only-attachments-layers")
-        onlySplit = args.contains("--only-split")
-        onlyView = args.contains("--only-view")
-        onlyOcr = args.contains("--only-ocr")
-        onlyExport = args.contains("--only-export")
-        onlyMenus = args.contains("--only-menus")
+        only = edits ? scenarios.first { args.contains($0.flag) } : nil
         snapshots = value("--snapshots")
         uxShots = args.contains("--ux-shots")
         uxMainOnly = args.contains("--ux-main")
@@ -163,74 +155,13 @@ enum Report {
             if restoresRecovery && controller.pdf.session?.isDirty == true {
                 var check = EditTest(controller: controller, name: name)
                 await check.checkRecovered()
-            } else if edits && onlyPrepareForm {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var form = PrepareFormTest(controller: controller, name: name)
-                    await form.run()
+            } else if let only {
+                let openedFrom = controller.pdf.fileURL?.path
+                switch only.documents {
+                case .synthetic: if openedFrom != nil && openedFrom == syntheticPath { await only.run(controller, name) }
+                case .notForm: if openedFrom != syntheticFormPath { await only.run(controller, name) }
+                case .all: await only.run(controller, name)
                 }
-            } else if edits && onlyAccessible {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var accessible = AccessibleTest(controller: controller, name: name)
-                    await accessible.run()
-                }
-            } else if edits && onlyAccessibility {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var check = AccessibilityTest(controller: controller, name: name)
-                    await check.run()
-                }
-            } else if edits && onlyPdfA {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var pdfa = PdfATest(controller: controller, name: name)
-                    await pdfa.run()
-                }
-            } else if edits && onlyAi {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var assistant = AiTest(controller: controller, name: name)
-                    await assistant.run()
-                }
-            } else if edits && onlyAttachmentsLayers {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var files = AttachmentsLayersTest(controller: controller, name: name)
-                    await files.run()
-                }
-            } else if edits && onlyExport {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var export = ExportTest(controller: controller, name: name)
-                    await export.run()
-                }
-            } else if edits && onlyOcr {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var ocr = OcrTest(controller: controller, name: name)
-                    await ocr.run()
-                }
-            } else if edits && onlyView {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var view = ViewTest(controller: controller, name: name)
-                    await view.run()
-                }
-            } else if edits && onlySplit {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var split = SplitTest(controller: controller, name: name)
-                    await split.run()
-                }
-            } else if edits && onlyReadAloud {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var reading = ReadAloudTest(controller: controller, name: name)
-                    await reading.run()
-                }
-            } else if edits && onlyMenus {
-                if controller.pdf.fileURL?.path == syntheticPath {
-                    var menus = MenuTest(controller: controller, name: name)
-                    await menus.run()
-                }
-            } else if edits && onlyMeasure {
-                if controller.pdf.fileURL?.path != syntheticFormPath {
-                    var measure = MeasureTest(controller: controller, name: name)
-                    await measure.run()
-                }
-            } else if edits && onlyRedaction {
-                var redact = RedactTest(controller: controller, name: name, openedFrom: controller.pdf.fileURL?.path)
-                await redact.run()
             } else if edits {
                 let openedFrom = controller.pdf.fileURL?.path
                 if openedFrom != nil && openedFrom == syntheticPath {
@@ -306,7 +237,7 @@ enum Report {
                 guard finished == started, !closing else { return }
                 closing = true
                 Task { @MainActor in
-                    if edits && !uxShots && !restoresRecovery && !onlyRedaction && !onlyMeasure && !onlyPrepareForm && !onlyAccessibility && !onlyPdfA && !onlyAccessible && !onlyAi && !onlyReadAloud && !onlyAttachmentsLayers && !onlySplit && !onlyView && !onlyOcr && !onlyExport && !onlyMenus {
+                    if edits && !uxShots && !restoresRecovery && only == nil {
                         var app = AppTest()
                         await app.run()
                         await closeAllTest()

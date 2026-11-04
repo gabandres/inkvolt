@@ -928,6 +928,11 @@ document as opened and with its text selected, and the palette's 154 commands) i
 Window menu's checkmark on whichever window AppKit put in front; `DocumentCommandsTests` (11) and PdfCore's 1176 tests
 green with warnings as errors; the app built with the 150 ms flag, 0 warnings; `--self-test --edit --synthetic --quit`
 489 checks passed, 0 failed. Windows keeps its ribbon's XAML and each command's CanExecute.
+Looked at and not done, same day: moving the page edits' outcomes (the pages chosen after an edit, the undo label) from
+`Organize.swift` into PdfCore. Each is one line over a selection that is already sorted and unique, and the rules that
+matter (never delete every page, the move order) are PdfCore's and tested (`PageEditor.delete`, `moveOrder`); no bug
+found. Done instead: the self-test's `--only-…` checks are one table, `Report.scenarios` (flag, documents, run), where 14
+flags, their parsing, a 14-branch chain and the quit condition each had to be edited for a new one.
 
 ### Comments and form data in and out (roadmap 1.4)
 
