@@ -48,11 +48,21 @@ internal static class DevSnapshot
         && double.TryParse(args[i + 2], System.Globalization.CultureInfo.InvariantCulture, out var h) && w > 0 && h > 0
             ? (w, h) : null;
 
-    public static async Task RunAsync(MainWindow window, string path, string? tab, int scans = 0, bool scrollToEnd = false,
-        string? copy = null, int crop = 0, int printer = 0, string? fix = null, string? preset = null, int editPresets = 0, string? then = null,
-        string? tray = null, bool simulateAlerts = false, string[]? args = null)
+    /// <summary>Renders <paramref name="window"/> to <paramref name="path"/> as the flags in <paramref name="args"/> (above) say, then exits.</summary>
+    public static async Task RunAsync(MainWindow window, string path, string[] args)
     {
-        args ??= [];
+        var tab = Value(args, "--tab");
+        var scans = !args.Contains("--scan") ? 0 : int.TryParse(Value(args, "--scan"), out var n) ? n : 1;
+        var scrollToEnd = args.Contains("--scroll-end");
+        var copy = Value(args, "--copy");
+        var crop = int.TryParse(Value(args, "--crop"), out var page) ? page : 0;
+        var printer = int.TryParse(Value(args, "--printer"), out var nth) ? nth : 0;
+        var fix = !args.Contains("--fix") ? null : Value(args, "--fix") is "all" or "waiting" or "cancel" ? Value(args, "--fix") : "check";
+        var preset = Value(args, "--preset");
+        var then = Value(args, "--then");
+        var editPresets = !args.Contains("--presets") ? 0 : int.TryParse(Value(args, "--presets"), out var p) ? p : 1;
+        var tray = Value(args, "--tray-shot");
+        var simulateAlerts = args.Contains("--simulate-alerts");
         if (printer > 0 && window.DataContext is ViewModels.MainViewModel main && printer <= main.Printers.Count)
             main.Selected = main.Printers[printer - 1];
         await Task.Delay(TimeSpan.FromSeconds(5));
