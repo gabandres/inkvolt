@@ -8,7 +8,7 @@ namespace InkvoltPdf.Core;
 /// the page a second time as scanned to compare. <see cref="KeepCleanedImage"/>: return the cleaned page to put in the
 /// document in place of the scan (the user's choice, off by default); the words then fit the cleaned page.
 /// <see cref="RereadMissed"/>: on a cleaned page, read again on its own each line-sized stretch of ink no word was read on
-/// (<see cref="MissedLines"/>), as Windows' recognizer now and then skips a whole line.
+/// and each word left out inside a line read (<see cref="MissedLines"/>), as Windows' recognizer now and then skips a whole line.
 /// </summary>
 public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true, bool KeepCleanedImage = false, bool RereadMissed = true)
 {

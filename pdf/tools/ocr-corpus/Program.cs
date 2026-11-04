@@ -110,6 +110,7 @@ int Probe()
 {
     var count = int.Parse(Option("--count", "12"), CultureInfo.InvariantCulture);
     var worse = 0;
+    var (allWords, plainEdits, rereadEdits) = (0, 0, 0);
     for (var i = 0; i < count; i++)
     {
         var basis = ScanCorpus.Files[i % ScanCorpus.Files.Count];
@@ -128,6 +129,7 @@ int Probe()
             var rereadMs = sw.Elapsed.TotalMilliseconds;
             var (a, b) = (WordErrorRate.Of(expected, plain), WordErrorRate.Of(expected, reread));
             if (b > a) worse++;
+            (allWords, plainEdits, rereadEdits) = (allWords + expected.Count, plainEdits + WordErrorRate.Edits(expected, plain), rereadEdits + WordErrorRate.Edits(expected, reread));
             Console.WriteLine($"{file.Name} p{p + 1} ({file.Describe()}): {expected.Count} words; cleaned {a:P1}, longest run missed {WordErrorRate.LongestMissedRun(expected, plain)}; " +
                               $"re-read {b:P1}, run {WordErrorRate.LongestMissedRun(expected, reread)}, {reread.Count - plain.Count:+0;-0;0} words; {plainMs:0} → {rereadMs:0} ms");
             var added = reread.ToList();
@@ -135,6 +137,7 @@ int Probe()
             if (added.Count > 0) Console.WriteLine($"  added: {string.Join(' ', added)}");
         }
     }
+    Console.WriteLine($"All pages: {allWords} words; cleaned {(double)plainEdits / allWords:P2} ({plainEdits} edits), re-read {(double)rereadEdits / allWords:P2} ({rereadEdits}); {worse} page(s) worse");
     return worse == 0 ? 0 : 1;
 }
 

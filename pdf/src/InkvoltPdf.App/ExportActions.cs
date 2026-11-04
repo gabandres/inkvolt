@@ -73,7 +73,7 @@ internal static class ExportActions
         {
             Pages = pages,
             Title = name,
-            Recognize = recognize ? (pdf, page, ct) => PageOcr.Recognize(ocr!, pdf, page, ct) : null,
+            Recognize = recognize ? (pdf, page, ct) => PageOcr.Recognize(ocr!, pdf, page, ct, AppSettings.Current.OcrSuspects) : null,
             Source = source,
             SourcePassword = sourcePassword,
             Progress = at => progress.Report(at.Stage switch
@@ -115,6 +115,7 @@ internal static class ExportActions
             if (noText > 0) notes.Add(format != ExportFormat.Excel && format != ExportFormat.Text && withPictures > 0
                 ? Loc.Plural(noText, Strings.Export_NoteNoTextPictures_One, Strings.Export_NoteNoTextPictures_Many)
                 : Loc.Plural(noText, Strings.Export_NoteNoText_One, Strings.Export_NoteNoText_Many));
+            if (report.SuspectWords > 0) notes.Add(Loc.Plural(report.SuspectWords, Strings.Export_NoteSuspects_One, Strings.Export_NoteSuspects_Many));
             if (ocrFailed > 0) notes.Add(Loc.Plural(ocrFailed, Strings.Export_NoteOcrFailed_One, Strings.Export_NoteOcrFailed_Many));
             if (unreadable > 0) notes.Add(Loc.Plural(unreadable, Strings.Export_NoteUnreadable_One, Strings.Export_NoteUnreadable_Many));
             if (format == ExportFormat.Excel) notes.Insert(0, Loc.Plural(tables, Strings.Access_Tables_One, Strings.Access_Tables_Many));

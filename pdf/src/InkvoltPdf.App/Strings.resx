@@ -4618,6 +4618,13 @@ Modified {1:g}</value>
   <data name="Suspects_NoneLeft" xml:space="preserve">
     <value>No suspect words left: every recognized word has been checked or looked right.</value>
   </data>
+  <data name="Suspects_Found_One" xml:space="preserve">
+    <value>{0} suspect word to check in the recognized text.</value>
+    <comment>Notification after a scan with OCR or opening a file whose recognized text has suspect words; {0} is the number</comment>
+  </data>
+  <data name="Suspects_Found_Many" xml:space="preserve">
+    <value>{0} suspect words to check in the recognized text.</value>
+  </data>
   <data name="Suspects_CorrectTo" xml:space="preserve">
     <value>Correct to "{0}"</value>
     <comment>Tooltip of a suggested spelling</comment>
@@ -7445,6 +7452,13 @@ Inkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validat
   </data>
   <data name="Export_NoteOcr_Many" xml:space="preserve">
     <value>{0} pages recognized with OCR</value>
+  </data>
+  <data name="Export_NoteSuspects_One" xml:space="preserve">
+    <value>{0} suspect word (check it against the PDF)</value>
+    <comment>In parentheses after "Exported 3 pages to x.docx", with the other notes; {0} is the number of words</comment>
+  </data>
+  <data name="Export_NoteSuspects_Many" xml:space="preserve">
+    <value>{0} suspect words (check them against the PDF)</value>
   </data>
   <data name="Export_NoteNoText_One" xml:space="preserve">
     <value>{0} page without text</value>

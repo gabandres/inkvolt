@@ -102,6 +102,24 @@ public sealed class ExportPipelineTests : IDisposable
     }
 
     [Fact]
+    public void TheRecognizersSuspectWordsAreCounted()
+    {
+        using var engine = Open(Blank(2));
+        var options = new ExportOptions
+        {
+            Recognize = (_, page, _) => page == 0
+                ? [new OcrWord("Recognized", new RectD(72, 72, 120, 14)), new OcrWord("w0rds", new RectD(200, 72, 60, 14), Suspect: SuspectReasons.LettersAndDigits)]
+                : [new OcrWord("Fine", new RectD(72, 72, 60, 14)), new OcrWord("ok", new RectD(140, 72, 30, 14))],
+        };
+        var report = DocumentExport.Export(engine, ExportFormat.Text, new MemoryStream(), options);
+        Assert.Equal(2, report.Recognized);
+        Assert.Equal(1, report.SuspectWords);
+        // A page with text of its own isn't recognized: nothing suspect.
+        using var text = Open(TestPdf.Make(1));
+        Assert.Equal(0, DocumentExport.Export(text, ExportFormat.Text, new MemoryStream(), options).SuspectWords);
+    }
+
+    [Fact]
     public void ReportsProgressPageByPageThenWriting()
     {
         using var engine = Open(TestPdf.Make(3));

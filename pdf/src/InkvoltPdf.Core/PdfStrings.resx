@@ -1361,6 +1361,13 @@
   <data name="Batch_TextRecognized_Many" xml:space="preserve">
     <value>Text recognized on {0} pages</value>
   </data>
+  <data name="Batch_SuspectWords_One" xml:space="preserve">
+    <value>{0} suspect word to check (Review &gt; Review Suspect Words)</value>
+    <comment>After "Text recognized on 3 pages" in a batch file's notes; {0} is the number of words</comment>
+  </data>
+  <data name="Batch_SuspectWords_Many" xml:space="preserve">
+    <value>{0} suspect words to check (Review &gt; Review Suspect Words)</value>
+  </data>
   <data name="Redact_NothingFound" xml:space="preserve">
     <value>nothing found</value>
     <comment>Part of a file's redaction result ("…; …; …")</comment>

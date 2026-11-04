@@ -1,19 +1,19 @@
 # OCR corpus: word error rate
 
-Made by `dotnet run --project pdf/tools/ocr-corpus -c Release -- run` on 2026-11-03, Windows 10.0.26300.0, Arm64. See [README.md](README.md) for the corpus and the measure.
+Made by `dotnet run --project pdf/tools/ocr-corpus -c Release -- run` on 2026-11-04, Windows 10.0.26300.0, Arm64. See [README.md](README.md) for the corpus and the measure.
 
-Upright on unclear pages (2026-11-03): a page whose lines don't say which way up it is is turned over only when that reading has clearly more real words. `digit-lines` (the redaction corpus's page of numbers) was read turned over before ("OO 6830 9999 9999 9999"); it now stays upright: 3 of its 11 words wrong cleaned, 1 as rendered (cleaning typeset digits costs a little; the corpus measures it, nothing else does). The six scans and `skipped-lines` are unchanged; the ms columns move with the PC's load.
+Words inside lines, and 1111 (2026-11-04): a run of four 1s or more (`1111`), which Windows' recognizer never reads and for which it leaves out the whole line, is read three strokes at a time; a word left out inside a line that was read is read again on its own (`MissedLines.FindInLines`). `skipped-lines` 21.7 % → **8.7 %** (the three 1111 now read; a comma lost twice is what is left). The six scans are unchanged: the words they lack inside lines are two words read as one (journeyxletter), not words left out. `probe --count 18` (36 pages, 14,108 words): 752 → 747 edits, 7 words found inside lines, none worse.
 
 | File | Words | Today | Today, its language chosen | Cleaned | Stage A (cleaned, missed lines re-read) | ms a page, today → cleaned → stage A |
 |---|---:|---:|---:|---:|---:|---:|
-| `en-skew3-light` | 767 | 1.8 % (en-US) | 1.8 % (en-US) | 1.3 % | **1.3 %** | 640 → 2824 → 5324 |
-| `en-skew6-noisy` | 807 | 16.9 % (en-US) | 16.9 % (en-US) | 12.9 % | **12.9 %** | 5622 → 4119 → 3071 |
-| `en-skew10-shaded` | 911 | 5.4 % (en-US) | 5.4 % (en-US) | 3.8 % | **3.8 %** | 5968 → 3257 → 3809 |
-| `es-skew4-noisy` | 688 | 44.9 % (en-US) | 12.8 % (es-MX) | 8.0 % | **8.0 %** | 5860 → 2206 → 2381 |
-| `es-skew8-shaded` | 738 | 41.3 % (en-US) | 5.1 % (es-MX) | 4.3 % | **4.3 %** | 5159 → 4740 → 1663 |
-| `en-turned` | 767 | 99.9 % (en-US) | 99.9 % (en-US) | 3.7 % | **3.7 %** | 2193 → 1587 → 1343 |
-| `skipped-lines` | 23 | 34.8 % (en-US) | 34.8 % (en-US) | 39.1 % | **21.7 %** | 377 → 514 → 564 |
-| `digit-lines` | 11 | 9.1 % (en-US) | 9.1 % (en-US) | 27.3 % | **27.3 %** | 225 → 800 → 936 |
+| `en-skew3-light` | 767 | 1.8 % (en-US) | 1.8 % (en-US) | 1.3 % | **1.3 %** | 502 → 826 → 1071 |
+| `en-skew6-noisy` | 807 | 16.9 % (en-US) | 16.9 % (en-US) | 12.9 % | **12.9 %** | 1493 → 1333 → 1379 |
+| `en-skew10-shaded` | 911 | 5.4 % (en-US) | 5.4 % (en-US) | 3.8 % | **3.8 %** | 1690 → 1231 → 1251 |
+| `es-skew4-noisy` | 688 | 44.9 % (en-US) | 12.8 % (es-MX) | 8.0 % | **8.0 %** | 1398 → 1276 → 1280 |
+| `es-skew8-shaded` | 738 | 41.3 % (en-US) | 5.1 % (es-MX) | 4.3 % | **4.3 %** | 1793 → 1157 → 1341 |
+| `en-turned` | 767 | 99.9 % (en-US) | 99.9 % (en-US) | 3.7 % | **3.7 %** | 1492 → 1247 → 1212 |
+| `skipped-lines` | 23 | 34.8 % (en-US) | 34.8 % (en-US) | 39.1 % | **8.7 %** | 419 → 558 → 618 |
+| `digit-lines` | 11 | 9.1 % (en-US) | 9.1 % (en-US) | 27.3 % | **27.3 %** | 274 → 818 → 866 |
 
 Lower than today's on every file: **yes**. Re-reading missed lines no worse on every file: **yes**.
 
