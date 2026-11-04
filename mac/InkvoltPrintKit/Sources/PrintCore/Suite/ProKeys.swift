@@ -16,6 +16,15 @@ public struct ProLicence: Equatable, Sendable {
     }
 
     public func covers(_ product: String) -> Bool { products.contains(product) }
+
+    /// The issue date as a date (noon UTC), for showing it in the user's locale; nil when `issued` isn't a real date.
+    public var issuedDate: Date? {
+        guard ProKeys.isDate(issued) else { return nil }
+        let parts = issued.split(separator: "-").compactMap { Int($0) }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC")!
+        return calendar.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12))
+    }
 }
 
 /// A key that can't be used, with the reason in plain words (shown as it is).
@@ -100,11 +109,16 @@ public enum ProKeys {
         if licence.products.isEmpty || licence.products.contains(where: { !knownProducts.contains($0) }) {
             throw ProKeyError("Products must be some of \(knownProducts.joined(separator: ", ")).")
         }
-        let payload = self.payload(licence)
-        return prefix + hyphenate(toBase32(payload + signer.sign(payload)))
+        return encode(payload(licence), signer)
     }
 
-    static func payload(_ licence: ProLicence) -> [UInt8] {
+    /// The key text for a payload as it is (the tests make payloads `issue` refuses to).
+    public static func encode(_ payload: [UInt8], _ signer: ProSigner) -> String {
+        prefix + hyphenate(toBase32(payload + signer.sign(payload)))
+    }
+
+    /// The signed bytes of a licence: the version byte, then the four lines.
+    public static func payload(_ licence: ProLicence) -> [UInt8] {
         let text = [licence.name.trimmingCharacters(in: .whitespaces), licence.email.trimmingCharacters(in: .whitespaces), licence.issued,
                     licence.products.joined(separator: ",")].joined(separator: "\n")
         return [version] + Array(text.utf8)
@@ -163,7 +177,7 @@ public enum ProKeys {
         return stride(from: 0, to: chars.count, by: group).map { String(chars[$0..<min($0 + group, chars.count)]) }.joined(separator: "-")
     }
 
-    static func toBase32(_ bytes: [UInt8]) -> String {
+    public static func toBase32(_ bytes: [UInt8]) -> String {
         var out = ""
         var buffer = 0, bits = 0
         for b in bytes {
@@ -178,7 +192,7 @@ public enum ProKeys {
         return out
     }
 
-    static func fromBase32(_ text: [Character]) -> [UInt8] {
+    public static func fromBase32(_ text: [Character]) -> [UInt8] {
         var bytes: [UInt8] = []
         bytes.reserveCapacity(text.count * 5 / 8)
         var buffer = 0, bits = 0

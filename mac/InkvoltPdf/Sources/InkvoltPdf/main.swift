@@ -4,9 +4,9 @@ import PdfCore
 // Inkvolt PDF: an AppKit document app (NSDocument per open PDF, windows as tabs), built without a storyboard.
 // `InkvoltPdf --batch` and `--watch` run a saved Batch preset without a window (BatchCommandLine) and exit with its code.
 let cliArguments = Array(CommandLine.arguments.dropFirst())
-// The Inkvolt Pro licence key lives in the settings: the command line asks the Pro check too, so the store is set before
+// The Inkvolt Pro check (the key in the file both Inkvolt apps share): the command line asks it too, so it is set up before
 // it runs (AppDelegate sets it again once the self-test may have moved the settings to its own suite).
-Pro.store = SettingsProStore(defaults: AppSettings.defaults)
+ProSetup.configure(selfTest: cliArguments.contains("--self-test"))
 if BatchCommandLine.isCommand(cliArguments) {
     exit(Int32(CommandLineRun.run(cliArguments)))
 }

@@ -249,6 +249,21 @@ extension ProGated {
         let bytes: [UInt8] = Array(0...255)
         #expect(ProKeys.fromBase32(Array(ProKeys.toBase32(bytes))) == bytes)
         #expect(ProKeys.isDate("2028-02-29") && !ProKeys.isDate("2027-02-29") && !ProKeys.isDate("2026-13-01") && !ProKeys.isDate("26-10-30"))
+        // The issue date shown in the user's locale: noon UTC of that day.
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let issued = ProLicence(name: "A", email: "a@example.com", issued: "2026-10-30", products: ["print"]).issuedDate
+        #expect(issued.map { utc.dateComponents([.year, .month, .day, .hour], from: $0) } == DateComponents(year: 2026, month: 10, day: 30, hour: 12))
+        #expect(ProLicence(name: "A", email: "a@example.com", issued: "2027-02-29", products: ["print"]).issuedDate == nil)
+    }
+
+    @Test func The_state_file_keeps_this_apps_own_copy_of_the_key() throws {
+        // Windows' AppState.ProKey: the copy behind the shared file, kept while the file couldn't be written.
+        var state = PrintState()
+        state.proKey = "INKVOLT-PRO-ABCDE"
+        let read = try JSONDecoder().decode(PrintState.self, from: try JSONEncoder().encode(state))
+        #expect(read.proKey == "INKVOLT-PRO-ABCDE")
+        #expect(try JSONDecoder().decode(PrintState.self, from: Data("{}".utf8)).proKey == nil) // a file from before it
     }
 }
 }

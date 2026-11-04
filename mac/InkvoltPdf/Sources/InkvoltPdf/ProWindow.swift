@@ -1,8 +1,28 @@
 import AppKit
 import PdfCore
+import PrintCore
+import PrintMac
 
-/// The licence key lives in the settings (`AppSettings.proKey`), so it survives reinstalling with them; read and written
-/// from any thread (`Pro` asks from wherever a feature runs).
+// The key, its check and its stores are the suite's (PrintCore), which has Inkvolt Print's `Pro` and `ProFeature` too: in
+// this app both names are Inkvolt PDF's, whichever modules a file imports.
+typealias Pro = PdfCore.Pro
+typealias ProFeature = PdfCore.ProFeature
+
+/// Inkvolt PDF's Pro check, set up at launch (and before the command line runs): CryptoKit's signature check, and the key
+/// in the file Inkvolt Print reads too (the app group container both apps claim, `ProKeyRoot`), with the app's settings
+/// behind it. A key from before the shared file, kept in the settings, moves into the file on the first read. The
+/// self-test keeps to its own settings suite and never touches the shared file.
+@MainActor
+enum ProSetup {
+    static func configure(selfTest: Bool) {
+        Pro.verifier = CryptoKitProVerifier()
+        let own = SettingsProStore(defaults: AppSettings.defaults)
+        Pro.store = selfTest ? own : ProKeyRoot.store(own: own)
+    }
+}
+
+/// The app's own copy of the key in the settings (`ProKey`): from before the file both apps share, or while that file
+/// can't be written (`SharedProStore`). Read and written from any thread (`Pro` asks from wherever a feature runs).
 final class SettingsProStore: ProStore, @unchecked Sendable {
     static let key = "ProKey"
     private let defaults: UserDefaults
@@ -134,7 +154,8 @@ final class ProWindowController: NSWindowController {
         if let licence {
             add(heading("Pro licensed to \(licence.name)"))
             let issued = licence.issuedDate.map { DateFormatter.localizedString(from: $0, dateStyle: .long, timeStyle: .none) } ?? licence.issued
-            add(caption("Key for \(licence.email), issued \(issued). It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Thank you for supporting Inkvolt PDF."))
+            let suite = licence.covers(ProKeys.productPrint) ? "; Inkvolt Print on this Mac finds it too" : ""
+            add(caption("Key for \(licence.email), issued \(issued). It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling\(suite). Thank you for supporting Inkvolt PDF."))
             if !Pro.enforced {
                 add(caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line) when they start asking for a key."))
             }

@@ -14,7 +14,8 @@ import PrintMac
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
-/// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue. For checking a build over
+/// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
+/// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -51,12 +52,45 @@ enum Report {
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")
             }
+            cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try? Data((text(model, after: wait, search: search) + cancelled.map { $0 + "\n" }.joined()).utf8).write(to: folder.appendingPathComponent("report-\(name).txt"), options: .atomic)
             if !args.contains("--stay") { NSApp.terminate(nil) }
         }
+    }
+
+    /// The Inkvolt Pro check, always one line (`ProSetup.reportLine`). `--pro-window` opens Help › Inkvolt Pro… and says
+    /// what it shows; `--pro-key <key>` enters a key as the window does, only when none is installed (a key already there is
+    /// never replaced); `--pro-remove <key>` removes the installed key only when it is that one.
+    private static func proCheck(_ args: [String]) -> [String] {
+        func value(_ name: String) -> String? { args.firstIndex(of: name).flatMap { $0 + 1 < args.count ? args[$0 + 1] : nil } }
+        var lines: [String] = []
+        if let key = value("--pro-key") {
+            if Pro.store.read() != nil {
+                lines.append("pro-key: a key is installed already; left as it is")
+            } else {
+                ProPanel.shared.key = key
+                let entered = ProPanel.shared.enter()
+                lines.append("pro-key: \(entered ? "entered, licensed to \(Pro.licence?.name ?? "?")" : "refused: \(ProPanel.shared.error ?? "?")")")
+            }
+        }
+        if let key = value("--pro-remove") {
+            if Pro.store.read() == ProKeys.format(key) {
+                ProPanel.shared.remove()
+                lines.append("pro-remove: removed")
+            } else {
+                lines.append("pro-remove: the installed key isn't that one; left as it is")
+            }
+        }
+        if args.contains("--pro-window") {
+            ProWindow.show()
+            let size = ProWindow.size.map { "\(Int($0.width)) × \(Int($0.height)) pt" } ?? "not shown"
+            let shown = Pro.licence.map { ProView.keyFor($0) } ?? (Pro.enforced ? "Free" : "Everything is free while Inkvolt Print launches")
+            lines.append("pro-window: \(size); \(Pro.licence.map { "Pro licensed to \($0.name). " } ?? "")\(shown)")
+        }
+        return lines + [ProSetup.reportLine]
     }
 
     /// "Set up in macOS" on the first connected demo printer macOS has no queue for, as the status pane's button does.

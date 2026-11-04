@@ -16,9 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWindow.allowsAutomaticWindowTabbing = true
         DialogNames.start()
         Report.startIfAsked()
-        // The Inkvolt Pro licence key lives in the settings: again here, after Report.startIfAsked, so the self-test reads
-        // its own suite (main.swift set it first, for the command line).
-        Pro.store = SettingsProStore(defaults: AppSettings.defaults)
+        // The Inkvolt Pro check: again here, after Report.startIfAsked, so the self-test reads its own settings suite and
+        // never the shared key file (main.swift set it first, for the command line).
+        ProSetup.configure(selfTest: Report.isRunning)
         AppSettings.applyTheme()
         FolderWatches.shared.startSaved()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).

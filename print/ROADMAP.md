@@ -20,9 +20,9 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 1.6, 2.4 and 2.6 (P12) and 3.5 is done; the Mac app's parts
-wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro key is next, the rest
-waits for the owner's plan (2026-11-04). Each item names its
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.6 and 3.5 are done on the Mac too; the
+Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
 
@@ -228,8 +228,14 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   `print/tests`, 12): the vector against the built-in key, every changed character refused, a test pair's key passes and
   another pair's fails, the products, the gate, a key installed by one app's check found by the other's, a settings key
   moved into the file, a packaged copy's redirected file, the newest copy winning. Pending on hardware: the Store copies
-  of both apps sharing one key (README, "Not done"). Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: format, gate,
-  shared key file, 12 ProTests on the PC); PrintMac's CryptoKit verifier, the group container and Help › Inkvolt Pro… wait for the Mac.
+  of both apps sharing one key (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore's format, gate and
+  shared key file (2026-11-02, ProTests on the PC); PrintMac's CryptoKit verifier, checked against the committed vector's
+  real signatures; the key in the app group container `AE6TTXW92K.com.bermudezsystems.inkvolt` that both Mac apps claim
+  (the team-ID form opens without a prompt on macOS 15 for the sandboxed App Store app and the Developer ID one:
+  mac/docs/research/print-v1-platform.md Q6); Help › Inkvolt Pro… in Inkvolt Print (enter or paste a key, its state,
+  Remove Licence; no buy button or price in the App Store copy, guideline 3.1.1(a)); Inkvolt PDF for Mac's `Pro` on the
+  shared check, so one key counts in both Mac apps and on Windows. Before the gate is switched on in the App Store copy,
+  its Pro features need an in-app purchase as well (3.1.3(b)) or stay free there.
 - **Beat it when:** `Pro` lives in `InkvoltPrint.Core/Suite` (both apps reference it); a key is a short text (name,
   issue date, ECDSA P-256 signature; Inkvolt PDF's format) pasted or opened from a file, checked against the public key in the app, stored per
   user and found by both apps; a wrong or altered key says which; no network call exists in the code path. Test: keys

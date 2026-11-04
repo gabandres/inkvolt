@@ -16,5 +16,9 @@
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
 	<true/>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>AE6TTXW92K.com.bermudezsystems.inkvolt</string>
+	</array>
 </dict>
 </plist>

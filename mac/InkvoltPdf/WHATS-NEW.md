@@ -11,6 +11,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 - Summarize Comments (Tools › Annotate): a PDF with each page beside its numbered list of comments and replies, ready to print or send.
 - Batch can export comments (XFDF, FDF, CSV), form data (XFDF, FDF, CSV, JSON) and comment summaries for many files at once.
 - Recognize Text turns a page over only when it reads clearly better that way, so a scanned page of numbers, which reads much the same either way up, stays as it is.
+- One Inkvolt Pro key for both Mac apps: a key entered in Inkvolt PDF counts in Inkvolt Print, and the other way round (Help › Inkvolt Pro…). A key you entered before moves over by itself.
 
 ## 1.6.1
 - Typing "inf" or a huge number as a watermark's picture width no longer makes Add Watermark quit the app the next time; Crop Pages refuses it too.

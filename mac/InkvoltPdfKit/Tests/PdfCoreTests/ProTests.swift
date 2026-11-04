@@ -1,29 +1,37 @@
-import CryptoKit
 import Foundation
+import PrintCore
+import PrintMac
 import Testing
 @testable import PdfCore
 
 /// Ported from ProTests.cs (same names): the Inkvolt Pro licence, its key format (pdf/tools/pro-key/README.md), the
-/// committed test vector against the public key built in, install and remove, the gate. The suite runs serialized (it
-/// sets `Pro.store` and `Pro.enforced`, which the command line asks too). Adapted: Issuing_refuses… expects
-/// `PdfEditError` (.NET's ArgumentException); The_command_line_without_a_licence… comes with E8's command line.
+/// committed test vector against the public key built in, install and remove, the gate. The key format, its check and the
+/// store are the suite's (PrintCore's `ProKeys` and `ProCheck`, as the Windows InkvoltPdf.Core sits on InkvoltPrint.Core),
+/// checked here with PrintMac's CryptoKit verifier and CryptoKit test pairs. The suite runs serialized (it sets
+/// `Pro.store`, `Pro.verifier` and `Pro.enforced`, which the command line asks too). Adapted: Issuing_refuses… expects
+/// `ProKeyError` (.NET's ArgumentException); The_command_line_without_a_licence… comes with E8's command line.
 extension ProGated {
 @Suite struct ProTests {
-    private static let ada = ProLicence("Ada Lovelace", "ada@example.com", "2026-10-30", ["pdf", "print"])
+    private static let ada = ProLicence(name: "Ada Lovelace", email: "ada@example.com", issued: "2026-10-30", products: ["pdf", "print"])
 
-    private let signer = P256.Signing.PrivateKey()
-    private var publicKey: [UInt8] { Array(signer.publicKey.x963Representation) }
+    private let signer = P256ProSigner()
+    private var publicKey: [UInt8] { signer.publicKey }
 
     init() {
         Pro.store = MemoryProStore()
+        Pro.verifier = CryptoKitProVerifier()
         Pro.enforced = false
     }
 
     private func issue(_ licence: ProLicence) throws -> String { try ProKeys.issue(licence, signer) }
 
+    private static func parse(_ key: String, _ publicKey: [UInt8] = ProKeys.publicKey) throws -> ProLicence {
+        try ProKeys.parse(key, verifier: CryptoKitProVerifier(), publicKey: publicKey)
+    }
+
     private static func refusal(_ key: String, _ publicKey: [UInt8]) -> String {
         do {
-            _ = try ProKeys.parse(key, publicKey)
+            _ = try parse(key, publicKey)
             return "(accepted)"
         } catch let e as ProKeyError {
             return e.message
@@ -36,11 +44,11 @@ extension ProGated {
         let key = try issue(Self.ada)
         #expect(key.hasPrefix("INKVOLT-PRO-"))
         #expect(key.range(of: "^INKVOLT-PRO-([A-Z2-7]{5}-)*[A-Z2-7]{1,5}$", options: .regularExpression) != nil)
-        let read = try ProKeys.parse(key, publicKey)
+        let read = try Self.parse(key, publicKey)
         #expect(read.name == "Ada Lovelace" && read.email == "ada@example.com" && read.issued == "2026-10-30")
         #expect(read.products == ["pdf", "print"])
         #expect(read.covers("pdf"))
-        #expect(!ProLicence("P", "p@x", read.issued, ["print"]).covers("pdf"))
+        #expect(!ProLicence(name: "P", email: "p@x", issued: read.issued, products: ["print"]).covers("pdf"))
     }
 
     @Test func Spacing_case_and_line_breaks_from_an_email_dont_matter() throws {
@@ -48,7 +56,7 @@ extension ProGated {
         var mangled = key.lowercased().replacingOccurrences(of: "-", with: " ")
         mangled.insert(contentsOf: "\r\n", at: mangled.index(mangled.startIndex, offsetBy: 40))
         mangled = "  " + mangled + "\n"
-        #expect(try ProKeys.parse(mangled, publicKey).name == "Ada Lovelace")
+        #expect(try Self.parse(mangled, publicKey).name == "Ada Lovelace")
         #expect(ProKeys.format(mangled) == key)
     }
 
@@ -56,7 +64,7 @@ extension ProGated {
         var licence = Self.ada
         licence.name = "José Núñez 李"
         licence.email = "josé@example.com"
-        let r = try ProKeys.parse(try issue(licence), publicKey)
+        let r = try Self.parse(try issue(licence), publicKey)
         #expect(r.name == "José Núñez 李" && r.email == "josé@example.com")
     }
 
@@ -73,14 +81,14 @@ extension ProGated {
     }
 
     @Test func A_key_signed_with_another_key_is_refused() throws {
-        let other = P256.Signing.PrivateKey()
+        let other = P256ProSigner()
         #expect(Self.refusal(try ProKeys.issue(Self.ada, other), publicKey).contains("altered"))
     }
 
     @Test func A_newer_format_version_is_refused_saying_to_update() throws {
         var payload = ProKeys.payload(Self.ada)
         payload[0] = 2
-        #expect(Self.refusal(try ProKeys.encode(payload, signer), publicKey).contains("newer version"))
+        #expect(Self.refusal(ProKeys.encode(payload, signer), publicKey).contains("newer version"))
     }
 
     @Test func Wrong_prefix_bad_characters_and_too_little_are_refused_in_plain_words() {
@@ -92,9 +100,9 @@ extension ProGated {
     }
 
     @Test func A_payload_that_isnt_four_lines_is_refused_even_when_signed() throws {
-        let bad = try ProKeys.encode([ProKeys.version] + Array("Ada\nada@example.com\n2026-10-30".utf8), signer)
+        let bad = ProKeys.encode([ProKeys.version] + Array("Ada\nada@example.com\n2026-10-30".utf8), signer)
         #expect(Self.refusal(bad, publicKey).contains("can't be read"))
-        let badDate = try ProKeys.encode([ProKeys.version] + Array("Ada\nada@example.com\nOctober\npdf".utf8), signer)
+        let badDate = ProKeys.encode([ProKeys.version] + Array("Ada\nada@example.com\nOctober\npdf".utf8), signer)
         #expect(Self.refusal(badDate, publicKey).contains("can't be read"))
     }
 
@@ -107,10 +115,10 @@ extension ProGated {
         word.products = ["word"]
         var none = Self.ada
         none.products = []
-        #expect(throws: PdfEditError.self) { try issue(blank) }
-        #expect(throws: PdfEditError.self) { try issue(broken) }
-        #expect(throws: PdfEditError.self) { try issue(word) }
-        #expect(throws: PdfEditError.self) { try issue(none) }
+        #expect(throws: ProKeyError.self) { try issue(blank) }
+        #expect(throws: ProKeyError.self) { try issue(broken) }
+        #expect(throws: ProKeyError.self) { try issue(word) }
+        #expect(throws: ProKeyError.self) { try issue(none) }
     }
 
     @Test func Base32_round_trips_every_length() {
@@ -118,7 +126,7 @@ extension ProGated {
             let bytes = (0..<n).map { UInt8(($0 * 37 + 11) & 255) }
             let text = ProKeys.toBase32(bytes)
             #expect(text.count == (n * 8 + 4) / 5)
-            #expect(ProKeys.fromBase32(text) == bytes)
+            #expect(ProKeys.fromBase32(Array(text)) == bytes)
         }
     }
 
@@ -129,7 +137,7 @@ extension ProGated {
         var dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while !FileManager.default.fileExists(atPath: dir.appendingPathComponent("Inkvolt.slnx").path) {
             let up = dir.deletingLastPathComponent()
-            if up.path == dir.path { throw PdfEditError("The repo root wasn't found above \(#filePath).") }
+            if up.path == dir.path { throw ProKeyError("The repo root wasn't found above \(#filePath).") }
             dir = up
         }
         let data = try Data(contentsOf: dir.appendingPathComponent("pdf/tools/pro-key/test-vector.json"))
@@ -147,7 +155,7 @@ extension ProGated {
         #expect(ProKeys.publicKey[0] == 4)
 
         let valid = try #require(v["valid"] as? [String: Any])
-        let licence = try ProKeys.parse(try #require(valid["key"] as? String))
+        let licence = try Self.parse(try #require(valid["key"] as? String))
         #expect(licence.name == valid["name"] as? String)
         #expect(licence.email == valid["email"] as? String)
         #expect(licence.issued == valid["issued"] as? String)
@@ -155,7 +163,7 @@ extension ProGated {
 
         #expect(Self.refusal(try Self.vectorKey("tampered"), ProKeys.publicKey).contains("altered"))
 
-        let printOnly = try ProKeys.parse(try Self.vectorKey("printOnly"))
+        let printOnly = try Self.parse(try Self.vectorKey("printOnly"))
         #expect(printOnly.products == ["print"])
     }
 

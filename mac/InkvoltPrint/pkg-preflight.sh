@@ -4,7 +4,7 @@
 # - the installer and the app are signed for the App Store, and the app carries its provisioning profile;
 # - the sandbox is on, get-task-allow is off, and the entitlements are only those the app uses (the sandbox, network client
 #   and server, print for macOS's print queues, user-selected files and app-scoped bookmarks for saving scans (a preset's
-#   folder), USB for USB scanners; App Review
+#   folder), USB for USB scanners, the app group shared with Inkvolt PDF for the Pro key; App Review
 #   refuses unused ones);
 # - Info.plist has the bundle ID, the build number, the category, the Local Network text, Bonjour types and the icon;
 # - the icon, the privacy manifest and demo mode's fixtures are in the bundle (App Review has no printer);
@@ -37,6 +37,9 @@ for e in network.client network.server print files.user-selected.read-write file
 done
 extra=$(echo "$ents" | grep -oE "com\.apple\.security\.[a-z.-]+" | grep -vE "app-sandbox|network\.client|network\.server|^com\.apple\.security\.print$|files\.user-selected\.read-write|device\.usb|files\.bookmarks\.app-scope|application-groups" | sort -u)
 [ -z "$extra" ] || bad "entitlements beyond the App Store set: $extra"
+# The app group, exactly the one Inkvolt PDF claims too (the Pro key's shared file), its ID starting with the team ID.
+groups=$(echo "$ents" | tr -d '\n\t' | sed -n 's#.*<key>com\.apple\.security\.application-groups</key><array>##p' | sed 's#</array>.*##' | grep -oE "<string>[^<]*</string>" | sed -E 's#</?string>##g' | tr '\n' ' ')
+[ "$groups" = "AE6TTXW92K.com.bermudezsystems.inkvolt " ] || bad "app groups are '$groups', not AE6TTXW92K.com.bermudezsystems.inkvolt alone"
 
 [ "$(value CFBundleIdentifier)" = "com.bermudezsystems.InkvoltPrint" ] || bad "bundle ID is $(value CFBundleIdentifier)"
 [ "$(value CFBundleVersion)" = "$BUILD" ] || bad "build number is $(value CFBundleVersion), not $BUILD"

@@ -62,7 +62,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Pro check** (`Pro.Allows(feature)` in `shared/InkvoltPrint.Core/Pro.cs`, on the suite's `ProCheck`): the one place a
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is
-  off (the launch period).
+  off (the launch period). On the Mac that file's root is the **app group container** both Mac apps claim
+  (`AE6TTXW92K.com.bermudezsystems.inkvolt`, PrintMac's `ProKeyRoot`), and CryptoKit verifies the key
+  (`CryptoKitProVerifier`).
 - **Job alert**: a notification about one of your own print jobs (`AlertTracker.ObserveJobs`). **Failed**: the job itself reports an error, a block or a need for someone at the printer. **Stuck**: your first job in a queue that hasn't moved, the queue running, for 5 minutes with the printer saying it's ready or 15 with it saying it's printing. **Moved** (`JobProgress`): pages, size or stage past the furthest seen, not a state going back and forth. **Your own** (`JobOwner`): the signed-in Windows user's, and from this PC when the job says. **The same job** (`JobRules.Key`): same id and same submit time; the spooler uses ids again.
 - **Fleet**: every entry of the printer list at once, most trouble first (`Core/Fleet`). **Trouble** is one ranking: error, warning, can't be
   reached, not known yet, fine (`FleetTrouble`). **Last known**: what the supply history and the firmware watch kept of a printer that isn't

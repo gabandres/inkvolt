@@ -53,6 +53,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     public var presetFolders: [String: Data] = [:]
     /// Printers seen turning on automatic installs when only the update check was asked for: Notify isn't offered again.
     public var noFirmwareNotify: [String] = []
+    /// The Inkvolt Pro licence key, only while it couldn't be kept in the file both Inkvolt apps share (`ProKeyFile`; the
+    /// Windows app's `AppState.ProKey`), read and written through `SharedProStore`.
+    public var proKey: String?
 
     public init() {}
 
@@ -69,6 +72,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         scanPresets = try? c.decodeIfPresent(ScanPresetSettings.self, forKey: .scanPresets)
         presetFolders = (try? c.decodeIfPresent([String: Data].self, forKey: .presetFolders)) ?? [:]
         noFirmwareNotify = try c.decodeIfPresent([String].self, forKey: .noFirmwareNotify) ?? []
+        proKey = try? c.decodeIfPresent(String.self, forKey: .proKey)
     }
 }
 

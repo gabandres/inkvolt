@@ -24,6 +24,9 @@ struct InkvoltPrintApp: App {
                 }
                 .keyboardShortcut("n")
             }
+            CommandGroup(after: .help) {
+                Button("Inkvolt Pro…") { ProWindow.show() }
+            }
         }
 
         // "Try the Demo" (the app's own window is the demo when it was started with --demo).
@@ -51,6 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
         MainActor.assumeIsolated {
+            ProSetup.configure(AppModel.shared) // before anything asks the Pro check
             AppModel.shared.start()
             Report.runIfAsked(AppModel.shared)
             #if DEBUG

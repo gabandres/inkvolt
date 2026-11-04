@@ -50,6 +50,7 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
 | `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
 | `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
+| `com.apple.security.application-groups` = [`AE6TTXW92K.com.bermudezsystems.inkvolt`] | The Inkvolt Pro key's file, shared with Inkvolt PDF (added 2026-11-04 for roadmap 1.6; Q6) |
 
 Not needed: `com.apple.developer.networking.multicast`, which is iOS, iPadOS and visionOS only.
 
@@ -526,6 +527,72 @@ Sources:
   and Image Capture has no saved presets.
 - **An offline fixer with real diagnosis.** That means state reasons, a stale device address, reachability and stuck
   jobs, plus a guided hand-off. Apple offers only a help article.
+
+## Q6. The Pro key's shared file (researched 2026-11-04)
+
+The question: one Inkvolt Pro key (`ProKeyFile`, `<root>/Inkvolt/pro-key.txt`) read by Inkvolt Print, sandboxed from the
+Mac App Store, and Inkvolt PDF, not sandboxed, Developer ID and notarized, both of team AE6TTXW92K, on macOS 15 and later.
+
+**What Apple says.**
+
+- App group IDs come in two forms on the Mac: `group.<name>`, registered on the Developer website, and, on macOS only,
+  `<team identifier>.<group name>`, which "you don't need to register" ([App Groups entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.application-groups)).
+  "In macOS, use app groups to enable IPC communication between two sandboxed apps, or between a sandboxed app and a
+  nonsandboxed app" (same page). With the team form "macOS checks that the code signature of processes that try to
+  access the app group container contains the same Developer-Team-ID as app group container ID" ([Configuring app
+  groups](https://developer.apple.com/documentation/xcode/configuring-app-groups)).
+- macOS 15 added app group container protection (Quinn, Apple DTS, [App Groups: macOS vs iOS: Working Towards
+  Harmony](https://developer.apple.com/forums/thread/721701), revised up to 2025-08-12). To open a group's container
+  without the user being asked, the app claims the group in the entitlement, finds the container with
+  `containerURL(forSecurityApplicationGroupIdentifier:)`, and meets one of: (A) deployed through the Mac App Store,
+  (B) TestFlight on macOS 15.1+, (C) "the app group ID starts with your app's Team ID", (D) the claim is authorised by an
+  embedded provisioning profile. Otherwise macOS asks the user, and the yes lasts only for that run of the app.
+- Code that isn't sandboxed doesn't get the container for free any more: "access to the app group container requires
+  the entitlement because of app group container protection" (same post, footnote 2).
+- The entitlement "is not restricted on macOS", so the claim needn't be authorised by a profile; it is
+  "validation-required": unauthorised, the process runs but loses its entitlements-validated flag, which only some
+  subsystems check, for example the data protection keychain (same post, "Entitlements-Validated Flag"). Neither app uses
+  the data protection keychain (their keychain calls don't set `kSecUseDataProtectionKeychain`; checked 2026-11-04).
+- "If you submit an app to the Mac App Store, the submission process checks that your app group IDs make sense, that is,
+  they either start with your Team ID (macOS style) or are assigned to your team (iOS style)" (same post). Xcode 16.3+
+  prefers iOS-style IDs for new projects (the Register App Groups build setting); existing projects keep the old
+  behaviour (same post, "Feb 2025 Changes").
+
+**Decision.** One macOS-style group, `AE6TTXW92K.com.bermudezsystems.inkvolt`, claimed by both apps
+(`mac/InkvoltPrint/InkvoltPrint.entitlements`; `mac/InkvoltPdf/InkvoltPdf.entitlements`, which `sign.sh` now puts on the
+app's own executable only, not on Sparkle's). Inkvolt Print meets (A) and (C), Inkvolt PDF (C): no prompt, no
+provisioning profile for the Developer ID app, nothing to register. The key lives at
+`~/Library/Group Containers/AE6TTXW92K.com.bermudezsystems.inkvolt/Inkvolt/pro-key.txt` (`PrintMac.ProKeyRoot`).
+An iOS-style `group.` ID was not picked: Inkvolt PDF would then need a Developer ID provisioning profile embedded (D),
+which it doesn't have today, for no gain. Rejected alternatives: Inkvolt PDF reading Inkvolt Print's own container
+(`~/Library/Containers/com.bermudezsystems.InkvoltPrint/…`) is the access macOS 14's app data protection asks the user
+about, and the sandboxed app can't write anywhere Inkvolt PDF owns; the keychain (a shared access group) needs the data
+protection keychain and so a profile-validated entitlement for the Developer ID app (D); a file the user picks
+(security-scoped) makes them do it in each app.
+
+**Builds that don't meet it.** A build signed ad hoc (build.sh with no development keychain) has no team ID, so (C) fails
+and macOS would ask; Inkvolt Print's sandbox then gives no container (`ProKeyRoot.url` nil) and the key stays in
+state.json, Inkvolt PDF's in its settings (`SharedProStore` falls back to them, as when the file can't be written).
+
+**Proved on the Mac (2026-11-04, `ignia-mac`, macOS 27).** Signed with the team's Apple Development identity (AE6TTXW92K),
+no provisioning profile: the sandboxed Inkvolt Print got its container from `containerURL` and wrote the key there; an
+unsandboxed, hardened-runtime stand-in for Inkvolt PDF with the same entitlement read it, no prompt, and found it gone
+once Print removed it (PLAN.md P12, 1.6). **UNVERIFIED:** the App Store export (`release.sh`'s automatic signing with
+the entitlement added; the profile Xcode makes may or may not list the group, which the entitlement doesn't need) and a
+Developer ID, notarized Inkvolt PDF: check at their next release builds.
+
+**App Review and the key in the App Store app.** Guideline 3.1.1: "Apps may not use their own mechanisms to unlock content
+or functionality, such as license keys"; 3.1.3(b), Multiplatform Services: an app "may allow users to access content,
+subscriptions, or features they have acquired in your app on other platforms or your web site … provided those items are
+also available as in-app purchases within the app"; 3.1.1(a): outside the United States storefront, "apps and their
+metadata may not include buttons, external links, or other calls to action that direct customers to purchasing
+mechanisms other than in-app purchase"; 2.4.5(vi): Mac App Store apps "may not present a license screen at launch,
+require license keys, or implement their own copy protection"
+([App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/), read 2026-11-04). So Inkvolt Print's
+Help › Inkvolt Pro… enters and shows a key but has no Get Inkvolt Pro button, price or shop link (Windows' has them), and
+nothing asks for a key at launch. While `ProCheck.enforced` is off a key unlocks nothing, so 3.1.3(b) isn't reached.
+**Before enforcement is switched on in the App Store app**, its Pro features need an in-app purchase as well (StoreKit,
+the same features), or they stay free in that copy; and `Pro.howToGet` (price and shop URL) must not reach its UI.
 
 ## Open questions and UNVERIFIED items to test on the Mac
 
