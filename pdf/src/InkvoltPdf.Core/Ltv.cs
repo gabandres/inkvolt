@@ -217,7 +217,7 @@ public static class Ltv
 
     private static void Stop(Gatherer gather, bool strict)
     {
-        if (gather.FirstFailure is { } failure) throw new SigningException(Loc.Format(PdfStrings.Ltv_FailureNoChange, failure));
+        if (gather.FirstFailure is { } failure) throw new SigningException(Loc.Format(PdfStrings.Ltv_FailureNoChange, failure), new LtvFetchException(failure)); // inner: a server's doing (Batch tells it apart)
         if (!strict) return;
         var revoked = gather.Entries.FirstOrDefault(e => e.Outcome == CertificateCheckOutcome.Revoked);
         if (revoked is not null) throw new SigningException(Loc.Format(PdfStrings.Ltv_Revoked, CertFacts.Name(revoked.Cert)));

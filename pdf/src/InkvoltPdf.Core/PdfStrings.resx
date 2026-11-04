@@ -6670,4 +6670,72 @@
     <value>Links to web pages and other files</value>
     <comment>What Sanitize removes</comment>
   </data>
+  <data name="Ltv_NotAskedAgain" xml:space="preserve">
+    <value>{0} didn't answer earlier, so it wasn't asked again.</value>
+    <comment>Long-term data: a server that timed out or couldn't be reached earlier in the run; {0} its name</comment>
+  </data>
+  <data name="Ltv_AnsweredEarlier" xml:space="preserve">
+    <value>answered earlier ({0:N0} bytes)</value>
+    <comment>What a contacted address did: its answer was already had in this run</comment>
+  </data>
+  <data name="Batch_StepAddLongTerm" xml:space="preserve">
+    <value>Add long-term validation data</value>
+    <comment>Batch action title</comment>
+  </data>
+  <data name="Batch_PlanLongTermTwice" xml:space="preserve">
+    <value>"Add long-term validation data" is in the list twice.</value>
+    <comment>Batch plan error</comment>
+  </data>
+  <data name="Batch_PlanLongTermAlone" xml:space="preserve">
+    <value>"Add long-term validation data" goes with checks, reports and exports only: it adds to signed files as they are, and other changes would break their signatures.</value>
+    <comment>Batch plan error</comment>
+  </data>
+  <data name="Batch_LongTermServerRefused" xml:space="preserve">
+    <value>That timestamp server can't be used: {0}.</value>
+    <comment>Batch: long-term action; {0} why</comment>
+  </data>
+  <data name="Batch_LongTermEncrypted" xml:space="preserve">
+    <value>Protected: long-term data can't be added to an encrypted PDF without breaking its signatures</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermUnsigned" xml:space="preserve">
+    <value>No signature: nothing to add long-term data for</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermNoneValid" xml:space="preserve">
+    <value>No signature checks out: nothing to add long-term data for</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermNoClient" xml:space="preserve">
+    <value>Not added: this batch may not go online</value>
+    <comment>Batch file outcome (failed): no address window was shown, or --online not given</comment>
+  </data>
+  <data name="Batch_LongTermUnreachable" xml:space="preserve">
+    <value>Couldn't reach the service: {0}</value>
+    <comment>Batch file outcome (failed); {0} what the server did</comment>
+  </data>
+  <data name="Batch_LongTermOffline" xml:space="preserve">
+    <value>Offline: this PC isn't connected to a network, so nothing was added. Run it again once it is</value>
+    <comment>Batch file outcome (failed)</comment>
+  </data>
+  <data name="Batch_LongTermAsked" xml:space="preserve">
+    <value>Asked {0}</value>
+    <comment>Batch file note; {0} the servers asked, comma-separated</comment>
+  </data>
+  <data name="Batch_LongTermAlready" xml:space="preserve">
+    <value>Already long-term: it holds everything that could be added, so no copy was saved</value>
+    <comment>Batch file note</comment>
+  </data>
+  <data name="Batch_LongTermGapsOne" xml:space="preserve">
+    <value>{0} certificate has no long-term data: {1}</value>
+    <comment>Batch file note; {0} the count (1), {1} each certificate and why</comment>
+  </data>
+  <data name="Batch_LongTermGapsMany" xml:space="preserve">
+    <value>{0} certificates have no long-term data: {1}</value>
+    <comment>Batch file note; {0} the count, {1} each certificate and why</comment>
+  </data>
+  <data name="Preset_LongTermServerRefused" xml:space="preserve">
+    <value>Action {0} (addLongTermData): "timestampServer" can't be used: {1}.</value>
+    <comment>Preset error; {0} the action's number, {1} why</comment>
+  </data>
 </root>

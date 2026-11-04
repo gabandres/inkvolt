@@ -446,6 +446,7 @@ internal sealed class BatchWindow : Window
         Item(Strings.Batch_ItemMakeAccessible, () => new MakeAccessibleStep());
         Item(Strings.Batch_ItemPdfA2b, () => new SaveAsPdfAStep());
         Item(Strings.Batch_ItemPdfA2a, () => new SaveAsPdfAStep { Conformance = PdfAConformance.A });
+        Item(Strings.Batch_LongTermMenu, () => AskLongTerm(null));
         menu.Items.Add(new Separator());
         Item(Strings.Batch_ItemWord, () => new ExportStep(BatchExportFormat.Word));
         Item(Strings.Batch_ItemExcel, () => new ExportStep(BatchExportFormat.Excel));
@@ -513,6 +514,7 @@ internal sealed class BatchWindow : Window
             HeaderFooterStep h => PageMarkActions.AskHeaderFooter(this, null, h.Options, h.ContinueBates) is { } y ? new HeaderFooterStep(y.Options, y.ContinueBates) : null,
             RotateStep r => AskRotate(r),
             FlattenStep f => AskFlatten(f),
+            AddLongTermStep l => AskLongTerm(l),
             ExportStep { IsImages: true } e => AskImages(e),
             ExportStep { IsReview: true, Format: not BatchExportFormat.CommentSummary } e =>
                 AskReview(e, comments: e.Format is BatchExportFormat.CommentsXfdf or BatchExportFormat.CommentsFdf or BatchExportFormat.CommentsCsv),
@@ -598,6 +600,26 @@ internal sealed class BatchWindow : Window
         return new FlattenStep(o with { Annotations = comments.IsChecked == true, FormFields = fields.IsChecked == true, PrintableOnly = printable.IsChecked == true });
     }
 
+    /// <summary>Add long-term validation data: with a document timestamp or not. What it will contact is shown when the batch starts.</summary>
+    private AddLongTermStep? AskLongTerm(AddLongTermStep? current)
+    {
+        var dlg = new FormDialog(this, Strings.Batch_LongTermTitle, "OK", 560);
+        dlg.AddNote(Strings.Batch_LongTermNote);
+        var stamp = dlg.AddCheck(Strings.Batch_LongTermTimestamp, current?.TimestampUrl is not null);
+        var url = dlg.AddText(Strings.Batch_LongTermServer, current?.TimestampUrl ?? SignDialog.ChosenTimestampUrl(AppSettings.Current));
+        url.IsEnabled = stamp.IsChecked == true;
+        dlg.AddNote(Strings.Batch_LongTermServerNote);
+        stamp.Click += (_, _) => url.IsEnabled = stamp.IsChecked == true;
+        dlg.Validate(() =>
+        {
+            if (stamp.IsChecked != true) return null;
+            if (url.Text.Trim().Length == 0) return Strings.Batch_LongTermNeedServer;
+            return LtvClient.WhyRefused(url.Text.Trim(), LtvAddressKind.Timestamp) is { } why ? Loc.Format(Strings.Batch_LongTermBadServer, why) : null;
+        });
+        if (!dlg.ShowModal()) return null;
+        return new AddLongTermStep(stamp.IsChecked == true ? url.Text.Trim() : null);
+    }
+
     private ExportStep? AskImages(ExportStep? current)
     {
         int[] dpis = [72, 96, 150, 200, 300, 600];
@@ -677,6 +699,10 @@ internal sealed class BatchWindow : Window
                 return Strings.Batch_DescPdfA2b;
             case MakeAccessibleStep:
                 return Strings.Batch_DescMakeAccessible;
+            case AddLongTermStep { TimestampUrl: { } stampUrl }:
+                return Loc.Format(Strings.Batch_LongTermDescribeStamp, stampUrl);
+            case AddLongTermStep:
+                return Strings.Batch_LongTermDescribe;
             case OcrStep:
                 return PageOcr.Engine is { } e ? Loc.Format(Strings.Batch_DescOcr, e.LanguageName) : PageOcr.Unavailable;
             case ExportStep x:
@@ -881,6 +907,13 @@ internal sealed class BatchWindow : Window
             Status(Loc.Format(Strings.Batch_CantSaveThere, ex.Message), error: true);
             return;
         }
+        // Long-term data goes online: the window lists every address the batch would ask before anything is sent.
+        Func<LtvClient>? longTermClient = null;
+        if (plan.Steps.OfType<AddLongTermStep>().FirstOrDefault() is { } longTerm)
+        {
+            if (await ConfirmLongTermAsync(longTerm) is not { } client) return;
+            longTermClient = () => client;
+        }
         var s = AppSettings.Current;
         s.BatchFolder = plan.OutputFolder;
         s.BatchTemplate = plan.NameTemplate;
@@ -910,6 +943,7 @@ internal sealed class BatchWindow : Window
                 lock (ocrGate) return PageOcr.Recognize(ocr, engine, page, cancel);
             },
             Recognizer = ocr is null ? null : new SerialRecognizer(ocr, ocrGate),
+            LongTermClient = longTermClient,
         };
         var progress = new Progress<BatchProgress>(p =>
         {
@@ -966,6 +1000,58 @@ internal sealed class BatchWindow : Window
         _start.Content = Strings.Batch_RunAgain;
         Log.Write($"Batch: {summary.Text}");
         if (_closeWhenDone) Close();
+    }
+
+    /// <summary>
+    /// The addresses every signed file in the list would have asked (read offline), in one window. The client the run
+    /// goes online through, which judged them; null when nothing is to be done or the person said no.
+    /// </summary>
+    private async Task<LtvClient?> ConfirmLongTermAsync(AddLongTermStep step)
+    {
+        var client = _host.NewLtvClient();
+        var paths = _files.Select(r => r.File).Where(f => !f.IsImage).Select(f => f.Path).ToList();
+        Status(Strings.Batch_LongTermReading);
+        var (plan, signed) = await Task.Run(() => BatchLongTermPlan(paths, client, step.TimestampUrl));
+        Status("");
+        if (signed == 0)
+        {
+            client.Dispose();
+            Status(Strings.Batch_LongTermNoneSigned, error: true);
+            return null;
+        }
+        if (_host.DevLtvClient is not null || LtvDialogs.ConfirmBatch(this, plan, signed)) return client; // the dev script answers for itself
+        client.Dispose();
+        return null;
+    }
+
+    /// <summary>What adding long-term data to these files would contact, all together, and how many have a signature to add it for.</summary>
+    private static (LtvPlan Plan, int Signed) BatchLongTermPlan(IReadOnlyList<string> paths, LtvClient client, string? timestampUrl)
+    {
+        var addresses = new List<LtvAddress>();
+        var notes = new List<string>();
+        var complete = true;
+        var signed = 0;
+        if (timestampUrl is not null) addresses.Add(new LtvAddress(LtvAddressKind.Timestamp, timestampUrl, Strings.Batch_LongTermEachFile, client.Why(timestampUrl, LtvAddressKind.Timestamp)));
+        foreach (var path in paths)
+        {
+            try
+            {
+                var data = File.ReadAllBytes(path);
+                if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0 || !Signatures.Inspect(data, null).Any(f => f.Intact && f.Info.Certificate is not null)) continue;
+                signed++;
+                var plan = Ltv.Plan(data, null, client);
+                complete &= plan.Complete;
+                foreach (var a in plan.Addresses)
+                    if (!addresses.Any(x => x.Url == a.Url)) addresses.Add(a);
+                foreach (var n in plan.Notes)
+                    if (!notes.Contains(n)) notes.Add(n);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                // Unreadable here, it fails as the batch runs, before anything is asked.
+            }
+        }
+        return (new LtvPlan(addresses, notes, complete && timestampUrl is null), signed);
     }
 
     /// <summary>The last run's removal report as a page.</summary>
@@ -1078,6 +1164,7 @@ internal sealed class BatchWindow : Window
             "ocr" => new OcrStep(),
             "pdfa" => new SaveAsPdfAStep(),
             "pdfa2a" => new SaveAsPdfAStep { Conformance = PdfAConformance.A },
+            "longterm" => new AddLongTermStep(rest.Length > 0 ? rest : null),
             "makeaccessible" or "tag" => new MakeAccessibleStep { Language = rest.Length > 0 ? rest : null },
             "export" => new ExportStep(rest.ToLowerInvariant() switch
             {

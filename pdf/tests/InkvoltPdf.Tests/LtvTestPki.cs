@@ -21,6 +21,11 @@ internal sealed class LtvTestPki : IDisposable
     private readonly CancellationTokenSource _stop = new();
     /// <summary>Keys are slow to make and these tests make many authorities, so they share a few: each authority's certificates use different ones.</summary>
     private static readonly Lazy<RSA>[] Keys = [.. Enumerable.Range(0, 8).Select(_ => new Lazy<RSA>(() => RSA.Create(2048)))];
+    /// <summary>
+    /// The shared keys are used one certificate at a time: two authorities issuing at once (test classes run in parallel)
+    /// made CNG say "the provided key does not match the public key for this certificate" now and then.
+    /// </summary>
+    private static readonly Lock KeyGate = new();
     private int _nextKey;
     private readonly Dictionary<string, (BigInteger Serial, DateTimeOffset At)> _revoked = [];
     private readonly List<string> _hits = [];
@@ -74,6 +79,12 @@ internal sealed class LtvTestPki : IDisposable
     /// <summary>A certificate from this authority (from <paramref name="issuer"/>, self-signed when null), naming this server's addresses unless told otherwise.</summary>
     public X509Certificate2 Issue(string subject, X509Certificate2? issuer, bool ca = false, X509KeyUsageFlags? ku = null, string? eku = null, bool noCheck = false, bool urls = true,
         IEnumerable<string>? ocsp = null, IEnumerable<string>? crl = null, IEnumerable<string>? issuers = null)
+    {
+        lock (KeyGate) return IssueAlone(subject, issuer, ca, ku, eku, noCheck, urls, ocsp, crl, issuers);
+    }
+
+    private X509Certificate2 IssueAlone(string subject, X509Certificate2? issuer, bool ca, X509KeyUsageFlags? ku, string? eku, bool noCheck, bool urls,
+        IEnumerable<string>? ocsp, IEnumerable<string>? crl, IEnumerable<string>? issuers)
     {
         var key = Keys[_nextKey++ % Keys.Length].Value;
         var req = new CertificateRequest(subject, key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);

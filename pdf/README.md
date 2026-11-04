@@ -553,7 +553,12 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
   Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
   say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
-  can't be made PDF/A fails, saying why), Export to Word, Excel, text, PowerPoint or HTML, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
+  can't be made PDF/A fails, saying why), Add Long-Term Validation Data (Pro, as Add Verification Information, a document
+  timestamp optional; with checks, reports and exports only: other changes would break the signatures. When the batch
+  starts, one window lists every address the signed files would ask; then one file at a time through one client for the
+  run, an answer used again for the next file and a server that didn't answer not asked again. Per file: no signature
+  (skipped), already long-term (done, no copy saved), offline or couldn't reach the service (failed, nothing saved); the
+  notes name the servers asked), Export to Word, Excel, text, PowerPoint or HTML, Export Pages as Images, Export Comments (XFDF, FDF or CSV), Summarize Comments,
   Export Form Data (XFDF, FDF, CSV or JSON); a file without comments or a form gets no file and a note. Each action has the same
   settings as its own command. The results go to a folder with names from a template (`<<name>>`, `<<n>>` or
   `<<n:3>>`, `<<date>>`, `<<folder>>`), subfolders kept if you like; a name already taken gets a number ("report
@@ -658,8 +663,8 @@ Inkvolt PDF runs a saved preset without a window (Export one from File › Batch
 command is `inkvoltpdf` (its app execution alias, on the PATH); from a build, `InkvoltPdf.exe`.
 
 ```
-inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--quiet]
-inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--quiet]
+inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--online] [--quiet]
+inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--online] [--quiet]
 inkvoltpdf --fill <form.pdf> <data.csv> [--out <folder>] [--name <pattern>] [--flatten] [--quiet]
 inkvoltpdf --help
 ```
@@ -671,7 +676,8 @@ and written to `<form> merge report.csv`. A form with an open password takes it 
 - `--batch` runs the preset on the files (a folder: the PDFs and images in it; `--recursive` its subfolders too), a line
   per file; results go to `--out`, else the preset's folder. `--watch` watches a folder as the app's Watched Folders do
   (same `done`, `failed`, `working` and log) until Ctrl+C; `--once` handles the files there now and stops, for a
-  scheduled task. `--quiet` prints only failures and the summary.
+  scheduled task. `--quiet` prints only failures and the summary. A preset with Add Long-Term Validation Data runs only
+  with `--online`, which stands for the app's window of addresses (each file's line names the servers it asked).
 - Nothing is asked: files that need a password to open are skipped, and Protect with a password takes its passwords from
   `INKVOLTPDF_OPEN_PASSWORD` and `INKVOLTPDF_PERMISSIONS_PASSWORD` (presets never keep them; the command line is
   visible to other programs, the environment isn't).

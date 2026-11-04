@@ -50,6 +50,16 @@ internal static class LtvDialogs
         return dlg.ShowModal();
     }
 
+    /// <summary>Batch's long-term action: the addresses every signed file in the list would ask, before the batch runs.</summary>
+    public static bool ConfirmBatch(Window owner, LtvPlan plan, int signedFiles)
+    {
+        var dlg = new FormDialog(owner, Loc.Plural(signedFiles, Strings.Batch_LongTermConfirmOne, Strings.Batch_LongTermConfirmMany), Strings.Batch_LongTermConfirmButton, 620);
+        dlg.AddNote(Strings.Batch_LongTermConfirmNote);
+        AddAddresses(dlg, plan);
+        dlg.AddNote(NothingElse);
+        return dlg.ShowModal();
+    }
+
     /// <summary>Check Signatures Online: the addresses. Leaves the file alone.</summary>
     public static bool ConfirmOnline(Window owner, LtvPlan plan)
     {

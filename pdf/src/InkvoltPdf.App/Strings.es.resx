@@ -11223,4 +11223,72 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Folder</value>
     <comment>Column heading</comment>
   </data>
+  <data name="Batch_LongTermMenu" xml:space="preserve">
+    <value>Agregar datos de validación a largo plazo…</value>
+    <comment>Batch › Add action menu</comment>
+  </data>
+  <data name="Batch_LongTermTitle" xml:space="preserve">
+    <value>Agregar datos de validación a largo plazo</value>
+    <comment>Batch: the long-term action's settings, title</comment>
+  </data>
+  <data name="Batch_LongTermNote" xml:space="preserve">
+    <value>Cada archivo firmado recibe lo necesario para comprobar sus firmas dentro de años, guardado como una actualización después de ellas: las firmas no cambian y cada resultado es una copia nueva. Los archivos sin firma se omiten. Al iniciar el lote, una ventana muestra cada dirección que se consultará.</value>
+    <comment>Batch: the long-term action's settings</comment>
+  </data>
+  <data name="Batch_LongTermTimestamp" xml:space="preserve">
+    <value>Agregar también una marca de tiempo del documento (PAdES B-LTA)</value>
+    <comment>Batch: the long-term action's settings, check box</comment>
+  </data>
+  <data name="Batch_LongTermServer" xml:space="preserve">
+    <value>Servidor de marcas de tiempo</value>
+    <comment>Batch: the long-term action's settings, label</comment>
+  </data>
+  <data name="Batch_LongTermServerNote" xml:space="preserve">
+    <value>Se sugiere el servidor gratuito de Sectigo; puedes escribir otro que empiece con https://. Solo recibe un hash, nunca el documento.</value>
+    <comment>Batch: the long-term action's settings, under the server</comment>
+  </data>
+  <data name="Batch_LongTermNeedServer" xml:space="preserve">
+    <value>Escribe la dirección del servidor de marcas de tiempo o desmarca la marca de tiempo del documento.</value>
+    <comment>Batch: the long-term action's settings, error</comment>
+  </data>
+  <data name="Batch_LongTermBadServer" xml:space="preserve">
+    <value>No se puede usar ese servidor de marcas de tiempo: {0}.</value>
+    <comment>Batch: the long-term action's settings, error; {0} why (English from the app's core)</comment>
+  </data>
+  <data name="Batch_LongTermDescribe" xml:space="preserve">
+    <value>PAdES B-LT: los datos de revocación de los certificados, guardados después de las firmas; los archivos sin firma se omiten</value>
+    <comment>Batch: the line under the action in the list</comment>
+  </data>
+  <data name="Batch_LongTermDescribeStamp" xml:space="preserve">
+    <value>PAdES B-LTA: los datos de revocación de los certificados y luego una marca de tiempo del documento de {0}; los archivos sin firma se omiten</value>
+    <comment>Batch: the line under the action in the list; {0} the server's address</comment>
+  </data>
+  <data name="Batch_LongTermReading" xml:space="preserve">
+    <value>Leyendo las firmas de los archivos…</value>
+    <comment>Batch: status while the addresses are gathered</comment>
+  </data>
+  <data name="Batch_LongTermNoneSigned" xml:space="preserve">
+    <value>Ninguno de los archivos tiene una firma válida, así que no hay datos a largo plazo que agregar.</value>
+    <comment>Batch: status, nothing to do</comment>
+  </data>
+  <data name="Batch_LongTermEachFile" xml:space="preserve">
+    <value>cada archivo</value>
+    <comment>Batch: the address window, what the timestamp server is asked about</comment>
+  </data>
+  <data name="Batch_LongTermConfirmOne" xml:space="preserve">
+    <value>Agregar datos de validación a largo plazo a {0} archivo firmado</value>
+    <comment>Batch: the address window's title; {0} the count (1)</comment>
+  </data>
+  <data name="Batch_LongTermConfirmMany" xml:space="preserve">
+    <value>Agregar datos de validación a largo plazo a {0} archivos firmados</value>
+    <comment>Batch: the address window's title; {0} the count</comment>
+  </data>
+  <data name="Batch_LongTermConfirmNote" xml:space="preserve">
+    <value>Antes de ejecutar el lote, se consultarán estas direcciones, un archivo a la vez. Una respuesta se reutiliza para el siguiente archivo, y un servidor que no responde no se vuelve a consultar. Cada resultado se guarda como una copia nueva; los originales no cambian.</value>
+    <comment>Batch: the address window</comment>
+  </data>
+  <data name="Batch_LongTermConfirmButton" xml:space="preserve">
+    <value>Consultar y ejecutar</value>
+    <comment>Batch: the address window's button</comment>
+  </data>
 </root>

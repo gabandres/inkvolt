@@ -257,6 +257,9 @@ public static class BatchPresets
             case MakeAccessibleStep { Language: { } language }:
                 w.WriteString("language", language);
                 break;
+            case AddLongTermStep l:
+                w.WriteString("timestampServer", l.TimestampUrl);
+                break;
             case FlattenStep { Options: var f }:
                 w.WriteBoolean("annotations", f.Annotations);
                 w.WriteBoolean("formFields", f.FormFields);
@@ -273,7 +276,7 @@ public static class BatchPresets
 
     /// <summary>Each action's name in a preset, in the order the Batch window offers them.</summary>
     public static IReadOnlyList<string> ActionNames { get; } =
-        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "export"];
+        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData", "export"];
 
     private static string ActionName(BatchStep step) => step switch
     {
@@ -292,6 +295,7 @@ public static class BatchPresets
         OcrStep => "ocr",
         SaveAsPdfAStep => "saveAsPdfA",
         MakeAccessibleStep => "makeAccessible",
+        AddLongTermStep => "addLongTermData",
         ExportStep => "export",
         _ => throw new NotSupportedException(step.Title),
     };
@@ -457,6 +461,11 @@ public static class BatchPresets
             "ocr" => new OcrStep(),
             "saveAsPdfA" => new SaveAsPdfAStep { Conformance = f.Choice("conformance", PdfAConformance.B) },
             "makeAccessible" => new MakeAccessibleStep { Language = f.Text("language", null) is { Length: > 0 } l ? l : null },
+            "addLongTermData" => new AddLongTermStep(f.Text("timestampServer", null) is { Length: > 0 } t
+                ? LtvClient.WhyRefused(t, LtvAddressKind.Timestamp) is { } why
+                    ? throw new BatchPresetException(Loc.Format(PdfStrings.Preset_LongTermServerRefused, n, why))
+                    : t
+                : null),
             _ => new ExportStep(f.Choice("format", BatchExportFormat.Text), f.Int("dpi", 150, 36, 1200)),
         };
         f.Done();

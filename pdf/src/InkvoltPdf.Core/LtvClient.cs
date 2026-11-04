@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 
 namespace InkvoltPdf.Core;
 
@@ -52,9 +53,22 @@ public sealed class LtvClient : IDisposable
     private readonly bool _allowHttpTimestamp;
     private readonly List<LtvContact> _contacts = [];
     private int _requests;
+    /// <summary>Servers (host and port) that didn't answer at all: not asked again by this client.</summary>
+    private readonly HashSet<string> _silent = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Answers already had (by address, and request for a POST), timestamps never: asked once per client.</summary>
+    private readonly Dictionary<string, byte[]> _answers = [];
+    private long _answerBytes;
+    private const long MaxRemembered = 64L << 20;
 
     /// <summary>What this client asked so far.</summary>
     public IReadOnlyList<LtvContact> Contacts => _contacts;
+
+    /// <summary>
+    /// Batch: one client serves a whole run, one file at a time. Each file gets the request budget a single file has;
+    /// what the run learnt stays: an answer is used again rather than asked for again (a CRL, an issuer, an OCSP answer
+    /// for the same certificate), and a server that didn't answer isn't asked again, so a batch can't hammer a server.
+    /// </summary>
+    public void NextFile() => _requests = 0;
 
     public LtvClient() : this(false)
     {
@@ -177,11 +191,18 @@ public sealed class LtvClient : IDisposable
     private async Task<byte[]> SendAsync(string url, LtvAddressKind kind, string? contentType, byte[]? body, int maxBytes, CancellationToken cancel)
     {
         var first = url;
+        var key = kind == LtvAddressKind.Timestamp ? null : body is null ? url : $"{url} {Convert.ToHexString(SHA256.HashData(body))}";
+        if (key is not null && _answers.TryGetValue(key, out var known) && known.Length <= maxBytes)
+        {
+            _contacts.Add(new LtvContact(kind, first, Loc.Format(PdfStrings.Ltv_AnsweredEarlier, known.Length)));
+            return known;
+        }
         try
         {
             for (var hop = 0; ; hop++)
             {
                 if (Refused(url, kind) is { } why) throw new LtvFetchException($"{url} wasn't contacted: {why}.");
+                if (_silent.Contains(Server(url))) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_NotAskedAgain, Host(url)));
                 if (++_requests > MaxRequests) throw new LtvFetchException(PdfStrings.Ltv_TooManyRequests);
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancel);
                 limit.CancelAfter(_timeout);
@@ -206,6 +227,7 @@ public sealed class LtvClient : IDisposable
                 if (response.Content.Headers.ContentLength > maxBytes) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_TooBig, Host(url), maxBytes / 1024));
                 var bytes = await ReadCapped(response, maxBytes, url, limit.Token).ConfigureAwait(false);
                 _contacts.Add(new LtvContact(kind, first, Loc.Format(PdfStrings.Ltv_Answered, bytes.Length)));
+                if (key is not null && _answerBytes + bytes.Length <= MaxRemembered && _answers.TryAdd(key, bytes)) _answerBytes += bytes.Length;
                 return bytes;
             }
         }
@@ -215,6 +237,7 @@ public sealed class LtvClient : IDisposable
         }
         catch (OperationCanceledException ex)
         {
+            _silent.Add(Server(url));
             throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_NoAnswerInTime, Host(url)), ex));
         }
         catch (LtvFetchException ex)
@@ -223,7 +246,7 @@ public sealed class LtvClient : IDisposable
         }
         catch (IOException ex)
         {
-            // The connection broke while the reply was being read.
+            // The connection broke while the reply was being read: it answered, so it may be asked again.
             throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_StoppedAnswering, Host(url)), ex));
         }
         catch (HttpRequestException ex)
@@ -231,6 +254,7 @@ public sealed class LtvClient : IDisposable
             // A refusal from the connection's own check arrives wrapped.
             for (Exception? e = ex; e is not null; e = e.InnerException)
                 if (e is LtvFetchException refused) throw Failed(kind, first, refused);
+            if (ex.HttpRequestError is HttpRequestError.ConnectionError or HttpRequestError.NameResolutionError) _silent.Add(Server(url));
             throw Failed(kind, first, new LtvFetchException(Loc.Format(PdfStrings.Ltv_Unreachable, Host(url)), ex));
         }
     }
@@ -254,6 +278,9 @@ public sealed class LtvClient : IDisposable
             buffer.Write(chunk, 0, n);
         }
     }
+
+    /// <summary>Host and port: what "didn't answer" is remembered by.</summary>
+    private static string Server(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) ? u.Authority : url;
 
     internal static string Host(string url) => Uri.TryCreate(url, UriKind.Absolute, out var u) && u.Host.Length > 0 ? u.Host : url;
 

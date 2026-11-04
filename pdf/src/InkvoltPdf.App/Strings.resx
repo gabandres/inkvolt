@@ -11223,4 +11223,72 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Folder</value>
     <comment>Column heading</comment>
   </data>
+  <data name="Batch_LongTermMenu" xml:space="preserve">
+    <value>Add Long-Term Validation Data…</value>
+    <comment>Batch › Add action menu</comment>
+  </data>
+  <data name="Batch_LongTermTitle" xml:space="preserve">
+    <value>Add Long-Term Validation Data</value>
+    <comment>Batch: the long-term action's settings, title</comment>
+  </data>
+  <data name="Batch_LongTermNote" xml:space="preserve">
+    <value>Each signed file gets what it takes to check its signatures years from now, stored as an update after them: they stay as they are, and each result is a new copy. Files without a signature are skipped. When the batch starts, a window lists every address that will be asked.</value>
+    <comment>Batch: the long-term action's settings</comment>
+  </data>
+  <data name="Batch_LongTermTimestamp" xml:space="preserve">
+    <value>Also add a document timestamp (PAdES B-LTA)</value>
+    <comment>Batch: the long-term action's settings, check box</comment>
+  </data>
+  <data name="Batch_LongTermServer" xml:space="preserve">
+    <value>Timestamp server</value>
+    <comment>Batch: the long-term action's settings, label</comment>
+  </data>
+  <data name="Batch_LongTermServerNote" xml:space="preserve">
+    <value>Sectigo's free server is suggested; you can enter another that starts with https://. It receives only a hash, never the document.</value>
+    <comment>Batch: the long-term action's settings, under the server</comment>
+  </data>
+  <data name="Batch_LongTermNeedServer" xml:space="preserve">
+    <value>Enter the timestamp server's address, or untick the document timestamp.</value>
+    <comment>Batch: the long-term action's settings, error</comment>
+  </data>
+  <data name="Batch_LongTermBadServer" xml:space="preserve">
+    <value>That timestamp server can't be used: {0}.</value>
+    <comment>Batch: the long-term action's settings, error; {0} why (English from the app's core)</comment>
+  </data>
+  <data name="Batch_LongTermDescribe" xml:space="preserve">
+    <value>PAdES B-LT: the certificates' revocation data, stored after the signatures; files without a signature are skipped</value>
+    <comment>Batch: the line under the action in the list</comment>
+  </data>
+  <data name="Batch_LongTermDescribeStamp" xml:space="preserve">
+    <value>PAdES B-LTA: the certificates' revocation data, then a document timestamp from {0}; files without a signature are skipped</value>
+    <comment>Batch: the line under the action in the list; {0} the server's address</comment>
+  </data>
+  <data name="Batch_LongTermReading" xml:space="preserve">
+    <value>Reading the files' signatures…</value>
+    <comment>Batch: status while the addresses are gathered</comment>
+  </data>
+  <data name="Batch_LongTermNoneSigned" xml:space="preserve">
+    <value>None of the files has a signature that checks out, so there is no long-term data to add.</value>
+    <comment>Batch: status, nothing to do</comment>
+  </data>
+  <data name="Batch_LongTermEachFile" xml:space="preserve">
+    <value>each file</value>
+    <comment>Batch: the address window, what the timestamp server is asked about</comment>
+  </data>
+  <data name="Batch_LongTermConfirmOne" xml:space="preserve">
+    <value>Add long-term validation data to {0} signed file</value>
+    <comment>Batch: the address window's title; {0} the count (1)</comment>
+  </data>
+  <data name="Batch_LongTermConfirmMany" xml:space="preserve">
+    <value>Add long-term validation data to {0} signed files</value>
+    <comment>Batch: the address window's title; {0} the count</comment>
+  </data>
+  <data name="Batch_LongTermConfirmNote" xml:space="preserve">
+    <value>Before the batch runs, these will be asked, one file at a time. An answer is used again for the next file, and a server that doesn't answer isn't asked again. Each result is saved as a new copy; the originals stay as they are.</value>
+    <comment>Batch: the address window</comment>
+  </data>
+  <data name="Batch_LongTermConfirmButton" xml:space="preserve">
+    <value>Contact and run</value>
+    <comment>Batch: the address window's button</comment>
+  </data>
 </root>

@@ -66,6 +66,15 @@ public class PadesCheckTests
                 {
                     Certificate = signer, Certify = CertificationLevel.FormFilling, Lock = new FieldLock(FieldLockAction.Include, ["Name"]),
                 }), null, lockClient, lockClient.TimestampSender(pki.TimestampUrl))).Pdf, "PAdES-BASELINE-LTA");
+            // Batch's long-term action: the second file's answers come from what the run already asked for the first.
+            var batchIn = Path.Combine(folder, "batch-in");
+            Directory.CreateDirectory(batchIn);
+            var batchFiles = new[] { 1, 2 }.Select(n => Path.Combine(batchIn, $"{n}.pdf")).ToList();
+            foreach (var (path, n) in batchFiles.Select((p, i) => (p, i + 1))) await File.WriteAllBytesAsync(path, Signing.Sign(TestPdf.Make(n), null, new SignRequest { Certificate = signer }));
+            var batch = await BatchRunner.RunAsync([.. batchFiles.Select(p => new BatchFile(p))],
+                new BatchPlan { Steps = [new AddLongTermStep(pki.TimestampUrl)], OutputFolder = Path.Combine(folder, "batch-out") },
+                new BatchHost { LongTermClient = () => pki.Client() }, null, CancellationToken.None);
+            files["batch-second-file"] = (await File.ReadAllBytesAsync(batch.Items[1].Outputs.Single()), "PAdES-BASELINE-LTA");
             pki.Overrides["/ocsp"] = _ => Task.FromResult(LtvTestPki.Http(503, []));
             files["crls-only"] = (await Signing.SignAsync(TestPdf.Make(1), null, new SignRequest { Certificate = signer, Timestamp = stamp, LongTerm = LongTermLevel.Lta, LongTermClient = client }), "PAdES-BASELINE-LTA");
             pki.Overrides.Remove("/ocsp");

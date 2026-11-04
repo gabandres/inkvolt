@@ -696,7 +696,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   233, 253, 254, 256; a locked and an open field changed after each of the three choices); EU DSS 6.5.1 (`tools/pades-check`) reports
   PAdES-BASELINE-LTA, TOTAL_PASSED, for a form certified with a field locked and then given long-term data. **Not checked:** Acrobat's view of
   the lock.
-  **Still to do:** the Mac. Encrypted files are refused, since `Incremental` can't append to them. Batch has no long-term action.
+  **Batch's long-term action**, Windows done 2026-11-03 (`AddLongTermStep`, same Pro gate; presets save it as `addLongTermData`
+  with its `timestampServer`): Add Verification Information on each signed file, with checks, reports and exports only.
+  The window lists every address the signed files would ask before the run (the command line: `--online`); the run has one
+  `LtvClient`, one file at a time, each file the request budget a single file has (`NextFile`); an answer is used again for
+  the next file and a server that didn't answer (time out, no connection) isn't asked again, so a batch can't hammer it.
+  Per file: no signature, already long-term (no copy), offline (`BatchHost.IsOnline`), couldn't reach the service; the
+  originals as Batch keeps them. **Checked:** `BatchLongTermTests` (a mixed batch, B-LTA, offline and unreachable, cancel,
+  oversized and garbage replies, presets, the command line); EU DSS 6.5.1 reports PAdES-BASELINE-LTA, TOTAL_PASSED, for a
+  batch's second file, whose answers came from the first's. **Not checked:** many files against a real authority; the
+  app's watched folders don't go online (their files fail "may not go online").
+  **Still to do:** the Mac. Encrypted files are refused, since `Incremental` can't append to them.
 
 ### 3.5 Indexed folder search
 - **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search

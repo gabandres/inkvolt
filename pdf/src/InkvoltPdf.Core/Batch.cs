@@ -281,6 +281,19 @@ public sealed record OcrStep : BatchStep
     public override string Title => PdfStrings.Batch_StepOcr;
 }
 
+/// <summary>
+/// Add Verification Information (<see cref="Ltv.AddVerificationAsync"/>) on each signed file: what it takes to check its
+/// signatures years from now, stored as an update after them, a document timestamp over it when <see cref="TimestampUrl"/>
+/// is set (PAdES B-LTA). Goes online through the run's one <see cref="BatchHost.LongTermClient"/>, one file at a time. A file
+/// without a signature is skipped; one that already holds everything is saved no copy of.
+/// </summary>
+public sealed record AddLongTermStep(string? TimestampUrl = null) : BatchStep
+{
+    public override string Title => PdfStrings.Batch_StepAddLongTerm;
+
+    public override ProFeature? Feature => ProFeature.LongTermValidation;
+}
+
 public enum BatchExportFormat
 {
     Word, Excel, Text, Png, Jpeg,
@@ -373,8 +386,9 @@ public sealed record BatchPlan
     /// <summary>Some action renders pages (page images, OCR, redaction), which takes far more memory than the file's size says.</summary>
     public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or CheckRedactionStep or ExportStep { IsImages: true });
 
-    /// <summary>Bates numbers run on across files, so the files are done one at a time, in order.</summary>
-    public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null);
+    /// <summary>Bates numbers run on across files, or long-term data is asked for (one client, one request at a time): the
+    /// files are done one at a time, in order.</summary>
+    public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null) || Steps.Any(s => s is AddLongTermStep);
 
     /// <summary>What is wrong with the plan (for the dialog), or null.</summary>
     public string? Validate(bool ocrAvailable)
@@ -401,6 +415,8 @@ public sealed record BatchPlan
             return PdfStrings.Batch_PlanRedactEmpty;
         if (Steps.OfType<RedactPatternsStep>().Select(r => RedactionPatterns.Validate(r.Options)).FirstOrDefault(e => e is not null) is { } patternError)
             return patternError;
+        if (Steps.Count(s => s is AddLongTermStep) > 1) return PdfStrings.Batch_PlanLongTermTwice;
+        if (Steps.Any(s => s is AddLongTermStep) && Steps.Any(s => s.ChangesPdf && s is not AddLongTermStep)) return PdfStrings.Batch_PlanLongTermAlone;
         var lastRedaction = Steps.ToList().FindLastIndex(s => s is RedactPatternsStep);
         if (lastRedaction > 0 && Steps.Take(lastRedaction).Any(s => s is ExportStep or ReportContentsStep))
             return PdfStrings.Batch_PlanRedactFirst;
@@ -436,6 +452,16 @@ public sealed class BatchHost
     /// <summary>The same recognizer for Redact Patterns, which also reads single places of a page again; called from worker
     /// threads, one call at a time. Unset: scanned pages can't be searched, and a file that has them fails that action.</summary>
     public InkvoltPrint.Core.Imaging.ITextRecognizer? Recognizer { get; init; }
+
+    /// <summary>
+    /// Makes the client long-term data goes online through: called once per run, the run disposes it. The app makes it after
+    /// the person has seen every address (the command line after --online). Unset: that action can't go online, and each
+    /// signed file that needs anything fails saying so.
+    /// </summary>
+    public Func<LtvClient>? LongTermClient { get; init; }
+
+    /// <summary>Whether this PC is on a network, to tell "offline" from a server that didn't answer (tests give their own).</summary>
+    public Func<bool> IsOnline { get; init; } = System.Net.NetworkInformation.NetworkInterface.GetIsNetworkAvailable;
 }
 
 /// <summary>A recognizer that runs one call at a time under a lock it shares with the other users of one engine.</summary>
@@ -529,6 +555,10 @@ public static class BatchRunner
         using var slots = new SemaphoreSlim(parallel, parallel);
         var running = new List<Task>();
         var bates = 0L; // pages numbered so far, when Bates numbers run on (sequential)
+        var longTerm = plan.Steps.OfType<AddLongTermStep>().FirstOrDefault();
+        using var ltv = longTerm is null ? null : host.LongTermClient?.Invoke();
+        if (longTerm?.TimestampUrl is { } stampUrl && ltv?.Why(stampUrl, LtvAddressKind.Timestamp) is { } refused)
+            throw new ArgumentException(Loc.Format(PdfStrings.Batch_LongTermServerRefused, refused), nameof(plan));
 
         for (var i = 0; i < files.Count; i++)
         {
@@ -561,7 +591,7 @@ public static class BatchRunner
                 break;
             }
             var offset = bates;
-            var job = new Job(file, index, plan, host, names, prompts, progress, cancel) { BatesOffset = offset };
+            var job = new Job(file, index, plan, host, names, prompts, progress, cancel) { BatesOffset = offset, LongTermClient = ltv };
             running.Add(Task.Run(async () =>
             {
                 try
@@ -670,11 +700,18 @@ public static class BatchRunner
     /// <summary>The accessibility check found failures, or couldn't check all of the file: the file fails (its report is kept).</summary>
     private sealed class AccessibilityCheckFailedException(string message) : Exception(message);
 
+    /// <summary>Long-term data couldn't be added: the file fails, saying why.</summary>
+    private sealed class LongTermFailedException(string message) : Exception(message);
+
     private sealed class Job(BatchFile file, int index, BatchPlan plan, BatchHost host, OutputNames names, SemaphoreSlim prompts,
         IProgress<BatchProgress>? progress, CancellationToken cancel)
     {
         public long BatesOffset { get; init; }
         public int PageCount { get; private set; }
+        public LtvClient? LongTermClient { get; init; }
+
+        /// <summary>The file already held all the long-term data there was to add: no copy of it is saved.</summary>
+        private bool _alreadyLongTerm;
 
         private readonly List<string> _outputs = [];
         private readonly List<string> _notes = [];
@@ -716,7 +753,8 @@ public static class BatchRunner
                     if (!LooksLikePdf(data)) return Result(BatchItemState.Failed, PdfStrings.Batch_NotPdf);
                     if (PdfSecurity.NeedsOpenPassword(data)) await UnlockAsync(data).ConfigureAwait(false);
                 }
-                var changes = plan.Steps.Any(s => s.ChangesPdf);
+                // Long-term data is for signed files: it never counts as a change that would leave them alone.
+                var changes = plan.Steps.Any(s => s.ChangesPdf && s is not AddLongTermStep);
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
                 var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password);
                 // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
@@ -754,6 +792,9 @@ public static class BatchRunner
                         case RedactPatternsStep redact:
                             data = await RedactPatternsAsync(data, redact).ConfigureAwait(false);
                             break;
+                        case AddLongTermStep longTerm:
+                            data = await AddLongTermAsync(data, longTerm).ConfigureAwait(false);
+                            break;
                         default:
                             data = await EditAsync(data, (d, pw) => Apply(step, d, pw)).ConfigureAwait(false);
                             AfterStep(step);
@@ -761,7 +802,7 @@ public static class BatchRunner
                     }
                 }
                 cancel.ThrowIfCancellationRequested();
-                if (plan.WritesPdf(file) && !keepSigned)
+                if (plan.WritesPdf(file) && !keepSigned && !_alreadyLongTerm)
                     _outputs.Insert(0, names.Place(_folder, _baseName + ".pdf", temp => File.WriteAllBytes(temp, data)));
                 var finished = _outputs.Count == 0 ? PdfStrings.Batch_DoneNothingSaved : PdfStrings.Batch_Done;
                 return Result(BatchItemState.Done, _redaction is { Looks.Count: > 0 } r ? Loc.Format(PdfStrings.Batch_DoneLookByHand, finished, RedactionReport.Pages(r.Looks.Select(l => l.Page))) : finished);
@@ -778,6 +819,46 @@ public static class BatchRunner
             {
                 return Result(BatchItemState.Failed, Describe(ex));
             }
+        }
+
+        /// <summary>
+        /// Add long-term validation data, as Add Verification Information does it to one file, through the run's client.
+        /// Outcomes: no signature (skipped), already long-term (done, no copy), offline or a server that failed (failed,
+        /// nothing changed). The original is never touched; the result is saved as Batch saves any.
+        /// </summary>
+        private async Task<byte[]> AddLongTermAsync(byte[] data, AddLongTermStep step)
+        {
+            if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
+                throw new SkipException(PdfStrings.Batch_LongTermEncrypted);
+            var facts = await Task.Run(() => Signatures.Inspect(data, _password), cancel).ConfigureAwait(false);
+            if (facts.All(f => f.Info.Status == SignatureStatus.Unsigned)) throw new SkipException(PdfStrings.Batch_LongTermUnsigned);
+            if (!facts.Any(f => f.Intact && f.Info.Certificate is not null))
+                throw new SkipException(PdfStrings.Batch_LongTermNoneValid);
+            var client = LongTermClient ?? throw new LongTermFailedException(PdfStrings.Batch_LongTermNoClient);
+            client.NextFile();
+            var asked = client.Contacts.Count;
+            LtvResult result;
+            try
+            {
+                result = await Ltv.AddVerificationAsync(data, _password, client, step.TimestampUrl is { } url ? client.TimestampSender(url) : null, cancel).ConfigureAwait(false);
+            }
+            catch (SigningException ex) when (ex.InnerException is LtvFetchException && !cancel.IsCancellationRequested)
+            {
+                throw new LongTermFailedException(host.IsOnline() ? Loc.Format(PdfStrings.Batch_LongTermUnreachable, ex.Message) : PdfStrings.Batch_LongTermOffline);
+            }
+            var hosts = client.Contacts.Skip(asked).Select(c => LtvClient.Host(c.Url)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (hosts.Count > 0) _notes.Add(Loc.Format(PdfStrings.Batch_LongTermAsked, string.Join(", ", hosts)));
+            if (!result.Changed)
+            {
+                _alreadyLongTerm = true;
+                _notes.Add(PdfStrings.Batch_LongTermAlready);
+                return data;
+            }
+            var gaps = result.Certificates.Count(c => !c.Covered);
+            if (gaps > 0)
+                _notes.Add(Loc.Plural(gaps, PdfStrings.Batch_LongTermGapsOne, PdfStrings.Batch_LongTermGapsMany,
+                    string.Join("; ", result.Certificates.Where(c => !c.Covered).Select(c => $"{c.Name}: {c.Outcome}"))));
+            return result.Pdf;
         }
 
         /// <summary>Asks for the open password until it opens the file (or the user skips it).</summary>

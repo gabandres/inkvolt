@@ -6670,4 +6670,72 @@
     <value>Links to web pages and other files</value>
     <comment>What Sanitize removes</comment>
   </data>
+  <data name="Ltv_NotAskedAgain" xml:space="preserve">
+    <value>{0} no respondió antes, así que no se volvió a consultar.</value>
+    <comment>Long-term data: a server that timed out or couldn't be reached earlier in the run; {0} its name</comment>
+  </data>
+  <data name="Ltv_AnsweredEarlier" xml:space="preserve">
+    <value>respondió antes ({0:N0} bytes)</value>
+    <comment>What a contacted address did: its answer was already had in this run</comment>
+  </data>
+  <data name="Batch_StepAddLongTerm" xml:space="preserve">
+    <value>Agregar datos de validación a largo plazo</value>
+    <comment>Batch action title</comment>
+  </data>
+  <data name="Batch_PlanLongTermTwice" xml:space="preserve">
+    <value>"Agregar datos de validación a largo plazo" está dos veces en la lista.</value>
+    <comment>Batch plan error</comment>
+  </data>
+  <data name="Batch_PlanLongTermAlone" xml:space="preserve">
+    <value>"Agregar datos de validación a largo plazo" solo puede ir con comprobaciones, informes y exportaciones: agrega datos a los archivos firmados tal como están, y otros cambios romperían sus firmas.</value>
+    <comment>Batch plan error</comment>
+  </data>
+  <data name="Batch_LongTermServerRefused" xml:space="preserve">
+    <value>No se puede usar ese servidor de marcas de tiempo: {0}.</value>
+    <comment>Batch: long-term action; {0} why</comment>
+  </data>
+  <data name="Batch_LongTermEncrypted" xml:space="preserve">
+    <value>Protegido: no se pueden agregar datos a largo plazo a un PDF cifrado sin romper sus firmas</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermUnsigned" xml:space="preserve">
+    <value>Sin firma: no hay datos a largo plazo que agregar</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermNoneValid" xml:space="preserve">
+    <value>Ninguna firma es válida: no hay datos a largo plazo que agregar</value>
+    <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermNoClient" xml:space="preserve">
+    <value>No se agregó: este lote no puede conectarse a internet</value>
+    <comment>Batch file outcome (failed): no address window was shown, or --online not given</comment>
+  </data>
+  <data name="Batch_LongTermUnreachable" xml:space="preserve">
+    <value>No se pudo contactar el servicio: {0}</value>
+    <comment>Batch file outcome (failed); {0} what the server did</comment>
+  </data>
+  <data name="Batch_LongTermOffline" xml:space="preserve">
+    <value>Sin conexión: este equipo no está conectado a una red, así que no se agregó nada. Vuelve a ejecutarlo cuando lo esté</value>
+    <comment>Batch file outcome (failed)</comment>
+  </data>
+  <data name="Batch_LongTermAsked" xml:space="preserve">
+    <value>Se consultó {0}</value>
+    <comment>Batch file note; {0} the servers asked, comma-separated</comment>
+  </data>
+  <data name="Batch_LongTermAlready" xml:space="preserve">
+    <value>Ya tiene validación a largo plazo: contiene todo lo que se podía agregar, así que no se guardó una copia</value>
+    <comment>Batch file note</comment>
+  </data>
+  <data name="Batch_LongTermGapsOne" xml:space="preserve">
+    <value>{0} certificado no tiene datos a largo plazo: {1}</value>
+    <comment>Batch file note; {0} the count (1), {1} each certificate and why</comment>
+  </data>
+  <data name="Batch_LongTermGapsMany" xml:space="preserve">
+    <value>{0} certificados no tienen datos a largo plazo: {1}</value>
+    <comment>Batch file note; {0} the count, {1} each certificate and why</comment>
+  </data>
+  <data name="Preset_LongTermServerRefused" xml:space="preserve">
+    <value>Acción {0} (addLongTermData): no se puede usar "timestampServer": {1}.</value>
+    <comment>Preset error; {0} the action's number, {1} why</comment>
+  </data>
 </root>

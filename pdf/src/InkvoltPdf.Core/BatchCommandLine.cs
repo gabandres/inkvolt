@@ -8,7 +8,7 @@ public enum CommandKind { Help, Batch, Watch, Fill }
 /// <param name="Folder">--watch: the folder.</param>
 /// <param name="Name">--fill: the file name pattern of the forms.</param>
 public sealed record CommandLineRequest(CommandKind Kind, string? Preset = null, IReadOnlyList<string>? Inputs = null, string? Folder = null,
-    string? Output = null, bool Recursive = false, bool Once = false, bool Quiet = false, string? Name = null, bool Flatten = false);
+    string? Output = null, bool Recursive = false, bool Once = false, bool Quiet = false, string? Name = null, bool Flatten = false, bool Online = false);
 
 /// <summary>The command line is wrong; the message says how.</summary>
 public sealed class CommandLineException(string message) : Exception(message);
@@ -34,12 +34,15 @@ public static class BatchCommandLine
         """
         Inkvolt PDF command line: run a saved Batch preset without a window.
 
-          inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--quiet]
+          inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--online] [--quiet]
               Runs the preset on PDFs and images (a folder: the PDFs and images in it), a line per file.
               --out <folder>   where the results go (default: the preset's folder)
               --recursive      the folders' subfolders too
+              --online         lets "Add long-term validation data" go online: the OCSP, CRL and issuer addresses
+                               each signature's certificates name, and the preset's timestamp server (each file's
+                               line says which it asked). A preset with that action doesn't run without it.
 
-          inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--quiet]
+          inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--online] [--quiet]
               Runs the preset on each PDF or image that lands in the folder, once it has stopped growing.
               Originals move to "done" or "failed" below the folder; inkvolt-watch.log there has a line per file.
               Ctrl+C stops (the files being worked on finish their current action first).
@@ -82,7 +85,7 @@ public static class BatchCommandLine
         if (kind == CommandKind.Help) return new CommandLineRequest(kind);
 
         string? first = null, preset = null, output = null, name = null;
-        bool recursive = false, once = false, quiet = false, flatten = false;
+        bool recursive = false, once = false, quiet = false, flatten = false, online = false;
         var inputs = new List<string>();
         string Value(ref int i, string name) =>
             i + 1 < args.Count && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[++i] : throw new CommandLineException($"{name} needs a value after it.");
@@ -97,6 +100,7 @@ public static class BatchCommandLine
                 case "--recursive": recursive = true; break;
                 case "--once": once = true; break;
                 case "--quiet": quiet = true; break;
+                case "--online" when kind != CommandKind.Fill: online = true; break;
                 case "--name" when kind == CommandKind.Fill: name = Value(ref i, "--name"); break;
                 case "--flatten" when kind == CommandKind.Fill: flatten = true; break;
                 default:
@@ -118,13 +122,13 @@ public static class BatchCommandLine
             if (preset is not null) throw new CommandLineException("--batch takes the preset right after it, not with --preset.");
             if (once) throw new CommandLineException("--once goes with --watch.");
             if (inputs.Count == 0) throw new CommandLineException("--batch needs the files or folders to run the preset on, after the preset.");
-            return new CommandLineRequest(kind, first, inputs, null, output, recursive, Quiet: quiet);
+            return new CommandLineRequest(kind, first, inputs, null, output, recursive, Quiet: quiet, Online: online);
         }
         if (first is null) throw new CommandLineException("--watch needs the folder to watch.");
         if (inputs.Count > 0) throw new CommandLineException($"--watch takes one folder (\"{inputs[0]}\" is one too many).");
         if (preset is null) throw new CommandLineException("--watch needs a preset: --preset <preset.json>.");
         if (recursive) throw new CommandLineException("--recursive goes with --batch (a watched folder takes the files at its top).");
-        return new CommandLineRequest(kind, preset, null, first, output, Once: once, Quiet: quiet);
+        return new CommandLineRequest(kind, preset, null, first, output, Once: once, Quiet: quiet, Online: online);
     }
 
     /// <summary>Runs the command line; returns the exit code.</summary>
@@ -174,7 +178,19 @@ public static class BatchCommandLine
             error.WriteLine($"The preset protects files with a password: set {OpenPasswordVariable} and/or {PermissionsPasswordVariable} (presets never keep passwords).");
             return Wrong;
         }
-        host = new BatchHost { Recognize = host.Recognize, Recognizer = host.Recognizer };
+        // Going online needs the person's word: in the app the window listing every address, here --online.
+        if (steps.Any(s => s is AddLongTermStep) && !request.Online)
+        {
+            error.WriteLine("The preset adds long-term validation data, which goes online (the addresses its signatures' certificates name, and its timestamp server): add --online to allow it.");
+            return Wrong;
+        }
+        host = new BatchHost
+        {
+            Recognize = host.Recognize,
+            Recognizer = host.Recognizer,
+            LongTermClient = request.Online ? host.LongTermClient ?? (() => new LtvClient()) : null,
+            IsOnline = host.IsOnline,
+        };
         var gate = new Lock();
         void Line(TextWriter to, string text)
         {

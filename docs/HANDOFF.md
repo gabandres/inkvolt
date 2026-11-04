@@ -72,7 +72,10 @@ One agent, cheapest first, one commit each, in this order:
    path wasn't checked for the same tie.
 2. PDF 3.4: ~~certifying with a choice of fields to lock~~ Done 2026-11-03 (`FieldLock` on `SignRequest`, the Sign dialog's
    "Lock form fields", `ProFeature.FieldLocking`; `FieldLockTests`, EU DSS B-LTA TOTAL_PASSED on a certified form with a
-   field locked). Left: Batch's long-term action (not started: it needs the address window per batch, and a client per run).
+   field locked). Done 2026-11-03, Batch's long-term action (`AddLongTermStep`; window, presets, `--online`; one
+   `LtvClient` per run that reuses answers and doesn't ask a silent server again; `BatchLongTermTests`, EU DSS B-LTA
+   TOTAL_PASSED on a batch's second file). Left: the app's watched folders can't go online (no window to show), so their
+   long-term files fail saying so; the window's English sentences from `LtvDialogs`' shared parts aren't in Strings yet.
 3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
 4. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects

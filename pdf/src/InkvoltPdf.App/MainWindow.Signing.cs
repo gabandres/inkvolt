@@ -15,7 +15,7 @@ public partial class MainWindow
     /// <summary>The dev script's way to a local authority: a client that may reach this PC's loopback. Null always outside a script.</summary>
     internal Func<LtvClient>? DevLtvClient { get; set; }
 
-    private LtvClient NewLtvClient() => DevLtvClient?.Invoke() ?? new LtvClient();
+    internal LtvClient NewLtvClient() => DevLtvClient?.Invoke() ?? new LtvClient();
 
     /// <summary>
     /// Signs the active document: commits open editors and waits for pending writes, asks for the digital ID and options,
