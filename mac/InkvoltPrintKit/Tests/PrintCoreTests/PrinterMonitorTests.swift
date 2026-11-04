@@ -4,8 +4,8 @@ import Testing
 @testable import PrintCore
 
 /// The printer monitor over demo mode's made-up network (the fixtures in place): coming online, offline and retried,
-/// another device at the address and "This is my printer", following an announced address. New for the Mac (the Windows
-/// app's loop lives in its view model, which has no tests of its own); the demo printers are DemoTests.cs's.
+/// another device at the address and "This is my printer", following an announced address. The same names as the Windows
+/// app's PrinterMonitorTests.cs (shared/InkvoltPrint.Core/Probe/PrinterMonitor.cs); the demo printers are DemoTests.cs's.
 struct PrinterMonitorTests {
     private static let network = Demo.network(fixtures: Fixtures.root)
 
