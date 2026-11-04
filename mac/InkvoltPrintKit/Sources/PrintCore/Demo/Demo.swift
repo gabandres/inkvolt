@@ -3,7 +3,7 @@ import Foundation
 /// Demo mode's made-up network (the Windows app's `Demo`): printers that answer from the scrubbed test fixtures and never
 /// reach the network, so the app can be tried (and reviewed) without a printer.
 /// - The HP laser at `FixtureTransport.demoHost`: LEDM and eSCL (`m234dw`, with `hp-demo`'s additions).
-/// - An inkjet that isn't HP's, at `inkjetHost`: IPP and eSCL (`inkjet-demo`).
+/// - An inkjet that isn't HP's, at `inkjetHost`: IPP and eSCL (`inkjet-demo`), its feeder sending PDF only (`feederPdfOnly`).
 /// - An office laser remembered at `officeOldHost`, where nothing answers; it answers at `officeNewHost` (the offline fixer's
 ///   case).
 /// - A newer HP colour laser at `cdmHost` that answers CDM only (`cdm-laser`).
@@ -40,7 +40,10 @@ public enum Demo {
         }
         let http = HostRouter([
             FixtureTransport.demoHost: FixtureTransport(document: laser, scanArea: area, feederBatch: feeder),
-            inkjetHost: FixtureTransport(document: { read("inkjet-demo", $0) }, scanArea: area, feederBatch: feeder),
+            inkjetHost: FixtureTransport(document: { name in
+                guard let bytes = read("inkjet-demo", name) else { return nil }
+                return name.hasSuffix("ScannerCapabilities.xml") ? feederPdfOnly(bytes) : bytes
+            }, scanArea: area, feederBatch: feeder),
             // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
             officeNewHost: FixtureTransport(document: { name in
                 guard let bytes = laser(name) else { return nil }
@@ -64,6 +67,17 @@ public enum Demo {
             },
         ])
         return (http, snmp)
+    }
+
+    /// The capabilities with JPEG taken out of the named "feeder" profile (the part before the glass's): the demo inkjet's
+    /// feeder sends PDF only (roadmap 1.3: some feeders offer nothing else), so the review shows the pictures taken out of each
+    /// PDF, and a PDF saved without changes is the scanner's own (the Windows demo's `FeederPdfOnly`).
+    public static func feederPdfOnly(_ capabilities: [UInt8]) -> [UInt8] {
+        let text = String(decoding: capabilities, as: UTF8.self)
+        guard let glass = text.range(of: "<scan:Platen>") else { return capabilities }
+        let feeder = String(text[..<glass.lowerBound])
+            .replacingOccurrences(of: #"\s*<(pwg:DocumentFormat|scan:DocumentFormatExt)>image/jpeg</\1>"#, with: "", options: .regularExpression)
+        return Array((feeder + text[glass.lowerBound...]).utf8)
     }
 
     /// Search my network on the made-up network: 253 addresses over about three seconds, finding the HP laser and the
@@ -132,6 +146,8 @@ public enum Demo {
                          snmp: SnmpDevice(serialNumber: "DEMO0005200", model: "Demo Laser 5200 Series", systemName: "demo-laser")),
         ]
         s.selectedUuid = uuid
+        // The firmware watch's notice (roadmap 1.5): the demo printer had an older version until today's connection.
+        s.firmware = [uuid: FirmwareRecord("2023-11-02", Day(2025, 11, 20))]
         return s
     }
 }

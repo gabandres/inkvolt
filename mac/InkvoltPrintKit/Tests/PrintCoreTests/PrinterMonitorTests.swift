@@ -149,4 +149,39 @@ struct PrinterMonitorTests {
         #expect(await !office.check())
         #expect(await office.view.phase == .offline)
     }
+
+    /// The firmware watch (roadmap 1.5) over the state file's record, as the app sets it up: demo mode's laser had an older
+    /// version until this connection, so the view and every reading's snapshot carry the change until it's dismissed; the
+    /// record says so, and the next connection shows nothing.
+    @Test func aFirmwareChangeIsShownAndInEachSnapshotUntilDismissed() async throws {
+        let store = StateStore(memory: Demo.state())
+        let today = Day(2026, 11, 4)
+        let memory = FirmwareMemory(get: { store.firmware(Demo.uuid) }, set: { store.setFirmware(Demo.uuid, $0) }, today: { today })
+        let log = Log()
+        let recipe = PrinterRecipe(transport: { _, _ in Self.network.http }, snmp: Self.network.snmp)
+        let printer = Self.demo(Demo.uuid)
+        func monitor(_ log: Log) -> PrinterMonitor {
+            PrinterMonitor(id: printer.uuid, name: printer.name, target: printer.target, recipe: recipe, accepted: { [] }, acceptUuids: { _ in },
+                           firmware: memory, onEvent: { log.add($0) })
+        }
+        let laser = monitor(log)
+        #expect(await laser.check())
+        let notice = try #require(await laser.view.firmwareNotice)
+        let version = try #require(await laser.view.firmware?.display)
+        #expect(notice == FirmwareChange("2023-11-02", version, today))
+        #expect(store.firmware(Demo.uuid) == FirmwareRecord(version, today, previous: "2023-11-02"))
+        #expect(log.snapshots.last?.firmwareChange == notice)
+
+        await laser.dismissFirmwareNotice()
+        #expect(await laser.view.firmwareNotice == nil)
+        #expect(store.firmware(Demo.uuid)?.dismissed == true)
+        #expect(await laser.check())
+        #expect(log.snapshots.last?.firmwareChange == nil)
+
+        let next = Log()
+        #expect(await monitor(next).check())
+        #expect(next.snapshots.last?.reachable == true)
+        #expect(next.snapshots.last?.firmwareChange == nil)
+        #expect(store.firmware(Demo.uuid)?.version == version)
+    }
 }

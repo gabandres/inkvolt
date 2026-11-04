@@ -59,6 +59,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   points or more (`SupplyAnalysis`). "Seen going in" when the change is in the history; the first one usually isn't.
 - **Firmware watch**: each printer's firmware version as last seen, with the day it was first seen and the change before
   it (`Core/History/FirmwareWatch`, kept in `state.json`); a change is shown until dismissed or 30 days old and alerted once.
+  On the Mac the printer monitor watches it through the state file's **firmware memory** (`FirmwareMemory`).
 - **Pro check** (`Pro.Allows(feature)` in `shared/InkvoltPrint.Core/Pro.cs`, on the suite's `ProCheck`): the one place a
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is

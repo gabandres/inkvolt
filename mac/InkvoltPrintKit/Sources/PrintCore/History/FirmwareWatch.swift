@@ -120,6 +120,37 @@ public struct FirmwareChange: Equatable, Sendable {
     public var key: String { "\(from)→\(to)" }
 }
 
+/// Where a printer monitor keeps its printer's `FirmwareRecord` (the state file's: `StateStore.firmwareMemory`), and the day
+/// it is.
+public struct FirmwareMemory: Sendable {
+    public var get: @Sendable () -> FirmwareRecord?
+    public var set: @Sendable (FirmwareRecord) -> Void
+    public var today: @Sendable () -> Day
+
+    public init(get: @escaping @Sendable () -> FirmwareRecord?, set: @escaping @Sendable (FirmwareRecord) -> Void,
+                today: @escaping @Sendable () -> Day = { Day(Date()) }) {
+        self.get = get
+        self.set = set
+        self.today = today
+    }
+
+    /// The connection reported `version`: the record kept (when it changed) and the notice to show now (`FirmwareWatch`).
+    public func watch(_ version: String?) -> FirmwareChange? {
+        let day = today()
+        let known = get()
+        let record = FirmwareWatch.observe(known, version, day)
+        if let record, record != known { set(record) }
+        return FirmwareWatch.notice(record, day)
+    }
+
+    /// The notice was closed: the record says so, and it isn't shown again for this change.
+    public func dismiss() {
+        guard var record = get(), !record.dismissed else { return }
+        record.dismissed = true
+        set(record)
+    }
+}
+
 /// Firmware watch: remembers each printer's firmware version and notices when it changes (an update the printer installed
 /// by itself, or one somebody installed). HP's firmware updates have brought "dynamic security", which stops cartridges with
 /// non-HP chips from working, so a change is worth telling. Pure: the caller keeps the record and supplies the day.

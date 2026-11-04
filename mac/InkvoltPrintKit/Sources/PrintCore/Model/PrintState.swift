@@ -56,6 +56,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// The Inkvolt Pro licence key, only while it couldn't be kept in the file both Inkvolt apps share (`ProKeyFile`; the
     /// Windows app's `AppState.ProKey`), read and written through `SharedProStore`.
     public var proKey: String?
+    /// Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, `FirmwareWatch`; the Windows
+    /// app's `AppState.Firmware`).
+    public var firmware: [String: FirmwareRecord] = [:]
 
     public init() {}
 
@@ -73,6 +76,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         presetFolders = (try? c.decodeIfPresent([String: Data].self, forKey: .presetFolders)) ?? [:]
         noFirmwareNotify = try c.decodeIfPresent([String].self, forKey: .noFirmwareNotify) ?? []
         proKey = try? c.decodeIfPresent(String.self, forKey: .proKey)
+        firmware = (try? c.decodeIfPresent([String: FirmwareRecord].self, forKey: .firmware)) ?? [:]
     }
 }
 
@@ -150,6 +154,7 @@ public final class StateStore: Sendable {
     public func remove(_ id: String) {
         change { s in
             s.printers.removeAll { same($0.uuid, id) }
+            for key in s.firmware.keys where same(key, id) { s.firmware[key] = nil }
             if !s.forgottenUuids.contains(where: { same($0, id) }) { s.forgottenUuids.append(id) }
             if s.selectedUuid.map({ same($0, id) }) == true { s.selectedUuid = nil }
         }
@@ -171,7 +176,45 @@ public final class StateStore: Sendable {
         }
     }
 
+    /// Moves everything kept under a printer's old id to its new one (the Windows app's `RenamePrinterId`): its pins,
+    /// accepted UUIDs, place among the forgotten, firmware record and Notify flag, and the selection. What the new id has
+    /// already stays.
+    public func rename(_ oldId: String, _ newId: String) {
+        guard !same(oldId, newId) else { return }
+        change { s in
+            for key in s.certificatePins.keys where CertificatePinKey.belongs(key, to: oldId) {
+                let pin = s.certificatePins.removeValue(forKey: key)
+                let moved = newId + key.dropFirst(oldId.count)
+                if s.certificatePins[moved] == nil { s.certificatePins[moved] = pin }
+            }
+            if let key = s.acceptedUuids.keys.first(where: { same($0, oldId) }), let accepted = s.acceptedUuids.removeValue(forKey: key),
+               !s.acceptedUuids.keys.contains(where: { same($0, newId) }) {
+                s.acceptedUuids[newId] = accepted
+            }
+            s.forgottenUuids = s.forgottenUuids.map { same($0, oldId) ? newId : $0 }
+            if let key = s.firmware.keys.first(where: { same($0, oldId) }), let record = s.firmware.removeValue(forKey: key),
+               !s.firmware.keys.contains(where: { same($0, newId) }) {
+                s.firmware[newId] = record
+            }
+            s.noFirmwareNotify = s.noFirmwareNotify.map { same($0, oldId) ? newId : $0 }
+            if s.selectedUuid.map({ same($0, oldId) }) == true { s.selectedUuid = newId }
+        }
+    }
+
     // MARK: Firmware
+
+    /// The printer's firmware record (`FirmwareWatch`), if one is kept.
+    public func firmware(_ id: String) -> FirmwareRecord? { read { s in s.firmware.first { same($0.key, id) }?.value } }
+
+    /// Keeps the record (and saves, when it differs from the one kept).
+    public func setFirmware(_ id: String, _ record: FirmwareRecord) {
+        change { s in s.firmware[s.firmware.keys.first { same($0, id) } ?? id] = record }
+    }
+
+    /// The printer's record as its printer monitor keeps it, the day from this Mac's clock.
+    public func firmwareMemory(_ id: String) -> FirmwareMemory {
+        FirmwareMemory(get: { self.firmware(id) }, set: { self.setFirmware(id, $0) })
+    }
 
     /// False once the printer read back automatic installs after Notify was written.
     public func keepsFirmwareNotify(_ id: String) -> Bool { read { !$0.noFirmwareNotify.contains { same($0, id) } } }

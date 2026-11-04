@@ -21,6 +21,8 @@ public struct PrinterView: Equatable, Sendable {
     public var interfaces: [String]
     public var firmware: FirmwareInfo?
     public var location: String?
+    /// The last firmware change while its notice shows on the status card (roadmap 1.5, `FirmwareWatch.notice`).
+    public var firmwareNotice: FirmwareChange? = nil
 
     public static let connecting = PrinterView(phase: .connecting, statusMessage: "Connecting…", statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil)
@@ -60,6 +62,7 @@ public actor PrinterMonitor {
     private let onEvent: @Sendable (MonitorEvent) -> Void
     private let retryDelay: Duration
     private let fallbackRefresh: Duration
+    private let firmwareMemory: FirmwareMemory?
 
     /// Where the printer is reached now.
     public private(set) var target: PrinterWhere
@@ -71,11 +74,13 @@ public actor PrinterMonitor {
 
     /// - Parameters:
     ///   - accepted: UUIDs the user confirmed are this printer's; `acceptUuids` adds to them.
+    ///   - firmware: where the printer's firmware record is kept (the firmware watch, roadmap 1.5); nil watches nothing.
     ///   - onEvent: called on the monitor's executor; hand the event off.
     public init(id: String, name: String, target: PrinterWhere, recipe: PrinterRecipe, accepted: @escaping @Sendable () -> [String],
-                acceptUuids: @escaping @Sendable ([String]) -> Void, retryDelay: Duration = PrinterMonitor.retryDelay,
+                acceptUuids: @escaping @Sendable ([String]) -> Void, firmware: FirmwareMemory? = nil, retryDelay: Duration = PrinterMonitor.retryDelay,
                 fallbackRefresh: Duration = PrinterMonitor.fallbackRefresh, onEvent: @escaping @Sendable (MonitorEvent) -> Void) {
         self.id = id
+        firmwareMemory = firmware
         self.name = name
         self.target = target
         self.retryDelay = retryDelay
@@ -232,6 +237,8 @@ public actor PrinterMonitor {
         v.interfaces = probe.interfaces
         v.firmware = probe.firmware
         v.location = probe.location
+        // The connection's version against the one remembered: a change is kept and shown until dismissed (30 days at most).
+        if let firmwareMemory { v.firmwareNotice = firmwareMemory.watch(probe.firmware?.display) }
         publish(v)
         if let escl = probe.esclRoot { target.esclHint = escl }
         if let ipp = probe.ippEndpoint { target.ippHint = ipp }
@@ -264,7 +271,7 @@ public actor PrinterMonitor {
         if let usage = reading.usage { v.usage = usage }
         publish(v)
         onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: true, status: status.isUnavailable ? nil : status,
-                                          supplies: reading.supplies)))
+                                          supplies: reading.supplies, firmwareChange: v.firmwareNotice)))
         return true
     }
 
@@ -294,6 +301,14 @@ public actor PrinterMonitor {
                        + "Inkvolt Print watches for it on the network. If the printer was repaired or reset and this really is it, "
                        + "choose This is my printer.",
                    phase: .elsewhere)
+    }
+
+    /// The status card's notice was closed: kept as dismissed, so this change isn't shown or alerted again.
+    public func dismissFirmwareNotice() {
+        firmwareMemory?.dismiss()
+        var v = view
+        v.firmwareNotice = nil
+        publish(v)
     }
 
     private func publish(_ v: PrinterView) {

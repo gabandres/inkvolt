@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.6 and 3.5 are done on the Mac too; the
-Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.3, 1.5, 1.6 and 3.5 are done on the Mac
+too (1.3 and 1.5 on 2026-11-04, owner's go); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -155,9 +155,11 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
   taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
   encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
-  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only. Mac: PrintCore done (2026-11-02,
-  mac/docs/PLAN.md P12: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC); PrintMac's
-  PDFKit renderer, the Scan tab's status line and save, and demo mode's PDF-only feeder wait for the Mac.
+  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only. Mac: done (2026-11-04, mac/docs/PLAN.md
+  P12): PrintCore (2026-11-02: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC);
+  PrintMac's `ScannedPdfPages` (PDFKit) set at start-up, the Scan tab's status line and its PDF saves keeping the scanner's
+  own PDF or saying why not, demo mode's PDF-only feeder (`Demo.feederPdfOnly`) with `--report --demo --scan` checking an
+  untouched and a turned save; on screen and with a real PDF-only scanner not yet.
 - **Effort** S. Windows and Mac.
 
 ### 1.4 Alerts that survive the Store package
@@ -203,9 +205,11 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   button's PUT equal byte for byte to the Firmware card's Off write, already off, read-only, a printer that keeps
   installing, the password step; all against captured documents in memory, no printer written to). **Pending on
   hardware:** a real update noticed, and the button on a printer set to install automatically (README, "Not done").
-  Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: FirmwareWatch, the FirmwareChanged alert, CartridgeGuard,
-  FirmwareWatchTests on the PC); the record in the state file, the status card's notice and the Firmware card's button
-  wait for the Mac (the Settings tab has the LEDM firmware mode already).
+  Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: FirmwareWatch, the FirmwareChanged alert,
+  CartridgeGuard, FirmwareWatchTests on the PC); the record per printer in the state file (removed and moved with the
+  printer), the printer monitor watching it on each connection and putting the change in every reading's snapshot, the
+  status card's notice (Firmware Settings or the printer's web page, Dismiss) and the Settings tab's Keep My Cartridges
+  Working…, checked by `--report --demo --firmware`; on screen and on a real printer not yet.
 - **Beat it when:** every printer's firmware version is kept with the date first seen, and a change shows a notice
   ("Firmware changed from X to Y on date") on the status card and, with alerts on, as a notification; the HP card has
   one button, **Keep my cartridges working**, that sets automatic updates off, reads the setting back and says what it
