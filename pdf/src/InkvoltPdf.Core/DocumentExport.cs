@@ -192,7 +192,7 @@ public static class DocumentExport
                         {
                             page = page with { Lines = ExportPage.LinesFromOcr(words), FromOcr = true };
                             Recognized++;
-                            SuspectWords += words.Count(w => w.Suspect != SuspectReasons.None);
+                            SuspectWords += words.Count(w => w.IsSuspect);
                         }
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)

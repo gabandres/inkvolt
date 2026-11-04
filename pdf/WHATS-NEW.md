@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Batch's Redact Patterns gives the redacted pages their text back, as Apply Redactions does, so a redacted scan stays searchable and selectable.
+- Batch, watched folders and the command line follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
 
 ## 1.7.0
 - Inkvolt PDF speaks Spanish: it follows Windows' language, or choose under Settings › Language (Same as Windows, English or Español). It takes effect the next time the app starts. The command palette still finds commands by their English names.

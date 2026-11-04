@@ -1,4 +1,5 @@
 using System.Text;
+using InkvoltPrint.Core.Imaging;
 using MuPDFCore;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
@@ -6,12 +7,15 @@ using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
 
+/// <summary>A redacted document (<see cref="Redaction.ApplyWithText"/>). <paramref name="TextSkipped"/>: its redacted pages were left without text (the reading was cancelled).</summary>
+public sealed record RedactedData(byte[] Data, bool TextSkipped);
+
 /// <summary>
 /// True redaction: every page with areas to redact is rendered (with its annotations and form fields) to a bitmap,
 /// the areas are painted solid black in the pixels, and the page's content is replaced by that image. Nothing from the
 /// original page (text, vector art, images, annotations, form widgets, thumbnails, alternate text in the structure
 /// tree) survives, so the redacted content can't be recovered or copied. Redacted pages become images: their text is
-/// no longer selectable or searchable. A form field an area touches is emptied on every page (its value would otherwise
+/// no longer selectable or searchable until it is recognized again (<see cref="ApplyWithText"/>). A form field an area touches is emptied on every page (its value would otherwise
 /// survive in its other widgets). Tagged PDFs lose the redacted page's part of the structure tree. Other pages and the
 /// document metadata are left untouched.
 /// </summary>
@@ -51,6 +55,40 @@ public static class Redaction
             ReplacePage(doc, doc.Pages[index], img.Width, img.Height, rgb);
         }
         return PdfObj.Save(doc, rewrite: true);
+    }
+
+    /// <summary>How the redacted pages are read back into text: cleaned, no suspect words (nobody reviews a redacted page's words), only the text written.</summary>
+    public static readonly RecognizeOptions TextBackOptions = new(CheckWords: false);
+
+    /// <summary>
+    /// <see cref="Apply"/>, then <see cref="TextBack"/>: Apply Redactions, Redact by Pattern and Batch's Redact Patterns all
+    /// redact through these two. Without a recognizer, just Apply.
+    /// </summary>
+    public static RedactedData ApplyWithText(byte[] data, string? password, IReadOnlyDictionary<int, IReadOnlyList<RectD>> areasByPage,
+        ITextRecognizer? ocr, IProgress<(int Done, int Total)>? progress = null, CancellationToken skipText = default)
+    {
+        var redacted = Apply(data, password, areasByPage);
+        return ocr is null ? new RedactedData(redacted, false) : TextBack(redacted, password, areasByPage, ocr, progress, skipText);
+    }
+
+    /// <summary>
+    /// The redacted pages of <paramref name="redacted"/>, pictures now, read by <paramref name="ocr"/> and given their text
+    /// again as an invisible text layer, so they stay searchable and selectable; what a black box covers isn't kept.
+    /// </summary>
+    /// <param name="progress">(pages read, pages), before each page.</param>
+    /// <param name="skipText">Cancelled: the pages stay without text (<see cref="RedactedData.TextSkipped"/>), the redaction is kept.</param>
+    public static RedactedData TextBack(byte[] redacted, string? password, IReadOnlyDictionary<int, IReadOnlyList<RectD>> areasByPage,
+        ITextRecognizer ocr, IProgress<(int Done, int Total)>? progress = null, CancellationToken skipText = default)
+    {
+        try
+        {
+            var read = new PageRecognizer(ocr, TextBackOptions).Recognize(redacted, password, [.. areasByPage.Keys.Order()], areasByPage, progress, skipText);
+            return new RedactedData(read.Write(redacted, password), false);
+        }
+        catch (OperationCanceledException) when (skipText.IsCancellationRequested)
+        {
+            return new RedactedData(redacted, true);
+        }
     }
 
     /// <summary>
