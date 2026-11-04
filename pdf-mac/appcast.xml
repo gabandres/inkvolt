@@ -6,6 +6,23 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.7.0</title>
+      <pubDate>Wed, 04 Nov 2026 21:44:04 GMT</pubDate>
+      <sparkle:version>1.7.0</sparkle:version>
+      <sparkle:shortVersionString>1.7.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Comments and form data travel: export and import comments as XFDF, FDF or CSV, form data as CSV and JSON too, one filled form per spreadsheet row, and a printable summary of a document's comments. One Inkvolt Pro key now counts in both Mac apps.
+
+- Export and import comments (Tools › Annotate): XFDF for Acrobat and other PDF apps, FDF, or a CSV for spreadsheets. Replies, colors, authors and shapes come along; importing adds only what the document doesn't have yet, and one Undo takes it back.
+- Form data as CSV and JSON too (File › Form Data): values are checked against their fields, and the ones the form doesn't take are listed.
+- Fill Forms from CSV (File › Form Data): one filled copy of the form for each row of a spreadsheet, named as you like (any column can go in the name); rows the form refuses are listed in a report. Also from Terminal: `--fill`.
+- Summarize Comments (Tools › Annotate): a PDF with each page beside its numbered list of comments and replies, ready to print or send.
+- Batch can export comments (XFDF, FDF, CSV), form data (XFDF, FDF, CSV, JSON) and comment summaries for many files at once.
+- Recognize Text turns a page over only when it reads clearly better that way, so a scanned page of numbers, which reads much the same either way up, stays as it is.
+- One Inkvolt Pro key for both Mac apps: a key entered in Inkvolt PDF counts in Inkvolt Print, and the other way round (Help › Inkvolt Pro…). A key you entered before moves over by itself.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.7.0/Inkvolt-PDF-1.7.0.dmg" length="37093506" type="application/octet-stream" sparkle:edSignature="MzP//2byEOTTECNb9VnHppoWbROE8w6bpmScS1mwBMReK+erybzXgwMyPX9imbNxV4YkgENJfa0Q7QdOoNFTDg==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.6.1</title>
       <pubDate>Wed, 04 Nov 2026 00:19:37 GMT</pubDate>
       <sparkle:version>1.6.1</sparkle:version>
