@@ -1,11 +1,16 @@
-# Handoff, 2026-11-02 (newest first)
+# Handoff, 2026-11-04 (newest first)
 
 ## Start here (next session)
 
-What is truly left, per app and platform, checked against the code on 2026-11-02. Done items are gone from this list;
-`git log` has them. **No release is planned: the owner decides on return.** Don't publish a Mac or Store version on your
-own (when the owner asks: `INKVOLT_PUBLISH=yes release.sh <v> --publish`, then the Homebrew tap
-`gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.4.1 and 1.5.0 were).
+**State on 2026-11-04.** Master is green: CI's `test` and `mac` jobs pass on `8b71fe5`. Nothing is running. **Nothing is
+released since Mac 1.6.1**: on master and not shipped are Inkvolt PDF for Windows' Spanish interface, Batch's long-term
+action, field locking, the Flate limits and the 2026-11-03 fixes (Windows), and Mac comments and form data (roadmap 1.4).
+**No release without the owner** (when asked: Store `packaging/pack-msix.ps1`; Mac `INKVOLT_PUBLISH=yes release.sh <v>
+--publish`, then the Homebrew tap `gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.6.1 was).
+
+**Accounts (owner, 2026-11-03).** PPE is for PPE-Development: start no agent on PPE (`claudeAgent`) unless the owner says
+so for a small, clearly cheap job. Work on SSS (`claudeAgent_personal`), which resets Friday; run
+`~/.claude/scripts/usage-gate.ps1 -Account sss` before each agent and stop at its STOP (60 % on the night of 2026-11-03).
 
 **How to work a Mac item.** One item per commit, its .NET tests ported first (same names), 0 warnings, `mac/docs/PLAN.md`,
 `WHATS-NEW.md` "## Next" and the roadmap's Mac line updated, then push to master. Use `bash mac/tools/mac.sh` for
@@ -14,117 +19,67 @@ everything on the Mac (`mac/CLAUDE.md`). One agent on the Mac at a time (they sh
 expressions the Mac compiles (split them), and its runner is slow (heavy tests skip on `GITHUB_ACTIONS`, as
 `ScanCorpus.runs` and Vision's do). Each item's spec is the Windows code and tests named in `pdf/ROADMAP.md`.
 
-### Inkvolt PDF for Mac: scheduled (unattended run, Tue 2026-11-03 08:10)
+### What's left, in order
 
-One agent, cheapest first, one commit each, in this order:
-1. ~~Saved signatures between launches~~ Done 2026-11-03 (`SavedSignatures`, Application Support's "Inkvolt PDF/signatures").
-2. ~~Rotate view~~ Done 2026-11-03 (View › Rotate View Clockwise ⇧⌘R / Counterclockwise ⇧⌘L; ViewTest).
-3. ~~Dark pages~~ Done 2026-11-03 (View › Dark Pages (Night Reading), Settings; `NightColors`).
-4. ~~Dragging thumbnails~~ Done 2026-11-03 (the sidebar's thumbnails: move, copy to another window, PDFs and pictures dropped).
-5. ~~Reading modes~~ Done 2026-11-03 (View › Single Page ⌘4, Continuous ⌘5, Two Pages ⌘6, Two Pages with Cover ⌘7).
-6. ~~Insert from Scanner~~ Done 2026-11-03 (Pages › Insert from Scanner…; demo scanners only: a person must check it
-   with a real scanner, PLAN.md).
-7. ~~Report a Problem~~ Done 2026-11-03 (Help › Report a Problem…; `ProblemReport`, HelpTests).
-8. ~~Comments and form data in and out~~ Done 2026-11-03 in three commits (roadmap 1.4): A, Export and Import Comments
-   (`CommentFiles`, XFDF, FDF, CSV; Tools › Annotate); B, form data as CSV and JSON (`FormDataFiles`), Fill Forms from
-   CSV (`FormMerge`, File › Form Data) and `--fill`; C, Summarize Comments (`CommentSummary`, Tools › Annotate) and
-   Batch's comment, form data and summary exports. CommentFilesTests, FormDataTests and CommentSummaryTests ported; what a
-   person must look at: PLAN.md, "Comments and form data in and out" under Mac differences.
-9. Redaction by pattern, Windows' additions of 2026-11-01 (roadmap 1.1, "Finished on Windows 2026-11-01"): named sets,
-   scans searched through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's
-   new failure rules, the Pro split.
-   **Skipped in the unattended run of 2026-11-03** (no code committed): Windows' additions of 2026-11-01 and 2026-11-02
-   are about 3,500 changed lines (79ba338 alone 2,384), touching the pattern search, OCR text, the hit list, the
-   read-back, the report and Batch: past the run's 90 minutes an item. Its own session.
+**Owner first (no agent can do these).**
+1. Review Inkvolt PDF's Spanish wording (`pdf/docs/SPANISH-REVIEW.md`: Redact "Eliminar información confidencial",
+   "Qué hay en este PDF", Flatten "Acoplar", the highlighter "Rotulador"; text written into documents follows the
+   interface language) and the shots in `docs/ux-review/spanish-pdf/`. Then decide the next PDF release (Windows Store and
+   Mac); when Spanish ships, remove "La aplicación está en inglés." from the Store listing in Partner Center.
+2. Look at the Mac UI nobody has seen (PLAN.md lists it per step; new on 2026-11-03: saved signatures, Rotate View,
+   Dark Pages, thumbnail dragging, reading modes, Insert from Scanner, Report a Problem, comments and form data in and
+   out), and decide on Batch's `--online` flag for the long-term action (the agent's call; keep or change).
 
-### Inkvolt PDF for Mac: other gaps, not scheduled
+**Inkvolt PDF for Mac.**
+1. Redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
+   through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's new failure rules,
+   the Pro split). About 3,500 changed lines on Windows (79ba338 alone 2,384): its own session.
+2. Check whether Vision has Windows' two OCR faults before porting their fixes: skipped lines (`MissedLines.cs`,
+   `MissedLinesTests`) and a page of digits kept upside down (`ScanText.ClearlyMore`,
+   `ScanTextTests.APageOfDigitsThatReadsBothWaysStaysAsItIs`).
+3. Larger items: 3.4 long-term validation (writing /DSS and /VRI, B-LTA, Check Signatures Online, Batch's action, field
+   locking, the Pro gate, the rest of LtvTests.cs; `Signatures.verify(online:)` exists in PdfCore, unused by the app);
+   2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers); 3.3 Compare with Office
+   files, scans and formatting; 3.5 indexed folder search; Microsoft Office as E12's converter (on the mini, backlog
+   note below); 3.1 Translate (after 2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
+4. Spanish interface (Windows has it), and What's New in Spanish on both platforms.
+5. No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's
+   printer settings when printing, the Snapshot tool. UX: the renames proposed in `mac/docs/UX-REVIEW.md` (owner decides).
 
-- No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's printer
-  settings when printing, the Snapshot tool.
-- Larger roadmap items: 2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers in
-  its sandboxed container; File › Scan already has the feeder, both sides and OCR); 3.4 long-term validation (writing /DSS
-  and /VRI, B-LTA, Check Signatures Online, Batch's action, the Pro gate, the rest of LtvTests.cs;
-  `Signatures.verify(online:)` exists in PdfCore, unused by the app); 3.3 Compare with Office files, scans and formatting;
-  3.5 indexed folder search; Microsoft Office as E12's converter (backlog note below, on the mini); 3.1 Translate (after
-  2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
-- The Mac UX pass: rounds 1 and 2 merged 2026-11-03 (7.9 to 9.4, `mac/docs/UX-REVIEW.md`). Left: what a person must see (PLAN.md), the renames proposed there (both apps; the owner decides), Print for Mac's pass.
-
-### Inkvolt PDF for Windows: open, no hardware needed
-
-1. OCR: done 2026-11-03, `MissedLines` (through `ScanText`, so Recognize Text and Redact by Pattern): ink no word covers,
-   in line-sized type-like bands of the cleaned page, read again alone, then word by word; words put in reading order.
-   `pdf/tools/ocr-corpus` RESULTS.md: the six scans have no skipped line (unchanged); `skipped-lines` (the redaction
-   corpus's first page, typeset) 39.1% → 21.7%; `probe` makes 36 more pages (none skipped a line). Left: Windows reads
-   "1111" in no way, even alone, so 2 of that page's 6 skipped words stay lost; a dropped word inside a line that was read
-   isn't read again (reading such ink gave fragments: "4 lY).70"); the cleaned path only (Clean off reads as before).
-   The Mac (Vision) port should check whether Vision skips lines too before porting it (`MissedLines.cs`,
-   `MissedLinesTests`). Done 2026-11-03, the redaction corpus's page 3 (three lines of numbers) read upside down
-   once cleaned ("OO 6830 9999 9999 9999"): digits have no ascenders, so `Upright` was unsure, and `ScanText`'s two
-   readings both had no real word, a tie that kept the turn. Now an unsure page is turned over only when that reading
-   has clearly more real words (`ScanText.ClearlyMore`: two, or a quarter more), else it stays as rendered
-   (`ScanTextTests.APageOfDigitsThatReadsBothWaysStaysAsItIs`); ocr-corpus's new `digit-lines` reads upright (27.3%
-   cleaned, 9.1% as rendered: cleaning costs typeset digits a little), every other file unchanged. The Mac's Vision
-   path wasn't checked for the same tie.
-2. PDF 3.4: ~~certifying with a choice of fields to lock~~ Done 2026-11-03 (`FieldLock` on `SignRequest`, the Sign dialog's
-   "Lock form fields", `ProFeature.FieldLocking`; `FieldLockTests`, EU DSS B-LTA TOTAL_PASSED on a certified form with a
-   field locked). Done 2026-11-03, Batch's long-term action (`AddLongTermStep`; window, presets, `--online`; one
-   `LtvClient` per run that reuses answers and doesn't ask a silent server again; `BatchLongTermTests`, EU DSS B-LTA
-   TOTAL_PASSED on a batch's second file). Left: the app's watched folders can't go online (no window to show), so their
-   long-term files fail saying so.
+**Inkvolt PDF for Windows.**
+1. Flaky test: `LtvTests.Offline_adding_fails_clearly_and_leaves_the_input_alone` failed on CI on `7fb4333` (a timeout
+   where it expected a refused connection), after its deadline was already widened. Passes alone.
+2. Long-term action leftovers: watched folders can't go online, so their long-term files fail saying so; `LtvDialogs`'
+   English sentences aren't in the resource files yet.
 3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
-4. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects
-   piece by piece, row spans).
-5. Speed: `drawings.pdf` misses Find (30 s) and scrolling (773 ms a page); on-screen scroll fell under 60 fps while the
-   PC was loaded, recheck idle.
-6. ~~UX still short (`docs/UX-REVIEW.md`, round 2): group menus as flyouts, the bar at 150 % text.~~ Done 2026-11-03
-   (UX-REVIEW round 3): flyouts with a line under each command; under 1100 logical DIPs the palette button keeps its icon
-   and Appearance moves into "…", so at 150 % on 1200 DIPs the bar keeps six commands; its menus follow the Text size.
-   Left: Comment still goes to "…" there; Organize's page pictures.
-7. Small fixes: done 2026-11-03, `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` check that the JSON
-   root is an object before `TryGetProperty` (`[]`, `"x"`, `1`, `null` gave InvalidOperationException; AiProtocolTests'
-   `JsonThatIsNotAnObjectIsNotAChatCompletion`). Done 2026-11-03, DevScript's `compare` checks that both
-   files exist and open before `Comparing.LoadFile` (whose modal error the off-screen script never answered) and fails the
-   step (`FAILED:` in the log, the app quits) on a bad path or a side that doesn't load. Done 2026-11-03, the central part of the
-   Flate limit: every PDFsharp `UnfilteredValue` in Inkvolt PDF goes through `PdfObj.StreamBytes`, which refuses a stream
-   past 256 MB (`PdfObj.MaxStreamBytes`; attachments saved or opened: 1 GB) with `StreamTooLargeException`, an IOException
-   the "damaged filter, read as empty" catches don't swallow, so whatever reads it fails with a message. A leading Flate
-   filter is measured before PDFsharp inflates it (counted, kept nowhere; streams under 1/1032 of the limit skipped). The
-   redaction check never reads one as empty: page content, forms it draws, hidden layers, attachments, XMP, XFA and earlier
-   versions are each noted "too large to search" and the report is Incomplete (Batch then saves nothing, the read-back
-   fails); Redaction.Apply itself rasterizes through MuPDF and reads no stream. HostileStructureTests:
-   `StreamBytesRefusesAStreamThatInflatesPastItsLimit`, `RedactionCheckSaysItIsIncompleteWhenAStreamIsTooLargeToRead`.
-   Done 2026-11-03, the rest: `BoundedFilters` puts bounded subclasses of PDFsharp's Flate, LZW and ASCII85 decoders in
-   `Filtering`'s shared instances (by reflection, field names of PDFsharp 6.2.x; a test checks they're in place), so every
-   stage of a filter chain, wherever it is in the array, is measured before PDFsharp decodes it (Flate inflated and
-   counted, LZW counted by entry lengths as PDFsharp's decoder makes them, ASCII85 by its "z"s), and PDFsharp's own
-   decoding while it opens a file (object streams, xref streams) is too: every open goes through `PdfObj.Read`, which
-   allows 256 MB a stream and 256 MB in all, so such a file fails what opens it with StreamTooLargeException's message
-   (viewing goes through MuPDF and isn't affected). Tuned: Optimize leaves a stream it can't unpack as it is, and a page
-   holding one keeps its images (`ContentImages.Scan` says incomplete); the text layer takes such a stream for not its
-   own. Kept failing on purpose, as a skip could give a wrong result: content editing, accessibility check and Auto-Tag,
-   PDF/A, fonts and ToUnicode maps, Sanitize, vector shapes, page marks; the redaction check notes it and is Incomplete.
-   The attachment list's packed size for one without /Size is fine as it is. HostileStructureTests:
-   `OpeningAFileWhoseObjectStreamsInflatePastTheLimitFailsBeforeTheMemoryIsSpent`,
-   `EveryStageOfAFilterChainIsMeasuredBeforeItIsDecoded`, `OptimizeAndTheTextLayerPassOverAStreamTooLargeToRead`. Not
-   checked: MuPDF's own inflating (it streams object streams, so memory stays small, but a bomb costs it time).
-8. ~~CI: the Windows `test` job fails about one run in two on a different timing test each time~~ Done 2026-11-03:
-   `shared/Testing/Timing.cs` (linked into both test projects): `Timing.Limit` (4× on `GITHUB_ACTIONS`),
-   `Timing.CancelAfter` (cancels from a thread of its own: a pool timer fired after Parallel.For work had finished) and
-   the `Timing.Alone` collection (runs after the parallel tests) for deadline tests and file-let-go tests. Causes in the
-   last 40 runs: a starved thread pool (PageCleanup, TranslationCopy, OtherBrands IPP, DeviceHttpLimits, CertificatePin,
-   FleetRead; then QueuePrinter's 50 ms call deadline and BatchPrint's 100 ms ones, which the healthy call must meet too;
-   LtvTests' 3 s client deadline, which a refused loopback connection Windows retries for ~2 s overran), a quiet period a stalled timer overran (BatchPrintFolder), handles to files open in place inherited by a
-   child another test started with Process.Start (FindWorker, InPlace; `KeptText` now runs alone), Pro's globals read
-   outside the Pro collection (`LtvProTests`), and a real bug: FolderIndexer called a folder moved away mid-listing
-   "Couldn't list the folder" instead of away. Fixed 2026-11-03: OfficeConverter started its helper with Process.Start, so
-   the helper held every tab's in-place file while it converted (saving over one failed meanwhile); it now starts through
-   `FindWorkers.StartWithOnlyPipes` (a handle list: its output and error pipes only), and Show in Folder goes through the
-   shell (ShellExecute passes on no handle; explorer.exe through Process.Start did). Print's `Log.cs` and the `--try`
-   start in `MainViewModel` still use CreateProcess with inheritance (Print opens no file in place).
+4. PDF 2.2 leftovers (suspect words for Batch, Scan and export; "1111", which Windows' recognizer never reads; a dropped
+   word inside a line that was read), 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans).
+5. Speed: `drawings.pdf` misses Find and scrolling (`pdf/tools/bench`); on-screen scroll fell under 60 fps while the PC
+   was loaded, recheck idle. Run the bench before the next release and commit RESULTS.md.
+6. UX leftovers (UX-REVIEW round 3): Comment still goes to "…" at 150 % on 1200 DIPs; Organize's page pictures.
+7. A Spanish Windows was never tried (the agent used `--lang es`).
+8. Not checked: MuPDF's own inflating of a Flate bomb (memory stays small, time doesn't).
+9. Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and
+   black-and-white in Scan).
 
-Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and black-and-white
-in Scan).
+**Housekeeping.** Six old helper worktrees under `.claude/worktrees/` (their work is merged; a hook blocked deleting their
+branches) and about 40 under `~/.t3/worktrees/PdfDesk/`: remove them once the owner agrees.
+
+### Done on 2026-11-03 (details in `git log`, PLAN.md and the roadmaps)
+
+- **Mac (Inkvolt PDF):** Pro.store before the command line, Prepare Form's nudge on ⌘W, the Flate limit; saved
+  signatures, Rotate View, Dark Pages, thumbnail dragging, reading modes, Insert from Scanner (demo scanners only),
+  Report a Problem; comments and form data in and out in three commits (`ee2404b`, `5fa9553`, `7fb4333`: XFDF, FDF, CSV,
+  JSON, Fill Forms from CSV, `--fill`, Summarize Comments, Batch's exports); a hostile-input review; UX rounds 1 and 2
+  (7.9 to 9.4, `mac/docs/UX-REVIEW.md`); released as 1.6.0 and 1.6.1. 1,160 package tests and 485 self-test checks pass.
+- **Windows (Inkvolt PDF):** Spanish interface in four commits (5,172 strings; `pdf/ROADMAP.md` 3.7); OCR re-reads the
+  lines Windows skips (`MissedLines`) and keeps a page of digits upright (`3386e7f`); certifying with fields locked
+  (`FieldLock`, Pro); Batch's long-term action (`0fe437e`, `--online`, EU DSS B-LTA TOTAL_PASSED); Flate, LZW and ASCII85
+  bounded everywhere PDFsharp decodes (`PdfObj.StreamBytes`, `BoundedFilters`, 256 MB a stream); `ParseWhole` and
+  `OllamaLoadedContext` on non-object JSON; DevScript's `compare` on a bad path; UX round 3 (flyouts, the bar at 150 %);
+  the Office helper no longer holds in-place files; CI's timing flakes (`shared/Testing/Timing.cs`). 2,420 tests pass.
+- **Print (Windows):** 1.3.0.0 in the Store (Notes below); its 2026-11-03 items are in the section after this one.
 
 ### Inkvolt Print, Windows and Mac: ON HOLD (owner, 2026-11-02)
 
@@ -160,7 +115,8 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
 ### Only a person
 
 Look at the Mac UI nobody has seen (PLAN.md lists it per step), hear Read Aloud with a real voice, try E12 with a real
-LibreOffice and web address, see Inkvolt PDF open a scan from Inkvolt Print for Mac.
+LibreOffice and web address, see Inkvolt PDF open a scan from Inkvolt Print for Mac, try Insert from Scanner
+with a real scanner, run Inkvolt PDF on a Spanish Windows.
 
 ### Machines
 
@@ -192,8 +148,9 @@ Center). Open: the Mac apps' Spanish, and What's New in Spanish.
 
 **Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
 
-**Tests.** 4,320, none failing except the usual timing tests under load: `ThreadClockTests`, `AccessibilityCheckStopsOn…`,
-`A_file_that_takes_all_the_memory…` and others. Each passes alone. `AccessibilityCheckStopsOn…` has failed in most full runs and could use a longer limit.
+**Tests (2026-11-03).** Windows: Inkvolt PDF 2,420, Inkvolt Print 2,223; Mac: InkvoltPdfKit 1,160. CI's timing
+flakes were fixed with `shared/Testing/Timing.cs`; seen once since: `LtvTests.Offline_adding…` (CI) and
+`PipedChildTests` (a loaded PC). Each passes alone.
 
 # Handoff, 2026-10-31 (newest first)
 
