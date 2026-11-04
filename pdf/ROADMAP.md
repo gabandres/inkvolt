@@ -19,7 +19,7 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 1.4, 2.1, 2.3's leftovers, 3.1, 3.3, 3.4 and 3.5,
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 2.3's leftovers, 3.1, 3.3, 3.4 and 3.5,
 in the order of the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
@@ -235,13 +235,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   samples instead); a highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF
   keeps it). Mac: Export and Import Comments done 2026-11-03 (`CommentFiles`, Tools › Annotate); form data as CSV and
   JSON, Fill Forms from CSV and `--fill` done 2026-11-03 (`FormDataFiles`, `FormMerge`, File › Form Data); Summarize
-  Comments and Batch's three actions still to do.
+  Comments (`CommentSummary`, Tools › Annotate) and Batch's exports and summary done 2026-11-03.
 - **Beat it when:** comments export and import as XFDF and FDF (replies, colors, authors, appearances of stamps and
   drawings kept) and as CSV; form data exports as XFDF, FDF, CSV and JSON and imports from them, and a CSV of many rows
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
   and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
   makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac: comments and form data in and out and the merge done, the summary still to do.
+- **Effort** S-M. Windows; Mac: done 2026-11-03.
 
 ### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case

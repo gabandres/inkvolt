@@ -79,6 +79,8 @@ final class TextPainter {
     private var items: [(text: String, x: Double, y: Double, size: Double)] = []
     private var writer: Type3FontWriter?
     let unicode: Bool
+    /// The names of the embedded fonts (two painters whose fonts share one resource dictionary need their own).
+    var namePrefix = "/PdU"
 
     init(_ std: StdFont, _ texts: [String]) {
         self.std = std
@@ -118,7 +120,7 @@ final class TextPainter {
                 out += Array(head.utf8) + WinAnsi.literal(item.text) + Array(") Tj ET\n".utf8)
             }
         } else {
-            let w = writer ?? Type3FontWriter()
+            let w = writer ?? Type3FontWriter(namePrefix: namePrefix)
             writer = w
             var sb = ""
             for item in items {

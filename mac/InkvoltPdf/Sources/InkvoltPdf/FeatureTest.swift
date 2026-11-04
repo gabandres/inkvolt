@@ -537,6 +537,15 @@ struct FeatureTest {
         let csv = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("comments.csv"))
         let exported = await controller.exportComments(to: xfdf, .xfdf)
         let exportedCsv = await controller.exportComments(to: csv, .csv)
+        let summaryUrl = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("comments summary.pdf"))
+        let summarized = await controller.summarizeComments(to: summaryUrl)
+        let summaryText = readBack(summaryUrl).flatMap { try? PdfEngine.open($0) }.map { e in
+            defer { e.close() }
+            return (0..<e.pageCount).map { (try? e.text($0).text) ?? "" }.joined(separator: " ")
+        } ?? ""
+        let offered = BatchWindowController.offered.filter(\.isReviewExport).count
+        check(summarized && summaryText.contains("Self-test note") && summaryText.contains("Comments on") && offered == 8,
+              "Summarize Comments: the sheet lists the note (\(summaryText.count) characters); Batch offers \(offered) comment and form data actions")
         let undo = controller.window?.undoManager
         undo?.undo()
         await settle()

@@ -25,17 +25,11 @@ One agent, cheapest first, one commit each, in this order:
 6. ~~Insert from Scanner~~ Done 2026-11-03 (Pages › Insert from Scanner…; demo scanners only: a person must check it
    with a real scanner, PLAN.md).
 7. ~~Report a Problem~~ Done 2026-11-03 (Help › Report a Problem…; `ProblemReport`, HelpTests).
-8. Comments and form data in and out (roadmap 1.4): Export and Import Comments (XFDF, FDF, CSV), Summarize Comments,
-   form data as CSV and JSON (the Mac has XFDF and FDF only), Fill Forms from CSV (`FormMerge`), Batch's comment exports
-   and summary, `--fill`.
-   **Skipped in the unattended run of 2026-11-03** (no code committed): the Windows core alone is about 2,000 lines
-   (`CommentFiles` with its XFDF and CSV parts, `FormDataFiles`, `FormMerge`, `CommentSummary`) and 22 tests, plus the
-   app's commands, Batch's three actions and `--fill`: well past the run's 90 minutes an item. Split it into its own
-   session or two (CommentFiles first; then FormDataFiles' CSV and JSON with FormMerge and `--fill`; then the summary).
-   **Stage A done 2026-11-03**: Export and Import Comments (`CommentFiles`, XFDF, FDF, CSV; Tools › Annotate), 11 tests
-   ported plus one. **Stage B done 2026-11-03**: form data as CSV and JSON (`FormDataFiles`), Fill Forms from CSV
-   (`FormMerge`, File › Form Data), `--fill`; FormDataTests' 9 ported. Left: C (CommentSummary, Summarize Comments,
-   Batch's comment exports and summary).
+8. ~~Comments and form data in and out~~ Done 2026-11-03 in three commits (roadmap 1.4): A, Export and Import Comments
+   (`CommentFiles`, XFDF, FDF, CSV; Tools › Annotate); B, form data as CSV and JSON (`FormDataFiles`), Fill Forms from
+   CSV (`FormMerge`, File › Form Data) and `--fill`; C, Summarize Comments (`CommentSummary`, Tools › Annotate) and
+   Batch's comment, form data and summary exports. CommentFilesTests, FormDataTests and CommentSummaryTests ported; what a
+   person must look at: PLAN.md, "Comments and form data in and out" under Mac differences.
 9. Redaction by pattern, Windows' additions of 2026-11-01 (roadmap 1.1, "Finished on Windows 2026-11-01"): named sets,
    scans searched through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's
    new failure rules, the Pro split.

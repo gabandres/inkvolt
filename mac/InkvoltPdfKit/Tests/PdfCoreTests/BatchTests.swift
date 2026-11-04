@@ -262,18 +262,24 @@ final class BatchTests {
     }
 
     @Test func exportsCommentsFormDataAndSummaries() async throws {
-        let form = try put("in/form.pdf", Core1TestPdf.navigation())
+        let commented = try put("in/review.pdf", CommentFilesTests.commented())
+        let form = try put("in/form.pdf", FormEditor.setValues(FormDataTests.form(), nil, ["name": "Ana"]))
         let plain = try put("in/plain.pdf", TestPdf.make(1))
-        let plan = plan(.export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150))
+        let plan = plan(.export(.commentsXfdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150),
+                        .export(.formDataJson, dpi: 150), .export(.formDataFdf, dpi: 150))
         #expect(plan.validate(ocrAvailable: true) == nil)
-        let summary = try await Self.run([form, plain], plan)
-        #expect(summary.done == 2)
-        #expect(try Self.readText(outFile("form.xfdf")).contains("Alice"))
-        #expect(latin1(try Self.read(outFile("form.fdf"))).contains("Alice"))
+        let summary = try await Self.run([commented, form, plain], plan)
+        #expect(summary.done == 3)
+        #expect(try CommentFiles.count(Self.read(outFile("review.xfdf"))) == 13)
+        #expect(try CommentFiles.count(Self.read(outFile("review comments.csv"))) == 13)
+        #expect(try Core2Pdf.allText(Self.read(outFile("review comments.pdf")), page: 1).contains("Callout, text"))
+        #expect(try FormDataFiles.readValues(Self.read(outFile("form.json")))["name"] == "Ana")
+        #expect(try FormDataFiles.readValues(Self.read(outFile("form.fdf")))["name"] == "Ana")
         #expect(!Self.exists(outFile("plain.xfdf")))
-        #expect(summary.items.first { $0.file.path == plain }?.notes.contains { $0.hasPrefix("Form data: no form fields") } == true)
+        #expect(!Self.exists(outFile("plain.json")))
+        #expect(summary.items.first { $0.file.path == plain }?.notes.contains { $0.hasPrefix("Comments: none") } == true)
 
-        // The exports go into presets and come back.
+        // The new exports go into presets and come back.
         #expect(try BatchPresets.read(BatchPresets.write(BatchPreset.from("Review", plan, keepFolder: false))).steps == plan.steps)
     }
 

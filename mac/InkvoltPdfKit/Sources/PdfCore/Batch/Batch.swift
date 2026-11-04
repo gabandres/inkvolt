@@ -160,9 +160,16 @@ public struct ProtectStep: Equatable, Sendable {
 }
 
 public enum BatchExportFormat: String, CaseIterable, Sendable {
+    /// Comments, form data or a comment summary (Windows' `IsReview`).
+    static let review: Set<BatchExportFormat> = [.commentsXfdf, .commentsFdf, .commentsCsv, .formDataXfdf, .formDataFdf, .formDataCsv, .formDataJson, .commentSummary]
+
     case word, excel, text, png, jpeg
-    /// Form data (`FormEditor.exportData`).
-    case formDataXfdf, formDataFdf
+    /// Comments (`CommentFiles`).
+    case commentsXfdf, commentsFdf, commentsCsv
+    /// Form data (`FormDataFiles`).
+    case formDataXfdf, formDataFdf, formDataCsv, formDataJson
+    /// A comment summary PDF (`CommentSummary`).
+    case commentSummary
     case powerPoint, html
 }
 
@@ -236,8 +243,14 @@ public enum BatchStep: Equatable, Sendable {
             case .powerPoint: "Export to PowerPoint"
             case .html: "Export to HTML"
             case .text: "Export as plain text"
+            case .commentsXfdf: "Export comments (XFDF)"
+            case .commentsFdf: "Export comments (FDF)"
+            case .commentsCsv: "Export comments (CSV)"
             case .formDataXfdf: "Export form data (XFDF)"
             case .formDataFdf: "Export form data (FDF)"
+            case .formDataCsv: "Export form data (CSV)"
+            case .formDataJson: "Export form data (JSON)"
+            case .commentSummary: "Summarize comments"
             case .png: "Export pages as PNG images"
             case .jpeg: "Export pages as JPEG images"
             }
@@ -264,8 +277,8 @@ public enum BatchStep: Equatable, Sendable {
     /// Page images at a resolution.
     public var isImageExport: Bool { exportFormat == .png || exportFormat == .jpeg }
 
-    /// Form data (not the pages' content).
-    public var isReviewExport: Bool { exportFormat == .formDataXfdf || exportFormat == .formDataFdf }
+    /// Comments, form data or a comment summary (not the pages' content).
+    public var isReviewExport: Bool { exportFormat.map(BatchExportFormat.review.contains) ?? false }
 
     public var isProtect: Bool {
         if case .protect = self { return true }
@@ -852,7 +865,7 @@ public enum BatchRunner {
         }
 
         private func export(_ data: [UInt8], _ format: BatchExportFormat, _ dpi: Int) throws {
-            if format == .formDataXfdf || format == .formDataFdf {
+            if BatchExportFormat.review.contains(format) {
                 try exportReview(data, format)
                 return
             }
@@ -899,17 +912,41 @@ public enum BatchRunner {
             outputs.append(try names.place(folder, baseName + DocumentExport.fileExtension(exportFormat)) { try Data(bytes).write(to: URL(fileURLWithPath: $0)) })
         }
 
-        /// Form data beside the result; a file without any gets a note, no file.
+        /// Comments, form data or a comment summary beside the result; a file without any gets a note, no file.
         private func exportReview(_ data: [UInt8], _ format: BatchExportFormat) throws {
             let name = (file.namedAs as NSString).lastPathComponent
-            let dataFormat: FormDataFormat = format == .formDataXfdf ? .xfdf : .fdf
-            guard !(try FormEditor.read(data, password)).isEmpty else {
-                notes.append("Form data: no form fields, nothing saved")
-                return
+            var bytes: [UInt8]?
+            let suffix: String
+            switch format {
+            case .commentsXfdf, .commentsFdf, .commentsCsv:
+                let f: CommentFileFormat = format == .commentsXfdf ? .xfdf : format == .commentsFdf ? .fdf : .csv
+                let export = try CommentFiles.export(data, password, f, pdfFileName: name)
+                if export.count > 0 { bytes = export.data } else { notes.append("Comments: none, nothing saved") }
+                suffix = (f == .csv ? " comments." : ".") + CommentFiles.fileExtension(f)
+            case .commentSummary:
+                if (try CommentSummary.plan(Annotations.read(data, password))).isEmpty {
+                    notes.append("Comment summary: no comments, nothing saved")
+                } else {
+                    bytes = try CommentSummary.make(data, password, title: name)
+                }
+                suffix = " comments.pdf"
+            default:
+                let f: FormDataFormat = switch format {
+                case .formDataXfdf: .xfdf
+                case .formDataFdf: .fdf
+                case .formDataJson: .json
+                default: .csv
+                }
+                if !(try FormEditor.dataFields(data, password)).isEmpty {
+                    bytes = try FormDataFiles.export(data, password, f, pdfFileName: name)
+                } else {
+                    notes.append("Form data: no form fields, nothing saved")
+                }
+                suffix = (f == .csv ? " data." : ".") + FormDataFiles.fileExtension(f)
             }
-            let bytes = try FormEditor.exportData(data, password, dataFormat, file: name)
+            guard let bytes else { return }
             try cancel.check()
-            outputs.append(try names.place(folder, baseName + (dataFormat == .xfdf ? ".xfdf" : ".fdf")) { try Data(bytes).write(to: URL(fileURLWithPath: $0)) })
+            outputs.append(try names.place(folder, baseName + suffix) { try Data(bytes).write(to: URL(fileURLWithPath: $0)) })
         }
     }
 

@@ -2,8 +2,8 @@ import AppKit
 import PdfCore
 import UniformTypeIdentifiers
 
-/// Tools › Annotate › Import Comments… and Export Comments… (roadmap 1.4; the Windows app's `CommentFileActions`):
-/// `CommentFiles` as XFDF, FDF or CSV. Import is an edit (one undo step) that only adds: what is already in the document
+/// Tools › Annotate › Import Comments…, Export Comments… and Summarize Comments… (roadmap 1.4; the Windows app's
+/// `CommentFileActions`): `CommentFiles` as XFDF, FDF or CSV, and `CommentSummary`'s PDF. Import is an edit (one undo step) that only adds: what is already in the document
 /// is skipped and listed, never replaced.
 extension DocumentWindowController {
     static let commentFormats: [(format: CommentFileFormat, title: String)] = [
@@ -137,6 +137,49 @@ extension DocumentWindowController {
             infoSheet("Comments Imported", ([text] + result.notes).joined(separator: "\n\n"), list: result.skipped.isEmpty ? nil : list)
         }
         return result
+    }
+
+    @objc func summarizeComments(_ sender: Any?) {
+        guard let window, let session = pdf.session else { return }
+        if session.openPassword != nil
+            && !confirmUnprotected("The summary is saved without the document's password protection: anyone can open it.", "Summarize Anyway") {
+            return
+        }
+        let panel = NSSavePanel()
+        panel.title = "Summarize Comments"
+        panel.message = "A new PDF with each page that has comments beside its numbered list of comments."
+        panel.nameFieldStringValue = (session.displayName as NSString).deletingPathExtension + " comments.pdf"
+        panel.allowedContentTypes = [.pdf]
+        panel.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .OK, let url = panel.url else { return }
+                self.startLongTask {
+                    if await self.summarizeComments(to: url), !Report.isRunning {
+                        NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Writes the comment summary to `url`; false when there are no comments or it failed (said).
+    func summarizeComments(to url: URL) async -> Bool {
+        guard let session = pdf.session else { return false }
+        let data = session.data, password = session.password, name = session.displayName
+        let sheet = ProgressSheet(title: "Summarize Comments", text: "Laying out the pages and their comments…")
+        sheet.begin(on: window)
+        let result: Result<[UInt8], Error> = await Task.detached { Result { try CommentSummary.make(data, password, title: name) } }.value
+        sheet.end()
+        do {
+            try Data(try result.get()).write(to: url, options: .atomic)
+            notify("Comment summary saved as \(url.lastPathComponent).")
+            return true
+        } catch let e as PdfEditError where e.message.contains("no comments") {
+            infoSheet("No comments", e.message)
+        } catch {
+            pdf.showError("The comment summary couldn't be saved.", error)
+        }
+        return false
     }
 
     /// An informational alert (a sheet), with an optional scrolling list of lines; in the self-test a notice instead.

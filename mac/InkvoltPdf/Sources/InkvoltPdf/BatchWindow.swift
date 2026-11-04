@@ -109,6 +109,10 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let addAction = NSPopUpButton(frame: .zero, pullsDown: true)
         addAction.addItem(withTitle: "Add Action")
         for (i, step) in Self.offered.enumerated() {
+            // Groups: the actions on the PDF, the exports of its pages, the comments and form data.
+            if i > 0, (Self.offered[i - 1].exportFormat == nil) != (step.exportFormat == nil) || Self.offered[i - 1].isReviewExport != step.isReviewExport {
+                addAction.menu?.addItem(.separator())
+            }
             let item = NSMenuItem(title: step.title, action: #selector(addActionPicked(_:)), keyEquivalent: "")
             item.target = self
             item.tag = i
@@ -215,7 +219,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         .headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions()), .ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a,
         .export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150),
         .export(.png, dpi: 150), .export(.jpeg, dpi: 150),
-        .export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150),
+        .export(.commentsXfdf, dpi: 150), .export(.commentsFdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150),
+        .export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150), .export(.formDataCsv, dpi: 150), .export(.formDataJson, dpi: 150),
     ]
 
     private static var defaultHeaderFooter: HeaderFooterOptions {
