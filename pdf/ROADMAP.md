@@ -351,8 +351,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
   its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
   set back after the lines. A word in another family still blocks the paragraph (edited line by line), and a line
-  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Still to do: paragraphs in
-  turned text (they edit line by line); paragraphs mixing font families (a symbol font, a word in another family).
+  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Turned text (2026-11-04):
+  runs of one direction (within half a degree; at most 16 directions a page, those with the most runs) are turned
+  upright about the page's origin (`ContentEditor.Turned.cs`: each run's reach along and across its baseline,
+  `TextRun.Reach`, gives it its own upright box there; mirrored or slanted text has none and stays line by line),
+  grouped, checked and laid out there as upright text is (`TextParagraph.Upright`), and the lines' starts turned back
+  onto the page; `Lines`, `Box` and `Below` are their bounding boxes, `TextParagraph.Angle` the direction, and a click
+  between its lines is tested in its own direction. The writing is unchanged (a line's start goes back into the run's
+  own text space). The editor is laid out in the paragraph's direction and turned about its first line's start, the
+  look bar and note beside where it is. `ParagraphEditTests.Turned` (6: 90°, -90°, 180° and 30° reflow, running into
+  the next block, a sideways column beside an upright one); pdf.js reads the 90° and 30° samples in order; dev script
+  (a sideways column, 20 words added): the editor turned over the column, 4 lines to 5, the next block where it was.
+  Still to do: paragraphs mixing font families (a symbol font, a word in another family).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

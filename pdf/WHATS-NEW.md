@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Batch's Redact Patterns gives the redacted pages their text back, as Apply Redactions does, so a redacted scan stays searchable and selectable.
+- Edit Text & Images edits turned text (a sideways column, a title set at an angle) as a whole paragraph too: it rewraps in its own direction, with the editor turned to match.
 - Batch, watched folders and the command line follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
 
 ## 1.7.0

@@ -26,6 +26,16 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// <summary>The nearest text or picture below the paragraph, across its width: what a longer text would run into.</summary>
     public RectD? Below { get; init; }
 
+    /// <summary>The direction of its baselines on the page, degrees clockwise from left-to-right (0: upright text).</summary>
+    public double Angle { get; init; }
+
+    /// <summary>
+    /// Turned text: the paragraph in its own direction (page space turned by -<see cref="Angle"/> about the page's
+    /// origin, so its text reads upright there), where it is grouped and laid out; <see cref="Lines"/>, <see cref="Box"/>
+    /// and <see cref="Below"/> are their bounding boxes on the page. Null for upright text.
+    /// </summary>
+    internal TextParagraph? Upright { get; init; }
+
     /// <summary>Runs of spaces only drawn on its lines (some generators draw each space on its own): they go with its text.</summary>
     internal IReadOnlyList<TextRun> Spaces { get; init; } = [];
 
@@ -127,9 +137,22 @@ public static partial class ContentEditor
     /// is in the same font, size (within 5%) and color, below it with at most 0.65 ems between them and the same line
     /// step as the lines before (within 10%), overlapping it across, with its left edges (a first-line indent allowed),
     /// centers or right edges lined up; and when the line above didn't end short (its next first word would have fit
-    /// on it). Turned text and runs of spaces only are left out.
+    /// on it). Runs of spaces only are left out. Turned text is grouped the same way in its own direction, each
+    /// direction apart (see <see cref="TextParagraph.Upright"/>).
     /// </summary>
     internal static IReadOnlyList<TextParagraph> GroupParagraphs(PageContent content)
+    {
+        var result = new List<TextParagraph>(GroupUpright(content));
+        foreach (var angle in TurnedAngles(content))
+        {
+            var (framed, page) = Framed(content, angle);
+            result.AddRange(GroupUpright(framed).Select(p => Turned(p, angle, page)));
+        }
+        return result;
+    }
+
+    /// <summary>The upright text runs of <paramref name="content"/> as paragraphs (see <see cref="GroupParagraphs"/>).</summary>
+    private static List<TextParagraph> GroupUpright(PageContent content)
     {
         var runs = content.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && r.FontSize > 0.5 && r.Box.Width > 0).ToList();
         if (runs.Count == 0) return [];
@@ -497,6 +520,7 @@ public static partial class ContentEditor
     /// <param name="fit">For a translated copy: the text's size against the paragraph's own; it always wraps, wherever it can (<see cref="FitLines"/>), in one font (<see cref="MixedText"/>). Null: as typed in the editor.</param>
     internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null, double? fit = null)
     {
+        if (p.Upright is { } upright) return OnPage(LayOut(upright, runs, text, spans, fit), p);
         var anchor = Anchor(runs);
         var plain = PlainRun(runs);
         var font = plain.Font!;
