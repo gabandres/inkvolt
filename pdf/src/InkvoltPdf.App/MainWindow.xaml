@@ -459,40 +459,40 @@
                             <!-- The tools people look for first; the rest are in the menus and Ctrl+K -->
                             <UniformGrid x:Name="ToolGrid" Columns="4" Margin="-4,0,-4,0">
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ToolAddText}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolFillSign}" Detail="Type on any form, add check marks and your signature" Glyph="&#xE76D;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolFillSign}" Detail="{x:Static loc:Strings.Start_ToolFillSignDetail}" Glyph="&#xE76D;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.EditContent}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolEditText}" Detail="Change the words and pictures already on a page" Glyph="&#xE70F;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolEditText}" Detail="{x:Static loc:Strings.Start_ToolEditTextDetail}" Glyph="&#xE70F;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ExportWord}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolExportWord}" Detail="Turn a PDF into an editable .docx" Glyph="&#xEDE1;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolExportWord}" Detail="{x:Static loc:Strings.Start_ToolExportWordDetail}" Glyph="&#xEDE1;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Combine}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCombine}" Detail="Merge several files into one PDF, in your order" Glyph="&#xE8F1;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCombine}" Detail="{x:Static loc:Strings.Start_ToolCombineDetail}" Glyph="&#xE8F1;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Compare}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCompare}" Detail="See what changed between two versions" Glyph="&#xE7C4;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCompare}" Detail="{x:Static loc:Strings.Start_ToolCompareDetail}" Glyph="&#xE7C4;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ReduceSize}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolReduceSize}" Detail="Make a PDF small enough to e-mail or upload" Glyph="&#xE73F;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolReduceSize}" Detail="{x:Static loc:Strings.Start_ToolReduceSizeDetail}" Glyph="&#xE73F;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.ProtectPassword}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolProtect}" Detail="Require a password to open, print or change it" Glyph="&#xE72E;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolProtect}" Detail="{x:Static loc:Strings.Start_ToolProtectDetail}" Glyph="&#xE72E;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Redact}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Main_Redact}" Detail="Black out private details for good" Glyph="&#xE73B;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Main_Redact}" Detail="{x:Static loc:Strings.Start_ToolRedactDetail}" Glyph="&#xE73B;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.RecognizeText}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolOcr}" Detail="Make a scan searchable and its text copyable" Glyph="&#xE8C1;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolOcr}" Detail="{x:Static loc:Strings.Start_ToolOcrDetail}" Glyph="&#xE8C1;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Organize}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolOrganize}" Detail="Reorder, rotate, delete, insert or extract pages" Glyph="&#xE8B3;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolOrganize}" Detail="{x:Static loc:Strings.Start_ToolOrganizeDetail}" Glyph="&#xE8B3;" />
                                 </Button>
                                 <Button Style="{StaticResource ToolCard}" Click="OnToolCard" Tag="{x:Static app:Cmd.Batch}">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolBatch}" Detail="Run the same actions on many files at once" Glyph="&#xE762;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolBatch}" Detail="{x:Static loc:Strings.Start_ToolBatchDetail}" Glyph="&#xE762;" />
                                 </Button>
                                 <Button x:Name="CreateCard" Style="{StaticResource ToolCard}" Click="OnCreateCard">
-                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCreate}" Detail="From Office files, a web page, images or the clipboard" Glyph="&#xE8A5;" />
+                                    <app:StartTool Title="{x:Static loc:Strings.Start_ToolCreate}" Detail="{x:Static loc:Strings.Start_ToolCreateDetail}" Glyph="&#xE8A5;" />
                                     <Button.ContextMenu>
                                         <ContextMenu>
                                             <MenuItem x:Name="CreateOfficeMenu" Command="app:Cmd.CreateFromOffice" Header="{x:Static loc:Strings.Start_CreateFromOffice}" Visibility="Collapsed" />

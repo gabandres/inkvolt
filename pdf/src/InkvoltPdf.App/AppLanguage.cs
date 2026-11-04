@@ -20,7 +20,13 @@ public static class AppLanguage
     /// false, the interface is always English, Settings › Language is hidden and a saved choice is ignored (only the dev
     /// aids' <c>--lang</c> still picks a language): the switch for a language whose strings are still being written.
     /// </summary>
-    public static bool SpanishReady => false;
+    public static bool SpanishReady => true;
+
+    /// <summary>
+    /// How much wider than in English a dialog laid out for English words is made for the interface's language: 1 in English,
+    /// 1.15 in Spanish, whose sentences and button labels run about a fifth longer.
+    /// </summary>
+    public static double TextWidth => Current.TwoLetterISOLanguageName == "en" ? 1 : 1.15;
 
     /// <summary>Windows' display language as the process started, before <see cref="Apply"/> changed the UI culture.</summary>
     private static readonly CultureInfo WindowsDisplay = CultureInfo.CurrentUICulture;

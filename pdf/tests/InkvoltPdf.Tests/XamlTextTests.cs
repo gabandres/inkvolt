@@ -15,7 +15,7 @@ public partial class XamlTextTests
     private static readonly HashSet<string> Shown =
     [
         "Text", "Content", "Header", "ToolTip", "Title", "AutomationProperties.Name", "AutomationProperties.HelpText",
-        "AutomationProperties.ItemStatus", "Placeholder.Text", "PlaceholderText", "InputGestureText", "Description",
+        "AutomationProperties.ItemStatus", "Placeholder.Text", "PlaceholderText", "InputGestureText", "Description", "Detail",
     ];
 
     private static string AppFolder => Path.Combine(LocalizationTests.Root(), "pdf", "src", "InkvoltPdf.App");

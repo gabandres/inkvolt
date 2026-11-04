@@ -157,4 +157,21 @@ public class CommandBarLayoutTests
         var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
         Assert.Equal(["Save", "Print", "Undo", "Redo", "Pointer", "FillSign", "Comment"], shown);
     }
+
+    [Fact]
+    public void AtAnOrdinaryWidthTheGroupsKeepTheirLabels_InSpanishToo()
+    {
+        // The same rule with the Spanish labels as measured at 100 % (Mano, Llenar y firmar, Comentar, Dibujar, Eliminar
+        // información, Organizar): about a fifth longer, still the same groups labeled in a 1200-DIP window.
+        var widths = new Dictionary<string, double>
+        {
+            ["Save"] = 34, ["Print"] = 34, ["Undo"] = 34, ["Redo"] = 34, ["Pointer"] = 80, ["FillSign"] = 138, ["Comment"] = 106,
+            ["Draw"] = 92, ["Redact"] = 162, ["Organize"] = 100,
+        };
+        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id], e.Priority, e.Label is null ? null : 50)).ToList();
+        var fit = CommandBarLayout.Layout(items, 560, 34, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
+        Assert.False(fit.Compact);
+        var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
+        Assert.Equal(["Save", "Print", "Undo", "Redo", "Pointer", "FillSign", "Comment"], shown);
+    }
 }

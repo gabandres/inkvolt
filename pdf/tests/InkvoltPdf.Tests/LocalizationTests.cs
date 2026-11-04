@@ -116,6 +116,44 @@ public partial class LocalizationTests
         }
     }
 
+    [Fact]
+    public void Core_IsEnglishUnlessTheAppOptsIn_WhateverTheThreadsLanguage()
+    {
+        // The command line never opts in, so a Spanish Windows doesn't change what scripts read.
+        var before = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = UiLanguage.Spanish;
+            Assert.Equal("1 setting changed since Settings opened", PdfStrings.Settings_SummaryOne);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = before;
+        }
+    }
+
+    [Fact]
+    public void Spanish_ComesFromTheSatelliteAssembly()
+    {
+        Assert.Equal("1 opción cambió desde que se abrió Configuración",
+            PdfStrings.ResourceManager.GetString(nameof(PdfStrings.Settings_SummaryOne), UiLanguage.Spanish));
+    }
+
+    /// <summary>
+    /// Spanish isn't English left as it was: at most a few strings read the same in both (product names, units, paper
+    /// sizes, punctuation-only formats).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ResourcePairs))]
+    public void Spanish_IsTranslated(string neutral)
+    {
+        var english = Read(neutral);
+        var spanish = Read(neutral.Replace(".resx", ".es.resx"));
+        var same = english.Where(e => e.Value == spanish[e.Key] && e.Value.Count(char.IsLetter) > 3
+                                      && !e.Value.Contains("Inkvolt", StringComparison.Ordinal)).Select(e => e.Key).ToList();
+        Assert.True(same.Count <= 25, $"{same.Count} strings left in English: {string.Join(", ", same)}");
+    }
+
     /// <summary>A value any format specifier accepts.</summary>
     private sealed class AnyValue : IFormattable
     {

@@ -36,7 +36,7 @@ wait 400
 shot C:\ux-es\pane-comments.png
 a11yaudit
 a11y
-wait 2500
+wait 4500
 shot C:\ux-es\a11y-check.png
 a11yaudit
 cmd CommandPalette
@@ -82,8 +82,9 @@ later 900 dialogshot C:\ux-es\sanitize.png
 later 1500 closedialog
 cmd Sanitize
 later 900 dialogshot C:\ux-es\whats-in.png
-later 1500 closedialog
+later 3800 closedialog
 cmd WhatsInThisPdf
+wait 4500
 batch C:\ux2\samples\plain.pdf
 wait 800
 batchshot C:\ux-es\batch.png

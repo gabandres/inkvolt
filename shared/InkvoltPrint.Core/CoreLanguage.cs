@@ -5,8 +5,8 @@ namespace InkvoltPrint.Core;
 
 /// <summary>
 /// The language of the text this library writes for an interface (<see cref="CoreStrings"/>): English unless an app opts in.
-/// The command lines (<c>inkvoltprint</c>, whose output scripts parse) and Inkvolt PDF share this library and never opt in,
-/// so they stay English whatever Windows' language; Inkvolt Print sets its own interface language here at start-up.
+/// The command lines (<c>inkvoltprint</c>, whose output scripts parse, and Inkvolt PDF's) never opt in, so they stay
+/// English whatever Windows' language; Inkvolt Print and Inkvolt PDF set their interface language here at start-up.
 /// </summary>
 public static class CoreLanguage
 {

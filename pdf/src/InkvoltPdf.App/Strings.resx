@@ -11223,6 +11223,70 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Folder</value>
     <comment>Column heading</comment>
   </data>
+  <data name="Start_ToolFillSignDetail" xml:space="preserve">
+    <value>Type on any form, add check marks and your signature</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolEditTextDetail" xml:space="preserve">
+    <value>Change the words and pictures already on a page</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolExportWordDetail" xml:space="preserve">
+    <value>Turn a PDF into an editable .docx</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolCombineDetail" xml:space="preserve">
+    <value>Merge several files into one PDF, in your order</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolCompareDetail" xml:space="preserve">
+    <value>See what changed between two versions</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolReduceSizeDetail" xml:space="preserve">
+    <value>Make a PDF small enough to e-mail or upload</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolProtectDetail" xml:space="preserve">
+    <value>Require a password to open, print or change it</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolOcrDetail" xml:space="preserve">
+    <value>Make a scan searchable and its text copyable</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolOrganizeDetail" xml:space="preserve">
+    <value>Reorder, rotate, delete, insert or extract pages</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolBatchDetail" xml:space="preserve">
+    <value>Run the same actions on many files at once</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolCreateDetail" xml:space="preserve">
+    <value>From Office files, a web page, images or the clipboard</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Start_ToolRedactDetail" xml:space="preserve">
+    <value>Black out private details for good</value>
+    <comment>Start page: the line under the tool card's name; keep it short (two lines at most)</comment>
+  </data>
+  <data name="Review_KindHighlight" xml:space="preserve">
+    <value>Highlight</value>
+    <comment>Comments pane: the kind of a comment</comment>
+  </data>
+  <data name="Review_KindUnderline" xml:space="preserve">
+    <value>Underline</value>
+    <comment>Comments pane: the kind of a comment</comment>
+  </data>
+  <data name="Review_KindLine" xml:space="preserve">
+    <value>Line</value>
+    <comment>Comments pane: the kind of a comment</comment>
+  </data>
+  <data name="Review_KindSound" xml:space="preserve">
+    <value>Sound</value>
+    <comment>Comments pane: the kind of a comment (a recorded sound)</comment>
+  </data>
   <data name="Batch_LongTermMenu" xml:space="preserve">
     <value>Add Long-Term Validation Data…</value>
     <comment>Batch › Add action menu</comment>

@@ -27,6 +27,11 @@ public sealed class CommentItem(AnnotationInfo info, string pageHeader, int dept
     {
         AnnotationKind.Stamp => string.IsNullOrWhiteSpace(info.Subject) ? Strings.Review_KindStamp : info.Subject,
         AnnotationKind.Text => Strings.Review_KindNote,
+        AnnotationKind.Highlight => Strings.Review_KindHighlight,
+        AnnotationKind.Underline => Strings.Review_KindUnderline,
+        AnnotationKind.Line => Strings.Review_KindLine,
+        AnnotationKind.Polygon => Strings.Review_KindPolygon,
+        AnnotationKind.Sound => Strings.Review_KindSound,
         AnnotationKind.FreeText => Strings.Review_KindTextBox,
         AnnotationKind.StrikeOut => Strings.Review_KindStrikeOut,
         AnnotationKind.Squiggly => Strings.Review_KindSquiggly,
