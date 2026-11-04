@@ -382,7 +382,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   type (not specks, rules, blocks or pictures, nor beside a word read on the same row), reads each again alone (at most
   12 places and 40 readings a page; what a place leaves unread is read word by word), and puts the words in reading
   order. Recognize Text and Redact by Pattern both read through it. The corpus's scans have no skipped line (numbers
-  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
+  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. A page whose lines don't say which way up it is
+  (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
+  more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
+  9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
   "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
   Batch, Scan or export (they get the cleaning, not the review). Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer.

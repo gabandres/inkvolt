@@ -60,8 +60,13 @@ One agent, cheapest first, one commit each, in this order:
    "1111" in no way, even alone, so 2 of that page's 6 skipped words stay lost; a dropped word inside a line that was read
    isn't read again (reading such ink gave fragments: "4 lY).70"); the cleaned path only (Clean off reads as before).
    The Mac (Vision) port should check whether Vision skips lines too before porting it (`MissedLines.cs`,
-   `MissedLinesTests`). Seen while measuring: the redaction corpus's page 3 (three lines of numbers, typeset) is read
-   upside down once cleaned ("OO 6830 9999 9999 9999"; as rendered it reads right): `Upright` on a page of digits.
+   `MissedLinesTests`). Done 2026-11-03, the redaction corpus's page 3 (three lines of numbers) read upside down
+   once cleaned ("OO 6830 9999 9999 9999"): digits have no ascenders, so `Upright` was unsure, and `ScanText`'s two
+   readings both had no real word, a tie that kept the turn. Now an unsure page is turned over only when that reading
+   has clearly more real words (`ScanText.ClearlyMore`: two, or a quarter more), else it stays as rendered
+   (`ScanTextTests.APageOfDigitsThatReadsBothWaysStaysAsItIs`); ocr-corpus's new `digit-lines` reads upright (27.3%
+   cleaned, 9.1% as rendered: cleaning costs typeset digits a little), every other file unchanged. The Mac's Vision
+   path wasn't checked for the same tie.
 2. PDF 3.4: ~~certifying with a choice of fields to lock~~ Done 2026-11-03 (`FieldLock` on `SignRequest`, the Sign dialog's
    "Lock form fields", `ProFeature.FieldLocking`; `FieldLockTests`, EU DSS B-LTA TOTAL_PASSED on a certified form with a
    field locked). Left: Batch's long-term action (not started: it needs the address window per batch, and a client per run).

@@ -347,7 +347,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Recognize Text (OCR)** (Review menu): scanned pages get an invisible text layer, so they can be searched, selected
   and copied; runs on the PC with Windows' own OCR, one undo step. The language is any OCR language installed in
   Windows. Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
-  turned upright, a 3 × 3 median against noise, grey or shaded paper evened out to white, lone specks removed; the words
+  turned upright (a page whose lines don't say which way up it is, such as one of numbers only, is turned over only when
+  it reads clearly better so), a 3 × 3 median against noise, grey or shaded paper evened out to white, lone specks removed; the words
   are then placed back on the page as it is, turned with it. **Replace the scans with the cleaned pages** (off by
   default) puts the cleaned image in the page instead (grey stays grey, colour stays colour) and turns the page upright;
   comments, links and form fields stay. **Suspect words** (Review › Review Suspect Words, the pane's rail button, or the

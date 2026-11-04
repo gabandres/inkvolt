@@ -85,10 +85,15 @@ public static class ScanText
         var found = recognizer.Recognize(gray.Pixels, gray.Width, gray.Height, 1, cancel);
         if (!cleaned.UprightSure)
         {
-            // The lines didn't say which way up: read it the other way too and keep the reading with more real words.
+            // The lines didn't say which way up: read it the other way too. The page is turned over only when the turned
+            // reading has clearly more real words; otherwise it stays as rendered, whatever the ink hinted. Digits read
+            // plausibly both ways (6 and 9, 0 and 8: the redaction corpus's page of numbers read "OO 6830 9999" turned),
+            // and count as words neither way, so a page of numbers isn't turned on a guess.
             var other = ScanCleanup.Turn(gray.Pixels, gray.Width, gray.Height, 1, 2);
             var otherFound = recognizer.Recognize(other, gray.Width, gray.Height, 1, cancel);
-            if (Plausible(otherFound, spelling) > Plausible(found, spelling))
+            var hinted = (cleaned.QuarterTurns & 2) != 0;
+            var (asRendered, turnedOver) = hinted ? (otherFound, found) : (found, otherFound);
+            if (ClearlyMore(Plausible(turnedOver, spelling), Plausible(asRendered, spelling)) != hinted)
             {
                 (found, turns) = (otherFound, (turns + 2) % 4);
                 gray = new GrayImage(gray.Width, gray.Height, other);
@@ -128,6 +133,9 @@ public static class ScanText
         }
         return words;
     }
+
+    /// <summary>Whether a reading with <paramref name="more"/> real words beats one with <paramref name="fewer"/> by a margin: two words, or a quarter more.</summary>
+    internal static bool ClearlyMore(int more, int fewer) => more >= fewer + Math.Max(2, (fewer + 3) / 4);
 
     /// <summary>How much of a reading looks like real words: dictionary words, or without a dictionary, words of three letters or more.</summary>
     private static int Plausible(IReadOnlyList<RecognizedWord> words, ISpelling? spelling) =>

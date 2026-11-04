@@ -239,14 +239,26 @@ public static class ScanCorpus
     public static readonly string[] SkippedLines =
         ["Public heading", "SSN 123-45-", "6789 and phone (555) 201", "3434, card 4111 1111", "1111 1111, born October", "27, 2026 for Quillfeather", "Holdings today."];
 
+    /// <summary>
+    /// A page of numbers: the redaction corpus's third page (pdf/tests RedactionCorpus), Helvetica 14 pt, typeset. Digits have
+    /// no ascenders or descenders, so the ink doesn't say which way up the page is, and turned over they read plausibly too
+    /// (Windows read it "OO 6830 9999 9999 9999" so): a page that must stay as it is.
+    /// </summary>
+    public static readonly string[] DigitLines = ["5555 5555 5555 4444", "DE89 3704 0044 0532 0130 00", "192.168.1.10"];
+
+    /// <summary><see cref="DigitLines"/> as a one-page PDF.</summary>
+    public static byte[] DigitLinesPdf() => LinesPdf(DigitLines);
+
     /// <summary><see cref="SkippedLines"/> as a one-page PDF.</summary>
-    public static byte[] SkippedLinesPdf()
+    public static byte[] SkippedLinesPdf() => LinesPdf(SkippedLines);
+
+    private static byte[] LinesPdf(string[] lines)
     {
         using var ms = new MemoryStream();
         var w = new PdfFileWriter(ms);
         var parent = w.Reserve();
         var ops = new StringBuilder();
-        for (var l = 0; l < SkippedLines.Length; l++) ops.Append(CultureInfo.InvariantCulture, $"BT /F1 14 Tf 72 {700 - 24 * l} Td {Str(SkippedLines[l])} Tj ET\n");
+        for (var l = 0; l < lines.Length; l++) ops.Append(CultureInfo.InvariantCulture, $"BT /F1 14 Tf 72 {700 - 24 * l} Td {Str(lines[l])} Tj ET\n");
         var content = w.AddStream("", Encoding.Latin1.GetBytes(ops.ToString()));
         var page = w.Add($"<< /Type /Page /Parent {parent} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> /Contents {content} 0 R >>");
         w.Put(parent, $"<< /Type /Pages /Kids [{page} 0 R] /Count 1 >>");

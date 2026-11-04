@@ -88,6 +88,49 @@ public class ScanTextTests
         Assert.InRange(word.Rect.Height, 10, 22); // 16 pt Helvetica-Bold
     }
 
+    /// <summary>Reads every line of ink as one group of digits, whichever way up it is handed: digits read plausibly both ways.</summary>
+    private sealed class DigitReader : ITextRecognizer
+    {
+        public string Language => "en-US";
+        public string LanguageName => "English";
+
+        public IReadOnlyList<RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default)
+        {
+            var gray = channels == 1 ? pixels : ScanCleanup.ToGray(pixels, width, height);
+            var words = new List<RecognizedWord>();
+            for (var y = 0; y < height; y++)
+            {
+                if (!Enumerable.Range(0, width).Any(x => gray[y * width + x] < 128)) continue;
+                var top = y;
+                while (y + 1 < height && Enumerable.Range(0, width).Any(x => gray[(y + 1) * width + x] < 128)) y++;
+                words.Add(new RecognizedWord("5555", 0, top, width, y - top + 1, words.Count));
+            }
+            return words;
+        }
+    }
+
+    [Fact]
+    public void APageOfDigitsThatReadsBothWaysStaysAsItIs()
+    {
+        // The redaction corpus's third page: three typeset lines of numbers. Digits have no ascenders or descenders, so the
+        // ink doesn't say which way up the page is, and a reading turned over is as plausible as the right one ("OO 6830
+        // 9999 9999 9999" was Windows' reading of it turned): with nothing clearly better, the page stays as it is.
+        using var pdf = PdfEngine.Open(RedactionCorpus.Make(out _), InputFileTypes.PDF, null);
+        var page = ScanText.Recognize(pdf, 2, new DigitReader(), OneLine);
+        Assert.Equal(0, page.QuarterTurns);
+        Assert.NotEmpty(page.Words);
+    }
+
+    [Theory]
+    [InlineData(0, 0, false)] // nothing either way: as it is
+    [InlineData(1, 0, false)] // one stray "word" in a reading of digits
+    [InlineData(2, 0, true)]
+    [InlineData(40, 34, false)]
+    [InlineData(40, 30, true)]
+    [InlineData(40, 2, true)] // a page of prose against its reading upside down
+    public void ATurnNeedsAClearlyBetterReading(int turned, int asItIs, bool turn) =>
+        Assert.Equal(turn, ScanText.ClearlyMore(turned, asItIs));
+
     [Fact]
     public void ThePageAsScannedIsReadAsToday()
     {

@@ -16,8 +16,11 @@ var dir = Option("--out", Path.Combine(Environment.GetFolderPath(Environment.Spe
 var note = Option("--note", "");
 var toolDir = FindToolDir();
 var resultsJson = Path.Combine(dir, "results.json");
-// The page Windows skips lines on, in results.json and RESULTS.md (typeset, not a scan: left out of "lower than today's").
+// Typeset pages, in results.json and RESULTS.md (not scans: left out of "lower than today's"): the page Windows skips lines
+// on, and a page of numbers that reads the same turned over.
 const string SkippedName = "skipped-lines";
+const string DigitsName = "digit-lines";
+string[] typesetNames = [SkippedName, DigitsName];
 
 switch (command)
 {
@@ -27,11 +30,12 @@ switch (command)
     case "run":
         Make();
         var results = Run();
-        results.Add(Skipped());
+        results.Add(Typeset(SkippedName, "Helvetica 14 pt, typeset, no damage: two lines Windows' recognizer skips", ScanCorpus.SkippedLinesPdf(), ScanCorpus.SkippedLines));
+        results.Add(Typeset(DigitsName, "Helvetica 14 pt, typeset, no damage: three lines of numbers, which read plausibly turned over", ScanCorpus.DigitLinesPdf(), ScanCorpus.DigitLines));
         File.WriteAllText(resultsJson, JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
         Report(results);
         // The roadmap's test: lower than today's on every file; and re-reading missed lines makes no file worse.
-        return results.All(r => (r.After < r.Today || r.Name == SkippedName) && r.After <= r.Unread) ? 0 : 1;
+        return results.All(r => (r.After < r.Today || typesetNames.Contains(r.Name)) && r.After <= r.Unread) ? 0 : 1;
     case "report":
         Report(JsonSerializer.Deserialize<List<FileResult>>(File.ReadAllText(resultsJson))!);
         break;
@@ -183,11 +187,10 @@ List<FileResult> Run()
     return results;
 }
 
-// The page Windows skips two lines of (ScanCorpus.SkippedLines): as rendered, cleaned, and with the lines read again.
-FileResult Skipped()
+// A typeset page (ScanCorpus.SkippedLines, ScanCorpus.DigitLines): as rendered, cleaned, and with the lines read again.
+FileResult Typeset(string name, string what, byte[] pdf, string[] lines)
 {
-    var pdf = ScanCorpus.SkippedLinesPdf();
-    var expected = ScanCorpus.SkippedLines.SelectMany(l => l.Split(' ')).ToList();
+    var expected = lines.SelectMany(l => l.Split(' ')).ToList();
     var en = WindowsRecognizer.Create("en-US") ?? WindowsRecognizer.Create() ?? throw new InvalidOperationException("No OCR language is installed.");
     using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
     (double Wer, double Ms) Measure(RecognizeOptions options)
@@ -197,8 +200,8 @@ FileResult Skipped()
         return (WordErrorRate.Of(expected, words), sw.Elapsed.TotalMilliseconds);
     }
     var (today, unread, after) = (Measure(RecognizeOptions.AsScanned), Measure(new RecognizeOptions(CheckWords: false, RereadMissed: false)), Measure(new RecognizeOptions(CheckWords: false)));
-    Console.WriteLine($"{SkippedName}: {expected.Count} words; today {today.Wer:P1}, cleaned {unread.Wer:P1}, missed lines re-read {after.Wer:P1}; {today.Ms:0} → {unread.Ms:0} → {after.Ms:0} ms");
-    return new FileResult(SkippedName, "Helvetica 14 pt, typeset, no damage: two lines Windows' recognizer skips", ScanCorpus.Sha256(pdf), expected.Count,
+    Console.WriteLine($"{name}: {expected.Count} words; today {today.Wer:P1}, cleaned {unread.Wer:P1}, missed lines re-read {after.Wer:P1}; {today.Ms:0} → {unread.Ms:0} → {after.Ms:0} ms");
+    return new FileResult(name, what, ScanCorpus.Sha256(pdf), expected.Count,
         en.Language, today.Wer, en.Language, today.Wer, after.Wer, today.Ms, after.Ms, unread.Wer, unread.Ms);
 }
 
@@ -217,7 +220,7 @@ void Report(List<FileResult> results)
         sb.AppendLine($"| `{r.Name}` | {r.Words} | {r.Today:P1} ({r.TodayLanguage}) | {r.TodayOwnLanguage:P1} ({r.OwnLanguage}) | {r.Unread:P1} | **{r.After:P1}** | " +
                       $"{r.TodayMs:0} → {r.UnreadMs:0} → {r.AfterMs:0} |");
     sb.AppendLine();
-    sb.AppendLine($"Lower than today's on every file: **{(results.Where(r => r.Name != SkippedName).All(r => r.After < r.Today) ? "yes" : "no")}**. " +
+    sb.AppendLine($"Lower than today's on every file: **{(results.Where(r => !typesetNames.Contains(r.Name)).All(r => r.After < r.Today) ? "yes" : "no")}**. " +
                   $"Re-reading missed lines no worse on every file: **{(results.All(r => r.After <= r.Unread) ? "yes" : "no")}**.");
     sb.AppendLine();
     sb.AppendLine("| File | What | SHA-256 |");

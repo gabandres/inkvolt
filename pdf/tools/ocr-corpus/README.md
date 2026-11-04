@@ -53,9 +53,9 @@ them), in the order recognized. Three readings per file, all with Windows' recog
   specks removed).
 - **Stage A**: cleaned, and the lines the recognizer skipped read again on their own (`MissedLines`).
 
-`skipped-lines` isn't a scan: a typeset page (the redaction corpus's first, Helvetica 14 pt, `ScanCorpus.SkippedLines`)
+`skipped-lines` and `digit-lines` (the redaction corpus's third page, three lines of numbers that read plausibly turned over: `ScanCorpus.DigitLines`) aren't scans. `skipped-lines` is a typeset page (the redaction corpus's first, Helvetica 14 pt, `ScanCorpus.SkippedLines`)
 on which Windows' recognizer skips two whole lines, cleaned or not, measured the same three ways; "lower than today's"
-leaves it out. `probe` makes more pages like the corpus's (other seeds, sizes a point up and down) and prints, per page,
+leaves them out. `probe` makes more pages like the corpus's (other seeds, sizes a point up and down) and prints, per page,
 the error rate cleaned and re-read, the longest run of true words left out (a skipped line shows as a run as long as a
 line: `WordErrorRate.LongestMissedRun`) and the words re-reading added; it exits 1 when re-reading makes a page worse.
 
