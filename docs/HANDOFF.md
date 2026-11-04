@@ -58,6 +58,7 @@ master; a hook blocks force-deleting them): the owner deletes them by hand.
 ### Done on 2026-11-04
 
 - **Inkvolt Print for Mac 1.0 approved** and live (https://apps.apple.com/app/id6827219248): repo docs, tag `print-mac-v1.0.0`, the website.
+  1.1 (build 5) submitted for review (`asc-listing.mjs apply 5`, `submit`).
   The daily awesome-list/Apple/Store watch deleted (owner).
 - **Worktrees:** all 46 removed (the owner agreed), with their merged branches.
 - **Windows (Inkvolt PDF):** `6bb2a25` LtvClient's last English sentence into the resource files (the rest had moved with
@@ -89,8 +90,9 @@ master; a hook blocks force-deleting them): the owner deletes them by hand.
 ### Inkvolt Print, Windows and Mac: ON HOLD (owner, 2026-11-02)
 
 Not next work; listed so nothing is lost. Print for Mac 1.0 is in the Mac App Store (approved 2026-11-04, https://apps.apple.com/app/id6827219248, tag
-`print-mac-v1.0.0` on `f07a322`, build 4). 1.1 (master's MARKETING_VERSION, build 5) is uploaded and not submitted:
-the owner decides (`asc-listing.mjs apply 5`, then `submit`).
+`print-mac-v1.0.0` on `f07a322`, build 4). 1.1 (build 5, from 2026-10-27: the Windows 1.0 feature table)
+submitted 2026-11-04 (owner), Waiting for Review; 3.5 Open in Inkvolt PDF came after build 5, so it ships in the next build.
+The hold is lifted for the Pro key's Mac half (owner, 2026-11-04); then the owner and an agent plan the rest of P12.
 - Mac, the app halves of what PrintCore already has (PLAN.md's P12): 1.6 Pro key (CryptoKit verifier, the app group
   container, Help › Inkvolt Pro…), 1.3 scanners that only give PDF (PDFKit renderer), 1.5 firmware watch, 1.1 supply
   history (Swift Charts), 2.6 Fleet page, 2.4 batch print, 1.2 record a printer (`--report` runner). Not started on the

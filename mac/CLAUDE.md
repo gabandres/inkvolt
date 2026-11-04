@@ -1,7 +1,7 @@
 # Inkvolt for macOS
 
 Native Swift versions of Inkvolt Print (Mac App Store, app ID 6827219248; 1.0 released 2026-11-04;
-1.1 is build 5, uploaded, not submitted; further work on hold, owner 2026-11-02) and
+1.1 (build 5) submitted 2026-11-04, Waiting for Review; further work on hold, owner 2026-11-02) and
 Inkvolt PDF (notarized DMG, released; 1.6.1). Decisions, scope,
 layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
