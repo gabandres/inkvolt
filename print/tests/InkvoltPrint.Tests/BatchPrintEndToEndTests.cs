@@ -18,7 +18,8 @@ public class BatchPrintEndToEndTests
         var output = new DirectoryInfo(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar));
         var config = output.Parent!.Name;
         var print = output.Parent!.Parent!.Parent!.Parent!.Parent!.FullName;
-        return Directory.GetFiles(Path.Combine(print, "src", "InkvoltPrint.App", "bin", config), "InkvoltPrint.exe", SearchOption.AllDirectories).Single();
+        // The build in the framework's folder itself: pack-msix.ps1 leaves win-x64 and win-arm64 copies under it.
+        return Directory.GetDirectories(Path.Combine(print, "src", "InkvoltPrint.App", "bin", config)).Select(d => Path.Combine(d, "InkvoltPrint.exe")).Where(File.Exists).Single();
     }
 
     private static async Task<(int Code, string Out, string Err)> Run(string? password, params string[] args)

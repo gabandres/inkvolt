@@ -6674,6 +6674,10 @@
     <value>{0} didn't answer earlier, so it wasn't asked again.</value>
     <comment>Long-term data: a server that timed out or couldn't be reached earlier in the run; {0} its name</comment>
   </data>
+  <data name="Ltv_NotContacted" xml:space="preserve">
+    <value>{0} wasn't contacted: {1}.</value>
+    <comment>Long-term data: an address refused before any request; {0} the address, {1} why (a reason such as "it isn't a web address")</comment>
+  </data>
   <data name="Ltv_AnsweredEarlier" xml:space="preserve">
     <value>answered earlier ({0:N0} bytes)</value>
     <comment>What a contacted address did: its answer was already had in this run</comment>

@@ -65,7 +65,7 @@ internal sealed class LtvTestPki : IDisposable
         _listener = new TcpListener(IPAddress.Loopback, 0);
         _listener.Start();
         BaseUrl = $"http://127.0.0.1:{((IPEndPoint)_listener.LocalEndpoint).Port}";
-        _ = AcceptLoop();
+        new Thread(AcceptLoop) { IsBackground = true, Name = "LtvTestPki accept" }.Start();
 
         Root = Issue("CN=Test Root CA,O=Inkvolt Tests,C=PR", null, ca: true, urls: false);
         Intermediate = Issue("CN=Test Intermediate CA,O=Inkvolt Tests,C=PR", Root, ca: true);
@@ -262,34 +262,38 @@ internal sealed class LtvTestPki : IDisposable
         return [.. Encoding.ASCII.GetBytes(head.ToString()), .. body];
     }
 
-    private async Task AcceptLoop()
+    /// <summary>
+    /// The server runs on threads of its own, not the thread pool: while other tests fill the pool (Parallel.For), a
+    /// pool-based server's answers came after the client's deadline ("didn't answer in time"), on CI and on a loaded PC.
+    /// </summary>
+    private void AcceptLoop()
     {
         try
         {
             while (!_stop.IsCancellationRequested)
             {
-                var client = await _listener.AcceptTcpClientAsync(_stop.Token);
-                _ = Serve(client);
+                var client = _listener.AcceptTcpClient();
+                new Thread(() => Serve(client)) { IsBackground = true, Name = "LtvTestPki connection" }.Start();
             }
         }
-        catch (Exception ex) when (ex is OperationCanceledException or SocketException or ObjectDisposedException)
+        catch (Exception ex) when (ex is OperationCanceledException or SocketException or ObjectDisposedException or InvalidOperationException)
         {
             // Stopped.
         }
     }
 
-    private async Task Serve(TcpClient client)
+    private void Serve(TcpClient client)
     {
         using (client)
         {
             try
             {
                 var stream = client.GetStream();
-                var (path, body) = await ReadRequest(stream);
+                var (path, body) = ReadRequest(stream);
                 lock (_hits) _hits.Add(path);
-                var reply = await Answer(path, body);
-                await stream.WriteAsync(reply);
-                await stream.FlushAsync();
+                var reply = Answer(path, body).GetAwaiter().GetResult();
+                stream.Write(reply);
+                stream.Flush();
             }
             catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or AsnContentException or InvalidOperationException or KeyNotFoundException)
             {
@@ -298,14 +302,14 @@ internal sealed class LtvTestPki : IDisposable
         }
     }
 
-    private static async Task<(string Path, byte[] Body)> ReadRequest(NetworkStream stream)
+    private static (string Path, byte[] Body) ReadRequest(NetworkStream stream)
     {
         var buffer = new List<byte>();
         var chunk = new byte[4096];
         int headerEnd;
         while ((headerEnd = IndexOfHeaderEnd(buffer)) < 0)
         {
-            var n = await stream.ReadAsync(chunk);
+            var n = stream.Read(chunk);
             if (n == 0) throw new IOException("Closed early");
             buffer.AddRange(chunk.AsSpan(0, n));
         }
@@ -317,7 +321,7 @@ internal sealed class LtvTestPki : IDisposable
         var total = headerEnd + 4 + length;
         while (buffer.Count < total)
         {
-            var n = await stream.ReadAsync(chunk);
+            var n = stream.Read(chunk);
             if (n == 0) break;
             buffer.AddRange(chunk.AsSpan(0, n));
         }

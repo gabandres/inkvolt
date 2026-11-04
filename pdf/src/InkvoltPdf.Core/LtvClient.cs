@@ -75,7 +75,8 @@ public sealed class LtvClient : IDisposable
     }
 
     /// <param name="allowLoopback">Tests and the dev script only: lets this PC's own loopback through (still no other local address).</param>
-    /// <param name="timeout">How long one request may take.</param>
+    /// <param name="timeout">How long one request may take; when given, also how long connecting may (8 s otherwise), so a
+    /// test's longer limit isn't cut short by the connection's.</param>
     /// <param name="resolve">Tests only: stands in for DNS.</param>
     /// <param name="allowHttpTimestamp">Tests and the dev script only: a local timestamp server without a certificate.</param>
     internal LtvClient(bool allowLoopback, TimeSpan? timeout = null, Func<string, CancellationToken, Task<IPAddress[]>>? resolve = null, bool allowHttpTimestamp = false)
@@ -91,7 +92,7 @@ public sealed class LtvClient : IDisposable
             UseProxy = false,
             Credentials = null,
             AutomaticDecompression = DecompressionMethods.None,
-            ConnectTimeout = TimeSpan.FromSeconds(8),
+            ConnectTimeout = timeout ?? TimeSpan.FromSeconds(8),
             MaxResponseHeadersLength = 32,
             ConnectCallback = async (context, cancel) =>
             {
@@ -201,7 +202,7 @@ public sealed class LtvClient : IDisposable
         {
             for (var hop = 0; ; hop++)
             {
-                if (Refused(url, kind) is { } why) throw new LtvFetchException($"{url} wasn't contacted: {why}.");
+                if (Refused(url, kind) is { } why) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_NotContacted, url, why));
                 if (_silent.Contains(Server(url))) throw new LtvFetchException(Loc.Format(PdfStrings.Ltv_NotAskedAgain, Host(url)));
                 if (++_requests > MaxRequests) throw new LtvFetchException(PdfStrings.Ltv_TooManyRequests);
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancel);

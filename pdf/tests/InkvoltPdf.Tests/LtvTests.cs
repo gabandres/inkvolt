@@ -351,7 +351,8 @@ public class LtvTests
         var signed = SignBb(pki);
         var copy = signed.ToArray();
         pki.Dispose(); // the "internet" is gone
-        // Windows retries a refused connection for about 2 s; on CI that overran a 3 s deadline ("didn't answer in time").
+        // Windows retries a refused connection for about 2 s; on CI that overran a 3 s deadline, then the client's own 8 s
+        // connect limit ("didn't answer in time"). The limit given here covers connecting too.
         using var client = pki.Client(Timing.Limit(TimeSpan.FromSeconds(10)));
         var ex = await Assert.ThrowsAsync<SigningException>(() => Ltv.AddVerificationAsync(signed, null, client));
         Assert.Contains("Nothing was changed", ex.Message);
