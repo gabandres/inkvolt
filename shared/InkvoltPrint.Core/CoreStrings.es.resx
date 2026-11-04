@@ -3118,4 +3118,22 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Supply_WasteWax" xml:space="preserve">
     <value>cera residual</value>
   </data>
+  <data name="Monitor_Connecting" xml:space="preserve">
+    <value>Conectando…</value>
+  </data>
+  <data name="Monitor_CantReach" xml:space="preserve">
+    <value>No se puede conectar con la impresora</value>
+  </data>
+  <data name="Monitor_CantReachDetail" xml:space="preserve">
+    <value>Comprueba que esté encendida y conectada a la misma red que este PC. Inkvolt Print sigue intentándolo en segundo plano.</value>
+  </data>
+  <data name="Monitor_CantReachDetailHost" xml:space="preserve">
+    <value>Comprueba que esté encendida y conectada a la misma red que este PC ({0}). Inkvolt Print sigue intentándolo en segundo plano.</value>
+  </data>
+  <data name="Monitor_ElsewhereTitle" xml:space="preserve">
+    <value>Otro dispositivo responde en esta dirección</value>
+  </data>
+  <data name="Monitor_ElsewhereDetail" xml:space="preserve">
+    <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Esta es mi impresora.</value>
+  </data>
 </root>

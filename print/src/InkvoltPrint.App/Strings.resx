@@ -2314,10 +2314,6 @@ Details were saved to {1}</value>
     <value>Ink</value>
     <comment>supplies card title</comment>
   </data>
-  <data name="Printer_Connecting" xml:space="preserve">
-    <value>Connecting…</value>
-    <comment>printer status</comment>
-  </data>
   <data name="Printer_StaleSuffix" xml:space="preserve">
     <value>  ·  last known</value>
     <comment>after a card title when the printer is offline; keep the leading spaces and dot</comment>
@@ -2335,14 +2331,6 @@ Details were saved to {1}</value>
   </data>
   <data name="Printer_ElsewhereBlocked" xml:space="preserve">
     <value>Another device now answers at this printer's address, so Inkvolt Print doesn't scan or copy with it.</value>
-  </data>
-  <data name="Printer_ElsewhereTitle" xml:space="preserve">
-    <value>A different device answers at this address</value>
-    <comment>printer status</comment>
-  </data>
-  <data name="Printer_ElsewhereDetail" xml:space="preserve">
-    <value>Another device now has {0}, so its status isn't shown here. The printer probably got a new address: Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset and this really is it, choose This is my printer.</value>
-    <comment>{0} = address; 'Fix it…' and 'This is my printer' are buttons</comment>
   </data>
   <data name="Printer_AcceptDeviceQuestion" xml:space="preserve">
     <value>Use the device that now answers at {0} as {1}?
@@ -2402,17 +2390,6 @@ Only do this if it really is this printer, for example after a repair, a reset o
   <data name="Printer_WebPage" xml:space="preserve">
     <value>Printer web page</value>
     <comment>button</comment>
-  </data>
-  <data name="Printer_CantReach" xml:space="preserve">
-    <value>Can't reach the printer</value>
-    <comment>printer status</comment>
-  </data>
-  <data name="Printer_CantReachDetail" xml:space="preserve">
-    <value>Make sure it's turned on and connected to the same network as this PC. Inkvolt Print keeps trying in the background.</value>
-  </data>
-  <data name="Printer_CantReachDetailHost" xml:space="preserve">
-    <value>Make sure it's turned on and connected to the same network as this PC ({0}). Inkvolt Print keeps trying in the background.</value>
-    <comment>{0} = printer address</comment>
   </data>
   <data name="Printer_SetupInSettings" xml:space="preserve">
     <value>In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. Pick “IPP Device” and paste {0} (it’s on the clipboard). Inkvolt Print notices the printer when it’s added.</value>
