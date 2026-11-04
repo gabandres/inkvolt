@@ -24,7 +24,8 @@ public sealed class FormDialog : Window
     {
         Owner = owner;
         Title = title;
-        Width = width;
+        // Laid out for English: Spanish runs about a fifth longer (AppLanguage.TextWidth).
+        Width = width * AppLanguage.TextWidth;
         SizeToContent = SizeToContent.Height;
         // A long form on a small screen scrolls; its buttons stay on screen.
         MaxHeight = SystemParameters.WorkArea.Height;
@@ -101,7 +102,13 @@ public sealed class FormDialog : Window
         return box;
     }
 
-    public CheckBox AddCheck(string text, bool value = false) => Add(null, new CheckBox { Content = text, IsChecked = value });
+    /// <summary>A check box whose words wrap when they are longer than the dialog is wide (they are named for a screen reader).</summary>
+    public CheckBox AddCheck(string text, bool value = false)
+    {
+        var box = new CheckBox { Content = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap }, IsChecked = value };
+        System.Windows.Automation.AutomationProperties.SetName(box, text);
+        return Add(null, box);
+    }
 
     public ComboBox AddChoice(string label, IEnumerable<string> items, int selected = 0)
     {
@@ -159,7 +166,7 @@ public sealed class PageRangePicker : StackPanel
     private readonly RadioButton _selected;
     private readonly RadioButton _range = new() { Content = Strings.Dialog_PagesColon, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _rangeText = new() { Width = 200, Margin = new Thickness(8, 0, 0, 0) };
-    private readonly ComboBox _subset = new() { ItemsSource = new[] { Strings.Dialog_AllInRange, Strings.Dialog_EvenOnly, Strings.Dialog_OddOnly }, SelectedIndex = 0, Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly ComboBox _subset = new() { ItemsSource = new[] { Strings.Dialog_AllInRange, Strings.Dialog_EvenOnly, Strings.Dialog_OddOnly }, SelectedIndex = 0, MinWidth = 200, HorizontalAlignment = HorizontalAlignment.Left }; // as wide as its longest choice (Spanish's)
     private readonly int _pageCount;
     private readonly int _currentPage;
     private readonly int[] _selection;

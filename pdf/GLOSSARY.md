@@ -17,6 +17,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index
   current: lists the folder (**a look**), has workers read what is new or changed, commits, waits for a change notice or the next look.
+- **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
+  are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
+  unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,

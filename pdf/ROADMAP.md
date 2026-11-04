@@ -601,7 +601,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   or an answer to the text in place of its translation, can't be told from a translation. A screen
   reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat and pdf.js on a copy. Long runs over
   sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
-  real sleep). English UI only: the app has no Spanish strings.
+  real sleep). The interface is in English or Spanish (3.7).
 - **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by
   paragraph, with the usual window showing what is sent; a translated copy keeps each paragraph in its box (2.1's
   reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no
@@ -777,6 +777,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30);
   the drawing set's scroll and first Find remain over target; Mac: the benchmark and Find on threads done (E16,
   2026-11-02), the same two over target.
+
+### 3.7 Spanish interface
+
+- **Built (Windows, 2026-11-03):** every string the app shows, and what Core shows (the accessibility check, the
+  redaction check, What's in This PDF, Batch), moved to resources (`Strings`, 3,294 strings; `PdfStrings`, 1,878) and
+  translated as Inkvolt Print's (`print/docs/SPANISH-REVIEW.md`), the language following Windows or Settings ›
+  Language; the shared library's scanner and printer text through `CoreLanguage`. 0 UIA findings on the Spanish window,
+  panes and dialogs, light and at Text size 150 %; the shots in `docs/ux-review/spanish-pdf/`. The command line stays
+  English. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in
+  `LocalizationTests`), every dialog by eye (about 30 of them were).
+- **Next:** the owner reviews the wording (`pdf/docs/SPANISH-REVIEW.md`); the Store listing loses "La aplicación está en
+  inglés." and "What's in This PDF" becomes "Qué hay en este PDF" when it ships; What's New in Spanish; the Mac app's.
 
 ## Where we already win
 

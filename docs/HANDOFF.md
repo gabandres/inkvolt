@@ -70,7 +70,7 @@ One agent, cheapest first, one commit each, in this order:
    field locked). Done 2026-11-03, Batch's long-term action (`AddLongTermStep`; window, presets, `--online`; one
    `LtvClient` per run that reuses answers and doesn't ask a silent server again; `BatchLongTermTests`, EU DSS B-LTA
    TOTAL_PASSED on a batch's second file). Left: the app's watched folders can't go online (no window to show), so their
-   long-term files fail saying so; the window's English sentences from `LtvDialogs`' shared parts aren't in Strings yet.
+   long-term files fail saying so.
 3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
 4. PDF 2.2 leftovers (suspect words for Batch, Scan and export), 2.1 (turned text, mixed families), 2.4 (form XObjects
@@ -186,8 +186,9 @@ and a person to allow the Automation prompt; do it on the mini.
 
 **Released and current.** Inkvolt Print 1.3.0.0 published in the Store 2026-11-03 (Spanish interface, the Print button on small screens and Windows 10, Plugged in needs its driver, USB supply levels, SNMP community and SNMPv3). Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
 1.6.1 (GitHub release `pdf-mac-v1.6.1`, 2026-11-03, Homebrew, website). The Store's release notes are in English and Spanish; Inkvolt Print for
-Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). **Open: Inkvolt PDF's Spanish interface**, its own project, not started (`UiLanguage` in
-`shared/` is ready for it, `CoreLanguage.Use` opts it into the shared library's Spanish), the same for the Mac apps, and What's New in Spanish.
+Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). Inkvolt PDF for Windows has a Spanish interface on master, not released yet (`pdf/ROADMAP.md` 3.7; the owner reviews the
+wording: `pdf/docs/SPANISH-REVIEW.md`; when it ships, the Store listing's "La aplicación está en inglés." goes, in Partner
+Center). Open: the Mac apps' Spanish, and What's New in Spanish.
 
 **Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
 

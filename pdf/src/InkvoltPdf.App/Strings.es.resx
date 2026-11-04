@@ -308,7 +308,7 @@
     <value>Agregar _imagen…</value>
   </data>
   <data name="Cmd_AddImageFromClipboard" xml:space="preserve">
-    <value>Agregar imagen desde el _Portapapeles</value>
+    <value>Agregar imagen desde el _portapapeles</value>
   </data>
   <data name="Cmd_ToolLink" xml:space="preserve">
     <value>_Vínculos (agregar o editar)</value>
@@ -419,7 +419,7 @@
     <value>_Novedades</value>
   </data>
   <data name="Cmd_ReportProblem" xml:space="preserve">
-    <value>_Notificar un problema…</value>
+    <value>_Informar un problema…</value>
   </data>
   <data name="Cmd_CheckForUpdates" xml:space="preserve">
     <value>Buscar _actualizaciones…</value>
@@ -596,7 +596,7 @@
     <value>_Llamada</value>
   </data>
   <data name="Cmd_RecognizeText" xml:space="preserve">
-    <value>Reconocimiento de te_xto (OCR)…</value>
+    <value>Reconocer te_xto (OCR)…</value>
   </data>
   <data name="Cmd_ReviewSuspectWords" xml:space="preserve">
     <value>Revisar palabras _dudosas</value>
@@ -635,7 +635,7 @@
     <value>Nuevo desde _imágenes…</value>
   </data>
   <data name="Cmd_NewFromClipboard" xml:space="preserve">
-    <value>Nuevo desde el _Portapapeles</value>
+    <value>Nuevo desde el _portapapeles</value>
   </data>
   <data name="Cmd_ProtectPassword" xml:space="preserve">
     <value>Proteger con _contraseña…</value>
@@ -926,7 +926,7 @@
     <value>Desde _imágenes…</value>
   </data>
   <data name="Start_CreateFromClipboard" xml:space="preserve">
-    <value>Desde el _Portapapeles</value>
+    <value>Desde el _portapapeles</value>
   </data>
   <data name="Start_CreateFromScanner" xml:space="preserve">
     <value>Desde un _escáner…</value>
@@ -4385,7 +4385,7 @@ Modificado {1:g}</value>
     <comment>Page context menu; {0} is where the link leads, shortened</comment>
   </data>
   <data name="Insert_NoClipboardImage" xml:space="preserve">
-    <value>No hay ninguna imagen en el Portapapeles. Primero copia una imagen (por ejemplo, una captura de pantalla).</value>
+    <value>No hay ninguna imagen en el portapapeles. Primero copia una imagen (por ejemplo, una captura de pantalla).</value>
   </data>
   <data name="Insert_AddImageTitle" xml:space="preserve">
     <value>Agregar imagen</value>
@@ -8362,7 +8362,7 @@ Antes de enviar nada, ves exactamente qué va adónde. Las respuestas las genera
     <value>Copiado</value>
   </data>
   <data name="Ai_ClipboardBusy" xml:space="preserve">
-    <value>No se pudo copiar: el Portapapeles está ocupado</value>
+    <value>No se pudo copiar: el portapapeles está ocupado</value>
   </data>
   <data name="Ai_Thinking" xml:space="preserve">
     <value>Pensando…</value>
@@ -8721,10 +8721,10 @@ Antes de enviar nada, ves exactamente qué va adónde. Las respuestas las genera
     <value>No se pudo crear un PDF a partir de las imágenes</value>
   </data>
   <data name="File_MadeFromClipboard" xml:space="preserve">
-    <value>PDF nuevo creado a partir de la imagen del Portapapeles. Guárdalo para conservarlo.</value>
+    <value>PDF nuevo creado a partir de la imagen del portapapeles. Guárdalo para conservarlo.</value>
   </data>
   <data name="File_CouldntReadClipboard" xml:space="preserve">
-    <value>No se pudo leer el Portapapeles</value>
+    <value>No se pudo leer el portapapeles</value>
   </data>
   <data name="File_NothingToMake" xml:space="preserve">
     <value>No hay nada con qué crear un PDF</value>

@@ -39,6 +39,13 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 ## Using it
 
 - **Windows 11 look**: Mica, document tabs in the title bar (Snap Layouts kept), light/dark/system theme (Ctrl+,).
+- **Language**: English and Spanish. Windows' display language (any `es-*` is Spanish, the rest English), or Settings ›
+  Language (Same as Windows, English, Español; applies at the next start). Plain, neutral Spanish for every market, as the
+  Store listing. The text is in `src/InkvoltPdf.App/Strings.resx` and `Strings.es.resx` (the app) and
+  `src/InkvoltPdf.Core/PdfStrings.resx` and `PdfStrings.es.resx` (what Core shows: the accessibility check, the redaction
+  check, Batch's steps); a sentence is one format string (`Loc.Format`), a count two (`Loc.Plural`). The command palette
+  also finds a command by its English name. Stay English: the command line's output (scripts read it), logs, dev scripts,
+  file formats and columns, What's New. Wording to review: `docs/SPANISH-REVIEW.md`.
 - **Command bar** (Fluent 2's pattern, one row): save, print, undo and redo as icons, then labeled groups in the order of
   the menus: **Hand / Select / Snapshot** (named after the tool in use), **Fill & Sign** (add text, check mark, cross,
   sign), **Comment** (highlight, underline, strike out, note, image, link, stamp), **Draw**, **Redact** and **Organize**.
@@ -713,7 +720,8 @@ COM and TWAIN through TWAINDSM.dll). They build with the repository's `Directory
 and add no packages. Their tests are Inkvolt Print's (`../print/tests/InkvoltPrint.Tests`).
 
 Dev check without touching the screen: `InkvoltPdf.exe file.pdf --script steps.txt` runs UI steps off-screen and
-writes snapshots (see `DevScript.cs`). Set `INKVOLTPDF_DATA` to a temp folder so the run saves settings there instead of
+writes snapshots (see `DevScript.cs`); `--lang es` (or `en`) runs it in that language, over Settings and Windows'
+(`docs/ux-review/pdf-spanish.txt` renders the Spanish shots in `docs/ux-review/spanish-pdf/`). Set `INKVOLTPDF_DATA` to a temp folder so the run saves settings there instead of
 leaving your own settings untouched and unsaved. `textscale 1.5|system` runs as if Windows' Text size were set to that (`TextScale`;
 `INKVOLT_TEXTSCALE=1.5` does it from the start). `a11yaudit` logs every visible window's controls without an accessible
 name or under 24 × 24 (`UiInspection`, rules in `InkvoltPrint.Core/Suite/UiAudit`); the UX review that uses it is

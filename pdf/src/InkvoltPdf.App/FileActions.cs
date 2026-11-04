@@ -438,7 +438,8 @@ public static class FileActions
 
         var dlg = new FormDialog(owner, Strings.File_PropertiesTitle, s.IsPdf ? Strings.File_SaveChanges : Strings.Common_Close, 520);
         var info = new Grid();
-        info.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+        // The labels' column: as wide as the longest label (Spanish's "Tamaño del archivo"), never narrower than English's.
+        info.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto, MinWidth = 120 });
         info.ColumnDefinitions.Add(new ColumnDefinition());
         void Row(string label, string? value)
         {

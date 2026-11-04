@@ -53,13 +53,13 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 # What differs between the two apps. Folder: the app's folder in the repo (src, packaging, notices). Required: files the
-# publish output must hold (a publish that lacks them would package an app that can't start, or Inkvolt Print without its Spanish). Extras: files from the app's
+# publish output must hold (a publish that lacks them would package an app that can't start, or an app without its Spanish). Extras: files from the app's
 # folder copied into the package root.
 $apps = @{
     Pdf   = @{
         Folder = 'pdf'; Name = 'InkvoltPdf'; IdentityName = 'BermudezSystems.InkvoltPDF'; DisplayName = 'Inkvolt PDF'
-        # MuPDF's and HarfBuzz's native libraries
-        Required = @('MuPDFWrapper.dll', 'libHarfBuzzSharp.dll')
+        # MuPDF's and HarfBuzz's native libraries; the Spanish interface's satellites (the app's and Core's)
+        Required = @('MuPDFWrapper.dll', 'libHarfBuzzSharp.dll', 'es\InkvoltPdf.resources.dll', 'es\InkvoltPdf.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md')
     }
     Print = @{
