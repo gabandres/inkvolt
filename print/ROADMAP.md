@@ -21,7 +21,7 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
 items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 1.6, 2.4 and 2.6 (P12) and 3.5 is done; the Mac app's parts
-wait. Print for Mac 1.0 is in App Review, and Print's Mac work is on hold (owner, 2026-11-02). Each item names its
+wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), and Print's Mac work is on hold (owner, 2026-11-02). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
 
@@ -531,7 +531,7 @@ Kept up with the same rule: a claim here has a test or a source.
   Google Drive, Dropbox or OneDrive "requires Internet connection and an account with the desired service"
   ([Brother](https://www.brother.com.ph/en/solutions/scan-to-cloud-service-brother-iprint-and-scan-desktop)).
 - **Dynamic Security explained, in the app**, next to the switch that turns automatic firmware updates off (README,
-  Firmware); crash recovery for unsaved scans; native ARM64; a native Mac app with the feature table of Windows 1.0 (in App Review).
+  Firmware); crash recovery for unsaved scans; native ARM64; a native Mac app with the feature table of Windows 1.0 (Mac App Store, 2026-11-04).
 
 ## Not doing, and why
 

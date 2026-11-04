@@ -95,7 +95,7 @@ DMG is offered):
    (`docs/visibility/reddit.md`). r/privacy: don't post.
 4. **Press pitches** (`docs/visibility/press-pitches.md`): one a day, gHacks and How-To Geek first; one follow-up after a
    week.
-5. **Product Hunt** (`docs/visibility/product-hunt.md`) once the Mac Print app is through App Review, so the gallery can
+5. **Product Hunt** (`docs/visibility/product-hunt.md`) now that the Mac Print app is in the Mac App Store (https://apps.apple.com/app/id6827219248, 2026-11-04), so the gallery can
    show both apps; take gallery shots 3, 4 and 6 first.
 6. **Merge state of the awesome-list PRs** (#458 #459 #125 #126 #84 #1256 #1864 #4045): answer reviewers within a day;
    `gh pr list --author @me --state all` shows them.

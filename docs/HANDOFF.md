@@ -57,6 +57,8 @@ master; a hook blocks force-deleting them): the owner deletes them by hand.
 
 ### Done on 2026-11-04
 
+- **Inkvolt Print for Mac 1.0 approved** and live (https://apps.apple.com/app/id6827219248): repo docs, tag `print-mac-v1.0.0`, the website.
+  The daily awesome-list/Apple/Store watch deleted (owner).
 - **Worktrees:** all 46 removed (the owner agreed), with their merged branches.
 - **Windows (Inkvolt PDF):** `6bb2a25` LtvClient's last English sentence into the resource files (the rest had moved with
   the Spanish interface); the LTV flake: the client's 8 s connect limit now follows a test's timeout, and `LtvTestPki`
@@ -86,7 +88,9 @@ master; a hook blocks force-deleting them): the owner deletes them by hand.
 
 ### Inkvolt Print, Windows and Mac: ON HOLD (owner, 2026-11-02)
 
-Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review (the owner is asking Apple).
+Not next work; listed so nothing is lost. Print for Mac 1.0 is in the Mac App Store (approved 2026-11-04, https://apps.apple.com/app/id6827219248, tag
+`print-mac-v1.0.0` on `f07a322`, build 4). 1.1 (master's MARKETING_VERSION, build 5) is uploaded and not submitted:
+the owner decides (`asc-listing.mjs apply 5`, then `submit`).
 - Mac, the app halves of what PrintCore already has (PLAN.md's P12): 1.6 Pro key (CryptoKit verifier, the app group
   container, Help › Inkvolt Pro…), 1.3 scanners that only give PDF (PDFKit renderer), 1.5 firmware watch, 1.1 supply
   history (Swift Charts), 2.6 Fleet page, 2.4 batch print, 1.2 record a printer (`--report` runner). Not started on the
@@ -247,8 +251,8 @@ the Mac, a key saved to the login keychain, LibreOffice on Windows, a real scree
 Partner Center: Edge with `--remote-debugging-port=9333` and the profile `%LOCALAPPDATA%\inkvolt-partnercenter-profile`
 (signed in), scripts in `~/.inkvolt-visibility/` (`pc-export`, `pc-import`, `pc-reorder`, `pc-submit`). Mac agents: one
 worktree each, `~/Repos/inkvolt-<step>`, and the lock `~/Repos/.inkvolt-mac-lock`. A branch started before another step
-merged will conflict in `BatchWindow.swift`, `Report.swift` and PLAN.md: merge master into it, then retest. One daily
-task remains (9:00, this thread): the awesome-list PRs, Apple's review, the Store.
+merged will conflict in `BatchWindow.swift`, `Report.swift` and PLAN.md: merge master into it, then retest. The daily
+watch task (awesome-list PRs, Apple's review, the Store) was deleted on 2026-11-04 (owner).
 
 # Handoff, 2026-10-30 evening
 

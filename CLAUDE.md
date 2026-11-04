@@ -11,7 +11,7 @@ push: `dotnet test Inkvolt.slnx`.
   identities and certification history: `pdf/packaging/README.md`, `print/packaging/README.md`.
 - **Driving the apps**: Inkvolt PDF's `--script steps.txt` (step list at the top of `pdf/src/InkvoltPdf.App/DevScript.cs`),
   Inkvolt Print's `--demo --snapshot` (`print/README.md`).
-- **macOS apps** (native Swift; Inkvolt PDF for Mac released, Inkvolt Print for Mac in App Review): `mac/CLAUDE.md`.
+- **macOS apps** (native Swift; Inkvolt PDF for Mac released, Inkvolt Print for Mac 1.0 in the Mac App Store): `mac/CLAUDE.md`.
 - **Export fidelity** (Word, Excel and the other exports): `pdf/tools/export-corpus` (see its README) after any change to
   `DocLayout`, `DocxWriter`, `PptxWriter`, `HtmlWriter`, `DocumentExport` or the glyph reading in `PdfEngine`.
 - **Speed on huge files** (roadmap 3.6): `pdf/tools/bench` (`make`, `run`; see its README) before each Inkvolt PDF release;
