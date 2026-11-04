@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.7.0
 - Inkvolt PDF speaks Spanish: it follows Windows' language, or choose under Settings › Language (Same as Windows, English or Español). It takes effect the next time the app starts. The command palette still finds commands by their English names.
 - On a small or scaled laptop screen, the window's size when not maximized fits the screen, so Minimize and Close stay in sight.
 - When you certify a form, you can lock all its fields, only the ones you choose, or all but those. A later change to a locked field shows as not allowed when the signatures are checked. It's part of Inkvolt Pro.
