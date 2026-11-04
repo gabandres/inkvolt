@@ -24,7 +24,7 @@ PrintCore also builds and tests on Windows (Swift 6.4 from winget `Swift.Toolcha
 and Windows SDK):
 
 ```powershell
-pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native
+pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native
 ```
 
 The app builds on a Mac only (Xcode 26 or later), into a sandboxed `.app` signed ad-hoc (or `SIGN_IDENTITY` names an

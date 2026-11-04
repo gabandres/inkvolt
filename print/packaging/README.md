@@ -14,8 +14,8 @@ Inkvolt PDF are `shared/`).
 From the repository root:
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Print                    # Store build with the Partner Center identity, unsigned
-pwsh -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.3.0.0, the last submitted
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print                    # Store build with the Partner Center identity, unsigned
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.3.0.0, the last submitted
 ```
 
 Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's

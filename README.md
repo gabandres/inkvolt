@@ -148,9 +148,9 @@ Needs the .NET 10 SDK on Windows 10 (19041) or later, x64 or ARM64. Each app als
 ### Install both
 
 ```powershell
-pwsh -File install-suite.ps1             # publishes both, installs to %LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf and \InkvoltPrint
-pwsh -File install-suite.ps1 -NoBuild    # install the existing publish outputs (pdf/publish, print/publish)
-pwsh -File install-suite.ps1 -Uninstall  # removes only what it added, and puts back registry values it replaced
+pwsh -NoProfile -File install-suite.ps1             # publishes both, installs to %LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf and \InkvoltPrint
+pwsh -NoProfile -File install-suite.ps1 -NoBuild    # install the existing publish outputs (pdf/publish, print/publish)
+pwsh -NoProfile -File install-suite.ps1 -Uninstall  # removes only what it added, and puts back registry values it replaced
 ```
 
 It adds a Start Menu folder "Inkvolt" with both apps ("Inkvolt PDF", "Inkvolt Print"), App Paths entries (`InkvoltPdf.exe`,
@@ -165,8 +165,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 ### Microsoft Store
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # → pdf/publish/msix
-pwsh -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # → pdf/publish/msix
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
 ```
 
 Partner Center values, Store policy notes and listing drafts: [`pdf/packaging/README.md`](pdf/packaging/README.md),

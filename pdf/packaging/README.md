@@ -14,7 +14,7 @@ https://github.com/gabandres/inkvolt-pdf, the address before the move, redirects
 From the repository root:
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0   # Store build with the Partner Center identity, unsigned; higher than the last submission
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0   # Store build with the Partner Center identity, unsigned; higher than the last submission
 ```
 
 Before packing a release, rename `## Next` in `pdf/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
@@ -92,6 +92,24 @@ Inkvolt Print, the suite's other app, is Store ID `9PNR76HJ62SK` (`BermudezSyste
 Version: four numbers, the last one 0 (the Store reserves it), higher than every earlier submission.
 
 ## Upload
+
+A release, in order (the owner says when; Inkvolt Print's the same with its own ID `9PNR76HJ62SK`):
+
+1. `pdf/tools/bench` `run` and commit its `RESULTS.md` (an idle PC; root `CLAUDE.md`).
+2. `pdf/WHATS-NEW.md`: `## Next` becomes `## x.y.z`, a new empty `## Next` above it.
+3. Pack with the smoke test (Build, above; `-SmokeSideBySide` while the Store copy is installed).
+4. `msstore publish pdf/publish/msix/InkvoltPdf_<ver>.msixupload -id 9MXDTSFJ9W28 -nc -ut 3000`: the package goes up as
+   a draft, not committed.
+5. `msstore submission get 9MXDTSFJ9W28 > draft.txt`; in its JSON (after the first `{`) set each listing's
+   `BaseListing.ReleaseNotes` (en-us and es, under 1,500 characters, from the WHATS-NEW entry) and any description change;
+   `msstore submission update 9MXDTSFJ9W28 -p payload.json`; `get` again to check (no U+FFFD).
+6. `msstore submission publish 9MXDTSFJ9W28`; `msstore submission status 9MXDTSFJ9W28` until `Published` (CommitStarted,
+   Certification, Release; under two hours so far).
+7. Commit, tag `pdf-v<ver>`, `gh release create` with the WHATS-NEW lines; the website's `softwareVersion`
+   (`Z:\portfolio`, `firebase deploy --only hosting`) once Published; `docs/HANDOFF.md`.
+
+A draft edited in Partner Center's pages can't be updated through the API afterwards (Spanish listing, below). By hand,
+the first time:
 
 1. Partner Center > the app > **Start your submission**.
 2. **Packages**: drop `InkvoltPdf_<ver>.msixupload`. Device families: Windows 10/11 Desktop. Partner Center validates the
