@@ -33,8 +33,11 @@ public struct ScannedPdfPages: PdfPageRenderer {
         let turned = (page.rotationAngle / 90 % 2 + 2) % 2 == 1
         let size = turned ? CGSize(width: box.height, height: box.width) : box.size
         let scale = CGFloat(max(dpi, 1)) / 72
-        let width = max(1, Int((size.width * scale).rounded())), height = max(1, Int((size.height * scale).rounded()))
-        guard width * height <= maxPixels, let space = CGColorSpace(name: CGColorSpace.sRGB),
+        // Checked as Double first: a box too big for an Int (or not finite) would trap in the conversion.
+        let w = max(1, (size.width * scale).rounded()), h = max(1, (size.height * scale).rounded())
+        guard w.isFinite, h.isFinite, w * h <= Double(maxPixels) else { throw ScanError("The scanner's PDF has a page too large to show.") }
+        let width = Int(w), height = Int(h)
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
             throw ScanError("The scanner's PDF has a page too large to show.")
