@@ -10,9 +10,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   interface" (`PrinterReader` in `shared/InkvoltPrint.Core/Probe`).
 - **Printer session**: one remembered network printer's connection life cycle: connect, ask who answers before reading,
   upgrade a printer read over SNMP when it answers more, check an address it is announced at (`PrinterSession`).
-- **Printer monitor** (Mac): keeps one network printer's state current through its printer session: reads on the
-  printer's events or every 30 s, retries every 20 s, follows an announced address, and tells the app what the printer
-  pane shows (`PrinterMonitor`; the Windows app does this in `PrinterViewModel`).
+- **Printer monitor**: keeps one network printer's state current through its printer session: reads on the
+  printer's events or every 30 s, retries every 20 s, follows an announced address, watches its firmware, and tells the
+  app what the printer pane shows (the **printer view**) and what to bind or let go of (`PrinterMonitor`, `PrinterView`,
+  `MonitorEvent` in `shared/InkvoltPrint.Core/Probe`; the Windows app runs it on its dispatcher and only shows it).
 - **Connection recipe**: what every connection to a printer carries: the network (or demo transport), SNMP, its
   certificate pins (`PrinterRecipe`).
 - **Identity before data**: a printer's status is read only after the device at its address has said it is that printer
@@ -59,7 +60,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   points or more (`SupplyAnalysis`). "Seen going in" when the change is in the history; the first one usually isn't.
 - **Firmware watch**: each printer's firmware version as last seen, with the day it was first seen and the change before
   it (`Core/History/FirmwareWatch`, kept in `state.json`); a change is shown until dismissed or 30 days old and alerted once.
-  On the Mac the printer monitor watches it through the state file's **firmware memory** (`FirmwareMemory`).
+  The printer monitor watches it through the state file's **firmware memory** (`FirmwareMemory`).
 - **Pro check** (`Pro.Allows(feature)` in `shared/InkvoltPrint.Core/Pro.cs`, on the suite's `ProCheck`): the one place a
   Pro feature asks whether it may run: yes with a **licence** (an Inkvolt Pro key, `ProKeys`, one for both Inkvolt apps,
   kept in the file both read, `ProKeyFile`, and verified on the PC), and yes for everyone while `ProCheck.Enforced` is

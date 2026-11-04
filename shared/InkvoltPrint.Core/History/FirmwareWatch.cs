@@ -59,3 +59,33 @@ public static class FirmwareWatch
         return clean.Length <= MaxVersion ? clean : clean[..MaxVersion];
     }
 }
+
+/// <summary>
+/// Firmware memory: one printer's firmware record where the app keeps it (<c>state.json</c>), watched on each connection by
+/// the printer monitor (<see cref="Probe.PrinterMonitor"/>).
+/// </summary>
+/// <param name="today">The day (tests pass their own); null: today on this PC.</param>
+public sealed class FirmwareMemory(Func<FirmwareRecord?> get, Action<FirmwareRecord> set, Func<DateOnly>? today = null)
+{
+    private readonly Func<DateOnly> _today = today ?? (() => DateOnly.FromDateTime(DateTime.Now));
+
+    /// <summary>
+    /// A connection reported <paramref name="version"/>: the record is kept when it changed (<see cref="FirmwareWatch.Observe"/>).
+    /// Notice: the change to show now; Changed: a version seen before changed.
+    /// </summary>
+    public (FirmwareChange? Notice, bool Changed) Watch(string? version)
+    {
+        var day = _today();
+        var known = get();
+        var record = FirmwareWatch.Observe(known, version, day);
+        var changed = record is not null && !ReferenceEquals(record, known);
+        if (changed) set(record!);
+        return (FirmwareWatch.Notice(record, day), changed && known is not null);
+    }
+
+    /// <summary>The notice was closed: the record says so, and this change isn't shown or alerted again.</summary>
+    public void Dismiss()
+    {
+        if (get() is { } record) set(record with { Dismissed = true });
+    }
+}

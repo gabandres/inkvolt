@@ -1887,9 +1887,6 @@ Los detalles se guardaron en {1}</value>
   <data name="Printer_Ink" xml:space="preserve">
     <value>Tinta</value>
   </data>
-  <data name="Printer_Connecting" xml:space="preserve">
-    <value>Conectando…</value>
-  </data>
   <data name="Printer_StaleSuffix" xml:space="preserve">
     <value>  ·  últimos datos conocidos</value>
   </data>
@@ -1904,12 +1901,6 @@ Los detalles se guardaron en {1}</value>
   </data>
   <data name="Printer_ElsewhereBlocked" xml:space="preserve">
     <value>Ahora otro dispositivo responde en la dirección de esta impresora, así que Inkvolt Print no escanea ni copia con él.</value>
-  </data>
-  <data name="Printer_ElsewhereTitle" xml:space="preserve">
-    <value>Otro dispositivo responde en esta dirección</value>
-  </data>
-  <data name="Printer_ElsewhereDetail" xml:space="preserve">
-    <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Esta es mi impresora.</value>
   </data>
   <data name="Printer_AcceptDeviceQuestion" xml:space="preserve">
     <value>¿Usar el dispositivo que ahora responde en {0} como {1}?
@@ -1957,15 +1948,6 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
   </data>
   <data name="Printer_WebPage" xml:space="preserve">
     <value>Página web de la impresora</value>
-  </data>
-  <data name="Printer_CantReach" xml:space="preserve">
-    <value>No se puede conectar con la impresora</value>
-  </data>
-  <data name="Printer_CantReachDetail" xml:space="preserve">
-    <value>Comprueba que esté encendida y conectada a la misma red que este PC. Inkvolt Print sigue intentándolo en segundo plano.</value>
-  </data>
-  <data name="Printer_CantReachDetailHost" xml:space="preserve">
-    <value>Comprueba que esté encendida y conectada a la misma red que este PC ({0}). Inkvolt Print sigue intentándolo en segundo plano.</value>
   </data>
   <data name="Printer_SetupInSettings" xml:space="preserve">
     <value>En Configuración, elige Agregar dispositivo y luego “Agregar manualmente” › “Agregar una impresora por medio de una dirección TCP/IP o un nombre de host”. Elige “Dispositivo IPP” y pega {0} (está en el portapapeles). Inkvolt Print detecta la impresora cuando se agrega.</value>

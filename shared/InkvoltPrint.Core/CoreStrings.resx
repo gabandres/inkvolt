@@ -3821,4 +3821,27 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Supply_WasteWax" xml:space="preserve">
     <value>waste wax</value>
   </data>
+  <data name="Monitor_Connecting" xml:space="preserve">
+    <value>Connecting…</value>
+    <comment>printer status</comment>
+  </data>
+  <data name="Monitor_CantReach" xml:space="preserve">
+    <value>Can't reach the printer</value>
+    <comment>printer status</comment>
+  </data>
+  <data name="Monitor_CantReachDetail" xml:space="preserve">
+    <value>Make sure it's turned on and connected to the same network as this PC. Inkvolt Print keeps trying in the background.</value>
+  </data>
+  <data name="Monitor_CantReachDetailHost" xml:space="preserve">
+    <value>Make sure it's turned on and connected to the same network as this PC ({0}). Inkvolt Print keeps trying in the background.</value>
+    <comment>{0} = printer address</comment>
+  </data>
+  <data name="Monitor_ElsewhereTitle" xml:space="preserve">
+    <value>A different device answers at this address</value>
+    <comment>printer status</comment>
+  </data>
+  <data name="Monitor_ElsewhereDetail" xml:space="preserve">
+    <value>Another device now has {0}, so its status isn't shown here. The printer probably got a new address: Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset and this really is it, choose This is my printer.</value>
+    <comment>{0} = address; 'Fix it…' and 'This is my printer' are buttons</comment>
+  </data>
 </root>

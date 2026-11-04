@@ -215,19 +215,7 @@ public partial class App : Application
         if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateJobsAsync(Tray);
         if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
-            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args.SkipWhile(a => a != "--tab").Skip(1).FirstOrDefault(),
-                scans: !args.Contains("--scan") ? 0 : int.TryParse(args.SkipWhile(a => a != "--scan").Skip(1).FirstOrDefault(), out var n) ? n : 1,
-                scrollToEnd: args.Contains("--scroll-end"),
-                copy: args.SkipWhile(a => a != "--copy").Skip(1).FirstOrDefault(),
-                crop: int.TryParse(args.SkipWhile(a => a != "--crop").Skip(1).FirstOrDefault(), out var page) ? page : 0,
-                printer: int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var nth) ? nth : 0,
-                fix: !args.Contains("--fix") ? null
-                    : args.SkipWhile(a => a != "--fix").Skip(1).FirstOrDefault() is { } how && how is "all" or "waiting" or "cancel" ? how : "check",
-                preset: PresetArg(args),
-                then: args.SkipWhile(a => a != "--then").Skip(1).FirstOrDefault(),
-                editPresets: !args.Contains("--presets") ? 0 : int.TryParse(args.SkipWhile(a => a != "--presets").Skip(1).FirstOrDefault(), out var p) ? p : 1,
-                tray: args.SkipWhile(a => a != "--tray-shot").Skip(1).FirstOrDefault(), simulateAlerts: args.Contains("--simulate-alerts"),
-                args: args);
+            _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args); // it reads its own flags
         _started = true;
     }
 
