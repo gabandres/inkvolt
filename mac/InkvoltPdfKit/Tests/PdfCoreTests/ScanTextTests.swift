@@ -349,5 +349,26 @@ struct ScanTextTests {
         let data = TestPdf.make(1)
         #expect(try TextLayer.words(data, nil).isEmpty)
         #expect(throws: PdfEditError.self) { try TextLayer.correct(data, nil, 0, 0, "x") }
+        #expect(try !TextLayer.hasSuspectWords(data, nil))
+    }
+
+    /// Reads "c0de" and "river" anywhere.
+    struct TwoWordReader: TextRecognizer {
+        var language: String? { "en-US" }
+        func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
+            [OcrWord("c0de", RectD(100, 100, 120, 40)), OcrWord("river", RectD(240, 100, 120, 40))]
+        }
+    }
+
+    /// Mac only (Batch's and export's recognizer, Windows' `PageOcr.Recognize` with suspect words): a page recognizer
+    /// built from Recognize Text's choices marks suspect words as Recognize Text does, and none when its check is off.
+    @Test func aPageRecognizerMarksSuspectWordsAsRecognizeTextDoes() throws {
+        let engine = try PdfEngine.open(ExportTestPdf.blank(1))
+        defer { engine.close() }
+        let marked = try PageOcr.recognizer(TwoWordReader(), options: RecognizeOptions(clean: false, checkWords: true))(engine, 0, nil)
+        #expect(marked.map(\.text) == ["c0de", "river"])
+        #expect(marked.map(\.suspect) == [.lettersAndDigits, []])
+        let plain = try PageOcr.recognizer(TwoWordReader(), options: RecognizeOptions(clean: false, checkWords: false))(engine, 0, nil)
+        #expect(plain.allSatisfy { $0.suspect.isEmpty })
     }
 }

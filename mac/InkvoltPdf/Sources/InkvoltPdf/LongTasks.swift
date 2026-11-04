@@ -153,6 +153,26 @@ final class ProgressSheet: NSWindowController {
 
 // MARK: Recognize Text and Export
 
+/// Recognize Text's choices (its language, Straighten and clean, List the words to check) for the recognition that runs
+/// outside it: Batch (the window, watched folders, the command line) and export, as Windows' `PageOcr.Recognize` with
+/// suspect words. Vision in the chosen language, through `ScanText`, with the Mac's dictionary for suspect words.
+@MainActor
+enum SavedOcr {
+    /// The language chosen (nil: Vision finds out for itself), kept with the text layer.
+    static var language: String? { AppSettings.ocrLanguage.isEmpty ? nil : AppSettings.ocrLanguage }
+
+    static func recognizer() -> Recognizer {
+        let reader = VisionRecognizer(languages: language.map { [$0] })
+        let options = RecognizeOptions(clean: AppSettings.ocrClean, checkWords: AppSettings.ocrSuspects)
+        return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling(language: reader.language) : nil)
+    }
+
+    /// A batch's host: the recognizer and its language, and the password prompt when someone is there to answer.
+    static func batchHost(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil) -> BatchHost {
+        BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: language)
+    }
+}
+
 /// Runs a closure when a checkbox changes (the Recognize Text dialog's Clean, which enables Replace the scans).
 @MainActor
 final class CheckToggle: NSObject {
@@ -267,7 +287,7 @@ extension DocumentWindowController {
     }
 
     /// Runs Recognize Text on `pages` with the progress sheet; what it did comes back (nil outcome: not started). With
-    /// `recognizer` (Scan's, the self-test's): the pages as rendered, as before roadmap 2.2. Without: roadmap 2.2's
+    /// `recognizer` (a stand-in's): the pages as rendered, as before roadmap 2.2. Without: roadmap 2.2's
     /// pipeline with `options` (the saved choices when nil), `ocr` (Vision in the chosen language when nil) and the Mac's
     /// dictionary for suspect words.
     @discardableResult
@@ -445,7 +465,7 @@ extension DocumentWindowController {
         }
         let data = session.data, password = session.password
         let name = (session.displayName as NSString).deletingPathExtension
-        let recognizeWith: Recognizer? = recognize ? (recognizer ?? PageOcr.recognizer(VisionRecognizer())) : nil
+        let recognizeWith: Recognizer? = recognize ? (recognizer ?? SavedOcr.recognizer()) : nil
         // PowerPoint and HTML read the language and alternate text from the PDF itself; the others have no use for its bytes.
         let source = format == .powerPoint || format == .html ? data : nil
         let options = ExportOptions(pages: chosen, title: name, recognize: recognizeWith, source: source, sourcePassword: password) { at in
@@ -491,6 +511,9 @@ extension DocumentWindowController {
             if format == .excel { notes.append(report.tables == 1 ? "1 table" : "\(report.tables) tables") }
             if report.recognized > 0 { notes.append("\(Self.pages(report.recognized)) recognized with OCR") }
             if report.noText > 0 { notes.append("\(Self.pages(report.noText)) without text") }
+            if report.suspectWords > 0 {
+                notes.append(report.suspectWords == 1 ? "1 suspect word (check it against the PDF)" : "\(report.suspectWords) suspect words (check them against the PDF)")
+            }
             if !report.recognitionFailed.isEmpty { notes.append("text recognition failed on \(Self.pages(report.recognitionFailed.count))") }
             if !report.unreadable.isEmpty { notes.append("\(Self.pages(report.unreadable.count)) couldn't be read") }
             notify("Exported \(Self.pages(chosen.count)) to \(url.lastPathComponent)\(notes.isEmpty ? "" : " (\(notes.joined(separator: ", ")))").")

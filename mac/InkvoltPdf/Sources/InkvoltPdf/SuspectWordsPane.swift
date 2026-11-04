@@ -272,10 +272,11 @@ extension DocumentWindowController {
         refreshSuspectWords()
     }
 
-    /// Reads the document's suspect words again (at opening and after every change).
+    /// Reads the document's suspect words again (at opening and after every change): a file recognized by Recognize
+    /// Text, Batch or a scan lists those left. A file whose bytes can't hold a text layer isn't parsed for one.
     func refreshSuspectWords() {
         guard let session = pdf.session else { return }
-        let layers = (try? TextLayer.words(session.data, session.password)) ?? [:]
+        let layers = TextLayer.mayHaveLayer(session.data) ? ((try? TextLayer.words(session.data, session.password)) ?? [:]) : [:]
         let items = layers.sorted { $0.key < $1.key }.flatMap { page, layer in
             layer.words.enumerated().filter { !$0.element.suspect.isEmpty }
                 .map { SuspectWordItem(page: page, index: $0.offset, word: $0.element, language: layer.language) }

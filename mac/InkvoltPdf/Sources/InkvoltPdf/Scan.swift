@@ -8,14 +8,16 @@ import PrintMac
 /// driver for (ImageCaptureCore, `SystemScanners`); source (glass, feeder, both sides), color, resolution and page size
 /// from the scanner's capabilities (`ScanChoices`). Pages arrive as JPEGs and become PDF pages as they are (PdfCore's
 /// `ImageImport`, at the scan's resolution); Create PDF opens them as a new, unsaved document, and with "Make the text
-/// searchable" runs Recognize Text on it (one undo step). Local Network denied is said, with the way to allow it.
+/// searchable" runs Recognize Text on it (one undo step) with its choices: suspect words marked and kept in the text
+/// layer, their count said and the Suspect Words pane opened on them. Local Network denied is said, with the way to allow it.
 @MainActor
 final class ScanWindowController: NSWindowController, NSWindowDelegate {
     static var shared: ScanWindowController?
     /// The self-test's scanners (Inkvolt Print's demo ones): no discovery, nothing on the network.
     static var testScanners: [SystemScanner]?
-    /// The self-test's recognizer for "Make the text searchable" (nil: Vision's).
-    static var testRecognizer: Recognizer?
+    /// The self-test's reader and dictionary for "Make the text searchable" (nil: Vision's, the Mac's).
+    static var testReader: (any TextRecognizer)?
+    static var testSpelling: (any Spelling)?
 
     /// The self-test scans from Inkvolt Print's demo scanners (a laser with glass and feeder, a photo flatbed).
     static func useDemoScanners() { testScanners = DemoScanDevice.all }
@@ -472,8 +474,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 self.clearPages()
                 self.window?.orderOut(nil)
                 guard searchable else { return }
-                let recognizer = Self.testRecognizer
-                c.startLongTask { await c.runRecognize(pages: Array(at..<(at + count)), recognizer: recognizer) }
+                let (reader, spelling) = (Self.testReader, Self.testSpelling)
+                c.startLongTask { await c.runRecognize(pages: Array(at..<(at + count)), ocr: reader, spelling: spelling) }
             case .success(let bytes):
                 guard let document = NewDocuments.open(bytes, name: NewDocuments.name("Scan")) else { return }
                 self.lastCreated = document
@@ -482,8 +484,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 guard searchable else { return }
                 try? await Task.sleep(for: .milliseconds(400)) // the window shown and fitted
                 if let c = document.windowControllers.first as? DocumentWindowController {
-                    let recognizer = Self.testRecognizer
-                    c.startLongTask { await c.runRecognize(pages: Array(0..<count), recognizer: recognizer) }
+                    let (reader, spelling) = (Self.testReader, Self.testSpelling)
+                    c.startLongTask { await c.runRecognize(pages: Array(0..<count), ocr: reader, spelling: spelling) }
                 }
             }
         }

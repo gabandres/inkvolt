@@ -83,6 +83,24 @@ struct ExportPipelineTests {
         #expect(try !DocumentExport.export(engine, .text, to: MemorySink(), options: options).saved)
     }
 
+    @Test func theRecognizersSuspectWordsAreCounted() throws {
+        let engine = try PdfEngine.open(ExportTestPdf.blank(2))
+        defer { engine.close() }
+        var options = ExportOptions()
+        options.recognize = { _, page, _ in
+            page == 0
+                ? [OcrWord("Recognized", RectD(72, 72, 120, 14)), OcrWord("w0rds", RectD(200, 72, 60, 14), suspect: .lettersAndDigits)]
+                : [OcrWord("Fine", RectD(72, 72, 60, 14)), OcrWord("ok", RectD(140, 72, 30, 14))]
+        }
+        let report = try DocumentExport.export(engine, .text, to: MemorySink(), options: options)
+        #expect(report.recognized == 2)
+        #expect(report.suspectWords == 1)
+        // A page with text of its own isn't recognized: nothing suspect.
+        let text = try PdfEngine.open(TestPdf.make(1))
+        defer { text.close() }
+        #expect(try DocumentExport.export(text, .text, to: MemorySink(), options: options).suspectWords == 0)
+    }
+
     @Test func reportsProgressPageByPageThenWriting() throws {
         let engine = try PdfEngine.open(TestPdf.make(3))
         defer { engine.close() }

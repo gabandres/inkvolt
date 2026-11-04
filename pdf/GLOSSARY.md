@@ -66,7 +66,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   as scanned, suspect words, the cleaned pages kept) and the spell checker for its language, reading a document's pages
   without text into words (`RecognizedPages`: the words per page, the pages that had text, the cleaned pages, the suspect
   count), which it writes as the text layer. Recognize Text, Batch's Recognize Text (`BatchHost.Ocr`, as Recognize Text was
-  last set: `PageOcr.ForBatch`), File › Scan and the redacted pages (`Redaction.TextBack`) read through it.
+  last set: `PageOcr.ForBatch`), File › Scan and the redacted pages (`Redaction.TextBack`) read through it. The Mac has no
+  `PageRecognizer` yet: Batch and export read through `PageOcr.recognizer(_:options:spelling:)` with Recognize Text's
+  choices (the app's `SavedOcr`), Recognize Text and Scan through `PageOcr.recognizeText`.
 - **Text layer** (`Core/TextLayer.cs`): the invisible OCR text over a scanned page; it keeps its words, boxes, suspect
   marks and language in comment lines at its start, so it can be read back, reviewed and corrected in place.
 - **Suspect word** (`Core/SuspectWords.cs`): a recognized word worth a second look, found by a heuristic, never a

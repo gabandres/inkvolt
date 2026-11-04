@@ -502,7 +502,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         progress.doubleValue = 0
         summary.stringValue = "Running…"
         let files = files
-        let host = BatchHost(askPassword: { [weak self] request, _ in await self?.askPassword(request) }, recognize: PageOcr.recognizer(VisionRecognizer()))
+        let host = SavedOcr.batchHost(askPassword: { [weak self] request, _ in await self?.askPassword(request) })
         let onProgress: @Sendable (BatchProgress) -> Void = { [weak self] p in
             onMain { self?.progressed(p) }
         }
@@ -994,7 +994,7 @@ final class FolderWatches {
         w.enabled = true
         w.status = "Watching"
         let folder = w.folder
-        let host = BatchHost(recognize: PageOcr.recognizer(VisionRecognizer()))
+        let host = SavedOcr.batchHost()
         w.task = Task { @MainActor in
             do {
                 let onProgress: @Sendable (WatchProgress) -> Void = { p in
