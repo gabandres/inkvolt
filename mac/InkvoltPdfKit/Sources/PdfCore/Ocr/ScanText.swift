@@ -75,10 +75,15 @@ public enum ScanText {
         var (turns, gray, rgb) = (cleaned.quarterTurns, cleaned.gray, cleaned.rgb)
         var found = try recognizer.recognize(asImage(gray), cancel: cancel)
         if !cleaned.uprightSure {
-            // The lines didn't say which way up: read it the other way too and keep the reading with more real words.
+            // The lines didn't say which way up: read it the other way too. The page is turned over only when the turned
+            // reading has clearly more real words; otherwise it stays as rendered, whatever the ink hinted. Digits read
+            // plausibly both ways (6 and 9, 0 and 8: the redaction corpus's page of numbers read "OO 6830 9999" turned),
+            // and count as words neither way, so a page of numbers isn't turned on a guess.
             let other = GrayImage(gray.width, gray.height, ScanCleanup.turn(gray.pixels, gray.width, gray.height, 1, 2))
             let otherFound = try recognizer.recognize(asImage(other), cancel: cancel)
-            if plausible(otherFound, spelling) > plausible(found, spelling) {
+            let hinted = (cleaned.quarterTurns & 2) != 0
+            let (asRendered, turnedOver) = hinted ? (otherFound, found) : (found, otherFound)
+            if clearlyMore(plausible(turnedOver, spelling), plausible(asRendered, spelling)) != hinted {
                 (found, turns) = (otherFound, (turns + 2) % 4)
                 gray = other
                 if let c = rgb { rgb = ScanCleanup.turn(c, gray.width, gray.height, 3, 2) }
@@ -128,6 +133,9 @@ public enum ScanText {
         }
         return words
     }
+
+    /// Whether a reading with `more` real words beats one with `fewer` by a margin: two words, or a quarter more.
+    static func clearlyMore(_ more: Int, _ fewer: Int) -> Bool { more >= fewer + max(2, (fewer + 3) / 4) }
 
     /// How much of a reading looks like real words: dictionary words, or without a dictionary, words of three letters or more.
     private static func plausible(_ words: [OcrWord], _ spelling: (any Spelling)?) -> Int {

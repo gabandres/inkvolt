@@ -2,7 +2,8 @@
 
 ## Start here (next session)
 
-**State on 2026-11-04.** Master is green: CI's `test` and `mac` jobs pass on `8b71fe5`. Nothing is running. **Nothing is
+**State on 2026-11-04 (afternoon).** Master is green on `6bb2a25` (CI `test`); later pushes are listed under Done on
+2026-11-04. Nothing is running. **Nothing is
 released since Mac 1.6.1**: on master and not shipped are Inkvolt PDF for Windows' Spanish interface, Batch's long-term
 action, field locking, the Flate limits and the 2026-11-03 fixes (Windows), and Mac comments and form data (roadmap 1.4).
 **No release without the owner** (when asked: Store `packaging/pack-msix.ps1`; Mac `INKVOLT_PUBLISH=yes release.sh <v>
@@ -22,49 +23,51 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 ### What's left, in order
 
 **Owner first (no agent can do these).**
-1. Review Inkvolt PDF's Spanish wording (`pdf/docs/SPANISH-REVIEW.md`: Redact "Eliminar información confidencial",
-   "Qué hay en este PDF", Flatten "Acoplar", the highlighter "Rotulador"; text written into documents follows the
-   interface language) and the shots in `docs/ux-review/spanish-pdf/`. Then decide the next PDF release (Windows Store and
-   Mac); when Spanish ships, remove "La aplicación está en inglés." from the Store listing in Partner Center.
-2. Look at the Mac UI nobody has seen (PLAN.md lists it per step; new on 2026-11-03: saved signatures, Rotate View,
-   Dark Pages, thumbnail dragging, reading modes, Insert from Scanner, Report a Problem, comments and form data in and
-   out), and decide on Batch's `--online` flag for the long-term action (the agent's call; keep or change).
+1. Decide the next PDF release (Windows Store and Mac). The owner OK'd the Spanish wording and the Mac UI on 2026-11-04.
+   When Spanish ships, remove "La aplicación está en inglés." from the Store listing in Partner Center.
 
 **Inkvolt PDF for Mac.**
 1. Redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
    through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's new failure rules,
    the Pro split). About 3,500 changed lines on Windows (79ba338 alone 2,384): its own session.
-2. Check whether Vision has Windows' two OCR faults before porting their fixes: skipped lines (`MissedLines.cs`,
-   `MissedLinesTests`) and a page of digits kept upside down (`ScanText.ClearlyMore`,
-   `ScanTextTests.APageOfDigitsThatReadsBothWaysStaysAsItIs`).
-3. Larger items: 3.4 long-term validation (writing /DSS and /VRI, B-LTA, Check Signatures Online, Batch's action, field
+2. Larger items: 3.4 long-term validation (writing /DSS and /VRI, B-LTA, Check Signatures Online, Batch's action, field
    locking, the Pro gate, the rest of LtvTests.cs; `Signatures.verify(online:)` exists in PdfCore, unused by the app);
    2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers); 3.3 Compare with Office
    files, scans and formatting; 3.5 indexed folder search; Microsoft Office as E12's converter (on the mini, backlog
    note below); 3.1 Translate (after 2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
-4. Spanish interface (Windows has it), and What's New in Spanish on both platforms.
-5. No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's
+3. Spanish interface (Windows has it), and What's New in Spanish on both platforms.
+4. No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's
    printer settings when printing, the Snapshot tool. UX: the renames proposed in `mac/docs/UX-REVIEW.md` (owner decides).
 
 **Inkvolt PDF for Windows.**
-1. Flaky test: `LtvTests.Offline_adding_fails_clearly_and_leaves_the_input_alone` failed on CI on `7fb4333` (a timeout
-   where it expected a refused connection), after its deadline was already widened. Passes alone.
-2. Long-term action leftovers: watched folders can't go online, so their long-term files fail saying so; `LtvDialogs`'
-   English sentences aren't in the resource files yet.
-3. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
+1. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
-4. PDF 2.2 leftovers (suspect words for Batch, Scan and export; "1111", which Windows' recognizer never reads; a dropped
+2. PDF 2.2 leftovers (suspect words for Batch, Scan and export; "1111", which Windows' recognizer never reads; a dropped
    word inside a line that was read), 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans).
-5. Speed: `drawings.pdf` misses Find and scrolling (`pdf/tools/bench`); on-screen scroll fell under 60 fps while the PC
-   was loaded, recheck idle. Run the bench before the next release and commit RESULTS.md.
-6. UX leftovers (UX-REVIEW round 3): Comment still goes to "…" at 150 % on 1200 DIPs; Organize's page pictures.
-7. A Spanish Windows was never tried (the agent used `--lang es`).
-8. Not checked: MuPDF's own inflating of a Flate bomb (memory stays small, time doesn't).
-9. Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and
+3. Speed: `drawings.pdf` misses Find (39.5 s) and scrolling (about 1 s a sheet) (`pdf/tools/bench`, RESULTS.md of
+   2026-11-04, a loaded PC); `comments.pdf` scrolls on screen at 36 fps. Recheck the on-screen numbers on an idle PC.
+4. UX leftovers (UX-REVIEW round 3): Comment still goes to "…" at 150 % on 1200 DIPs; Organize's page pictures.
+5. A Spanish Windows was never tried (the agent used `--lang es`).
+6. Not checked: MuPDF's own inflating of a Flate bomb (memory stays small, time doesn't).
+7. Needs hardware: 2.3's acceptance test (a WIA flatbed and a WIA feeder scanner, 10 pages each; TWAIN and
    black-and-white in Scan).
 
-**Housekeeping.** Six old helper worktrees under `.claude/worktrees/` (their work is merged; a hook blocked deleting their
-branches) and about 40 under `~/.t3/worktrees/PdfDesk/`: remove them once the owner agrees.
+**Housekeeping.** Left: three local branches `worktree-agent-*` (WIP string moves of the Spanish interface, squashed into
+master; a hook blocks force-deleting them): the owner deletes them by hand.
+
+### Done on 2026-11-04
+
+- **Worktrees:** all 46 removed (the owner agreed), with their merged branches.
+- **Windows (Inkvolt PDF):** `6bb2a25` LtvClient's last English sentence into the resource files (the rest had moved with
+  the Spanish interface); the LTV flake: the client's 8 s connect limit now follows a test's timeout, and `LtvTestPki`
+  serves on its own threads, not the thread pool; Inkvolt Print's end-to-end tests took the wrong exe after
+  `pack-msix.ps1` (its win-x64 and win-arm64 copies). Full run twice on a loaded PC: 2,420 and 2,223 pass.
+  `4486262` the bench before the release (RESULTS.md). `517763c` a watched folder whose preset adds long-term data says
+  so when it starts instead of failing each file ("Not watching: …"; the command line's `--watch … --online` can go
+  online); tried with the dev script in English and Spanish.
+- **Mac (Inkvolt PDF):** `ScanText.clearlyMore` ported (a page of numbers isn't turned over on a guess), with its two
+  tests; `VisionProbeTests` (opt-in) measured Vision on the OCR corpus: word error rate 0-6.3 %, no line skipped, the
+  page of numbers read upright, so `MissedLines` isn't ported (`mac/docs/PLAN.md`, E14).
 
 ### Done on 2026-11-03 (details in `git log`, PLAN.md and the roadmaps)
 
@@ -114,7 +117,7 @@ Not next work; listed so nothing is lost. Print for Mac 1.0 waits for App Review
 
 ### Only a person
 
-Look at the Mac UI nobody has seen (PLAN.md lists it per step), hear Read Aloud with a real voice, try E12 with a real
+Hear Read Aloud with a real voice, try E12 with a real
 LibreOffice and web address, see Inkvolt PDF open a scan from Inkvolt Print for Mac, try Insert from Scanner
 with a real scanner, run Inkvolt PDF on a Spanish Windows.
 
@@ -142,13 +145,13 @@ and a person to allow the Automation prompt; do it on the mini.
 
 **Released and current.** Inkvolt Print 1.3.0.0 published in the Store 2026-11-03 (Spanish interface, the Print button on small screens and Windows 10, Plugged in needs its driver, USB supply levels, SNMP community and SNMPv3). Inkvolt PDF 1.6.0.0 and Inkvolt Print 1.2.0.0 in the Store (2026-11-02); Inkvolt PDF for Mac
 1.6.1 (GitHub release `pdf-mac-v1.6.1`, 2026-11-03, Homebrew, website). The Store's release notes are in English and Spanish; Inkvolt Print for
-Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). Inkvolt PDF for Windows has a Spanish interface on master, not released yet (`pdf/ROADMAP.md` 3.7; the owner reviews the
-wording: `pdf/docs/SPANISH-REVIEW.md`; when it ships, the Store listing's "La aplicación está en inglés." goes, in Partner
+Windows has a Spanish interface since 1.3.0.0 (the owner OK'd the wording, `print/docs/SPANISH-REVIEW.md`). Inkvolt PDF for Windows has a Spanish interface on master, not released yet (`pdf/ROADMAP.md` 3.7; the owner OK'd the
+wording on 2026-11-04, `pdf/docs/SPANISH-REVIEW.md`; when it ships, the Store listing's "La aplicación está en inglés." goes, in Partner
 Center). Open: the Mac apps' Spanish, and What's New in Spanish.
 
 **Reviews.** Hostile-input reviews before releases found about 18 bugs in Print and about 20 in PDF, all fixed. Keep doing them.
 
-**Tests (2026-11-03).** Windows: Inkvolt PDF 2,420, Inkvolt Print 2,223; Mac: InkvoltPdfKit 1,160. CI's timing
+**Tests (2026-11-03).** Windows: Inkvolt PDF 2,420, Inkvolt Print 2,223; Mac: InkvoltPdfKit 1,165 (2026-11-04). CI's timing
 flakes were fixed with `shared/Testing/Timing.cs`; seen once since: `LtvTests.Offline_adding…` (CI) and
 `PipedChildTests` (a loaded PC). Each passes alone.
 

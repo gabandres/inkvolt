@@ -390,7 +390,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
   "make the text editable", straightened lines and trapezoid correction (ABBYY's), suspect words for pages recognized by
   Batch, Scan or export (they get the cleaning, not the review). Mac: stage A done with E14 (2026-11-02,
-  `mac/docs/PLAN.md`), with Apple's Vision as its recognizer.
+  `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
+  Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there.
 - **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,
   optionally written back as the cleaned image; a second, local engine (Tesseract, Apache-2.0, 100+ languages;
   [tessdata](https://github.com/tesseract-ocr/tessdata)) is an optional download for languages Windows lacks, with

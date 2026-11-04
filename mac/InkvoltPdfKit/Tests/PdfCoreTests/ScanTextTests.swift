@@ -97,6 +97,61 @@ struct ScanTextTests {
         #expect(word.rect.height >= 10 && word.rect.height <= 22) // 16 pt Helvetica-Bold
     }
 
+    /// Reads every line of ink as one group of digits, whichever way up it is handed: digits read plausibly both ways.
+    final class DigitReader: TextRecognizer, @unchecked Sendable {
+        var language: String? { "en-US" }
+
+        func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
+            let (width, height) = (image.width, image.height)
+            let gray = ScanCleanup.toGray(image.pixels, width, height)
+            func inked(_ y: Int) -> Bool { (0..<width).contains { gray[y * width + $0] < 128 } }
+            var words: [OcrWord] = []
+            var y = 0
+            while y < height {
+                if inked(y) {
+                    let top = y
+                    while y + 1 < height && inked(y + 1) { y += 1 }
+                    words.append(OcrWord("5555", RectD(0, Double(top), Double(width), Double(y - top + 1))))
+                }
+                y += 1
+            }
+            return words
+        }
+    }
+
+    /// The redaction corpus's third page (RedactionCorpus.cs): three typeset lines of numbers in Helvetica, split runs.
+    static let digitsPageObjects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 804] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> >> >> >>",
+        Core2Pdf.stream("BT /F1 14 Tf 72 700 Td [(55)-5(55 55)-8(55 5555 4)-2(444)] TJ ET\n" +
+                        "BT /F1 14 Tf 72 676 Td (DE89 3704 ) Tj (0044 0532 ) Tj (0130 00) Tj ET\n" +
+                        "BT /F1 14 Tf 72 652 Td (192.) Tj (168.) Tj (1.) Tj (10) Tj ET\n"),
+    ]
+
+    @Test func aPageOfDigitsThatReadsBothWaysStaysAsItIs() throws {
+        // Digits have no ascenders or descenders, so the ink doesn't say which way up the page is, and a reading turned
+        // over is as plausible as the right one ("OO 6830 9999 9999 9999" was Windows' reading of it turned): with
+        // nothing clearly better, the page stays as it is.
+        let pdf = try PdfEngine.open(Core2Pdf.build(Self.digitsPageObjects))
+        defer { pdf.close() }
+        let page = try ScanText.recognize(pdf, 0, DigitReader(), RecognizeOptions(checkWords: false))
+        #expect(page.quarterTurns == 0)
+        #expect(!page.words.isEmpty)
+    }
+
+    @Test(arguments: [
+        (0, 0, false), // nothing either way: as it is
+        (1, 0, false), // one stray "word" in a reading of digits
+        (2, 0, true),
+        (40, 34, false),
+        (40, 30, true),
+        (40, 2, true), // a page of prose against its reading upside down
+    ])
+    func aTurnNeedsAClearlyBetterReading(_ turned: Int, _ asItIs: Int, _ turn: Bool) {
+        #expect(ScanText.clearlyMore(turned, asItIs) == turn)
+    }
+
     @Test(.enabled(if: ScanCorpus.runs)) func thePageAsScannedIsReadAsToday() throws {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }

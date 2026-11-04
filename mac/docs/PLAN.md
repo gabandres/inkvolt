@@ -810,8 +810,14 @@ E14, Better OCR stage A (Windows 2026-10-30; done on the Mac 2026-11-02, see its
   with the same expectations: the corpus pages straightened within 0.3°, upright, the stand-in recognizer's heading placed
   at the same place and angle (−176.9°).
 - **Corpus**: `pdf/tools/ocr-corpus` (ScanCorpus.cs, WordErrorRate.cs) ports as is. The Mac's corpus files differ from
-  RESULTS.md's bytes (its JPEGs are ImageIO's), though the pixels before the JPEG are the same. The word error rate with
-  Vision isn't measured yet.
+  RESULTS.md's bytes (its JPEGs are ImageIO's), though the pixels before the JPEG are the same. Vision on it (2026-11-04,
+  `VisionProbeTests`, opt-in with `INKVOLTPDF_VISION_PROBE=1`, cleaned as Recognize Text reads): word error rate 0.0-5.8 %
+  on the English pages, 0.8-6.3 % on the Spanish, 0.3 and 2.0 % on the turned pages (both set upright); no page has a
+  run of more than 3 truth words with nothing read for them, so Vision doesn't skip lines as Windows' recognizer does
+  and `MissedLines.cs` isn't ported. The redaction corpus's page of numbers is read upright by Vision, cleaned or not;
+  `ScanText.clearlyMore` (Windows' `ClearlyMore`, 2026-11-03) is ported anyway, with ScanTextTests'
+  `aPageOfDigitsThatReadsBothWaysStaysAsItIs` and `aTurnNeedsAClearlyBetterReading`: the old tie rule turned that page
+  over with a reader that reads digits both ways.
 - **The app**: Recognize Text's sheet gets the language, the two checks and "Replace the scans with the cleaned pages";
   a Suspect words list in the sidebar (each word beside its picture, Correct to with `NSSpellChecker`'s guesses, Keep as
   read), as on Windows.
