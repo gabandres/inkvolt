@@ -7,6 +7,8 @@ public enum AlertKind: String, CaseIterable, Comparable, Sendable {
     case supplyLow = "SupplyLow", supplyEmpty = "SupplyEmpty", wasteAlmostFull = "WasteAlmostFull", wasteFull = "WasteFull"
     case paperJam = "PaperJam", paperOut = "PaperOut", coverOpen = "CoverOpen", error = "Error", offline = "Offline"
     case firmwareChanged = "FirmwareChanged"
+    /// Your own print job (`AlertTracker.observeJobs`): never the menu bar icon's color.
+    case jobFailed = "JobFailed", jobStuck = "JobStuck"
 
     public static func < (a: AlertKind, b: AlertKind) -> Bool { allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)! }
 }
@@ -54,7 +56,7 @@ public struct AlertCondition: Equatable, Sendable {
 
     public static func level(of kind: AlertKind) -> AlertLevel {
         switch kind {
-        case .supplyLow, .wasteAlmostFull: .warning
+        case .supplyLow, .wasteAlmostFull, .jobStuck: .warning
         case .offline: .offline
         case .firmwareChanged: .ok
         default: .error
