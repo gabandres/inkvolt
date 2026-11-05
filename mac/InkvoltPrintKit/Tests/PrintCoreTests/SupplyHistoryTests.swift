@@ -384,7 +384,8 @@ final class SupplyHistoryTests {
         let stored = text.split(separator: "\n").dropFirst().map { $0.split(separator: "\t", omittingEmptySubsequences: false) }
             .filter { !$0[3].isEmpty }.map { "\($0[0])\t\($0[3])" }
         try #require(chart.lines.count == 1)
-        #expect(chart.lines[0].segments.flatMap { $0 }.map { "\($0.day)\t\($0.percent)" } == stored)
+        let points: [String] = chart.lines[0].segments.flatMap { $0 }.map { p in "\(p.day)\t\(p.percent)" }
+        #expect(points == stored)
     }
 
     @Test func No_level_breaks_the_line_and_a_change_of_cartridge_starts_a_new_one() throws {

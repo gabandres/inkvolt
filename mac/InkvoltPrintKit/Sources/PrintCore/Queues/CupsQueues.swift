@@ -199,12 +199,17 @@ public struct QueueReading: Equatable, Sendable {
 /// (paused, not accepting jobs, the printer not answering its queue) come first, and CUPS's notes about itself (`cups-*`)
 /// are left out.
 public enum CupsStatus {
-    public static func describe(_ d: CupsDestination) -> QueueReading {
-        let waiting = switch d.jobs ?? 0 {
-        case 0: ""
-        case 1: " 1 job is waiting."
-        case let n: " \(n) jobs are waiting."
+    /// "2 jobs are waiting.", or nil with none: the note an ordinary state carries as its detail.
+    public static func jobsNote(_ d: CupsDestination) -> String? {
+        switch d.jobs ?? 0 {
+        case ...0: nil
+        case 1: "1 job is waiting."
+        case let n: "\(n) jobs are waiting."
         }
+    }
+
+    public static func describe(_ d: CupsDestination) -> QueueReading {
+        let waiting = jobsNote(d).map { " " + $0 } ?? ""
         let reasons = d.reasons.map { IppClient.splitReason($0).id }
         if reasons.contains("offline") || reasons.contains("offline-report") && d.state != 4 {
             let check = switch CupsQueues.connection(d) {
@@ -223,7 +228,7 @@ public enum CupsStatus {
             return !id.hasPrefix("cups-") && !["paused", "offline-report", "hold-new-jobs", "none"].contains(id)
         }.map { .text($0) }
         var status = IppClient.toStatus(IppResponse(statusCode: 0, attributes: attributes))
-        let jobs = waiting.isEmpty ? nil : waiting.trimmingCharacters(in: .whitespaces)
+        let jobs = jobsNote(d)
 
         if d.state == 5 {
             // Stopped on a problem the printer reports: that problem. Stopped without one: paused, by someone or by macOS

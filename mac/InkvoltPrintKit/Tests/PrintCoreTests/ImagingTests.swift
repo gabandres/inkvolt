@@ -115,8 +115,9 @@ struct ImagingTests {
         var pixels = [UInt8](repeating: 200, count: 3 * 12)
         (pixels[0], pixels[1], pixels[2]) = (255, 0, 0)
         let turned = PageRotate.rotate(pixels, width: 3, height: 3, stride: 12, channels: 3, degrees: 90)
-        #expect(Array(turned[6..<9]) == [255, 0, 0])
-        #expect(Array(turned[0..<3]) == [200, 200, 200])
+        let blue: [UInt8] = [255, 0, 0], grey: [UInt8] = [200, 200, 200]
+        #expect(Array(turned[6..<9]) == blue)
+        #expect(Array(turned[0..<3]) == grey)
     }
 
     @Test func cropFollowsThePageWhenItTurns() {

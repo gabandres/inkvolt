@@ -52,20 +52,27 @@ public final class IppClient: Sendable {
         return try IppCodec.decode(response.body)
     }
 
+    /// Most supplies taken from a printer (a real one has a handful): a reply's bytes hold thousands, one card and history
+    /// line each.
+    public static let maxSupplies = 64
+
+    /// Most problems read from each of `printer-state-reasons` and `printer-alert` (a real printer has a few).
+    public static let maxAlerts = 64
+
     /// Status from `printer-state` and `printer-state-reasons`, plus `printer-alert` entries (PWG 5100.9) that no reason
     /// covers. Alerts matching a reason lend it their `printer-alert-description`s (the printer's own words, e.g. which
     /// colors are low), joined when several map to the same reason, and their severity when it is higher. Placeholder
     /// reasons ("none", "other") and change events are not problems.
     public static func toStatus(_ r: IppResponse) -> PrinterStatus {
         var alerts: [PrinterAlert] = []
-        for x in r.strs("printer-state-reasons") {
+        for x in r.strs("printer-state-reasons").prefix(maxAlerts) {
             let (id, severity) = splitReason(x)
             if id == "none" || id == "other" || alerts.contains(where: { $0.id == id }) { continue }
             alerts.append(PrinterAlert(id: id, severity: severity, message: IppStatusText.describe(id)))
         }
         let descriptions = r.strs("printer-alert-description")
         var texts: [String: [String]] = [:] // reason id → the printer's descriptions
-        for (i, value) in r.strs("printer-alert").enumerated() {
+        for (i, value) in r.strs("printer-alert").prefix(maxAlerts).enumerated() {
             guard let alert = IppAlert.parse(value) else { continue }
             let severity: Severity? = alert.severity == "critical" ? .error : alert.severity == "warning" ? .warning : nil
             guard let severity, alert.code != "other" else { continue } // "other", "warningBinaryChangeEvent": nothing to fix
@@ -139,7 +146,7 @@ public final class IppClient: Sendable {
         let waste = r.strs("printer-state-reasons").map { splitReason($0).id }.filter { $0.hasPrefix("marker-waste") }
         let wasteState = waste.contains { !$0.hasSuffix("almost-full") && $0.hasSuffix("-full") } ? "full"
             : waste.contains { $0.hasSuffix("almost-full") } ? "almostFull" : "ok"
-        return r.strs("marker-names").enumerated().map { i, name in
+        return r.strs("marker-names").prefix(maxSupplies).enumerated().map { i, name in
             let kind = i < types.count ? types[i] : "supply"
             let color = i < colors.count ? colorCode(colors[i]) : nil
             if Consumable.isWasteKind(kind) {
