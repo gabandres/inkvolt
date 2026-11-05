@@ -7,15 +7,30 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// A page this process won't run through MuPDF: drawing it in its page check took longer than the limit
-/// (<see cref="PageChecks"/>), or the check process ended on it twice. The rest of the document can still be used.
+/// (<see cref="PageChecks"/>), MuPDF gave up on it there, or the check process ended on it twice. The rest of the
+/// document can still be used.
 /// </summary>
-public sealed class PageRefusedException(int page, bool tooSlow)
-    : InvalidOperationException(Loc.Format(tooSlow ? PdfStrings.Doc_PageTooSlow : PdfStrings.Doc_PageCheckFailed, page + 1))
+public sealed class PageRefusedException : InvalidOperationException
 {
-    public int Page { get; } = page;
+    internal PageRefusedException(int page, PageVerdict verdict)
+        : base(Loc.Format(verdict switch
+        {
+            PageVerdict.TooSlow => PdfStrings.Doc_PageTooSlow,
+            PageVerdict.Failed => PdfStrings.Doc_PageUnreadable,
+            _ => PdfStrings.Doc_PageCheckFailed,
+        }, page + 1))
+    {
+        Page = page;
+        TooSlow = verdict == PageVerdict.TooSlow;
+    }
 
-    /// <summary>True: it took too long; false: the check process ended on it (a crash, or more memory than it may take).</summary>
-    public bool TooSlow { get; } = tooSlow;
+    public int Page { get; }
+
+    /// <summary>True: it took too long; false: MuPDF gave up on it in the check, or the check process ended on it (a crash, or more memory than it may take).</summary>
+    public bool TooSlow { get; }
+
+    /// <summary>Whether a verdict refuses the page.</summary>
+    internal static bool Refuses(PageVerdict verdict) => verdict is PageVerdict.TooSlow or PageVerdict.Crashed or PageVerdict.Failed;
 }
 
 /// <summary>What a page check found.</summary>
@@ -24,7 +39,7 @@ internal enum PageVerdict : byte
     /// <summary>Not checked yet.</summary>
     Unknown,
 
-    /// <summary>Drawn within the limit (or MuPDF stopped on it at once, as it will here): this process may run it.</summary>
+    /// <summary>Drawn within the limit: this process may run it.</summary>
     Fine,
 
     /// <summary>Still drawing when the limit passed: the check process was ended and the page is refused.</summary>
@@ -35,6 +50,9 @@ internal enum PageVerdict : byte
 
     /// <summary>No check could be made (no check process starts, the document doesn't open in one, or it was closed): run here as before.</summary>
     Unchecked,
+
+    /// <summary>MuPDF gave up on it in the check process (a damaged page, or one that needs more memory than the process may take): refused.</summary>
+    Failed,
 }
 
 /// <summary>
@@ -82,7 +100,7 @@ public static class PageChecks
         {
             var request = p.Ask(doc, 0);
             request.Done.Wait();
-            return request.Result is not (PageVerdict.TooSlow or PageVerdict.Crashed);
+            return !PageRefusedException.Refuses(request.Result);
         }
         finally
         {
@@ -161,9 +179,9 @@ public static class PageChecks
                         var page = FindWorkers.ReadInt(pipe);
                         if (engine is null || page < 0 || page >= engine.PageCount) return;
                         var drawn = Drawn;
-                        TestCheckFault?.Invoke();
                         try
                         {
+                            TestCheckFault?.Invoke();
                             var g = engine.GetPage(page);
                             var longer = Math.Max(g.Width, g.Height);
                             engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
@@ -531,7 +549,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     var page = ReadInt(plan.Limit);
                     var answer = ReadInt(plan.Limit);
                     if (page != request.Page || answer is not (PageChecks.Drawn or PageChecks.Failed)) throw new InvalidDataException("Not an answer.");
-                    return PageVerdict.Fine; // a page MuPDF stopped on at once stops here at once too
+                    // MuPDF giving up there (a damaged page, an allocation past the process's memory limit) says nothing
+                    // of what the page costs here, where nothing limits it: refused, not tried again.
+                    return answer == PageChecks.Drawn ? PageVerdict.Fine : PageVerdict.Failed;
                 }
                 catch (TimeoutException)
                 {

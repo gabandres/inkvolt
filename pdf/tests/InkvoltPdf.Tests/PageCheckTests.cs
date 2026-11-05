@@ -219,6 +219,21 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void APageWhoseCheckFailsIsRefusedNotDrawnHereUnlimited()
+    {
+        // MuPDF failing in the check process (its allocation stopped at the process's memory limit, say) says nothing
+        // about what the page costs here, where nothing limits it.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-fail"]) { Limit = Limit };
+        using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        var refused = Assert.Throws<PageRefusedException>(() => engine.Render(0, 0.5));
+        Assert.False(refused.TooSlow);
+        Assert.Equal(PageVerdict.Failed, engine.VerdictOf(0));
+        Assert.Throws<PageRefusedException>(() => engine.GetText(0));
+        Assert.DoesNotContain(plan.Pids, Exited); // an answer, not a crash: the process goes on, the page isn't tried again
+    }
+
+    [Fact]
     public void WithoutACheckProcessPagesDrawAsBefore()
     {
         using var plan = new PageCheckPlan(Path.Combine(AppContext.BaseDirectory, "no-such-program.exe"), []) { Limit = Limit };

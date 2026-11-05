@@ -23,6 +23,12 @@ if (args is ["page-check-fault", .. var checkArgs] && PageChecks.IsCommand(check
     PageChecks.TestCheckFault = () => System.Diagnostics.Process.GetCurrentProcess().Kill();
     return PageChecks.Run(checkArgs);
 }
+// A test's check process in which drawing every page fails, as MuPDF's does when it runs out of memory (PageCheckTests).
+if (args is ["page-check-fail", .. var failArgs] && PageChecks.IsCommand(failArgs))
+{
+    PageChecks.TestCheckFault = () => throw new InvalidOperationException("Drawing failed.");
+    return PageChecks.Run(failArgs);
+}
 
 if (IndexWorkers.IsCommand(args)) return IndexWorkers.Run(args);
 // A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "eat" takes memory without end.

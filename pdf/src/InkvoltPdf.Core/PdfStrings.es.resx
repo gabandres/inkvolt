@@ -4828,6 +4828,10 @@
     <value>La página {0} detuvo el programa que la lee, así que no se muestra. El resto del documento se puede seguir usando.</value>
     <comment>{0} = page number</comment>
   </data>
+  <data name="Doc_PageUnreadable" xml:space="preserve">
+    <value>No se pudo leer la página {0}, así que no se muestra. El resto del documento se puede seguir usando.</value>
+    <comment>{0} = page number</comment>
+  </data>
   <data name="Doc_ChangedWhileOpen" xml:space="preserve">
     <value>El documento cambió mientras estaba abierto.</value>
   </data>

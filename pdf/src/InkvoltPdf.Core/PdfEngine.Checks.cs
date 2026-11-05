@@ -24,7 +24,7 @@ public sealed partial class PdfEngine
     /// check can be had (no check processes, a document a check process can't open from here: one with a password, or not
     /// a PDF). Waits for the check, which is shared by every caller asking about the page meanwhile.
     /// </summary>
-    /// <exception cref="PageRefusedException">The page took too long in its check, or ended the check process.</exception>
+    /// <exception cref="PageRefusedException">The page took too long in its check, MuPDF gave up on it there, or it ended the check process.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired while the check went on (it goes on without the caller).</exception>
     private void Vet(int page, CancellationToken cancel)
     {
@@ -32,8 +32,7 @@ public sealed partial class PdfEngine
             switch ((PageVerdict)Volatile.Read(ref known[page]))
             {
                 case PageVerdict.Fine or PageVerdict.Unchecked: return;
-                case PageVerdict.TooSlow: throw new PageRefusedException(page, tooSlow: true);
-                case PageVerdict.Crashed: throw new PageRefusedException(page, tooSlow: false);
+                case var v when PageRefusedException.Refuses(v): throw new PageRefusedException(page, v);
             }
         CheckRequest request;
         PageCheckPlan plan;
@@ -109,15 +108,11 @@ public sealed partial class PdfEngine
     /// <summary>Returns or throws as the page's verdict says. Under _checkGate.</summary>
     private void Decided(int page)
     {
-        switch ((PageVerdict)_verdicts![page])
-        {
-            case PageVerdict.TooSlow: throw new PageRefusedException(page, tooSlow: true);
-            case PageVerdict.Crashed: throw new PageRefusedException(page, tooSlow: false);
-        }
+        if ((PageVerdict)_verdicts![page] is var v && PageRefusedException.Refuses(v)) throw new PageRefusedException(page, v);
     }
 
     /// <summary>Whether a page is refused already (Find doesn't hand it to a worker): without asking for a check.</summary>
-    private bool IsRefused(int page) => VerdictOf(page) is PageVerdict.TooSlow or PageVerdict.Crashed;
+    private bool IsRefused(int page) => PageRefusedException.Refuses(VerdictOf(page));
 
     /// <summary>The engine is going away: its checks end, and the check processes let go of its document.</summary>
     private void ForgetChecks()

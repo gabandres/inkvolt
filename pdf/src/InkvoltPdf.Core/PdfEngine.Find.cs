@@ -78,7 +78,7 @@ public sealed partial class PdfEngine
     /// <summary>A page's matches from what is already known of it, without reading it; null if it has to be read.</summary>
     private PageMatches? FindKnown(int page, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
     {
-        if (IsRefused(page)) return new PageMatches(page, null, [], new PageRefusedException(page, VerdictOf(page) == PageVerdict.TooSlow));
+        if (IsRefused(page)) return new PageMatches(page, null, [], new PageRefusedException(page, VerdictOf(page)));
         if (Volatile.Read(ref _pageStrings[page]) is { } known && !PageText.Matches(known, query, matchCase, wholeWord, ignoreAccents))
             return new PageMatches(page, null, []);
         var text = Volatile.Read(ref _pageTexts[page]);
