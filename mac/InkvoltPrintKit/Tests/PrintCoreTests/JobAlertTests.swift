@@ -500,6 +500,24 @@ struct JobAlertTests {
         #expect(Self.minutes(t, Self.at(5), 5, Self.queue(Self.job(7,.stopped))).isEmpty)
     }
 
+    /// The Mac's own (Windows counts the first read without a job as the queue moving): a job missing from one read hasn't
+    /// left, so neither its own wait nor the wait of a job behind it starts again; missing from two reads in a row, it left
+    /// when it was first missed.
+    @Test func aJobOneReadMissesDoesntStartTheStuckWaitAgain() {
+        let mine = Self.job(2, .processing, name: "Mine.pdf")
+        let t = Self.tracker()
+        #expect(Self.minutes(t, Self.t0, 3, Self.queue(mine)).isEmpty)
+        #expect(Self.read(t, Self.at(4), Self.queue()).isEmpty)
+        #expect(Self.read(t, Self.at(5), Self.queue(mine)).map(\.kind) == [.jobStuck])
+
+        let theirs = Self.job(1, .processing, owner: "alex", submitted: Self.submitted.addingTimeInterval(-300))
+        let behind = Self.job(2, .pending, name: "Mine.pdf")
+        let u = Self.tracker()
+        #expect(Self.minutes(u, Self.t0, 3, Self.queue(theirs, behind)).isEmpty)
+        #expect(Self.read(u, Self.at(4), Self.queue(behind)).isEmpty) // not yet known to have left: nothing decided stuck
+        #expect(Self.read(u, Self.at(5), Self.queue(theirs, behind)).map(\.kind) == [.jobStuck])
+    }
+
     @Test func aJobIdTheSpoolerUsedAgainIsANewJob() {
         let t = Self.tracker()
         #expect(Self.minutes(t, Self.t0, 3, Self.queue(Self.job(7, .stopped, name: "First.pdf"))).count == 1)

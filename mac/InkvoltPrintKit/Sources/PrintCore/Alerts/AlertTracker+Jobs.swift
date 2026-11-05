@@ -11,6 +11,8 @@ final class JobTrack {
     var best = JobProgress(), mark = JobProgress()
     var firstSeen = Date.distantPast
     var failedSince: Date?, absentSince: Date?
+    /// Reads in a row it was missing from, up to `AlertTracker.jobGoneAfterReads`.
+    var missed = 0
     var due: AlertKind?
 
     init(_ key: String) { self.key = key }
@@ -68,7 +70,9 @@ final class JobQueueTrack {
 /// - **Stuck**: your first job in the queue, with nothing in the queue moving while the queue runs, for
 ///   `AlertRules.jobStuckAfter` with the printer saying it's ready, or `jobHungAfter` with it saying it's printing (worded
 ///   "may be stuck": with no page counts from CUPS a long job looks the same). Moving means `JobProgress` going forward on
-///   any job in the queue, or a job leaving, so a job waiting its turn isn't stuck, and flicker doesn't count. Jobs behind
+///   any job in the queue, or a job leaving (missing from `jobGoneAfterReads` reads in a row, as of the first: one read
+///   that misses a job decides nothing stuck, and doesn't start a wait again; Windows counts the first miss as leaving), so
+///   a job waiting its turn isn't stuck, and flicker doesn't count. Jobs behind
 ///   your first one wait for it. The clock starts when the job is first seen, so a restart gives it the full time again.
 /// - **Told again**: a job told stuck is told again only after real progress since its last alert, at most
 ///   `jobMaxStuckAlerts` times. What decides that survives restarts (`shown()`): the job's key, its counts and its progress
@@ -76,6 +80,8 @@ final class JobQueueTrack {
 /// Quiet hours, a pause and alerts turned off work as for any other alert. Jobs don't color the menu bar icon.
 extension AlertTracker {
     static let maxRememberedJobs = 256
+    /// A job missing from this many reads in a row has left the queue.
+    static let jobGoneAfterReads = 2
 
     func rememberJob(_ uuid: String, _ line: String) {
         let q = printer(uuid).queue
@@ -100,36 +106,53 @@ extension AlertTracker {
         if !running {
             Self.stopStuckClock(q)
         } else {
-            if moved || q.stillSince == nil { q.stillSince = now }
-            if p.work != .ready { q.readySince = nil } else if moved || q.readySince == nil { q.readySince = now }
+            q.stillSince = Self.since(q.stillSince, moved, now)
+            q.readySince = p.work != .ready ? nil : Self.since(q.readySince, moved, now)
         }
         decideFailed(jobs, q, now: now)
         decideStuck(jobs, p, now: now)
         return release(now: now)
     }
 
-    /// The jobs listed now and the ones gone since: true when the queue moved.
-    private func takeIn(_ jobs: [QueueJob], _ q: JobQueueTrack, printerName: String, me: JobOwner, othersMayPrint: Bool, now: Date) -> Bool {
-        var moved = false
+    /// A clock that started at `start`, after the queue moved at `moved`: started now if it wasn't running.
+    private static func since(_ start: Date?, _ moved: Date?, _ now: Date) -> Date {
+        guard let start else { return now }
+        return moved.map { max(start, $0) } ?? start
+    }
+
+    /// The jobs listed now and the ones gone since: when the queue last moved, nil if it didn't.
+    private func takeIn(_ jobs: [QueueJob], _ q: JobQueueTrack, printerName: String, me: JobOwner, othersMayPrint: Bool, now: Date) -> Date? {
+        var moved: Date?
         var listed = Set<String>()
         for job in jobs {
             let key = JobRules.key(job)
             listed.insert(key)
             let t = q.track(key)
-            if Self.takeIn(t, job, now) { moved = true }
-            t.absentSince = nil
+            if Self.takeIn(t, job, now) { moved = now }
+            (t.absentSince, t.missed) = (nil, 0)
             (t.name, t.state, t.mine, t.printerName) = (job.name, job.state, me.owns(job, othersMayPrint: othersMayPrint), printerName)
         }
         for key in q.order where !listed.contains(key) {
             guard let t = q.jobs[key] else { continue }
-            if t.seen && t.absentSince == nil { moved = true } // a job left: the queue moved
             let gone = t.absentSince ?? now
             t.absentSince = gone
             t.due = nil
-            // Kept a while once told: a read can miss a job that's still there, and it mustn't be told again when it's back.
+            guard t.missed < Self.jobGoneAfterReads else {
+                // Kept a while once told: a read can miss a job that's still there, and it mustn't be told again when it's back.
+                if !t.remembered || now.timeIntervalSince(gone) >= rules.clearHold { q.remove(key) }
+                continue
+            }
+            t.missed += 1
+            guard t.missed == Self.jobGoneAfterReads else { continue }
+            if t.seen { moved = max(moved ?? gone, gone) } // a job left when it was first missed: the queue moved
             if !t.remembered || now.timeIntervalSince(gone) >= rules.clearHold { q.remove(key) }
         }
         return moved
+    }
+
+    /// A job a read missed that may still be there: whether the queue moved is known at the next read.
+    private static func unsure(_ q: JobQueueTrack) -> Bool {
+        q.jobs.values.contains { $0.seen && $0.absentSince != nil && $0.missed < jobGoneAfterReads }
     }
 
     private func decideFailed(_ jobs: [QueueJob], _ q: JobQueueTrack, now: Date) {
@@ -152,7 +175,7 @@ extension AlertTracker {
     /// Your first job that should be moving; a failed one stands for those behind it.
     private func decideStuck(_ jobs: [QueueJob], _ p: Printer, now: Date) {
         let q = p.queue
-        let first = jobs.lazy.compactMap { q.jobs[JobRules.key($0)] }.first { $0.mine && JobRules.shouldMove($0.state) }
+        let first = Self.unsure(q) ? nil : jobs.lazy.compactMap { q.jobs[JobRules.key($0)] }.first { $0.mine && JobRules.shouldMove($0.state) }
         for key in q.order { if let t = q.jobs[key], t.due == .jobStuck, t !== first { t.due = nil } }
         q.stuckAt = nil
         guard let first else { return }
