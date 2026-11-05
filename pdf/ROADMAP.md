@@ -508,9 +508,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Word and office files: 5 pass, 7 fail only on form-field tooltips (28-005) and fonts (31-009, 31-014, 31-030), the
   same as the checker on 12 of 12 (the NIST standard's contents as 17 TOC, 55 entries). Save as PDF/A-2a of those 14:
   10 made, all 10 pass veraPDF 2a and ua1 (both papers, the NIST standard, the Word files); 4 refused as before (a
-  signature, CMYK without a profile twice, a Times that would move). Still to do: content inside form XObjects tagged
-  piece by piece, changing a piece's kind in the pane, row spans, Unicode for Type 3 bitmap fonts, Acrobat and PAC checks
-  of the output. **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
+  signature, CMYK without a profile twice, a Times that would move). **Part 4** (2026-11-04): **forms tagged piece by
+  piece**: a form XObject with text that the whole document draws once (`AutoTag.Write`'s `CountForms`, through forms
+  drawn by forms) has its own content marked inside it, each piece in its own element, with MCIDs of its own under its
+  StructParents and MCRs naming it (/Stm); its Do stays outside any marked content; a form drawn more than once is
+  still one piece where it is drawn (a stream can hold one set of MCIDs). `AutoTagFormTests` (3: a heading and two
+  paragraphs inside one form, a form two pages share, re-tagging). veraPDF 1.30.3 passes PDF/UA-1 on the form page
+  tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before (50 of 50 the same; 2 of 2 papers pass; 5 of 12 office files
+  pass, the other 7 on 28-005 and 31-009/014/030). Still to do: changing a piece's kind in the pane, row spans, Unicode
+  for Type 3 bitmap fonts, Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
   PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model

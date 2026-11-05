@@ -91,6 +91,7 @@ public static partial class AutoTag
             var extras = new Dictionary<int, List<PdfDictionary>>();
 
             var pages = doc.Pages.Cast<PdfPage>().ToList();
+            foreach (var page in pages) CountForms(ContentEditor.ContentBytes(page), Resources(page), 0);
             for (var p = 0; p < pages.Count; p++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -435,91 +436,131 @@ public static partial class AutoTag
                 }
             }
 
-            // Marked content around each run of items that go to the same place.
-            var output = new MemoryStream(content.Length + items.Count * 24);
-            var cursor = 0;
-            void Emit(int at, string text, int remove = 0)
+            // Marked content around each run of items that go to the same place; a form drawn only here that holds
+            // text is marked inside, piece by piece (its MCIDs its own, under its StructParents), and its Do left unmarked.
+            byte[] Mark(byte[] content, List<COp> ops, PageWalk walk, List<Item> items, PdfDictionary? resources, PdfDictionary? form, int depth, List<PdfItem> mcids)
             {
-                output.Write(content, cursor, at - cursor);
-                var bytes = Encoding.Latin1.GetBytes(text);
-                output.Write(bytes);
-                cursor = at + remove;
-            }
-            var mcids = new List<PdfItem>();
-            Target? open = null;
-            void Close(int at)
-            {
-                if (open is null) return;
-                Emit(at, "\nEMC\n");
-                open = null;
-            }
-            void Open(int at, Target t)
-            {
-                if (t.Artifact)
+                var output = new MemoryStream(content.Length + items.Count * 24);
+                var cursor = 0;
+                void Emit(int at, string text, int remove = 0)
                 {
-                    Emit(at, t.Running ? "\n/Artifact <</Type /Pagination>> BDC\n" : "\n/Artifact BMC\n");
-                    open = t;
-                    return;
+                    output.Write(content, cursor, at - cursor);
+                    var bytes = Encoding.Latin1.GetBytes(text);
+                    output.Write(bytes);
+                    cursor = at + remove;
                 }
-                var leaf = t.Leaf!;
-                var owner = leaf.Elem;
-                var type = leaf.Type;
-                if (t.Link >= 0)
+                Target? open = null;
+                void Close(int at)
                 {
-                    if (!leaf.Links.TryGetValue(t.Link, out var link))
+                    if (open is null) return;
+                    Emit(at, "\nEMC\n");
+                    open = null;
+                }
+                // A leaf's or link's reference to the next MCID: the number on the page, an MCR naming the form inside one.
+                PdfItem Ref(int mcid)
+                {
+                    if (form is null) return new PdfInteger(mcid);
+                    var mcr = new PdfDictionary(doc);
+                    mcr.Elements["/Type"] = new PdfName("/MCR");
+                    mcr.Elements["/Pg"] = page.Reference!;
+                    mcr.Elements["/Stm"] = form.Reference!;
+                    mcr.Elements["/MCID"] = new PdfInteger(mcid);
+                    return mcr;
+                }
+                void Open(int at, Target t)
+                {
+                    if (t.Artifact)
                     {
-                        link = Elem("Link", leaf.Elem);
-                        link.Elements["/Pg"] = page.Reference!;
-                        _kids[link] = new PdfArray(doc);
-                        leaf.K.Elements.Add(link.Reference!);
-                        leaf.Links[t.Link] = link;
+                        Emit(at, t.Running ? "\n/Artifact <</Type /Pagination>> BDC\n" : "\n/Artifact BMC\n");
+                        open = t;
+                        return;
                     }
-                    owner = link;
-                    type = "Link";
+                    var leaf = t.Leaf!;
+                    var owner = leaf.Elem;
+                    var type = leaf.Type;
+                    if (t.Link >= 0)
+                    {
+                        if (!leaf.Links.TryGetValue(t.Link, out var link))
+                        {
+                            link = Elem("Link", leaf.Elem);
+                            link.Elements["/Pg"] = page.Reference!;
+                            _kids[link] = new PdfArray(doc);
+                            leaf.K.Elements.Add(link.Reference!);
+                            leaf.Links[t.Link] = link;
+                        }
+                        owner = link;
+                        type = "Link";
+                    }
+                    var mcid = mcids.Count;
+                    mcids.Add(owner.Reference!);
+                    if (t.Link >= 0) _kids[owner].Elements.Add(Ref(mcid));
+                    else leaf.K.Elements.Add(Ref(mcid));
+                    Emit(at, $"\n/{type} <</MCID {mcid}>> BDC\n");
+                    open = t;
                 }
-                var mcid = mcids.Count;
-                mcids.Add(owner.Reference!);
-                if (t.Link >= 0) _kids[owner].Elements.Add(new PdfInteger(mcid));
-                else leaf.K.Elements.Add(new PdfInteger(mcid));
-                Emit(at, $"\n/{type} <</MCID {mcid}>> BDC\n");
-                open = t;
+
+                var next = 0;
+                var spanEnd = -1;
+                for (var i = 0; i < ops.Count; i++)
+                {
+                    var op = ops[i];
+                    if (spanEnd >= 0)
+                    {
+                        Emit(spanEnd, "\nEMC\n");
+                        spanEnd = -1;
+                    }
+                    if (op.Name is "BT" or "ET" or "q" or "Q" or "BMC" or "BDC" or "EMC") Close(op.Start);
+                    if (walk.Stripped.TryGetValue(i, out var instead))
+                    {
+                        Emit(op.Start, instead, op.End - op.Start);
+                        continue;
+                    }
+                    while (next < items.Count && items[next].StartOp < i) next++;
+                    if (next >= items.Count || items[next].StartOp != i) continue;
+                    var it = items[next];
+                    if (PieceByPiece(it, depth, open is not null) is { } inner)
+                    {
+                        Close(op.Start);
+                        var res = PdfObj.Dict(inner.Elements["/Resources"]) ?? resources;
+                        var bytes = PageWalk.SafeBytes(inner);
+                        var innerOps = ContentLexer.Parse(bytes, cancel);
+                        var innerWalk = new PageWalk(page, res, cancel, start: it.Matrix);
+                        var innerItems = innerWalk.Items(innerOps, strip);
+                        var own = new List<PdfItem>();
+                        var marked = Mark(bytes, innerOps, innerWalk, innerItems, res, inner, depth + 1, own);
+                        SetStream(inner, marked);
+                        inner.Elements.Remove("/StructParent");
+                        if (own.Count > 0)
+                        {
+                            var key = _nextKey++;
+                            inner.Elements["/StructParents"] = new PdfInteger(key);
+                            _parentTree[key] = new PdfArray(doc, [.. own]);
+                        }
+                        else inner.Elements.Remove("/StructParents");
+                        continue;
+                    }
+                    var t = Assign(it);
+                    if (open is { } o && o != t) Close(op.Start);
+                    if (open is null && !t.None) Open(op.Start, t);
+                    // A form drawn inside our marked content can't mark artifacts of its own (they'd be nested): they go.
+                    if (!t.None && it is { HasArtifact: true, Form: { } f }) UnmarkArtifacts(f);
+                    // Characters a font maps into the Private Use Area (Word's Symbol and Wingdings bullets) say what they are.
+                    if (!t.None && it is { Kind: ItemKind.Text } ti && ActualText(ti.Text) is { } actual && ti.StartOp == ti.EndOp)
+                    {
+                        Emit(op.Start, $"\n/Span <</ActualText <FEFF{Convert.ToHexString(Encoding.BigEndianUnicode.GetBytes(actual))}>>> BDC\n");
+                        spanEnd = op.End;
+                    }
+                }
+                if (spanEnd >= 0) Emit(spanEnd, "\nEMC\n");
+                Close(content.Length);
+                output.Write(content, cursor, content.Length - cursor);
+                return output.ToArray();
             }
 
-            var next = 0;
-            var spanEnd = -1;
-            for (var i = 0; i < ops.Count; i++)
-            {
-                var op = ops[i];
-                if (spanEnd >= 0)
-                {
-                    Emit(spanEnd, "\nEMC\n");
-                    spanEnd = -1;
-                }
-                if (op.Name is "BT" or "ET" or "q" or "Q" or "BMC" or "BDC" or "EMC") Close(op.Start);
-                if (walk.Stripped.TryGetValue(i, out var instead))
-                {
-                    Emit(op.Start, instead, op.End - op.Start);
-                    continue;
-                }
-                while (next < items.Count && items[next].StartOp < i) next++;
-                if (next >= items.Count || items[next].StartOp != i) continue;
-                var t = Assign(items[next]);
-                if (open is { } o && o != t) Close(op.Start);
-                if (open is null && !t.None) Open(op.Start, t);
-                // A form drawn inside our marked content can't mark artifacts of its own (they'd be nested): they go.
-                if (!t.None && items[next] is { HasArtifact: true, Form: { } form }) UnmarkArtifacts(form);
-                // Characters a font maps into the Private Use Area (Word's Symbol and Wingdings bullets) say what they are.
-                if (!t.None && items[next] is { Kind: ItemKind.Text } ti && ActualText(ti.Text) is { } actual && ti.StartOp == ti.EndOp)
-                {
-                    Emit(op.Start, $"\n/Span <</ActualText <FEFF{Convert.ToHexString(Encoding.BigEndianUnicode.GetBytes(actual))}>>> BDC\n");
-                    spanEnd = op.End;
-                }
-            }
-            if (spanEnd >= 0) Emit(spanEnd, "\nEMC\n");
-            Close(content.Length);
-            output.Write(content, cursor, content.Length - cursor);
+            var mcids = new List<PdfItem>();
+            var marked = Mark(content, ops, walk, items, resources, null, 0, mcids);
 
-            var stream = PdfObj.AddStream(doc, output.ToArray());
+            var stream = PdfObj.AddStream(doc, marked);
             page.Elements["/Contents"] = stream.Reference!;
             if (mcids.Count > 0)
             {
@@ -562,6 +603,34 @@ public static partial class AutoTag
                 extras.Add(e);
             }
         }
+
+        /// <summary>How many times each form XObject is drawn in the document (by pages and by other forms), counted before tagging.</summary>
+        private readonly Dictionary<PdfDictionary, int> _formUses = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>Counts the forms a content stream draws, and the forms they draw the first time each is met.</summary>
+        private void CountForms(byte[] content, PdfDictionary? resources, int depth)
+        {
+            if (depth > MaxFormDepth || content.AsSpan().IndexOf("Do"u8) < 0) return;
+            foreach (var op in ContentLexer.Parse(content, cancel))
+            {
+                if (op.Name != "Do" || op.Operands.Count == 0 || op.Operands[0].Kind != CKind.Name) continue;
+                if (PdfObj.Dict(PdfObj.Dict(resources?.Elements["/XObject"])?.Elements["/" + op.Operands[0].Name]) is not { Stream: not null } x || PdfObj.NameOf(x, "/Subtype") != "/Form") continue;
+                var n = _formUses[x] = _formUses.GetValueOrDefault(x) + 1;
+                if (n == 1) CountForms(PageWalk.SafeBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, depth + 1);
+            }
+        }
+
+        /// <summary>How deep forms drawn by forms are marked inside (and counted).</summary>
+        private const int MaxFormDepth = 8;
+
+        /// <summary>
+        /// The form an item draws when its content is to be marked inside it, piece by piece: a form with text, not an
+        /// artifact, drawn once in the whole document (a stream can hold only one set of MCIDs), outside any marked
+        /// content of ours, and not too deep; else null (the Do is tagged as one piece).
+        /// </summary>
+        private PdfDictionary? PieceByPiece(Item it, int depth, bool inside) =>
+            it is { Kind: ItemKind.Form, HasText: true, InArtifact: false, ArtifactOnly: false, Form: { Reference: not null } f } && !inside && depth < MaxFormDepth
+            && _formUses.GetValueOrDefault(f) == 1 ? f : null;
 
         private readonly HashSet<PdfDictionary> _unmarked = new(ReferenceEqualityComparer.Instance);
 
@@ -713,6 +782,8 @@ public static partial class AutoTag
         public PdfDictionary? Form { get; init; }
         public bool HasArtifact { get; init; }
         public bool ArtifactOnly { get; init; }
+        /// <summary>A form's matrix times the CTM where it is drawn: what its own content is drawn through.</summary>
+        public Mat Matrix { get; init; } = Mat.Identity;
     }
 
     /// <summary>
@@ -721,7 +792,8 @@ public static partial class AutoTag
     /// <c>strip</c> the BDC operators that carry an MCID and their EMC (tags being replaced) in <see cref="Stripped"/>.
     /// </summary>
     /// <param name="lookInsideForms">False for a form's own walk: all that is read of it is whether its items are artifacts, so it goes no deeper (a form can draw itself).</param>
-    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel, bool lookInsideForms = true)
+    /// <param name="start">The CTM the stream starts with: a form's matrix and the CTM where it is drawn, for a form read on its own.</param>
+    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel, bool lookInsideForms = true, Mat? start = null)
     {
         /// <summary>Operators to replace (by index): an MCID's BDC and its EMC by nothing, an artifact's BDC with an MCID by a plain BMC.</summary>
         public Dictionary<int, string> Stripped { get; } = [];
@@ -737,7 +809,7 @@ public static partial class AutoTag
         public List<Item> Items(List<COp> ops, bool strip)
         {
             var items = new List<Item>();
-            var st = new State();
+            var st = new State { Ctm = start ?? Mat.Identity };
             var stack = new Stack<State>();
             var tm = Mat.Identity;
             var tlm = Mat.Identity;
@@ -902,7 +974,7 @@ public static partial class AutoTag
                             }
                             items.Add(new Item(i, i, ItemKind.Form, Box(corners, m.Times(st.Ctm)), "", inArtifact, hasText)
                             {
-                                Form = x, HasArtifact = hasArtifact, ArtifactOnly = artifactOnly,
+                                Form = x, HasArtifact = hasArtifact, ArtifactOnly = artifactOnly, Matrix = m.Times(st.Ctm),
                             });
                         }
                         break;
@@ -912,7 +984,7 @@ public static partial class AutoTag
             return items;
         }
 
-        private static byte[] SafeBytes(PdfDictionary x)
+        internal static byte[] SafeBytes(PdfDictionary x)
         {
             try
             {
