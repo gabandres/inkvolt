@@ -297,8 +297,8 @@ enum OpenXmlParts {
     }
 
     /// Points to twentieths of a point, rounded as .NET's `Math.Round` does.
-    static func twips(_ pt: Double) -> String { String(Int(bankers(pt * 20))) }
+    static func twips(_ pt: Double) -> String { String(bankersInt(pt * 20)) }
 
     /// Points to EMUs.
-    static func emu(_ pt: Double) -> String { String(Int(bankers(pt * 12700))) }
+    static func emu(_ pt: Double) -> String { String(bankersInt(pt * 12700)) }
 }

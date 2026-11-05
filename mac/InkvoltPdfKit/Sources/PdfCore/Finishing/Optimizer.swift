@@ -235,8 +235,10 @@ public enum Optimizer {
             if dpiX <= targetDpi * 1.1 && dpiY <= targetDpi * 1.1 { continue }
             let w = image.int("Width") ?? 0
             let h = image.int("Height") ?? 0
-            let nw = max(1, Int((Double(w) * min(1, targetDpi / dpiX)).rounded(.up)))
-            let nh = max(1, Int((Double(h) * min(1, targetDpi / dpiY)).rounded(.up)))
+            // An image's /Width and /Height can be anything: a size no Int holds is left as it is.
+            guard let rw = Int(exactly: (Double(w) * min(1, targetDpi / dpiX)).rounded(.up)),
+                  let rh = Int(exactly: (Double(h) * min(1, targetDpi / dpiY)).rounded(.up)) else { continue }
+            let nw = max(1, rw), nh = max(1, rh)
             if Double(nw) * Double(nh) > 0.8 * Double(w) * Double(h) { continue }
             if try resample(image, nw, nh, quality) { count += 1 }
         }

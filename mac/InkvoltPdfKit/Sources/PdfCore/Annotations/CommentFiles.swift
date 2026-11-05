@@ -511,7 +511,8 @@ public enum CommentFiles {
             case .string(let s): return doc.text(s)
             case .bool(let b): return doc.bool(b)
             case .number(let d):
-                return abs(d - d.rounded()) < 1e-9 && abs(d) < Double(Int32.max) ? doc.int(Int(d.rounded())) : doc.real(d)
+                if abs(d - d.rounded()) < 1e-9, abs(d) < Double(Int32.max), let i = Int(exactly: d.rounded()) { return doc.int(i) }
+                return doc.real(d)
             case .null, .ref: return nil
             }
         }

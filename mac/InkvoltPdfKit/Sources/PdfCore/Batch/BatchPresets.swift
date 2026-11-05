@@ -259,7 +259,7 @@ public enum BatchPresets {
         String(format: "#%02X%02X%02X", byte(c.r), byte(c.g), byte(c.b))
     }
 
-    private static func byte(_ v: Double) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
+    private static func byte(_ v: Double) -> Int { Int(exactly: (min(max(v, 0), 1) * 255).rounded()) ?? 0 }
 
     private static func png(_ image: StampImage) -> [UInt8] {
         let n = image.width * image.height

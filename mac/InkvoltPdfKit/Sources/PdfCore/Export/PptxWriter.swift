@@ -419,7 +419,7 @@ final class PptxWriter {
             let first = p.list != .none ? -18 : p.firstLine
             let margin = max(0, left) + hang
             if margin > 0 { w.attr("marL", PptxWriter.emu(margin * scale)) }
-            if abs(first) > 0.01 { w.attr("indent", String(Int(bankers(first * scale * 12700)))) }
+            if abs(first) > 0.01 { w.attr("indent", String(bankersInt(first * scale * 12700))) }
             w.attr("algn", p.align == .center ? "ctr" : p.align == .right ? "r" : "l")
             if p.lineCount > 1 && p.linePitch > 0 {
                 w.start("a:lnSpc")
@@ -452,7 +452,7 @@ final class PptxWriter {
         }
 
         private static func spcPts(_ w: XmlOut, _ pt: Double) {
-            w.empty("a:spcPts", [("val", String(min(max(Int(bankers(pt * 100)), 0), 158_400)))])
+            w.empty("a:spcPts", [("val", String(min(max(bankersInt(pt * 100), 0), 158_400)))])
         }
 
         private func run(_ w: XmlOut, _ s: ExportSpan) {
@@ -491,7 +491,7 @@ final class PptxWriter {
             w.end()
         }
 
-        private func hundredths(_ size: Double) -> String { String(min(max(Int(bankers(size * scale * 100)), 100), 400_000)) }
+        private func hundredths(_ size: Double) -> String { String(min(max(bankersInt(size * scale * 100), 100), 400_000)) }
 
         // ---- tables ----
 

@@ -379,7 +379,7 @@ public enum Measurements {
         let u = x.text("U") ?? ""
         let unit = u.isEmpty ? "units" : u.trimmingCharacters(in: .whitespaces)
         let d = x.number("D") ?? 100
-        let decimals = d >= 1 ? min(max(Int(log10(d).rounded()), 0), 6) : 2
+        let decimals = d >= 1 ? min(max(Int(exactly: log10(d).rounded()) ?? 6, 0), 6) : 2
         var perPoint = c / userUnit
         let r = measure.text("R") ?? ""
         let ratio = r.isEmpty ? "1 pt = \(MeasureScale.trimmed(perPoint, 6)) \(unit)" : r.trimmingCharacters(in: .whitespaces)

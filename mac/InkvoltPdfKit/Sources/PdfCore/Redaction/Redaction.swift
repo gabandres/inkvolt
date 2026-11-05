@@ -31,8 +31,8 @@ public enum Redaction {
                 let img = try engine.render(index, scale: scale, cancel: cancel)
                 var rgb = img.pixels
                 for a in areas where !a.isEmpty {
-                    let x0 = clamp(Int((a.x * scale).rounded(.down)), img.width), x1 = clamp(Int((a.right * scale).rounded(.up)), img.width)
-                    let y0 = clamp(Int((a.y * scale).rounded(.down)), img.height), y1 = clamp(Int((a.bottom * scale).rounded(.up)), img.height)
+                    let x0 = pixel((a.x * scale).rounded(.down), img.width, 0), x1 = pixel((a.right * scale).rounded(.up), img.width, img.width)
+                    let y0 = pixel((a.y * scale).rounded(.down), img.height, 0), y1 = pixel((a.bottom * scale).rounded(.up), img.height, img.height)
                     if x1 <= x0 { continue }
                     for y in y0..<max(y0, y1) {
                         let row = (y * img.width + x0) * 3
@@ -44,7 +44,9 @@ public enum Redaction {
         }
     }
 
-    private static func clamp(_ v: Int, _ hi: Int) -> Int { min(max(v, 0), hi) }
+    /// `v` as a pixel column or row within 0...`hi`, checked as a Double first (an area's edge can be anything); `nan` when
+    /// it isn't a number, so such an area blacks out to the image's edge rather than not at all.
+    private static func pixel(_ v: Double, _ hi: Int, _ nan: Int) -> Int { Int(exactly: min(max(v, 0), Double(hi))) ?? nan }
 
     /// A form field whose widget an area covers loses its value everywhere: its widgets on other pages would otherwise
     /// keep showing it (and /V would keep it in the file). Done first, so the drawn pages already show the field empty.

@@ -424,7 +424,7 @@ public enum DocLayout {
         var bands: [Int: [Int]] = [:]
         for line in sorted {
             var merged = false
-            let band = Int((line.box.centerY / 8).rounded(.down))
+            let band = Int(exactly: clamp(line.box.centerY / 8, -1e15, 1e15).rounded(.down)) ?? 0 // a crafted page's NaN or huge place
             let near = (band - 2...band + 2).flatMap { bands[$0] ?? [] }.sorted(by: >)
             for k in near {
                 let prev = result[k]

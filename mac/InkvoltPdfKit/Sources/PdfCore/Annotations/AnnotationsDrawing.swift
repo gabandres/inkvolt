@@ -325,7 +325,7 @@ extension Annotations {
         let tc = s.textColor
         annot.set("DA", doc.text("\(rgb(tc)) rg /Helv \(PdfNum.f(size)) Tf"))
         let align = s.align == .center ? "center" : s.align == .right ? "right" : "left"
-        func hex(_ v: Double) -> String { String(format: "%02X", Int((v * 255).rounded())) }
+        func hex(_ v: Double) -> String { String(format: "%02X", Int(exactly: (min(max(v, 0), 1) * 255).rounded()) ?? 0) }
         annot.set("DS", doc.text("font: Helvetica,sans-serif \(PdfNum.f(size))pt; text-align:\(align); color:#\(hex(tc.r))\(hex(tc.g))\(hex(tc.b))"))
         annot.set("Q", doc.int(s.align == .center ? 1 : s.align == .right ? 2 : 0))
         let paras = text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")

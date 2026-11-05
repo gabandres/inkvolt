@@ -103,7 +103,7 @@ public enum Deskew {
             }
         }
         let diagonal = (Double(img.width) * Double(img.width) + Double(img.height) * Double(img.height)).squareRoot()
-        var bins = [Int](repeating: 0, count: Int(diagonal.rounded(.up)) + 2)
+        var bins = [Int](repeating: 0, count: Int(diagonal.rounded(.up)) + 2) // bounded: the image's own diagonal
 
         func score(_ degrees: Double) -> Double {
             let (s, c) = (sin(degrees * .pi / 180), cos(degrees * .pi / 180))
@@ -114,7 +114,7 @@ public enum Deskew {
                     ys.withUnsafeBufferPointer { py in
                         for k in 0..<px.count {
                             let projected = Double(py[k]) * c - Double(px[k]) * s
-                            let bin = Int(projected.rounded(.toNearestOrEven)) + offset
+                            let bin = Int(projected.rounded(.toNearestOrEven)) + offset // bounded: a pixel's distance from the centre
                             if bin >= 0 && bin < b.count { b[bin] += 1 }
                         }
                     }
@@ -173,8 +173,8 @@ public enum PageRotate {
                         let dx = Double(x) - cx
                         let sx = c * dx + s * dy + cx
                         let sy = -s * dx + c * dy + cy
-                        if sx <= -1 || sy <= -1 || sx >= Double(width) || sy >= Double(height) { continue }
-                        let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down)))
+                        if !(sx > -1 && sy > -1 && sx < Double(width) && sy < Double(height)) { continue } // NaN too
+                        let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down))) // bounded: inside the image (the test above)
                         let (fx, fy) = (sx - Double(x0), sy - Double(y0))
                         for ch in 0..<channels {
                             func at(_ px: Int, _ py: Int) -> Double {
@@ -218,7 +218,7 @@ public enum ScanCleanup {
     public static func clean(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, _ dpi: Int, keepColor: Bool = false,
                              cancel: CancelToken? = nil) throws -> CleanedScan {
         var gray = channels == 1 ? pixels : toGray(pixels, width, height)
-        let factor = max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven)))
+        let factor = max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven))) // bounded: dpi is an Int
         let (skew, sideways, axisSure) = lines(downscale(GrayImage(width, height, gray), factor))
         try cancel.check()
 
@@ -250,7 +250,7 @@ public enum ScanCleanup {
     /// How far a page's lines are turned (clockwise positive), up to ±`maxSkew`, measured on a copy at about 100 dpi; 0
     /// when straight or unclear. Lines that run down the page are measured on it turned a quarter.
     public static func skewOf(_ gray: GrayImage, _ dpi: Int) -> Double {
-        lines(downscale(gray, max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven))))).skew
+        lines(downscale(gray, max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven))))).skew // bounded: dpi is an Int
     }
 
     /// The skew, whether the lines run down the page (it lies sideways), and whether that was clear. Lines are looked for
@@ -549,7 +549,7 @@ public enum Despeckle {
     public static func remove(_ gray: inout [UInt8], _ width: Int, _ height: Int, _ dpi: Int, cancel: CancelToken? = nil) throws -> Int {
         let scale = Double(dpi) / 300
         let maxArea = max(2, Int(Double(self.maxArea) * scale * scale))
-        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven)))
+        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven))) // bounded: dpi is an Int, isolation 1/20
         let stride = width + 1
 
         // Ink counts summed over the rectangle above and left of each pixel, to count the ink around a speck at once.

@@ -104,7 +104,8 @@ final class TextFont: @unchecked Sendable {
         } else {
             descriptor = font.dict("FontDescriptor")
             if subtype == "Type3" { blocked = "it is drawn with a Type 3 font (glyphs drawn as pictures)" }
-            let first = Int(font.number("FirstChar") ?? 0)
+            // Kept within ±1e9, so first + i below can't overflow; only codes 0-255 are read.
+            let first = min(max(font.int("FirstChar") ?? 0, -1_000_000_000), 1_000_000_000)
             if let w = font.array("Widths") {
                 for i in 0..<w.count where (0..<256).contains(first + i) { widths[first + i] = w.num(i) }
             }
@@ -119,7 +120,7 @@ final class TextFont: @unchecked Sendable {
         hasDescriptor = descriptor != nil
         embedded = descriptor.map { $0.has("FontFile") || $0.has("FontFile2") || $0.has("FontFile3") } ?? false
         hasWidths = font.array("Widths") != nil
-        let flags = Int(descriptor?.number("Flags") ?? 0)
+        let flags = descriptor?.int("Flags") ?? 0
         symbolic = flags & 4 != 0 && flags & 32 == 0
         if let descriptor {
             let asc = descriptor.number("Ascent") ?? 0
@@ -532,7 +533,7 @@ final class TextFont: @unchecked Sendable {
                 for c in needW {
                     let adv = programAdvance(c)!.rounded(.toNearestOrEven)
                     w.append(doc.int(c))
-                    w.append(doc.array([doc.int(Int(adv))]))
+                    w.append(doc.array([doc.int(Int(exactly: adv) ?? 0)]))
                     cidWidths[c] = adv
                 }
                 cidFont.set("W", w)
@@ -541,7 +542,7 @@ final class TextFont: @unchecked Sendable {
                 let first = widths.firstIndex { $0 != nil }!
                 let last = widths.lastIndex { $0 != nil }!
                 // Codes in between that the old range didn't cover keep the width viewers gave them: /MissingWidth.
-                let arr = doc.array((first...last).map { doc.int(Int((widths[$0] ?? missingWidth).rounded(.toNearestOrEven))) })
+                let arr = doc.array((first...last).map { doc.int(Int(exactly: (widths[$0] ?? missingWidth).rounded(.toNearestOrEven)) ?? 0) })
                 font.set("FirstChar", doc.int(first))
                 font.set("LastChar", doc.int(last))
                 font.set("Widths", arr)

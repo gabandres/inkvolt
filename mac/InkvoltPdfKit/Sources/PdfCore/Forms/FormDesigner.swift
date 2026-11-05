@@ -603,9 +603,10 @@ public enum FormDesignRules {
     }
 
     public static func sizeText(_ size: Double) -> String {
-        if size <= 0 { return "Auto" }
+        if size <= 0 || !size.isFinite { return "Auto" }
         let tenth = (size * 10).rounded() / 10
-        return tenth == tenth.rounded() ? String(Int(tenth)) : String(tenth)
+        if tenth == tenth.rounded(), let whole = Int(exactly: tenth) { return String(whole) }
+        return String(tenth)
     }
 
     /// The change is one worth writing: the fields differ, comparing the choices as they show.

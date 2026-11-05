@@ -681,16 +681,21 @@ extension RedactionCheck {
 
         /// `uniform`'s color (the darkest of each channel) when the pixels are all one color, else nil.
         static func uniformColor(_ img: RenderedImage, _ box: RectD, _ scale: Double, _ origin: RectD, inner: Bool) -> (Int, Int, Int)? {
-            let l = (box.x - origin.x) * scale, rt = (box.right - origin.x) * scale
-            let t = (box.y - origin.y) * scale, b0 = (box.bottom - origin.y) * scale
-            var x0 = Int(inner ? l.rounded(.up) : l.rounded(.down)), x1 = Int(inner ? rt.rounded(.down) : rt.rounded(.up))
-            var y0 = Int(inner ? t.rounded(.up) : t.rounded(.down)), y1 = Int(inner ? b0.rounded(.down) : b0.rounded(.up))
+            // A box that isn't a number has no pixels to look at; one far off the image is brought to just outside it,
+            // which finds the same pixels (none), so each conversion below is of a value near the image's size.
+            func near(_ v: Double, _ size: Int) -> Double { min(max(v, -2), Double(size) + 2) }
+            let (lx, rx) = ((box.x - origin.x) * scale, (box.right - origin.x) * scale)
+            let (ty, by) = ((box.y - origin.y) * scale, (box.bottom - origin.y) * scale)
+            guard lx.isFinite, rx.isFinite, ty.isFinite, by.isFinite else { return nil }
+            let l = near(lx, img.width), rt = near(rx, img.width), t = near(ty, img.height), b0 = near(by, img.height)
+            var x0 = Int(inner ? l.rounded(.up) : l.rounded(.down)), x1 = Int(inner ? rt.rounded(.down) : rt.rounded(.up)) // bounded: near the image (above)
+            var y0 = Int(inner ? t.rounded(.up) : t.rounded(.down)), y1 = Int(inner ? b0.rounded(.down) : b0.rounded(.up)) // bounded: near the image (above)
             if x1 <= x0 {
-                x1 = Int(((l + rt) / 2).rounded(.down)) + 1
+                x1 = Int(((l + rt) / 2).rounded(.down)) + 1 // bounded: near the image (above)
                 x0 = x1 - 1
             }
             if y1 <= y0 {
-                y1 = Int(((t + b0) / 2).rounded(.down)) + 1
+                y1 = Int(((t + b0) / 2).rounded(.down)) + 1 // bounded: near the image (above)
                 y0 = y1 - 1
             }
             x0 = min(max(x0, 0), img.width)

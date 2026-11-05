@@ -108,7 +108,7 @@ extension PdfA.Pass {
         }
         let first = unicodes.firstIndex { $0 > 0 }!
         let last = unicodes.lastIndex { $0 > 0 }!
-        let widths = doc.array((first...last).map { c in doc.int(unicodes[c] > 0 ? Int((ttf.advance(unicodes[c]) * 1000).rounded(.toNearestOrEven)) : 0) })
+        let widths = doc.array((first...last).map { c in doc.int(unicodes[c] > 0 ? thousandths(ttf.advance(unicodes[c])) : 0) })
 
         let tag = Self.tag(name + used.map(String.init).joined(separator: ","))
         let style = std.bold ? (std.italic ? "-BoldItalic" : "-Bold") : (std.italic ? "-Italic" : "")
@@ -126,9 +126,9 @@ extension PdfA.Pass {
             ("Flags", doc.int(flags)),
             ("FontBBox", doc.reals(em(ttf.bbox[0]), em(ttf.bbox[1]), em(ttf.bbox[2]), em(ttf.bbox[3]))),
             ("ItalicAngle", doc.int(std.italic ? -12 : 0)),
-            ("Ascent", doc.int(Int((ttf.ascent * 1000).rounded(.toNearestOrEven)))),
-            ("Descent", doc.int(Int((ttf.descent * 1000).rounded(.toNearestOrEven)))),
-            ("CapHeight", doc.int(Int((ttf.ascent * 1000 * 0.9).rounded(.toNearestOrEven)))),
+            ("Ascent", doc.int(thousandths(ttf.ascent))),
+            ("Descent", doc.int(thousandths(ttf.descent))),
+            ("CapHeight", doc.int(thousandths(ttf.ascent, 0.9))),
             ("StemV", doc.int(std.bold ? 120 : 80)),
             ("FontFile2", file),
         ]))
@@ -222,13 +222,13 @@ extension PdfA.Pass {
             ("Flags", doc.int(4)),
             ("FontBBox", doc.reals(em(ttf.bbox[0]), em(ttf.bbox[1]), em(ttf.bbox[2]), em(ttf.bbox[3]))),
             ("ItalicAngle", doc.int(0)),
-            ("Ascent", doc.int(Int((ttf.ascent * 1000).rounded(.toNearestOrEven)))),
-            ("Descent", doc.int(Int((ttf.descent * 1000).rounded(.toNearestOrEven)))),
-            ("CapHeight", doc.int(Int((ttf.ascent * 1000 * 0.9).rounded(.toNearestOrEven)))),
+            ("Ascent", doc.int(thousandths(ttf.ascent))),
+            ("Descent", doc.int(thousandths(ttf.descent))),
+            ("CapHeight", doc.int(thousandths(ttf.ascent, 0.9))),
             ("StemV", doc.int(80)),
             ("FontFile2", file),
         ]))
-        let widths = doc.array((first...last).map { c in doc.int(unicodes[c] > 0 ? Int((ttf.advance(unicodes[c]) * 1000).rounded(.toNearestOrEven)) : 0) })
+        let widths = doc.array((first...last).map { c in doc.int(unicodes[c] > 0 ? thousandths(ttf.advance(unicodes[c])) : 0) })
         var text: [Int: String] = [:]
         for c in codes { if let u = Unicode.Scalar(unicodes[c]) { text[c] = String(Character(u)) } }
         font.set("Subtype", doc.name("TrueType"))
@@ -279,4 +279,9 @@ extension PdfA.Pass {
         }
         return out
     }
+}
+
+/// `v` em (times `k`) in thousandths of an em, as a PDF font's widths and metrics are written.
+private func thousandths(_ v: Double, _ k: Double = 1) -> Int {
+    Int((v * 1000 * k).rounded(.toNearestOrEven)) // bounded: a Mac system font's metrics through Core Text, never the PDF's
 }

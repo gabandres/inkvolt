@@ -51,8 +51,8 @@ enum ExportShapes {
         let scale: Double
 
         func at(_ x: Double, _ y: Double) -> (r: Int, g: Int, b: Int, a: Int) {
-            let px = clampInt(Int((x * scale).rounded(.down)), 0, width - 1)
-            let py = clampInt(Int((y * scale).rounded(.down)), 0, height - 1)
+            let px = clampInt(Int(exactly: clamp((x * scale).rounded(.down), -1, Double(width))) ?? 0, 0, width - 1)
+            let py = clampInt(Int(exactly: clamp((y * scale).rounded(.down), -1, Double(height))) ?? 0, 0, height - 1)
             let i = (py * width + px) * 4
             return (Int(rgba[i]), Int(rgba[i + 1]), Int(rgba[i + 2]), Int(rgba[i + 3]))
         }

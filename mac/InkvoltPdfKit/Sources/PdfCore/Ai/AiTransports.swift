@@ -387,7 +387,7 @@ final class AiSocketTransport: AiTransport {
     private func connection(_ address: AiAddress, port: Int, tlsName: String?) -> NWConnection {
         let tcp = NWProtocolTCP.Options()
         tcp.noDelay = true
-        tcp.connectionTimeout = max(1, Int(timeouts.connect.rounded(.up)))
+        tcp.connectionTimeout = max(1, Int(timeouts.connect.rounded(.up))) // bounded: the app's own timeouts (AiTimeouts.standard)
         let parameters: NWParameters
         if let tlsName {
             let tls = NWProtocolTLS.Options()

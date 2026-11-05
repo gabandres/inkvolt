@@ -87,7 +87,7 @@ public struct FormDate: Equatable, Sendable, CustomStringConvertible {
         guard (1...9999).contains(year), (1...12).contains(month) else { return nil }
         let base = daysFromCivil(year, month, 1)
         let total = (base + days) * 86400 + hours * 3600 + minutes * 60 + seconds
-        let dayNumber = Int((Double(total) / 86400).rounded(.down))
+        let dayNumber = Int((Double(total) / 86400).rounded(.down)) // bounded: total is an Int, so total / 86400 fits one
         let rest = total - dayNumber * 86400
         let (y, m, d) = civil(dayNumber)
         return FormDate(y, m, d, rest / 3600, rest % 3600 / 60, rest % 60)

@@ -299,8 +299,10 @@ public final class PdfEngine: @unchecked Sendable {
     }
 
     private static func checkSize(_ width: Double, _ height: Double) throws {
-        if width * height > maxPixels {
-            throw PdfEngineError(message: "The image would be too large (\(Int(width.rounded())) x \(Int(height.rounded())) pixels). Use a lower zoom or resolution.")
+        // Not a number is too large too (a page or a zoom of infinity), and is shown without its size.
+        if !(width * height <= maxPixels) {
+            let size = Int(exactly: width.rounded()).flatMap { w in Int(exactly: height.rounded()).map { " (\(w) x \($0) pixels)" } } ?? ""
+            throw PdfEngineError(message: "The image would be too large\(size). Use a lower zoom or resolution.")
         }
     }
 

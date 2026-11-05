@@ -53,7 +53,7 @@ public enum WindowStatus {
         guard pageCount > 0 else { return "No pages" }
         let where_ = "Page \(min(max(page, 1), pageCount)) of \(pageCount)"
         if let fit { return "\(where_) · \(fit)" }
-        let percent = Int((zoom * 100).rounded())
+        let percent = Int((zoom * 100).rounded()) // bounded: the view's zoom, kept within the app's zoom range
         return percent == 100 ? where_ : "\(where_) · \(percent)%"
     }
 }

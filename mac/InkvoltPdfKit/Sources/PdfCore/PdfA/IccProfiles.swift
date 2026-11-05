@@ -74,7 +74,7 @@ public enum IccProfiles {
         for (i, b) in s.utf8.enumerated() { p[at + i] = b }
     }
 
-    private static func s15(_ p: inout [UInt8], _ at: Int, _ v: Double) { put32(&p, at, Int((v * 65536).rounded(.toNearestOrEven))) }
+    private static func s15(_ p: inout [UInt8], _ at: Int, _ v: Double) { put32(&p, at, Int((v * 65536).rounded(.toNearestOrEven))) } // bounded: the profile's own constants
 
     private static func xyz(_ x: Double, _ y: Double, _ z: Double) -> [UInt8] {
         var b = [UInt8](repeating: 0, count: 20)
@@ -111,7 +111,7 @@ public enum IccProfiles {
         for i in 0..<n {
             let v = Double(i) / Double(n - 1)
             let linear = v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
-            put16(&b, 12 + 2 * i, Int((linear * 65535).rounded(.toNearestOrEven)))
+            put16(&b, 12 + 2 * i, Int((linear * 65535).rounded(.toNearestOrEven))) // bounded: linear is 0 to 1
         }
         return b
     }

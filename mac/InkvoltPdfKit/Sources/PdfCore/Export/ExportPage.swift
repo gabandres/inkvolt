@@ -274,6 +274,10 @@ public struct ExportPage: Equatable, Sendable {
 /// .NET's `Math.Round`: to the nearest, halves to even.
 @inline(__always) func bankers(_ x: Double) -> Double { x.rounded(.toNearestOrEven) }
 
+/// `bankers` as an Int (.NET's `(int)Math.Round`): within ±1e15, 0 for NaN. A crafted page's numbers can be anything,
+/// and Swift's `Int(x)` traps on NaN, infinity and values out of range.
+@inline(__always) func bankersInt(_ x: Double) -> Int { Int(exactly: bankers(clamp(x, -1e15, 1e15))) ?? 0 }
+
 /// `x` within [lo, hi] (.NET's `Math.Clamp`).
 @inline(__always) func clamp(_ x: Double, _ lo: Double, _ hi: Double) -> Double { min(max(x, lo), hi) }
 

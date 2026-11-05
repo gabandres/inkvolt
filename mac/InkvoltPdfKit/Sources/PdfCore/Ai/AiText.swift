@@ -67,7 +67,7 @@ public enum AiText {
     public static func estimateTokens(_ text: String) -> Int {
         var tokens = 0.0
         for c in text.utf16 { tokens += cost(c) }
-        return Int(tokens.rounded(.up))
+        return Int(tokens.rounded(.up)) // bounded: a sum of small costs, one per UTF-16 unit of the text
     }
 
     /// The tokens of a whole request: the messages' text plus a few per message for the chat format.
@@ -253,7 +253,7 @@ public enum AiText {
     private static func tokens(_ units: [UInt16], _ from: Int, _ to: Int) -> Int {
         var sum = 0.0
         for i in from..<to { sum += cost(units[i]) }
-        return Int(sum.rounded(.up))
+        return Int(sum.rounded(.up)) // bounded: a sum of small costs, one per UTF-16 unit of the text
     }
 
     /// How many units from `at` fit in `maxTokens` (at least one).
@@ -262,7 +262,7 @@ public enum AiText {
         var i = at
         while i < units.count {
             sum += cost(units[i])
-            if Int(sum.rounded(.up)) > maxTokens { break }
+            if Int(sum.rounded(.up)) > maxTokens { break } // bounded: a sum of small costs, one per UTF-16 unit of the text
             i += 1
         }
         return max(1, i - at)

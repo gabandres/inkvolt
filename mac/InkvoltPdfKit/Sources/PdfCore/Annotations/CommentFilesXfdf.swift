@@ -78,7 +78,7 @@ extension CommentFiles {
         case 4: rgb = [(1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])]
         default: return nil
         }
-        return "#" + rgb.map { String(format: "%02X", Int((min(max($0, 0), 1) * 255).rounded())) }.joined()
+        return "#" + rgb.map { String(format: "%02X", Int(exactly: (min(max($0, 0), 1) * 255).rounded()) ?? 0) }.joined()
     }
 
     // swiftlint:disable:next function_body_length

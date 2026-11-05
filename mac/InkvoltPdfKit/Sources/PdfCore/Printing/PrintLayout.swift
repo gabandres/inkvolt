@@ -229,9 +229,13 @@ public enum PrintLayout {
 
     private static func clampOverlap(_ overlap: Double, _ w: Double, _ h: Double) -> Double { min(max(overlap, 0), min(w, h) / 4) }
 
-    /// Tiles of `tile` overlapping by `ov` needed to cover `length`.
+    /// At most this many sheets across or down a poster: a page's size comes from the PDF, and one of 1e30 points would
+    /// otherwise ask for more sheets than an Int counts (Windows' cast doesn't trap; Swift's would).
+    public static let maxPosterTiles = 1000
+
+    /// Tiles of `tile` overlapping by `ov` needed to cover `length` (1 when that isn't a number, at most `maxPosterTiles`).
     private static func tiles(_ length: Double, _ tile: Double, _ ov: Double) -> Int {
-        max(1, Int(((length - ov) / (tile - ov) - 1e-9).rounded(.up)))
+        Int(exactly: min(max(((length - ov) / (tile - ov) - 1e-9).rounded(.up), 1), Double(maxPosterTiles))) ?? 1
     }
 
     /// Sheet `tile` (row by row from the top-left) of the poster of page `page` (`pageW` × `pageH`): the part of the page

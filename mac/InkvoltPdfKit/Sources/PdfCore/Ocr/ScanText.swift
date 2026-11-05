@@ -59,7 +59,7 @@ public enum ScanText {
         // A page kept as its cleaned image keeps its comments as comments, so they're left out of the picture.
         let image = try pdf.render(page, scale: scale, cancel: cancel, annotations: !options.keepCleanedImage)
         guard image.width > 0, image.height > 0 else { return RecognizedPage(words: [], skew: 0, quarterTurns: 0, cleaned: nil) }
-        let dpi = Int((scale * 72).rounded(.toNearestOrEven))
+        let dpi = Int((scale * 72).rounded(.toNearestOrEven)) // bounded: PageOcr.scale is 0 to 300 dpi's
         // Points per pixel, each way (the rendered size is rounded).
         let (sx, sy) = (g.width / Double(image.width), g.height / Double(image.height))
         func inPoints(_ w: OcrWord) -> OcrWord { OcrWord(w.text, RectD(w.rect.x * sx, w.rect.y * sy, w.rect.width * sx, w.rect.height * sy)) }

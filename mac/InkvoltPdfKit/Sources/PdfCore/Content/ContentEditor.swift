@@ -685,7 +685,7 @@ public enum ContentEditor {
             case "Tz": gs.th = op.n(0) / 100
             case "TL": gs.tl = op.n(0)
             case "Ts": gs.rise = op.n(0)
-            case "Tr": gs.render = Int(op.n(0))
+            case "Tr": gs.render = Int(exactly: op.n(0).rounded(.towardZero)) ?? 0
             case "Td" where count >= 2, "TD" where count >= 2:
                 if op.name == "TD" { gs.tl = -op.n(1) }
                 tlm = Mat(1, 0, 0, 1, op.n(0), op.n(1)).times(tlm)
@@ -736,7 +736,7 @@ public enum ContentEditor {
     }
 
     private static func rgb(_ r: Double, _ g: Double, _ b: Double) -> Int {
-        func c(_ v: Double) -> Int { Int((min(max(v, 0), 1) * 255).rounded(.toNearestOrEven)) }
+        func c(_ v: Double) -> Int { Int(exactly: (min(max(v, 0), 1) * 255).rounded(.toNearestOrEven)) ?? 0 } // NaN: an ink of infinity times 0
         return c(r) << 16 | c(g) << 8 | c(b)
     }
 

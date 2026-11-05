@@ -239,7 +239,7 @@ enum HtmlWriter {
     private static func image(_ image: ExportImage, _ box: RectD) -> String? {
         if image.data.isEmpty { return nil }
         let type = image.ext == "jpeg" ? "image/jpeg" : "image/png"
-        func px(_ pt: Double) -> String { String(max(1, Int(bankers(pt * 96 / 72)))) }
+        func px(_ pt: Double) -> String { String(max(1, bankersInt(pt * 96 / 72))) }
         return "<img src=\"data:\(type);base64,\(Data(image.data).base64EncodedString())\" alt=\"\(attr(image.alt ?? ""))\" width=\"\(px(box.width))\" height=\"\(px(box.height))\">"
     }
 

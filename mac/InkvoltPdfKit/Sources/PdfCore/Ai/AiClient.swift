@@ -254,7 +254,7 @@ public final class AiClient: Sendable {
             }
         } catch is CancellationError {
             if cancel?.isCancelled == true { throw CancellationError() }
-            throw AiError("\(endpoint.host) stopped answering (nothing for \(Int(timeouts.idle.rounded())) seconds).")
+            throw AiError("\(endpoint.host) stopped answering (nothing for \(Int(timeouts.idle.rounded())) seconds).") // bounded: the app's own timeouts (AiTimeouts.standard)
         } catch is AiNetError {
             if cancel?.isCancelled == true { throw CancellationError() }
             throw AiError(Self.closedEarly(endpoint))
@@ -356,10 +356,10 @@ public final class AiClient: Sendable {
 
     private static func describe(_ t: Double) -> String {
         if t >= 60 {
-            let minutes = Int((t / 60).rounded())
+            let minutes = Int((t / 60).rounded()) // bounded: t is one of the app's own timeouts
             return "\(minutes) minute\(t >= 120 ? "s" : "")"
         }
-        return "\(Int(t.rounded())) seconds"
+        return "\(Int(t.rounded())) seconds" // bounded: t is one of the app's own timeouts
     }
 }
 

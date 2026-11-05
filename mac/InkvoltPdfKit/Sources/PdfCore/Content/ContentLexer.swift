@@ -412,7 +412,7 @@ struct ContentLexer {
         }
         if w <= 0 || h <= 0 || bpc <= 0 || comps == 0 || w * h > 1e8 { return nil }
         let row: Double = (w * comps * bpc / 8).rounded(.up)
-        return Int(row * h)
+        return Int(exactly: (row * h).rounded(.towardZero)) // nil for a size no Int holds (a /BPC of 1e30)
     }
 
     /// Whether optional white space, then "EI" and a delimiter or the end follow.

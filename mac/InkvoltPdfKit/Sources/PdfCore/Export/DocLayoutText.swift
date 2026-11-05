@@ -395,11 +395,11 @@ extension DocLayout {
                 guard let ref = img.ref else { continue }
                 let top = img.box.bottom <= page.height * 0.12
                 if !top && img.box.y < page.height * 0.88 { continue }
-                func q(_ v: Double) -> Int { Int(bankers(v / 4)) }
+                func q(_ v: Double) -> Int { bankersInt(v / 4) }
                 note(RunningKey(top: top, key: "\(ref)@\(q(img.box.x)),\(q(img.box.y)),\(q(img.box.width))"), At(page: i, index: ii), &seenPictures, &pictureIndex)
             }
         }
-        let need = max(2, Int((Double(pages.count) / 2).rounded(.up)))
+        let need = max(2, Int((Double(pages.count) / 2).rounded(.up))) // bounded: a page count
         // A line with page text beside it on its row (an item number at the top of a form) is part of the page. Lines
         // repeated on two pages or more (a chapter title on odd pages, the book's on even ones) are header-like too.
         let candidates = Set(seen.filter { $0.list.count >= 2 }.flatMap(\.list))

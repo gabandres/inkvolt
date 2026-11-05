@@ -315,7 +315,7 @@ final class DocxWriter {
         if s.bold { w.empty("w:b") }
         if s.italic { w.empty("w:i") }
         if s.color & 0xFFFFFF != 0 { Self.val(w, "w:color", String(format: "%06X", s.color & 0xFFFFFF)) }
-        let half = String(Int(clamp(bankers(s.size * 2), 2, 3276)))
+        let half = String(min(max(bankersInt(s.size * 2), 2), 3276))
         Self.val(w, "w:sz", half)
         Self.val(w, "w:szCs", half)
         w.end()
@@ -529,7 +529,7 @@ final class DocxWriter {
         w.start("w:rPrDefault")
         w.start("w:rPr")
         w.empty("w:rFonts", ["ascii", "hAnsi", "eastAsia", "cs"].map { ("w:" + $0, "Calibri") })
-        let half = String(Int(clamp(bankers(body * 2), 2, 3276)))
+        let half = String(min(max(bankersInt(body * 2), 2), 3276))
         val(w, "w:sz", half)
         val(w, "w:szCs", half)
         w.end()
