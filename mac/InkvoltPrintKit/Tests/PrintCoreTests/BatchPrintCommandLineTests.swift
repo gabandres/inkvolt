@@ -226,6 +226,7 @@ extension ProGated {
         #expect(await run(["print", "--list", list, "--printer", "Office laser"]) == 2)
         #expect(queue.sent.isEmpty)
         #expect(err.value.contains("Inkvolt Pro"))
+        #expect(!namesAPriceOrAShop(err.value), "\(err.value)") // Mac difference: the App Store copy (PLAN.md P12 1.6)
         #expect(BatchPrintCsv.export([]) == nil)
         Pro.enforced = false
         #expect(BatchPrintCsv.export([]) != nil)

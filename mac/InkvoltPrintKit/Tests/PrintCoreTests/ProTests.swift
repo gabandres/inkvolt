@@ -183,9 +183,20 @@ extension ProGated {
             #expect(Pro.describe(f).contains(" "))
             #expect(Pro.locked(f).contains("Inkvolt Pro"))
         }
-        #expect(Pro.howToGet.contains("$19"))
+        #expect(Pro.howToGet.contains("Help › Inkvolt Pro…"))
         #expect(Pro.howToGet.contains("Inkvolt PDF"))
     }
+
+    /// Mac difference (PLAN.md P12 1.6): Inkvolt Print for Mac is the App Store's, where a price or a link to buy outside it
+    /// breaks guidelines 3.1.1(a) and 3.1.3(b). Windows' refusals name the price and the shop; the Mac's, in the window and on
+    /// the command line, say only that it's Pro and where a key is entered, as the Pro window does.
+    @Test func No_refusal_names_a_price_or_a_shop() {
+        #expect(!namesAPriceOrAShop(Pro.howToGet), "\(Pro.howToGet)")
+        for f in ProFeature.allCases {
+            #expect(!namesAPriceOrAShop(Pro.locked(f) + Pro.describe(f) + Pro.title(f)))
+        }
+    }
+
 
     // ───────────── the file both apps read ─────────────
 
@@ -266,4 +277,10 @@ extension ProGated {
         #expect(try JSONDecoder().decode(PrintState.self, from: Data("{}".utf8)).proKey == nil) // a file from before it
     }
 }
+}
+
+/// A price, a shop or a word asking to buy (Inkvolt Print for Mac's refusals have none: `No_refusal_names_a_price_or_a_shop`).
+func namesAPriceOrAShop(_ text: String) -> Bool {
+    let t = text.lowercased()
+    return [ProCheck.priceText.lowercased(), ProCheck.buyUrl.lowercased(), "bermudezsystems", "http", "$", "purchase", "buy", "price"].contains { t.contains($0) }
 }
