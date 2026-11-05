@@ -98,7 +98,7 @@ locality) are used in their usual sense: the interface is everything a caller mu
   will be written: the **blocks** (`TagBlock`: paragraph, heading, list, table, figure, caption, footnote, table of
   contents, formula) of each page in reading order, the running headers and footers (artifacts), the title and
   language; the **reading order panel** edits it (order within a page, the **reading page** a piece is read with when it
-  moved to another page, alternate text, decorative pictures) and **writing** it puts each piece of page content in
+  moved to another page, a piece's kind, alternate text, decorative pictures) and **writing** it puts each piece of page content in
   marked content with an MCID and builds the structure tree, replacing tags the document had, and gives characters
   without Unicode theirs (`FontUnicode`, `TexGlyphs`). In the app: `AccessibleActions`, `DocumentTab.ReadingOrder.cs`; in
   Batch: Make Accessible. Make Accessible, the panel's fixes and Save as PDF/A-2a are Pro features (`ProFeature`).

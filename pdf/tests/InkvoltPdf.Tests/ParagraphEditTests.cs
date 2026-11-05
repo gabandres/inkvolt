@@ -414,17 +414,6 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void AParagraphMixingFontFamiliesIsBlocked()
-    {
-        var lines = Wrap(Body, Width);
-        var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
-        var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single(q => q.Lines.Count > 1);
-        Assert.NotNull(p.Blocked);
-        Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
-    }
-
-    [Fact]
     public void SignedFilesGetTheParagraphEditAppended()
     {
         const string placeholder = "[0 0000000000 0000000000 0000000000]";
@@ -532,11 +521,12 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     [Fact]
     public void ClickingBetweenTheLinesOfABlockedParagraphFindsNothing()
     {
-        var lines = Wrap(Body, Width);
-        var pdf = ContentEditPdf.Make(
-            $"BT /FA 11 Tf 14 TL 72 700 Td ({lines[0]}) Tj T* ({lines[1]}) Tj /FT 11 Tf ( other words) Tj /FA 11 Tf T* ({lines[2]}) Tj ET", fontText: Chars, faces: true);
+        // A bigger word on its third line: it is edited line by line.
+        var word = Wrap(Body, Width)[2].Split(' ')[1];
+        var pdf = WithFace(word, "FA", size: 14);
         var content = ContentEditor.Read(pdf, null, 0);
-        var p = content.Paragraphs.Single(q => q.Lines.Count > 1);
+        var p = content.Paragraphs.Single(q => q.Text.Contains(word, StringComparison.Ordinal));
+        Assert.True(p.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
         // Between its first two lines, at their left edge: no run there, and the paragraph can't be edited as one.
         Assert.Null(content.ParagraphAt(p.Lines[0].X + 2, (p.Lines[0].Bottom + p.Lines[1].Y) / 2, slop: 0));

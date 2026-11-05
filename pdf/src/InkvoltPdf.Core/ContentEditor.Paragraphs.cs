@@ -26,6 +26,16 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// <summary>The nearest text or picture below the paragraph, across its width: what a longer text would run into.</summary>
     public RectD? Below { get; init; }
 
+    /// <summary>The direction of its baselines on the page, degrees clockwise from left-to-right (0: upright text).</summary>
+    public double Angle { get; init; }
+
+    /// <summary>
+    /// Turned text: the paragraph in its own direction (page space turned by -<see cref="Angle"/> about the page's
+    /// origin, so its text reads upright there), where it is grouped and laid out; <see cref="Lines"/>, <see cref="Box"/>
+    /// and <see cref="Below"/> are their bounding boxes on the page. Null for upright text.
+    /// </summary>
+    internal TextParagraph? Upright { get; init; }
+
     /// <summary>Runs of spaces only drawn on its lines (some generators draw each space on its own): they go with its text.</summary>
     internal IReadOnlyList<TextRun> Spaces { get; init; } = [];
 
@@ -93,8 +103,12 @@ public static partial class ContentEditor
         public string Text = first.Text;
         /// <summary>Where each run's text starts in <see cref="Text"/>.</summary>
         public readonly List<int> Starts = [0];
-        /// <summary>Its first run in its own look (not a stand-in or a look an edit gave it), else its first.</summary>
-        public TextRun Lead => Main ?? Runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? Runs[0];
+        /// <summary>
+        /// Its run in its own look: the font most of its text is in (see <see cref="PlainRun"/>), so a line that begins
+        /// with a word in another family (a symbol, a name set apart) is still a line of the paragraph's font.
+        /// </summary>
+        public TextRun Lead => Main ?? (_lead ??= PlainRun(Runs));
+        private TextRun? _lead;
 
         /// <summary>For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.</summary>
         public TextRun? Main;
@@ -109,6 +123,7 @@ public static partial class ContentEditor
             Starts.Add(Text.Length);
             Text += r.Text;
             Runs.Add(r);
+            _lead = null;
             Box = Box.Union(r.Box);
         }
     }
@@ -127,9 +142,22 @@ public static partial class ContentEditor
     /// is in the same font, size (within 5%) and color, below it with at most 0.65 ems between them and the same line
     /// step as the lines before (within 10%), overlapping it across, with its left edges (a first-line indent allowed),
     /// centers or right edges lined up; and when the line above didn't end short (its next first word would have fit
-    /// on it). Turned text and runs of spaces only are left out.
+    /// on it). Runs of spaces only are left out. Turned text is grouped the same way in its own direction, each
+    /// direction apart (see <see cref="TextParagraph.Upright"/>).
     /// </summary>
     internal static IReadOnlyList<TextParagraph> GroupParagraphs(PageContent content)
+    {
+        var result = new List<TextParagraph>(GroupUpright(content));
+        foreach (var (angle, mine) in Directions(content))
+        {
+            var (framed, page) = Framed(content, angle, mine);
+            result.AddRange(GroupUpright(framed).Select(p => Turned(p, angle, page)));
+        }
+        return result;
+    }
+
+    /// <summary>The upright text runs of <paramref name="content"/> as paragraphs (see <see cref="GroupParagraphs"/>).</summary>
+    private static List<TextParagraph> GroupUpright(PageContent content)
     {
         var runs = content.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && r.FontSize > 0.5 && r.Box.Width > 0).ToList();
         if (runs.Count == 0) return [];
@@ -205,9 +233,17 @@ public static partial class ContentEditor
     /// size and color, and text an edit gave a look of its own goes with anything.
     /// </summary>
     private static bool SameLook(TextRun a, TextRun b) =>
-        a.Styled || b.Styled
-        || (a.StandIn || b.StandIn || SameFamily(a, b))
-        && Math.Abs(a.FontSize - b.FontSize) <= Math.Max(0.3, 0.05 * a.FontSize) && a.Color == b.Color;
+        SameSizeAndColor(a, b) && (Restyled(a, b) || a.StandIn || b.StandIn || SameFamily(a, b));
+
+    /// <summary>
+    /// Size within 5% and the same color: what text in another family needs to be part of a paragraph's lines (text an
+    /// edit gave a look of its own goes with anything).
+    /// </summary>
+    private static bool SameSizeAndColor(TextRun a, TextRun b) =>
+        Restyled(a, b) || Math.Abs(a.FontSize - b.FontSize) <= Math.Max(0.3, 0.05 * a.FontSize) && a.Color == b.Color;
+
+    /// <summary>Either is text an edit gave a look of its own (<see cref="TextRun.Styled"/>), which joins any.</summary>
+    private static bool Restyled(TextRun a, TextRun b) => a.Styled || b.Styled;
 
     /// <summary>The same font, or two faces of one family (regular and bold, as Word's PDFs draw a bold word).</summary>
     private static bool SameFamily(TextRun a, TextRun b) =>
@@ -396,11 +432,14 @@ public static partial class ContentEditor
         var runs = lines.SelectMany(l => l.Runs).ToList();
         var mine = new HashSet<TextRun>(runs, ReferenceEqualityComparer.Instance);
         var blocked = runs.Select(r => r.Blocked).FirstOrDefault(b => b is not null);
-        // Its own look: the font most of it is in (a bold or italic word in another face of the family is a stretch
-        // with a look of its own); else (an edit gave all of it another look) its first run's.
+        // Its own look: the font most of it is in (a bold or italic word in another face of the family, or a word in
+        // another family, is a stretch with a look of its own); else (an edit gave all of it another look) its first
+        // run's. Another size or color on its lines can't be rewrapped with it.
         var own = PlainRun(runs);
-        if (blocked is null && !translating && runs.Any(r => !SameLook(own, r)))
+        if (blocked is null && !translating && runs.Any(r => !SameSizeAndColor(own, r)))
             blocked = PdfStrings.Edit_BlockedMixedLooks;
+        // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
+        if (blocked is null && !translating && runs.Any(r => r.Font is null)) blocked = PdfStrings.Edit_BlockedNoFont;
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
@@ -497,6 +536,7 @@ public static partial class ContentEditor
     /// <param name="fit">For a translated copy: the text's size against the paragraph's own; it always wraps, wherever it can (<see cref="FitLines"/>), in one font (<see cref="MixedText"/>). Null: as typed in the editor.</param>
     internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null, double? fit = null)
     {
+        if (p.Upright is { } upright) return OnPage(LayOut(upright, runs, text, spans, fit), p);
         var anchor = Anchor(runs);
         var plain = PlainRun(runs);
         var font = plain.Font!;
@@ -744,7 +784,13 @@ public static partial class ContentEditor
             if (family is null && (bold != lead.Bold || italic != lead.Italic))
             {
                 // The page's own face for it, when the paragraph has one (a bold word as the generator drew it).
-                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && !ReferenceEquals(r.Font, lead.Font) && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
+                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && !ReferenceEquals(r.Font, lead.Font) && SameFamily(r, lead) && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
+            }
+            else if (family is not null)
+            {
+                // Another family the paragraph has in a font of the page's (a word in Times, a symbol font): that font.
+                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && FontNames.Family(r.FontName).Equals(family, StringComparison.OrdinalIgnoreCase)
+                                          && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
             }
             if (page is null && (family is not null || bold != lead.Bold || italic != lead.Italic))
             {

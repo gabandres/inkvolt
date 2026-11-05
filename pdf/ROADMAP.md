@@ -351,8 +351,27 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
   its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
   set back after the lines. A word in another family still blocks the paragraph (edited line by line), and a line
-  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Still to do: paragraphs in
-  turned text (they edit line by line); paragraphs mixing font families (a symbol font, a word in another family).
+  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Turned text (2026-11-04):
+  runs of one direction (within half a degree; at most 16 directions a page, those with the most runs) are turned
+  upright about the page's origin (`ContentEditor.Turned.cs`: each run's reach along and across its baseline,
+  `TextRun.Reach`, gives it its own upright box there; mirrored or slanted text has none and stays line by line),
+  grouped, checked and laid out there as upright text is (`TextParagraph.Upright`), and the lines' starts turned back
+  onto the page; `Lines`, `Box` and `Below` are their bounding boxes, `TextParagraph.Angle` the direction, and a click
+  between its lines is tested in its own direction. The writing is unchanged (a line's start goes back into the run's
+  own text space). The editor is laid out in the paragraph's direction and turned about its first line's start, the
+  look bar and note beside where it is. `ParagraphEditTests.Turned` (6: 90°, -90°, 180° and 30° reflow, running into
+  the next block, a sideways column beside an upright one); pdf.js reads the 90° and 30° samples in order; dev script
+  (a sideways column, 20 words added): the editor turned over the column, 4 lines to 5, the next block where it was.
+  Mixed families (2026-11-04): a line is the paragraph's when most of its text is (`PLine.Lead` is the line's
+  `PlainRun`), so a line that begins with a word in another family joins; text in another family of the same size
+  and color is part of the paragraph (only another size or color on its lines still edits it line by line), read
+  back as a span of that family (`TextLook.Font`), and written again, typed letters too, in the page's own font for it
+  (`PartLook.Page`, as for a bold face of the family; its widths and ToUnicode extended as needed), never an installed
+  one when the page has it. `ParagraphEditTests.Mixed` (4 in place of the two that expected a block: a Times word mid-line, typed into, a line
+  that begins with it, another size still line by line); pdf.js and the corpus paragraphs read as before; dev script
+  (Helvetica with two Times words, one starting a line): one paragraph of 4 lines, 9 words added, both words still in
+  Times. Still to do: a standard Symbol or ZapfDingbats font that isn't embedded (no widths to lay it out with, so a
+  run in it still blocks the paragraph).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
@@ -495,9 +514,39 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Word and office files: 5 pass, 7 fail only on form-field tooltips (28-005) and fonts (31-009, 31-014, 31-030), the
   same as the checker on 12 of 12 (the NIST standard's contents as 17 TOC, 55 entries). Save as PDF/A-2a of those 14:
   10 made, all 10 pass veraPDF 2a and ua1 (both papers, the NIST standard, the Word files); 4 refused as before (a
-  signature, CMYK without a profile twice, a Times that would move). Still to do: content inside form XObjects tagged
-  piece by piece, changing a piece's kind in the pane, row spans, Unicode for Type 3 bitmap fonts, Acrobat and PAC checks
-  of the output. **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
+  signature, CMYK without a profile twice, a Times that would move). **Part 4** (2026-11-04): **forms tagged piece by
+  piece**: a form XObject with text that the whole document draws once (`AutoTag.Write`'s `CountForms`, through forms
+  drawn by forms) has its own content marked inside it, each piece in its own element, with MCIDs of its own under its
+  StructParents and MCRs naming it (/Stm); its Do stays outside any marked content; a form drawn more than once is
+  still one piece where it is drawn (a stream can hold one set of MCIDs). `AutoTagFormTests` (3: a heading and two
+  paragraphs inside one form, a form two pages share, re-tagging). veraPDF 1.30.3 passes PDF/UA-1 on the form page
+  tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before (50 of 50 the same; 2 of 2 papers pass; 5 of 12 office files
+  pass, the other 7 on 28-005 and 31-009/014/030). **A piece's kind in the pane**: a
+  Kind list under the pieces (`AutoTag.KindsFor`, `AutoTag.WithKind`; a Pro fix as moving is): any piece a paragraph,
+  heading 1-6, caption, footnote, formula or picture, a list or contents either of those two; text kinds take all its
+  content (a list's entries, a table's cells row by row, a line each), a picture is everything in its box and needs
+  alternate text, a picture made text keeps its area (pictures there become decoration); nothing is made a table or a
+  list from a paragraph (their cells and entries aren't known). `AutoTagKindChangeTests` (4: paragraph to heading 2,
+  list to paragraph, text to picture and back, table to paragraph); dev script `rokind` (a paragraph made heading 2 is
+  read as Heading 1 after evening out, a line made a picture asks for alternate text). **Row spans**: in a ruled table a cell
+  without a rule under it across its columns, over a cell of the same columns, spans that row too (`DocLayout`'s
+  `TableFromGrid`: `DocCell.RowSpan`, the rows it covers keep a `Covered` cell with what was drawn there, so the
+  exports are as before); Make Accessible gives the cell what its covered cells hold (text centered in a tall cell
+  often sits in a lower row), writes RowSpan in its Table attributes and leaves the covered cells out; a row header
+  over two rows heads both; header rows are told from the cells as drawn, a column header's span stops at the last
+  header row, and a row all covered by the cells above is no row of its own (review, 2026-11-04). Borderless tables have no row spans yet (nothing marks them). `AutoTagRowSpanTests` (6:
+  a header over two header rows and a row header over two rows, read, written and checked; Word's table unchanged).
+  veraPDF 1.30.3 passes PDF/UA-1 on that table tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before; export corpus: the
+  same Word pages for 7 of 7, PowerPoint opens every slide, 3,617 of 3,641 HTML lines in order as before. **Unicode
+  for Type 3 bitmap fonts**: a Type 3 font whose glyphs are named by their codes ("a65", "g65", "C65", or in hex "G41"
+  for four in five of its named glyphs, as dvips and Ghostscript write TeX's PK fonts) gets a ToUnicode from the codes
+  (`FontUnicode.CodeNamed`, `TexGlyphs.CodeText`): by the TeX font its name gives (OML, OMS, OMX for the math fonts,
+  ASCII for the typewriter ones, OT1 for the rest of Computer Modern: ligatures, quotes, dashes; the italics' sterling
+  at 36); a name that says nothing (dvips's "Fa") gets nothing, since a symbol font's codes are other glyphs and wrong
+  text is worse than none (review, 2026-11-04); glyphs numbered in drawing order ("g1" at 65) are left alone. Also at
+  PDF/A-2a. `FontUnicodeTests` (+13). veraPDF 1.30.3 passes PDF/UA-1 on a CMR10 bitmap sample after Make Accessible (31-027 before). Glyph pictures
+  aren't read (no recognizer on them), so a bitmap font without a TeX font's name stays as it was.
+  Still to do: Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
   PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model

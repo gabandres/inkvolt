@@ -25,6 +25,12 @@ public sealed record TagListItem(IReadOnlyList<RectD> Sources, string Text)
 public sealed record TagCell(IReadOnlyList<RectD> Sources, string Text, int ColSpan = 1)
 {
     public IReadOnlyList<RectD> Pictures { get; init; } = [];
+
+    /// <summary>How many rows it spans: its content is also what was drawn in the cells it covers.</summary>
+    public int RowSpan { get; init; } = 1;
+
+    /// <summary>Part of a cell above that spans rows into this row: not written (its content is that cell's).</summary>
+    public bool Covered { get; init; }
 }
 
 /// <summary>
@@ -374,6 +380,72 @@ public static partial class AutoTag
         blocks.Insert(target, b);
         return plan with { Blocks = blocks };
     }
+
+    /// <summary>
+    /// The kinds a piece can be made in the reading order panel: any piece a paragraph, a heading (1-6), a caption, a
+    /// footnote, a formula or a picture; a list or table of contents either of those two (their entries stay). A table
+    /// stays one only as the layout found it (its rows and columns can't be made from a paragraph).
+    /// </summary>
+    public static IReadOnlyList<TagBlockKind> KindsFor(TagBlock b) =>
+        b.Kind is TagBlockKind.List or TagBlockKind.Contents
+            ? [TagBlockKind.Paragraph, TagBlockKind.Heading, TagBlockKind.List, TagBlockKind.Contents, TagBlockKind.Caption, TagBlockKind.Note, TagBlockKind.Formula, TagBlockKind.Figure]
+            : b.Kind == TagBlockKind.Table
+                ? [TagBlockKind.Paragraph, TagBlockKind.Heading, TagBlockKind.Table, TagBlockKind.Caption, TagBlockKind.Note, TagBlockKind.Formula, TagBlockKind.Figure]
+                : [TagBlockKind.Paragraph, TagBlockKind.Heading, TagBlockKind.Caption, TagBlockKind.Note, TagBlockKind.Formula, TagBlockKind.Figure];
+
+    /// <summary>
+    /// The plan with block <paramref name="index"/> made another kind (see <see cref="KindsFor"/>; the plan unchanged for
+    /// one it can't be), its place, page and language kept. Text kinds take all its content: a list's entries or a
+    /// table's cells become one piece, their text one after the other; a heading gets <paramref name="level"/> (1-6). A
+    /// picture is everything in its box (text there too) and needs alternate text; a picture made text keeps its area,
+    /// the text drawn there becomes the piece and pictures in it become decoration. A formula keeps its text as what is
+    /// read for it.
+    /// </summary>
+    public static TagPlan WithKind(TagPlan plan, int index, TagBlockKind kind, int level = 1)
+    {
+        if (index < 0 || index >= plan.Blocks.Count) return plan;
+        var b = plan.Blocks[index];
+        if (!KindsFor(b).Contains(kind)) return plan;
+        level = Math.Clamp(level, 1, 6);
+        if (kind == b.Kind && (kind != TagBlockKind.Heading || level == b.Level)) return plan;
+        TagBlock changed;
+        switch (kind)
+        {
+            case TagBlockKind.List or TagBlockKind.Contents or TagBlockKind.Table:
+                changed = b with { Kind = kind, Level = 0 }; // between a list and contents: the entries stay
+                break;
+            case TagBlockKind.Figure:
+                changed = b with
+                {
+                    Kind = kind, Level = 0, Sources = [b.Box], Items = [], Rows = [], HeaderRows = 0, HeaderColumn = false,
+                    Alt = b.Kind == TagBlockKind.Formula ? b.Alt : null, Decorative = false,
+                };
+                break;
+            default:
+            {
+                var sources = b.Kind == TagBlockKind.Figure ? [b.Box] : AllSources(b);
+                changed = b with
+                {
+                    Kind = kind, Level = kind == TagBlockKind.Heading ? level : 0, Sources = sources, Text = AllText(b),
+                    Items = [], Rows = [], HeaderRows = 0, HeaderColumn = false,
+                    Alt = kind == TagBlockKind.Formula && b.Kind is TagBlockKind.Formula or TagBlockKind.Figure ? b.Alt : null,
+                    Decorative = false,
+                };
+                break;
+            }
+        }
+        return With(plan, index, _ => changed);
+    }
+
+    /// <summary>Where all of a block's content is: its own sources, its entries', its cells' (with their pictures).</summary>
+    private static IReadOnlyList<RectD> AllSources(TagBlock b) =>
+        [.. b.Sources, .. b.Items.SelectMany(i => i.Sources), .. b.Rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures))];
+
+    /// <summary>A block's text: its entries' (a line each), its cells' (a row a line, cells apart by a space), else its own.</summary>
+    private static string AllText(TagBlock b) =>
+        b.Items.Count > 0 ? string.Join("\n", b.Items.Select(i => i.Text))
+        : b.Rows.Count > 0 ? string.Join("\n", b.Rows.Select(r => string.Join(" ", r.Select(c => c.Text).Where(t => t.Length > 0))))
+        : b.Text;
 
     /// <summary>The plan with block <paramref name="index"/> changed (alternate text, decorative, kind).</summary>
     public static TagPlan With(TagPlan plan, int index, Func<TagBlock, TagBlock> change)

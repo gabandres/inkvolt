@@ -92,6 +92,75 @@ public class FontUnicodeTests
         Assert.Contains("<78> <00A7>", cmap); // 120: section
     }
 
+    /// <summary>
+    /// A Type 3 bitmap font as dvips and Ghostscript write TeX's PK fonts: each glyph named by its code ("a65"), so no
+    /// name says what it is; <paramref name="name"/> its /Name (the TeX font, or dvips's own "Fa").
+    /// </summary>
+    private static A11yDoc Bitmap(string name, int[] codes, string text, string glyphPrefix = "a", int offset = 0)
+    {
+        var procs = string.Join(' ', codes.Select(c => $"/{glyphPrefix}{c + offset} 9 0 R"));
+        var differences = string.Join(' ', codes.Select(c => $"{c} /{glyphPrefix}{c + offset}"));
+        var widths = string.Join(' ', Enumerable.Range(codes.Min(), codes.Max() - codes.Min() + 1).Select(_ => "600"));
+        return new A11yDoc
+        {
+            Font = $"<< /Type /Font /Subtype /Type3 /Name /{name} /FontBBox [0 0 600 700] /FontMatrix [0.001 0 0 0.001 0 0] /CharProcs << {procs} >> " +
+                   $"/Encoding << /Type /Encoding /Differences [{differences}] >> /FirstChar {codes.Min()} /LastChar {codes.Max()} /Widths [{widths}] /Resources << >> >>",
+            Content = $"/P << /MCID 0 >> BDC BT /F1 12 Tf 72 700 Td ({text}) Tj ET EMC",
+        };
+    }
+
+    private static string Hex(int code, string text) => $"<{code:X2}> <{Convert.ToHexString(Encoding.BigEndianUnicode.GetBytes(text))}>";
+
+    [Fact]
+    public void A_type3_bitmap_font_named_by_codes_reads_its_letters()
+    {
+        // A TeX text font (CMR10) whose glyphs are named by their codes: its codes are OT1's characters.
+        var pdf = Bitmap("CMR10", [34, 44, 48, 65, 66, 67, 97], "ABC,0a\\042").Build();
+        Assert.Contains("31-027", AccessibilityCheck.Run(pdf, null).FailedConditions);
+        var tagged = Tag(pdf);
+        Assert.DoesNotContain("31-027", AccessibilityCheck.Run(tagged, null).FailedConditions);
+        var cmap = ToUnicode(tagged);
+        foreach (var (code, text) in new[] { (65, "A"), (66, "B"), (67, "C"), (97, "a"), (48, "0"), (44, ","), (34, "”") })
+            Assert.Contains(Hex(code, text), cmap);
+        using var engine = PdfEngine.Open(tagged, InputFileTypes.PDF, null);
+        Assert.Contains("ABC,0a", engine.GetText(0, cache: false).Text);
+    }
+
+    [Theory]
+    [InlineData("Fa")]     // dvips's own name for a bitmap font
+    [InlineData("T3Font")]
+    public void A_type3_bitmap_font_whose_name_says_nothing_is_left_alone(string name)
+    {
+        // It could as well be CMSY10 (code 65 a calligraphic A, 48 a prime) or MSAM10: no text is better than wrong text.
+        var tagged = Tag(Bitmap(name, [48, 65, 66], "AB0").Build());
+        Assert.Contains("31-027", AccessibilityCheck.Run(tagged, null).FailedConditions);
+    }
+
+    [Theory]
+    [InlineData("CMR10", 12, "ﬁ")] // OT1: the fi ligature
+    [InlineData("CMR10", 34, "”")]
+    [InlineData("CMR10", 36, "$")]
+    [InlineData("CMTI10", 36, "£")] // the italic fonts have sterling where the upright ones have dollar
+    [InlineData("CMBXTI10", 36, "£")]
+    [InlineData("CMSLTI10", 36, "£")]
+    [InlineData("CMBX12", 123, "–")]
+    [InlineData("CMMI10", 11, "α")] // OML
+    [InlineData("CMSY10", 50, "∈")] // OMS
+    [InlineData("CMTT10", 34, "\"")] // typewriter: ASCII
+    public void A_type3_bitmap_font_of_a_tex_family_reads_by_its_encoding(string family, int code, string text)
+    {
+        var pdf = Bitmap(family, [code, 65], "A").Build();
+        Assert.Contains(Hex(code, text), ToUnicode(Tag(pdf)));
+    }
+
+    [Fact]
+    public void A_type3_font_whose_glyph_numbers_arent_its_codes_is_left_alone()
+    {
+        // "g1", "g2" at 65 and 66: numbered in drawing order, not by code, so the number says nothing.
+        var tagged = Tag(Bitmap("Fa", [65, 66], "AB", glyphPrefix: "g", offset: -64).Build());
+        Assert.Contains("31-027", AccessibilityCheck.Run(tagged, null).FailedConditions);
+    }
+
     private static byte[] Tag(byte[] pdf)
     {
         using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);

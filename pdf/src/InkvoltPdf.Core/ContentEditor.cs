@@ -41,6 +41,12 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
     /// <summary>Where its baseline starts on the page (page space, the text rise included).</summary>
     internal PointD Origin { get; init; }
 
+    /// <summary>
+    /// How far its glyphs reach from <see cref="Origin"/> in its own direction (points): back and along its baseline,
+    /// above and below it; null when its text is mirrored or slanted, so that it has no upright box.
+    /// </summary>
+    internal (double Back, double Along, double Above, double Below)? Reach { get; init; }
+
     /// <summary>The run's width as drawn (points along the baseline, to the end of its last glyph).</summary>
     public double OldWidth { get; init; }
 
@@ -108,10 +114,10 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
 {
     public static PageContent Empty { get; } = new([], []);
 
-    /// <summary>The page's text runs grouped into paragraphs (see <see cref="ContentEditor.GroupParagraphs"/>); upright text only.</summary>
+    /// <summary>The page's text runs grouped into paragraphs (see <see cref="ContentEditor.GroupParagraphs"/>), turned text in its own direction.</summary>
     public IReadOnlyList<TextParagraph> Paragraphs { get; init; } = [];
 
-    /// <summary>The paragraph a run belongs to, or null (turned text, only spaces).</summary>
+    /// <summary>The paragraph a run belongs to, or null (only spaces).</summary>
     public TextParagraph? ParagraphOf(TextRun run) => Paragraphs.FirstOrDefault(p => p.Runs.Contains(run));
 
     /// <summary>
@@ -119,7 +125,7 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
     /// holds the point and that can be edited as one (a blocked one's lines are edited one by one, so there is nothing between them).
     /// </summary>
     public TextParagraph? ParagraphAt(double x, double y, double slop = 1) =>
-        RunAt(x, y, slop) is { } run ? ParagraphOf(run) : Paragraphs.FirstOrDefault(p => p.Lines.Count > 1 && p.Blocked is null && p.Box.Contains(x, y));
+        RunAt(x, y, slop) is { } run ? ParagraphOf(run) : Paragraphs.FirstOrDefault(p => p.Lines.Count > 1 && p.Blocked is null && ContentEditor.Holds(p, x, y));
 
     /// <summary>The text run under a point (the smallest when several overlap), or null.</summary>
     public TextRun? RunAt(double x, double y, double slop = 1) =>
@@ -1090,6 +1096,7 @@ public static partial class ContentEditor
             GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
             OldWidth = end * scale,
             Origin = new PointD(bx0, by0),
+            Reach = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0) ? (-low * scale, Math.Max(end, high) * scale, asc * vscale, -desc * vscale) : null,
             FontKey = gs.FontKey,
             Tag = tag,
         };
@@ -1099,6 +1106,15 @@ public static partial class ContentEditor
         if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });
         if (why is null) w.Runs[id] = info;
         return new Mat(1, 0, 0, 1, adv, 0).Times(tm);
+    }
+
+    /// <summary>Text whose up (<paramref name="ux"/>, <paramref name="uy"/>, page space) is square to its baseline's left, as for upright glyphs: not mirrored, not slanted.</summary>
+    private static bool Upright(double bx, double by, double ux, double uy)
+    {
+        var (b, u) = (Math.Sqrt(bx * bx + by * by), Math.Sqrt(ux * ux + uy * uy));
+        if (b < 1e-9 || u < 1e-9) return false;
+        // Up on the page (y down) is the baseline turned a quarter counterclockwise: (by, -bx).
+        return (by * ux - bx * uy) / (b * u) > 0.999;
     }
 
     private static (double X, double Y) Project(PdfPage page, Mat m, double x, double y)

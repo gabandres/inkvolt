@@ -471,6 +471,26 @@ public sealed partial class PageViewer
     private void PositionParagraphEditor(TextParagraph p, RichTextBox tb, double k)
     {
         var r = ToSurfaceRect(p.PageIndex, p.Box);
+        if (p.Upright is { } u)
+        {
+            // Turned text: the editor laid out in the paragraph's own direction, turned about its first line's start.
+            ScaleParagraphEditor(tb, p, k);
+            tb.Width = Math.Max(u.Box.Width * k, 40) + 12;
+            tb.Height = double.NaN;
+            tb.MinHeight = Math.Max(u.Box.Height * k, tb.FontSize * 1.2) + 2;
+            tb.LayoutTransform = Transform.Identity;
+            var corner = ContentEditor.FromFrame(new PointD(u.Box.X, u.Box.Y), p.Angle);
+            var at = ToSurfacePoint(p.PageIndex, corner.X, corner.Y);
+            var turned = new TransformGroup();
+            turned.Children.Add(new TranslateTransform(-1, -1));
+            turned.Children.Add(new RotateTransform(p.Angle + _viewRotation));
+            tb.RenderTransform = Frozen(turned);
+            Canvas.SetLeft(tb, at.X);
+            Canvas.SetTop(tb, at.Y);
+            PlaceLookBar(TurnedBounds(tb, r));
+            PlaceRunInfo();
+            return;
+        }
         var turn = ((int)Math.Round(_viewRotation / 90.0) * 90 % 360 + 360) % 360;
         var (length, thickness) = turn is 90 or 270 ? (r.Height, r.Width) : (r.Width, r.Height);
         ScaleParagraphEditor(tb, p, k);
@@ -486,11 +506,29 @@ public sealed partial class PageViewer
         PlaceRunInfo();
     }
 
+    /// <summary>Where a turned paragraph's editor is on the surface (its box turned); <paramref name="fallback"/> before it is laid out.</summary>
+    private static Rect TurnedBounds(RichTextBox tb, Rect fallback)
+    {
+        var (w, h) = (tb.ActualWidth > 0 ? tb.ActualWidth : tb.Width, tb.ActualHeight > 0 ? tb.ActualHeight : tb.MinHeight);
+        if (double.IsNaN(w) || double.IsNaN(h) || w <= 0 || h <= 0) return fallback;
+        var b = tb.RenderTransform.TransformBounds(new Rect(0, 0, w, h));
+        b.Offset(Canvas.GetLeft(tb), Canvas.GetTop(tb));
+        return b;
+    }
+
     /// <summary>The note under the paragraph editor as it grows (beside it when the page is turned).</summary>
     private void PlaceRunInfo()
     {
         if (_editorParagraph is not { } p || _editor is not RichTextBox tb || _runInfo is null || p.PageIndex >= _rects.Length) return;
         var r = ToSurfaceRect(p.PageIndex, p.Box);
+        if (p.Upright is not null)
+        {
+            // Under the turned editor as it is on the screen now.
+            var b = TurnedBounds(tb, r);
+            Canvas.SetLeft(_runInfo, b.X);
+            Canvas.SetTop(_runInfo, b.Bottom + 4);
+            return;
+        }
         var turn = ((int)Math.Round(_viewRotation / 90.0) * 90 % 360 + 360) % 360;
         _runInfo.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         var w = _runInfo.DesiredSize.Width;

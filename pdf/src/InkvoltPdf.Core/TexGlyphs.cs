@@ -132,6 +132,41 @@ internal static partial class TexGlyphs
         "bracerightBig radicalbig radicalBig radicalbigg radicalBigg radicalbt radicalvertex radicaltp arrowvertexdbl arrowtp " +
         "arrowbt bracehtipdownleft bracehtipdownright bracehtipupleft bracehtipupright arrowdbltp arrowdblbt");
 
+    /// <summary>OT1, the encoding of Computer Modern's text fonts (CMR, CMBX, CMTI…): ASCII but for its first 32, quotes, ¡ ¿, dashes and accents.</summary>
+    private static readonly string[] Ot1 = Vector(
+        "Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega ff fi fl ffi ffl dotlessi dotlessj grave acute caron breve " +
+        "macron ring cedilla germandbls ae oe oslash AE OE Oslash suppress exclam quotedblright numbersign dollar percent ampersand " +
+        "quoteright parenleft parenright asterisk plus comma hyphen period slash zero one two three four five six seven eight nine " +
+        "colon semicolon exclamdown equal questiondown question at A B C D E F G H I J K L M N O P Q R S T U V W X Y Z bracketleft " +
+        "quotedblleft bracketright circumflex dotaccent quoteleft a b c d e f g h i j k l m n o p q r s t u v w x y z endash emdash " +
+        "hungarumlaut tilde dieresis");
+
+    [GeneratedRegex(@"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$")]
+    private static partial Regex TextFamilyPattern();
+
+    /// <summary>
+    /// What character code <paramref name="code"/> is in a font named <paramref name="font"/> whose glyphs say nothing
+    /// but their code (a Type 3 bitmap font dvips made from TeX's PK fonts, glyphs "a65"…): by the TeX font's own encoding
+    /// when the name tells it (OML, OMS, OMX for the math fonts; ASCII for the typewriter fonts; else OT1 for Computer
+    /// Modern, its italic fonts with sterling where the others have dollar). A name that tells nothing (dvips's "Fa")
+    /// gets nothing: the font could as well be a symbol font, whose codes are other glyphs, and wrong text is worse than
+    /// none. Null when it can't be told.
+    /// </summary>
+    public static string? CodeText(string font, int code)
+    {
+        if (code is < 0 or > 127) return null;
+        if (NameIn(font, code) is { } math) return ToUnicode(math);
+        if (TextFamilyPattern().Match(font) is not { Success: true } m) return null;
+        var family = m.Groups[1].Value;
+        if (family.Contains("TT", StringComparison.Ordinal)) return code is >= 33 and <= 126 ? ((char)code).ToString() : null;
+        // CMTI, CMBXTI, CMSLTI: the text italics put the pound sign at 36.
+        if (code == 36 && family.EndsWith("TI", StringComparison.Ordinal)) return "£";
+        return Ot1[code] is "suppress" ? null : ToUnicode(Ot1[code]);
+    }
+
+    /// <summary>Whether a name is a TeX font's (CMR10, CMMI7…; a subset's prefix allowed).</summary>
+    public static bool IsTexFont(string font) => FamilyPattern().IsMatch(font) || TextFamilyPattern().IsMatch(font);
+
     private static string[] Vector(string names)
     {
         var v = names.Split(' ');

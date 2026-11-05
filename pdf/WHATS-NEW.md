@@ -6,6 +6,12 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Batch's Redact Patterns gives the redacted pages their text back, as Apply Redactions does, so a redacted scan stays searchable and selectable.
+- Edit Text & Images edits turned text (a sideways column, a title set at an angle) as a whole paragraph too: it rewraps in its own direction, with the editor turned to match.
+- A paragraph with a word in another font (a name in Times among Arial, a line that starts with one) edits as a whole paragraph now, and that word keeps its font.
+- Make Accessible tags text inside drawings a page reuses (a page placed as one drawing, a letterhead) piece by piece, so each heading and paragraph there is read as its own.
+- In the Reading Order pane, choose what a piece is under Kind: a heading and its level, a paragraph, a caption, a footnote, a formula or a picture (a list can become a table of contents). Apply changes tags it that way.
+- Make Accessible tags a table cell that spans several rows as one cell, so a screen reader reads its header with each of those rows.
+- Make Accessible and Save as PDF/A-2a give text in old TeX papers' bitmap fonts its letters when the file names the TeX font, so it can be read aloud, searched and copied.
 - Batch, watched folders and the command line follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
 
 ## 1.7.0

@@ -73,7 +73,8 @@ public static partial class ContentEditor
     /// The looks of a paragraph read back: each run an edit gave a look of its own, as a span over its text in
     /// <paramref name="text"/> (where <paramref name="at"/> says each run starts), its size and color as drawn, its font,
     /// bold and italic as its tag says; a run in another face of the paragraph's family (a bold word as the page's
-    /// generator drew it) as bold or italic; spans of one look next to each other merged.
+    /// generator drew it) as bold or italic; a run in another family as that family (with bold or italic where its
+    /// face differs); spans of one look next to each other merged.
     /// </summary>
     private static List<TextSpan> SpansOf(TextRun lead, IEnumerable<(TextRun Run, int Start, int Length)> at)
     {
@@ -84,6 +85,8 @@ public static partial class ContentEditor
             var size = Math.Abs(r.FontSize - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(r.FontSize, 1) : (double?)null;
             TextLook look;
             if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic);
+            else if (!r.StandIn && r.Font is not null && !SameFamily(r, lead))
+                look = new TextLook(FontNames.Family(r.FontName), size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
                 look = new TextLook(null, size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else continue;

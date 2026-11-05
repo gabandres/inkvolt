@@ -98,11 +98,13 @@ public partial class ParagraphEditTests
         Assert.True(File.Exists(Path.Combine(PdfJsTool, "index.mjs")), PdfJsTool);
         if (!Directory.Exists(Path.Combine(PdfJsTool, "node_modules"))) RunTool(npm, "ci --no-audit --no-fund", PdfJsTool);
 
-        // The test's own pages: each alignment, a paragraph inside a form XObject, stand-in characters, and a one-run edit.
+        // The test's own pages: each alignment, a paragraph inside a form XObject, turned text, stand-in characters, and a one-run edit.
         var cases = new List<(string Name, byte[] Pdf, int Page, string Added)>();
         foreach (var align in new[] { ParagraphAlign.Left, ParagraphAlign.Right, ParagraphAlign.Center, ParagraphAlign.Justified })
             cases.Add(($"sample {align}", Page(align, gap: 120).Pdf, 0, Twenty));
         cases.Add(("sample form", ContentEditPdf.Make("q /Fm1 Do Q", form: FormBody(), fontText: Chars), 0, Twenty));
+        cases.Add(("sample turned 90°", Turned(90, 150, 250), 0, Twenty));
+        cases.Add(("sample turned 30°", Turned(30, 150, 300), 0, Twenty));
         cases.Add(("sample stand-ins", Page(ParagraphAlign.Left, gap: 120).Pdf, 0, "mail me @ home #1 for 5 " + Twenty));
         if (Environment.GetEnvironmentVariable("INKVOLTPDF_CORPUS") is { Length: > 0 } dir && Directory.Exists(dir))
             foreach (var file in Directory.GetFiles(dir, "*.pdf").Order())
