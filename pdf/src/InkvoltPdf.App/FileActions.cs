@@ -248,7 +248,14 @@ public static class FileActions
             var across = p.Turns == 1 ? p.Box.Height : p.Box.Width;
             var pxScale = dpi / 96 * across / region.Width;
             while (region.Width * region.Height * pxScale * pxScale > 60_000_000) pxScale *= 0.85;
-            images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
+            try
+            {
+                images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
+            }
+            catch (PageRefusedException)
+            {
+                images[i] = PageViewer.ToBitmap(new RenderedImage(1, 1, [255, 255, 255])); // a page that isn't shown prints blank; the rest prints
+            }
         }
         return new RenderedSheet(sheet, images);
     }

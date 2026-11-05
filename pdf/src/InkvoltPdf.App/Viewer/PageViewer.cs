@@ -81,6 +81,7 @@ public sealed partial class PageViewer : ScrollViewer
     private int _generation;
     private int _viewRotation;                         // 0, 90, 180, 270: the view turned clockwise (the file is unchanged)
     private readonly HashSet<int> _failed = [];       // pages MuPDF couldn't render (until the document changes)
+    private readonly HashSet<int> _tooSlow = [];      // of those, pages refused because they took too long to read (PageChecks)
     private readonly HashSet<int> _failedTiles = [];  // pages whose detail tile failed (the base render stays)
     private readonly PaintLayer _layer;
     private bool _layerInTemplate;
@@ -283,6 +284,7 @@ public sealed partial class PageViewer : ScrollViewer
         _full.Clear();
         _detail.Clear();
         _failed.Clear();
+        _tooSlow.Clear();
         _failedTiles.Clear();
         if (!contentOnly)
         {
@@ -878,6 +880,7 @@ public sealed partial class PageViewer : ScrollViewer
                 {
                     if (gen != _generation || ex is ObjectDisposedException) return; // the document changed meanwhile
                     _failed.Add(p);
+                    if (ex is PageRefusedException { TooSlow: true }) _tooSlow.Add(p);
                     _stale.Remove(p);
                     _surface.InvalidateVisual();
                 }, tag: (s, gen));
@@ -1143,7 +1146,7 @@ public sealed partial class PageViewer : ScrollViewer
 
             dc.PushClip(new RectangleGeometry(pr));
             if (_failed.Contains(i))
-                PaintFailed(dc, pr, dpi);
+                PaintFailed(dc, pr, dpi, _tooSlow.Contains(i) ? Strings.Viewer_PageTooSlow : Strings.Viewer_PageFailed);
             else
             {
                 if ((_full.TryGetValue(i, out var full) || _stale.TryGetValue(i, out full)) && full.Rotation == _viewRotation)
@@ -1267,11 +1270,11 @@ public sealed partial class PageViewer : ScrollViewer
 
     private static readonly Brush FailedBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x80, 0x80, 0x80)));
 
-    /// <summary>A page MuPDF couldn't render: says so instead of staying blank.</summary>
-    private static void PaintFailed(DrawingContext dc, Rect pr, double dpi)
+    /// <summary>A page MuPDF couldn't render, or that took too long to read: says so instead of staying blank.</summary>
+    private static void PaintFailed(DrawingContext dc, Rect pr, double dpi, string text)
     {
         var size = Math.Clamp(pr.Width / 24, 9, 16);
-        var ft = new FormattedText(Strings.Viewer_PageFailed, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+        var ft = new FormattedText(text, System.Globalization.CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
             new Typeface("Segoe UI"), size, FailedBrush, dpi) { MaxTextWidth = Math.Max(10, pr.Width - 16), TextAlignment = TextAlignment.Center };
         dc.DrawText(ft, new Point(pr.X + 8, pr.Y + Math.Max(8, (pr.Height - ft.Height) / 2)));
     }

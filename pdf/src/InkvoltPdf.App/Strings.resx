@@ -5475,6 +5475,9 @@ Modified {1:g}</value>
   <data name="Viewer_PageFailed" xml:space="preserve">
     <value>This page can't be displayed</value>
   </data>
+  <data name="Viewer_PageTooSlow" xml:space="preserve">
+    <value>This page took too long to read and isn't shown</value>
+  </data>
   <data name="Viewer_OpenLinkTitle" xml:space="preserve">
     <value>Open this link?</value>
   </data>

@@ -5475,6 +5475,9 @@ Modificado {1:g}</value>
   <data name="Viewer_PageFailed" xml:space="preserve">
     <value>Esta página no se puede mostrar</value>
   </data>
+  <data name="Viewer_PageTooSlow" xml:space="preserve">
+    <value>Esta página tardaba demasiado en leerse y no se muestra</value>
+  </data>
   <data name="Viewer_OpenLinkTitle" xml:space="preserve">
     <value>¿Abrir este vínculo?</value>
   </data>
