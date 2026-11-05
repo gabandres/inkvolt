@@ -54,7 +54,12 @@ public static class Measures
         var sw = Stopwatch.StartNew();
         var data = inPlace ? null : File.ReadAllBytes(path);
         var readMs = Ms(sw);
-        PdfEngine OpenEngine() => data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
+        PdfEngine OpenEngine()
+        {
+            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
+            engine.CheckFirstPage(); // as DocumentSession does for the document the user opens
+            return engine;
+        }
 
         // First page: open (MuPDF parses the file and reads every page's size) and render page 1 as the viewer would.
         sw.Restart();

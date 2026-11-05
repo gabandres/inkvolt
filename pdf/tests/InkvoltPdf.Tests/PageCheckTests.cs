@@ -342,6 +342,48 @@ public sealed class PageCheckTests : IDisposable
         }
     }
 
+    [Fact]
+    public void EnginesThatDrawNothingCheckNothingAndThumbnailsShareOneProcess()
+    {
+        var paths = Enumerable.Range(0, 3).Select(_ => Path.Combine(Path.GetTempPath(), $"inkvolt-check-{Guid.NewGuid():N}.pdf")).ToList();
+        foreach (var path in paths) File.WriteAllBytes(path, ThreePages(Drawn, ""));
+        using var app = PageChecks.UseForTests(_plan);
+        try
+        {
+            // Opened for a page's size (Batch's largest page) or to try a password: nothing is drawn, nothing checked.
+            using (var preview = PdfEngine.OpenPreview(paths[0])!) Assert.Equal(612, preview.GetPage(2).Width);
+            using (PdfEngine.Open(File.ReadAllBytes(paths[0]), InputFileTypes.PDF, null)) { }
+            Thread.Sleep(500);
+            Assert.Empty(_plan.Pids);
+
+            // The recent files' thumbnails: each first page checked in the same process, nothing ahead of it, each file let go.
+            foreach (var path in paths)
+            {
+                using (var preview = PdfEngine.OpenPreview(path)!)
+                {
+                    preview.Render(0, 0.1);
+                    Assert.Equal(PageVerdict.Fine, preview.VerdictOf(0));
+                }
+                File.Delete(path);
+            }
+            var pid = Assert.Single(_plan.Pids);
+            Assert.False(Exited(pid));
+
+            Assert.Equal(3, _plan.ChecksRun);
+
+            // A document the user opens has its first page checked as it opens, before anything is drawn.
+            using var session = DocumentSession.FromBytes(ThreePages(Drawn, ""), "opened.pdf");
+            var since = Stopwatch.StartNew();
+            while (_plan.ChecksRun == 3 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(20);
+            Assert.Equal(4, _plan.ChecksRun);
+        }
+        finally
+        {
+            foreach (var path in paths)
+                if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     private static bool Exited(int pid)
     {
         try

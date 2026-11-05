@@ -171,9 +171,7 @@ public sealed partial class PdfEngine : IDisposable
                 if (string.IsNullOrEmpty(password)) throw new PasswordRequiredException(false);
                 if (!Unlock(doc, password)) throw new PasswordRequiredException(true);
             }
-            var engine = new PdfEngine(ctx, doc, encrypted, c => NewDocument(c, () => create(c)), password, source);
-            engine.CheckFirstPage();
-            return engine;
+            return new PdfEngine(ctx, doc, encrypted, c => NewDocument(c, () => create(c)), password, source);
         }
         catch
         {
@@ -183,7 +181,10 @@ public sealed partial class PdfEngine : IDisposable
         }
     }
 
-    /// <summary>Opens a file in place (MuPDF reads only what it needs), e.g. for a quick preview. Null if it is encrypted.</summary>
+    /// <summary>
+    /// Opens a file in place (MuPDF reads only what it needs), e.g. for a quick preview. Null if it is encrypted. A page it
+    /// draws is checked as any is (<see cref="PageChecks"/>), the next one isn't checked ahead: a thumbnail draws one.
+    /// </summary>
     public static PdfEngine? OpenPreview(string path)
     {
         var ctx = new MuPDFContext(32 * 1024 * 1024);
@@ -197,9 +198,8 @@ public sealed partial class PdfEngine : IDisposable
                 ctx.Dispose();
                 return null;
             }
-            var engine = new PdfEngine(ctx, doc, false, c => NewDocument(c, () => new MuPDFDocument(c, path)), null, SourceFor(null, path, PdfEngine.TypeFromPath(path), null));
-            engine.CheckFirstPage();
-            return engine;
+            return new PdfEngine(ctx, doc, false, c => NewDocument(c, () => new MuPDFDocument(c, path)), null, SourceFor(null, path, PdfEngine.TypeFromPath(path), null))
+                { _checkAhead = false };
         }
         catch
         {

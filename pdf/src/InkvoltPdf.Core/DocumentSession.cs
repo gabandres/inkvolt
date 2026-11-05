@@ -180,6 +180,7 @@ public sealed partial class DocumentSession : IDisposable
         Password = password;
         FileType = type;
         Engine = engine;
+        engine.CheckFirstPage();
     }
 
     /// <exception cref="PasswordRequiredException"/>

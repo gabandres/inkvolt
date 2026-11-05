@@ -86,6 +86,19 @@ public static class PageChecks
     /// <summary>The app's plan; null while <see cref="Use"/> hasn't been called (a worker process, a test): pages run unchecked.</summary>
     internal static PageCheckPlan? Plan => _plan;
 
+    /// <summary>Test hook: <paramref name="plan"/> is the app's until the result is disposed.</summary>
+    internal static IDisposable UseForTests(PageCheckPlan plan)
+    {
+        var was = _plan;
+        _plan = plan;
+        return new Restore(() => _plan = was);
+    }
+
+    private sealed class Restore(Action restore) : IDisposable
+    {
+        public void Dispose() => restore();
+    }
+
     public static bool IsCommand(string[] args) => args.Length > 0 && args[0] == Switch;
 
     /// <summary>
@@ -355,6 +368,17 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     private long _retryAt;                                  // under _gate: Stopwatch timestamp before which no start is tried
     private volatile bool _disposed;                        // set under _gate
 
+    /// <summary>Test hook: how many checks a process has been given.</summary>
+    internal int ChecksRun
+    {
+        get
+        {
+            lock (_gate) return _checksRun;
+        }
+    }
+
+    private int _checksRun; // under _gate
+
     /// <summary>Test hook: every check process started so far.</summary>
     internal IReadOnlyList<int> Pids
     {
@@ -499,6 +523,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                             _queue.Remove(node);
                             request.Started = true;
                             link.Current = request;
+                            _checksRun++;
                             break;
                         }
                         var left = Idle - Stopwatch.GetElapsedTime(since);

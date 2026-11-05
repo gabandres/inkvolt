@@ -18,6 +18,7 @@ public sealed partial class PdfEngine
     private CheckRequest?[]? _checking;         // under _checkGate
     private CheckedDocument? _checked;          // under _checkGate
     private PageCheckPlan? _checkedBy;          // under _checkGate
+    private bool _checkAhead = true;            // the next page is checked while one is used (not for a preview)
 
     /// <summary>Test hook: what the check of each page found so far.</summary>
     internal PageVerdict VerdictOf(int page) => Volatile.Read(ref _verdicts) is { } v ? (PageVerdict)Volatile.Read(ref v[page]) : PageVerdict.Unknown;
@@ -53,7 +54,7 @@ public sealed partial class PdfEngine
             request.Speculative = false;
             request.Waiters++;
             // The next page is checked meanwhile: scrolling, Find and thumbnails go on in page order.
-            AskAhead(page + 1);
+            if (_checkAhead) AskAhead(page + 1);
         }
         try
         {
@@ -100,8 +101,11 @@ public sealed partial class PdfEngine
         _checking[page] = plan.Ask(_checked!, page, speculative: true);
     }
 
-    /// <summary>The first page is checked as the document opens, while the app gets ready to show it.</summary>
-    private void CheckFirstPage()
+    /// <summary>
+    /// The document the user opened: its first page is checked now, while the app gets ready to show it. Not done by every
+    /// engine as it opens: one opened to read page sizes, try a password or make a thumbnail would start a check for nothing.
+    /// </summary>
+    public void CheckFirstPage()
     {
         lock (_checkGate)
         {
