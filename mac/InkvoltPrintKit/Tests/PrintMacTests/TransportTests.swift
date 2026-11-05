@@ -158,6 +158,10 @@ struct PortSnmp: SnmpTransport {
 }
 
 /// A UDP server on a loopback port: each datagram is answered with what `answer` returns (nil: silence).
+///
+/// The test servers here run on a queue of their own (`ownQueue`), never GCD's global pool: a full parallel test run on a
+/// small CI runner keeps that pool busy, and a server waiting on it answered nothing within the client's 5 s
+/// (`aPrinterThatNeverStopsAnsweringDoesntFillThisPcsMemory`'s `mostSent → 0` on CI, reproduced on the Mac with the pool held).
 final class UdpServer: Sendable {
     private let listener: NWListener
     let port: UInt16
@@ -166,8 +170,9 @@ final class UdpServer: Sendable {
         let parameters = NWParameters.udp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
         let listener = try NWListener(using: parameters)
+        let queue = Self.ownQueue()
         listener.newConnectionHandler = { connection in
-            connection.start(queue: .global())
+            connection.start(queue: queue)
             @Sendable func next() {
                 connection.receiveMessage { data, _, _, error in
                     guard error == nil else { return }
@@ -178,18 +183,21 @@ final class UdpServer: Sendable {
             next()
         }
         self.listener = listener
-        port = try Self.listen(listener)
+        port = try Self.listen(listener, on: queue)
     }
 
     func stop() { listener.cancel() }
 
-    static func listen(_ listener: NWListener) throws -> UInt16 {
+    /// A serial queue for one server's listener and connections: its own thread whenever it has work.
+    static func ownQueue() -> DispatchQueue { DispatchQueue(label: "inkvolt.test-server") }
+
+    static func listen(_ listener: NWListener, on queue: DispatchQueue) throws -> UInt16 {
         let ready = DispatchSemaphore(value: 0)
         listener.stateUpdateHandler = { state in
             if case .ready = state { ready.signal() }
             if case .failed = state { ready.signal() }
         }
-        listener.start(queue: .global())
+        listener.start(queue: queue)
         _ = ready.wait(timeout: .now() + 5)
         guard let port = listener.port?.rawValue, port != 0 else { throw URLError(.cannotConnectToHost) }
         return port
@@ -225,8 +233,9 @@ final class HttpServer: Sendable {
         let listener = try NWListener(using: parameters)
         let log = Log()
         self.log = log
+        let queue = UdpServer.ownQueue()
         listener.newConnectionHandler = { connection in
-            connection.start(queue: .global())
+            connection.start(queue: queue)
             Self.read(connection, Data()) { request in
                 log.add(request)
                 if let response = answer(request) {
@@ -235,7 +244,7 @@ final class HttpServer: Sendable {
             }
         }
         self.listener = listener
-        port = try UdpServer.listen(listener)
+        port = try UdpServer.listen(listener, on: queue)
     }
 
     func stop() { listener.cancel() }
