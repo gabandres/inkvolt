@@ -153,6 +153,18 @@ struct TransportTests {
         #expect(try await http.send(chosen).body.count == page)
     }
 
+    /// A reply's buffer is made ready for what its Content-Length says only up to a few MB: a printer that claims a scanned
+    /// page of 1 GB (eSCL's limit) and sends ten bytes costs this Mac ten bytes, not 1 GB reserved before the first one.
+    @Test func aReplysClaimedLengthReservesAtMostAFewMegabytes() {
+        let scanned = DeviceHttp.maxScanReplyBytes
+        #expect(URLSessionTransport.reservation(Int64(scanned), limit: scanned) <= URLSessionTransport.maxReservation)
+        #expect(URLSessionTransport.reservation(Int64(DeviceHttp.maxReplyBytes), limit: DeviceHttp.maxReplyBytes) <= URLSessionTransport.maxReservation)
+        #expect(URLSessionTransport.maxReservation <= 8 << 20)
+        #expect(URLSessionTransport.reservation(1000, limit: scanned) == 1000)
+        #expect(URLSessionTransport.reservation(-1, limit: scanned) == 0) // no length given
+        #expect(URLSessionTransport.reservation(Int64(scanned) + 1, limit: scanned) == 0) // over the limit: refused, nothing reserved
+    }
+
     // MARK: CUPS
 
     @Test func libcupsListsThisMacsQueues() async throws {

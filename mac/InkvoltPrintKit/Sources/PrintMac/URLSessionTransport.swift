@@ -74,6 +74,17 @@ public final class URLSessionTransport: HttpTransport {
         return (http.statusCode, headers)
     }
 
+    /// The most a reply's buffer is made ready for before its bytes arrive; past it the buffer grows as they come, so a length
+    /// a printer claims (up to eSCL's 1 GB) costs only what it sends.
+    static let maxReservation = 4 << 20
+
+    /// What a reply whose Content-Length says `expected` reserves: that, at most `maxReservation`; nothing without one or past
+    /// `limit` (refused at once).
+    static func reservation(_ expected: Int64, limit: Int) -> Int {
+        guard expected > 0, expected <= Int64(limit) else { return 0 }
+        return Int(min(expected, Int64(maxReservation)))
+    }
+
     /// The reply read in the pieces it arrives in (a task delegate counting `didReceive`), given up on (its task cancelled)
     /// past `limit` bytes, or at once when its length says so.
     private func bounded(_ r: URLRequest, _ session: URLSession, _ limit: Int) async throws -> HttpResponse {
@@ -115,7 +126,7 @@ public final class URLSessionTransport: HttpTransport {
                 $0.status = head?.status
                 $0.headers = head?.headers ?? [:]
                 $0.tooLong = tooLong
-                if !tooLong, response.expectedContentLength > 0 { $0.body.reserveCapacity(Int(response.expectedContentLength)) } // bounded: ≤ limit
+                $0.body.reserveCapacity(URLSessionTransport.reservation(response.expectedContentLength, limit: limit))
             }
             completionHandler(tooLong ? .cancel : .allow)
         }
