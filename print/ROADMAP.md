@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.3, 1.5, 1.6 and 3.5 are done on the Mac
-too (1.3 and 1.5 on 2026-11-04, owner's go); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.3, 1.5, 1.6 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -83,9 +83,11 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
   trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
   IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
-  (README, "Not done"). Mac: PrintCore done (2026-11-02, mac/docs/PLAN.md P12: the store, the analysis, the chart's data,
-  the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC); the store's folder
-  and the monitor feeding it, the Swift Charts chart, Export history… and demo mode's seeding wait for the Mac.
+  (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: the store, the analysis, the
+  chart's data, the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC);
+  the files in `history` beside the state file, fed through `SupplyHistoryFeed` by the printer monitor on each reading (a
+  queue printer's CUPS levels by the app), the supplies card's lines, its Swift Charts chart and Export history… behind
+  Pro, demo mode's year, checked by `--report --demo --history`; on screen and a real printer's file not yet.
 - **Beat it when:** each reading's levels and page count are kept on the PC (one row a day per supply, beside
   `state.json`, never sent); the supplies card shows a level-over-time chart and, from the last 30 days' slope,
   "about N days left" and "N pages since this cartridge went in" (a level that jumps up is a change of cartridge;

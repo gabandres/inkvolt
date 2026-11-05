@@ -23,6 +23,9 @@ final class AppModel {
     /// `--demo`: made-up printers from the bundled fixtures; nothing reaches the network, nothing is saved.
     let isDemo: Bool
     @ObservationIgnored let store: StateStore
+    /// The supply history (roadmap 1.1): one file per printer in `history` beside the state file; in memory in demo mode,
+    /// where each printer's first reading makes up its year.
+    @ObservationIgnored let history: SupplyHistoryStore
     @ObservationIgnored let signal: LocalNetworkSignal
     @ObservationIgnored private let transport: HttpTransportFactory
     @ObservationIgnored private let snmp: any SnmpTransport
@@ -88,6 +91,7 @@ final class AppModel {
             transport = { _, _ in network.http }
             snmp = network.snmp
             store = StateStore(memory: Demo.state())
+            history = SupplyHistoryStore(nil, firstReading: DemoSupplyHistory.seed)
             let offline = DemoOffline()
             queues = offline
             offlineProbes = offline
@@ -97,6 +101,7 @@ final class AppModel {
             transport = URLSessionTransport.factory(localNetwork: signal)
             snmp = UdpSnmpTransport(localNetwork: signal)
             store = StateStore(file: Self.stateFile)
+            history = SupplyHistoryStore(Self.historyFolder.path)
             queues = LibCups()
             offlineProbes = NetworkOfflineProbes(localNetwork: signal)
             queueControl = LibCups()
@@ -114,6 +119,9 @@ final class AppModel {
 
     /// `~/Library/Containers/<bundle id>/Data/Library/Application Support/InkvoltPrint/state.json` in the sandbox.
     static var stateFile: URL { dataFolder.appendingPathComponent("state.json") }
+
+    /// The supply history's files, beside the state file (Windows' `history` under its data folder).
+    static var historyFolder: URL { dataFolder.appendingPathComponent("history", isDirectory: true) }
 
     static var scansFolder: URL { dataFolder.appendingPathComponent("Scans") }
 
@@ -295,7 +303,11 @@ final class AppModel {
         wantedQueue = change.wantedQueue
         for id in change.unforget { store.unforget(id) }
         if change.changes {
-            for p in printers where change.removed.contains(p.id) { p.stop() }
+            // A queue macOS no longer has, or one a network printer here now stands for: its supply history goes with it.
+            for p in printers where change.removed.contains(p.id) {
+                p.stop()
+                p.forgetHistory()
+            }
             printers.removeAll { change.removed.contains($0.id) }
             for id in change.removed { tracker.forget(id) }
             printers += change.addedQueues.map { PrinterModel(queue: $0, app: self) }
@@ -434,8 +446,13 @@ final class AppModel {
         let listed = !p.isNetwork ? nil : ListedPrinter(id: p.id, kind: .network, name: p.name, model: p.model,
                                                       hosts: [p.host] + (p.hostName.map { [$0] } ?? []), acceptedUuids: store.accepted(p.id))
         // A network printer's own queues go with it, so none shows up as a printer of its own.
-        for id in listed.map({ PrinterList.hiddenWith($0, destinations ?? []) }) ?? [p.id] { store.remove(id) }
+        let gone = listed.map { PrinterList.hiddenWith($0, destinations ?? []) } ?? [p.id]
+        for id in gone { store.remove(id) }
         tracker.forget(p.id)
+        // Its supply history goes with it (a reading in flight keeps nothing), and so does any its own queues kept while
+        // they were listed on their own: no file is left behind to count toward the store's printers.
+        p.forgetHistory()
+        for id in gone where id.caseInsensitiveCompare(p.id) != .orderedSame { history.forget(id) }
         printers.removeAll { $0 === p }
         if selectedID == p.id { selectedID = printers.first?.id }
         alertRevision += 1

@@ -78,7 +78,7 @@ struct PrinterPane: View {
                 header
                 StatusCard(printer: printer) { tab = .settings }
                 if printer.isNetwork { SetUpCard(printer: printer).id(printer.id) }
-                if !printer.view.supplies.isEmpty { supplies }
+                if !printer.view.supplies.isEmpty { SuppliesSection(printer: printer) }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
@@ -98,17 +98,6 @@ struct PrinterPane: View {
                 Text(printer.name).font(.title2.bold()).textSelection(.enabled)
                 if let model = printer.view.model ?? printer.model, model != printer.name {
                     Text(model).foregroundStyle(.secondary).textSelection(.enabled)
-                }
-            }
-        }
-    }
-
-    private var supplies: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Supplies").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12, alignment: .top)], alignment: .leading, spacing: 12) {
-                ForEach(Array(printer.view.supplies.enumerated()), id: \.offset) { _, supply in
-                    SupplyCard(supply: SupplyText(supply))
                 }
             }
         }
@@ -284,6 +273,8 @@ struct FirmwareNoticeView: View {
 /// One supply: its colour, level, how long it lasts, and what replaces it.
 struct SupplyCard: View {
     let supply: SupplyText
+    /// From the supply history: days left and pages on this cartridge, or why not yet (roadmap 1.1).
+    var historyLine: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -302,11 +293,14 @@ struct SupplyCard: View {
             if let cartridge = supply.cartridge {
                 Text(cartridge).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
             }
+            if let historyLine {
+                Text(historyLine).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
         .padding(12)
         .background(.background.secondary, in: .rect(cornerRadius: 8))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(supply.accessibleText)
+        .accessibilityLabel([supply.accessibleText, historyLine].compactMap { $0 }.joined(separator: ", "))
     }
 
     private var tint: Color {
