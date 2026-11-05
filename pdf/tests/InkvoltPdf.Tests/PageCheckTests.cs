@@ -471,6 +471,39 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task ADocumentClosedJustBeforeItsOpenIsWithdrawnAndTheProcessGoesOn()
+    {
+        // The process is running (it checked another document); the next document is closed between its check being
+        // taken and its bytes being copied for the process. Nothing was sent: the check is withdrawn, the process kept.
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = Limit };
+        var first = new CheckedDocument(ThreePages(Drawn, ""), null, InputFileTypes.PDF, 3);
+        var closed = new CheckedDocument(ThreePages(Drawn, ""), null, InputFileTypes.PDF, 3);
+        try
+        {
+            var request = plan.Ask(first, 0);
+            await request.Done.WaitAsync(Timing.Limit(Limit + Slack));
+            Assert.Equal(PageVerdict.Fine, request.Result);
+            plan.TestBeforeOpen = doc =>
+            {
+                if (doc == closed) plan.Forget(doc);
+            };
+            request = plan.Ask(closed, 0);
+            await request.Done.WaitAsync(Timing.Limit(Limit + Slack));
+            Assert.Equal(PageVerdict.Unchecked, request.Result);
+            var pid = Assert.Single(plan.Pids);
+            Assert.False(Exited(pid));
+            request = plan.Ask(first, 1);
+            await request.Done.WaitAsync(Timing.Limit(Limit + Slack));
+            Assert.Equal(PageVerdict.Fine, request.Result);
+            Assert.Single(plan.Pids);
+        }
+        finally
+        {
+            plan.Forget(first);
+        }
+    }
+
+    [Fact]
     public void EnginesThatDrawNothingCheckNothingAndThumbnailsShareOneProcess()
     {
         var paths = Enumerable.Range(0, 3).Select(_ => Path.Combine(Path.GetTempPath(), $"inkvolt-check-{Guid.NewGuid():N}.pdf")).ToList();

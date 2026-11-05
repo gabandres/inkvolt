@@ -370,6 +370,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// <summary>Test hook: called on the link's thread once a check process has started, before the link knows it.</summary>
     internal Action? TestAfterStart { get; set; }
 
+    /// <summary>Test hook: called on the link's thread before a process is sent a document to open.</summary>
+    internal Action<CheckedDocument>? TestBeforeOpen { get; set; }
+
     private readonly object _gate = new();
     private readonly LinkedList<CheckRequest> _queue = []; // under _gate
     private readonly List<Link> _links = [];               // under _gate
@@ -429,15 +432,15 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// while checks of the document are queued or under way (<see cref="ReleaseShared"/>), so the second process to open
     /// it doesn't copy the document again. Each process holds its own view once it has opened it.
     /// </summary>
-    /// <exception cref="ObjectDisposedException">The document was closed (the check ends).</exception>
-    private PdfEngine.SharedBytes SharedOf(CheckedDocument doc)
+    /// <returns>Null: the document was closed meanwhile (the check is withdrawn; nothing was sent to the process).</returns>
+    private PdfEngine.SharedBytes? SharedOf(CheckedDocument doc)
     {
         // The copy is made under the document's own lock, not the plan's: asking for checks doesn't wait for it.
         lock (doc.SharedGate)
         {
             lock (_gate)
             {
-                ObjectDisposedException.ThrowIf(doc.Closed, doc);
+                if (doc.Closed) return null;
                 if (doc.Shared is { } kept) return kept;
             }
             var made = new PdfEngine.SharedBytes(doc.Data!);
@@ -446,7 +449,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 if (doc.Closed)
                 {
                     made.Dispose();
-                    throw new ObjectDisposedException(nameof(CheckedDocument));
+                    return null;
                 }
                 Interlocked.Increment(ref _sharedCopies);
                 return doc.Shared = made;
@@ -698,7 +701,14 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 StartFailed = false;
                 try
                 {
-                    if (Open != doc && !OpenDocument(doc)) return PageVerdict.Unchecked;
+                    if (Open != doc)
+                    {
+                        plan.TestBeforeOpen?.Invoke(doc);
+                        // Closed since the check was taken: withdrawn before anything is sent, the process kept.
+                        var shared = doc.Data is null ? null : plan.SharedOf(doc);
+                        if (doc.Data is not null && shared is null) return PageVerdict.Unchecked;
+                        if (!OpenDocument(doc, shared)) return PageVerdict.Unchecked;
+                    }
                     FindWorkers.WriteInt(_pipe!, PageChecks.AskCheck);
                     FindWorkers.WriteInt(_pipe!, request.Page);
                     _pipe!.Flush();
@@ -804,10 +814,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
         }
 
-        private bool OpenDocument(CheckedDocument doc)
+        private bool OpenDocument(CheckedDocument doc, PdfEngine.SharedBytes? shared)
         {
             Open = null;
-            var shared = doc.Data is null ? null : plan.SharedOf(doc);
             FindWorkers.WriteInt(_pipe!, PageChecks.AskOpen);
             new PageChecks.OpenRequest(doc.Data is null ? doc.Path : null, shared?.Name, shared?.Bytes ?? 0, doc.Type, doc.Pages).Write(_pipe!);
             _pipe!.Flush();
