@@ -28,7 +28,7 @@ public sealed partial class PdfEngine
     /// check can be had (no check processes, none starting now, a document a check process can't open from here: one with
     /// a password, or not a PDF). Waits for the check, which is shared by every caller asking about the page meanwhile.
     /// </summary>
-    /// <exception cref="PageRefusedException">The page took too long in its check, MuPDF gave up on it there, or it ended the check process.</exception>
+    /// <exception cref="PageRefusedException">The page took too long in its check, MuPDF ran out of memory on it there, or it ended the check process.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired while the check went on (it goes on without the caller).</exception>
     private void Vet(int page, CancellationToken cancel)
     {

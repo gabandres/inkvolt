@@ -7,7 +7,7 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// A page this process won't run through MuPDF: drawing it in its page check took longer than the limit
-/// (<see cref="PageChecks"/>), MuPDF gave up on it there, or the check process ended on it twice. The rest of the
+/// (<see cref="PageChecks"/>), MuPDF ran out of the memory it may hold there, or the check process ended on it twice. The rest of the
 /// document can still be used.
 /// </summary>
 public sealed class PageRefusedException : InvalidOperationException
@@ -26,7 +26,7 @@ public sealed class PageRefusedException : InvalidOperationException
 
     public int Page { get; }
 
-    /// <summary>True: it took too long; false: MuPDF gave up on it in the check, or the check process ended on it (a crash, or more memory than it may take).</summary>
+    /// <summary>True: it took too long; false: MuPDF ran out of memory on it in the check, or the check process ended on it (a crash, or more memory than it may take).</summary>
     public bool TooSlow { get; }
 
     /// <summary>Whether a verdict refuses the page.</summary>
@@ -51,7 +51,7 @@ internal enum PageVerdict : byte
     /// <summary>No check could be made (no check process starts, the document doesn't open in one, or it was closed): run here as before, this time; never kept as a page's verdict.</summary>
     Unchecked,
 
-    /// <summary>MuPDF gave up on it in the check process (a damaged page, or one that needs more memory than the process may take): refused.</summary>
+    /// <summary>MuPDF ran out of what the check process may hold on it (<see cref="PageChecks.OutOfResources"/>): refused. Other failures there are <see cref="Fine"/>.</summary>
     Failed,
 }
 

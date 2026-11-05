@@ -875,14 +875,28 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   tried again after 30 s, doubling to 5 minutes. Starting a check process and ending it can't cross any more (one
   ended while it started opened a closed file). Only the document the user opens checks its first page as it opens
   (not an engine opened for page sizes, a password or a thumbnail; a thumbnail checks its one page in the shared
-  process); a page asked ahead is withdrawn with the page it was asked for when that is scrolled past. An edit, undo or
-  redo carries the verdicts of the pages it left as they were (`PageIdentity`: a hash of what each page reaches, by
-  its stored bytes, renumbering aside; documents up to 32 MB), and both processes open one shared copy of a document.
+  process); a page asked ahead is withdrawn with the page it was asked for when that is scrolled past. Both processes
+  open one shared copy of a document.
   Export as images, Batch's page images and Read Aloud leave a refused page out and say so; Reduce File Size measures a
   soft mask by its picture's rule. Bench `one` after it (single runs, the PC at 50 to 100% from other work): text first
   page 0.25 s with checks (0.07 without), 9.1 ms a page (5.6), Find 2.7 to 3.0 s (2.7); drawing set first page 1.03 s
   (0.58), scroll and Find within the load's noise (1.1 to 1.7 s a sheet, 36 to 61 s either way); scan first page 0.21 s
   (0.07), 27 ms a page (25). To measure again on an idle PC.
+  **Its second review (2026-11-05):** no verdict is carried to another engine any more (`PageIdentity` removed: PDFsharp's
+  view of a page vouched for what MuPDF would read, two parsers a hostile file can make disagree; a refusal stuck
+  whatever the edit changed; every edit hashed the document): an edit's, undo's or Reload's engine checks each page
+  again when it is first drawn. Measured (5 notes each, median, PC at 93%): the first draw after an edit 33 ms with
+  checks (14 without) on a text page, 1.54 s (0.99) on a 72,000-path sheet. Only MuPDF running out of the check
+  process's memory refuses a page (`PageChecks.OutOfResources`: a picture to decode of more than half of its 2 GB, or
+  the process past half of it during the check); a page MuPDF reads in part (it warns and draws what it can) is drawn
+  as before. An image's own soft mask, which MuPDF's structured text doesn't list, is decoded at its full size too
+  when over 4,096 × 4,096 (`PageMasks`: found through PDFsharp in the check process, documents up to 64 MB, only to
+  decode more); the pictures it does list (patterns, forms, comments) come from the drawing's display list, 40 to 48
+  ms after the 270 ms drawing of that sheet. A check process that fails to start leaves its page to the other one;
+  pages run unchecked only when none runs. A document closed just before its check process opens it no longer ends
+  that process. Bench `one` after it (single runs, the PC at 45 to 100%): text first page 0.27 s (0.08 without), 11 ms a
+  page (5.4); scan first page 0.33 s (0.08), 28 ms a page (29); a 2.7 MB scan, its masks read, 0.28 s (0.06); drawing
+  set first page 1.03 s (0.78), 0.98 s a sheet (1.09), Find 33 s (35).
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
