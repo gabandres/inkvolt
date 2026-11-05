@@ -172,6 +172,13 @@ extension AlertTracker {
         }
     }
 
+    /// When your failed jobs still within their hold (`AlertRules.errorHold`) will be due (`pendingUntil` asks for a read then).
+    func failedHolds(_ q: JobQueueTrack) -> [Date] {
+        q.jobs.values.compactMap { t in
+            t.mine && !t.failedTold && t.due == nil && t.absentSince == nil ? t.failedSince?.addingTimeInterval(rules.errorHold) : nil
+        }
+    }
+
     /// Your first job that should be moving; a failed one stands for those behind it.
     private func decideStuck(_ jobs: [QueueJob], _ p: Printer, now: Date) {
         let q = p.queue

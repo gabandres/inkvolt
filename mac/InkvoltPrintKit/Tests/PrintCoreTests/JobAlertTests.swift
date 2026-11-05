@@ -106,6 +106,19 @@ struct JobAlertTests {
         #expect(Self.minutes(t, Self.at(2), 60, Self.queue(Self.job(7,.stopped))).isEmpty)
     }
 
+    /// A failure within its hold asks for a read when the hold runs out, as a printer's own problem does.
+    @Test func aFailedJobAsksForAReadWhenItsHoldRunsOut() {
+        let t = Self.tracker()
+        #expect(Self.read(t, Self.t0, Self.queue(Self.job(7,.stopped))).isEmpty)
+        #expect(t.pendingUntil(Self.laser) == Self.t0.addingTimeInterval(t.rules.errorHold))
+        #expect(t.nextCheck == Self.t0.addingTimeInterval(t.rules.errorHold))
+        #expect(Self.read(t, Self.at(1), Self.queue(Self.job(7,.stopped))).map(\.kind) == [.jobFailed])
+        #expect(t.pendingUntil(Self.laser) == nil)
+        let someoneElses = Self.tracker()
+        #expect(Self.read(someoneElses, Self.t0, Self.queue(Self.job(7,.stopped, owner: "alex"))).isEmpty)
+        #expect(someoneElses.pendingUntil(Self.laser) == nil)
+    }
+
     @Test func anErrorGoneBeforeTheHoldWasNothing() {
         let t = Self.tracker()
         #expect(Self.read(t, Self.t0, Self.queue(Self.job(7,.stopped))).isEmpty)

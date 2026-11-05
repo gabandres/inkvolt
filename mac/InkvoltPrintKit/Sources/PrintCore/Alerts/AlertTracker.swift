@@ -250,7 +250,8 @@ public final class AlertTracker {
     public func pendingUntil(_ uuid: String) -> Date? {
         guard let p = printers[uuid.lowercased()] else { return nil }
         let held = p.tracks.values.filter { $0.present && !$0.confirmed }.map { $0.firstSeen.addingTimeInterval(rules.hold(for: $0.kind)) }
-        return (held + [rules.jobs ? p.queue.stuckAt : nil].compactMap { $0 }).min()
+        let jobs = rules.jobs ? [p.queue.stuckAt].compactMap { $0 } + failedHolds(p.queue) : []
+        return (held + jobs).min()
     }
 
     /// Problems still within their hold time start it again (the Mac woke up: the time it slept doesn't count).

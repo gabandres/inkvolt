@@ -194,6 +194,7 @@ sheet's buttons were cut off (it's wider now) |
   and a domain or computer this Mac can't compare with is never a match (Windows names the job then). A job counts as
   having left only once two reads in a row miss it (as of the first miss; a read that misses a job decides nothing
   stuck), where Windows takes the first miss as the queue moving, so one missed read restarts no stuck wait.
+  `pendingUntil` also asks for a read when a failed job's hold runs out (Windows' asks only for the stuck wait).
 - The print queue card (jobs of the printer's CUPS queue, read every 3 s while on screen; Cancel for the user's own jobs,
   Cancel My Jobs) shows for a queue printer and for a network printer macOS has a queue for. Job states are IPP's
   (`JobState`), not Windows' status bits; CUPS gives no page counts through `cupsGetJobs2`, so pages show only when known.
