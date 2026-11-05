@@ -21,8 +21,8 @@ public sealed partial class PdfEngine
 
     /// <summary>
     /// Returns once this process may run <paramref name="page"/>'s content: its check found it fine (now or before), or no
-    /// check can be had (no check processes, a document a check process can't open from here: one with a password, or not
-    /// a PDF). Waits for the check, which is shared by every caller asking about the page meanwhile.
+    /// check can be had (no check processes, none starting now, a document a check process can't open from here: one with
+    /// a password, or not a PDF). Waits for the check, which is shared by every caller asking about the page meanwhile.
     /// </summary>
     /// <exception cref="PageRefusedException">The page took too long in its check, MuPDF gave up on it there, or it ended the check process.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired while the check went on (it goes on without the caller).</exception>
@@ -31,7 +31,7 @@ public sealed partial class PdfEngine
         if (Volatile.Read(ref _verdicts) is { } known)
             switch ((PageVerdict)Volatile.Read(ref known[page]))
             {
-                case PageVerdict.Fine or PageVerdict.Unchecked: return;
+                case PageVerdict.Fine: return;
                 case var v when PageRefusedException.Refuses(v): throw new PageRefusedException(page, v);
             }
         CheckRequest request;
@@ -69,8 +69,9 @@ public sealed partial class PdfEngine
             if (_checking![page] == request)
             {
                 _checking[page] = null;
-                // A check that couldn't be had because the engine went away decides nothing.
-                if (!(request.Result == PageVerdict.Unchecked && _disposed)) Volatile.Write(ref _verdicts![page], (byte)request.Result);
+                // A check that couldn't be had (no check process started, the engine went away, the wait was given up)
+                // decides nothing: the page runs now, and is asked about again next time (PageCheckPlan: failing open).
+                if (request.Result != PageVerdict.Unchecked) Volatile.Write(ref _verdicts![page], (byte)request.Result);
             }
             Decided(page);
         }

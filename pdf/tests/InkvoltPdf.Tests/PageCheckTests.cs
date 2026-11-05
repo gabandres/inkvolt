@@ -234,14 +234,26 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
-    public void WithoutACheckProcessPagesDrawAsBefore()
+    public void WithoutACheckProcessPagesDrawAsBeforeAndAreCheckedOnceOneStarts()
     {
-        using var plan = new PageCheckPlan(Path.Combine(AppContext.BaseDirectory, "no-such-program.exe"), []) { Limit = Limit };
+        // No check process starts (the program is missing, or something holds up its start past ConnectMs): pages draw
+        // as before rather than none at all (fail open), nothing about them is kept, and a start is tried again after a
+        // pause that grows with each failure, not on every page meanwhile.
+        using var plan = new PageCheckPlan(Path.Combine(AppContext.BaseDirectory, "no-such-program.exe"), []) { Limit = Limit, RetryAfter = TimeSpan.FromMilliseconds(500) };
         using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
         engine.CheckPlan = plan;
         for (var page = 0; page < 3; page++) engine.Render(page, 0.25);
-        Assert.Equal(PageVerdict.Unchecked, engine.VerdictOf(0));
         Assert.Contains("Hidden", engine.GetText(1).Text);
+        for (var i = 0; i < 5; i++) engine.Render(0, 0.25);
+        Assert.Equal(PageVerdict.Unknown, engine.VerdictOf(0));
+        Assert.Equal(1, plan.StartFailures);
+
+        // The program is there again: once the pause is over, the pages are checked.
+        plan.Exe = CheckExe;
+        Thread.Sleep(TimeSpan.FromMilliseconds(600));
+        engine.Render(0, 0.25);
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.Equal(0, plan.StartFailures);
     }
 
     [Fact]

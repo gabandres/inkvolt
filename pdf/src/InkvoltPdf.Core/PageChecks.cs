@@ -48,7 +48,7 @@ internal enum PageVerdict : byte
     /// <summary>The check process ended on it, on a second try too: refused.</summary>
     Crashed,
 
-    /// <summary>No check could be made (no check process starts, the document doesn't open in one, or it was closed): run here as before.</summary>
+    /// <summary>No check could be made (no check process starts, the document doesn't open in one, or it was closed): run here as before, this time; never kept as a page's verdict.</summary>
     Unchecked,
 
     /// <summary>MuPDF gave up on it in the check process (a damaged page, or one that needs more memory than the process may take): refused.</summary>
@@ -287,11 +287,35 @@ internal sealed class CheckRequest(CheckedDocument doc, int page)
 /// <summary>
 /// The check processes of one program to start, shared by every engine that uses it: at most <see cref="Workers"/>, each
 /// with a thread here that sends it one page at a time, ends it past the limit, and lets it go after <see cref="Idle"/>.
+/// <para>
+/// When no check process starts (the program is missing, or something such as an antivirus scan holds up its start
+/// past <see cref="ConnectMs"/>), pages run unchecked rather than not at all: failing open, as without page checks, since
+/// failing safe would leave every document blank on that PC. Nothing is kept of it (<see cref="PageVerdict.Unchecked"/>
+/// is never a page's verdict): pages asked about meanwhile run at once, and a start is tried again after
+/// <see cref="RetryAfter"/>, doubled with each failure in a row up to five minutes; the first one that starts checks
+/// pages again from then on.
+/// </para>
 /// </summary>
 internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : IDisposable
 {
-    public string Exe { get; } = exe;
+    /// <summary>The program (settable for tests: one missing, then there).</summary>
+    public string Exe { get; set; } = exe;
+
     public IReadOnlyList<string> Args { get; } = args;
+
+    /// <summary>How long after a check process fails to start before one is tried again; doubled with each failure in a row, up to <see cref="MaxRetryAfter"/>.</summary>
+    public TimeSpan RetryAfter { get; init; } = TimeSpan.FromSeconds(30);
+
+    private static readonly TimeSpan MaxRetryAfter = TimeSpan.FromMinutes(5);
+
+    /// <summary>Test hook: check processes that failed to start in a row.</summary>
+    internal int StartFailures
+    {
+        get
+        {
+            lock (_gate) return _startFailures;
+        }
+    }
 
     /// <summary>How long one page's check may take.</summary>
     public TimeSpan Limit { get; init; } = PageChecks.Limit;
@@ -314,14 +338,12 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// <summary>Test hook: called on the link's thread once a check process has started, before the link knows it.</summary>
     internal Action? TestAfterStart { get; set; }
 
-    /// <summary>After this many check processes in a row fail to start, pages run unchecked: there is no check to be had.</summary>
-    private const int MaxStartFailures = 3;
-
     private readonly object _gate = new();
     private readonly LinkedList<CheckRequest> _queue = []; // under _gate
     private readonly List<Link> _links = [];               // under _gate
     private readonly List<int> _pids = [];                  // under _gate
     private int _startFailures;                             // under _gate
+    private long _retryAt;                                  // under _gate: Stopwatch timestamp before which no start is tried
     private volatile bool _disposed;                        // set under _gate
 
     /// <summary>Test hook: every check process started so far.</summary>
@@ -339,7 +361,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         var request = new CheckRequest(doc, page) { Speculative = speculative };
         lock (_gate)
         {
-            if (_disposed || doc.Closed || doc.Unopenable || _startFailures >= MaxStartFailures)
+            if (_disposed || doc.Closed || doc.Unopenable || Pausing())
             {
                 request.Complete(PageVerdict.Unchecked);
                 return request;
@@ -355,6 +377,20 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             Monitor.PulseAll(_gate);
         }
         return request;
+    }
+
+    /// <summary>A check process failed to start a moment ago: none is tried until <see cref="RetryAfter"/> (doubled) has passed. Under _gate.</summary>
+    private bool Pausing() => _startFailures > 0 && Stopwatch.GetTimestamp() < _retryAt;
+
+    /// <summary>A check process failed to start: pause, and let what waits run unchecked now rather than after another try each. Under _gate.</summary>
+    private void StartFailed()
+    {
+        // Both processes failing at once is one failure: the pause doubles once.
+        if (!Pausing()) _startFailures++;
+        var pause = RetryAfter * Math.Pow(2, Math.Min(_startFailures - 1, 16));
+        _retryAt = Stopwatch.GetTimestamp() + (long)(Math.Min(pause.TotalSeconds, Math.Max(MaxRetryAfter.TotalSeconds, RetryAfter.TotalSeconds)) * Stopwatch.Frequency);
+        foreach (var r in _queue) r.Complete(PageVerdict.Unchecked);
+        _queue.Clear();
     }
 
     /// <summary>Takes a request no one waits for any more off the queue; false if a check process has it already (its verdict is kept).</summary>
@@ -476,7 +512,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     lock (_gate)
                     {
                         link.Current = null;
-                        if (verdict == PageVerdict.Unchecked && link.StartFailed) _startFailures++;
+                        if (verdict == PageVerdict.Unchecked && link.StartFailed) StartFailed();
                         else if (link.Started) _startFailures = 0;
                     }
                     request!.Complete(verdict);
