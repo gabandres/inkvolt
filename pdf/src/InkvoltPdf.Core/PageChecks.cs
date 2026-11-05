@@ -165,12 +165,16 @@ public static class PageChecks
     {
         PdfEngine? engine = null;
         IDisposable? view = null;
+        OpenRequest? opened = null;
+        PageMasks? masks = null; // read when a page with pictures is first checked
         void Close()
         {
             engine?.Dispose();
             view?.Dispose();
             engine = null;
             view = null;
+            opened = null;
+            masks = null;
         }
         try
         {
@@ -186,7 +190,11 @@ public static class PageChecks
                         try
                         {
                             engine = FindWorkers.OpenShared(open.Path, open.SectionName, open.SectionBytes, open.Type, out view);
-                            if (engine.PageCount == open.Pages) answer = Opened;
+                            if (engine.PageCount == open.Pages)
+                            {
+                                answer = Opened;
+                                opened = open;
+                            }
                             else Close();
                         }
                         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -206,7 +214,16 @@ public static class PageChecks
                             var g = engine.GetPage(page);
                             var longer = Math.Max(g.Width, g.Height);
                             engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
-                            engine.DecodeLargePictures(page, FullSizePixels);
+                            long largest = 0;
+                            if (engine.DecodeLargePictures(page, FullSizePixels, ref largest))
+                            {
+                                masks ??= PageMasks.Read(FindWorkers.CopyOf(opened!.Path, view, opened.SectionBytes, PageMasks.MaxBytes), engine.PageCount);
+                                foreach (var (pdf, pixels) in masks.Large(page, FullSizePixels))
+                                {
+                                    largest = Math.Max(largest, pixels);
+                                    PdfEngine.DecodeAlone(pdf);
+                                }
+                            }
                         }
                         catch (Exception ex) when (ex is not OutOfMemoryException)
                         {

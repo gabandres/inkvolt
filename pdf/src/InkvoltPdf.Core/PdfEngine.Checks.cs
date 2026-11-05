@@ -138,20 +138,49 @@ public sealed partial class PdfEngine
     private bool IsRefused(int page) => PageRefusedException.Refuses(VerdictOf(page));
 
     /// <summary>
-    /// In a check process: decodes each picture on <paramref name="page"/> of more than <paramref name="abovePixels"/> at its
-    /// full size. Drawing the page small decodes a JPEG at an eighth of its size and a JPEG 2000 at its smallest level, so
-    /// what an export (pictures at their own size) or a deep zoom costs here is only found out this way.
+    /// In a check process, after the page was drawn: decodes each picture on <paramref name="page"/> of more than
+    /// <paramref name="abovePixels"/> at its full size. Drawing the page small decodes a JPEG at an eighth of its size and
+    /// a JPEG 2000 at its smallest level, so what an export (pictures at their own size) or a deep zoom costs here is only
+    /// found out this way. The pictures are MuPDF's own view of the page: its structured text, made from the display list
+    /// the drawing made (nothing is read or inflated again), lists those of forms, patterns, comments and a soft mask of
+    /// the graphics state; not an image's own /SMask (<see cref="PageMasks"/>).
     /// </summary>
+    /// <param name="largest">Raised to the pixels of each picture before it is decoded (what a failure asked for).</param>
+    /// <returns>Whether the page has any picture.</returns>
     /// <exception cref="MuPDFException">MuPDF couldn't decode one (its memory past the process's limit, say).</exception>
-    internal void DecodeLargePictures(int page, long abovePixels)
+    internal bool DecodeLargePictures(int page, long abovePixels, ref long largest)
     {
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            var any = false;
             using var st = _doc.GetStructuredTextPage(page, includeAnnotations: true, StructuredTextFlags.PreserveImages);
             foreach (var block in st)
-                if (block is MuPDFImageStructuredTextBlock { Image: { } image } && (long)image.Width * image.Height > abovePixels)
+                if (block is MuPDFImageStructuredTextBlock { Image: { } image })
+                {
+                    any = true;
+                    var pixels = (long)image.Width * image.Height;
+                    if (pixels <= abovePixels) continue;
+                    largest = Math.Max(largest, pixels);
                     _ = image.GetBytes(PixelFormats.RGB);
+                }
+            return any;
+        }
+    }
+
+    /// <summary>
+    /// In a check process: the one picture of <paramref name="pdf"/> (a mask <see cref="PageMasks"/> found) decoded by
+    /// MuPDF at its full size, one component a pixel as MuPDF holds a mask.
+    /// </summary>
+    /// <exception cref="MuPDFException">MuPDF couldn't decode it.</exception>
+    internal static void DecodeAlone(byte[] pdf)
+    {
+        using var engine = Open(pdf, InputFileTypes.PDF, null);
+        lock (engine._gate)
+        {
+            using var st = engine._doc.GetStructuredTextPage(0, includeAnnotations: false, StructuredTextFlags.PreserveImages);
+            foreach (var block in st)
+                if (block is MuPDFImageStructuredTextBlock { Image: { } image }) _ = image.GetBytes();
         }
     }
 

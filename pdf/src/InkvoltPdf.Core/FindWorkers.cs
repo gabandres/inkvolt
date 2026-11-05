@@ -259,6 +259,28 @@ public static class FindWorkers
         }
     }
 
+    /// <summary>A copy of the bytes of a view <see cref="OpenShared"/> gave, or of the file it opened; null if neither can be had or they are over <paramref name="maxBytes"/>.</summary>
+    internal static unsafe byte[]? CopyOf(string? path, IDisposable? view, long bytes, long maxBytes)
+    {
+        try
+        {
+            if (path is not null)
+            {
+                using var file = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                if (file.Length > maxBytes) return null;
+                var data = new byte[file.Length];
+                file.ReadExactly(data);
+                return data;
+            }
+            if (!OperatingSystem.IsWindows() || view is not SharedView shared || bytes <= 0 || bytes > maxBytes) return null;
+            return new ReadOnlySpan<byte>((void*)shared.Pointer, (int)bytes).ToArray();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>A worker's read-only view of the document's bytes in the parent's section.</summary>
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private sealed unsafe class SharedView : IDisposable

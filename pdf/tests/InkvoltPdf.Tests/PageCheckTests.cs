@@ -238,6 +238,47 @@ public sealed class PageCheckTests : IDisposable
         }
     }
 
+    /// <summary>A JPEG whose header says 30,000 x 30,000 gray (16 x 16 of data): milliseconds at the check's size, seconds and 900 MB at its own.</summary>
+    private static byte[] Jpeg30000()
+    {
+        var jpeg = JpegEncoder.EncodeGray(new byte[16 * 16], 16, 16, 75, 72);
+        var sof = jpeg.AsSpan().IndexOf([(byte)0xFF, (byte)0xC0]);
+        jpeg[sof + 5] = jpeg[sof + 7] = 30_000 >> 8;
+        jpeg[sof + 6] = jpeg[sof + 8] = 30_000 & 0xFF;
+        return jpeg;
+    }
+
+    private const string Jpeg30000Dict = "/Type /XObject /Subtype /Image /Width 30000 /Height 30000 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /DCTDecode";
+
+    public static TheoryData<string> HiddenPictures => ["a small picture's soft mask", "a pattern's picture"];
+
+    [Theory]
+    [MemberData(nameof(HiddenPictures))]
+    public void APictureMuPdfDrawsOnlyThroughAnotherIsCheckedAtItsFullSizeToo(string where)
+    {
+        var file = where.Contains("mask")
+            ? Core2Pdf.Build([
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /Im 5 0 R >> >> >>",
+                Core2Pdf.Stream("q 500 0 0 500 50 150 cm /Im Do Q"),
+                Core2Pdf.Stream(new string('\x80', 100 * 100), "/Type /XObject /Subtype /Image /Width 100 /Height 100 /BitsPerComponent 8 /ColorSpace /DeviceGray /SMask 6 0 R"),
+                Core2Pdf.Stream(Encoding.Latin1.GetString(Jpeg30000()), Jpeg30000Dict),
+            ])
+            : Core2Pdf.Build([
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Pattern << /P1 5 0 R >> >> >>",
+                Core2Pdf.Stream("/Pattern cs /P1 scn 0 0 612 792 re f"),
+                Core2Pdf.Stream("q 100 0 0 100 0 0 cm /Im Do Q", "/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 100 100] /XStep 100 /YStep 100 /Resources << /XObject << /Im 6 0 R >> >>"),
+                Core2Pdf.Stream(Encoding.Latin1.GetString(Jpeg30000()), Jpeg30000Dict),
+            ]);
+        using var engine = Open(file);
+        var time = Stopwatch.StartNew();
+        Assert.Throws<PageRefusedException>(() => engine.Render(0, 0.25));
+        Assert.True(time.Elapsed < Timing.Limit(Limit + Slack), $"{time.Elapsed}");
+    }
+
     [Fact]
     public void ReducingTheSizeLeavesAPictureThatInflatesForSeconds()
     {

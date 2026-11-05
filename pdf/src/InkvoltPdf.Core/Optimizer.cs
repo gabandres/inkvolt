@@ -343,7 +343,7 @@ public static class Optimizer
     }
 
     /// <summary>A direct PDF value written out (names, numbers, booleans, arrays, dictionaries); null for anything else.</summary>
-    private static string? Plain(PdfItem item, int depth)
+    internal static string? Plain(PdfItem item, int depth)
     {
         if (depth > 8) return null;
         switch (PdfObj.Resolve(item))
@@ -408,7 +408,7 @@ public static class Optimizer
     }
 
     /// <summary>A PDF whose single w x h point page is filled by the image.</summary>
-    private static byte[] OneImagePage(string imageDict, byte[] stream, int w, int h)
+    internal static byte[] OneImagePage(string imageDict, byte[] stream, int w, int h)
     {
         var latin1 = Encoding.Latin1;
         using var ms = new MemoryStream();
