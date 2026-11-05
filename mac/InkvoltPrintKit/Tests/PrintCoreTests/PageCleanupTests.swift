@@ -663,6 +663,16 @@ struct PageCleanupStepsTests {
         #expect(pages.cleanupSummary(["a"], []) == "")
     }
 
+    /// Cleaned up is what the check changed (the Windows app's `BeforeCleanup`), not every page with filters: one given
+    /// filters by hand during the check is left alone, and isn't one step of the scan's Undo.
+    @Test func onlyPagesTheCheckCleanedUpAreCountedAsCleanedUp() {
+        var pages = ScanPages([ScannedPage(id: "a", dpi: 300, edits: PageEdits(filters: .whiten)), ScannedPage(id: "b", dpi: 300)])
+        #expect(pages.analysed("a", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .whiten) == nil)
+        #expect(pages.cleanupSummary(["a", "b"], .whiten) == "")
+        #expect(pages.analysed("b", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .whiten) == PageEdits.none)
+        #expect(pages.cleanupSummary(["a", "b"], .whiten) == "1 page was cleaned up (Undo puts it back).")
+    }
+
     @Test func aPagesFiltersAndLanguageSurviveARestart() {
         var pages = ScanPages([ScannedPage(id: "a", dpi: 300, ocrLanguage: "ar")])
         pages.analysed("a", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: [.whiten, .cropToPaper], paperEdge: Self.edge)

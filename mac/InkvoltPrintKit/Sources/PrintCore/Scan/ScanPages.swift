@@ -22,6 +22,8 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     public var photos: [PhotoBox]?
     /// The OCR language the page was scanned with (a BCP-47 tag); nil: the app's own choice.
     public var ocrLanguage: String?
+    /// The page's edits from before the scan's clean up changed them (the Windows app's `BeforeCleanup`); nil when it didn't.
+    public var beforeCleanup: PageEdits?
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
                 separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil) {
@@ -107,9 +109,9 @@ public struct ScanPages: Equatable, Sendable {
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
                                   separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
                                   paperEdge: CropBox? = nil) -> PageEdits? {
-        var before: PageEdits?
         update(id) { p in
             p.analysed = true
+            p.beforeCleanup = nil
             p.looksBlank = looksBlank || separator.kind == .blankPage
             p.separator = separator
             p.photos = photos
@@ -118,10 +120,10 @@ public struct ScanPages: Equatable, Sendable {
             if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
             guard !cleanup.isEmpty, !blank, !p.looksBlank, !separator.isSeparator,
                   let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
-            before = p.edits
+            p.beforeCleanup = p.edits
             p.edits = cleaned
         }
-        return before
+        return page(id)?.beforeCleanup
     }
 
     /// Whether the page check should look for the paper's edge (`PaperEdge.find`) on a page it found so: only for a crop to
@@ -130,12 +132,12 @@ public struct ScanPages: Equatable, Sendable {
         cleanup.contains(.cropToPaper) && !looksBlank && separator.kind != .blankPage && !separator.isSeparator && photos == nil
     }
 
-    /// What a scan cleaned up by its settings says once its pages `ids` are checked: how many pages got a clean up (one
-    /// step of Undo), and how many a crop to the paper was tried on and found no edge (they stay whole). Empty for nothing.
+    /// What a scan cleaned up by its settings says once its pages `ids` are checked: how many pages its clean up changed (one
+    /// step of Undo; not those given filters or a crop by hand first), and how many a crop to the paper was tried on and found no edge (they stay whole). Empty for nothing.
     public func cleanupSummary(_ ids: [String], _ cleanup: PageFilters) -> String {
         if cleanup.isEmpty { return "" }
         let run = ids.compactMap(page)
-        let changed = run.filter { !$0.edits.filters.isEmpty }.count
+        let changed = run.filter { $0.beforeCleanup != nil }.count
         let noEdge = cleanup.contains(.cropToPaper)
             ? run.filter { !$0.looksBlank && !$0.skipped && !$0.isSeparator && $0.photos == nil && !$0.edits.filters.contains(.cropToPaper) }.count : 0
         var parts: [String] = []
