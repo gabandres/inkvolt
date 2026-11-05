@@ -541,11 +541,11 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   for Type 3 bitmap fonts**: a Type 3 font whose glyphs are named by their codes ("a65", "g65", "C65", or in hex "G41"
   for four in five of its named glyphs, as dvips and Ghostscript write TeX's PK fonts) gets a ToUnicode from the codes
   (`FontUnicode.CodeNamed`, `TexGlyphs.CodeText`): by the TeX font its name gives (OML, OMS, OMX for the math fonts,
-  ASCII for the typewriter ones, OT1 for the rest of Computer Modern: ligatures, quotes, dashes), and for a name that
-  says nothing (dvips's "Fa") only what ASCII and every TeX text encoding share (letters, digits, common punctuation,
-  the two quotes); glyphs numbered in drawing order ("g1" at 65) are left alone. Also at PDF/A-2a. `FontUnicodeTests`
-  (+8). veraPDF 1.30.3 passes PDF/UA-1 on a CMR10 bitmap sample after Make Accessible (31-027 before). Glyph pictures
-  aren't read (no recognizer on them), so a bitmap font with names that say nothing and no TeX name stays as it was.
+  ASCII for the typewriter ones, OT1 for the rest of Computer Modern: ligatures, quotes, dashes; the italics' sterling
+  at 36); a name that says nothing (dvips's "Fa") gets nothing, since a symbol font's codes are other glyphs and wrong
+  text is worse than none (review, 2026-11-04); glyphs numbered in drawing order ("g1" at 65) are left alone. Also at
+  PDF/A-2a. `FontUnicodeTests` (+13). veraPDF 1.30.3 passes PDF/UA-1 on a CMR10 bitmap sample after Make Accessible (31-027 before). Glyph pictures
+  aren't read (no recognizer on them), so a bitmap font without a TeX font's name stays as it was.
   Still to do: Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;

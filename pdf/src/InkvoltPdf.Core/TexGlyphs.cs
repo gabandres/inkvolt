@@ -148,26 +148,20 @@ internal static partial class TexGlyphs
     /// What character code <paramref name="code"/> is in a font named <paramref name="font"/> whose glyphs say nothing
     /// but their code (a Type 3 bitmap font dvips made from TeX's PK fonts, glyphs "a65"…): by the TeX font's own encoding
     /// when the name tells it (OML, OMS, OMX for the math fonts; ASCII for the typewriter fonts; else OT1 for Computer
-    /// Modern); for any other name only what every TeX text encoding and ASCII agree on (letters, digits, common
-    /// punctuation, the two quotes). Null when it can't be told.
+    /// Modern, its italic fonts with sterling where the others have dollar). A name that tells nothing (dvips's "Fa")
+    /// gets nothing: the font could as well be a symbol font, whose codes are other glyphs, and wrong text is worse than
+    /// none. Null when it can't be told.
     /// </summary>
     public static string? CodeText(string font, int code)
     {
         if (code is < 0 or > 127) return null;
         if (NameIn(font, code) is { } math) return ToUnicode(math);
-        if (TextFamilyPattern().Match(font) is { Success: true } m)
-        {
-            if (m.Groups[1].Value.Contains("TT", StringComparison.Ordinal)) return code is >= 33 and <= 126 ? ((char)code).ToString() : null;
-            return Ot1[code] is "suppress" ? null : ToUnicode(Ot1[code]);
-        }
-        return code switch
-        {
-            >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' => ((char)code).ToString(),
-            '!' or '#' or '$' or '%' or '&' or '(' or ')' or '*' or '+' or ',' or '-' or '.' or '/' or ':' or ';' or '=' or '?' or '@' or '[' or ']' => ((char)code).ToString(),
-            '\'' => "’",
-            '`' => "‘",
-            _ => null,
-        };
+        if (TextFamilyPattern().Match(font) is not { Success: true } m) return null;
+        var family = m.Groups[1].Value;
+        if (family.Contains("TT", StringComparison.Ordinal)) return code is >= 33 and <= 126 ? ((char)code).ToString() : null;
+        // CMTI, CMBXTI, CMSLTI: the text italics put the pound sign at 36.
+        if (code == 36 && family.EndsWith("TI", StringComparison.Ordinal)) return "£";
+        return Ot1[code] is "suppress" ? null : ToUnicode(Ot1[code]);
     }
 
     /// <summary>Whether a name is a TeX font's (CMR10, CMMI7…; a subset's prefix allowed).</summary>

@@ -114,21 +114,35 @@ public class FontUnicodeTests
     [Fact]
     public void A_type3_bitmap_font_named_by_codes_reads_its_letters()
     {
-        // dvips's own font name says nothing: letters, digits and the punctuation every TeX text encoding shares.
-        var pdf = Bitmap("Fa", [34, 44, 48, 65, 66, 67, 97], "ABC,0a\\042").Build();
+        // A TeX text font (CMR10) whose glyphs are named by their codes: its codes are OT1's characters.
+        var pdf = Bitmap("CMR10", [34, 44, 48, 65, 66, 67, 97], "ABC,0a\\042").Build();
         Assert.Contains("31-027", AccessibilityCheck.Run(pdf, null).FailedConditions);
         var tagged = Tag(pdf);
+        Assert.DoesNotContain("31-027", AccessibilityCheck.Run(tagged, null).FailedConditions);
         var cmap = ToUnicode(tagged);
-        foreach (var (code, text) in new[] { (65, "A"), (66, "B"), (67, "C"), (97, "a"), (48, "0"), (44, ",") })
+        foreach (var (code, text) in new[] { (65, "A"), (66, "B"), (67, "C"), (97, "a"), (48, "0"), (44, ","), (34, "”") })
             Assert.Contains(Hex(code, text), cmap);
-        Assert.DoesNotContain("<22>", cmap); // 34: OT1's closing quotes, ASCII's straight ones: not told
         using var engine = PdfEngine.Open(tagged, InputFileTypes.PDF, null);
         Assert.Contains("ABC,0a", engine.GetText(0, cache: false).Text);
     }
 
     [Theory]
+    [InlineData("Fa")]     // dvips's own name for a bitmap font
+    [InlineData("T3Font")]
+    public void A_type3_bitmap_font_whose_name_says_nothing_is_left_alone(string name)
+    {
+        // It could as well be CMSY10 (code 65 a calligraphic A, 48 a prime) or MSAM10: no text is better than wrong text.
+        var tagged = Tag(Bitmap(name, [48, 65, 66], "AB0").Build());
+        Assert.Contains("31-027", AccessibilityCheck.Run(tagged, null).FailedConditions);
+    }
+
+    [Theory]
     [InlineData("CMR10", 12, "ﬁ")] // OT1: the fi ligature
     [InlineData("CMR10", 34, "”")]
+    [InlineData("CMR10", 36, "$")]
+    [InlineData("CMTI10", 36, "£")] // the italic fonts have sterling where the upright ones have dollar
+    [InlineData("CMBXTI10", 36, "£")]
+    [InlineData("CMSLTI10", 36, "£")]
     [InlineData("CMBX12", 123, "–")]
     [InlineData("CMMI10", 11, "α")] // OML
     [InlineData("CMSY10", 50, "∈")] // OMS
