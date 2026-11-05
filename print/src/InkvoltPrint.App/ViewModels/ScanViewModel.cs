@@ -1895,15 +1895,11 @@ public sealed partial class ScanPageViewModel : ObservableObject
                 IsSkipped = blank;
                 if (photos is not null) Photos = photos;
                 if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
-                if (cleanup != PageFilters.None && !blank && !looksBlank && !separator.IsSeparator && Edits.Filters == PageFilters.None && Edits.Crop is null)
+                // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.
+                if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle) is { } cleaned)
                 {
-                    var filters = cleanup & (photos is { Count: > 0 } ? PageFilters.Descreen | PageFilters.RestoreColors : PageFilters.PixelFilters);
-                    if (crop is not null) filters |= PageFilters.CropToPaper;
-                    if (filters != PageFilters.None)
-                    {
-                        BeforeCleanup = Edits;
-                        Edits = Edits with { Crop = crop, Filters = filters };
-                    }
+                    BeforeCleanup = Edits;
+                    Edits = cleaned;
                 }
             }
         }
