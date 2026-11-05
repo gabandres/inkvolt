@@ -62,6 +62,9 @@ enum FontUnicode {
             // encoding's (OML, OMS, OMX), whatever StandardEncoding would say.
             let own = (subtype == "Type1" || subtype == "MMType1") && !font.has("Encoding") && !(tf.program is Type1Program)
                 && TexGlyphs.nameIn(baseFont, 0) != nil
+            // A Type 3 bitmap font whose glyphs are named by their codes (dvips's TeX fonts: "a65"): the codes are characters.
+            let numbered = subtype == "Type3" ? codeNamed(tf) : nil
+            let type3Name = numbered == nil ? "" : self.type3Name(font)
             for c in 0..<256 {
                 if let had = tf.toUnicodeOf(c) {
                     map[c] = had
@@ -78,6 +81,10 @@ enum FontUnicode {
                     map[c] = known
                 } else if let g = tf.glyphNameOf(c), g != ".notdef", let tex = TexGlyphs.toUnicode(g) {
                     map[c] = tex
+                    added = true
+                } else if let hex = numbered, let n = tf.glyphNameOf(c), numberOf(n, hex) == c,
+                          let byCode = TexGlyphs.codeText(type3Name, c) {
+                    map[c] = byCode
                     added = true
                 }
             }
@@ -100,6 +107,41 @@ enum FontUnicode {
         if !added { return false }
         font.set("ToUnicode", doc.addStream(cmap(map, 2), deflate: true))
         return true
+    }
+
+    /// Whether a simple font's glyphs are named by their codes: at least four in five of its named glyphs are a short prefix
+    /// and the code ("a65", "g65", "C65", "65"; or in hex, "G41"). True: hex numbers; false: decimal; nil: they aren't.
+    private static func codeNamed(_ tf: TextFont) -> Bool? {
+        var named = 0, dec = 0, hex = 0
+        for c in 0..<256 {
+            guard let n = tf.glyphNameOf(c), n != ".notdef", GlyphNames.toUnicode(n) == nil else { continue }
+            named += 1
+            if numberOf(n, false) == c { dec += 1 }
+            if numberOf(n, true) == c { hex += 1 }
+        }
+        if named == 0 { return nil }
+        let most = 0.8 * Double(named)
+        if Double(dec) >= most { return false }
+        return Double(hex) >= most ? true : nil
+    }
+
+    /// The number a glyph name ends in after a prefix of at most four letters ("a65": 65), or -1.
+    private static func numberOf(_ name: String, _ hex: Bool) -> Int {
+        let b = Array(name.utf8)
+        func letter(_ c: UInt8) -> Bool { (c >= 65 && c <= 90) || (c >= 97 && c <= 122) }
+        func hexLetter(_ c: UInt8) -> Bool { (c >= 65 && c <= 70) || (c >= 97 && c <= 102) }
+        var i = 0
+        while i < b.count && i < 4 && letter(b[i]) && !(hex && hexLetter(b[i]) && i > 0) { i += 1 }
+        let digits = b.count - i
+        guard digits >= 1 && digits <= 3, b[i...].allSatisfy({ (48...57).contains($0) || (hex && hexLetter($0)) }) else { return -1 }
+        return Int(String(decoding: b[i...], as: UTF8.self), radix: hex ? 16 : 10) ?? -1
+    }
+
+    /// A Type 3 font's name, for its TeX encoding: the first of /BaseFont, /Name and its descriptor's /FontName that is a
+    /// TeX font's, else its /Name.
+    private static func type3Name(_ font: PObj) -> String {
+        let names = [font.name("BaseFont"), font.name("Name"), font.dict("FontDescriptor")?.name("FontName")].compactMap { $0 }
+        return names.first(where: TexGlyphs.isTexFont) ?? names.first ?? ""
     }
 
     /// A ToUnicode CMap of one- or two-byte codes.

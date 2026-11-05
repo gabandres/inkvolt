@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Make Accessible gives text to the bitmap fonts of older TeX papers (Computer Modern drawn as pictures), so screen readers can read it.
 - Batch's Recognize Text (the Batch window, watched folders and `--batch`) reads scans as Tools › Recognize Text does, with its language and choices: the words it wasn't sure of are kept for review, the file's notes say how many, and opening the file lists them in the sidebar's Suspect Words.
 - Exports to Word, Excel, PowerPoint, HTML and text that read scanned pages say how many suspect words there were, to check against the PDF.
 

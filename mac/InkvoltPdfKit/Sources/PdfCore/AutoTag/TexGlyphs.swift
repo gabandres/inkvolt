@@ -123,6 +123,39 @@ enum TexGlyphs {
             + "bracerightBig radicalbig radicalBig radicalbigg radicalBigg radicalbt radicalvertex radicaltp arrowvertexdbl arrowtp "
             + "arrowbt bracehtipdownleft bracehtipdownright bracehtipupleft bracehtipupright arrowdbltp arrowdblbt")
 
+    /// OT1, the encoding of Computer Modern's text fonts (CMR, CMBX, CMTI…): ASCII but for its first 32, quotes, ¡ ¿,
+    /// dashes and accents.
+    private static let ot1 = vector(
+        "Gamma Delta Theta Lambda Xi Pi Sigma Upsilon Phi Psi Omega ff fi fl ffi ffl dotlessi dotlessj grave acute caron breve "
+            + "macron ring cedilla germandbls ae oe oslash AE OE Oslash suppress exclam quotedblright numbersign dollar percent ampersand "
+            + "quoteright parenleft parenright asterisk plus comma hyphen period slash zero one two three four five six seven eight nine "
+            + "colon semicolon exclamdown equal questiondown question at A B C D E F G H I J K L M N O P Q R S T U V W X Y Z bracketleft "
+            + "quotedblleft bracketright circumflex dotaccent quoteleft a b c d e f g h i j k l m n o p q r s t u v w x y z endash emdash "
+            + "hungarumlaut tilde dieresis")
+
+    private static let textFamilyPattern = try! NSRegularExpression(pattern: #"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$"#)
+
+    /// What character code `code` is in a font named `font` whose glyphs say nothing but their code (a Type 3 bitmap font
+    /// dvips made from TeX's PK fonts, glyphs "a65"…): by the TeX font's own encoding when the name tells it (OML, OMS, OMX
+    /// for the math fonts; ASCII for the typewriter fonts; else OT1 for Computer Modern, its italic fonts with sterling where
+    /// the others have dollar). A name that tells nothing (dvips's "Fa") gets nothing: the font could as well be a symbol
+    /// font, whose codes are other glyphs, and wrong text is worse than none. Nil when it can't be told.
+    static func codeText(_ font: String, _ code: Int) -> String? {
+        guard (0...127).contains(code) else { return nil }
+        if let math = nameIn(font, code) { return toUnicode(math) }
+        guard let m = groups(textFamilyPattern, font) else { return nil }
+        let family = m[1]
+        if family.contains("TT") {
+            return (33...126).contains(code) ? String(Character(Unicode.Scalar(UInt8(code)))) : nil
+        }
+        // CMTI, CMBXTI, CMSLTI: the text italics put the pound sign at 36.
+        if code == 36 && family.hasSuffix("TI") { return "£" }
+        return ot1[code] == "suppress" ? nil : toUnicode(ot1[code])
+    }
+
+    /// Whether a name is a TeX font's (CMR10, CMMI7…; a subset's prefix allowed).
+    static func isTexFont(_ font: String) -> Bool { groups(familyPattern, font) != nil || groups(textFamilyPattern, font) != nil }
+
     private static func vector(_ names: String) -> [String] {
         let v = names.split(separator: " ").map(String.init)
         precondition(v.count == 128, "A TeX encoding has \(v.count) names, not 128.")

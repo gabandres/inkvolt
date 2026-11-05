@@ -655,4 +655,62 @@ enum TagTest {
         #expect(cmap.contains("<00> <2212>"))
         #expect(cmap.contains("<78> <00A7>")) // 120: section
     }
+
+    /// A Type 3 bitmap font as dvips and Ghostscript write TeX's PK fonts: each glyph named by its code ("a65"), so no name
+    /// says what it is; `name` its /Name (the TeX font, or dvips's own "Fa").
+    private static func bitmap(_ name: String, _ codes: [Int], _ text: String, glyphPrefix: String = "a", offset: Int = 0) -> [UInt8] {
+        let low = codes.min() ?? 0, high = codes.max() ?? 0
+        let procs = codes.map { "/\(glyphPrefix)\($0 + offset) 9 0 R" }.joined(separator: " ")
+        let differences = codes.map { "\($0) /\(glyphPrefix)\($0 + offset)" }.joined(separator: " ")
+        let widths = Array(repeating: "600", count: high - low + 1).joined(separator: " ")
+        var font = "<< /Type /Font /Subtype /Type3 /Name /\(name) /FontBBox [0 0 600 700] /FontMatrix [0.001 0 0 0.001 0 0] "
+        font += "/CharProcs << \(procs) >> /Encoding << /Type /Encoding /Differences [\(differences)] >> "
+        font += "/FirstChar \(low) /LastChar \(high) /Widths [\(widths)] /Resources << >> >>"
+        return onePage(font, "BT /F1 12 Tf 72 700 Td (\(text)) Tj ET", more: [9: Core1TestPdf.stream("600 0 d0 0 0 500 500 re f")])
+    }
+
+    private static func hex(_ code: Int, _ text: String) -> String {
+        "<\(String(format: "%02X", code))> <\(text.utf16.map { String(format: "%04X", $0) }.joined())>"
+    }
+
+    private static func failed(_ pdf: [UInt8]) throws -> [String] { try AccessibilityCheck.run(pdf, nil).failedConditions }
+
+    @Test func A_type3_bitmap_font_named_by_codes_reads_its_letters() throws {
+        // A TeX text font (CMR10) whose glyphs are named by their codes: its codes are OT1's characters.
+        let pdf = Self.bitmap("CMR10", [34, 44, 48, 65, 66, 67, 97], "ABC,0a\\042")
+        #expect(try Self.failed(pdf).contains("31-027"))
+        let tagged = try Self.tag(pdf)
+        #expect(try !Self.failed(tagged).contains("31-027"))
+        let cmap = try Self.toUnicode(tagged)
+        for (code, text) in [(65, "A"), (66, "B"), (67, "C"), (97, "a"), (48, "0"), (44, ","), (34, "”")] {
+            #expect(cmap.contains(Self.hex(code, text)), "\(code)")
+        }
+        let engine = try PdfEngine.open(tagged)
+        defer { engine.close() }
+        #expect(try engine.text(0, cache: false).text.contains("ABC,0a"))
+    }
+
+    @Test(arguments: ["Fa", "T3Font"]) // dvips's own name for a bitmap font, and another that says nothing
+    func A_type3_bitmap_font_whose_name_says_nothing_is_left_alone(_ name: String) throws {
+        // It could as well be CMSY10 (code 65 a calligraphic A, 48 a prime) or MSAM10: no text is better than wrong text.
+        let tagged = try Self.tag(Self.bitmap(name, [48, 65, 66], "AB0"))
+        #expect(try Self.failed(tagged).contains("31-027"))
+    }
+
+    @Test(arguments: [
+        ("CMR10", 12, "ﬁ"), // OT1: the fi ligature
+        ("CMR10", 34, "”"), ("CMR10", 36, "$"),
+        ("CMTI10", 36, "£"), ("CMBXTI10", 36, "£"), ("CMSLTI10", 36, "£"), // the italics have sterling where the others have dollar
+        ("CMBX12", 123, "–"), ("CMMI10", 11, "α"), /* OML */ ("CMSY10", 50, "∈"), /* OMS */ ("CMTT10", 34, "\""), // typewriter: ASCII
+    ])
+    func A_type3_bitmap_font_of_a_tex_family_reads_by_its_encoding(_ c: (String, Int, String)) throws {
+        let pdf = Self.bitmap(c.0, [c.1, 65], "A")
+        #expect(try Self.toUnicode(Self.tag(pdf)).contains(Self.hex(c.1, c.2)))
+    }
+
+    @Test func A_type3_font_whose_glyph_numbers_arent_its_codes_is_left_alone() throws {
+        // "g1", "g2" at 65 and 66: numbered in drawing order, not by code, so the number says nothing.
+        let tagged = try Self.tag(Self.bitmap("Fa", [65, 66], "AB", glyphPrefix: "g", offset: -64))
+        #expect(try Self.failed(tagged).contains("31-027"))
+    }
 }
