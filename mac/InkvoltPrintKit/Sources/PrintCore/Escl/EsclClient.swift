@@ -18,7 +18,9 @@ public final class EsclClient: Sendable {
 
     public init(_ http: DeviceHttp, root: URL) {
         self.http = http
-        self.root = root.absoluteString.hasSuffix("/") ? root : URL(string: root.absoluteString + "/")!
+        // On the printer's address whatever a kept or announced root names (Windows' `OnThisPrinter`).
+        let slashed = root.absoluteString.hasSuffix("/") ? root : URL(string: root.absoluteString + "/") ?? root
+        self.root = http.onThisPrinter(slashed)
     }
 
     private func url(_ path: String) -> URL { URL(string: path, relativeTo: root)!.absoluteURL }

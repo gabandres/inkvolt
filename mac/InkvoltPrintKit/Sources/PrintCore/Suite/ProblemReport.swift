@@ -1,9 +1,8 @@
 import Foundation
 
 /// Help › Report a Problem: the details a report needs, scrubbed, shown first, then copied for the user to paste into a
-/// GitHub issue (the Windows apps' `Diagnostics.Report`, `Tail` and `IssueUrl`). Nothing is sent from the app. The
-/// masking itself is PrintCore's `Diagnostics.scrub` (ported with Inkvolt Print), passed in as `scrub` so PdfCore stays
-/// free of PrintCore.
+/// GitHub issue (the Windows apps' `Diagnostics.Report`, `Tail` and `IssueUrl`, shared by both, as this is by both Mac
+/// apps). Nothing is sent from the app. The masking is passed in as `scrub` (`Diagnostics.scrub` in the apps).
 public enum ProblemReport {
     /// Lines of the log a report carries.
     public static let logLines = 200

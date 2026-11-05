@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.3, 1.5, 1.6 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -128,7 +128,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   since a printer's discovery tree decides what gets asked for and "/C:/x" would have left the folder, and "/run.bat" would have put a script in it. Tests: `ReportRecordingTests`
   (the planted identifiers absent from every file, the .zip and the copied line; the demo printer; no scanning; nothing left after a failure or a cancel). Seen with
   `--demo --dialog report --record`: the zip made from the made-up printer, and on the demo office laser "Nothing answered at [ip]". **Not checked:** on a real printer; Show the file
-  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac (2026-11-02): PrintCore's `PrinterRecorder` and `FixtureScrubber` with RecordingTests ported, on the Windows PC; the command in the `--report` runner over real sockets, and Report a Problem's recording, wait for the Mac (mac/docs/PLAN.md P12).
+  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac (2026-11-02): PrintCore's `PrinterRecorder` and `FixtureScrubber` with RecordingTests ported, on the Windows PC. **Mac done 2026-11-05** (mac/docs/PLAN.md P12): `record <address> <folder>` in the `--report` runner (`RecordCommand`, into the container's `Recordings`) over PrintMac's URLSession transport (each reply bounded at 32 MB) and UDP SNMP; Help › Report a Problem… (new on Print for Mac) with Record This Printer and its .zip (`ReportRecording`, ReportRecordingTests ported); `DeviceHttp` now keeps every request on the printer, as Windows' `OnThisPrinter` (DeviceHttpLimitsTests' host tests ported).
 - **Beat it when:** the repo holds fixtures from at least one Canon, one Epson, one Brother, one SNMP-only laser and
   one CDM-only HP, each with the status, supplies, alerts and scan tests the demo fixtures have, and the README's "to
   try on hardware" lists shrink to what no fixture can show (a jam, a feeder's duplex order). Test: recording the

@@ -74,7 +74,8 @@ struct TransportTests {
     @Test func aSilentServerTimesOutThroughDeviceHttp() async throws {
         let server = try HttpServer { _ in nil } // accepts, never answers
         defer { server.stop() }
-        let device = DeviceHttp(host: "127.0.0.1:\(server.port)", transport: URLSessionTransport.factory(localNetwork: nil))
+        // The printer's address (no port: DeviceHttp reads a colon as IPv6's); the request names the server's port.
+        let device = DeviceHttp(host: "127.0.0.1", transport: URLSessionTransport.factory(localNetwork: nil))
         await #expect(throws: DeviceNetworkError.timedOut) {
             try await device.send(HttpRequest("GET", URL(string: "http://127.0.0.1:\(server.port)/")!, timeout: .milliseconds(300)))
         }

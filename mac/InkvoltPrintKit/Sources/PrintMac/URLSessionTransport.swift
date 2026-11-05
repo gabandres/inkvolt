@@ -6,15 +6,19 @@ import Security
 /// The network for one printer (`HttpTransportFactory`): URLSession with nothing kept between runs (no cookies, cache or
 /// saved credentials), redirects returned rather than followed, and every TLS handshake checked against the printer's
 /// certificate pins (`CertificateCheck`). A request sent `once` goes out on a session of its own, so it's never resent on a
-/// pooled connection. Timeouts are `DeviceHttp`'s.
+/// pooled connection. Timeouts are `DeviceHttp`'s. With `replyLimit`, a reply longer than that many bytes is given up on as
+/// it arrives (Windows' `DeviceHttp.MaxReplyBytes`): a recording's (`PrinterRecorder.maxReplyBytes`), so a printer that
+/// never stops answering can't fill this Mac's memory.
 public final class URLSessionTransport: HttpTransport {
     private let check: CertificateCheck
     private let localNetwork: LocalNetworkSignal?
+    private let replyLimit: Int?
     private let session: URLSession
 
-    public init(check: CertificateCheck, localNetwork: LocalNetworkSignal? = nil) {
+    public init(check: CertificateCheck, localNetwork: LocalNetworkSignal? = nil, replyLimit: Int? = nil) {
         self.check = check
         self.localNetwork = localNetwork
+        self.replyLimit = replyLimit
         session = Self.session(check)
     }
 
@@ -47,20 +51,47 @@ public final class URLSessionTransport: HttpTransport {
         let session = request.once ? Self.session(check) : self.session
         defer { if request.once { session.finishTasksAndInvalidate() } }
         do {
-            let (data, response) = try await session.data(for: r)
+            let body: [UInt8], response: URLResponse
+            if let replyLimit {
+                (body, response) = try await bounded(r, session, replyLimit)
+            } else {
+                let (data, reply) = try await session.data(for: r)
+                (body, response) = (Array(data), reply)
+            }
             guard let http = response as? HTTPURLResponse else { throw DeviceNetworkError.failed("Not an HTTP reply") }
             localNetwork?.answered()
             var headers: [String: String] = [:]
             for (key, value) in http.allHeaderFields {
                 if let key = key as? String, let value = value as? String { headers[key] = value }
             }
-            return HttpResponse(status: http.statusCode, headers: headers, body: Array(data))
+            return HttpResponse(status: http.statusCode, headers: headers, body: body)
         } catch let error as DeviceNetworkError {
             throw error
         } catch {
             if Task.isCancelled { throw CancellationError() }
             throw map(error)
         }
+    }
+
+    /// The reply read as it arrives, given up on (its task cancelled) past `limit` bytes, or at once when its length says so.
+    private func bounded(_ r: URLRequest, _ session: URLSession, _ limit: Int) async throws -> ([UInt8], URLResponse) {
+        let (bytes, response) = try await session.bytes(for: r)
+        let tooLong = DeviceNetworkError.failed("The reply was longer than \(limit / (1 << 20)) MB")
+        let expected = response.expectedContentLength
+        if expected > Int64(limit) {
+            bytes.task.cancel()
+            throw tooLong
+        }
+        var body: [UInt8] = []
+        body.reserveCapacity(expected > 0 ? Int(expected) : 64 * 1024) // bounded: expected ≤ limit, checked above
+        for try await b in bytes {
+            guard body.count < limit else {
+                bytes.task.cancel()
+                throw tooLong
+            }
+            body.append(b)
+        }
+        return (body, response)
     }
 
     private func map(_ error: Error) -> DeviceNetworkError {
