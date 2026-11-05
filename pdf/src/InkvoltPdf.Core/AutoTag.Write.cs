@@ -91,7 +91,6 @@ public static partial class AutoTag
             var extras = new Dictionary<int, List<PdfDictionary>>();
 
             var pages = doc.Pages.Cast<PdfPage>().ToList();
-            foreach (var page in pages) CountForms(ContentEditor.ContentBytes(page), Resources(page), 0);
             for (var p = 0; p < pages.Count; p++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -607,8 +606,25 @@ public static partial class AutoTag
             }
         }
 
-        /// <summary>How many times each form XObject is drawn in the document (by pages and by other forms), counted before tagging.</summary>
-        private readonly Dictionary<PdfDictionary, int> _formUses = new(ReferenceEqualityComparer.Instance);
+        /// <summary>
+        /// How many times each form XObject is drawn in the document (by pages and by other forms): counted the first time
+        /// a form with text is met (a document without one is never read for it), on the pages whose resources hold a form.
+        /// </summary>
+        private Dictionary<PdfDictionary, int>? _formUses;
+
+        private Dictionary<PdfDictionary, int> FormUses()
+        {
+            if (_formUses is not null) return _formUses;
+            _formUses = new(ReferenceEqualityComparer.Instance);
+            foreach (var page in doc.Pages.Cast<PdfPage>())
+            {
+                cancel.ThrowIfCancellationRequested();
+                var res = Resources(page);
+                if (PdfObj.Dict(res?.Elements["/XObject"]) is { } xs && xs.Elements.Values.Any(v => PdfObj.Dict(v) is { } x && PdfObj.NameOf(x, "/Subtype") == "/Form"))
+                    CountForms(ContentEditor.ContentBytes(page), res, 0);
+            }
+            return _formUses;
+        }
 
         /// <summary>Counts the forms a content stream draws, and the forms they draw the first time each is met.</summary>
         private void CountForms(byte[] content, PdfDictionary? resources, int depth)
@@ -618,7 +634,7 @@ public static partial class AutoTag
             {
                 if (op.Name != "Do" || op.Operands.Count == 0 || op.Operands[0].Kind != CKind.Name) continue;
                 if (PdfObj.Dict(PdfObj.Dict(resources?.Elements["/XObject"])?.Elements["/" + op.Operands[0].Name]) is not { Stream: not null } x || PdfObj.NameOf(x, "/Subtype") != "/Form") continue;
-                var n = _formUses[x] = _formUses.GetValueOrDefault(x) + 1;
+                var n = _formUses![x] = _formUses.GetValueOrDefault(x) + 1;
                 if (n == 1) CountForms(PageWalk.SafeBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, depth + 1);
             }
         }
@@ -633,7 +649,7 @@ public static partial class AutoTag
         /// </summary>
         private PdfDictionary? PieceByPiece(Item it, int depth, bool inside) =>
             it is { Kind: ItemKind.Form, HasText: true, InArtifact: false, ArtifactOnly: false, Form: { Reference: not null } f } && !inside && depth < MaxFormDepth
-            && _formUses.GetValueOrDefault(f) == 1 ? f : null;
+            && FormUses().GetValueOrDefault(f) == 1 ? f : null;
 
         private readonly HashSet<PdfDictionary> _unmarked = new(ReferenceEqualityComparer.Instance);
 
