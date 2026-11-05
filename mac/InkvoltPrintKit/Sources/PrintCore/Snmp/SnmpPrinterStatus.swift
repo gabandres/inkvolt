@@ -189,7 +189,7 @@ public enum SnmpPrinterStatus {
             }
             // Math.Round's default, to match the Windows app: halves go to the even neighbour.
             let percent = s.level >= 0 && s.maxCapacity > 0
-                ? Int((100.0 * Double(min(s.level, s.maxCapacity)) / Double(s.maxCapacity)).rounded(.toNearestOrEven)) : nil
+                ? Int((100.0 * Double(min(s.level, s.maxCapacity)) / Double(s.maxCapacity)).rounded(.toNearestOrEven)) : nil // bounded: 0...100: Ints, level 0...maxCapacity
             let state: String
             if reasons.contains("marker-supply-missing") {
                 state = "missing"

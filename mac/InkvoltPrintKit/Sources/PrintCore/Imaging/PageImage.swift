@@ -119,7 +119,7 @@ public enum Deskew {
             }
         }
         let diagonal = (Double(img.width) * Double(img.width) + Double(img.height) * Double(img.height)).squareRoot()
-        var bins = [Int](repeating: 0, count: Int(diagonal.rounded(.up)) + 2)
+        var bins = [Int](repeating: 0, count: Int(diagonal.rounded(.up)) + 2) // bounded: the image's own diagonal
 
         func score(_ degrees: Double) -> Double {
             for b in bins.indices { bins[b] = 0 }
@@ -127,7 +127,7 @@ public enum Deskew {
             let offset = bins.count / 2
             for k in xs.indices {
                 let projected: Double = ys[k] * c - xs[k] * s
-                let bin = Int(projected.rounded(.toNearestOrEven)) + offset
+                let bin = Int(projected.rounded(.toNearestOrEven)) + offset // bounded: a pixel's distance from the centre
                 if bin >= 0 && bin < bins.count { bins[bin] += 1 }
             }
             var sum = 0.0
@@ -242,8 +242,8 @@ public enum PageRotate {
                 let dx = Double(x) - cx
                 let sx = c * dx + s * dy + cx
                 let sy = -s * dx + c * dy + cy
-                if sx <= -1 || sy <= -1 || sx >= Double(width) || sy >= Double(height) { continue }
-                let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down)))
+                if !(sx > -1 && sy > -1 && sx < Double(width) && sy < Double(height)) { continue } // NaN too
+                let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down))) // bounded: inside the image (the test above)
                 let (fx, fy) = (sx - Double(x0), sy - Double(y0))
                 for ch in 0..<channels {
                     func at(_ px: Int, _ py: Int) -> Double {

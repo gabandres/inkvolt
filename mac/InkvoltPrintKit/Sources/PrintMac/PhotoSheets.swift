@@ -81,8 +81,9 @@ public enum PhotoSheets {
     /// A small picture of a sheet for the preview, `width` pixels wide.
     public static func preview(_ sheet: PhotoSheet, photos: [CGImage], names: [String], paper: SheetPaper, width: Int) -> CGImage? {
         let scale = CGFloat(width) / CGFloat(paper.width)
-        let height = Int((paper.height * Double(scale)).rounded())
-        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+        // The paper is the queue's (from the printer's driver): a size no Int holds draws no preview.
+        guard let height = Int(exactly: (paper.height * Double(scale)).rounded()),
+              let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))

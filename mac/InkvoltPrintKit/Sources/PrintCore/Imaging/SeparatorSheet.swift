@@ -118,10 +118,10 @@ public enum SeparatorSheet {
         let height = Int(heightIn * pixelsPerInch)
         var pixels = [UInt8](repeating: 255, count: width * height)
         for r in layout(code, widthIn: widthIn, heightIn: heightIn) {
-            let x0 = max(0, Int((r.x * pixelsPerInch).rounded()))
-            let y0 = max(0, Int((r.y * pixelsPerInch).rounded()))
-            let x1 = min(width, Int(((r.x + r.width) * pixelsPerInch).rounded()))
-            let y1 = min(height, Int(((r.y + r.height) * pixelsPerInch).rounded()))
+            let x0 = max(0, Int((r.x * pixelsPerInch).rounded())) // bounded: the sheet's own layout, at a test's or demo's resolution
+            let y0 = max(0, Int((r.y * pixelsPerInch).rounded())) // bounded: the sheet's own layout, at a test's or demo's resolution
+            let x1 = min(width, Int(((r.x + r.width) * pixelsPerInch).rounded())) // bounded: the sheet's own layout, at a test's or demo's resolution
+            let y1 = min(height, Int(((r.y + r.height) * pixelsPerInch).rounded())) // bounded: the sheet's own layout, at a test's or demo's resolution
             if x0 >= x1 || y0 >= y1 { continue }
             for y in y0..<y1 {
                 for x in x0..<x1 { pixels[y * width + x] = 0 }

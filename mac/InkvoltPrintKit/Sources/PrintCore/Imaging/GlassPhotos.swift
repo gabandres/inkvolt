@@ -151,12 +151,12 @@ public enum PhotoFinder {
 
     /// The photos on `img` (a copy of the glass scan, any size), `pixelsPerInch` being that copy's resolution.
     public static func find(_ img: GrayImage, pixelsPerInch: Double) -> [PhotoBox] {
-        if img.width < 32 || img.height < 32 || pixelsPerInch < 20 { return [] }
+        if img.width < 32 || img.height < 32 || !(20...1_000_000).contains(pixelsPerInch) { return [] } // NaN too
         let lid = lidLevel(img)
         if lid < 0 { return [] }
 
         // The grid: each cell is a print cell when most of its pixels differ from the lid.
-        let cell = max(1, Int((pixelsPerInch / 50).rounded(.toNearestOrEven)))
+        let cell = max(1, Int((pixelsPerInch / 50).rounded(.toNearestOrEven))) // bounded: pixelsPerInch is 20...1e6 (above)
         let (gw, gh) = ((img.width + cell - 1) / cell, (img.height + cell - 1) / cell)
         var mask = [Bool](repeating: false, count: gw * gh)
         img.pixels.withUnsafeBufferPointer { px in
@@ -174,8 +174,8 @@ public enum PhotoFinder {
             }
         }
         let cellsPerInch = pixelsPerInch / Double(cell)
-        let open = max(1, Int((0.04 * cellsPerInch).rounded(.toNearestOrEven)))
-        let close = max(1, Int((0.08 * cellsPerInch).rounded(.toNearestOrEven)))
+        let open = max(1, Int((0.04 * cellsPerInch).rounded(.toNearestOrEven))) // bounded: cellsPerInch is at most 75
+        let close = max(1, Int((0.08 * cellsPerInch).rounded(.toNearestOrEven))) // bounded: cellsPerInch is at most 75
         mask = dilate(erode(mask, gw, gh, open), gw, gh, open)
         mask = closing(mask, gw, gh, close)
         fillHoles(&mask, gw, gh)
@@ -399,6 +399,10 @@ public enum PhotoFinder {
 /// Cuts a found photo out of the full-size scan, straight: only the pixels around it are read and turned (`PageRotate`).
 /// The pure-pixel way; the app may use Core Image instead (`PhotoBox`'s notes).
 public enum GlassPhotoCrop {
+    /// `v` as a pixel index within `lo`...`hi` (`lo` for NaN), checked as a Double first: a box can come back from a
+    /// recovered scan's file, and Swift's Int(x) traps on NaN, infinity or a huge value.
+    private static func pixel(_ v: Double, _ lo: Int, _ hi: Int) -> Int { Int(exactly: min(max(v, Double(lo)), Double(max(lo, hi)))) ?? lo }
+
     /// The pixels to read for `box` from a `width` × `height` scan: its corners, a little around, inside the scan.
     public static func bounds(_ box: PhotoBox, width: Int, height: Int) -> (x: Int, y: Int, width: Int, height: Int) {
         let corners = box.corners()
@@ -407,10 +411,10 @@ public enum GlassPhotoCrop {
         let minY: Double = corners.map(\.y).min()! * scale
         let maxX: Double = corners.map(\.x).max()! * scale
         let maxY: Double = corners.map(\.y).max()! * scale
-        let x0 = clamp(Int(minX.rounded(.down)) - 2, 0, width - 1)
-        let y0 = clamp(Int(minY.rounded(.down)) - 2, 0, height - 1)
-        let x1 = clamp(Int(maxX.rounded(.up)) + 2, x0 + 1, width)
-        let y1 = clamp(Int(maxY.rounded(.up)) + 2, y0 + 1, height)
+        let x0 = pixel(minX.rounded(.down) - 2, 0, width - 1)
+        let y0 = pixel(minY.rounded(.down) - 2, 0, height - 1)
+        let x1 = pixel(maxX.rounded(.up) + 2, x0 + 1, width)
+        let y1 = pixel(maxY.rounded(.up) + 2, y0 + 1, height)
         return (x0, y0, x1 - x0, y1 - y0)
     }
 
@@ -432,10 +436,10 @@ public enum GlassPhotoCrop {
         let cx: Double = c * dx + s * dy + rcx
         let cy: Double = -s * dx + c * dy + rcy
 
-        var w = max(1, Int((box.width * scale).rounded(.toNearestOrEven)))
-        var h = max(1, Int((box.height * scale).rounded(.toNearestOrEven)))
-        let x0 = clamp(Int((cx - Double(w) / 2).rounded(.toNearestOrEven)), 0, regionWidth - 1)
-        let y0 = clamp(Int((cy - Double(h) / 2).rounded(.toNearestOrEven)), 0, regionHeight - 1)
+        var w = pixel((box.width * scale).rounded(.toNearestOrEven), 1, 1 << 24)
+        var h = pixel((box.height * scale).rounded(.toNearestOrEven), 1, 1 << 24)
+        let x0 = pixel((cx - Double(w) / 2).rounded(.toNearestOrEven), 0, regionWidth - 1)
+        let y0 = pixel((cy - Double(h) / 2).rounded(.toNearestOrEven), 0, regionHeight - 1)
         w = min(w, regionWidth - x0)
         h = min(h, regionHeight - y0)
         let outStride = (w * channels + 3) & ~3

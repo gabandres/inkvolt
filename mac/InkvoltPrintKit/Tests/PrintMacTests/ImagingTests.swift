@@ -95,4 +95,12 @@ struct MacImagingTests {
         #expect(abs(box.width - 612) < 1 && abs(box.height - 792) < 1)
         #expect(PhotoSheets.preview(sheets[0], photos: [photo], names: ["photo.jpg"], paper: paper, width: 200)?.width == 200)
     }
+
+    @Test func aPhotoSheetPreviewOfAPaperNoIntCanMeasureIsNone() {
+        // The paper comes from the printer's queue: a size that isn't a number (or a width of 0) draws no preview.
+        for paper in [SheetPaper(8.5, 1e300, 0, 0, 0, 0), SheetPaper(0, 11, 0, 0, 0, 0), SheetPaper(8.5, .nan, 0, 0, 0, 0)] {
+            #expect(PhotoSheets.preview(PhotoSheet([]), photos: [], names: [], paper: paper, width: 200) == nil)
+        }
+        #expect(PhotoSheets.preview(PhotoSheet([]), photos: [], names: [], paper: SheetPaper(8.5, 11, 0, 0, 0, 0), width: 200)?.height == 259)
+    }
 }

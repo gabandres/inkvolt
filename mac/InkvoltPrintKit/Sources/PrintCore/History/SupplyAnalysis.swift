@@ -189,10 +189,10 @@ public enum SupplyAnalysis {
             sxx += x * x
         }
         let perDay = -(n * sxy - sx * sy) / (n * sxx - sx * sx)
-        if perDay < steadyPerDay { return SupplyForecast(.steady) }
+        if !(perDay >= steadyPerDay) { return SupplyForecast(.steady) } // NaN too: readings that don't make a line
         let last = window[window.count - 1]
         let left = Double(last.percent!) / perDay - Double(today.dayNumber - last.day.dayNumber)
-        return SupplyForecast(.estimate, daysLeft: left > Double(longestEstimate) ? nil : Int(max(0, left.rounded(.toNearestOrEven))))
+        return SupplyForecast(.estimate, daysLeft: left > Double(longestEstimate) ? nil : Int(max(0, left.rounded(.toNearestOrEven)))) // bounded: at most longestEstimate, and finite (perDay is a number at least steadyPerDay)
     }
 }
 

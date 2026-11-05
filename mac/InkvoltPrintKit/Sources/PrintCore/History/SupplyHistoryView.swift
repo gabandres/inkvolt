@@ -127,7 +127,7 @@ public enum DemoSupplyHistory {
         counts[0] = pages
         for back in 1...days {
             counts[back] = counts[back - 1].map { n in
-                max(0, n - (random.next(6) == 0 ? 0 : Int((perDayPages * (0.4 + 1.2 * random.nextDouble())).rounded(.toNearestOrEven))))
+                max(0, n - (random.next(6) == 0 ? 0 : Int((perDayPages * (0.4 + 1.2 * random.nextDouble())).rounded(.toNearestOrEven)))) // bounded: perDayPages is 0.3...40
             }
         }
         for s in supplies where !s.isWaste && s.percentRemaining != nil {
@@ -143,7 +143,7 @@ public enum DemoSupplyHistory {
                 }
                 if (120..<127).contains(back) { continue } // the printer was away that week
                 let noise = random.next(5) == 0 ? random.next(3) - 1 : 0
-                let shown = min(max(Int((level + Double(noise)).rounded(.toNearestOrEven)), 0), 100)
+                let shown = min(max(Int((level + Double(noise)).rounded(.toNearestOrEven)), 0), 100) // bounded: an Int's level, at most 100 here (more starts over above)
                 rows.append(SupplyRow(today.adding(days: -back), name, color, shown, shown <= 15 ? "low" : "ok", counts[back]))
             }
         }

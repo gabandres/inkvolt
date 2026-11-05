@@ -181,6 +181,6 @@ public enum CdmParsers {
 
     private static func int(_ e: [String: Json], _ name: String) -> Int? {
         guard let s = str(e, name), let d = Double(s), d > Double(Int32.min), d < Double(Int32.max) else { return nil }
-        return Int(d.rounded(.toNearestOrEven))
+        return Int(exactly: d.rounded(.toNearestOrEven))
     }
 }

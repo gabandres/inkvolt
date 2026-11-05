@@ -173,7 +173,8 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     static func caps(_ unit: ICScannerFunctionalUnit) -> InputCaps {
         unit.measurementUnit = .inches
         let size = unit.physicalSize
-        let w = Int((size.width * 300).rounded()), h = Int((size.height * 300).rounded())
+        // The scanner's own size: one that isn't a number (or too big for an Int) is taken as the smallest.
+        let w = Int(exactly: (size.width * 300).rounded()) ?? 0, h = Int(exactly: (size.height * 300).rounded()) ?? 0
         return InputCaps(minWidth: 300, maxWidth: max(w, 300), minHeight: 300, maxHeight: max(h, 300), colorModes: ["RGB24", "Grayscale8"],
                          resolutions: Array(unit.supportedResolutions))
     }
