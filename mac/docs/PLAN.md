@@ -184,7 +184,7 @@ sheet's buttons were cut off (it's wider now) |
   moves by its size, its state or a job leaving, and a long job on a printer saying it's printing raises one "may be stuck"
   after 15 minutes more often than on Windows. The queue's offline reason stands for the job's PaperOut and Offline bits;
   Use Printer Offline, Spooling and Retained have no counterpart. CUPS keeps finished jobs: printed and cancelled ones
-  count as gone, one given up on is told only within 15 minutes of finishing. A job key is `Job|id|milliseconds` (Windows
+  count as gone, one given up on is told only within 15 minutes of finishing (never when CUPS gives no finish time). A job key is `Job|id|milliseconds` (Windows
   writes .NET ticks; each app reads only its own state file). Names are cut in UTF-16 units as on Windows; a lone
   surrogate reaches Swift as U+FFFD and stays as that character. Whose job it is (`JobOwner.owns`) is stricter than on
   Windows, since `cupsGetJobs2` never says which computer a job came from and a Mac sharing its printer lists other Macs'

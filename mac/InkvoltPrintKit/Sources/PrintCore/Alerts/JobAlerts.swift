@@ -21,7 +21,7 @@ public struct JobQueueState: Equatable, Sendable {
     }
 
     /// A job CUPS gave up on stays to be told this long after it finished: CUPS keeps finished jobs in its history, and a
-    /// failure from before the app started is no news.
+    /// failure from before the app started, or one that doesn't say when it finished, is no news.
     public static let abortedKeptFor: TimeInterval = 15 * 60
 
     /// The state from a destination and its jobs as CUPS lists them (every job, finished ones included, or only the
@@ -31,7 +31,7 @@ public struct JobQueueState: Equatable, Sendable {
         let kept = jobs.filter { j in
             switch j.state {
             case .completed, .canceled: false
-            case .aborted: j.finished.map { now.timeIntervalSince($0) < abortedKeptFor } ?? true
+            case .aborted: j.finished.map { now.timeIntervalSince($0) < abortedKeptFor } ?? false // no date: from any time, no news
             case .pending, .held, .processing, .stopped: true
             }
         }

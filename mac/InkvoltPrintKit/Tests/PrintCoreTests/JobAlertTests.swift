@@ -900,6 +900,15 @@ struct JobAlertTests {
         #expect(told.first?.body.contains("macOS gave up on this job") == true)
     }
 
+    /// A job CUPS gave up on that doesn't say when is no news either: it may be from any time in CUPS's history.
+    @Test func aFailureWithNoFinishTimeIsNoNews() {
+        let d = CupsDestination(name: "Q", options: ["printer-type": "4", "printer-state": "3", "printer-is-accepting-jobs": "true",
+                                                     "printer-is-shared": "false"])
+        let undated = Self.job(3, .aborted)
+        #expect(JobQueueState.of(d, jobs: [undated, Self.job(5, .pending)], now: Self.t0).jobs.map(\.id) == [5])
+        #expect(Self.minutes(Self.tracker(), Self.t0, 3, JobQueueState.of(d, jobs: [undated], now: Self.t0)).isEmpty)
+    }
+
     /// cupsGetJobs2 gives no page counts: a job only moves by its size, its state or a job leaving. So a long job on a
     /// printer saying it's printing raises one "may be stuck" after 15 minutes (the roadmap's accepted false alert), and
     /// a job whose size still grows doesn't.
