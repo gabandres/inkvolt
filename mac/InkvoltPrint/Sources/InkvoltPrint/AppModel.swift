@@ -88,6 +88,8 @@ final class AppModel {
     @ObservationIgnored private var nearby: [DiscoveredPrinter] = []
     /// Bumped whenever the alert tracker changes (it isn't observable itself).
     private var alertRevision = 0
+    /// What the printers' hand-off to Inkvolt PDF last wrote.
+    @ObservationIgnored private var handedOff: SuitePrinters?
 
     init(demo: Bool) {
         isDemo = demo
@@ -360,6 +362,21 @@ final class AppModel {
             let own = real.first { CupsQueues.claim($0, claims)?.id == p.id }?.name
             if own != p.queueName { p.queueName = own }
         }
+        handOffPrinters()
+    }
+
+    /// Inkvolt PDF's view of the printers (`SuitePrinters`, in the app group both apps claim): written when what it
+    /// says changes, never in demo mode or without the container.
+    private func handOffPrinters() {
+        guard !isDemo, let root = ProKeyRoot.url?.path else { return }
+        var hostNames: [String: String] = [:], queues: [String: String] = [:]
+        for p in printers where p.isNetwork {
+            if let h = p.hostName { hostNames[p.id] = h }
+            if let q = p.queueName { queues[p.id] = q }
+        }
+        let now = SuitePrinters.from(store.current, hostNames: hostNames, queues: queues)
+        guard now != handedOff else { return }
+        if now.save(root: root) { handedOff = now }
     }
 
     // MARK: Scan presets
@@ -473,6 +490,7 @@ final class AppModel {
         guard printers.contains(where: { $0 === p }) else { return }
         store.remember(KnownPrinter(uuid: p.id, name: p.name, model: model ?? p.model, host: target.host, esclRoot: target.esclHint?.absoluteString,
                                     ippUri: target.ippHint?.absoluteString, snmp: target.snmp))
+        handOffPrinters()
     }
 
     /// Removed from Inkvolt Print (not from macOS): discovery won't list it again.
@@ -491,6 +509,7 @@ final class AppModel {
         printers.removeAll { $0 === p }
         if selectedID == p.id { selectedID = printers.first?.id }
         alertRevision += 1
+        handOffPrinters()
     }
 
     /// The made-up printers in a window beside this one.

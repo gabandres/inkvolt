@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 
 ## Next
 - Snapshot (Tools › Snapshot, ⌥⌘C, or the camera in the markup toolbar): drag over part of a page to copy it as a picture, sharp enough to paste into a document or an email. Esc cancels.
+- Printing to a printer Inkvolt Print knows shows its state and toner in the print panel (Inkvolt PDF's section), and warns in red when it's off or has a problem such as a paper jam, before you press Print.
+- File › Printer Settings (Inkvolt Print), and a button in the print panel, open Inkvolt Print.
 - Make Accessible gives text to the bitmap fonts of older TeX papers (Computer Modern drawn as pictures), so screen readers can read it.
 - Make Accessible tags the text inside a drawing placed on the page (a whole page placed as one picture, a letterhead) piece by piece: each heading and paragraph in it gets its own tag.
 - Make Accessible reads a ruled table's cell that spans rows as one cell, wherever its text sits in it, so a screen reader tells which rows a heading like "North" covers.

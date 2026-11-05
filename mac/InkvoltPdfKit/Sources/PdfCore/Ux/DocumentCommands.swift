@@ -271,6 +271,8 @@ public enum DocumentCommands {
         sep,
         c("Page Setup…", "runPageLayout:", "p", [.command, .shift]),
         c("Print…", "printDocument:", "p"),
+        // Opens Inkvolt Print (Windows: shown only when it's installed; here it offers the App Store page without it).
+        c("Printer Settings (Inkvolt Print)", "openInkvoltPrint:"),
     ])
 
     static let editMenu = CommandMenu("Edit", [

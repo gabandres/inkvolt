@@ -462,7 +462,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Export to Word, Excel or text | D5c |
 | Reload, recovery copies, password protection | D2 and D7 (File › Document Properties…: 2026-11-03) |
 | Print (with pages per sheet, booklet, poster) | D6 and D7 |
-| Scan, printer status when printing, Inkvolt Print's printer settings | Scan: D7 (Inkvolt Print's PrintCore and PrintMac: eSCL, Bonjour, ImageCaptureCore); printer status and printer settings later, with the printer reading |
+| Scan, printer status when printing, Inkvolt Print's printer settings | Scan: D7 (Inkvolt Print's PrintCore and PrintMac: eSCL, Bonjour, ImageCaptureCore); printer status in the print panel and File › Printer Settings (Inkvolt Print): 2026-11-05, through Inkvolt Print's hand-off (`SuitePrinters`, below) |
 | Help › What's New, updates | What's New: D7; updates: D8 (Sparkle); Help › Report a Problem: 2026-11-03 |
 | Redaction (with redaction by pattern), Sanitize Document | E1 (done 2026-10-28; Batch's two redaction actions with E8, 2026-10-30) |
 | What's in This PDF | E1a (done 2026-10-28; Batch's Report What's in Each File with E8, 2026-10-30) |
@@ -1045,6 +1045,39 @@ flags, their parsing, a 14-branch chain and the quit condition each had to be ed
 - A person must look at (Snapshot): the drag's blue box at several zooms and on a turned view, the cursor, pasting into
   Pages, Mail and Preview (the size it pastes at), the markup toolbar's third reading segment and its tooltip, VoiceOver
   reading the notice.
+- **Printer status when printing and Inkvolt Print's printer settings**, Windows' `PrinterCheck` and
+  `FileActions.ConfirmPrinterReady` (`Inkvolt.cs`) and File › Printer Settings (Inkvolt Print). Windows' Inkvolt PDF
+  reads Inkvolt Print's `state.json`; on the Mac that file is inside Inkvolt Print's sandbox container, which macOS
+  guards from other apps. **The hand-off** (decided here, the smallest one): `SuitePrinters` in `PrintCore/Suite`, the
+  file `<app group>/Inkvolt/printers.json` (`ProKeyRoot.url`, the container both apps already claim for the Pro key).
+  Inkvolt Print writes it (`AppModel.handOffPrinters`, after its list or a queue match changes, only when what it says
+  changed, never in demo mode): each remembered network printer that isn't forgotten, its id, name, model, address,
+  eSCL and IPP addresses, Bonjour host name, accepted UUIDs, the macOS queue its printer list matched to it, and whether
+  it was added as SNMP-only. No readings, certificate pins, presets, folders or keys. Inkvolt PDF only reads it, bounded:
+  256 KB, 100 printers, 512 characters a value, 16 hosts or UUIDs a printer; entries without an id or an address are
+  skipped, eSCL and IPP addresses other than http(s) and ipp(s) dropped; it never throws. `PrinterHealth` (Windows'
+  `Suite/PrinterHealth.cs`, its five SuiteTests.cs tests ported with their names) and `PrinterCheck` (status and
+  supplies read from the printer itself, at most 2 seconds, offline when it doesn't answer, no status when it answers
+  with something unreadable; the warnings' words) are PrintCore's too. SuiteTests (PrintCore): 15 tests, on the PC and
+  the Mac. Inkvolt PDF (`PrinterStatus.swift`, `Printing.swift`): `PrinterStatusLookup` finds the panel's printer
+  (`NSPrinter.name`, the queue's name or the one macOS shows) among CUPS's queues and in the hand-off (the queue Inkvolt
+  Print matched first, else `CupsQueues.claim` over the device URI and name), reads its health once (kept 15 seconds),
+  and the print panel's Inkvolt PDF section shows "Office laser: Ready · toner 45%", or in red "⚠︎ Office laser isn't
+  responding. …" / "… has a problem. …" (VoiceOver announces a warning); a printer Inkvolt Print doesn't know shows
+  nothing. Its Printer Settings (Inkvolt Print) button and File › Printer Settings (Inkvolt Print) open Inkvolt Print.
+  Mac differences: Windows asks "Print anyway?" after its dialog closes; `NSPrintOperation` runs the panel and the job in
+  one call with no step between them (the panel has no delegate, and replacing it would mean reimplementing AppKit's
+  sheet), so the warning is in the panel's accessory before Print is pressed, and the panel watches its printer twice a
+  second (it tells an accessory nothing when the printer changes). The menu item stays without Inkvolt Print and offers
+  its App Store page (Windows hides it). The status read doesn't use Inkvolt Print's certificate pins (they stay in its
+  container): read-only, nothing is sent but the status and supply requests. Inkvolt Print's `--report` gains the line
+  "hand-off to Inkvolt PDF: N printers, M with their macOS queue". `PagesTest` adds 1 check (a hand-off in the test's
+  own folder, a made-up queue shown under another name, a printer at a documentation address that doesn't answer: the
+  warning; an unknown printer: nothing; the menu item).
+- A person must look at (printer status): File › Print… with a printer Inkvolt Print knows (the line in the panel's
+  Inkvolt PDF section, its color in light and dark, switching printers in the panel, a printer turned off: the red
+  warning within about 2 seconds, VoiceOver reading it); the Printer Settings button and the File menu item with and
+  without Inkvolt Print installed; Local Network asking once if Inkvolt PDF never scanned before.
 
 ### What a person must look at (unattended run, 2026-11-03)
 

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for D7 part d (`--edit`, after `FeatureTest`): links clicked on the page (a page, a web
 /// address, an address that asks first); a text selection dragged across two pages and highlighted as one step; the
@@ -126,6 +127,8 @@ struct PagesTest {
         await documentProperties()
         trace("print")
         printing()
+        trace("printer status")
+        await printerStatus()
         trace("close question")
         await closeQuestion()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
@@ -653,6 +656,33 @@ struct PagesTest {
         let accessory = operation.printPanel.accessoryControllers.contains { $0 is PrintAccessory }
         check(allOk && accessory, "printed to PDF files (no printer) on \(Int(paper.width))×\(Int(paper.height)) pt paper: "
               + results.joined(separator: "; ") + "; the print panel carries the Inkvolt options")
+    }
+
+    /// The print panel's printer status: a hand-off from Inkvolt Print in a folder of the test's own (never the app group),
+    /// a made-up queue whose name macOS shows differently, a printer at a documentation address that doesn't answer: the
+    /// accessory warns; a printer Inkvolt Print doesn't know shows nothing. No network printer is asked.
+    private mutating func printerStatus() async {
+        let root = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("suite"))
+        let id = "0e1f2a3b-0000-4000-8000-0000000000a1"
+        let handed = SuitePrinters([SuitePrinter(id: id, name: "Office laser", host: "192.0.2.77", queue: "Office_Laser")])
+        guard handed.save(root: root.path) else { return skip("printer status: the hand-off couldn't be written") }
+        let lookup = PrinterStatusLookup()
+        lookup.root = { root.path }
+        lookup.transport = { _, _ in HostRouter([:]) }
+        lookup.queues = FixedQueues([CupsDestination(name: "Office_Laser", options: ["device-uri": "ipp://192.0.2.77/ipp/print",
+                                                                                     "printer-info": "Front Office"])])
+        let accessory = PrintAccessory(options: PrintOptions(pageCount: 1, preset: ""))
+        accessory.lookup = lookup
+        _ = accessory.view
+        accessory.testPrinterName = "Front Office"
+        await accessory.checkPrinter("Front Office")
+        let warned = accessory.printerStatus.stringValue.hasPrefix("⚠︎ Office laser isn't responding")
+        accessory.testPrinterName = "Someone else's"
+        await accessory.checkPrinter("Someone else's")
+        let quiet = accessory.printerStatus.stringValue.isEmpty
+        let menu = DocumentCommands.command(action: "openInkvoltPrint:") != nil
+        check(warned && quiet && menu, "the print panel warns about Inkvolt Print's printer that doesn't answer, shows nothing for one it "
+              + "doesn't know; File › Printer Settings (Inkvolt Print) is there")
     }
 
     // MARK: Closing with unsaved changes
