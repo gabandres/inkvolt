@@ -683,6 +683,15 @@ struct PagesTest {
         let menu = DocumentCommands.command(action: "openInkvoltPrint:") != nil
         check(warned && quiet && menu, "the print panel warns about Inkvolt Print's printer that doesn't answer, shows nothing for one it "
               + "doesn't know; File › Printer Settings (Inkvolt Print) is there")
+        // The panel closed before its check answered, then shown again with the same printer: it is checked again.
+        accessory.testPrinterName = "Front Office"
+        accessory.viewDidAppear()
+        accessory.viewDidDisappear()
+        accessory.viewDidAppear()
+        for _ in 0..<40 where accessory.printerStatus.stringValue.isEmpty { try? await Task.sleep(for: .milliseconds(50)) }
+        accessory.viewDidDisappear()
+        check(accessory.printerStatus.stringValue.hasPrefix("⚠︎ Office laser"),
+              "the print panel shown again checks its printer again (a check cut short by closing it isn't the last word)")
     }
 
     // MARK: Closing with unsaved changes

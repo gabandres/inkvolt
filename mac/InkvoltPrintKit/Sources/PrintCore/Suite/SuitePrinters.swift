@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 
 /// A printer Inkvolt Print remembers, as Inkvolt PDF sees it (the Windows suite's `InkvoltPrinter`): where to reach it,
 /// what queue matching knows it by, and the macOS queue Inkvolt Print found standing for it.
@@ -194,19 +193,11 @@ public enum PrinterCheck {
     /// The line for a printer: "Office laser: Ready · toner 45%" (only names and values).
     public static func line(_ h: PrinterHealth, _ printer: String) -> String { "\(printer): \(h.summary)" }
 
-    /// The health of `printer`, read through `transport` (and `snmp` for a printer added as SNMP-only).
+    /// The health of `printer`, read through `transport` (and `snmp` for a printer added as SNMP-only); offline once
+    /// `budget` passes or the caller is cancelled (`FleetReader.race`, which cancels the read either way).
     public static func health(_ printer: SuitePrinter, transport: @escaping HttpTransportFactory, snmp: (any SnmpTransport)? = nil,
                               budget: Duration = budget) async -> PrinterHealth? {
-        let race = Race()
-        return await withCheckedContinuation { (done: CheckedContinuation<PrinterHealth?, Never>) in
-            race.start(done)
-            let work = Task { race.finish(await read(printer, transport, snmp)) }
-            Task {
-                try? await Task.sleep(for: budget)
-                work.cancel()
-                race.finish(.offline(notResponding))
-            }
-        }
+        await FleetReader.race(budget, timedOut: { .offline(notResponding) }) { await read(printer, transport, snmp) }
     }
 
     private static func read(_ p: SuitePrinter, _ transport: @escaping HttpTransportFactory, _ snmp: (any SnmpTransport)?) async
@@ -226,20 +217,5 @@ public enum PrinterCheck {
     /// Status alone is still worth showing.
     private static func suppliesOrNone(_ conn: PrinterConnection) async -> [Consumable] {
         (try? await conn.supplies()) ?? []
-    }
-
-    /// The first answer of the read and the deadline.
-    private final class Race: Sendable {
-        private let waiting = Mutex<CheckedContinuation<PrinterHealth?, Never>?>(nil)
-
-        func start(_ c: CheckedContinuation<PrinterHealth?, Never>) { waiting.withLock { $0 = c } }
-
-        func finish(_ h: PrinterHealth?) {
-            let c = waiting.withLock { w -> CheckedContinuation<PrinterHealth?, Never>? in
-                defer { w = nil }
-                return w
-            }
-            c?.resume(returning: h)
-        }
     }
 }

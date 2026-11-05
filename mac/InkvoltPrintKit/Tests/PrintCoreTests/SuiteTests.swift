@@ -194,4 +194,17 @@ struct SuiteTests {
         #expect(h.state == .offline && h.text == PrinterCheck.notResponding)
         #expect(clock.now - start < .seconds(5))
     }
+
+    /// Mac: the print panel moving on cancels its check, which ends then (offline, never shown) rather than at the budget.
+    @Test func A_check_its_caller_cancels_ends_at_once() async throws {
+        let hanging = Network(Printers.ippOnly(), failNow: true) { _ in Network.hang() }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let check = Task { await PrinterCheck.health(Self.printer(), transport: { _, _ in hanging }, budget: .seconds(20)) }
+        try await Task.sleep(for: .milliseconds(200))
+        check.cancel()
+        let h = await check.value
+        #expect(clock.now - start < .seconds(5), "took \(clock.now - start)")
+        #expect(h?.state == .offline)
+    }
 }

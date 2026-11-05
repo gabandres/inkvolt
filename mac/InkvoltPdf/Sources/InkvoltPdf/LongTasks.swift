@@ -11,7 +11,6 @@ final class NoticeBar: NSView {
     private var hideTimer: Timer?
     var onUndo: (() -> Void)?
     /// What it says now (the self-test reads it).
-    var text: String { label.stringValue }
     var message: String { label.stringValue }
     /// Every message shown, oldest first (the self-test reads them).
     private(set) var history: [String] = []

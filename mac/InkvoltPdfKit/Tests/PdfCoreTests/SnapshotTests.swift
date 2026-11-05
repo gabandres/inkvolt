@@ -37,9 +37,14 @@ struct SnapshotTests {
         #expect(Snapshot.region(PointD(0, 0), PointD(100, 100), pageWidth: .nan, pageHeight: 792) == nil)
     }
 
-    @Test(arguments: [(0.5, 2.0), (1.0, 2.0), (2.0, 2.0), (3.5, 3.5), (Double.nan, 2.0), (-4, 2.0), (Double.infinity, 2.0), (1e9, 2.0)])
+    @Test(arguments: [(0.5, 2.0), (1.0, 2.0), (2.0, 2.0), (3.5, 3.5), (Double.nan, 2.0), (-4, 2.0), (Double.infinity, 2.0)])
     func The_resolution_is_the_views_but_never_under_144_dpi(_ view: Double, _ expected: Double) {
         #expect(Snapshot.scale(for: RectD(0, 0, 200, 100), viewScale: view) == expected)
+    }
+
+    @Test(arguments: [64.0, 65, 100, 1e9])
+    func A_view_sharper_than_64_pixels_a_point_is_taken_at_64(_ view: Double) {
+        #expect(Snapshot.scale(for: RectD(0, 0, 10, 10), viewScale: view) == 64)
     }
 
     @Test func A_large_region_shrinks_until_it_is_under_40_megapixels() {

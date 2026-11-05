@@ -114,7 +114,19 @@ struct ViewTest {
         let size = image?.size ?? .zero
         check(wide && abs(size.width - 200) < 1 && abs(size.height - 100) < 1 && board.data(forType: .tiff) != nil,
               "a drag copies 200 × 100 points as PNG and TIFF (\(image?.pixelsWide ?? 0) × \(image?.pixelsHigh ?? 0) px)")
-        check(controller.noticeBar.text.hasPrefix("Snapshot copied"), "the notice says it was copied")
+        check(controller.noticeBar.message.hasPrefix("Snapshot copied"), "the notice says it was copied")
+
+        // Two snapshots in a row, the first of the whole page at a high resolution: only the second is copied, whichever
+        // picture is rendered first.
+        func copies() -> Int { controller.noticeBar.history.filter { $0.hasPrefix("Snapshot copied") }.count }
+        let copied = copies()
+        controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, g.width, g.height), viewScale: 6, rotation: 0)
+        controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, 50, 40), viewScale: 2, rotation: 0)
+        for _ in 0..<40 where copies() == copied { await settle(100) }
+        await settle(2000) // the first picture's time to land, if it could
+        let last = board.data(forType: .png).flatMap { NSBitmapImageRep(data: $0) }
+        check(copies() == copied + 1 && last?.pixelsWide == 100 && last?.pixelsHigh == 80,
+              "of two snapshots in a row only the newer is copied (\(copies() - copied) copied, last \(last?.pixelsWide ?? 0) px wide)")
 
         let count = board.changeCount
         let r = pages.pageRects[0]

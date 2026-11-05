@@ -46,8 +46,6 @@ final class PrinterStatusLookup {
         cache[p.id] = (Date(), task)
         return await task.value
     }
-
-    func forget() { cache = [:] }
 }
 
 /// Inkvolt Print, the suite's other app: File › Printer Settings (Inkvolt Print) and the print panel's button open it

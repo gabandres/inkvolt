@@ -90,6 +90,7 @@ final class AppModel {
     private var alertRevision = 0
     /// What the printers' hand-off to Inkvolt PDF last wrote.
     @ObservationIgnored private var handedOff: SuitePrinters?
+    @ObservationIgnored private var handOffLater: Task<Void, Never>?
 
     init(demo: Bool) {
         isDemo = demo
@@ -365,6 +366,17 @@ final class AppModel {
         handOffPrinters()
     }
 
+    /// The hand-off once things settle (half a second after the last call): a printer added, a UUID accepted for one, the
+    /// host name Bonjour gives it. A run of Bonjour updates writes the file once.
+    func handOffSoon() {
+        guard !isDemo else { return }
+        handOffLater?.cancel()
+        handOffLater = Task { [weak self] in
+            guard (try? await Task.sleep(for: .milliseconds(500))) != nil else { return }
+            self?.handOffPrinters()
+        }
+    }
+
     /// Inkvolt PDF's view of the printers (`SuitePrinters`, in the app group both apps claim): written when what it
     /// says changes, never in demo mode or without the container.
     private func handOffPrinters() {
@@ -480,6 +492,7 @@ final class AppModel {
         let p = PrinterModel(known: known, app: self)
         printers.append(p)
         store.remember(known)
+        handOffSoon()
         p.start()
         selectedID = p.id
         return p

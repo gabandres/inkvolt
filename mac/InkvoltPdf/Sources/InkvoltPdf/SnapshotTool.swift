@@ -10,25 +10,41 @@ extension DocumentWindowController {
         pickTool(.snapshot)
     }
 
+    /// Renders and encodes the picture off the main thread, then puts it on the clipboard. A newer snapshot cancels this
+    /// one: only the latest reaches the clipboard, whichever is rendered first.
     func copySnapshot(_ engine: PdfEngine, page: Int, region: RectD, viewScale: Double, rotation: Int) {
         let shown = Snapshot.shownSize(region, rotation: rotation)
+        let points = NSSize(width: shown.width, height: shown.height)
+        snapshotCancel?.cancel()
+        let cancel = CancelToken()
+        snapshotCancel = cancel
         Task { @MainActor [weak self] in
-            let rendered = await Task.detached(priority: .userInitiated) { () -> Result<RenderedImage, any Error> in
-                Result { try Snapshot.render(engine, page: page, region: region, viewScale: viewScale, rotation: rotation) }
+            let made = await Task.detached(priority: .userInitiated) { () -> Result<SnapshotPicture?, any Error> in
+                Result {
+                    let image = try Snapshot.render(engine, page: page, region: region, viewScale: viewScale, rotation: rotation, cancel: cancel)
+                    return cancel.isCancelled ? nil : SnapshotBoard.encode(image, points: points)
+                }
             }.value
-            guard let self else { return }
-            switch rendered {
-            case .success(let image):
-                if SnapshotBoard.write(image, points: NSSize(width: shown.width, height: shown.height), to: SnapshotBoard.board) {
-                    self.notify("Snapshot copied (\(image.width) × \(image.height) px)")
+            guard let self, !cancel.isCancelled else { return } // a newer snapshot took its place
+            snapshotCancel = nil
+            switch made {
+            case .success(let picture):
+                if let picture, SnapshotBoard.write(picture, to: SnapshotBoard.board) {
+                    notify("Snapshot copied (\(picture.width) × \(picture.height) px)")
                 } else {
-                    self.notify("Couldn't copy the snapshot: the clipboard didn't take it.")
+                    notify("Couldn't copy the snapshot: the clipboard didn't take it.")
                 }
             case .failure(let error):
-                self.notify(SnapshotBoard.failure(error))
+                notify(SnapshotBoard.failure(error))
             }
         }
     }
+}
+
+/// A snapshot as it goes on the pasteboard.
+struct SnapshotPicture: Sendable {
+    let png: Data, tiff: Data
+    let width: Int, height: Int
 }
 
 /// The snapshot on a pasteboard.
@@ -36,15 +52,21 @@ extension DocumentWindowController {
 enum SnapshotBoard {
     /// Where snapshots go: the clipboard (the self-test's own pasteboard while it runs, so a person's clipboard stays).
     static var board = NSPasteboard.general
-    /// Puts `image` on `board` as PNG and TIFF, `points` big (its resolution follows: 2 pixels a point is 144 dpi).
-    static func write(_ image: RenderedImage, points: NSSize, to board: NSPasteboard) -> Bool {
-        guard let cg = PageRenderer.cgImage(image) else { return false }
+
+    /// `image` as PNG and TIFF, `points` big (its resolution follows: 2 pixels a point is 144 dpi); up to 40 megapixels, so
+    /// made off the main thread. Nil when it couldn't be encoded.
+    nonisolated static func encode(_ image: RenderedImage, points: NSSize) -> SnapshotPicture? {
+        guard let cg = PageRenderer.cgImage(image) else { return nil }
         let rep = NSBitmapImageRep(cgImage: cg)
         if points.width > 0, points.height > 0 { rep.size = points }
-        guard let png = rep.representation(using: .png, properties: [:]), let tiff = rep.tiffRepresentation else { return false }
-        board.clearContents()
+        guard let png = rep.representation(using: .png, properties: [:]), let tiff = rep.tiffRepresentation else { return nil }
+        return SnapshotPicture(png: png, tiff: tiff, width: image.width, height: image.height)
+    }
+
+    /// Puts `picture` on `board` (declaring its types clears what was there).
+    static func write(_ picture: SnapshotPicture, to board: NSPasteboard) -> Bool {
         board.declareTypes([.png, .tiff], owner: nil)
-        return board.setData(png, forType: .png) && board.setData(tiff, forType: .tiff)
+        return board.setData(picture.png, forType: .png) && board.setData(picture.tiff, forType: .tiff)
     }
 
     /// What the notice says when the picture couldn't be made (Windows' words).

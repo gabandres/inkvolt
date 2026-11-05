@@ -10,7 +10,7 @@ public enum Snapshot {
     public static let minimumScale = 2.0
     /// Pixels a picture at most.
     public static let maximumPixels = 40_000_000.0
-    /// The view's scale is taken up to this (pixels a point); anything above, or not a number, is no view scale at all.
+    /// The view's scale is taken up to this (pixels a point; anything above is cut to it); not a number is no view scale.
     static let largestViewScale = 64.0
 
     /// The page region a drag from `start` to `end` marks (page points, top-left origin), cut to the page; nil when it is
@@ -23,10 +23,10 @@ public enum Snapshot {
         return r.width < minimumSide || r.height < minimumSide ? nil : r
     }
 
-    /// Pixels a page point for `region`: the view's (zoom times the screen's backing scale) when over 2, then cut by a
-    /// fifth at a time until the picture is under 40 megapixels (Windows' loop).
+    /// Pixels a page point for `region`: the view's (zoom times the screen's backing scale) when over 2, at most 64, then
+    /// cut by a fifth at a time until the picture is under 40 megapixels (Windows' loop).
     public static func scale(for region: RectD, viewScale: Double) -> Double {
-        var scale = viewScale.isFinite && viewScale <= largestViewScale ? max(minimumScale, viewScale) : minimumScale
+        var scale = viewScale.isFinite ? max(minimumScale, min(viewScale, largestViewScale)) : minimumScale
         let area = region.width * region.height
         guard area.isFinite, area > 0 else { return scale }
         while area * scale * scale > maximumPixels { scale *= 0.8 }

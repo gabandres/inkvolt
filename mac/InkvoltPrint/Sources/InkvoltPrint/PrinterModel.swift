@@ -56,7 +56,10 @@ final class PrinterModel: Identifiable {
         let history = SupplyHistoryFeed(app.history, id)
         self.history = history
         monitor = PrinterMonitor(id: id, name: known.name, target: known.target, recipe: app.recipe(id), accepted: { store.accepted(id) },
-                                 acceptUuids: { store.accept(id, $0) }, firmware: store.firmwareMemory(id),
+                                 acceptUuids: { [weak app] uuids in
+                                     store.accept(id, uuids)
+                                     Task { @MainActor in app?.handOffSoon() } // Inkvolt PDF matches queues by them too
+                                 }, firmware: store.firmwareMemory(id),
                                  history: history, onEvent: { continuation.yield($0) })
         events = Task { [weak self] in
             for await event in stream { self?.handle(event) }
@@ -251,7 +254,10 @@ final class PrinterModel: Identifiable {
     /// mDNS announced it: hints taken, a new address followed once it's known to be this printer.
     func apply(_ found: DiscoveredPrinter) {
         if model == nil { model = found.model }
-        hostName = found.hostName
+        if hostName != found.hostName {
+            hostName = found.hostName
+            if isNetwork { app.handOffSoon() } // the hand-off gives Inkvolt PDF the Bonjour name
+        }
         if let ipp = found.ippUri { ippHint = ipp }
         guard let monitor else { return }
         Task {
@@ -264,7 +270,9 @@ final class PrinterModel: Identifiable {
         guard let monitor else { return }
         let store = app.store, id = id
         Task {
-            if await monitor.acceptDevice({ store.accept(id, $0) }) { start() }
+            guard await monitor.acceptDevice({ store.accept(id, $0) }) else { return }
+            app.handOffSoon()
+            start()
         }
     }
 

@@ -324,8 +324,11 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
         for (row, shown) in visible { grid.row(at: row).isHidden = !shown }
         grid.row(at: 1).isHidden = rangeNote.stringValue.isEmpty
         grid.row(at: 11).isHidden = printerStatus.stringValue.isEmpty
-        grid.row(at: 12).isHidden = !InkvoltPrintApp.isInstalled
+        grid.row(at: 12).isHidden = !printAppInstalled
     }
+
+    /// Whether Inkvolt Print is on this Mac, asked of Launch Services once a panel.
+    private lazy var printAppInstalled = InkvoltPrintApp.isInstalled
 
     // MARK: Printer status (the Inkvolt suite)
 
@@ -347,6 +350,7 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
         watch?.invalidate()
         watch = nil
         lookupTask?.cancel()
+        watchedPrinter = nil // its check was cut short: shown again, the panel's printer is checked again
     }
 
     private var panelPrinter: String? {
