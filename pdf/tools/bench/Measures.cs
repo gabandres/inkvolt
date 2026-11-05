@@ -140,6 +140,8 @@ public static class Measures
     {
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("No process path.");
         string[] args = Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase) ? [typeof(Measures).Assembly.Location] : [];
+        // Pages are checked as the app checks them (INKVOLTPDF_BENCH_CHECKS=0: not, as before page checks).
+        if (Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_CHECKS") != "0") PageChecks.Use(exe, args);
         if (int.TryParse(Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS"), out var count))
         {
             // Started at once, whatever the search's pace says, when INKVOLTPDF_BENCH_WORKERS_NOW is set: what they cost a short search.

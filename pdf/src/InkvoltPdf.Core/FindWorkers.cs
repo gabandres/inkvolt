@@ -39,8 +39,12 @@ internal sealed record FindWorkerPlan(string Exe, IReadOnlyList<string> Args, in
     /// <summary>How long a worker has to start and connect.</summary>
     public int ConnectMs { get; init; } = 15_000;
 
-    /// <summary>A worker that answers nothing for this long is ended and its pages read in process (a page that takes longer than this is very rare).</summary>
-    public int StallMs { get; init; } = 120_000;
+    /// <summary>
+    /// A worker that answers nothing for this long is ended and its pages read in process, each through its page check
+    /// (<see cref="PageChecks.Limit"/>): a page that takes longer than that is refused there anyway, so a worker held up
+    /// by one is ended at three times the limit rather than after minutes.
+    /// </summary>
+    public int StallMs { get; init; } = (int)(PageChecks.Limit.TotalMilliseconds * 3);
 
     /// <summary>Tests: the search's own threads leave the pages to the workers from the start, until they connect or fail.</summary>
     public bool InProcessWaits { get; init; }
@@ -229,14 +233,29 @@ public static class FindWorkers
         }
 
         /// <summary>Opens the document as the parent has it: its file, or the copy of its bytes it shares (read-only, in memory).</summary>
-        public PdfEngine OpenEngine(out IDisposable? view)
+        public PdfEngine OpenEngine(out IDisposable? view) => OpenShared(Path, SectionName, SectionBytes, Type, out view);
+    }
+
+    /// <summary>
+    /// Opens a document as a worker's parent has it: its file, or the copy of its bytes it shares (read-only, in memory),
+    /// <paramref name="view"/> to be disposed after the engine.
+    /// </summary>
+    internal static PdfEngine OpenShared(string? path, string? section, long bytes, InputFileTypes type, out IDisposable? view)
+    {
+        view = null;
+        if (path is not null) return PdfEngine.OpenFile(path, type, null);
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
+        var shared = new SharedView(section!, bytes);
+        try
         {
-            view = null;
-            if (Path is { } path) return PdfEngine.OpenFile(path, Type, null);
-            if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
-            var shared = new SharedView(SectionName!, SectionBytes);
+            var engine = PdfEngine.OpenMemory(shared.Pointer, bytes, type);
             view = shared;
-            return PdfEngine.OpenMemory(shared.Pointer, SectionBytes, Type);
+            return engine;
+        }
+        catch
+        {
+            shared.Dispose();
+            throw;
         }
     }
 

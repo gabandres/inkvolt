@@ -60,6 +60,15 @@ public sealed record OptimizeResult(byte[] Data, long SizeBefore, long SizeAfter
 /// </summary>
 public static class Optimizer
 {
+    /// <summary>
+    /// An image with more samples than this (width x height x 4 components, about half a second of MuPDF's inflating) is
+    /// drawn in a page check before MuPDF draws it here: MuPDF reads all of them, and its cookie doesn't stop it meanwhile.
+    /// </summary>
+    private const long CheckedSamples = 64L << 20;
+
+    /// <summary>Test hook: the page checks images are drawn in first, instead of the app's.</summary>
+    internal static PageCheckPlan? CheckPlan { get; set; }
+
     /// <exception cref="SignaturesWouldBreakException">The document is signed and the rewrite wasn't allowed.</exception>
     public static OptimizeResult Optimize(byte[] data, string? password, OptimizeOptions? options = null)
     {
@@ -256,12 +265,14 @@ public static class Optimizer
         string? maskSource = null;
         if (smask is not null && ((maskSource = ImageSource(smask, maskOnly: true)) is null || smask.Elements.ContainsKey("/Matte"))) return false;
 
-        var jpeg = Render(source, image.Stream!.Value, w, h, quality);
+        var samples = (long)(PdfObj.Int(image.Elements["/Width"]) ?? 0) * (PdfObj.Int(image.Elements["/Height"]) ?? 0) * 4;
+        var jpeg = Render(source, image.Stream!.Value, w, h, quality, samples);
         if (jpeg is null) return false;
         byte[]? mask = null;
         if (smask is not null)
         {
-            var rgb = Render(maskSource!, smask.Stream!.Value, w, h, null);
+            var maskSamples = (long)(PdfObj.Int(smask.Elements["/Width"]) ?? 0) * (PdfObj.Int(smask.Elements["/Height"]) ?? 0);
+            var rgb = Render(maskSource!, smask.Stream!.Value, w, h, null, maskSamples);
             if (rgb is null || rgb.Length != w * h * 3) return false;
             var gray = new byte[w * h];
             for (var i = 0; i < gray.Length; i++) gray[i] = rgb[3 * i];
@@ -364,11 +375,13 @@ public static class Optimizer
 
     /// <summary>
     /// The image drawn by MuPDF onto a <paramref name="w"/> x <paramref name="h"/> pixel page: JPEG bytes at
-    /// <paramref name="quality"/>, or raw RGB without one. Null when MuPDF can't draw it.
+    /// <paramref name="quality"/>, or raw RGB without one. Null when MuPDF can't draw it, or a picture of more than
+    /// <see cref="CheckedSamples"/> <paramref name="samples"/> took too long in its page check.
     /// </summary>
-    private static byte[]? Render(string imageDict, byte[] stream, int w, int h, int? quality)
+    private static byte[]? Render(string imageDict, byte[] stream, int w, int h, int? quality, long samples)
     {
         var pdf = OneImagePage(imageDict, stream, w, h);
+        if (samples > CheckedSamples && !PageChecks.DrawsInTime(pdf, CheckPlan)) return null;
         using var ctx = new MuPDFContext(64 * 1024 * 1024);
         MuPDFDocument? mu = null;
         try

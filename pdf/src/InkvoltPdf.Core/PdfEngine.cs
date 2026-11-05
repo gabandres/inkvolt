@@ -171,7 +171,9 @@ public sealed partial class PdfEngine : IDisposable
                 if (string.IsNullOrEmpty(password)) throw new PasswordRequiredException(false);
                 if (!Unlock(doc, password)) throw new PasswordRequiredException(true);
             }
-            return new PdfEngine(ctx, doc, encrypted, c => NewDocument(c, () => create(c)), password, source);
+            var engine = new PdfEngine(ctx, doc, encrypted, c => NewDocument(c, () => create(c)), password, source);
+            engine.CheckFirstPage();
+            return engine;
         }
         catch
         {
@@ -195,7 +197,9 @@ public sealed partial class PdfEngine : IDisposable
                 ctx.Dispose();
                 return null;
             }
-            return new PdfEngine(ctx, doc, false, c => NewDocument(c, () => new MuPDFDocument(c, path)), null, null);
+            var engine = new PdfEngine(ctx, doc, false, c => NewDocument(c, () => new MuPDFDocument(c, path)), null, SourceFor(null, path, PdfEngine.TypeFromPath(path), null));
+            engine.CheckFirstPage();
+            return engine;
         }
         catch
         {
@@ -225,10 +229,12 @@ public sealed partial class PdfEngine : IDisposable
     /// <summary>Renders a page (or a region of it, in page points) at <paramref name="scale"/> pixels per point.</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired (MuPDF stops mid-render).</exception>
     /// <exception cref="InvalidOperationException">The image would exceed <see cref="MaxPixels"/>.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     /// <param name="annotations">Whether comments, stamps and form fields are drawn (false: the page's own content only).</param>
     public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default, bool annotations = true)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -261,9 +267,11 @@ public sealed partial class PdfEngine : IDisposable
     /// <summary>Renders a page straight to a PNG or JPEG file at the given resolution.</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the render started.</exception>
     /// <exception cref="InvalidOperationException">The image would exceed <see cref="MaxPixels"/>.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     public void SaveImage(int page, double dpi, string path, bool jpeg, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -548,9 +556,11 @@ public sealed partial class PdfEngine : IDisposable
 
     /// <summary>The page's text layer (cached; cheap to call repeatedly from the UI).</summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     public PageText GetText(int page, bool cache = true, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         EnterText(cancel);
         try
         {
@@ -621,9 +631,11 @@ public sealed partial class PdfEngine : IDisposable
     /// the page is a picture of a page. Not cached.
     /// </summary>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     public ComparePage GetComparePage(int page, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         EnterText(cancel);
         try
         {
@@ -766,9 +778,11 @@ public sealed partial class PdfEngine : IDisposable
     /// <param name="boxesOnly">Pictures and figures say where they are, without their pixels (tagging needs no more).</param>
     /// <param name="shapes">Read the page's simple shapes too (<see cref="ExportShapes"/>); what is neither one nor text is added as a picture.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false, bool shapes = false)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         var lines = new List<ExportLine>();
         var raw = new List<(List<ExportGlyph> Glyphs, int Turn, bool Sideways)>();
         var pictures = new List<ExportImage>();
@@ -1231,6 +1245,7 @@ public sealed partial class PdfEngine : IDisposable
             DisposeDocument(_doc);
             _ctx.Dispose();
         }
+        ForgetChecks();
     }
 
     /// <summary>

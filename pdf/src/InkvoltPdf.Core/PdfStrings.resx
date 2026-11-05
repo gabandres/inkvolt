@@ -4820,6 +4820,14 @@
   <data name="Doc_ImageTooLarge" xml:space="preserve">
     <value>The image would be too large ({0:0} x {1:0} pixels). Use a lower zoom or resolution.</value>
   </data>
+  <data name="Doc_PageTooSlow" xml:space="preserve">
+    <value>Page {0} took too long to read, so it isn't shown. The rest of the document can still be used.</value>
+    <comment>{0} = page number</comment>
+  </data>
+  <data name="Doc_PageCheckFailed" xml:space="preserve">
+    <value>Page {0} stopped the program that reads it, so it isn't shown. The rest of the document can still be used.</value>
+    <comment>{0} = page number</comment>
+  </data>
   <data name="Doc_ChangedWhileOpen" xml:space="preserve">
     <value>The document changed while open.</value>
   </data>

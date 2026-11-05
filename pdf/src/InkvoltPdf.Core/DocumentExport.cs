@@ -174,9 +174,9 @@ public static class DocumentExport
                 {
                     page = tags.OnPictures(engine.GetExportPage(p, images, cancel, shapes: shapes), p);
                 }
-                catch (MuPDFException ex)
+                catch (Exception ex) when (ex is MuPDFException or PageRefusedException)
                 {
-                    // A damaged page: export the rest (it stays empty, and the report says so).
+                    // A damaged page, or one that took too long to read: export the rest (it stays empty, and the report says so).
                     Unreadable.Add(new ExportProblem(p, ex.Message));
                     readable = false;
                     var g = engine.GetPage(p);
