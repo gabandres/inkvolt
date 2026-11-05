@@ -589,9 +589,10 @@ struct PageCleanupStepsTests {
     private static let edge = CropBox(0.1, 0.1, 0.7, 0.7)
 
     private static func analysed(_ cleanup: PageFilters, looksBlank: Bool = false, skipBlank: Bool = true, separator: SeparatorFound = .none,
-                                 photos: [PhotoBox]? = nil, paperEdge: CropBox? = edge, edits: PageEdits = .none) -> ScannedPage {
+                                 photos: [PhotoBox]? = nil, paperEdge: CropBox? = edge, edits: PageEdits = .none, skew: Double = 2,
+                                 straighten: Bool = true) -> ScannedPage {
         var pages = ScanPages([ScannedPage(id: "a", dpi: 300, edits: edits)])
-        pages.analysed("a", looksBlank: looksBlank, skew: 2, skipBlank: skipBlank, straighten: true, separator: separator, photos: photos,
+        pages.analysed("a", looksBlank: looksBlank, skew: skew, skipBlank: skipBlank, straighten: straighten, separator: separator, photos: photos,
                        cleanup: cleanup, paperEdge: paperEdge)
         return pages.page("a")!
     }
@@ -611,6 +612,18 @@ struct PageCleanupStepsTests {
         #expect(Self.analysed(.all, separator: SeparatorFound(.patchCode)).edits == .none)
         let byHand = PageEdits(crop: CropBox(0.2, 0.2, 0.5, 0.5))
         #expect(Self.analysed(.all, edits: byHand).edits == byHand)
+    }
+
+    /// The edge is found on the page straightened by the skew the check measured: a page straightened by another angle (edited
+    /// during the check, or not straightened) would be cut in the wrong place, so it keeps its whole page.
+    @Test func thePaperEdgeCropsOnlyAPageStraightenedAsItWasMeasured() {
+        let turned = PageEdits(quarterTurns: 1)
+        #expect(Self.analysed(.all, edits: turned).edits == PageEdits(quarterTurns: 1, filters: .pixelFilters))
+        #expect(Self.analysed(.all, edits: turned, skew: 0).edits == PageEdits(quarterTurns: 1, crop: Self.edge, filters: .all))
+        #expect(Self.analysed(.all, straighten: false).edits == PageEdits(filters: .pixelFilters))
+        #expect(Self.analysed(.all).edits == PageEdits(deskew: 2, crop: Self.edge, filters: .all))
+        #expect(PageEdits(deskew: 1).cleanedUp(.all, photos: false, paperEdge: Self.edge, measuredAt: 2) == PageEdits(deskew: 1, filters: .pixelFilters))
+        #expect(PageEdits(deskew: 1).cleanedUp(.cropToPaper, photos: false, paperEdge: Self.edge, measuredAt: 2) == nil)
     }
 
     @Test func photosOnTheGlassGetOnlyWhatSuitsAPrint() {

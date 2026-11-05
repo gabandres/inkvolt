@@ -264,6 +264,22 @@ public struct PageEdits: Equatable, Sendable {
         }
         return e
     }
+
+    /// These edits after a scan's clean up by its settings (`cleanup`), on a page the check kept (not blank or a separator):
+    /// all of it on a page, on a page of photos only what suits a print (descreen, restore colors). Only a page with no
+    /// filters or crop yet gets it. `paperEdge` (`PaperEdge.find`, measured on the page straightened by `measuredAt` degrees)
+    /// crops only a page straightened by that much: one edited during the check, or not straightened, stays whole. Nil when
+    /// nothing changes. The Windows app's `PageEdits.CleanedUp`.
+    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double) -> PageEdits? {
+        guard !cleanup.isEmpty, filters.isEmpty, crop == nil else { return nil }
+        var e = self
+        e.filters = cleanup.intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
+        if cleanup.contains(.cropToPaper), !photos, deskew == measuredAt, let paperEdge {
+            e.crop = paperEdge
+            e.filters.insert(.cropToPaper)
+        }
+        return e.filters.isEmpty ? nil : e
+    }
 }
 
 /// Arbitrary-angle rotation of raw pixels (straightening a page), bilinear, same size, uncovered corners white.

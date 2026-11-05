@@ -99,10 +99,10 @@ public struct ScanPages: Equatable, Sendable {
     /// A separator sheet is neither skipped nor straightened, nor is a page of photos straightened (each photo is cut out
     /// straight by itself).
     ///
-    /// `cleanup` (the scan's or preset's) then goes on a page that isn't blank or a separator and has no filters or crop
-    /// yet: all of it on a page, on a page of photos only what suits a print (descreen, restore colors). `paperEdge` is
-    /// `PaperEdge.find` on the analysis copy, which the caller runs only when `wantsPaperEdge` says. Returns the page's
-    /// edits from before the clean up, for Undo; nil when it got none.
+    /// `cleanup` (the scan's or preset's) then goes on a page that isn't blank or a separator (`PageEdits.cleanedUp`).
+    /// `paperEdge` is `PaperEdge.find` on the analysis copy straightened by `skew`, which the caller runs only when
+    /// `wantsPaperEdge` says; it crops only a page straightened by `skew`. Returns the page's edits from before the clean
+    /// up, for Undo; nil when it got none.
     @discardableResult
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
                                   separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
@@ -116,14 +116,10 @@ public struct ScanPages: Equatable, Sendable {
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
             if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
-            guard !cleanup.isEmpty, !blank, !p.looksBlank, !separator.isSeparator, p.edits.filters.isEmpty, p.edits.crop == nil else { return }
-            var filters = cleanup.intersection(p.hasPhotos ? [.descreen, .restoreColors] : .pixelFilters)
-            let crop = photos == nil && cleanup.contains(.cropToPaper) ? paperEdge : nil
-            if crop != nil { filters.insert(.cropToPaper) }
-            if filters.isEmpty { return }
+            guard !cleanup.isEmpty, !blank, !p.looksBlank, !separator.isSeparator,
+                  let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
             before = p.edits
-            p.edits.crop = crop
-            p.edits.filters = filters
+            p.edits = cleaned
         }
         return before
     }
