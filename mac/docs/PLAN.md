@@ -175,6 +175,9 @@ sheet's buttons were cut off (it's wider now) |
   when no printer answers, which Windows' spooler has no counterpart for; the supplies card then shows no source line.
   Words say "the printer over USB (IPP)" and "From the printer", never "through Windows"; the origin with no answer is
   "macOS's print queue". Paused, not accepting jobs, and stopped on an error are macOS's holds that stay the headline.
+  `DeviceQueueStatus` is an actor: reads that overlap share one round of questions, and a round with nothing keeps the
+  last reading for 2 minutes (`keptFor`), asking again every 30 s meanwhile (Windows drops it on the first miss and waits
+  5 minutes; its callers read one at a time).
 - Job notifications (roadmap 3.4, 2026-11-05) read CUPS's `job-state`, not the spooler's bits: failed is `stopped` or
   `aborted` (no `job-state-reasons` from `cupsGetJobs2`, so a jam and a queue paused mid-job both read failed); a job
   held by hand isn't stuck; a job CUPS gave up on and then lists as waiting again was restarted. No page counts, so a job

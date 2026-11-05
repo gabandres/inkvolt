@@ -60,17 +60,24 @@ public struct QueueStatusRead: Equatable, Sendable {
 /// asked in order, the first that answers wins, and what it said is merged into macOS's read of the queue
 /// (`QueueDevice.merge`). Each call is time-limited (`limit`); a reader that answers is asked again after `readInterval`, one
 /// that has nothing (unsupported, timed out, failed) after `nothingInterval`, so a queue whose printer never answers costs
-/// one try every few minutes. The last reading stands for a read in between.
+/// one try every few minutes. The last reading stands for a read in between. Two Mac differences (Windows' source is read
+/// by one caller at a time and drops its reading on the first miss): reads that overlap share one round of questions (an
+/// actor lets the second in while the first waits on the printer), and a round with nothing keeps the last reading while
+/// it's younger than `keptFor`, asking again after `readInterval`, so one timeout doesn't blank the card for five minutes.
 public actor DeviceQueueStatus {
     public static let readInterval: TimeInterval = 30
     public static let nothingInterval: TimeInterval = 5 * 60
+    public static let keptFor: TimeInterval = 2 * 60
     public static let callLimit: Duration = .seconds(8)
 
     private let readers: [any QueueDeviceReader]
     private let now: @Sendable () -> Date
     private let limit: Duration
     private var last: QueueDeviceReading?
+    /// When `last` was read.
+    private var lastAt = Date.distantPast
     private var next = Date.distantPast
+    private var inFlight: Task<Void, Never>?
     private var macOSHadSupplies = false
 
     /// `now` and `limit`: a clock and a shorter time per call, for tests.
@@ -102,17 +109,30 @@ public actor DeviceQueueStatus {
         guard let macOS else { return nil }
         macOSHadSupplies = !macOS.supplies.isEmpty
         let at = now()
-        if at >= next {
-            last = nil
-            for reader in readers {
-                if let r = await ask(reader), r.saysAnything {
-                    last = r
-                    break
-                }
-            }
-            next = at.addingTimeInterval(last == nil ? Self.nothingInterval : Self.readInterval)
+        if let inFlight {
+            await inFlight.value
+        } else if at >= next {
+            let round = Task { await self.askReaders(at) }
+            inFlight = round
+            await round.value
         }
         return last.map { QueueDevice.merge(macOS, $0) } ?? macOS
+    }
+
+    /// One round: the readers in order until one answers.
+    private func askReaders(_ at: Date) async {
+        defer { inFlight = nil }
+        for reader in readers {
+            if let r = await ask(reader), r.saysAnything {
+                (last, lastAt, next) = (r, at, at.addingTimeInterval(Self.readInterval))
+                return
+            }
+        }
+        if last != nil && at.timeIntervalSince(lastAt) < Self.keptFor {
+            next = at.addingTimeInterval(Self.readInterval) // kept: ask again soon
+        } else {
+            (last, next) = (nil, at.addingTimeInterval(Self.nothingInterval))
+        }
     }
 
     private func ask(_ reader: any QueueDeviceReader) async -> QueueDeviceReading? {

@@ -278,6 +278,70 @@ struct QueueDeviceTests {
         #expect(await source.origin == "the printer over IPP")
     }
 
+    /// The Mac's own: an actor lets a second read in while the first waits on the printer; it shares that round, never
+    /// starts another, and both get the printer's reading.
+    @Test func readsAtTheSameTimeShareOneRoundOfQuestions() async throws {
+        let reading = IppQueueReading.from(try Self.attributesGroup(try Self.fixtureText()), usb: true)
+        let ipp = Reader {
+            try? await Task.sleep(for: .milliseconds(300))
+            return reading
+        }
+        let source = DeviceQueueStatus(readers: [ipp])
+        async let a = source.read(Self.macOS(Self.ready))
+        async let b = source.read(Self.macOS(Self.ready))
+        let (first, second) = await (a, b)
+        #expect(ipp.calls == 1)
+        #expect(first?.supplies.count == 5)
+        #expect(second?.supplies.count == 5)
+    }
+
+    final class Answers: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value = true
+        var on: Bool {
+            get { lock.withLock { value } }
+            set { lock.withLock { value = newValue } }
+        }
+    }
+
+    /// One round with nothing (a timeout, a printer busy for a moment) keeps the last reading for `keptFor` and asks again
+    /// after `readInterval`; only after that does the card go back to macOS's view and the five-minute wait.
+    @Test func oneMissedReadKeepsTheLastReadingAndAsksAgainSoon() async throws {
+        let clock = Clock(Self.t0)
+        let reading = IppQueueReading.from(try Self.attributesGroup(try Self.fixtureText()), usb: true)
+        let answers = Answers()
+        let ipp = Reader { answers.on ? reading : nil }
+        let source = DeviceQueueStatus(readers: [ipp], now: { clock.now })
+        #expect(await source.read(Self.macOS(Self.ready))?.supplies.count == 5)
+
+        answers.on = false
+        clock.advance(30)
+        #expect(await source.read(Self.macOS(Self.ready))?.supplies.count == 5) // kept
+        #expect(await source.from == .printerOverUsb)
+        clock.advance(30)
+        #expect(await source.read(Self.macOS(Self.ready))?.supplies.count == 5)
+        #expect(ipp.calls == 3) // asked again 30 s after a miss, not 5 minutes
+
+        answers.on = true
+        clock.advance(30)
+        #expect(await source.read(Self.macOS(Self.ready))?.supplies.count == 5)
+        #expect(ipp.calls == 4)
+
+        answers.on = false
+        var at = 0.0
+        while at < DeviceQueueStatus.keptFor + 1 {
+            clock.advance(DeviceQueueStatus.readInterval)
+            at += DeviceQueueStatus.readInterval
+            _ = await source.read(Self.macOS(Self.ready))
+        }
+        #expect(await source.read(Self.macOS(Self.ready))?.supplies.isEmpty == true) // too old: macOS's own view
+        #expect(await source.from == nil)
+        let calls = ipp.calls
+        clock.advance(4 * 60)
+        _ = await source.read(Self.macOS(Self.ready))
+        #expect(ipp.calls == calls)
+    }
+
     @Test func aRemovedQueueIsStillReportedRemoved() async {
         let reader = Reader { throw Bidi() }
         #expect(await DeviceQueueStatus(readers: [reader]).read(nil) == nil)
