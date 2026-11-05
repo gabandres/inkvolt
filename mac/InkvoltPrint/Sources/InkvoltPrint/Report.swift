@@ -303,26 +303,18 @@ enum Report {
         var rules = model.settings.rules
         (rules.enabled, rules.jobs, rules.quiet) = (true, true, nil)
         let tracker = AlertTracker(rules: rules)
-        let me = JobOwner(userName: model.queues.user, machine: ProcessInfo.processInfo.hostName)
-        let destinations = await model.queues.destinations() ?? []
+        let me = model.jobOwner
         let start = Date()
         var told: [AlertNotice] = []
         for now in [start, start.addingTimeInterval(rules.errorHold + 1)] {
-            for p in model.printers {
-                guard let queue = p.queueName, let d = destinations.first(where: { $0.name.caseInsensitiveCompare(queue) == .orderedSame }) else { continue }
-                guard let jobs = await model.queues.alertJobs(queue) else {
-                    if now == start { lines.append("  \(p.name) [\(queue)]: cupsd didn't list its jobs") }
-                    continue
+            told += await model.readJobs(into: tracker, now: now) { p, queue, jobs, state in
+                guard now == start else { return }
+                guard let jobs, let state else { return lines.append("  \(p.name) [\(queue)]: cupsd didn't list its jobs") }
+                let each = jobs.map { j in
+                    "#\(j.id) \(j.state)\(me.owns(j, othersMayPrint: state.othersMayPrint) ? " mine" : "") from \(j.machine ?? "-")"
                 }
-                let state = JobQueueState.of(d, jobs: jobs, now: now)
-                if now == start {
-                    let each = jobs.map { j in
-                        "#\(j.id) \(j.state)\(me.owns(j, othersMayPrint: state.othersMayPrint) ? " mine" : "") from \(j.machine ?? "-")"
-                    }
-                    lines.append("  \(p.name) [\(queue)]: \(jobs.count) read, \(state.jobs.count) followed\(state.paused ? ", paused" : "")"
-                        + "\(state.printerOffline ? ", offline" : ""): \(each.joined(separator: "; "))")
-                }
-                told += tracker.observeJobs(p.id, printerName: p.name, state, me: me, now: now)
+                lines.append("  \(p.name) [\(queue)]: \(jobs.count) read, \(state.jobs.count) followed\(state.paused ? ", paused" : "")"
+                    + "\(state.printerOffline ? ", offline" : ""): \(each.joined(separator: "; "))")
             }
         }
         for n in told {

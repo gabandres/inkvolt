@@ -76,8 +76,12 @@ struct PrinterPane: View {
         ScrollViewReader { proxy in
             statusCards
                 .onChange(of: app.paneRequest, initial: true) { _, request in
-                    guard request == .printQueue, let queue = printer.queueName else { return }
-                    Task { @MainActor in withAnimation { proxy.scrollTo(queue, anchor: .top) } } // after the tab shows
+                    guard request == .printQueue else { return }
+                    let queue = printer.queueName
+                    Task { @MainActor in // after the tab shows; then handled, so the next job's notification asks again
+                        if let queue { withAnimation { proxy.scrollTo(queue, anchor: .top) } }
+                        if app.paneRequest == .printQueue { app.paneRequest = nil }
+                    }
                 }
         }
     }

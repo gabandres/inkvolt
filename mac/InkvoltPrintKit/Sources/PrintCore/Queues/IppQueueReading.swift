@@ -11,6 +11,12 @@ public enum IppQueueReading {
         "marker-high-levels", "marker-types", "marker-colors", "printer-alert", "printer-alert-description",
     ]
 
+    /// A Bonjour queue's service resolved within this, then the request sent within `requestLimit`: together under
+    /// `DeviceQueueStatus.callLimit`, so a slow resolve leaves the request its time. A relay's local-only service resolves in
+    /// milliseconds.
+    public static let resolveLimit: Duration = .seconds(2)
+    public static let requestLimit: Duration = .seconds(5)
+
     /// Largest reply read (a real one is a few kilobytes).
     public static let maxBytes = 256 * 1024
 
@@ -64,13 +70,20 @@ public enum IppQueueReading {
     /// nothing to ask (no route, an `ippusb://` with a make and model instead of a service, which only cupsd can reach, or an
     /// address that isn't one). Credentials in the URI are never kept.
     public static func target(_ d: CupsDestination) -> IppQueueTarget? {
-        guard route(d) != nil, let uri = d.deviceUri, let scheme = CupsQueues.scheme(uri), let host = CupsQueues.host(uri) else { return nil }
+        guard route(d) != nil, let uri = d.deviceUri, let scheme = CupsQueues.scheme(uri), let parts = CupsQueues.parts(uri),
+              let host = parts.host else { return nil }
         if let service = service(host) { return service }
         guard ["ipp", "ipps", "http", "https"].contains(scheme), isHostName(host) else { return nil }
         let tls = scheme == "ipps" || scheme == "https"
-        let (given, path) = portAndPath(uri)
-        let port = given ?? (scheme.hasPrefix("ipp") ? 631 : tls ? 443 : 80)
-        guard (1...65535).contains(port), let path else { return nil }
+        var port = scheme.hasPrefix("ipp") ? 631 : tls ? 443 : 80
+        if let given = parts.port {
+            guard !given.isEmpty, given.count <= 5, given.allSatisfy({ $0.isASCII && $0.isNumber }), let n = Int(given) else { return nil }
+            port = n
+        }
+        let path = parts.path
+        let safe = path.allSatisfy { $0.isASCII && !$0.isWhitespace && $0 != "\\" }
+            && !path.split(separator: "/").contains { $0 == ".." || $0 == "." }
+        guard (1...65535).contains(port), safe else { return nil }
         let bracketed = host.contains(":") ? "[\(host)]" : host
         return URL(string: "\(tls ? "https" : "http")://\(bracketed):\(port)\(path)").map { .url($0) }
     }
@@ -92,28 +105,6 @@ public enum IppQueueReading {
     /// A DNS name or an IP address: letters, digits, dots, hyphens and an IPv6 address's colons, nothing else.
     private static func isHostName(_ host: String) -> Bool {
         !host.isEmpty && host.utf8.count <= 253 && host.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || ".-:".contains($0)) }
-    }
-
-    /// The port and the path (no query, no fragment) after a URI's host; nil path for one that can't be sent as it is.
-    private static func portAndPath(_ uri: String) -> (Int?, String?) {
-        guard let start = uri.range(of: "://")?.upperBound else { return (nil, nil) }
-        let rest = uri[start...]
-        let authorityEnd = rest.firstIndex { "/?#".contains($0) } ?? rest.endIndex
-        var authority = rest[..<authorityEnd]
-        if let at = authority.lastIndex(of: "@") { authority = authority[authority.index(after: at)...] }
-        var port: Int?
-        let afterHost = authority.hasPrefix("[") ? authority.firstIndex(of: "]").map { authority[authority.index(after: $0)...] } ?? "" : authority
-        if let colon = afterHost.lastIndex(of: ":"), !authority.hasPrefix("[") || afterHost.first == ":" {
-            let digits = afterHost[afterHost.index(after: colon)...]
-            guard !digits.isEmpty, digits.count <= 5, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return (nil, nil) }
-            port = Int(digits)
-        }
-        let pathEnd = rest[authorityEnd...].firstIndex { "?#".contains($0) } ?? rest.endIndex
-        var path = String(rest[authorityEnd..<pathEnd])
-        if path.isEmpty { path = "/" }
-        let safe = path.allSatisfy { $0.isASCII && !$0.isWhitespace && $0 != "\\" }
-            && !path.split(separator: "/").contains { $0 == ".." || $0 == "." }
-        return (port, safe ? path : nil)
     }
 }
 
@@ -147,7 +138,7 @@ public struct IppQueueDeviceReader: QueueDeviceReader {
               !host.isEmpty else { return nil }
         let http = DeviceHttp(host: host, transport: transport)
         let body = IppCodec.encodeGetPrinterAttributes(IppClient(http, endpoint: url).printerUri, IppQueueReading.attributes)
-        let request = HttpRequest("POST", url, headers: ["Content-Type": "application/ipp"], body: body, timeout: .seconds(5), once: true,
+        let request = HttpRequest("POST", url, headers: ["Content-Type": "application/ipp"], body: body, timeout: IppQueueReading.requestLimit, once: true,
                                   replyLimit: IppQueueReading.maxBytes)
         let response = try await http.send(request)
         guard response.isSuccess else { return nil }

@@ -10,6 +10,11 @@ public enum QueueJobAttributes {
         "time-at-completed", "job-k-octets", "job-media-sheets-completed",
     ]
 
+    /// The jobs CUPS gave up on read each time, newest first (Get-Jobs' `limit`; cupsd lists finished jobs by when they
+    /// finished, the latest first): read every minute, only one from the last `JobQueueState.abortedKeptFor` is followed, so
+    /// a queue's whole history isn't read each minute.
+    public static let abortedLimit = 20
+
     /// A document's name, a user and a host are kept to this many characters (a notification shows far fewer).
     public static let maxName = 1024
 

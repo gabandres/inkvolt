@@ -342,6 +342,40 @@ struct QueueDeviceTests {
         #expect(ipp.calls == calls)
     }
 
+    /// The card doesn't wait on the printer: while a round is out (up to `callLimit`), macOS's state now shows at once, with
+    /// the printer's last reading merged in and its origin.
+    @Test func whileThePrinterIsAskedMacOSsStateShowsAtOnceWithTheLastReading() async throws {
+        let clock = Clock(Self.t0)
+        let reading = IppQueueReading.from(try Self.attributesGroup(try Self.fixtureText()), usb: true)
+        let slow = Answers()
+        slow.on = false
+        let ipp = Reader {
+            if slow.on { try? await Task.sleep(for: .seconds(1)) }
+            return reading
+        }
+        let source = DeviceQueueStatus(readers: [ipp], now: { clock.now })
+        let first = await source.current(Self.macOS(Self.ready))
+        #expect(first.read == Self.macOS(Self.ready)) // nothing read yet: macOS's own
+        #expect(first.origin == "macOS's print queue")
+        _ = await source.read(Self.macOS(Self.ready))
+
+        slow.on = true
+        clock.advance(DeviceQueueStatus.readInterval)
+        let paused = PrinterStatus(code: "paused", message: "Paused in macOS", severity: .warning, alerts: [])
+        let asking = Task { await source.read(Self.macOS(paused)) }
+        for _ in 0..<200 where ipp.calls < 2 { try await Task.sleep(for: .milliseconds(5)) }
+        #expect(ipp.calls == 2)
+
+        let started = Date()
+        let now = await source.current(Self.macOS(paused))
+        #expect(Date().timeIntervalSince(started) < 0.5)
+        #expect(now.read.status.message == "Paused in macOS")
+        #expect(now.read.supplies.count == 5)
+        #expect(now.origin == "the printer over USB (IPP)")
+        #expect(now.source == "From the printer over USB")
+        #expect(await asking.value?.supplies.count == 5)
+    }
+
     @Test func aRemovedQueueIsStillReportedRemoved() async {
         let reader = Reader { throw Bidi() }
         #expect(await DeviceQueueStatus(readers: [reader]).read(nil) == nil)
@@ -395,6 +429,11 @@ struct QueueDeviceTests {
         ("ipp://192.0.2.11", "http://192.0.2.11:631/"),
         ("http://192.0.2.11:8080/ipp", "http://192.0.2.11:8080/ipp"),
         ("ipp://admin:secret@192.0.2.11/ipp/print", "http://192.0.2.11:631/ipp/print"), // credentials never kept
+        // One parse for host, port and path: the authority ends at `/`, `?` or `#`, so an `@` after it is no credential.
+        ("ipp://printer.local#x", "http://printer.local:631/"),
+        ("ipp://printer.local:8632#x@192.0.2.66/ipp", "http://printer.local:8632/"),
+        ("ipp://printer.local?x@192.0.2.66/ipp", "http://printer.local:631/"),
+        ("ipp://192.0.2.11/ipp/print@x", "http://192.0.2.11:631/ipp/print@x"),
     ])
     func aQueuesOwnAddressIsAskedOverHttp(uri: String, url: String) {
         #expect(IppQueueReading.target(Self.queue(uri)) == .url(URL(string: url)!))
@@ -458,6 +497,15 @@ struct QueueDeviceTests {
         #expect(request.once)
         #expect(request.replyLimit == IppQueueReading.maxBytes)
         #expect(request.body == IppCodec.encodeGetPrinterAttributes("ipp://localhost:8632/ipp/print", IppQueueReading.attributes))
+    }
+
+    /// A Bonjour queue's resolve and then its request fit in one call's limit, so a slow resolve can't leave the request cut
+    /// off by `DeviceQueueStatus` with its answer on the way.
+    @Test func aResolveAndItsRequestFitInOneCall() async throws {
+        #expect(IppQueueReading.resolveLimit + IppQueueReading.requestLimit < DeviceQueueStatus.callLimit)
+        let transport = Transport { _ in HttpResponse(status: 404) }
+        _ = try await Self.reader(transport, "http://localhost:8632/ipp/print").read()
+        #expect(transport.requests.first?.timeout == IppQueueReading.requestLimit)
     }
 
     @Test func noAddressAnErrorPageOrARefusalIsNothing() async throws {

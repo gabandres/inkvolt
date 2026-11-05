@@ -165,27 +165,40 @@ final class PrinterModel: Identifiable {
             deviceStatus = readers.isEmpty ? nil : DeviceQueueStatus(readers: readers)
         }
         let macOS = QueueStatusRead.of(d)
+        readsStarted += 1 // every read, so a device read still out for an older one (an old target) shows nothing
+        let ticket = readsStarted
         guard let deviceStatus else {
             show(d, macOS, origin: QueueDeviceText.macOSOrigin, source: QueueDeviceText.suppliesSource(macOS, from: nil))
+            observing = historyStep
             return
         }
-        readsStarted += 1
-        let ticket = readsStarted
-        Task { [weak self] in
+        observing = Task { [weak self] in
+            // macOS's state at once, with the printer's last reading: the card doesn't wait on the printer (up to its limit).
+            let now = await deviceStatus.current(macOS)
+            if let me = self, ticket == me.readsStarted, !me.stopped { // else a newer read is on its way, or it was removed
+                me.showCard(d, now.read, origin: now.origin, source: now.source)
+            } else {
+                return
+            }
             let read = await deviceStatus.read(macOS) ?? macOS
             let origin = await deviceStatus.origin
             let source = await deviceStatus.suppliesSource(read)
-            guard let self, ticket == self.readsStarted, !self.stopped else { return } // a newer read is on its way, or removed
+            guard let self, ticket == self.readsStarted, !self.stopped else { return }
             self.show(d, read, origin: origin, source: source)
+            await self.historyStep?.value
         }
     }
 
+    /// The latest queue read's way into the alerts (`update`): over once its snapshot reached the alert tracker. Job alerts
+    /// wait for it, so a job is judged with the printer's state from the same read (`AppModel.readJobs`).
+    @ObservationIgnored private var observing: Task<Void, Never>?
+
+    /// Once the latest queue read's snapshot reached the alert tracker (at once for a network printer: its monitor's do).
+    func observed() async { await observing?.value }
+
     /// A queue read shown: the card, then its levels into the supply history, then the alert.
     private func show(_ d: CupsDestination, _ read: QueueStatusRead, origin: String, source: String?) {
-        var v = CupsStatus.view(d, read: read, origin: origin, suppliesSource: source)
-        if v.isOnline { lastReading = Date() }
-        v.supplyHistory = view.supplyHistory // until the history has this reading
-        if v != view { view = v }
+        let v = showCard(d, read, origin: origin, source: source)
         let snapshot = CupsStatus.snapshot(d, id: id, read: read)
         guard let history else {
             app.observe(snapshot)
@@ -199,6 +212,16 @@ final class PrinterModel: Identifiable {
             let shown = history.show(supplies, pages: nil)
             await self?.showHistory(shown, snapshot)
         }
+    }
+
+    /// A queue read on the card alone (its history and alert come with `show`).
+    @discardableResult
+    private func showCard(_ d: CupsDestination, _ read: QueueStatusRead, origin: String, source: String?) -> PrinterView {
+        var v = CupsStatus.view(d, read: read, origin: origin, suppliesSource: source)
+        if v.isOnline { lastReading = Date() }
+        v.supplyHistory = view.supplyHistory // until the history has this reading
+        if v != view { view = v }
+        return v
     }
 
     /// A queue reading's history worked out: the card's lines and chart, and the alert's days left.

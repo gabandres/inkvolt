@@ -101,6 +101,13 @@ public actor DeviceQueueStatus {
         QueueDeviceText.suppliesSource(read, from: last.flatMap { $0.supplies.isEmpty ? nil : $0.from })
     }
 
+    /// The queue now without asking the printer: `macOS`'s read with the last reading, its origin and supplies line, so the
+    /// card shows macOS's state at once while a round (up to `callLimit`) is out; `read` then gives the printer's answer.
+    public func current(_ macOS: QueueStatusRead) -> (read: QueueStatusRead, origin: String, source: String?) {
+        let read = last.map { QueueDevice.merge(macOS, $0) } ?? macOS
+        return (read, origin, suppliesSource(read))
+    }
+
     /// The queue now: `macOS`'s read with what the printer said. Nil when macOS no longer has the queue (removed meanwhile),
     /// and then nothing is asked.
     public func read(_ macOS: QueueStatusRead?) async -> QueueStatusRead? {

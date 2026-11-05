@@ -24,9 +24,10 @@ public enum QueueDeviceReaders {
 }
 
 /// One Bonjour service resolved once (`DNSServiceResolve` on every interface, the local-only ones included): its host, port
-/// and TXT record, or nil when it doesn't answer within `timeout`. Its type must be in `NSBonjourServices`.
+/// and TXT record, or nil when it doesn't answer within `timeout` (`IppQueueReading.resolveLimit`: the request after it
+/// still fits in `DeviceQueueStatus.callLimit`). Its type must be in `NSBonjourServices`.
 enum ServiceResolve {
-    static let timeout: DispatchTimeInterval = .seconds(5)
+    static let timeout: DispatchTimeInterval = .seconds(Int(IppQueueReading.resolveLimit.components.seconds))
 
     static func once(instance: String, type: String, domain: String) async -> DnssdService? {
         let box = Resolving(tls: type == "_ipps._tcp")

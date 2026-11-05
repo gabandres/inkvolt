@@ -122,16 +122,30 @@ public enum CupsQueues {
     }
 
     /// The host part, percent-decoded ("NPI1A2B3C.local", "192.0.2.40", "HP LaserJet (1A2B3C)._ipp._tcp.local.").
-    static func host(_ uri: String) -> String? {
+    static func host(_ uri: String) -> String? { parts(uri)?.host }
+
+    /// A URI's host, port and path, in one parse (`host`, `IppQueueReading.target`): the authority runs from `://` to the
+    /// first `/`, `?` or `#`, its credentials end at its last `@`, an IPv6 address is in brackets; the path (never empty)
+    /// runs to the first `?` or `#`. Host percent-decoded and nil when empty; `port`: the text after the host's colon, nil
+    /// without one. Nil without `://`.
+    static func parts(_ uri: String) -> (host: String?, port: Substring?, path: Substring)? {
         guard let start = uri.range(of: "://")?.upperBound else { return nil }
-        var rest = uri[start...]
-        if let at = rest.firstIndex(of: "@"), rest[..<at].firstIndex(of: "/") == nil { rest = rest[rest.index(after: at)...] }
-        var h = String(rest.prefix { $0 != "/" && $0 != "?" })
-        if h.hasPrefix("[") { h = String(h.prefix { $0 != "]" }.dropFirst()) } else if let colon = h.lastIndex(of: ":"), h[h.index(after: colon)...].allSatisfy(\.isNumber) {
-            h = String(h[..<colon])
+        let rest = uri[start...]
+        let authorityEnd = rest.firstIndex { "/?#".contains($0) } ?? rest.endIndex
+        var authority = rest[..<authorityEnd]
+        if let at = authority.lastIndex(of: "@") { authority = authority[authority.index(after: at)...] }
+        var host = authority, port: Substring?
+        if authority.hasPrefix("[") {
+            let close = authority.firstIndex(of: "]") ?? authority.endIndex
+            host = authority[authority.index(after: authority.startIndex)..<close]
+            let after = close < authority.endIndex ? authority[authority.index(after: close)...] : ""
+            if !after.isEmpty { port = after.first == ":" ? after.dropFirst() : after } // not a port: refused where one is read
+        } else if let colon = authority.lastIndex(of: ":") {
+            (host, port) = (authority[..<colon], authority[authority.index(after: colon)...])
         }
-        h = h.removingPercentEncoding ?? h
-        return h.isEmpty ? nil : h
+        let decoded = host.removingPercentEncoding ?? String(host)
+        let path = rest[authorityEnd..<(rest[authorityEnd...].firstIndex { "?#".contains($0) } ?? rest.endIndex)]
+        return (decoded.isEmpty ? nil : decoded, port, path.isEmpty ? "/" : path)
     }
 
     /// A Bonjour service's instance name in a device URI ("HP LaserJet MFP M234dw (1A2B3C)" from

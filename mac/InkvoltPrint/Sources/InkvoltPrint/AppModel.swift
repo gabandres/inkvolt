@@ -326,7 +326,9 @@ final class AppModel {
         }
         reconcile()
         if settings.rules.enabled && settings.jobAlerts, jobsReadAt.map({ Date().timeIntervalSince($0) >= Self.jobsRefresh }) ?? true {
-            show(await readJobs(now: Date()))
+            let now = Date()
+            jobsReadAt = now
+            show(await readJobs(now: now))
         }
     }
 
@@ -334,23 +336,31 @@ final class AppModel {
     static let jobsRefresh: TimeInterval = 60
     @ObservationIgnored private var jobsReadAt: Date?
 
-    /// Job alerts' read (roadmap 3.4): each printer's macOS queue (a queue printer's own, a network printer's), its jobs
-    /// through `PrintQueues.alertJobs`, into the tracker after the printer's own read; the notices due now. A queue cupsd
-    /// can't list now is skipped, never read as empty.
-    func readJobs(now: Date) async -> [AlertNotice] {
-        jobsReadAt = now
-        let me = JobOwner(userName: queues.user, machine: ProcessInfo.processInfo.hostName)
+    /// Who this Mac's user is to CUPS, for job alerts.
+    var jobOwner: JobOwner { JobOwner(userName: queues.user, machine: ProcessInfo.processInfo.hostName) }
+
+    /// Job alerts' read (roadmap 3.4), the app's and `--report --jobs`'s: each printer's macOS queue (a queue printer's own, a
+    /// network printer's) as last listed, its jobs through `PrintQueues.alertJobs`, into `tracker` at `now` once the printer's
+    /// own snapshot from the same read is there (`PrinterModel.observed`: a queue printer's may wait on its printer); the
+    /// notices due now. `tracker`: the report's own; nil, the app's as it is then. A queue cupsd can't list now is skipped,
+    /// never read as empty; `heard` gets each queue's jobs as read (nil: not listed) and the state followed.
+    func readJobs(into own: AlertTracker? = nil, now: Date,
+                  heard: (PrinterModel, String, [QueueJob]?, JobQueueState?) -> Void = { _, _, _, _ in }) async -> [AlertNotice] {
+        let me = jobOwner
         var told: [AlertNotice] = []
         for p in printers {
             guard let queue = p.queueName else { continue }
             let d = destinations?.first { $0.name.caseInsensitiveCompare(queue) == .orderedSame }
             var state: JobQueueState?
             if let d {
-                guard let jobs = await queues.alertJobs(queue) else { continue }
-                state = JobQueueState.of(d, jobs: jobs, now: now)
+                let jobs = await queues.alertJobs(queue)
+                state = jobs.map { JobQueueState.of(d, jobs: $0, now: now) }
+                heard(p, queue, jobs, state)
+                guard jobs != nil else { continue }
             }
+            await p.observed()
             guard printers.contains(where: { $0 === p }) else { continue } // removed meanwhile
-            told += tracker.observeJobs(p.id, printerName: p.name, state, me: me, now: now)
+            told += (own ?? tracker).observeJobs(p.id, printerName: p.name, state, me: me, now: now)
         }
         return told
     }
@@ -571,11 +581,13 @@ final class AppModel {
     /// Changes the settings, saves them and applies them to the alerts.
     func changeSettings(_ body: (inout AlertSettings) -> Void) {
         let wasOn = settings.rules.enabled
-        if !settings.jobAlerts { jobsReadAt = nil } // turned on: the queues are read at the next queue read, not a minute later
+        let jobsWereOn = wasOn && settings.jobAlerts
         var s = settings
         body(&s)
         s.repair()
         guard s != settings else { return }
+        // Job alerts on again (their switch, or alerts as a whole): the queues are read at the next queue read, not a minute later.
+        if s.rules.enabled && s.jobAlerts && !jobsWereOn { jobsReadAt = nil }
         settings = s
         store.change { $0.alertSettings = s }
         if s.rules.enabled && !wasOn {
