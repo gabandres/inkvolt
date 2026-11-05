@@ -142,6 +142,68 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task AnEditKeepsTheVerdictsOfThePagesItLeftAsTheyWere()
+    {
+        var file = Bomb("1 MB");
+        using var before = Open(file);
+        before.Render(0, 0.25);
+        Assert.Throws<PageRefusedException>(() => before.Render(1, 0.25));
+        before.Render(2, 0.25);
+
+        // The same document saved whole after an edit of page 3: its objects renumbered, page 3's text changed.
+        var edited = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R /Resources << /Font << /F1 6 0 R >> >> >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [7 0 R 8 0 R] /Resources << /Font << /F1 6 0 R >> >> >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 9 0 R /Resources << /Font << /F1 6 0 R >> >> >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            Core2Pdf.Stream("BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET"),
+            Core2Pdf.Stream(Encoding.Latin1.GetString(OnceTo1Gb.Value), "/Filter /FlateDecode"),
+            Core2Pdf.Stream("BT /F1 18 Tf 72 700 Td (Visit notes, signed) Tj ET"),
+        ]);
+        using var after = Open(edited);
+        await after.InheritChecksAsync(before);
+        Assert.Equal(PageVerdict.Fine, after.VerdictOf(0));
+        Assert.Equal(PageVerdict.TooSlow, after.VerdictOf(1));
+        Assert.Equal(PageVerdict.Unknown, after.VerdictOf(2));
+
+        var run = _plan.ChecksRun;
+        var time = Stopwatch.StartNew();
+        Assert.Throws<PageRefusedException>(() => after.Render(1, 0.25));
+        after.Render(0, 0.25);
+        Assert.True(time.Elapsed < TimeSpan.FromSeconds(1), $"{time.Elapsed}");
+        Assert.Equal(run, _plan.ChecksRun);
+        after.Render(2, 0.25); // changed: checked
+        Assert.Equal(run + 1, _plan.ChecksRun);
+    }
+
+    [Fact]
+    public void UndoingAnEditKeepsTheVerdicts()
+    {
+        using var app = PageChecks.UseForTests(_plan);
+        using var session = DocumentSession.FromBytes(ThreePages(Drawn, ""), "visit.pdf");
+        for (var page = 0; page < 3; page++) session.Engine.Render(page, 0.25);
+        var run = _plan.ChecksRun;
+        session.Commit(ThreePages(Drawn, ""), "Nothing changed"); // undone at once: before its verdicts are carried
+        session.Undo();
+        var since = Stopwatch.StartNew();
+        while (session.Engine.VerdictOf(2) != PageVerdict.Fine && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(20);
+        for (var page = 0; page < 3; page++) Assert.Equal(PageVerdict.Fine, session.Engine.VerdictOf(page));
+        Assert.Equal(run, _plan.ChecksRun);
+    }
+
+    [Fact]
+    public void BothCheckProcessesOpenOneCopyOfTheDocument()
+    {
+        using var engine = Open(ThreePages(Drawn, ""));
+        engine.Render(0, 0.25); // page 2 is checked ahead, in the other process
+        engine.Render(1, 0.25);
+        Assert.Equal(2, _plan.Pids.Count);
+        Assert.Equal(1, _plan.SharedCopies);
+    }
+
+    [Fact]
     public void FindOverADocumentWithABombFinishes()
     {
         using var engine = Open(Bomb("7 KB"));

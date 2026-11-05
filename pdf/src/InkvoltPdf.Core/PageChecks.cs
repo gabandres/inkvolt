@@ -280,6 +280,12 @@ internal sealed class CheckedDocument(byte[]? data, string? path, InputFileTypes
         set => _closed = value;
     }
 
+    /// <summary>Its bytes in shared memory while check processes open it (under the plan's lock).</summary>
+    public PdfEngine.SharedBytes? Shared { get; set; }
+
+    /// <summary>Held while <see cref="Shared"/> is made.</summary>
+    public Lock SharedGate { get; } = new();
+
     /// <summary>A check process couldn't open it: its pages run unchecked (set under the plan's lock).</summary>
     public bool Unopenable { get; set; }
 }
@@ -382,6 +388,11 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
 
     private int _checksRun; // under _gate
 
+    /// <summary>Test hook: how many times a document's bytes were copied to shared memory for a check process.</summary>
+    internal int SharedCopies => Volatile.Read(ref _sharedCopies);
+
+    private int _sharedCopies;
+
     /// <summary>Test hook: every check process started so far.</summary>
     internal IReadOnlyList<int> Pids
     {
@@ -413,6 +424,44 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             Monitor.PulseAll(_gate);
         }
         return request;
+    }
+
+    /// <summary>
+    /// The copy of <paramref name="doc"/>'s bytes in shared memory a check process opens: one for both processes, kept
+    /// while checks of the document are queued or under way (<see cref="ReleaseShared"/>), so the second process to open
+    /// it doesn't copy the document again. Each process holds its own view once it has opened it.
+    /// </summary>
+    /// <exception cref="ObjectDisposedException">The document was closed (the check ends).</exception>
+    private PdfEngine.SharedBytes SharedOf(CheckedDocument doc)
+    {
+        // The copy is made under the document's own lock, not the plan's: asking for checks doesn't wait for it.
+        lock (doc.SharedGate)
+        {
+            lock (_gate)
+            {
+                ObjectDisposedException.ThrowIf(doc.Closed, doc);
+                if (doc.Shared is { } kept) return kept;
+            }
+            var made = new PdfEngine.SharedBytes(doc.Data!);
+            lock (_gate)
+            {
+                if (doc.Closed)
+                {
+                    made.Dispose();
+                    throw new ObjectDisposedException(nameof(CheckedDocument));
+                }
+                Interlocked.Increment(ref _sharedCopies);
+                return doc.Shared = made;
+            }
+        }
+    }
+
+    /// <summary>Lets go of a document's shared copy once no check of it is queued or under way. Under _gate.</summary>
+    private void ReleaseShared(CheckedDocument doc)
+    {
+        if (doc.Shared is not { } shared || _links.Any(l => l.Current?.Doc == doc) || (!doc.Closed && _queue.Any(r => r.Doc == doc))) return;
+        doc.Shared = null;
+        shared.Dispose();
     }
 
     /// <summary>A check process failed to start a moment ago: none is tried until <see cref="RetryAfter"/> (doubled) has passed. Under _gate.</summary>
@@ -461,6 +510,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 }
                 node = next;
             }
+            ReleaseShared(doc);
             Monitor.PulseAll(_gate);
         }
         // Bytes in memory: a check under way ends within the limit, and its process goes on (an edit makes a new engine
@@ -551,6 +601,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                         link.Current = null;
                         if (verdict == PageVerdict.Unchecked && link.StartFailed) StartFailed();
                         else if (link.Started) _startFailures = 0;
+                        ReleaseShared(request!.Doc);
                     }
                     request!.Complete(verdict);
                 }
@@ -732,35 +783,27 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         private bool OpenDocument(CheckedDocument doc)
         {
             Open = null;
-            PdfEngine.SharedBytes? shared = null;
+            var shared = doc.Data is null ? null : plan.SharedOf(doc);
+            FindWorkers.WriteInt(_pipe!, PageChecks.AskOpen);
+            new PageChecks.OpenRequest(doc.Data is null ? doc.Path : null, shared?.Name, shared?.Bytes ?? 0, doc.Type, doc.Pages).Write(_pipe!);
+            _pipe!.Flush();
+            int answer;
             try
             {
-                if (doc.Data is { } data) shared = new PdfEngine.SharedBytes(data);
-                FindWorkers.WriteInt(_pipe!, PageChecks.AskOpen);
-                new PageChecks.OpenRequest(doc.Data is null ? doc.Path : null, shared?.Name, shared?.Bytes ?? 0, doc.Type, doc.Pages).Write(_pipe!);
-                _pipe!.Flush();
-                int answer;
-                try
-                {
-                    answer = ReadInt(plan.OpenLimit);
-                }
-                catch (TimeoutException)
-                {
-                    Kill();
-                    answer = PageChecks.NotOpened;
-                }
-                if (answer != PageChecks.Opened)
-                {
-                    lock (plan._gate) doc.Unopenable = true;
-                    return false;
-                }
-                Open = doc;
-                return true;
+                answer = ReadInt(plan.OpenLimit);
             }
-            finally
+            catch (TimeoutException)
             {
-                shared?.Dispose(); // the process holds its own view of the section from here on
+                Kill();
+                answer = PageChecks.NotOpened;
             }
+            if (answer != PageChecks.Opened)
+            {
+                lock (plan._gate) doc.Unopenable = true;
+                return false;
+            }
+            Open = doc;
+            return true;
         }
 
         /// <summary>The next int from the process, within <paramref name="limit"/>.</summary>
