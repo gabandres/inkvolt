@@ -311,7 +311,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
   shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
   space); MuPDF finds a word mixing right-to-left letters and digits only in parts; Inkvolt PDF's Scan dialog ignores a
-  preset's clean up. Mac: not started; Print's Mac work is on hold (owner, 2026-11-02).
+  preset's clean up. Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Left for the Mac: `ScanImaging`'s half, `ScanPdf` writing through PrintCore's `PdfWriter` with Vision's words, the Scan settings and preset editor's Clean up and Text language, the review's Clean up view.
 - **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
   whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
   review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found

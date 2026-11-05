@@ -16,6 +16,10 @@ public struct KeptPage: Equatable, Sendable, Codable {
     public var photos: [PhotoBox]?
     public var separator: SeparatorFound?
     public var looksBlank: Bool?
+    /// The clean up (as the Windows list's `Filters`) and the OCR language (a BCP-47 tag; nil: the Mac's own choice).
+    /// Missing in an older list: none.
+    public var filters: PageFilters?
+    public var ocrLanguage: String?
 
     public init(_ file: String, dpi: Int, ocr: Bool, quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, skipped: Bool = false,
                 startsFile: Bool = false) {
@@ -29,7 +33,9 @@ public struct KeptPage: Equatable, Sendable, Codable {
         self.startsFile = startsFile
     }
 
-    public var edits: PageEdits { PageEdits(quarterTurns: quarterTurns, deskew: deskew, crop: crop) }
+    public var edits: PageEdits {
+        PageEdits(quarterTurns: quarterTurns, deskew: deskew, crop: crop, filters: (filters ?? []).intersection(.all))
+    }
 }
 
 /// One printer's unsaved scan: its pages in order.

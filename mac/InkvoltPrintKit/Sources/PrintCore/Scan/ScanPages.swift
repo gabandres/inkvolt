@@ -20,9 +20,12 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     /// The photos found on the glass (each saved as a picture of its own); nil when they weren't looked for, empty when none
     /// was found (the whole scan is saved).
     public var photos: [PhotoBox]?
+    /// The OCR language the page was scanned with (a BCP-47 tag); nil: the app's own choice.
+    public var ocrLanguage: String?
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
-                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil) {
+                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil) {
+        self.ocrLanguage = ocrLanguage
         self.id = id
         self.dpi = dpi
         self.edits = edits
@@ -39,11 +42,19 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     /// Each photo is saved by itself.
     public var hasPhotos: Bool { !(photos?.isEmpty ?? true) }
 
-    /// What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", or nothing.
+    /// What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", what it was cleaned up
+    /// with, or nothing.
     public var note: String {
         if isSeparator { return "Separator: \(separator.description)" }
-        if hasPhotos { return photos!.count == 1 ? "1 photo" : "\(photos!.count) photos" }
+        if hasPhotos {
+            let count = photos!.count == 1 ? "1 photo" : "\(photos!.count) photos"
+            return edits.filters.isEmpty ? count : "\(count), \(PageCleanup.describe(edits.filters))"
+        }
         if skipped { return looksBlank ? "Blank, not saved" : "Not saved" }
+        if !edits.filters.isEmpty {
+            let done = PageCleanup.describe(edits.filters)
+            return done.prefix(1).uppercased() + done.dropFirst()
+        }
         if edits.deskew != 0 && edits.crop == nil && edits.quarterTurns % 4 == 0 { return "Straightened" }
         return edits.isEmpty ? "" : "Edited"
     }
@@ -87,8 +98,16 @@ public struct ScanPages: Equatable, Sendable {
     /// is straightened when `straighten` and it hasn't been edited meanwhile. A blank page isn't straightened.
     /// A separator sheet is neither skipped nor straightened, nor is a page of photos straightened (each photo is cut out
     /// straight by itself).
+    ///
+    /// `cleanup` (the scan's or preset's) then goes on a page that isn't blank or a separator and has no filters or crop
+    /// yet: all of it on a page, on a page of photos only what suits a print (descreen, restore colors). `paperEdge` is
+    /// `PaperEdge.find` on the analysis copy, which the caller runs only when `wantsPaperEdge` says. Returns the page's
+    /// edits from before the clean up, for Undo; nil when it got none.
+    @discardableResult
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
-                                  separator: SeparatorFound = .none, photos: [PhotoBox]? = nil) {
+                                  separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
+                                  paperEdge: CropBox? = nil) -> PageEdits? {
+        var before: PageEdits?
         update(id) { p in
             p.analysed = true
             p.looksBlank = looksBlank || separator.kind == .blankPage
@@ -97,7 +116,36 @@ public struct ScanPages: Equatable, Sendable {
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
             if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
+            guard !cleanup.isEmpty, !blank, !p.looksBlank, !separator.isSeparator, p.edits.filters.isEmpty, p.edits.crop == nil else { return }
+            var filters = cleanup.intersection(p.hasPhotos ? [.descreen, .restoreColors] : .pixelFilters)
+            let crop = photos == nil && cleanup.contains(.cropToPaper) ? paperEdge : nil
+            if crop != nil { filters.insert(.cropToPaper) }
+            if filters.isEmpty { return }
+            before = p.edits
+            p.edits.crop = crop
+            p.edits.filters = filters
         }
+        return before
+    }
+
+    /// Whether the page check should look for the paper's edge (`PaperEdge.find`) on a page it found so: only for a crop to
+    /// the paper, on a page that isn't blank or a separator and whose photos weren't looked for.
+    public static func wantsPaperEdge(_ cleanup: PageFilters, looksBlank: Bool, separator: SeparatorFound, photos: [PhotoBox]?) -> Bool {
+        cleanup.contains(.cropToPaper) && !looksBlank && separator.kind != .blankPage && !separator.isSeparator && photos == nil
+    }
+
+    /// What a scan cleaned up by its settings says once its pages `ids` are checked: how many pages got a clean up (one
+    /// step of Undo), and how many a crop to the paper was tried on and found no edge (they stay whole). Empty for nothing.
+    public func cleanupSummary(_ ids: [String], _ cleanup: PageFilters) -> String {
+        if cleanup.isEmpty { return "" }
+        let run = ids.compactMap(page)
+        let changed = run.filter { !$0.edits.filters.isEmpty }.count
+        let noEdge = cleanup.contains(.cropToPaper)
+            ? run.filter { !$0.looksBlank && !$0.skipped && !$0.isSeparator && $0.photos == nil && !$0.edits.filters.contains(.cropToPaper) }.count : 0
+        var parts: [String] = []
+        if changed > 0 { parts.append(changed == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(changed) pages were cleaned up (Undo puts them back).") }
+        if noEdge > 0 { parts.append("The paper's edge couldn't be told from the lid on \(noEdge) \(noEdge == 1 ? "page" : "pages"): kept whole.") }
+        return parts.joined(separator: " ")
     }
 
     /// A two-sided batch: the other side of each patch code sheet among `ids` (one run's pages, in order) belongs to the
@@ -200,6 +248,8 @@ public struct ScanPages: Equatable, Sendable {
             k.photos = p.photos
             k.separator = p.isSeparator ? p.separator : nil
             k.looksBlank = p.looksBlank
+            k.filters = p.edits.filters.isEmpty ? nil : p.edits.filters
+            k.ocrLanguage = p.ocrLanguage
             return k
         })
     }
@@ -208,7 +258,7 @@ public struct ScanPages: Equatable, Sendable {
     public init(restoring scan: KeptScan) {
         pages = scan.pages.map { k in
             ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
-                        separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos)
+                        separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
         }
     }
 

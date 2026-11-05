@@ -73,6 +73,12 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     public var skipBlank = true
     public var straighten = true
 
+    /// What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.
+    public var cleanup: PageFilters = []
+
+    /// The OCR language (a BCP-47 tag) for a searchable PDF; nil: the Mac's own choice.
+    public var ocrLanguage: String?
+
     /// Batch scanning: one feeder run saved as several files, a new one at each separator sheet.
     public var splitAt = SplitAt.none
 
@@ -110,7 +116,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     }
 
     private static let names = ["Id", "Name", "Source", "TwoSided", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten",
-                                "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
+                                "Cleanup", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: Key.self)
@@ -126,6 +132,8 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         review = get("Review", false)
         skipBlank = get("SkipBlank", true)
         straighten = get("Straighten", true)
+        cleanup = get("Cleanup", PageFilters())
+        ocrLanguage = get("OcrLanguage", nil as String?)
         splitAt = get("SplitAt", .none)
         keepSeparators = get("KeepSeparators", false)
         findPhotos = get("FindPhotos", false)
@@ -153,6 +161,8 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(review, forKey: Key("Review"))
         try c.encode(skipBlank, forKey: Key("SkipBlank"))
         try c.encode(straighten, forKey: Key("Straighten"))
+        try c.encode(cleanup, forKey: Key("Cleanup"))
+        try c.encode(ocrLanguage, forKey: Key("OcrLanguage"))
         try c.encode(splitAt, forKey: Key("SplitAt"))
         try c.encode(keepSeparators, forKey: Key("KeepSeparators"))
         try c.encode(findPhotos, forKey: Key("FindPhotos"))
@@ -266,6 +276,7 @@ public enum ScanPresets {
             if !p.fileType.isKnown { p.fileType = .pdf }
             if !p.after.isKnown { p.after = .none }
             if !p.splitAt.isKnown { p.splitAt = .none }
+            p.cleanup = p.cleanup.intersection(.all)
             let noCustomPath = p.folder == .custom && (p.folderPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             if !p.folder.isKnown || noCustomPath { p.folder = .documents }
             p.resolution = min(max(p.resolution, minResolution), maxResolution)
@@ -407,6 +418,8 @@ public enum ScanPresetText {
         var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), "\(p.color ? "color" : "grey"), \(p.resolution) dpi", folder(p)]
         if p.splitAt != .none { parts.append("a new file at each \(splitText(p.splitAt))") }
         if p.findPhotos { parts.append("each photo on the glass by itself") }
+        let cleanup = PageCleanup.describe(p.cleanup)
+        if !cleanup.isEmpty { parts.append(cleanup) }
         if p.review { parts.append("review first") }
         if p.after != .none { parts.append("then \(after(p.after))") }
         return parts.joined(separator: " · ")

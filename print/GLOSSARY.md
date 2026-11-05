@@ -39,7 +39,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   (Windows `PhotoBoxesView`; Mac `PhotoBoxEditor`).
 - **Clean up** (of a scanned page): the filters a page can have, in its edits and undone with them: crop to the paper,
   whiten, descreen, restore colors (`PageFilters`, `PageCleanup`). **The paper's edge**: where a sheet stops differing from
-  the lid (`PaperEdge`); no sure edge, no crop.
+  the lid (`PaperEdge`); no sure edge, no crop. The same code on the Mac (PrintCore's `PageCleanup`, RGB where Windows has BGR).
+- **Text layer** (of a searchable scan PDF): the recognized words as invisible text over the page, in one CID font whose
+  /ToUnicode map gives each code its letters, so any script is found by search (`PdfWriter`, `OcrText`, `OcrFont`; PrintCore's
+  on the Mac). Not Inkvolt PDF's text layer, which can be read back and corrected (pdf/GLOSSARY.md).
 - **Hidden list** (forgotten): entries the user removed; they stay hidden until Windows no longer has them, or until a
   network printer is added again by address.
 - **Environment** (this PC's): everything outside the app that it reaches: the network, Windows' print queues and
