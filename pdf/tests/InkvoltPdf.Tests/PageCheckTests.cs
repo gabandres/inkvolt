@@ -194,6 +194,22 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void ACommentOnOnePageKeepsTheVerdictsOfTheOthers()
+    {
+        // Saved through PDFsharp, which gives every page a transparency group of names: not a change in what is read.
+        using var app = PageChecks.UseForTests(_plan);
+        using var session = DocumentSession.FromBytes(Bomb("1 MB"), "visit.pdf");
+        session.Engine.Render(0, 0.25);
+        Assert.Throws<PageRefusedException>(() => session.Engine.Render(1, 0.25));
+        session.Commit(Annotations.AddNote(session.Data, null, 2, 100, 100, "Signed", "Visit"), "Add note");
+        var since = Stopwatch.StartNew();
+        while (session.Engine.VerdictOf(1) == PageVerdict.Unknown && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(20);
+        Assert.Equal(PageVerdict.Fine, session.Engine.VerdictOf(0));
+        Assert.Equal(PageVerdict.TooSlow, session.Engine.VerdictOf(1));
+        Assert.Equal(PageVerdict.Unknown, session.Engine.VerdictOf(2)); // its comment is new
+    }
+
+    [Fact]
     public void BothCheckProcessesOpenOneCopyOfTheDocument()
     {
         using var engine = Open(ThreePages(Drawn, ""));

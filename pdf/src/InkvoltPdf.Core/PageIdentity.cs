@@ -12,7 +12,9 @@ namespace InkvoltPdf.Core;
 /// appearances, a widget's field), numbered in the order they are reached rather than by their object numbers (an edit
 /// saved whole renumbers them), streams by their bytes as stored (nothing is inflated); the attributes it inherits from
 /// the page tree; and what the whole document says about drawing (the form's resources and whether its appearances are
-/// made again, optional content). Another page reached (an annotation's /P) counts as a page, not by its content.
+/// made again, optional content). Another page reached (an annotation's /P) counts as a page, not by its content. A
+/// page's transparency group of names alone (PDFsharp gives every page one when it saves) is left out: it reaches no
+/// stream, so it changes nothing that is read or inflated.
 /// </summary>
 internal static class PageIdentity
 {
@@ -73,13 +75,18 @@ internal static class PageIdentity
         var order = new Dictionary<PdfObjectID, int>();
         var list = new List<PdfObject>();
         var stack = new Stack<PdfItem?>();
-        void Children(PdfItem? item, string? leaveOut)
+        var leave = new HashSet<string>(StringComparer.Ordinal);
+        if (skip is not null) leave.Add(skip);
+        if (skip == "/Parent" && root.Elements["/Group"] is PdfDictionary { Reference: null } group
+            && group.Elements.Values.All(v => v is PdfName or PdfBoolean or PdfInteger or PdfReal))
+            leave.Add("/Group");
+        void Children(PdfItem? item, IReadOnlySet<string>? leaveOut)
         {
             switch (item)
             {
                 case PdfDictionary d:
                     foreach (var key in d.Elements.Keys.OrderDescending(StringComparer.Ordinal))
-                        if (key != leaveOut) stack.Push(d.Elements[key]);
+                        if (leaveOut?.Contains(key) != true) stack.Push(d.Elements[key]);
                     break;
                 case PdfArray a:
                     for (var i = a.Elements.Count - 1; i >= 0; i--) stack.Push(a.Elements[i]);
@@ -96,7 +103,7 @@ internal static class PageIdentity
         }
 
         if (root.Reference is not null) Reach(root);
-        Children(root, skip);
+        Children(root, leave);
         // What a page inherits from the page tree, reached as if it were its own.
         var inherited = new List<(string Key, PdfItem Value)>();
         if (skip == "/Parent")
@@ -125,7 +132,6 @@ internal static class PageIdentity
         }
 
         (int, int)? Id(PdfObjectID id) => order.TryGetValue(id, out var n) ? (n, 0) : (-1, 0); // -1: another page
-        IReadOnlySet<string>? leave = skip is null ? null : new HashSet<string>(StringComparer.Ordinal) { skip };
         if (root.Reference is null) hash.AppendData(Incremental.Serialize(root, Id, streams, leave));
         foreach (var obj in list) hash.AppendData(Incremental.Serialize(obj, Id, streams, obj == root ? leave : null));
         foreach (var (key, value) in inherited)
