@@ -8,7 +8,7 @@ SSS resets 2026-11-06 about 11:40.
 paragraphs, the two UX leftovers, the es Store description (proposal in `pdf/packaging/README.md`), and page checks
 (MuPDF bounded by time, `PageChecks`, two review rounds). Bench committed (`f0f206e`: drawings.pdf first page 1.01 s,
 a miss since page checks). **1.8.0.0 ready for the owner to upload** (`0abc412`): packed and smoked side by side
-(`C:/Users/gabri/.t3/worktrees/PdfDesk/t3-32659b82/pdf/publish/msix/InkvoltPdf_1.8.0.0.msixupload`); the CI failure of
+(`pdf/publish/msix/InkvoltPdf_1.8.0.0.msixupload`, repacked from `02ca5f5` with the 2.4 tagging fixes, smoke passed); the CI failure of
 `PageCheckTests` was the test's machine speed (CI's runner is windows-11-arm and decoded the mask in time), now judged
 by memory; `pack-msix.ps1` cleans the app's projects' Release outputs and refuses an Inkvolt assembly not at the
 package version. Release steps 4-8 in `pdf/packaging/README.md` "Upload" are the owner's. Print for Mac 1.1 is still
