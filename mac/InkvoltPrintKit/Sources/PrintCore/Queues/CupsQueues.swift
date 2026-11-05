@@ -305,6 +305,15 @@ public protocol PrintQueues: Sendable {
 
     /// Who this Mac's user is to CUPS (`job-originating-user-name` of their jobs).
     var user: String { get }
+
+    /// The jobs job alerts follow (roadmap 3.4): the unfinished ones, and those CUPS gave up on with when it did, every user's;
+    /// with where each came from when the reader can say (`QueueJobAttributes`). Nil when cupsd can't be asked. Made-up
+    /// queues: their `jobs`.
+    func alertJobs(_ queue: String) async -> [QueueJob]?
+}
+
+extension PrintQueues {
+    public func alertJobs(_ queue: String) async -> [QueueJob]? { await jobs(queue) }
 }
 
 /// A job couldn't be cancelled; `message` says why in plain words.

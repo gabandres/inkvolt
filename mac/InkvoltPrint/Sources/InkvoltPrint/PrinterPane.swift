@@ -34,7 +34,7 @@ struct PrinterPane: View {
         .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
         .onChange(of: app.paneRequest, initial: true) { _, request in
             switch request {
-            case .status:
+            case .status, .printQueue:
                 tab = .status
                 printingPhotos = false
             case .scan, .photosSheet: tab = .scan
@@ -73,6 +73,16 @@ struct PrinterPane: View {
     }
 
     private var status: some View {
+        ScrollViewReader { proxy in
+            statusCards
+                .onChange(of: app.paneRequest, initial: true) { _, request in
+                    guard request == .printQueue, let queue = printer.queueName else { return }
+                    Task { @MainActor in withAnimation { proxy.scrollTo(queue, anchor: .top) } } // after the tab shows
+                }
+        }
+    }
+
+    private var statusCards: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header

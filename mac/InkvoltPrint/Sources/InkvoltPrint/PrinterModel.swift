@@ -384,8 +384,25 @@ final class PrinterModel: Identifiable {
 /// Alerts as macOS notifications. Asks for permission with the first alert.
 enum Notifier {
     static let printerKey = "printer"
+    /// A print job's notification (roadmap 3.4): Open the Queue and Pause Alerts, as Windows' job toast.
+    static let jobCategory = "job"
+    static let openQueueAction = "open-queue"
+    static let pauseAction = "pause-alerts"
+    /// Pause Alerts from a notification: an hour (Windows' `AlertToasts.PauseFor`).
+    static let pauseFor: TimeInterval = 60 * 60
 
-    static func post(title: String, body: String, printer: String) {
+    /// The job notification's buttons; once, at launch.
+    static func registerCategories() {
+        let open = UNNotificationAction(identifier: openQueueAction, title: "Open the Queue", options: [.foreground])
+        let pause = UNNotificationAction(identifier: pauseAction, title: "Pause Alerts", options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: jobCategory, actions: [open, pause], intentIdentifiers: []),
+        ])
+    }
+
+    /// `job`: a print job's notification, whose click opens the printer's print queue card. The document's name is in the
+    /// text only, never in what the notification carries back to the app.
+    static func post(title: String, body: String, printer: String, job: Bool = false) {
         Task {
             let center = UNUserNotificationCenter.current()
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
@@ -393,6 +410,7 @@ enum Notifier {
             content.title = title
             content.body = body
             content.sound = .default
+            if job { content.categoryIdentifier = jobCategory }
             content.userInfo = [printerKey: printer]
             try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }

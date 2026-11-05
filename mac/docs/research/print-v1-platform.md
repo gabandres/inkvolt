@@ -382,6 +382,24 @@ IPP-over-USB printer was at hand, so the device URI below is read from the syste
   again for 3.6: it adds nothing to the destination's options.
 - Not checked: how fresh cupsd's `marker-*` stay while a USB queue is idle (no USB printer).
 
+### Job alerts' read and failed jobs (roadmap 3.4), checked on the Mac (2026-11-05)
+
+- **IPP Get-Jobs over cupsd's socket, not `cupsGetJobs2`.** Only Get-Jobs gives `job-originating-host-name` (`localhost`
+  for a job this Mac sent, so `JobOwner` knows it's yours on a shared queue too), `job-state-reasons` and
+  `job-media-sheets-completed`. The app asks twice per queue, `which-jobs=not-completed` and `which-jobs=aborted`
+  (cupsd accepts `aborted`; an unknown value is refused with client-error-attributes-or-values-not-supported).
+  `time-at-creation` and `time-at-completed` are seconds since 1970, `job-k-octets` kilobytes. Read from the sandbox:
+  the made-up queues' jobs came back with their owner and `localhost`.
+- **What CUPS does to a job when printing fails** (made-up queues, Generic PPD, error policy `stop-printer` as macOS sets
+  it; nothing reached a printer):
+  - A dead address (`ipp://192.0.2.1/ipp/print`): the job stays `processing` (`job-printing`, "The printer is not
+    responding."), the queue `processing`; the backend retries every minute (19 minutes watched), no `offline-report`,
+    the queue isn't stopped. Job alerts read it as a long job on a printer saying it's printing: "may be stuck" after 15
+    minutes.
+  - A filter failure (a broken PDF): the job goes to `processing-stopped` with `job-completed-with-errors` and the queue
+    stays idle and enabled, under `stop-printer` and `abort-job` alike; nothing became `aborted` in these runs. Job
+    alerts read it as failed ("macOS stopped this job") after the minute's hold; `--report --jobs` raised two.
+
 ### Conclusion: how far the App Store fixer goes
 
 **Can do:**
