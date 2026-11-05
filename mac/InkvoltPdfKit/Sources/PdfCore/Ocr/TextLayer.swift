@@ -36,6 +36,10 @@ public enum TextLayer {
     /// The first line of an Inkvolt text layer (a content-stream comment; viewers skip it).
     public static let marker = "%InkvoltOCR 1"
 
+    /// The start of the names of a text layer's fonts in a page's resources: a file whose bytes never mention it (nor keep
+    /// compressed objects, which hide every name) has no Inkvolt text layer.
+    public static let fontPrefix = "PdOcr"
+
     // Further than this (pt) from a page's corner no word lies, even on the largest page PDF allows; a layer is untrusted input.
     private static let maxCoordinate = 1e6
 
@@ -68,6 +72,32 @@ public enum TextLayer {
             }
         }
         return result
+    }
+
+    /// Whether any page's Inkvolt text layer has a suspect word left to check (Recognize Text's, Batch's or Scan's: a file
+    /// opened later lists them for review). A file that can't have a layer (`mayHaveLayer`) isn't opened at all.
+    public static func hasSuspectWords(_ data: [UInt8], _ password: String?) throws -> Bool {
+        guard mayHaveLayer(data) else { return false }
+        let doc = try PdfEdit.openToRead(data, password)
+        for i in 0..<(try doc.pageCount()) {
+            if let layer = findLayer(doc.page(i)), let words = parseWords(layer.text), words.contains(where: { !$0.suspect.isEmpty }) { return true }
+        }
+        return false
+    }
+
+    /// False only when the bytes never mention a text layer's font (`fontPrefix`) and keep no compressed objects (an
+    /// object stream hides every name): such a file has no Inkvolt text layer, so it needn't be parsed for one.
+    public static func mayHaveLayer(_ data: [UInt8]) -> Bool {
+        mentions(data, "/" + fontPrefix) || mentions(data, "/ObjStm")
+    }
+
+    /// Whether the bytes hold `name` anywhere (memmem: a document's whole bytes, at each change).
+    private static func mentions(_ data: [UInt8], _ name: String) -> Bool {
+        let needle = Array(name.utf8)
+        guard data.count >= needle.count else { return false }
+        return data.withUnsafeBytes { hay in
+            needle.withUnsafeBytes { n in memmem(hay.baseAddress, hay.count, n.baseAddress, n.count) != nil }
+        }
     }
 
     /// Word `index` of a page's text layer becomes `text` (a correction) and stops being a suspect word; the layer is
@@ -249,12 +279,12 @@ public enum TextLayer {
         let resources = ContentEditor.ownDict(doc, page, "Resources", PageBoxes.inherited(page, "Resources"))
         let fonts = ContentEditor.ownDict(doc, resources, "Font")
         if let old = existing {
-            for key in fonts.keys where key.hasPrefix("PdOcr") && old.text.contains("/\(key) ") { fonts.remove(key) }
+            for key in fonts.keys where key.hasPrefix(fontPrefix) && old.text.contains("/\(key) ") { fonts.remove(key) }
         }
-        var name = "PdOcr"
+        var name = fontPrefix
         var n = 1
         while fonts.keys.contains(where: { $0.hasPrefix(name) }) {
-            name = "PdOcr\(n)_"
+            name = "\(fontPrefix)\(n)_"
             n += 1
         }
         name += "0"

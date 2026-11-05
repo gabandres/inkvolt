@@ -218,7 +218,7 @@ public enum BatchCommandLine {
             return wrong
         }
         preset.steps = steps
-        let quiet = BatchHost(recognize: host.recognize)
+        let quiet = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage)
         return request.kind == .batch
             ? await batch(request, preset, quiet, stdout, stderr, cancel)
             : await watch(request, preset, quiet, stdout, stderr, cancel)

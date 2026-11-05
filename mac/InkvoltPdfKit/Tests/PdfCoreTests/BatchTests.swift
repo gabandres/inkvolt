@@ -466,6 +466,34 @@ final class BatchTests {
         #expect(try Self.readText(outFile("scan.txt")).contains("Recognized"))
     }
 
+    @Test func ocrKeepsTheRecognizersSuspectWordsForReview() async throws {
+        let scan = try put("in/scan.png", Self.white(200, 100))
+        let host = BatchHost(recognize: { _, _, _ in
+            [OcrWord("Recognized", RectD(10, 10, 80, 12)),
+             OcrWord("c0de", RectD(10, 30, 40, 12), suspect: .lettersAndDigits),
+             OcrWord("riv;er", RectD(60, 30, 40, 12), suspect: [.oddCharacters, .notInDictionary])]
+        }, recognizeLanguage: "en-US")
+        let summary = try await Self.run([scan], plan(.ocr), host: host)
+        #expect(summary.items.count == 1)
+        let item = try #require(summary.items.first)
+        #expect(item.notes.contains { $0.hasPrefix("2 suspect words to check") })
+        // In the text layer as Recognize Text writes them: the Suspect Words pane lists them when the file is opened.
+        let output = try Self.read(outFile("scan.pdf"))
+        #expect(try TextLayer.hasSuspectWords(output, nil))
+        let layer = try #require(try TextLayer.words(output, nil)[0])
+        #expect(layer.language == "en-US")
+        #expect(layer.words.map(\.suspect) == [[], .lettersAndDigits, [.oddCharacters, .notInDictionary]])
+
+        // None marked: no note, nothing to review.
+        try FileManager.default.removeItem(atPath: out)
+        let plain = try await Self.run([scan], plan(.ocr), host: BatchHost(recognize: { _, _, _ in [OcrWord("Recognized", RectD(10, 10, 80, 12))] }))
+        #expect(!(plain.items.first?.notes ?? []).contains { $0.contains("suspect") })
+        #expect(try !TextLayer.hasSuspectWords(Self.read(outFile("scan.pdf")), nil))
+        // A file without an Inkvolt text layer isn't even parsed for one.
+        #expect(!TextLayer.mayHaveLayer(TestPdf.make(1)))
+        #expect(TextLayer.mayHaveLayer(output))
+    }
+
     @Test func parallelismIsBounded() async throws {
         let running = Counter()
         let host = BatchHost(recognize: { _, _, _ in

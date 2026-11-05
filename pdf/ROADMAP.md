@@ -403,10 +403,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
   more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
   9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
-  "make the text editable", straightened lines and trapezoid correction (ABBYY's); on the Mac, suspect words for Batch,
-  Scan and export, and checking Vision on "1111". Mac: stage A done with E14 (2026-11-02,
+  "make the text editable", straightened lines and trapezoid correction (ABBYY's). Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
-  Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there.
+  Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there. Suspect
+  words for Batch, Scan and export on the Mac too (2026-11-04, E14a): Batch (window, watched folders, `--batch`) and
+  export read with Recognize Text's choices (`PageOcr.recognizer(_:options:spelling:)`), Batch keeps the marks and the
+  language in the text layer and notes the count, exports count them, Scan already ran Recognize Text's pipeline, and a
+  file opened with suspect words lists them (`TextLayer.hasSuspectWords`, the `/PdOcr` check first). "1111" with Vision
+  (`VisionProbeTests.visionOnFourOnesInARow`): read in every line with words, every font and size, as scanned and
+  cleaned; only lines of nothing but 1s and card digits on cleaned Times at 9 and 12 pt are left out (or "1111" read
+  "M11"). That isn't Windows' problem (it reads no line that holds four 1s), so `MissedLines.ReadOnes` isn't ported.
 - **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,
   optionally written back as the cleaned image; a second, local engine (Tesseract, Apache-2.0, 100+ languages;
   [tessdata](https://github.com/tesseract-ocr/tessdata)) is an optional download for languages Windows lacks, with
