@@ -7,8 +7,8 @@ namespace InkvoltPdf.Tests;
 /// <summary>Roadmap 2.1: paragraphs from other software that mix faces of one family (a bold word in Word's PDFs) edit as one.</summary>
 public partial class ParagraphEditTests
 {
-    /// <summary>Body as a left-aligned paragraph in /FA with <paramref name="word"/> drawn in <paramref name="face"/> ("FB": Arial Bold, "FT": Times), a line under it.</summary>
-    private static byte[] WithFace(string word, string face)
+    /// <summary>Body as a left-aligned paragraph in /FA with <paramref name="word"/> drawn in <paramref name="face"/> ("FB": Arial Bold, "FT": Times, "FA" itself) at <paramref name="size"/> (default the paragraph's), a line under it.</summary>
+    private static byte[] WithFace(string word, string face, double size = Size)
     {
         var lines = Wrap(Body, Width);
         var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td");
@@ -17,7 +17,7 @@ public partial class ParagraphEditTests
             if (i > 0) sb.Append(" T*");
             var at = lines[i].IndexOf(word, StringComparison.Ordinal);
             if (at < 0) sb.Append($" ({lines[i]}) Tj");
-            else sb.Append($" ({lines[i][..at]}) Tj /{face} {N(Size)} Tf ({word}) Tj /FA {N(Size)} Tf ({lines[i][(at + word.Length)..]}) Tj");
+            else sb.Append($" ({lines[i][..at]}) Tj /{face} {N(size)} Tf ({word}) Tj /FA {N(Size)} Tf ({lines[i][(at + word.Length)..]}) Tj");
         }
         sb.Append(" 0 -60 Td (Next block starts here) Tj ET");
         return ContentEditPdf.Make(sb.ToString(), fontText: Chars, faces: true);
@@ -78,18 +78,77 @@ public partial class ParagraphEditTests
     }
 
     [Fact]
-    public void AParagraphMixingFamiliesIsEditedLineByLine()
+    public void AWordInAnotherFamilyIsPartOfTheParagraphAndKeepsThePagesFont()
     {
-        // A Times word inside a line of Arial: the lines still group, but the paragraph can't be rewritten as one.
+        // A Times word inside a line of Arial: one paragraph, the word a stretch in its own family.
         var pdf = WithFace("sphinx", "FT");
+        var before = ContentEditor.Read(pdf, null, 0);
+        var times = before.Runs.Single(r => r.Text == "sphinx");
+        var family = FontNames.Family(times.FontName);
+        Assert.Equal("Times New Roman", family);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        Assert.Equal(Body, p.Text);
+        Assert.Equal("Arial", FontNames.Family(p.Lead.FontName));
+        AssertSpans([Span(Body, "sphinx", new TextLook(Font: family))], p.Spans);
+
+        // Rewritten with words in front, the word moves along in the page's own Times, nothing from this PC.
+        var text = "Now then " + Body + " " + Twenty;
+        var check = p.Check(text);
+        Assert.Empty(check.Missing);
+        Assert.Empty(check.Faces);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        Assert.Contains(Words(text), Words(Regex.Replace(ContentEditPdf.Text(edited), "Next block starts here", "")));
+        var q = Body0(edited, "Now then");
+        Assert.Null(q.Blocked);
+        Assert.Equal(text, q.Text);
+        AssertSpans([Span(text, "sphinx", new TextLook(Font: family))], q.Spans);
+        Assert.Equal(times.FontName, q.Runs.Single(r => r.Text.Trim() == "sphinx").FontName);
+        Assert.Equal(p.Lead.FontName, q.Lead.FontName);
+    }
+
+    [Fact]
+    public void TextTypedIntoTheOtherFamilyIsWrittenInIt()
+    {
+        var pdf = WithFace("sphinx", "FT");
+        var p = Body0(pdf);
+        var times = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "sphinx").FontName;
+        // "sphinx" becomes "sphinxes": the letters typed onto the word take its look, and Times has them.
+        var text = p.Text.Replace("sphinx", "sphinxes", StringComparison.Ordinal);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited);
+        Assert.Equal(text, q.Text);
+        Assert.Equal(times, q.Runs.Single(r => r.Text.Trim() == "sphinxes").FontName);
+        Assert.Contains(Words(text), Words(ContentEditPdf.Text(edited)));
+    }
+
+    [Fact]
+    public void ALineThatBeginsInAnotherFamilyJoinsTheParagraph()
+    {
+        var lines = Wrap(Body, Width);
+        var word = lines[1].Split(' ')[0];
+        var pdf = WithFace(word, "FT");
+        var p = Body0(pdf);
+        Assert.Equal(lines.Count, p.Lines.Count);
+        Assert.Null(p.Blocked);
+        Assert.Equal(Body, p.Text);
+        Assert.Equal("Arial", FontNames.Family(p.Lead.FontName));
+        var text = Body + " " + Twenty;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited);
+        Assert.Equal(text, q.Text);
+        Assert.Equal("Times New Roman", FontNames.Family(q.Runs.Single(r => r.Text.Trim() == word).FontName));
+    }
+
+    [Fact]
+    public void AnotherSizeOnALineStillEditsLineByLine()
+    {
+        // Two sizes on one baseline: the paragraph's lines group, but rewrapped the bigger word couldn't keep its place.
+        var pdf = WithFace("sphinx", "FT", size: 14);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single(q => q.Text.Contains("sphinx", StringComparison.Ordinal));
         Assert.True(p.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
         Assert.Contains("mixes fonts", p.Blocked);
-        // A line that begins with the other family doesn't join the lines around it at all.
-        var pdf2 = WithFace("boxing", "FT");
-        var alone = ContentEditor.Read(pdf2, null, 0).Paragraphs.Single(q => q.Text.StartsWith("boxing", StringComparison.Ordinal));
-        Assert.Single(alone.Lines);
-        Assert.NotNull(alone.Blocked);
+        Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
     }
 }

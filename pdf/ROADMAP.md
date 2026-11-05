@@ -362,7 +362,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   look bar and note beside where it is. `ParagraphEditTests.Turned` (6: 90°, -90°, 180° and 30° reflow, running into
   the next block, a sideways column beside an upright one); pdf.js reads the 90° and 30° samples in order; dev script
   (a sideways column, 20 words added): the editor turned over the column, 4 lines to 5, the next block where it was.
-  Still to do: paragraphs mixing font families (a symbol font, a word in another family).
+  Mixed families (2026-11-04): a line is the paragraph's when most of its text is (`PLine.Lead` is the line's
+  `PlainRun`), so a line that begins with a word in another family joins; text in another family of the same size
+  and color is part of the paragraph (only another size or color on its lines still edits it line by line), read
+  back as a span of that family (`TextLook.Font`), and written again, typed letters too, in the page's own font for it
+  (`PartLook.Page`, as for a bold face of the family; its widths and ToUnicode extended as needed), never an installed
+  one when the page has it. `ParagraphEditTests.Mixed` (4 in place of the two that expected a block: a Times word mid-line, typed into, a line
+  that begins with it, another size still line by line); pdf.js and the corpus paragraphs read as before; dev script
+  (Helvetica with two Times words, one starting a line): one paragraph of 4 lines, 9 words added, both words still in
+  Times. Still to do: a standard Symbol or ZapfDingbats font that isn't embedded (no widths to lay it out with, so a
+  run in it still blocks the paragraph).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
