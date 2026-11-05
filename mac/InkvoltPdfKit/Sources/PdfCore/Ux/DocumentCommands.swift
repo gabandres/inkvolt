@@ -271,6 +271,8 @@ public enum DocumentCommands {
         sep,
         c("Page Setup…", "runPageLayout:", "p", [.command, .shift]),
         c("Print…", "printDocument:", "p"),
+        // Opens Inkvolt Print (Windows: shown only when it's installed; here it offers the App Store page without it).
+        c("Printer Settings (Inkvolt Print)", "openInkvoltPrint:"),
     ])
 
     static let editMenu = CommandMenu("Edit", [
@@ -373,6 +375,8 @@ public enum DocumentCommands {
     static let toolsMenu = CommandMenu("Tools", .tools, [
         .tools(.hand),
         .tools(.selectText),
+        // Windows' Snapshot (key G there; every single key is a tool's here): a dragged rectangle copied as a picture.
+        c("Snapshot", "chooseSnapshot:", "c", [.command, .option], needs: [.pages, .organizerHidden]),
         sep,
         .submenu(CommandMenu("Annotate", [
             .tools(.markText),

@@ -29,6 +29,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Set up in macOS** (Mac): creating the CUPS queue for a network printer macOS has none for, so every app prints to it:
   cupsd makes a temporary destination and reads the printer into a driverless (IPP Everywhere) queue, then keeps it
   (`QueueSetup`; Windows: Set up in Windows). Needs an administrator of the Mac.
+- **Hand-off** (Mac): the printers Inkvolt Print remembers, written to the app group both Mac apps claim
+  (`Inkvolt/printers.json`, `SuitePrinters`) for Inkvolt PDF's printer status when printing; Windows' Inkvolt PDF reads
+  `state.json` instead. Inkvolt Print writes it, Inkvolt PDF only reads it. A printer's **health** (`PrinterHealth`) is its
+  state reduced to what matters before printing (ready, sleeping, busy, needs attention, error, offline, toner, paper).
 - **Batch** (scan): one feeder run saved as several files, split at separator sheets or by hand (`BatchSplit`).
 - **Batch print**: many files sent in order, a job for each (`Core/Printing/BatchPrint`). Not the scan batch above. Its **estimate** is the sheets a file comes to, read from the file itself before anything prints (`BatchMeasurer`, `BatchPrintLine`); a file's **fingerprint** (its length and SHA-256) is what shows it's still what the estimate saw. **Sent** means the queue has it, not that paper came out. A **list** is a saved batch (`BatchPrintList`). A **batch print folder** is one printed as it fills (`BatchPrintFolder`); a file in its `working` folder may have printed, so it's never sent again by itself. On the Mac, its **places** are the files, folders and lists the Batch Print window was given, kept by their paths with a bookmark each so the sandboxed `print` command, and a list opened in a later launch, can reach them (`BatchPlaces`, `BatchPlaceList`, `PrintState.batchPlaces`).
 - **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T),

@@ -82,8 +82,62 @@ struct ViewTest {
         await thumbnailDrops()
         await readingModes()
         await goToPage()
+        await snapshot()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
+    }
+
+    /// Tools › Snapshot through the menu's own item: a drag copies the rectangle as PNG and TIFF, sized in points as it
+    /// shows and at 2 pixels a point at least, to the self-test's own pasteboard (a person's clipboard stays); Esc during
+    /// a drag copies nothing, and Esc again leaves the tool.
+    private mutating func snapshot() async {
+        let board = NSPasteboard(name: NSPasteboard.Name("com.bermudezsystems.inkvoltpdf.selftest.snapshot"))
+        board.clearContents()
+        SnapshotBoard.board = board
+        defer {
+            SnapshotBoard.board = .general
+            board.releaseGlobally()
+        }
+        let chosen = choose("Snapshot")
+        check(chosen && pages.tool == .snapshot && ticked("Snapshot"), "Tools › Snapshot picks the tool (ticked in the menu)")
+        let g = controller.engine.page(0)
+        let from = PointD(g.width * 0.2, g.height * 0.2), to = PointD(g.width * 0.2 + 200, g.height * 0.2 + 100)
+        let before = board.changeCount
+        await press(pages, page: 0, [from, PointD(from.x + 100, from.y + 50), to])
+        var png: Data?
+        for _ in 0..<40 where png == nil {
+            await settle(100)
+            if board.changeCount != before { png = board.data(forType: .png) }
+        }
+        let image = png.flatMap { NSBitmapImageRep(data: $0) }
+        let wide = (image?.pixelsWide ?? 0) >= 400 && (image?.pixelsHigh ?? 0) >= 200
+        let size = image?.size ?? .zero
+        check(wide && abs(size.width - 200) < 1 && abs(size.height - 100) < 1 && board.data(forType: .tiff) != nil,
+              "a drag copies 200 × 100 points as PNG and TIFF (\(image?.pixelsWide ?? 0) × \(image?.pixelsHigh ?? 0) px)")
+        check(controller.noticeBar.message.hasPrefix("Snapshot copied"), "the notice says it was copied")
+
+        // Two snapshots in a row, the first of the whole page at a high resolution: only the second is copied, whichever
+        // picture is rendered first.
+        func copies() -> Int { controller.noticeBar.history.filter { $0.hasPrefix("Snapshot copied") }.count }
+        let copied = copies()
+        controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, g.width, g.height), viewScale: 6, rotation: 0)
+        controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, 50, 40), viewScale: 2, rotation: 0)
+        for _ in 0..<40 where copies() == copied { await settle(100) }
+        await settle(2000) // the first picture's time to land, if it could
+        let last = board.data(forType: .png).flatMap { NSBitmapImageRep(data: $0) }
+        check(copies() == copied + 1 && last?.pixelsWide == 100 && last?.pixelsHigh == 80,
+              "of two snapshots in a row only the newer is copied (\(copies() - copied) copied, last \(last?.pixelsWide ?? 0) px wide)")
+
+        let count = board.changeCount
+        let r = pages.pageRects[0]
+        pages.mouseDown(with: event(.leftMouseDown, pages, pages.viewPoint(from, r)))
+        pages.mouseDragged(with: event(.leftMouseDragged, pages, pages.viewPoint(to, r)))
+        pages.keyDown(with: key(53, "\u{1B}"))
+        pages.mouseUp(with: event(.leftMouseUp, pages, pages.viewPoint(to, r)))
+        await settle(400)
+        check(board.changeCount == count && pages.tool == .snapshot, "Esc during the drag copies nothing")
+        pages.keyDown(with: key(53, "\u{1B}"))
+        check(pages.tool == .text, "Esc again leaves the tool")
     }
 
     /// Go › Go to Page… through the menu's own item, with the self-test's answer typed in.

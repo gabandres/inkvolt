@@ -207,8 +207,8 @@ final class PageRenderer {
         page < range.lowerBound ? range.lowerBound - page : max(0, page - range.upperBound)
     }
 
-    /// The engine's RGB pixels as an image.
-    static func cgImage(_ r: RenderedImage) -> CGImage? {
+    /// The engine's RGB pixels as an image (any thread).
+    nonisolated static func cgImage(_ r: RenderedImage) -> CGImage? {
         guard r.width > 0, r.height > 0, let provider = CGDataProvider(data: Data(r.pixels) as CFData) else { return nil }
         return CGImage(width: r.width, height: r.height, bitsPerComponent: 8, bitsPerPixel: 24, bytesPerRow: r.width * 3,
                        space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),

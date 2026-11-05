@@ -1,10 +1,15 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// File › Print…: AppKit's print panel (printer, copies, paper, orientation, its preview) with Inkvolt's options in an
 /// accessory view: which pages of the document, and how they go on the paper (the core's `PrintSetup`: one per sheet at
-/// actual size or fitted, pages per sheet, booklet, poster). The sheets are laid out by `PrintPlan` and drawn by
-/// `PrintSheetView`, each page rendered by the engine for the paper (300 dpi; the panel's preview at the screen's).
+/// actual size or fitted, pages per sheet, booklet, poster), and, for a printer Inkvolt Print knows, its state and toner
+/// (`PrinterStatusLookup`; a warning in red when it is offline or has an error) with a button that opens Inkvolt Print.
+/// Windows asks "Print anyway?" after its dialog closes; AppKit's print operation runs the panel and the job in one call
+/// with no step between them, so here the warning is in the panel, before Print is pressed. The sheets are laid out by
+/// `PrintPlan` and drawn by `PrintSheetView`, each page rendered by the engine for the paper (300 dpi; the panel's preview
+/// at the screen's).
 extension DocumentWindowController {
     /// The print operation for this window's document (the panel shown by NSDocument's printDocument).
     func printOperation(_ info: NSPrintInfo) -> NSPrintOperation {
@@ -211,6 +216,15 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
     private let posterScale = NSPopUpButton(frame: .zero, pullsDown: false)
     private let overlap = NSPopUpButton(frame: .zero, pullsDown: false)
     private let cutMarks = NSButton(checkboxWithTitle: "Cut marks", target: nil, action: nil)
+    /// The panel's printer's state, when it is one Inkvolt Print knows (`PrinterStatusLookup`).
+    let printerStatus = NSTextField(wrappingLabelWithString: "")
+    private let printerSettings = NSButton(title: "Printer Settings (Inkvolt Print)", target: nil, action: nil)
+    private var watchedPrinter: String?
+    private var watch: Timer?
+    private var lookupTask: Task<Void, Never>?
+    var lookup = PrinterStatusLookup.shared
+    /// The printer to look at instead of the panel's (the self-test's).
+    var testPrinterName: String?
     private static let scales: [Double] = [1.5, 2, 3, 4]
     private static let overlaps: [Double] = [0, 9, 18, 36] // points: none, ⅛, ¼, ½ inch
 
@@ -275,7 +289,15 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
             [label("Poster size:"), posterScale],
             [label("Overlap:"), overlap],
             [NSGridCell.emptyContentView, cutMarks],
+            [label("Printer:"), printerStatus],
+            [NSGridCell.emptyContentView, printerSettings],
         ])
+        printerStatus.preferredMaxLayoutWidth = 320
+        printerStatus.setAccessibilityLabel("Printer status")
+        printerSettings.bezelStyle = .push
+        printerSettings.target = self
+        printerSettings.action = #selector(openPrinterSettings)
+        printerSettings.toolTip = "Opens Inkvolt Print: the printers' status, ink and toner, and their settings"
         grid.rowSpacing = 6
         grid.column(at: 0).xPlacement = .trailing
         let container = NSView()
@@ -301,7 +323,78 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
         let visible: [Int: Bool] = [3: h == 0, 4: h == 1, 5: h == 1, 6: h == 1, 7: h == 2, 8: h == 3, 9: h == 3, 10: h == 3]
         for (row, shown) in visible { grid.row(at: row).isHidden = !shown }
         grid.row(at: 1).isHidden = rangeNote.stringValue.isEmpty
+        grid.row(at: 11).isHidden = printerStatus.stringValue.isEmpty
+        grid.row(at: 12).isHidden = !printAppInstalled
     }
+
+    /// Whether Inkvolt Print is on this Mac, asked of Launch Services once a panel.
+    private lazy var printAppInstalled = InkvoltPrintApp.isInstalled
+
+    // MARK: Printer status (the Inkvolt suite)
+
+    // The panel's printer is looked at twice a second while the panel shows (AppKit tells an accessory nothing when it
+    // changes); a new one is checked once, in the background, and its line shown when it answers.
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        watch?.invalidate()
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.printerMayHaveChanged() }
+        }
+        RunLoop.main.add(timer, forMode: .common) // the panel runs the modal mode
+        watch = timer
+        printerMayHaveChanged()
+    }
+
+    override func viewDidDisappear() {
+        super.viewDidDisappear()
+        watch?.invalidate()
+        watch = nil
+        lookupTask?.cancel()
+        watchedPrinter = nil // its check was cut short: shown again, the panel's printer is checked again
+    }
+
+    private var panelPrinter: String? {
+        testPrinterName ?? (representedObject as? NSPrintInfo)?.printer.name ?? NSPrintOperation.current?.printInfo.printer.name
+    }
+
+    private func printerMayHaveChanged() {
+        let name = panelPrinter
+        guard name != watchedPrinter else { return }
+        watchedPrinter = name
+        lookupTask?.cancel()
+        show(nil)
+        guard let name else { return }
+        lookupTask = Task { [weak self] in await self?.checkPrinter(name) }
+    }
+
+    /// Checks `name` (the panel's printer) and shows its line, unless another printer was chosen meanwhile.
+    func checkPrinter(_ name: String) async {
+        let found = await lookup.check(printerName: name)
+        guard !Task.isCancelled, panelPrinter == name else { return }
+        show(found)
+    }
+
+    private func show(_ found: PrinterStatusLookup.Found?) {
+        guard let found, let health = found.health else {
+            printerStatus.stringValue = ""
+            showRows()
+            return
+        }
+        if health.shouldWarn {
+            printerStatus.stringValue = "⚠︎ \(PrinterCheck.problem(health, found.printer.name)). \(PrinterCheck.advice(health))"
+            printerStatus.textColor = .systemRed
+        } else {
+            printerStatus.stringValue = PrinterCheck.line(health, found.printer.name)
+            printerStatus.textColor = .secondaryLabelColor
+        }
+        showRows()
+        if health.shouldWarn {
+            NSAccessibility.post(element: printerStatus, notification: .announcementRequested,
+                                 userInfo: [.announcement: printerStatus.stringValue])
+        }
+    }
+
+    @objc private func openPrinterSettings() { InkvoltPrintApp.open(from: view.window) }
 
     private func syncFromOptions() {
         let s = options.setup

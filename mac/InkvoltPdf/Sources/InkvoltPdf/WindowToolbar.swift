@@ -146,7 +146,7 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
 
     /// A markup tool picked while its toolbar is hidden: shown, so the tool's color, width and choices are in sight.
     func revealMarkup(for tool: Tool) {
-        guard tool != .hand && tool != .text && tool != .prepareForm, toolStrip.isHidden, !organizerShown else { return }
+        guard !tool.readsOnly && tool != .prepareForm, toolStrip.isHidden, !organizerShown else { return }
         showMarkup(true)
     }
 

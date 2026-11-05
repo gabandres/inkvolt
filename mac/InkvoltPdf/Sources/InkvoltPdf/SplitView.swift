@@ -75,7 +75,7 @@ extension DocumentWindowController {
     var activePages: PagesView { secondActive ? secondPages ?? pages : pages }
     var activeScroll: NSScrollView { secondActive ? secondScroll ?? scrollView : scrollView }
 
-    static func isReadingTool(_ tool: Tool) -> Bool { tool == .hand || tool == .text }
+    static func isReadingTool(_ tool: Tool) -> Bool { tool.readsOnly }
 
     /// A tool picked from the strip or the Tools menu: the hand and text selection go to the active pane; anything else
     /// to the main pane, which becomes the active one.

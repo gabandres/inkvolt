@@ -86,11 +86,21 @@ enum Report {
             }
             cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))
+            cancelled.append(handOffLine(model))
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try? Data((text(model, after: wait, search: search) + cancelled.map { $0 + "\n" }.joined()).utf8).write(to: folder.appendingPathComponent("report-\(name).txt"), options: .atomic)
             if !args.contains("--stay") { NSApp.terminate(nil) }
         }
+    }
+
+    /// What Inkvolt PDF reads of the printers (`SuitePrinters` in the app group), always one line: counts only.
+    private static func handOffLine(_ model: AppModel) -> String {
+        guard !model.isDemo else { return "hand-off to Inkvolt PDF: none in demo mode" }
+        guard let root = ProKeyRoot.url?.path else { return "hand-off to Inkvolt PDF: no app group container" }
+        let handed = SuitePrinters.load(root: root)
+        let queues = handed.printers.filter { $0.queue != nil }.count
+        return "hand-off to Inkvolt PDF: \(handed.printers.count) printers, \(queues) with their macOS queue"
     }
 
     /// The Inkvolt Pro check, always one line (`ProSetup.reportLine`). `--pro-window` opens Help › Inkvolt Pro… and says

@@ -74,6 +74,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var layersApplied = 0
     var lastSavedAttachment: URL?
     var lastProblem: String?
+    /// The snapshot being made (SnapshotTool.swift): a newer one cancels it, so only the latest reaches the clipboard.
+    var snapshotCancel: CancelToken?
 
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.
@@ -755,6 +757,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             item.state = AppSettings.darkPages ? .on : .off
         case #selector(chooseTool(_:)):
             item.state = pages.tool.rawValue == item.tag ? .on : .off
+        case #selector(chooseSnapshot(_:)):
+            item.state = pages.tool == .snapshot ? .on : .off
         case #selector(toggleReadAloud(_:)):
             item.state = readAloud.isActive ? .on : .off
         case #selector(togglePrepareForm(_:)):
