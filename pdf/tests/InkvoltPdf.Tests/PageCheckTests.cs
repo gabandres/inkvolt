@@ -237,6 +237,33 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void ReducingTheSizeMeasuresASoftMaskAsItsPicture()
+    {
+        // A 2,000 x 2,000 picture (16 M samples, as MuPDF holds it: not checked) whose soft mask is 5,000 x 5,000 gray: the
+        // mask is drawn through MuPDF just the same, so it is measured by the same rule (100 M samples: checked first).
+        var real = new byte[2000 * 2000 * 3];
+        new Random(5).NextBytes(real);
+        var file = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /Im 5 0 R >> >> >>",
+            Core2Pdf.Stream("q 500 0 0 500 50 150 cm /Im Do Q"),
+            Core2Pdf.Stream(Encoding.Latin1.GetString(Zlib(real, 0)), "/Type /XObject /Subtype /Image /Width 2000 /Height 2000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode /SMask 6 0 R"),
+            Core2Pdf.Stream(Encoding.Latin1.GetString(Zlib([], 5000L * 5000)), "/Type /XObject /Subtype /Image /Width 5000 /Height 5000 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode"),
+        ]);
+        Optimizer.CheckPlan = _plan;
+        try
+        {
+            Optimizer.Optimize(file, null, new OptimizeOptions { MaxImageDpi = 150 });
+            Assert.Equal(1, _plan.ChecksRun);
+        }
+        finally
+        {
+            Optimizer.CheckPlan = null;
+        }
+    }
+
+    [Fact]
     public void ARealDrawingSheetStillDrawsInFull()
     {
         // A sheet of the bench's drawing set: 72,000 paths, ARCH D, Flate content (about 0.3 s to draw small here).

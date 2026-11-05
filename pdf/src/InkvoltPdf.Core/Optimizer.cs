@@ -61,10 +61,17 @@ public sealed record OptimizeResult(byte[] Data, long SizeBefore, long SizeAfter
 public static class Optimizer
 {
     /// <summary>
-    /// An image with more samples than this (width x height x 4 components, about half a second of MuPDF's inflating) is
-    /// drawn in a page check before MuPDF draws it here: MuPDF reads all of them, and its cookie doesn't stop it meanwhile.
+    /// A picture with more samples than this (<see cref="Samples"/>, about half a second of MuPDF's inflating) is drawn in
+    /// a page check before MuPDF draws it here: MuPDF reads all of them, and its cookie doesn't stop it meanwhile.
     /// </summary>
     private const long CheckedSamples = 64L << 20;
+
+    /// <summary>
+    /// The one size rule for a picture drawn through MuPDF here, a soft mask as much as the picture it masks: its pixels
+    /// times 4, whatever its components (MuPDF draws each onto an RGB page with alpha).
+    /// </summary>
+    private static long Samples(PdfDictionary image) =>
+        (long)Math.Max(0, PdfObj.Int(image.Elements["/Width"]) ?? 0) * Math.Max(0, PdfObj.Int(image.Elements["/Height"]) ?? 0) * 4;
 
     /// <summary>Test hook: the page checks images are drawn in first, instead of the app's.</summary>
     internal static PageCheckPlan? CheckPlan { get; set; }
@@ -265,14 +272,12 @@ public static class Optimizer
         string? maskSource = null;
         if (smask is not null && ((maskSource = ImageSource(smask, maskOnly: true)) is null || smask.Elements.ContainsKey("/Matte"))) return false;
 
-        var samples = (long)(PdfObj.Int(image.Elements["/Width"]) ?? 0) * (PdfObj.Int(image.Elements["/Height"]) ?? 0) * 4;
-        var jpeg = Render(source, image.Stream!.Value, w, h, quality, samples);
+        var jpeg = Render(source, image.Stream!.Value, w, h, quality, Samples(image));
         if (jpeg is null) return false;
         byte[]? mask = null;
         if (smask is not null)
         {
-            var maskSamples = (long)(PdfObj.Int(smask.Elements["/Width"]) ?? 0) * (PdfObj.Int(smask.Elements["/Height"]) ?? 0);
-            var rgb = Render(maskSource!, smask.Stream!.Value, w, h, null, maskSamples);
+            var rgb = Render(maskSource!, smask.Stream!.Value, w, h, null, Samples(smask));
             if (rgb is null || rgb.Length != w * h * 3) return false;
             var gray = new byte[w * h];
             for (var i = 0; i < gray.Length; i++) gray[i] = rgb[3 * i];
