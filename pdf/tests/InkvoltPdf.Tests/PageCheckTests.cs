@@ -278,6 +278,31 @@ public sealed class PageCheckTests : IDisposable
         }
     }
 
+    [Fact]
+    public async Task ADocumentClosedWhileItsCheckProcessStartsIsNeverOpenedThere()
+    {
+        // The document is closed (and its file may be saved over) after the process started but before it was known
+        // to the link: closing found nothing to end, and the process then opened the file and checked the page.
+        var path = Path.Combine(Path.GetTempPath(), $"inkvolt-check-{Guid.NewGuid():N}.pdf");
+        File.WriteAllBytes(path, ThreePages(Drawn, ""));
+        var doc = new CheckedDocument(null, path, InputFileTypes.PDF, 3);
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = Limit };
+        plan.TestAfterStart = () => plan.Forget(doc);
+        try
+        {
+            var request = plan.Ask(doc, 0);
+            await request.Done.WaitAsync(Timing.Limit(Limit + Slack));
+            Assert.Equal(PageVerdict.Unchecked, request.Result);
+            var pid = Assert.Single(plan.Pids);
+            Assert.True(Exited(pid), "the process started meanwhile goes on");
+            File.Delete(path); // nothing holds it
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     private static bool Exited(int pid)
     {
         try

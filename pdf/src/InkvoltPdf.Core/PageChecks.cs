@@ -249,8 +249,14 @@ internal sealed class CheckedDocument(byte[]? data, string? path, InputFileTypes
     public InputFileTypes Type { get; } = type;
     public int Pages { get; } = pages;
 
-    /// <summary>Set under the plan's lock.</summary>
-    public bool Closed { get; set; }
+    private volatile bool _closed;
+
+    /// <summary>Set under the plan's lock; read anywhere.</summary>
+    public bool Closed
+    {
+        get => _closed;
+        set => _closed = value;
+    }
 
     /// <summary>A check process couldn't open it: its pages run unchecked (set under the plan's lock).</summary>
     public bool Unopenable { get; set; }
@@ -304,6 +310,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
 
     /// <summary>A check process with nothing to do for this long ends (the next page starts one again).</summary>
     public TimeSpan Idle { get; init; } = TimeSpan.FromMinutes(2);
+
+    /// <summary>Test hook: called on the link's thread once a check process has started, before the link knows it.</summary>
+    internal Action? TestAfterStart { get; set; }
 
     /// <summary>After this many check processes in a row fail to start, pages run unchecked: there is no check to be had.</summary>
     private const int MaxStartFailures = 3;
@@ -538,7 +547,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             for (var attempt = 0; ; attempt++)
             {
                 if (doc.Closed || plan._disposed) return PageVerdict.Unchecked;
-                if (!EnsureStarted()) return PageVerdict.Unchecked;
+                if (!EnsureStarted(doc)) return PageVerdict.Unchecked;
                 StartFailed = false;
                 try
                 {
@@ -584,7 +593,13 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             Open = null;
         }
 
-        private bool EnsureStarted()
+        /// <summary>
+        /// A process to check <paramref name="doc"/> in, started if need be; false when none starts (<see cref="StartFailed"/>),
+        /// or the document was closed or the link ended meanwhile (not a failure). Starting and <see cref="Kill"/> are one
+        /// or the other: a process started while the link was ended, or for a document closed since, is ended before it
+        /// can open anything, so whoever closed the document may save over its file at once.
+        /// </summary>
+        private bool EnsureStarted(CheckedDocument doc)
         {
             lock (_processGate)
             {
@@ -610,12 +625,22 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     pipe.Dispose();
                     throw;
                 }
+                lock (plan._gate) plan._pids.Add(process.Id);
+                plan.TestAfterStart?.Invoke();
                 lock (_processGate)
                 {
+                    if (_killed || doc.Closed || plan._disposed)
+                    {
+                        // Ended (or its document closed) while it started: nothing found it to end, so here.
+                        _killed = true;
+                        EndNow(process);
+                        process.Dispose();
+                        pipe.Dispose();
+                        return false;
+                    }
                     _process = process;
                     _pipe = pipe;
                 }
-                lock (plan._gate) plan._pids.Add(process.Id);
                 // It reads untrusted content: a page made to take all the memory stops at the job's limit, not the PC's.
                 FindWorkers.Job.AddLimited(process);
                 FindWorkers.AwaitConnection(pipe, process, plan.ConnectMs, CancellationToken.None);
@@ -624,8 +649,8 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
             catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
             {
-                // The program isn't there or didn't connect: no check to be had.
-                StartFailed = true;
+                // The program isn't there or didn't connect: no check to be had (unless it was ended on purpose meanwhile).
+                lock (_processGate) StartFailed = !_killed && !doc.Closed && !plan._disposed;
                 Kill();
                 return false;
             }
@@ -687,17 +712,22 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 if (_killed) return;
                 _killed = true;
                 Open = null;
-                if (_process is not { } process) return;
-                try
-                {
-                    if (!process.HasExited) process.Kill();
-                    process.WaitForExit(5000);
-                }
-                catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException)
-                {
-                    // Already gone.
-                }
+                if (_process is not { } process) return; // one starting is ended as it is taken on (EnsureStarted)
+                EndNow(process);
                 _pipe?.Dispose();
+            }
+        }
+
+        private static void EndNow(Process process)
+        {
+            try
+            {
+                if (!process.HasExited) process.Kill();
+                process.WaitForExit(5000);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException)
+            {
+                // Already gone.
             }
         }
     }
