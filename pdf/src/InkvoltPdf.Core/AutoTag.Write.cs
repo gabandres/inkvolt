@@ -245,6 +245,8 @@ public static partial class AutoTag
                     for (var r = 0; r < b.Rows.Count; r++)
                     {
                         var tr = Child("TR", t);
+                        // A row a span counts (its own cell spanning down, or one above spanning into it) stays, empty or not.
+                        if (b.Rows[r].Any(c => c.Covered || Math.Min(c.RowSpan, b.Rows.Count - r) > 1)) _spannedRows.Add(tr);
                         for (var k = 0; k < b.Rows[r].Count; k++)
                         {
                             var cell = b.Rows[r][k];
@@ -349,9 +351,14 @@ public static partial class AutoTag
                     if (cell) continue;
                     kids.Elements.RemoveAt(i);
                 }
-            if (type == "TR" && kids.Elements.All(k => PdfObj.Dict(k) is { } c && _kids.TryGetValue(c, out var ck) && ck.Elements.Count == 0)) return true;
+            // A row goes when all its cells are empty, unless a RowSpan counts it.
+            if (type == "TR")
+                return !_spannedRows.Contains(e) && kids.Elements.All(k => PdfObj.Dict(k) is { } c && _kids.TryGetValue(c, out var ck) && ck.Elements.Count == 0);
             return kids.Elements.Count == 0;
         }
+
+        /// <summary>Table rows a row span counts: never pruned, so each RowSpan covers the rows written.</summary>
+        private readonly HashSet<PdfDictionary> _spannedRows = new(ReferenceEqualityComparer.Instance);
 
         // ───────────────────────────── a page ─────────────────────────────
 

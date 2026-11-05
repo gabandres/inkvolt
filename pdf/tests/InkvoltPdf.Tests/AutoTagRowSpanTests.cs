@@ -135,6 +135,31 @@ public class AutoTagRowSpanTests
     }
 
     [Fact]
+    public void A_row_spanned_from_above_keeps_its_row_though_its_own_cells_are_empty()
+    {
+        // "North" spans rows 2 and 3; row 3's own cells hold nothing: the row stays, so the span counts what is written.
+        var pdf = Table(
+            [
+                ("Region", 0, 0, true), ("2025", 0, 1, true), ("Q1", 1, 1, true), ("Q2", 1, 2, true),
+                ("North", 3, 0, false), ("40", 2, 1, false), ("52", 2, 2, false),
+                ("South", 4, 0, false), ("7", 4, 1, false), ("8", 4, 2, false),
+            ], rows: 5, unruled: [(1, 0), (3, 0)], headerSpan: true);
+        var plan = Plan(pdf);
+        var block = Assert.Single(plan.Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(2, block.Rows[2][0].RowSpan);
+        var tagged = AutoTag.Write(pdf, null, plan);
+        using var doc = PdfReader.Open(new MemoryStream(tagged), PdfDocumentOpenMode.Import);
+        var root = D(doc.Internals.Catalog.Elements["/StructTreeRoot"]);
+        var table = Find(Kids(root)[0], "/Table")!;
+        var rows = Kids(table).Where(k => k.Elements.GetName("/S") == "/TR").ToList();
+        Assert.Equal(5, rows.Count);
+        Assert.Equal(2, Attr(Kids(rows[2])[0], "/RowSpan"));
+        Assert.Equal(2, Kids(rows[3]).Count);
+        var report = AccessibilityCheck.Run(tagged, null);
+        Assert.True(report.Passed, string.Join("\n", report.Failures.Select(f => $"{f.Condition}: {f.Problem}")));
+    }
+
+    [Fact]
     public void Export_to_Word_keeps_the_table_as_it_was()
     {
         // Row spans are for the tags: the exported table has its five rows of cells as before (text where it was drawn).
