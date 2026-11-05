@@ -148,9 +148,9 @@ public static partial class ContentEditor
     internal static IReadOnlyList<TextParagraph> GroupParagraphs(PageContent content)
     {
         var result = new List<TextParagraph>(GroupUpright(content));
-        foreach (var angle in TurnedAngles(content))
+        foreach (var (angle, mine) in Directions(content))
         {
-            var (framed, page) = Framed(content, angle);
+            var (framed, page) = Framed(content, angle, mine);
             result.AddRange(GroupUpright(framed).Select(p => Turned(p, angle, page)));
         }
         return result;

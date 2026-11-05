@@ -12,23 +12,25 @@ public static partial class ContentEditor
     private const int MaxDirections = 16;
 
     /// <summary>
-    /// The directions of a page's turned text, degrees clockwise (as <see cref="TextRun.Angle"/>): runs within half a
-    /// degree of each other are one direction; a direction needs at least two runs to make a paragraph of more than
-    /// one run.
+    /// The directions of a page's turned text, each with its runs: runs sorted by angle (degrees clockwise, as
+    /// <see cref="TextRun.Angle"/>) go in one direction while they are within half a degree of its first, so each run
+    /// is in one direction only (and upright text, under half a degree, in none); a direction's angle is its middle
+    /// run's. At most <see cref="MaxDirections"/>, those with the most runs.
     /// </summary>
-    private static List<double> TurnedAngles(PageContent content)
+    private static List<(double Angle, HashSet<TextRun> Runs)> Directions(PageContent content)
     {
-        var angles = content.Runs
+        var turned = content.Runs
             .Where(r => r.Reach is not null && r.Text.Trim().Length > 0 && r.FontSize > 0.5 && Math.Abs(Turn(r.Angle)) >= 0.5)
-            .Select(r => (Turn(r.Angle) + 360) % 360) // 0 to 360, so that 180° and -180° are together
-            .Order().ToList();
-        var groups = new List<List<double>>();
-        foreach (var a in angles)
+            .Select(r => (At: (Turn(r.Angle) + 360) % 360, Run: r)) // 0 to 360, so that 180° and -180° are together
+            .OrderBy(x => x.At).ToList();
+        var groups = new List<List<(double At, TextRun Run)>>();
+        foreach (var x in turned)
         {
-            if (groups.Count > 0 && a - groups[^1][0] < 0.5) groups[^1].Add(a);
-            else groups.Add([a]);
+            if (groups.Count > 0 && x.At - groups[^1][0].At < 0.5) groups[^1].Add(x);
+            else groups.Add([x]);
         }
-        return [.. groups.Where(g => g.Count >= 2).OrderByDescending(g => g.Count).Take(MaxDirections).Select(g => Turn(g[g.Count / 2]))];
+        return [.. groups.OrderByDescending(g => g.Count).Take(MaxDirections)
+            .Select(g => (Turn(g[g.Count / 2].At), new HashSet<TextRun>(g.Select(x => x.Run), ReferenceEqualityComparer.Instance)))];
     }
 
     /// <summary>An angle as -180 (excluded) to 180 degrees.</summary>
@@ -66,30 +68,45 @@ public static partial class ContentEditor
     /// The page's content in the frame of <paramref name="angle"/>: its runs of that direction upright, with their own
     /// boxes there; every other run and picture as the bounding box of where it is (what a paragraph runs into, or what
     /// sits on its lines). A run of that direction that is mirrored or slanted has no box there and takes no part.
-    /// Each run in the frame leads back to the page's.
+    /// Each run in the frame leads back to the page's. Only the direction's own runs (<paramref name="mine"/>, see
+    /// <see cref="Directions"/>) are upright there: a run of a direction next to it, or upright text, is never grouped in
+    /// this frame. Only what is across the direction's text or below it is taken (what else is on the page can't touch
+    /// its paragraphs), so a page with many directions isn't copied whole for each.
     /// </summary>
-    private static (PageContent Framed, Dictionary<TextRun, TextRun> Page) Framed(PageContent content, double angle)
+    private static (PageContent Framed, Dictionary<TextRun, TextRun> Page) Framed(PageContent content, double angle, HashSet<TextRun> mine)
     {
         var page = new Dictionary<TextRun, TextRun>(ReferenceEqualityComparer.Instance);
-        var runs = new List<TextRun>(content.Runs.Count);
+        var runs = new List<TextRun>();
+        RectD Upright(TextRun r, PointD origin, (double Back, double Along, double Above, double Below) reach) =>
+            RectD.FromEdges(origin.X - reach.Back, origin.Y - reach.Above, origin.X + reach.Along, origin.Y + reach.Below);
+        // Where the direction's text is in its frame: what is across it, from a line above its top down, can matter.
+        double left = double.MaxValue, right = double.MinValue, top = double.MaxValue, size = 0;
+        foreach (var r in mine)
+        {
+            var b = Upright(r, ToFrame(r.Origin, angle), r.Reach!.Value);
+            (left, right, top, size) = (Math.Min(left, b.X), Math.Max(right, b.Right), Math.Min(top, b.Y), Math.Max(size, r.FontSize));
+        }
+        bool Near(RectD b) => b.Right >= left - 2 * size && b.X <= right + 2 * size && b.Bottom >= top - 2 * size;
         foreach (var r in content.Runs)
         {
             var rel = Turn(r.Angle - angle);
             var origin = ToFrame(r.Origin, angle);
             TextRun f;
-            if (Math.Abs(rel) < 0.5 && r.Reach is { } reach)
-                f = r with
-                {
-                    Box = RectD.FromEdges(origin.X - reach.Back, origin.Y - reach.Above, origin.X + reach.Along, origin.Y + reach.Below),
-                    Origin = origin,
-                    Angle = rel,
-                };
-            // Not upright in any frame: never grouped (NaN is no angle), still something on the lines.
-            else f = r with { Box = Turned(r.Box, angle), Origin = origin, Angle = Math.Abs(rel) < 0.5 ? double.NaN : rel };
+            // Its own runs, and the spaces drawn on their own in its direction (they go with its paragraphs' text).
+            var own = mine.Contains(r) || r.Text.Trim().Length == 0 && Math.Abs(rel) < 0.5 && Math.Abs(Turn(r.Angle)) >= 0.5;
+            if (own && r.Reach is { } reach)
+                f = r with { Box = Upright(r, origin, reach), Origin = origin, Angle = rel };
+            else
+            {
+                var box = Turned(r.Box, angle);
+                if (!Near(box)) continue;
+                // Not this direction's: never grouped here (NaN is no angle), still something on the lines or below.
+                f = r with { Box = box, Origin = origin, Angle = Math.Abs(rel) < 0.5 ? double.NaN : rel };
+            }
             page[f] = r;
             runs.Add(f);
         }
-        var images = content.Images.Select(i => i with { Box = Turned(i.Box, angle) }).ToList();
+        var images = content.Images.Select(i => i with { Box = Turned(i.Box, angle) }).Where(i => Near(i.Box)).ToList();
         return (new PageContent(runs, images), page);
     }
 

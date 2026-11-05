@@ -105,4 +105,28 @@ public partial class ParagraphEditTests
         var x = (Math.Min(l0.Right, l1.Right) + Math.Max(l0.X, l1.X)) / 2;
         Assert.Same(turned, content.ParagraphAt(x, l0.CenterY));
     }
+
+    [Theory]
+    [InlineData(new[] { 10.0, 10.4, 10.6, 10.9 })] // two directions side by side: 10.6 is near both middles
+    [InlineData(new[] { 0.3, 0.6, 0.7 })]           // a turned direction beside upright text
+    public void EachRunIsInOneParagraphWhateverDirectionsAreNearIt(double[] degrees)
+    {
+        // Short lines, each turned its own few degrees (counterclockwise in PDF space), far enough apart not to join.
+        var sb = new StringBuilder();
+        for (var i = 0; i < degrees.Length; i++)
+        {
+            var (sin, cos) = Math.SinCos(degrees[i] * Math.PI / 180);
+            sb.Append($"BT /FA {N(Size)} Tf {N(cos)} {N(sin)} {N(-sin)} {N(cos)} 72 {N(700 - i * 120)} Tm (Line number {i} of the page) Tj ET\n");
+        }
+        var content = ContentEditor.Read(ContentEditPdf.Make(sb.ToString(), fontText: Chars), null, 0);
+        var runs = content.Runs.Where(r => r.Text.StartsWith("Line number", StringComparison.Ordinal)).ToList();
+        Assert.Equal(degrees.Length, runs.Count);
+        foreach (var r in runs)
+        {
+            var holding = content.Paragraphs.Where(p => p.Runs.Contains(r)).ToList();
+            Assert.True(holding.Count == 1, $"{r.Text} ({r.Angle:0.##}°) is in {holding.Count} paragraphs");
+            // In the paragraph of its own direction: within half a degree of the paragraph's angle.
+            Assert.True(Math.Abs(ContentEditor.Turn(r.Angle - holding[0].Angle)) < 0.5, $"{r.Angle} in a paragraph at {holding[0].Angle}");
+        }
+    }
 }
