@@ -864,9 +864,25 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   process starting), 5.8 to 9.6 ms a page, Find 2.78 to 2.74 s; two check processes of about 50 MB each, not in the
   peaks above. A sheet drawn back to back costs about twice (0.45 to 1.0 s): its check (0.3 s in process) competes for
   the same cores. Not covered: a document with a password (no secret crosses a pipe) and formats other than PDF run
-  unchecked; a document a check process can't open, or when none starts, runs unchecked; the folder index's workers keep
-  their own 2-minute limit a file; a picture only a render at high zoom decodes larger is still drawn by one render
-  (bounded by its samples, a few seconds); the Mac.
+  unchecked; a document a check process can't open runs unchecked; the folder index's workers keep their own 2-minute
+  limit a file; the Mac.
+  **Its review (2026-11-05):** a check whose drawing MuPDF gave up on (damaged, or past the process's 2 GB) refuses the
+  page instead of passing it on to be drawn here unlimited; a picture of over 4,096 × 4,096 is also decoded at its full
+  size in the check (the small drawing decodes a JPEG at an eighth, a JPEG 2000 at its smallest level: a 30,000 ×
+  30,000 JPEG passed, then cost 900 M pixels in an export or a deep zoom), one too big for the 2 GB refused. When no
+  check process starts (the program missing, an antivirus holding it past 15 s), pages run unchecked (failing open, as
+  before page checks: failing safe would leave every document blank on that PC), nothing is kept of it, and a start is
+  tried again after 30 s, doubling to 5 minutes. Starting a check process and ending it can't cross any more (one
+  ended while it started opened a closed file). Only the document the user opens checks its first page as it opens
+  (not an engine opened for page sizes, a password or a thumbnail; a thumbnail checks its one page in the shared
+  process); a page asked ahead is withdrawn with the page it was asked for when that is scrolled past. An edit, undo or
+  redo carries the verdicts of the pages it left as they were (`PageIdentity`: a hash of what each page reaches, by
+  its stored bytes, renumbering aside; documents up to 32 MB), and both processes open one shared copy of a document.
+  Export as images, Batch's page images and Read Aloud leave a refused page out and say so; Reduce File Size measures a
+  soft mask by its picture's rule. Bench `one` after it (single runs, the PC at 50 to 100% from other work): text first
+  page 0.25 s with checks (0.07 without), 9.1 ms a page (5.6), Find 2.7 to 3.0 s (2.7); drawing set first page 1.03 s
+  (0.58), scroll and Find within the load's noise (1.1 to 1.7 s a sheet, 36 to 61 s either way); scan first page 0.21 s
+  (0.07), 27 ms a page (25). To measure again on an idle PC.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the

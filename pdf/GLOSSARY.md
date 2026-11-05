@@ -19,9 +19,12 @@ locality) are used in their usual sense: the interface is everything a caller mu
   current: lists the folder (**a look**), has workers read what is new or changed, commits, waits for a change notice or the next look.
 - **Page check** (`Core/PageChecks.cs`, the engine's side in `Core/PdfEngine.Checks.cs`): the app started again with
   `--page-check <pipe name>`, drawing a page small (every picture decoded) before the app first runs that page's
-  content in MuPDF. One still drawing after the limit (10 s) is ended and the page **refused**
-  (`PageRefusedException`): the viewer says it took too long, Find, export and print go on without it. At most two,
-  shared by every open document; they end with the app.
+  content in MuPDF, a picture of over 4,096 × 4,096 also decoded at its full size. One still drawing after the limit
+  (10 s), or that MuPDF gives up on there (damaged, or past the process's 2 GB), is ended and the page **refused**
+  (`PageRefusedException`): the viewer says it took too long or can't be displayed, Find, export, print and read aloud
+  go on without it. A page's **verdict** is kept for its engine and, after an edit, carried to the pages the edit left
+  as they were (`Core/PageIdentity.cs`). When none can start, pages run unchecked and a start is tried again later. At
+  most two, shared by every open document; they end with the app.
 - **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
   are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
   unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.
