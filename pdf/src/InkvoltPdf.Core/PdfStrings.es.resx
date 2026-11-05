@@ -4934,6 +4934,10 @@
     <value>su fuente no dice qué caracteres son sus glifos</value>
     <comment>Why text can't be edited: ends a sentence</comment>
   </data>
+  <data name="Edit_BlockedSymbolFont" xml:space="preserve">
+    <value>su fuente es una fuente de símbolos (Symbol o ZapfDingbats) sin incrustar, sin anchos con los que componerla</value>
+    <comment>Why text can't be edited: ends a sentence</comment>
+  </data>
   <data name="Edit_BlockedType3" xml:space="preserve">
     <value>está dibujado con una fuente Type 3 (glifos dibujados como imágenes)</value>
     <comment>Why text can't be edited: ends a sentence</comment>

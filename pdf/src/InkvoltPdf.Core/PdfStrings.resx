@@ -4934,6 +4934,10 @@
     <value>its font doesn't say which characters its glyphs are</value>
     <comment>Why text can't be edited: ends a sentence</comment>
   </data>
+  <data name="Edit_BlockedSymbolFont" xml:space="preserve">
+    <value>its font is a symbol font (Symbol or ZapfDingbats) that isn't embedded, with no widths to lay it out with</value>
+    <comment>Why text can't be edited: ends a sentence</comment>
+  </data>
   <data name="Edit_BlockedType3" xml:space="preserve">
     <value>it is drawn with a Type 3 font (glyphs drawn as pictures)</value>
     <comment>Why text can't be edited: ends a sentence</comment>

@@ -50,7 +50,10 @@ internal static class GlyphNames
         "parenlefttp 239B parenleftex 239C parenleftbt 239D parenrighttp 239E parenrightex 239F parenrightbt 23A0 " +
         "bracketlefttp 23A1 bracketleftex 23A2 bracketleftbt 23A3 bracketrighttp 23A4 bracketrightex 23A5 bracketrightbt 23A6 " +
         "bracelefttp 23A7 braceleftmid 23A8 braceleftbt 23A9 braceex 23AA bracerighttp 23AB bracerightmid 23AC bracerightbt 23AD " +
-        "integralex 23AE arrowhorizex 23AF arrowvertex 23D0";
+        "integralex 23AE arrowhorizex 23AF arrowvertex 23D0 " +
+        // The rest of the Symbol font's names: its serif and sans ®, © and ™ read as the characters.
+        "radicalex 203E carriagereturn 21B5 registerserif AE copyrightserif A9 trademarkserif 2122 registersans AE " +
+        "copyrightsans A9 trademarksans 2122";
 
     private static readonly Dictionary<string, string> ByName = new(StringComparer.Ordinal);
     private static readonly Dictionary<int, string> ByCode = [];
@@ -58,6 +61,27 @@ internal static class GlyphNames
     private static readonly string?[] Win = new string?[256];
     private static readonly string?[] Mac = new string?[256];
     private static readonly string?[] Std = new string?[256];
+    private static readonly string?[] Sym = new string?[256];
+    private static readonly Dictionary<string, int> SymCodes = new(StringComparer.Ordinal);
+
+    /// <summary>The standard Symbol font's built-in encoding (Adobe's Symbol AFM): the codes from 32 up, in order, "-" for none.</summary>
+    private const string SymbolCodes =
+        "space exclam universal numbersign existential percent ampersand suchthat parenleft parenright asteriskmath plus " +
+        "comma minus period slash zero one two three four five six seven eight nine colon semicolon less equal greater question " +
+        "congruent Alpha Beta Chi Delta Epsilon Phi Gamma Eta Iota theta1 Kappa Lambda Mu Nu Omicron Pi Theta Rho Sigma Tau " +
+        "Upsilon sigma1 Omega Xi Psi Zeta bracketleft therefore bracketright perpendicular underscore radicalex alpha beta chi " +
+        "delta epsilon phi gamma eta iota phi1 kappa lambda mu nu omicron pi theta rho sigma tau upsilon omega1 omega xi psi " +
+        "zeta braceleft bar braceright similar " + // 126; 127-159 none
+        "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - " +
+        "Euro Upsilon1 minute lessequal fraction infinity florin club diamond heart spade arrowboth arrowleft arrowup arrowright " +
+        "arrowdown degree plusminus second greaterequal multiply proportional partialdiff bullet divide notequal equivalence " +
+        "approxequal ellipsis arrowvertex arrowhorizex carriagereturn aleph Ifraktur Rfraktur weierstrass circlemultiply " +
+        "circleplus emptyset intersection union propersuperset reflexsuperset notsubset propersubset reflexsubset element " +
+        "notelement angle gradient registerserif copyrightserif trademarkserif product radical dotmath logicalnot logicaland " +
+        "logicalor arrowdblboth arrowdblleft arrowdblup arrowdblright arrowdbldown lozenge angleleft registersans copyrightsans " +
+        "trademarksans summation parenlefttp parenleftex parenleftbt bracketlefttp bracketleftex bracketleftbt bracelefttp " +
+        "braceleftmid braceleftbt braceex - angleright integral integraltp integralex integralbt parenrighttp parenrightex " +
+        "parenrightbt bracketrighttp bracketrightex bracketrightbt bracerighttp bracerightmid bracerightbt";
 
     static GlyphNames()
     {
@@ -99,6 +123,14 @@ internal static class GlyphNames
             "F1 ae F5 dotlessi F8 lslash F9 oslash FA oe FB germandbls";
         var u = upper.Split(' ');
         for (var i = 0; i + 1 < u.Length; i += 2) Std[int.Parse(u[i], NumberStyles.HexNumber, CultureInfo.InvariantCulture)] = u[i + 1];
+
+        var sym = SymbolCodes.Split(' ');
+        for (var i = 0; i < sym.Length && 32 + i < 256; i++)
+        {
+            if (sym[i] == "-") continue;
+            Sym[32 + i] = sym[i];
+            SymCodes.TryAdd(sym[i], 32 + i);
+        }
     }
 
     private static void Add(string name, char c)
@@ -157,6 +189,12 @@ internal static class GlyphNames
         "StandardEncoding" => Std[code],
         _ => null,
     };
+
+    /// <summary>The glyph name of a code in the standard Symbol font's built-in encoding.</summary>
+    public static string? InSymbol(int code) => code is < 0 or > 255 ? null : Sym[code];
+
+    /// <summary>Where the standard Symbol font has a glyph name in its built-in encoding (its Windows twin's code is 0xF000 more), or null.</summary>
+    public static int? SymbolCode(string name) => SymCodes.TryGetValue(name, out var c) ? c : null;
 
     public static bool IsKnownEncoding(string encoding) => encoding is "WinAnsiEncoding" or "MacRomanEncoding" or "StandardEncoding";
 }

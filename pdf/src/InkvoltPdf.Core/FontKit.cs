@@ -349,15 +349,36 @@ internal static class SystemFonts
         if (!string.IsNullOrEmpty(local)) yield return Path.Combine(local, "Microsoft", "Windows", "Fonts");
     }
 
-    public static TrueTypeFont? Get(string file) => Cache.GetOrAdd(file, f =>
+    public static TrueTypeFont? Get(string file) => Cache.GetOrAdd(file, f => Read(f) is { } bytes ? TrueTypeFont.Load(Path.GetFileNameWithoutExtension(f), bytes) : null);
+
+    private static readonly ConcurrentDictionary<string, TrueTypeProgram?> Programs = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A system font as a <see cref="TrueTypeProgram"/>: its cmap subtables whatever they are (Windows' Symbol has only a
+    /// symbol one, which <see cref="Get"/> can't read) and its advances. Null when it isn't installed or can't be read.
+    /// </summary>
+    public static TrueTypeProgram? Program(string file) => Programs.GetOrAdd(file, f =>
+    {
+        if (Read(f) is not { } bytes) return null;
+        try
+        {
+            return TrueTypeProgram.Read(bytes);
+        }
+        catch (Exception ex) when (ex is ArgumentException or IndexOutOfRangeException or InvalidOperationException or OverflowException)
+        {
+            return null;
+        }
+    });
+
+    private static byte[]? Read(string file)
     {
         foreach (var dir in FontDirs())
         {
-            var path = Path.Combine(dir, f);
+            var path = Path.Combine(dir, file);
             if (!File.Exists(path)) continue;
             try
             {
-                return TrueTypeFont.Load(Path.GetFileNameWithoutExtension(f), File.ReadAllBytes(path));
+                return File.ReadAllBytes(path);
             }
             catch (IOException)
             {
@@ -369,7 +390,7 @@ internal static class SystemFonts
             }
         }
         return null;
-    });
+    }
 
     /// <summary>The first font (primary, then the fallback chain) with a glyph for <paramref name="codePoint"/>, else the primary.</summary>
     public static TrueTypeFont? For(int codePoint, TrueTypeFont? primary)

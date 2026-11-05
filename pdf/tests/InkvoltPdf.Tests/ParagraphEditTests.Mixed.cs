@@ -8,7 +8,7 @@ namespace InkvoltPdf.Tests;
 public partial class ParagraphEditTests
 {
     /// <summary>Body as a left-aligned paragraph in /FA with <paramref name="word"/> drawn in <paramref name="face"/> ("FB": Arial Bold, "FT": Times, "FA" itself) at <paramref name="size"/> (default the paragraph's), a line under it.</summary>
-    private static byte[] WithFace(string word, string face, double size = Size)
+    private static byte[] WithFace(string word, string face, double size = Size, string? standard = null)
     {
         var lines = Wrap(Body, Width);
         var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td");
@@ -20,7 +20,7 @@ public partial class ParagraphEditTests
             else sb.Append($" ({lines[i][..at]}) Tj /{face} {N(size)} Tf ({word}) Tj /FA {N(Size)} Tf ({lines[i][(at + word.Length)..]}) Tj");
         }
         sb.Append(" 0 -60 Td (Next block starts here) Tj ET");
-        return ContentEditPdf.Make(sb.ToString(), fontText: Chars, faces: true);
+        return ContentEditPdf.Make(sb.ToString(), fontText: Chars, faces: true, standard: standard);
     }
 
     [Fact]
@@ -150,6 +150,42 @@ public partial class ParagraphEditTests
         Assert.NotNull(p.Blocked);
         Assert.Contains("mixes fonts", p.Blocked);
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
+    }
+
+    [Fact]
+    public void AWordInTheStandardSymbolFontNotEmbeddedIsPartOfTheParagraphAndStaysInIt()
+    {
+        // /FS is Symbol as old software wrote it, without widths: "sphinx" in it reads σπηινξ (Symbol's own encoding).
+        var pdf = WithFace("sphinx", "FS", standard: "Symbol");
+        var greek = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.FontName == "Symbol");
+        Assert.Equal("σπηινξ", greek.Text);
+        Assert.Null(greek.Blocked);
+        Assert.Equal(Size * (603 + 549 + 603 + 329 + 521 + 493) / 1000.0, greek.Box.Width, 1); // Symbol's own widths (Adobe's, as Windows' Symbol has them)
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        var body = Body.Replace("sphinx", "σπηινξ", StringComparison.Ordinal);
+        Assert.Equal(body, p.Text);
+
+        // Rewritten with words in front and a letter typed onto the word: it moves along in Symbol, the letter too.
+        var text = "Now then " + body.Replace("σπηινξ", "σπηινξα", StringComparison.Ordinal);
+        var check = p.Check(text);
+        Assert.Empty(check.Missing);
+        Assert.Empty(check.Faces); // nothing from this PC
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited, "Now then");
+        Assert.Null(q.Blocked);
+        Assert.Equal(text, q.Text);
+        Assert.Equal("Symbol", q.Runs.Single(r => r.Text.Trim() == "σπηινξα").FontName);
+        Assert.Equal(p.Lead.FontName, q.Lead.FontName);
+        Assert.Contains("σπηινξα", ContentEditPdf.Text(edited), StringComparison.Ordinal); // MuPDF reads it back the same
+    }
+
+    [Fact]
+    public void AWordInStandardZapfDingbatsNotEmbeddedStillEditsLineByLine()
+    {
+        // No widths in the file and none on this PC to lay ZapfDingbats out with: the paragraph is edited line by line.
+        var p = ContentEditor.Read(WithFace("sphinx", "FS", standard: "ZapfDingbats"), null, 0).Paragraphs.Single(q => q.Lines.Count > 1 && q.Text.Contains("quick", StringComparison.Ordinal));
+        Assert.NotNull(p.Blocked);
     }
 
     [Fact]

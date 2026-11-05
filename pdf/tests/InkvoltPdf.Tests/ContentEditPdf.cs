@@ -19,8 +19,9 @@ internal static class ContentEditPdf
     /// <param name="damagedPart">A last content stream that claims Flate but holds bytes that don't inflate.</param>
     /// <param name="fontText">The characters the fonts hold (default <see cref="FontText"/>).</param>
     /// <param name="faces">Also /FB (Arial Bold, WinAnsi) and /FT (Times New Roman, WinAnsi), holding <paramref name="fontText"/> too.</param>
+    /// <param name="standard">Also /FS, this standard font (Symbol, ZapfDingbats) not embedded, without widths or descriptor.</param>
     public static byte[] Make(string content, int rotate = 0, string? form = null, string[]? extraStreams = null, bool formInherits = false, bool damagedPart = false,
-        string fontText = FontText, bool faces = false)
+        string fontText = FontText, bool faces = false, string? standard = null)
     {
         TestPdf.UseFonts();
         byte[] seed;
@@ -63,6 +64,16 @@ internal static class ContentEditPdf
         fd.Elements["/FU"] = unicode!;
         if (bold is not null) fd.Elements["/FB"] = bold;
         if (times is not null) fd.Elements["/FT"] = times;
+        if (standard is not null)
+        {
+            // A standard font as old software wrote it: no widths, no descriptor, nothing embedded.
+            var std = new PdfDictionary(d);
+            std.Elements["/Type"] = new PdfName("/Font");
+            std.Elements["/Subtype"] = new PdfName("/Type1");
+            std.Elements["/BaseFont"] = new PdfName("/" + standard);
+            d.Internals.AddObject(std);
+            fd.Elements["/FS"] = std.Reference!;
+        }
         res.Elements["/Font"] = fd;
         var xo = new PdfDictionary(d);
         var image = ImageImport.ImageStream(d, 4, 2, [.. Enumerable.Repeat(new byte[] { 255, 0, 0 }, 8).SelectMany(x => x)], "/DeviceRGB");

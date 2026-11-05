@@ -370,8 +370,11 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   one when the page has it. `ParagraphEditTests.Mixed` (4 in place of the two that expected a block: a Times word mid-line, typed into, a line
   that begins with it, another size still line by line); pdf.js and the corpus paragraphs read as before; dev script
   (Helvetica with two Times words, one starting a line): one paragraph of 4 lines, 9 words added, both words still in
-  Times. Still to do: a standard Symbol or ZapfDingbats font that isn't embedded (no widths to lay it out with, so a
-  run in it still blocks the paragraph).
+  Times. The standard Symbol font not embedded (2026-11-04): read through Symbol's own encoding (`GlyphNames.InSymbol`,
+  so "a" in it is α) and measured with Windows' Symbol (`SystemFonts.Program("symbol.ttf")`, whose widths are Adobe's;
+  the euro at 160, which it lacks, is 750), a word in it is part of the paragraph, typed letters too
+  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). Still to do: ZapfDingbats not embedded, which
+  Windows has no twin of to measure (its widths would be new font data), so a run in it still edits line by line.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

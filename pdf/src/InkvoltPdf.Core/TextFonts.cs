@@ -36,6 +36,8 @@ internal sealed class TextFont
     private readonly int[]? _cidToGid; // null: identity
     private readonly bool _symbolic;
     private readonly bool _standard14;
+    // The standard Symbol font, not embedded and without a descriptor: Windows' Symbol, whose widths are Adobe's, measures it.
+    private readonly TrueTypeProgram? _symbolMetrics;
     // Read once: checks run later, after the document they came from may be closed.
     private readonly bool _hasDescriptor, _embedded, _hasWidths;
     private readonly Dictionary<int, bool> _glyphKnown = [];
@@ -106,8 +108,10 @@ internal sealed class TextFont
                     if (first + i is >= 0 and < 256) _widths[first + i] = PdfObj.Num(widths.Elements[i]);
             var plain = StripStyle(Name);
             _standard14 = descriptor is null && plain is "Helvetica" or "Arial" or "Times" or "TimesNewRoman" or "Times-Roman" or "Courier" or "CourierNew";
-            if (descriptor is null && (Name.StartsWith("Symbol", StringComparison.Ordinal) || Name.StartsWith("ZapfDingbats", StringComparison.Ordinal)))
-                Blocked ??= "its font is a symbol font";
+            if (descriptor is null && subtype == "/Type1" && Name == "Symbol") _symbolMetrics = SystemFonts.Program("symbol.ttf");
+            // ZapfDingbats has no twin on Windows with its widths to lay it out with.
+            if (descriptor is null && _symbolMetrics is null && (Name.StartsWith("Symbol", StringComparison.Ordinal) || Name.StartsWith("ZapfDingbats", StringComparison.Ordinal)))
+                Blocked ??= PdfStrings.Edit_BlockedSymbolFont;
         }
 
         _hasDescriptor = descriptor is not null;
@@ -145,6 +149,8 @@ internal sealed class TextFont
 
     // ---- Reading ----
 
+    private static readonly string?[] SymbolEncoding = [.. Enumerable.Range(0, 256).Select(GlyphNames.InSymbol)];
+
     private void ReadSimpleEncoding(string subtype)
     {
         string? baseEncoding = null;
@@ -159,7 +165,7 @@ internal sealed class TextFont
                 differences = PdfObj.Array(d.Elements["/Differences"]);
                 break;
         }
-        var builtIn = (_program as Type1Program)?.BuiltIn;
+        var builtIn = _symbolMetrics is not null ? SymbolEncoding : (_program as Type1Program)?.BuiltIn;
         if (baseEncoding is null || !GlyphNames.IsKnownEncoding(baseEncoding))
         {
             // No (usable) base encoding: the font's own. Type 1 programs carry one; otherwise Standard for text fonts.
@@ -296,8 +302,17 @@ internal sealed class TextFont
         if (TwoByte) return _cidWidths.TryGetValue(code, out var w) ? w : ProgramAdvance(code) ?? _dw;
         if (code is >= 0 and < 256 && _widths[code] is > 0 and var sw) return sw;
         if (ProgramAdvance(code) is { } pa) return pa;
+        if (SymbolAdvance(code) is { } sa) return sa;
         if (_standard14 && _simpleText[code] is { Length: 1 } t) return StdFont.FromName(Name).Advance(t[0]) * 1000;
         return code is >= 0 and < 256 && _widths[code] is { } z ? z : _hasWidths ? _missingWidth : 500;
+    }
+
+    /// <summary>A code's width in the standard Symbol font (its glyph name's place in Symbol's encoding, in Windows' Symbol).</summary>
+    private double? SymbolAdvance(int code)
+    {
+        if (_symbolMetrics is not { } sm || code is < 0 or > 255 || _names[code] is not { } name || GlyphNames.SymbolCode(name) is not { } at) return null;
+        if (at == 0xA0) return 750; // the euro Adobe added at 160, which Windows' Symbol lacks
+        return sm.Lookup(3, 0, 0xF000 + at) is var g and > 0 ? sm.Advance(g) : null;
     }
 
     private bool HasWidth(int code) => TwoByte ? _cidWidths.ContainsKey(code) : code is >= 0 and < 256 && _widths[code] is > 0;
@@ -396,7 +411,7 @@ internal sealed class TextFont
                 _ => HasWidth(code) && (!_hasToUnicode || _toUnicode.ContainsKey(code)), // program unreadable: the PDF's tables
             };
             // A width is needed to place it; an embedded TrueType glyph's width can be added from the program.
-            if (has && !HasWidth(code) && !(_standard14 && !_hasWidths) && ProgramAdvance(code) is null) has = false;
+            if (has && !HasWidth(code) && !(_standard14 && !_hasWidths) && ProgramAdvance(code) is null && (_hasWidths || SymbolAdvance(code) is null)) has = false;
         }
         _glyphKnown[code] = has;
         return has;
