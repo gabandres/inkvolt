@@ -151,4 +151,15 @@ public partial class ParagraphEditTests
         Assert.Contains("mixes fonts", p.Blocked);
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
     }
+
+    [Fact]
+    public void AWordInAnotherFamilyWhoseFontCantBeUsedStillEditsLineByLine()
+    {
+        // The Times word's font isn't there to write it in: rewritten in the paragraph's Arial it would change silently.
+        var content = ContentEditor.Read(WithFace("sphinx", "FT"), null, 0);
+        var runs = content.Runs.Select(r => r.Text == "sphinx" ? r with { Font = null } : r).ToList();
+        var p = ContentEditor.GroupParagraphs(new PageContent(runs, content.Images)).Single(q => q.Text.Contains("sphinx", StringComparison.Ordinal));
+        Assert.True(p.Lines.Count > 1);
+        Assert.NotNull(p.Blocked);
+    }
 }

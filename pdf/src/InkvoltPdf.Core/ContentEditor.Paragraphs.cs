@@ -233,11 +233,17 @@ public static partial class ContentEditor
     /// size and color, and text an edit gave a look of its own goes with anything.
     /// </summary>
     private static bool SameLook(TextRun a, TextRun b) =>
-        a.Styled || b.Styled || (a.StandIn || b.StandIn || SameFamily(a, b)) && SameSizeAndColor(a, b);
+        SameSizeAndColor(a, b) && (Restyled(a, b) || a.StandIn || b.StandIn || SameFamily(a, b));
 
-    /// <summary>Size within 5% and the same color: what text in another family needs to be part of a paragraph's lines.</summary>
+    /// <summary>
+    /// Size within 5% and the same color: what text in another family needs to be part of a paragraph's lines (text an
+    /// edit gave a look of its own goes with anything).
+    /// </summary>
     private static bool SameSizeAndColor(TextRun a, TextRun b) =>
-        a.Styled || b.Styled || Math.Abs(a.FontSize - b.FontSize) <= Math.Max(0.3, 0.05 * a.FontSize) && a.Color == b.Color;
+        Restyled(a, b) || Math.Abs(a.FontSize - b.FontSize) <= Math.Max(0.3, 0.05 * a.FontSize) && a.Color == b.Color;
+
+    /// <summary>Either is text an edit gave a look of its own (<see cref="TextRun.Styled"/>), which joins any.</summary>
+    private static bool Restyled(TextRun a, TextRun b) => a.Styled || b.Styled;
 
     /// <summary>The same font, or two faces of one family (regular and bold, as Word's PDFs draw a bold word).</summary>
     private static bool SameFamily(TextRun a, TextRun b) =>
@@ -432,6 +438,8 @@ public static partial class ContentEditor
         var own = PlainRun(runs);
         if (blocked is null && !translating && runs.Any(r => !SameSizeAndColor(own, r)))
             blocked = PdfStrings.Edit_BlockedMixedLooks;
+        // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
+        if (blocked is null && !translating && runs.Any(r => r.Font is null)) blocked = PdfStrings.Edit_BlockedNoFont;
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
