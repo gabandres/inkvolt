@@ -53,12 +53,29 @@ extension Report {
         lines.append("batch-print: password asked for \(asked.joined(separator: ", ")); estimate: \(m.summary)")
         lines += rowLines(m)
 
-        // Print, 99 copies of the first file making it more than 100 sheets: asked first.
+        // Clear while it's looking, then a list at once (as Open List does): the new rows are looked at, none left waiting.
+        let looking = Task { await m.checkAgain() }
+        for _ in 0..<2000 where !(m.isEstimating && m.progress != nil) { try? await Task.sleep(for: .milliseconds(1)) }
+        let paths = m.rows.map(\.path)
+        m.clear()
+        m.rows = paths.map { BatchRow($0, BatchPrintSettings(copies: 1, range: nil, twoSided: false, paper: nil)) }
+        await m.estimate()
+        await looking.value
+        lines.append("batch-print: cleared while looking, the files put back at once: \(m.rows.filter { $0.measure != nil }.count) of \(m.rows.count) looked at, "
+            + "still looking: \(m.isEstimating)")
+
+        // Print, 99 copies of the first file making it more than 100 sheets: asked first. Clicked twice (a double click):
+        // the second finds the batch under way, so nothing is sent twice.
+        await m.estimate() // whatever the check above left
         m.rows.first?.copies = 99
         if let first = m.rows.first { m.changed(first) }
-        await m.printAll()
+        let waiting = m.stillToSend.filter { $0.line?.problem == nil }.count, askedBefore = m.questions.count
+        let click = Task { await m.printAll() }, again = Task { await m.printAll() }
+        await click.value
+        await again.value
         let demoQueue = m.lastQueue as? DemoBatchQueue
-        lines.append("batch-print: asked \"\(m.questions.last ?? "nothing")\"; \(m.message ?? "?") The made-up queue drew \(demoQueue?.sent.count ?? 0) jobs.")
+        lines.append("batch-print: asked \"\(m.questions.last ?? "nothing")\"; \(m.message ?? "?") The made-up queue drew \(demoQueue?.sent.count ?? 0) jobs "
+            + "for \(waiting) files; Print clicked twice, batches started: \(m.questions.count - askedBefore).")
         lines += rowLines(m)
         lines.append("batch-print: print again sends nothing twice: \(m.canPrint ? "Print still offered" : "Print not offered")")
         let csv = m.resultsCsv() ?? ""

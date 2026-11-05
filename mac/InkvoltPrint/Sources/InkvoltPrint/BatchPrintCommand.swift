@@ -18,7 +18,8 @@ enum PrintCommand {
         ProSetup.configure(model)
         if model.isDemo && args.contains("--pro-enforce") { Pro.enforced = true }
         let given = args.filter { $0 != "--pro-enforce" && $0 != "--demo" }
-        if !model.isDemo { BatchPlaces.open(model.store) }
+        let places = model.isDemo ? nil : BatchPlaces.open(model.store) // every remembered place, for this run
+        defer { places?.close() }
 
         let stop = BatchStop()
         signal(SIGINT, SIG_IGN)

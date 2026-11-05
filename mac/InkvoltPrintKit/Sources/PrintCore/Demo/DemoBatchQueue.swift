@@ -27,8 +27,11 @@ public final class DemoBatchQueue: BatchQueue {
     /// What it was "sent": the jobs, in order.
     public var sent: [BatchPrintJob] { sentJobs.withLock { $0 } }
 
+    /// Answered after a moment, as cupsd answers: the window waits on it as on a real queue (a second click on Print lands
+    /// meanwhile).
     public func read() async throws -> BatchQueueInfo? {
-        BatchQueueInfo(name, Self.papers, "na_letter_8.5x11in", canTwoSided: destination.name != "Demo_USB_laser")
+        try await Task.sleep(for: .milliseconds(20))
+        return BatchQueueInfo(name, Self.papers, "na_letter_8.5x11in", canTwoSided: destination.name != "Demo_USB_laser")
     }
 
     public func problem() async throws -> String? {

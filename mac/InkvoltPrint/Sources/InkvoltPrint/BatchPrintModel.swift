@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import Synchronization
 import PrintCore
 import PrintMac
 import UniformTypeIdentifiers
@@ -125,6 +126,10 @@ final class BatchPrintModel {
     @ObservationIgnored private var run: BatchStop?
     @ObservationIgnored private var watching: BatchStop?
     @ObservationIgnored private var estimating: BatchStop?
+    /// Which estimate is the window's: one stopped by Clear or Open List unwinds later and leaves the flags to the new one.
+    @ObservationIgnored private var estimateRun = 0
+    /// The remembered places a list opened reaches its files through, open to the sandbox while its files are on the list.
+    @ObservationIgnored private var places: BatchPlaceAccess?
     @ObservationIgnored private var declinedPassword = false
     /// `--report`: answers the password questions instead of a person (nil: nobody answers).
     @ObservationIgnored var answer: ((String, Bool) -> String?)?
@@ -228,15 +233,19 @@ final class BatchPrintModel {
 
     /// Opens every row not looked at yet, one at a time and off the main thread.
     func estimate() async {
-        if isEstimating { return } // the run under way reaches the new rows too
+        if isEstimating, let running = estimating, !running.isStopped { return } // the run under way reaches the new rows too
+        estimateRun += 1
+        let mine = estimateRun
         isEstimating = true
         declinedPassword = false
         let stop = BatchStop()
         estimating = stop
         defer {
-            progress = nil
-            isEstimating = false
-            estimating = nil
+            if estimateRun == mine {
+                progress = nil
+                isEstimating = false
+                estimating = nil
+            }
         }
         if info == nil { await readInfo() }
         while let row = rows.first(where: { $0.measure == nil }), !stop.isStopped {
@@ -279,8 +288,10 @@ final class BatchPrintModel {
     func enterPassword() async {
         guard let row = selected, row.needsPassword, isFree else { return }
         declinedPassword = false
+        estimateRun += 1
+        let mine = estimateRun
         isEstimating = true
-        defer { isEstimating = false }
+        defer { if estimateRun == mine { isEstimating = false } }
         if let m = try? await BatchMeasurer.measure(row.path, offered: nil, documents, ask: askClosure()) { row.measured(m, info) }
     }
 
@@ -319,6 +330,8 @@ final class BatchPrintModel {
         estimating?.stop()
         rows.removeAll()
         selection = nil
+        places?.close()
+        places = nil
         say(nil)
     }
 
@@ -329,6 +342,15 @@ final class BatchPrintModel {
 
     func printAll() async {
         guard canPrint, let queue = queue() else { return }
+        // Claimed before the first wait: a second click (or ⌘P) while the printer is read or the question is up finds it taken.
+        isSending = true
+        let stop = BatchStop()
+        run = stop
+        defer {
+            run = nil
+            progress = nil
+            isSending = false
+        }
         guard let info = await readInfo() else {
             say("This printer has no macOS print queue to print through.", error: true)
             return
@@ -339,16 +361,8 @@ final class BatchPrintModel {
         if sheets > BatchPrintLimits.confirmSheets,
            !confirm("This batch comes to \(BatchPrintText.sheets(sheets)) on \(BatchPrintText.clean(info.name)). Print it?", "Print") { return }
 
-        isSending = true
-        let stop = BatchStop()
-        run = stop
         lastQueue = queue
         say(nil)
-        defer {
-            run = nil
-            progress = nil
-            isSending = false
-        }
         for row in send { row.waiting() }
         let lines = send.compactMap(\.line)
         let progressing: @Sendable (BatchPrintProgress) -> Void = { [weak self] p in
@@ -432,10 +446,15 @@ final class BatchPrintModel {
                 entries = try await Task.detached { try BatchPrintList.load(path, allowNetwork: true) }.value
             }
             let chosen = entries
+            // Its files' places opened first: in a new launch the sandbox reaches a saved file or folder only through them.
+            let access = app.isDemo ? nil : BatchPlaces.open(app.store, reaching: chosen.map(\.path))
             let files = try await Task.detached { try BatchPrintList.expand(chosen) }.value
-            if !rows.isEmpty, !confirm("Replace the files on the list with the saved list's?", "Replace") { return }
+            if !rows.isEmpty, !confirm("Replace the files on the list with the saved list's?", "Replace") {
+                access?.close()
+                return
+            }
             clear()
-            BatchPlaces.open(app.store)
+            places = access
             rows = files.map { BatchRow($0.path, $0.settings) }
             await estimate()
         } catch let e as BatchListError {
@@ -555,32 +574,55 @@ final class BatchPrintModel {
     }
 }
 
-/// The files and folders the Batch Print window was given, remembered (`PrintState.batchPlaces`) so the sandbox lets the
-/// command line and a list opened later reach them again. Nothing is remembered in demo mode.
+/// The files and folders the Batch Print window was given, remembered (`PrintState.batchPlaces`, by path: `BatchPlaceList`) so
+/// the sandbox lets the command line and a list opened later reach them again. Nothing is remembered in demo mode.
 @MainActor
 enum BatchPlaces {
     static let listType = UTType(filenameExtension: String(BatchPrintList.fileExtension.dropFirst()), conformingTo: .json) ?? .json
 
+    /// Makes a bookmark for each URL given and keeps it under its path; nothing remembered is resolved.
     static func remember(_ urls: [URL], _ store: StateStore, demo: Bool) {
         guard !demo else { return }
-        let made = urls.compactMap { url in FolderBookmarks.make(url).map { (url.standardizedFileURL.path, $0) } }
+        let made = urls.compactMap { url in FolderBookmarks.make(url).map { BatchPlace(url.standardizedFileURL.path, $0) } }
         guard !made.isEmpty else { return }
-        store.change { state in
-            let given = Set(made.map(\.0))
-            state.batchPlaces.removeAll { data in FolderBookmarks.resolve(data).map { given.contains($0.url.standardizedFileURL.path) } ?? true }
-            state.batchPlaces += made.map(\.1)
-            if state.batchPlaces.count > PrintState.maxBatchPlaces { state.batchPlaces.removeFirst(state.batchPlaces.count - PrintState.maxBatchPlaces) }
-        }
+        store.change { $0.batchPlaces = BatchPlaceList.remember($0.batchPlaces, made) }
     }
 
-    /// Every remembered place opened to the sandbox for this run (the command line, a list opened again). Returns how many.
-    @discardableResult
-    static func open(_ store: StateStore) -> Int {
-        var opened = 0
-        for data in store.current.batchPlaces {
-            guard let (url, _) = FolderBookmarks.resolve(data) else { continue }
-            if url.startAccessingSecurityScopedResource() { opened += 1 }
+    /// The remembered places that reach `paths` (nil: every one, for the command line) opened to the sandbox, until the
+    /// returned access is closed. A bookmark macOS renews (a stale one: moved or renamed) is kept renewed.
+    static func open(_ store: StateStore, reaching paths: [String]? = nil) -> BatchPlaceAccess {
+        let places = store.current.batchPlaces
+        let wanted = paths.map { BatchPlaceList.covering(places, $0) } ?? places
+        var urls: [URL] = []
+        var renewals: [(BatchPlace, BatchPlace)] = []
+        for place in wanted {
+            guard let (url, renewed) = FolderBookmarks.resolve(place.bookmark) else { continue }
+            if let renewed { renewals.append((place, BatchPlace(url.standardizedFileURL.path, renewed))) }
+            if url.startAccessingSecurityScopedResource() { urls.append(url) }
         }
-        return opened
+        if !renewals.isEmpty {
+            store.change { state in
+                for (old, new) in renewals { state.batchPlaces = BatchPlaceList.renewed(state.batchPlaces, old, to: new) }
+            }
+        }
+        return BatchPlaceAccess(urls)
     }
+}
+
+/// Places opened to the sandbox by `BatchPlaces.open`, each let go once when closed (or when this goes).
+final class BatchPlaceAccess: Sendable {
+    private let urls: Mutex<[URL]>
+
+    init(_ urls: [URL]) { self.urls = Mutex(urls) }
+
+    var count: Int { urls.withLock { $0.count } }
+
+    func close() {
+        for url in urls.withLock({ u -> [URL] in
+            defer { u = [] }
+            return u
+        }) { url.stopAccessingSecurityScopedResource() }
+    }
+
+    deinit { close() }
 }
