@@ -13,7 +13,13 @@ public enum Json: Equatable, Sendable {
     /// Nil for anything that isn't one JSON value (garbage, an HTML page, trailing text).
     public static func parse(_ text: String?) -> Json? {
         guard let text else { return nil }
-        var reader = Reader(Array(text.utf8))
+        return parse(Array(text.utf8), handWritten: false, maxDepth: maxDepth)
+    }
+
+    /// `handWritten`: as a person or a script writes a file (a batch print list): `//` and `/* */` comments, and a comma
+    /// after the last member or item, as .NET's `JsonCommentHandling.Skip` and `AllowTrailingCommas` take them.
+    public static func parse(_ bytes: [UInt8], handWritten: Bool, maxDepth: Int) -> Json? {
+        var reader = Reader(bytes, handWritten: handWritten, maxDepth: maxDepth)
         guard let value = reader.value(depth: 0) else { return nil }
         reader.skipSpace()
         return reader.atEnd ? value : nil
@@ -29,18 +35,45 @@ public enum Json: Equatable, Sendable {
 
     private struct Reader {
         let b: [UInt8]
+        let handWritten: Bool
+        let maxDepth: Int
         var i = 0
 
-        init(_ bytes: [UInt8]) { b = bytes }
+        init(_ bytes: [UInt8], handWritten: Bool = false, maxDepth: Int = Json.maxDepth) {
+            b = bytes
+            self.handWritten = handWritten
+            self.maxDepth = maxDepth
+        }
 
         var atEnd: Bool { i >= b.count }
 
         mutating func skipSpace() {
-            while i < b.count, b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0A || b[i] == 0x0D { i += 1 }
+            while i < b.count {
+                if b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0A || b[i] == 0x0D {
+                    i += 1
+                } else if handWritten, b[i] == UInt8(ascii: "/"), i + 1 < b.count, b[i + 1] == UInt8(ascii: "/") {
+                    while i < b.count, b[i] != 0x0A { i += 1 }
+                } else if handWritten, b[i] == UInt8(ascii: "/"), i + 1 < b.count, b[i + 1] == UInt8(ascii: "*") {
+                    i += 2
+                    while i + 1 < b.count, !(b[i] == UInt8(ascii: "*") && b[i + 1] == UInt8(ascii: "/")) { i += 1 }
+                    i += 2 // past the end: an unclosed comment leaves nothing to read
+                } else {
+                    return
+                }
+            }
+        }
+
+        /// A comma was just read: in a hand-written file the list may end here.
+        private mutating func endsAfterComma(_ close: UInt8) -> Bool {
+            guard handWritten else { return false }
+            skipSpace()
+            guard i < b.count, b[i] == close else { return false }
+            i += 1
+            return true
         }
 
         mutating func value(depth: Int) -> Json? {
-            guard depth <= Json.maxDepth else { return nil }
+            guard depth <= maxDepth else { return nil }
             skipSpace()
             guard i < b.count else { return nil }
             switch b[i] {
@@ -79,7 +112,11 @@ public enum Json: Equatable, Sendable {
                 if members[key] == nil { members[key] = v } // a repeated name keeps its first value
                 skipSpace()
                 guard i < b.count else { return nil }
-                if b[i] == UInt8(ascii: ",") { i += 1; continue }
+                if b[i] == UInt8(ascii: ",") {
+                    i += 1
+                    if endsAfterComma(UInt8(ascii: "}")) { return .object(members) }
+                    continue
+                }
                 if b[i] == UInt8(ascii: "}") { i += 1; return .object(members) }
                 return nil
             }
@@ -98,7 +135,11 @@ public enum Json: Equatable, Sendable {
                 items.append(v)
                 skipSpace()
                 guard i < b.count else { return nil }
-                if b[i] == UInt8(ascii: ",") { i += 1; continue }
+                if b[i] == UInt8(ascii: ",") {
+                    i += 1
+                    if endsAfterComma(UInt8(ascii: "]")) { return .array(items) }
+                    continue
+                }
                 if b[i] == UInt8(ascii: "]") { i += 1; return .array(items) }
                 return nil
             }

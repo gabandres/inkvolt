@@ -25,7 +25,8 @@ import PrintMac
 /// Record This Printer and reads the .zip back (`problemCheck`); `--fleet [fix] [status]` shows the Fleet page and lists its
 /// rows as VoiceOver reads them, checks Export…'s CSV and JSON (in memory in demo mode; else saved in the container) and the Pro
 /// gate, `fix` runs Fix All on demo mode's made-up queues saying yes to each question, `status` runs `status --all --json`
-/// through the reader (`fleetCheck`). For checking a build over
+/// through the reader (`fleetCheck`); `--batch-print [queue <name>]` runs Batch Print (`batchPrintCheck`: the window, lists, a
+/// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -74,6 +75,11 @@ enum Report {
             if let i = args.firstIndex(of: "--fleet") {
                 let words = args[(i + 1)...].prefix { !$0.hasPrefix("--") }
                 cancelled += await fleetCheck(model, fix: words.contains("fix"), status: words.contains("status"))
+            }
+            if let i = args.firstIndex(of: "--batch-print") {
+                let words = Array(args[(i + 1)...].prefix { !$0.hasPrefix("--") })
+                let queue = words.first == "queue" && words.count > 1 ? words[1] : nil
+                cancelled += await batchPrintCheck(model, queue: queue)
             }
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")

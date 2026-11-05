@@ -21,13 +21,19 @@ struct PresetStrip: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .buttonStyle(.borderless)
-                .keyboardShortcut(i < 9 ? KeyboardShortcut(KeyEquivalent(Character(String(i + 1))), modifiers: .command) : nil)
+                .keyboardShortcut(Self.shortcut(i))
                 .accessibilityLabel("Scan with \(p.name)")
                 .disabled(scan.isScanning || scan.caps == nil)
             }
             Button("Manage Presets…") { managing = true }
         }
         .sheet(isPresented: $managing) { PresetsManager().environment(app) }
+    }
+
+    /// ⌘1 to ⌘9 for the first nine presets (on its own: Xcode's type checker took 151 ms on it inline).
+    private static func shortcut(_ i: Int) -> KeyboardShortcut? {
+        guard i < 9 else { return nil }
+        return KeyboardShortcut(KeyEquivalent(Character(String(i + 1))), modifiers: .command)
     }
 }
 

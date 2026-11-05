@@ -114,9 +114,8 @@ final class FakeQueue: BatchQueue, @unchecked Sendable {
 /// the results as CSV. Ported from BatchPrintTests.cs with the same names. Adapted: macOS can't stop another program writing,
 /// renaming or deleting a file that's open, so the Mac holds the file's bytes from the moment it's opened, and
 /// A_file_cant_change_or_vanish_while_its_being_sent checks that what prints is what was fingerprinted, whatever happens to
-/// the file; a hidden file is a dot file; the papers are IPP's names; the CSV's folder is a Mac path. BatchPrintListTests,
-/// BatchPrintFolderTests and BatchPrintCommandLineTests (saved lists, watched folders, `print --list`) come with the rest of
-/// 2.4's Pro automation.
+/// the file; a hidden file is a dot file; the papers are IPP's names; the CSV's folder is a Mac path. Saved lists, watched
+/// folders and `print` are BatchPrintListTests, BatchPrintFolderTests and BatchPrintCommandLineTests.
 struct BatchPrintTests {
     static let info = BatchQueueInfo("Test queue", FakeQueue.papers, "na_letter_8.5x11in", canTwoSided: true)
 

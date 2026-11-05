@@ -331,6 +331,21 @@ Other APIs:
   - UNVERIFIED: how fresh cupsd's copy is while the queue is idle. Ask the device directly over IPP/SNMP/LEDM, using the
     queue's device URI, and treat cupsd's values as a fallback.
 
+### Batch print's jobs, proved on the Mac (2026-11-05)
+
+- The sandboxed app creates a job **held** (`job-hold-until=indefinite` on Create-Job), writes its PDF in pieces, reads
+  it back with Get-Job-Attributes (`copies`, `sides`, `media` as given) and lets it go with Release-Job or cancels it, all
+  over cupsd's socket as the user, no authorization asked. Checked on a temporary queue (`lpadmin` as an admin user, a
+  Generic PPD with its duplexer, device `ipp://192.0.2.1/…`), which was then deleted: 7 jobs held with copies 2,
+  two-sided and Letter, each read back as asked, all cancelled. A disabled (paused) queue takes jobs as an enabled one does.
+- `cupsCopyDestInfo` answers for a PPD queue too: its papers by IPP name (`iso_a4_210x297mm`, `na_letter_8.5x11in`;
+  `cupsLocalizeDestMedia` gives "A4", "Letter"), `sides` supported once the PPD's duplexer option is on.
+- The app's binary run from Terminal is sandboxed like the app: it reads only its container and what security-scoped
+  bookmarks the user gave the app (`files.bookmarks.app-scope`) open to it; a file elsewhere is EPERM. So the command
+  line's `print` opens the bookmarks the Batch Print window kept first.
+- Image I/O gives no pixel size (`CopyPropertiesAtIndex`) for a PNG whose IHDR alone claims 40,000 × 40,000 over one
+  pixel of data; a whole baseline JPEG of 20,000 × 20,000 gives its size without decoding.
+
 ### Conclusion: how far the App Store fixer goes
 
 **Can do:**

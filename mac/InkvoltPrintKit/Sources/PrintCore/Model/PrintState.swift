@@ -59,6 +59,12 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, `FirmwareWatch`; the Windows
     /// app's `AppState.Firmware`).
     public var firmware: [String: FirmwareRecord] = [:]
+    /// The files and folders the Batch Print window was given (added, saved a list to, watched), as app-scoped security
+    /// bookmarks, newest last: the sandbox lets the command line's `print` and a list opened later reach them again
+    /// (roadmap 2.4; no Windows equivalent, Windows has no sandbox). At most `maxBatchPlaces`.
+    public var batchPlaces: [Data] = []
+
+    public static let maxBatchPlaces = 200
 
     public init() {}
 
@@ -77,6 +83,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         noFirmwareNotify = try c.decodeIfPresent([String].self, forKey: .noFirmwareNotify) ?? []
         proKey = try? c.decodeIfPresent(String.self, forKey: .proKey)
         firmware = (try? c.decodeIfPresent([String: FirmwareRecord].self, forKey: .firmware)) ?? [:]
+        batchPlaces = (try? c.decodeIfPresent([Data].self, forKey: .batchPlaces)) ?? []
     }
 }
 

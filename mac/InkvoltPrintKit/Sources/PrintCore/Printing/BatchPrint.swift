@@ -291,6 +291,9 @@ public enum BatchPrintText {
 
     public static func count(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(FleetPage.grouped(n)) \(word)s" }
 
+    /// A number as the app writes counts: "1,234".
+    public static func number(_ n: Int) -> String { FleetPage.grouped(n) }
+
     public static func sheets(_ n: Int) -> String { count(n, "sheet") }
 }
 
