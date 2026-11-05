@@ -533,7 +533,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   `TableFromGrid`: `DocCell.RowSpan`, the rows it covers keep a `Covered` cell with what was drawn there, so the
   exports are as before); Make Accessible gives the cell what its covered cells hold (text centered in a tall cell
   often sits in a lower row), writes RowSpan in its Table attributes and leaves the covered cells out; a row header
-  over two rows heads both. Borderless tables have no row spans yet (nothing marks them). `AutoTagRowSpanTests` (3:
+  over two rows heads both; header rows are told from the cells as drawn, a column header's span stops at the last
+  header row, and a row all covered by the cells above is no row of its own (review, 2026-11-04). Borderless tables have no row spans yet (nothing marks them). `AutoTagRowSpanTests` (6:
   a header over two header rows and a row header over two rows, read, written and checked; Word's table unchanged).
   veraPDF 1.30.3 passes PDF/UA-1 on that table tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before; export corpus: the
   same Word pages for 7 of 7, PowerPoint opens every slide, 3,617 of 3,641 HTML lines in order as before. **Unicode

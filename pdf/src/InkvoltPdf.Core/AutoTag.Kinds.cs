@@ -213,9 +213,11 @@ public static partial class AutoTag
 
     /// <summary>
     /// A table with each cell that spans rows holding what was drawn in the cells it covers (text centered in a tall
-    /// cell often sits in a row below its first), those left empty.
+    /// cell often sits in a row below its first), those left empty. A span stops at row <paramref name="cut"/> (the end
+    /// of the header rows: a column header never spans into the data), and what it covered below that is a cell of its
+    /// own, spanning what is left. 0: no cut.
     /// </summary>
-    private static DocTable WithRowSpans(DocTable t)
+    private static DocTable WithRowSpans(DocTable t, int cut = 0)
     {
         if (!t.Rows.Any(r => r.Any(c => c.RowSpan > 1))) return t;
         var rows = t.Rows.Select(r => r.ToList()).ToList();
@@ -227,9 +229,12 @@ public static partial class AutoTag
                 var cell = rows[r][k];
                 if (cell.RowSpan > 1 && !cell.Covered)
                 {
+                    var whole = Math.Min(cell.RowSpan, rows.Count - r);
+                    var span = cut > r && r + whole > cut ? cut - r : whole;
                     var paragraphs = cell.Paragraphs.ToList();
                     var pictures = cell.Pictures.ToList();
-                    for (var d = 1; d < cell.RowSpan && r + d < rows.Count; d++)
+                    var d = 1;
+                    for (; d < span; d++)
                     {
                         var below = CellAtColumn(rows[r + d], col);
                         if (below < 0 || !rows[r + d][below].Covered) break;
@@ -237,10 +242,52 @@ public static partial class AutoTag
                         pictures.AddRange(rows[r + d][below].Pictures);
                         rows[r + d][below] = rows[r + d][below] with { Paragraphs = [], Pictures = [] };
                     }
-                    rows[r][k] = cell with { Paragraphs = paragraphs, Pictures = pictures };
+                    rows[r][k] = cell with { Paragraphs = paragraphs, Pictures = pictures, RowSpan = d };
+                    // Below the cut (or where a covered cell is missing): the next row's cell starts what is left.
+                    if (d < whole && CellAtColumn(rows[r + d], col) is >= 0 and var rest && rows[r + d][rest].Covered)
+                        rows[r + d][rest] = rows[r + d][rest] with { Covered = false, RowSpan = whole - d };
                 }
                 col += Math.Max(1, cell.ColSpan);
             }
+        }
+        return t with { Rows = [.. rows.Select(r => (IReadOnlyList<DocCell>)r)] };
+    }
+
+    /// <summary>
+    /// A table without its rows that are all covered by the cells above (no rule between them anywhere, only a stub
+    /// that gave the grid its line): each such row's content goes to the cell covering it, that cell spans one row less,
+    /// so no row of the table is left without a cell of its own.
+    /// </summary>
+    private static DocTable WithoutCoveredRows(DocTable t)
+    {
+        if (!t.Rows.Any(r => r.Count > 0 && r.All(c => c.Covered))) return t;
+        var rows = t.Rows.Select(r => r.ToList()).ToList();
+        for (var r = 1; r < rows.Count;)
+        {
+            if (rows[r].Count == 0 || !rows[r].All(c => c.Covered))
+            {
+                r++;
+                continue;
+            }
+            var col = 0;
+            foreach (var cell in rows[r])
+            {
+                // The cell covering it: the first one above at that column that isn't covered.
+                for (var up = r - 1; up >= 0; up--)
+                {
+                    if (CellAtColumn(rows[up], col) is not (>= 0 and var k)) break;
+                    if (rows[up][k].Covered) continue;
+                    var top = rows[up][k];
+                    rows[up][k] = top with
+                    {
+                        Paragraphs = [.. top.Paragraphs, .. cell.Paragraphs], Pictures = [.. top.Pictures, .. cell.Pictures],
+                        RowSpan = Math.Max(1, top.RowSpan - 1),
+                    };
+                    break;
+                }
+                col += Math.Max(1, cell.ColSpan);
+            }
+            rows.RemoveAt(r);
         }
         return t with { Rows = [.. rows.Select(r => (IReadOnlyList<DocCell>)r)] };
     }
@@ -257,16 +304,21 @@ public static partial class AutoTag
         return -1;
     }
 
-    private static IEnumerable<TagBlock> TableBlocks(int page, DocTable t)
-    {
-        t = WithRowSpans(t);
-        var rows = t.Rows.Select(r => (IReadOnlyList<TagCell>)[.. r.Select(c => new TagCell(
+    /// <summary>A table's cells as tagged: where each one's content is, its text, its spans.</summary>
+    private static List<IReadOnlyList<TagCell>> TagCells(DocTable t) =>
+        [.. t.Rows.Select(r => (IReadOnlyList<TagCell>)[.. r.Select(c => new TagCell(
             [.. c.Paragraphs.SelectMany(x => x.Sources)], c.Text.Trim(), c.ColSpan)
         {
             Pictures = [.. c.Pictures.Select(x => x.Image.PageBox ?? x.Box)],
             RowSpan = c.RowSpan,
             Covered = c.Covered,
-        })]).ToList();
+        })])];
+
+    private static IEnumerable<TagBlock> TableBlocks(int page, DocTable t)
+    {
+        var unmerged = WithoutCoveredRows(t);
+        t = WithRowSpans(unmerged);
+        var rows = TagCells(t);
         var all = rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures)).ToList();
         if (all.Count == 0) yield break;
         var box = Bounds(all);
@@ -281,22 +333,30 @@ public static partial class AutoTag
                     yield return new TagBlock(page, TagBlockKind.Paragraph, Bounds(cell.Sources)) { Sources = cell.Sources, Text = cell.Text };
             yield break;
         }
-        var body = t.Rows.Skip(1).ToList();
-        // Column headers: a first row in bold over rows that aren't, or a row of words over rows of numbers.
-        var boldTop = t.Rows.Count > 1 && t.Rows[0].All(c => c.Paragraphs.Count == 0 || Bold(c)) && t.Rows[0].Any(c => c.Paragraphs.Count > 0) &&
+        // Column headers, told row by row as drawn (each cell with what is drawn in it, before a cell spanning rows
+        // takes what it covers): a first row in bold over rows that aren't, or a row of words over rows of numbers.
+        var u = unmerged.Rows;
+        var body = u.Skip(1).ToList();
+        var boldTop = u.Count > 1 && u[0].All(c => c.Paragraphs.Count == 0 || Bold(c)) && u[0].Any(c => c.Paragraphs.Count > 0) &&
                       !body.All(r => r.All(c => c.Paragraphs.Count == 0 || Bold(c)));
-        var wordsTop = t.Rows.Count > 1 && t.Rows[0].Count(c => !Empty(c)) >= 2 && !t.Rows[0].Any(Number) && NumbersAfterFirst(body);
+        var wordsTop = u.Count > 1 && u[0].Count(c => !Empty(c)) >= 2 && !u[0].Any(Number) && NumbersAfterFirst(body);
         var headerRows = boldTop || wordsTop ? 1 : 0;
         // A header spanning columns over the headers under it ("2025" over "Q1 Q2"): both rows are headers.
-        if (headerRows == 1 && t.Rows.Count > 3 && t.Rows[0].Any(c => c.ColSpan > 1) && t.Rows[1].Any(c => !Empty(c)) && !t.Rows[1].Any(Number) &&
-            (t.Rows[1].All(c => Empty(c) || Bold(c)) || wordsTop && NumbersAfterFirst(t.Rows.Skip(2).ToList())))
+        if (headerRows == 1 && u.Count > 3 && u[0].Any(c => c.ColSpan > 1) && u[1].Any(c => !Empty(c)) && !u[1].Any(Number) &&
+            (u[1].All(c => Empty(c) || Bold(c)) || wordsTop && NumbersAfterFirst(u.Skip(2).ToList())))
             headerRows = 2;
-        // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers.
+        // A column header spans no further than the header rows: the spans are cut there.
+        if (headerRows > 0)
+        {
+            t = WithRowSpans(unmerged, cut: headerRows);
+            rows = TagCells(t);
+        }
+        // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers. The first
+        // column is each row's first cell (a covered one too: the row header above it heads that row).
         var data = t.Rows.Skip(headerRows).ToList();
-        // (A row whose first cell is covered by the row header above it is under that header.)
         var heads = data.Where(r => r.Count == 0 || !r[0].Covered).ToList();
         var headerColumn = data.Count >= 2 && heads.Count >= 1 && heads.All(r => r.Count >= 2 && !Empty(r[0])) &&
-                           (heads.All(r => Bold(r[0])) && !data.All(r => r.Where(c => !c.Covered).Skip(1).All(c => Empty(c) || Bold(c))) ||
+                           (heads.All(r => Bold(r[0])) && !data.All(r => r.Skip(1).All(c => Empty(c) || Bold(c))) ||
                             heads.All(r => !Number(r[0])) && NumbersAfterFirst(data));
         yield return new TagBlock(page, TagBlockKind.Table, box)
         {
