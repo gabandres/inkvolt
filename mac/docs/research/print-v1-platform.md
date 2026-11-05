@@ -138,6 +138,17 @@ sandbox, and the app read it over LEDM through URLSession (status, toner, page c
 sends an `Authorization` header set on the request as given (PrintMacTests, against a loopback server). Still untested in
 the app: the denied banner, and recovery when access is allowed while it runs.
 
+**Vision's text recognition, the first time** (2026-11-05, macOS 27.2, the M1, PrintMacTests): `VNRecognizeTextRequest`
+(`.accurate`) usually reads a letter page in under 1 s, but when the system has no compiled copy of its text model for the
+process (the unified log's `com.apple.TextRecognition` "Attempting to compile E5 model", `com.apple.e5rt` "E5BundleCache
+Lookup … exists=0"), aned has `ANECompilerService` compile it for the Neural Engine first: 50 to 57 s, after which Vision gave
+no words three times out of four and the right ones once. Seen in five test runs in two windows of the same day, cached in
+between; the compiled copy isn't kept in `~/Library/Caches/<process>/com.apple.e5rt.e5bundlecache`, whose entries didn't
+change. Not load: under 1 s with a load average of 26, and with another process's Vision stuck. Likely why the copy goes:
+the Mac's data volume was 95% full (10 GB free) and CacheDelete was purging (urgency 3); later that day ANECompilerService
+compiled again for every new test process (99% CPU, 1.1 GB), and Inkvolt PDF's OcrTests hit their 180 s limit the same way.
+A searchable PDF from Scan may therefore come without words the first time after a cache miss (not yet seen in the app).
+
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
 ### Printing
