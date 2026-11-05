@@ -714,8 +714,7 @@ enum Descreen {
     }
 
     private static func boxAcross(_ data: UnsafeMutableBufferPointer<UInt8>, _ w: Int, _ h: Int, _ channels: Int, _ radius: Int, _ stop: BatchStop?) throws {
-        try cleanupRows(h, stop) { y in
-            var line = [Int](repeating: 0, count: w)
+        try cleanupRows(h, stop, scratch: w) { (y: Int, line: UnsafeMutableBufferPointer<Int>) in
             for c in 0..<channels {
                 var sum = 0
                 for x in -radius...radius { sum += Int(data[(y * w + min(max(x, 0), w - 1)) * channels + c]) }
@@ -729,8 +728,7 @@ enum Descreen {
     }
 
     private static func boxDown(_ data: UnsafeMutableBufferPointer<UInt8>, _ w: Int, _ h: Int, _ channels: Int, _ radius: Int, _ stop: BatchStop?) throws {
-        try cleanupRows(w, stop) { x in
-            var line = [Int](repeating: 0, count: h)
+        try cleanupRows(w, stop, scratch: h) { (x: Int, line: UnsafeMutableBufferPointer<Int>) in
             for c in 0..<channels {
                 var sum = 0
                 for y in -radius...radius { sum += Int(data[(min(max(y, 0), h - 1) * w + x) * channels + c]) }
