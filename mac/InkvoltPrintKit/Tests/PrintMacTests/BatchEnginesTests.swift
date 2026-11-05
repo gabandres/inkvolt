@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import PrintCore
 import Synchronization
 import Testing
@@ -172,5 +174,63 @@ struct BatchEnginesTests {
         #expect(page.jpeg.starts(with: [0xFF, 0xD8]))
 
         #expect(try await documents.open(tiff.path, nil, BatchStop()).pageCount == 3)
+    }
+
+    /// A page whose CropBox is inside its MediaBox (a trimmed scan, a page cut from a poster) prints as Preview shows it and as
+    /// Windows' batch does (Windows.Data.Pdf's `PdfPage.Size` and rendering go by the CropBox): at the CropBox's size, with what
+    /// is inside it, not the whole MediaBox with the trimmed parts around it. Here a black CropBox of 4 × 5 in on a white
+    /// letter page, turned a quarter as /Rotate 90 says.
+    @Test func aPdfPageIsDrawnAtItsCropBoxAsPreviewAndWindowsShowIt() async throws {
+        let f = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: f) }
+        let pdf = f.appendingPathComponent("cropped.pdf")
+        try Data(Self.croppedPdf(rotate: 0)).write(to: pdf)
+        let turned = f.appendingPathComponent("turned.pdf")
+        try Data(Self.croppedPdf(rotate: 90)).write(to: turned)
+        let documents = MacBatchDocuments()
+
+        let page = try await documents.open(pdf.path, nil, BatchStop()).render(1, BatchStop())
+        #expect(abs(page.widthInches - 4) < 0.01 && abs(page.heightInches - 5) < 0.01, "\(page.widthInches) × \(page.heightInches) in")
+        let image = try #require(CGImageSourceCreateWithData(Data(page.jpeg) as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+        for (x, y) in [(0.03, 0.03), (0.97, 0.03), (0.5, 0.5), (0.03, 0.97), (0.97, 0.97)] {
+            #expect(try Self.gray(image, x, y) < 40, "white at \(x), \(y): the MediaBox around the CropBox was drawn")
+        }
+
+        let side = try await documents.open(turned.path, nil, BatchStop()).render(1, BatchStop())
+        #expect(abs(side.widthInches - 5) < 0.01 && abs(side.heightInches - 4) < 0.01, "\(side.widthInches) × \(side.heightInches) in")
+        let sideImage = try #require(CGImageSourceCreateWithData(Data(side.jpeg) as CFData, nil).flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) })
+        for (x, y) in [(0.03, 0.03), (0.97, 0.97)] { #expect(try Self.gray(sideImage, x, y) < 40, "white at \(x), \(y) when turned") }
+    }
+
+    /// A letter page, white, with a black square filling its CropBox [100 200 388 560] (4 × 5 in).
+    static func croppedPdf(rotate: Int) -> [UInt8] {
+        let content = "0 g 100 200 288 360 re f"
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /CropBox [100 200 388 560] /Rotate \(rotate) /Contents 4 0 R >>",
+            "<< /Length \(content.utf8.count) >>\nstream\n\(content)\nendstream",
+        ]
+        var out = "%PDF-1.4\n"
+        var offsets: [Int] = []
+        for (i, object) in objects.enumerated() {
+            offsets.append(out.utf8.count)
+            out += "\(i + 1) 0 obj\n\(object)\nendobj\n"
+        }
+        let xref = out.utf8.count
+        out += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for o in offsets { out += String(format: "%010d 00000 n \n", o) }
+        out += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+        return Array(out.utf8)
+    }
+
+    /// The brightness (0 to 255) at a point given as a fraction of the picture's width and height from its top left.
+    static func gray(_ image: CGImage, _ x: Double, _ y: Double) throws -> Int {
+        var pixel: [UInt8] = [0, 0, 0, 0]
+        let context = try #require(CGContext(data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4, space: CGColorSpaceCreateDeviceRGB(),
+                                             bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+        let px = Double(image.width) * x, py = Double(image.height) * (1 - y)
+        context.draw(image, in: CGRect(x: -px, y: -py, width: Double(image.width), height: Double(image.height)))
+        return (Int(pixel[0]) + Int(pixel[1]) + Int(pixel[2])) / 3
     }
 }

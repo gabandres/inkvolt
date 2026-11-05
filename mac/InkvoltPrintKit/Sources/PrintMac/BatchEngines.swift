@@ -91,7 +91,9 @@ final class PdfBatchDocument: BatchDocument, @unchecked Sendable {
         try stop.check()
         return try lock.withLock {
             guard page >= 1, page <= pdf.pageCount, let p = pdf.page(at: page - 1) else { throw BatchFileError("Page \(page) can't be drawn.") }
-            let box = p.bounds(for: .mediaBox)
+            // The CropBox, as Preview shows the page and Windows' batch prints it (Windows.Data.Pdf's PdfPage.Size); PDFKit gives
+            // the MediaBox where there is none, and draws the box from its corner, turned as /Rotate says.
+            let box = p.bounds(for: .cropBox)
             let turned = abs(p.rotation) % 180 == 90
             let width = Double(turned ? box.height : box.width), height = Double(turned ? box.width : box.height)
             guard width > 0, height > 0, width < 14_400, height < 14_400 else { throw BatchFileError("Page \(page) has no size a printer can take.") }
@@ -104,7 +106,7 @@ final class PdfBatchDocument: BatchDocument, @unchecked Sendable {
             context.setFillColor(CGColor(gray: 1, alpha: 1))
             context.fill(CGRect(x: 0, y: 0, width: w, height: h))
             context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
-            p.draw(with: .mediaBox, to: context)
+            p.draw(with: .cropBox, to: context)
             guard let image = context.makeImage() else { throw BatchFileError("Page \(page) can't be drawn.") }
             return BatchPrintPage(try MacBatchDocuments.jpeg(image), width / 72, height / 72)
         }
