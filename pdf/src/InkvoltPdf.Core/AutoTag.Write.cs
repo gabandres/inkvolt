@@ -533,7 +533,7 @@ public static partial class AutoTag
                         var res = PdfObj.Dict(inner.Elements["/Resources"]) ?? resources;
                         var bytes = PageWalk.SafeBytes(inner);
                         var innerOps = ContentLexer.Parse(bytes, cancel);
-                        var innerWalk = new PageWalk(page, res, cancel, start: it.Matrix);
+                        var innerWalk = new PageWalk(page, res, cancel, start: it.Start);
                         var innerItems = innerWalk.Items(innerOps, strip);
                         var own = new List<PdfItem>();
                         var marked = Mark(bytes, innerOps, innerWalk, innerItems, res, inner, depth + 1, own);
@@ -614,8 +614,10 @@ public static partial class AutoTag
         }
 
         /// <summary>
-        /// How many times each form XObject is drawn in the document (by pages and by other forms): counted the first time
-        /// a form with text is met (a document without one is never read for it), on the pages whose resources hold a form.
+        /// How many times each form XObject is drawn in the document (by pages and by other forms), and twice for one drawn
+        /// apart from the pages' content (an annotation's appearance, a tiling pattern, a Type 3 glyph, and what those
+        /// draw), whose MCIDs no page could own: counted the first time a form with text is met (a document without one is
+        /// never read for it).
         /// </summary>
         private Dictionary<PdfDictionary, int>? _formUses;
 
@@ -623,26 +625,77 @@ public static partial class AutoTag
         {
             if (_formUses is not null) return _formUses;
             _formUses = new(ReferenceEqualityComparer.Instance);
+            var read = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
             foreach (var page in doc.Pages.Cast<PdfPage>())
             {
                 cancel.ThrowIfCancellationRequested();
                 var res = Resources(page);
                 if (PdfObj.Dict(res?.Elements["/XObject"]) is { } xs && xs.Elements.Values.Any(v => PdfObj.Dict(v) is { } x && PdfObj.NameOf(x, "/Subtype") == "/Form"))
-                    CountForms(ContentEditor.ContentBytes(page), res, 0);
+                    CountForms(ContentEditor.ContentBytes(page), res, 0, outside: false, read);
+                CountOutside(res, 0, read);
+                // An annotation's appearances are drawn by the viewer, apart from the page's content.
+                foreach (var a in (IEnumerable<PdfItem>?)PdfObj.Array(page.Elements["/Annots"])?.Elements ?? [])
+                {
+                    if (PdfObj.Dict(PdfObj.Dict(a)?.Elements["/AP"]) is not { } ap) continue;
+                    foreach (var key in (ReadOnlySpan<string>)["/N", "/R", "/D"])
+                    {
+                        if (PdfObj.Dict(ap.Elements[key]) is not { } v) continue;
+                        if (v.Stream is not null) DrawnOutside(v, null, 0, read);
+                        else
+                            foreach (var state in v.Elements.Values)
+                                if (PdfObj.Dict(state) is { Stream: not null } s) DrawnOutside(s, null, 0, read);
+                    }
+                }
             }
             return _formUses;
         }
 
-        /// <summary>Counts the forms a content stream draws, and the forms they draw the first time each is met.</summary>
-        private void CountForms(byte[] content, PdfDictionary? resources, int depth)
+        /// <summary>
+        /// Counts the forms a content stream draws, and the forms they draw the first time each is met; with
+        /// <paramref name="outside"/> the stream is drawn apart from the pages' content, and so is every form it draws.
+        /// </summary>
+        private void CountForms(byte[] content, PdfDictionary? resources, int depth, bool outside, HashSet<PdfDictionary> read)
         {
-            if (depth > MaxFormDepth || content.AsSpan().IndexOf("Do"u8) < 0) return;
+            if (depth > MaxFormDepth) return;
+            CountOutside(resources, depth, read);
+            if (content.AsSpan().IndexOf("Do"u8) < 0) return;
             foreach (var op in ContentLexer.Parse(content, cancel))
             {
                 if (op.Name != "Do" || op.Operands.Count == 0 || op.Operands[0].Kind != CKind.Name) continue;
                 if (PdfObj.Dict(PdfObj.Dict(resources?.Elements["/XObject"])?.Elements["/" + op.Operands[0].Name]) is not { Stream: not null } x || PdfObj.NameOf(x, "/Subtype") != "/Form") continue;
+                if (outside)
+                {
+                    DrawnOutside(x, resources, depth + 1, read);
+                    continue;
+                }
                 var n = _formUses![x] = _formUses.GetValueOrDefault(x) + 1;
-                if (n == 1) CountForms(PageWalk.SafeBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, depth + 1);
+                if (n == 1) CountForms(PageWalk.SafeBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, depth + 1, outside: false, read);
+            }
+        }
+
+        /// <summary>A form drawn apart from the pages' content: counted twice (never piece by piece), and what it draws read once.</summary>
+        private void DrawnOutside(PdfDictionary x, PdfDictionary? resources, int depth, HashSet<PdfDictionary> read)
+        {
+            _formUses![x] = _formUses.GetValueOrDefault(x) + 2;
+            if (read.Add(x)) CountForms(PageWalk.SafeBytes(x), PdfObj.Dict(x.Elements["/Resources"]) ?? resources, depth, outside: true, read);
+        }
+
+        /// <summary>
+        /// The forms a resource dictionary's tiling patterns and Type 3 glyphs draw (each dictionary, pattern and font read
+        /// once): drawn apart from the pages' content. Every one is read, drawn by the content or not.
+        /// </summary>
+        private void CountOutside(PdfDictionary? resources, int depth, HashSet<PdfDictionary> read)
+        {
+            if (resources is null || depth > MaxFormDepth || !read.Add(resources)) return;
+            foreach (var v in PdfObj.Dict(resources.Elements["/Pattern"])?.Elements.Values ?? [])
+                if (PdfObj.Dict(v) is { Stream: not null } pattern && read.Add(pattern)) // a tiling pattern (a shading one has no content)
+                    CountForms(PageWalk.SafeBytes(pattern), PdfObj.Dict(pattern.Elements["/Resources"]), depth + 1, outside: true, read);
+            foreach (var v in PdfObj.Dict(resources.Elements["/Font"])?.Elements.Values ?? [])
+            {
+                if (PdfObj.Dict(v) is not { } font || PdfObj.NameOf(font, "/Subtype") != "/Type3" || !read.Add(font)) continue;
+                var glyphRes = PdfObj.Dict(font.Elements["/Resources"]) ?? resources;
+                foreach (var g in PdfObj.Dict(font.Elements["/CharProcs"])?.Elements.Values ?? [])
+                    if (PdfObj.Dict(g) is { Stream: not null } glyph) CountForms(PageWalk.SafeBytes(glyph), glyphRes, depth + 1, outside: true, read);
             }
         }
 
@@ -808,8 +861,11 @@ public static partial class AutoTag
         public PdfDictionary? Form { get; init; }
         public bool HasArtifact { get; init; }
         public bool ArtifactOnly { get; init; }
-        /// <summary>A form's matrix times the CTM where it is drawn: what its own content is drawn through.</summary>
-        public Mat Matrix { get; init; } = Mat.Identity;
+        /// <summary>
+        /// The state a form's own content starts with: the graphics state at its Do (font, spacing, scaling, rise) with
+        /// its matrix times the CTM there, what it is drawn through.
+        /// </summary>
+        public PageWalk.State? Start { get; init; }
     }
 
     /// <summary>
@@ -818,13 +874,14 @@ public static partial class AutoTag
     /// <c>strip</c> the BDC operators that carry an MCID and their EMC (tags being replaced) in <see cref="Stripped"/>.
     /// </summary>
     /// <param name="lookInsideForms">False for a form's own walk: all that is read of it is whether its items are artifacts, so it goes no deeper (a form can draw itself).</param>
-    /// <param name="start">The CTM the stream starts with: a form's matrix and the CTM where it is drawn, for a form read on its own.</param>
-    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel, bool lookInsideForms = true, Mat? start = null)
+    /// <param name="start">The state the stream starts with, for a form read on its own: the one at its Do (<see cref="Item.Start"/>).</param>
+    private sealed class PageWalk(PdfPage? page, PdfDictionary? resources, CancellationToken cancel, bool lookInsideForms = true, PageWalk.State? start = null)
     {
         /// <summary>Operators to replace (by index): an MCID's BDC and its EMC by nothing, an artifact's BDC with an MCID by a plain BMC.</summary>
         public Dictionary<int, string> Stripped { get; } = [];
 
-        private sealed class State
+        /// <summary>The graphics state the walk follows: the CTM and the text state.</summary>
+        internal sealed class State
         {
             public Mat Ctm = Mat.Identity;
             public PdfDictionary? Font;
@@ -835,7 +892,7 @@ public static partial class AutoTag
         public List<Item> Items(List<COp> ops, bool strip)
         {
             var items = new List<Item>();
-            var st = new State { Ctm = start ?? Mat.Identity };
+            var st = start?.Clone() ?? new State();
             var stack = new Stack<State>();
             var tm = Mat.Identity;
             var tlm = Mat.Identity;
@@ -998,9 +1055,11 @@ public static partial class AutoTag
                                 hasArtifact = inner.Any(t => t.InArtifact);
                                 artifactOnly = inner.Count > 0 && inner.All(t => t.InArtifact);
                             }
-                            items.Add(new Item(i, i, ItemKind.Form, Box(corners, m.Times(st.Ctm)), "", inArtifact, hasText)
+                            var through = st.Clone();
+                            through.Ctm = m.Times(st.Ctm);
+                            items.Add(new Item(i, i, ItemKind.Form, Box(corners, through.Ctm), "", inArtifact, hasText)
                             {
-                                Form = x, HasArtifact = hasArtifact, ArtifactOnly = artifactOnly, Matrix = m.Times(st.Ctm),
+                                Form = x, HasArtifact = hasArtifact, ArtifactOnly = artifactOnly, Start = through,
                             });
                         }
                         break;

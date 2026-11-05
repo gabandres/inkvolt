@@ -17,13 +17,19 @@ public class AutoTagFormTests
     private const string First = "The first paragraph tells the reader what happened over the year and why it matters.";
     private const string Second = "The second paragraph says what comes next and who to ask about it.";
 
-    /// <summary>The heading and two paragraphs inside /Fm1; each page draws it <paramref name="draws"/> times (one page, or as many as <paramref name="pages"/>).</summary>
-    private static byte[] FormPage(int pages = 1, int draws = 1)
+    /// <summary>
+    /// The heading and two paragraphs inside /Fm1 (object 5; its content <paramref name="form"/> instead); each page draws
+    /// it <paramref name="draws"/> times (one page, or as many as <paramref name="pages"/>) after <paramref name="before"/>,
+    /// its resources with <paramref name="resources"/> and its dictionary <paramref name="pageExtra"/>; objects
+    /// <paramref name="more"/> after the pages.
+    /// </summary>
+    private static byte[] FormPage(int pages = 1, int draws = 1, string? form = null, string before = "", string resources = "", string pageExtra = "",
+                                   IReadOnlyList<string>? more = null)
     {
-        var form = $"BT /F2 18 Tf 72 700 Td ({Heading}) Tj ET\n" +
-                   $"BT /F1 11 Tf 72 660 Td ({First}) Tj ET\n" +
-                   $"BT /F1 11 Tf 72 620 Td ({Second}) Tj ET";
-        var page = string.Concat(Enumerable.Repeat("q /Fm1 Do Q\n", draws));
+        form ??= $"BT /F2 18 Tf 72 700 Td ({Heading}) Tj ET\n" +
+                 $"BT /F1 11 Tf 72 660 Td ({First}) Tj ET\n" +
+                 $"BT /F1 11 Tf 72 620 Td ({Second}) Tj ET";
+        var page = before + string.Concat(Enumerable.Repeat("q /Fm1 Do Q\n", draws));
         var kids = string.Join(' ', Enumerable.Range(0, pages).Select(i => $"{7 + i} 0 R"));
         var objects = new List<string>
         {
@@ -35,7 +41,8 @@ public class AutoTagFormTests
             Core2Pdf.Stream(page),
         };
         for (var i = 0; i < pages; i++)
-            objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /XObject << /Fm1 5 0 R >> >> >>");
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /XObject << /Fm1 5 0 R >> {resources} >> {pageExtra} >>");
+        objects.AddRange(more ?? []);
         return Core2Pdf.Build(objects);
     }
 
@@ -135,6 +142,54 @@ public class AutoTagFormTests
         var form = D(D(D(doc.Pages[0].Elements["/Resources"]).Elements["/XObject"]).Elements["/Fm1"]);
         Assert.DoesNotContain("MCID", StreamText(form));
         Assert.Contains("MCID", StreamText(D(doc.Pages[0].Elements["/Contents"])));
+    }
+
+    [Theory]
+    [InlineData("annotation")] // a stamp whose appearance is the form
+    [InlineData("pattern")]    // a tiling pattern that draws it
+    [InlineData("type3")]      // a Type 3 glyph that draws it
+    public void A_form_also_drawn_outside_the_page_content_is_tagged_as_a_whole(string where)
+    {
+        // Drawn once by the page and again where tags can't reach: its stream can't hold the page's MCIDs.
+        var pdf = where switch
+        {
+            "annotation" => FormPage(pageExtra: "/Annots [8 0 R]", more: ["<< /Type /Annot /Subtype /Stamp /Rect [400 50 500 100] /Contents (Approved) /AP << /N 5 0 R >> >>"]),
+            "pattern" => FormPage(resources: "/Pattern << /P1 8 0 R >>", more:
+                [Core2Pdf.Stream("/Fm1 Do", "/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 612 792] /XStep 612 /YStep 792 /Resources << /XObject << /Fm1 5 0 R >> >>")]),
+            _ => FormPage(resources: "/Font << /T3 8 0 R >>", more:
+                [
+                    "<< /Type /Font /Subtype /Type3 /FontBBox [0 0 612 792] /FontMatrix [0.001 0 0 0.001 0 0] /CharProcs << /a 9 0 R >> " +
+                    "/Encoding << /Type /Encoding /Differences [65 /a] >> /FirstChar 65 /LastChar 65 /Widths [600] /Resources << /XObject << /Fm1 5 0 R >> >> >>",
+                    Core2Pdf.Stream("600 0 d0 /Fm1 Do"),
+                ]),
+        };
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        using var doc = PdfReader.Open(new MemoryStream(tagged), PdfDocumentOpenMode.Import);
+        Assert.All(Elements(doc), e => Assert.Empty(FormRefs(e.Elem)));
+        var form = D(D(D(doc.Pages[0].Elements["/Resources"]).Elements["/XObject"]).Elements["/Fm1"]);
+        Assert.DoesNotContain("MCID", StreamText(form));
+        Assert.Contains("MCID", StreamText(D(doc.Pages[0].Elements["/Contents"])));
+    }
+
+    [Fact]
+    public void Text_inside_a_form_in_the_font_set_before_its_Do_is_read_in_that_font()
+    {
+        // The form shows its heading in the font the page set before drawing it (a form starts with the text state at its
+        // Do): read in that font, the heading is the text of the link over it.
+        var pdf = FormPage(
+            form: $"BT 72 700 Td ({Heading}) Tj ET\nBT /F1 11 Tf 72 660 Td ({First}) Tj ET\nBT /F1 11 Tf 72 620 Td ({Second}) Tj ET",
+            before: "BT /F2 18 Tf ET\n", resources: "/Font << /F2 4 0 R >>", pageExtra: "/Annots [8 0 R]",
+            more: ["<< /Type /Annot /Subtype /Link /Rect [70 694 240 716] /Border [0 0 0] /A << /S /URI /URI (https://example.com/) >> >>"]);
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        using var doc = PdfReader.Open(new MemoryStream(tagged), PdfDocumentOpenMode.Import);
+        var annots = doc.Pages[0].Elements["/Annots"];
+        var link = D(((PdfArray)(annots is PdfReference r ? r.Value : annots)!).Elements[0]);
+        Assert.Equal(Heading, link.Elements.GetString("/Contents"));
+        // The heading's link holds the heading's piece of the form.
+        var h1 = Assert.Single(Elements(doc), e => e.Type == "H1").Elem;
+        var inside = Assert.Single(Elements(doc), e => e.Type == "Link").Elem;
+        Assert.Same(h1, D(inside.Elements["/P"]));
+        Assert.Single(FormRefs(inside));
     }
 
     [Fact]
