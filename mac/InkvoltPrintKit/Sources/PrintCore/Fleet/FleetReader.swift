@@ -65,11 +65,12 @@ public enum FleetReader {
             ListedPrinter(id: p.uuid, kind: .network, name: p.name, model: p.model, hosts: [p.host], acceptedUuids: mac.accepted(p.uuid))
         }
         var notes: [String] = []
-        let destinations = await whole(limit) { try await mac.destinations() }
+        // Asked at the same time: two lists that don't answer cost one limit.
+        async let queuesRead = whole(limit) { try await mac.destinations() }
+        async let scannersRead = whole(limit) { try await mac.scanners() }
+        let (destinations, scanners) = await (queuesRead, scannersRead)
         try Task.checkCancellation()
         if destinations == nil { notes.append(queuesNote) }
-        let scanners = await whole(limit) { try await mac.scanners() }
-        try Task.checkCancellation()
         if scanners == nil { notes.append(scannersNote) }
         var input = PrinterListInput(listed: listed, selected: nil, destinations: destinations, sweepDone: true, forgotten: mac.forgotten)
         input.scanners = scanners
@@ -140,7 +141,7 @@ public enum FleetReader {
 
     /// `work`'s result, or `timedOut()`'s once `limit` passes or the caller is cancelled, whichever comes first. The work runs
     /// in a task of its own, cancelled when it isn't waited for any longer: a read that ignores cancellation can't hold the
-    /// caller.
+    /// caller. `timedOut` runs only when its answer is the one given (a silent row reads the supply history from disk).
     static func race<T: Sendable>(_ limit: Duration, timedOut: @escaping @Sendable () -> T, _ work: @escaping @Sendable () async -> T) async -> T {
         let finish = Finish<T>()
         return await withTaskCancellationHandler {
@@ -148,8 +149,8 @@ public enum FleetReader {
                 finish.wait(continuation)
                 let running = Task.detached { finish.give(await work()) }
                 let timer = Task.detached {
-                    try? await Task.sleep(for: limit)
-                    finish.give(timedOut())
+                    guard (try? await Task.sleep(for: limit)) != nil else { return } // cancelled: the work answered
+                    finish.give(timedOut)
                 }
                 finish.onEnd {
                     running.cancel()
@@ -157,7 +158,7 @@ public enum FleetReader {
                 }
             }
         } onCancel: {
-            finish.give(timedOut())
+            finish.give(timedOut)
         }
     }
 
@@ -170,12 +171,17 @@ public enum FleetReader {
         let step = try await session.connect(target)
         if case .elsewhere = step { return elsewhere(p) }
         guard case .connected(let conn, _) = step else { return silent(p, mac, cantReach) }
-        guard case .read(let reading) = try await session.read(target) else { return elsewhere(p) }
+        let reading: PrinterReading
+        switch try await session.read(target) {
+        case .read(let r): reading = r
+        case .elsewhere: return elsewhere(p)
+        case .offline, .connected: return silent(p, mac, cantReach) // read gives neither today; never "a different device"
+        }
         if reading.isOffline { return silent(p, mac, cantReach) }
         let known = reading.supplies == nil || reading.usage == nil ? lastKnown(p.uuid, mac) : nil
         var f = FleetFacts(p.uuid, conn.probe.product?.makeAndModel ?? p.name, .network)
         f.model = conn.probe.model ?? p.model
-        f.connection = conn.probe.interfaces.joined(separator: ", ")
+        f.connection = FleetConnection.interfaces(conn.probe.interfaces)
         f.reachable = true
         f.status = reading.status
         f.supplies = reading.supplies ?? known?.supplies ?? []
@@ -273,7 +279,12 @@ private final class Finish<T: Sendable>: Sendable {
         if let early { continuation.resume(returning: early) }
     }
 
-    func give(_ value: T) {
+    func give(_ value: T) { give { value } }
+
+    /// `make` runs only when its answer is wanted: none came first.
+    func give(_ make: () -> T) {
+        guard state.withLock({ !$0.done && $0.result == nil }) else { return }
+        let value = make()
         let (c, end): (CheckedContinuation<T, Never>?, (@Sendable () -> Void)?) = state.withLock { s in
             guard !s.done, s.result == nil else { return (nil, nil) }
             guard let c = s.continuation else {

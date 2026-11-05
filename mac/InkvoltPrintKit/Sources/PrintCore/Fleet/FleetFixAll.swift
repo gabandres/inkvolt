@@ -94,16 +94,19 @@ public enum FleetFixAll {
         guard let destinations = await read(queues, limit) else {
             return FixAllReport([], [], stopped: "\(noAnswer), so nothing was changed. Try again in a moment.")
         }
-        var safe: [Repair] = [], left: [String] = []
+        var matched: [(target: FixAllTarget, queue: MatchedQueue)] = []
         var seen = Set<String>()
         for target in targets {
-            if Task.isCancelled { return FixAllReport([], left, stopped: stoppedText) }
-            for queue in own(target, destinations) where seen.insert(queue.queue.name.lowercased()).inserted {
-                var match = queue
-                match.jobs = await FleetReader.race(limit, timedOut: { nil }) { await queues.jobs(queue.queue.name) } ?? []
-                for repair in OfflineDiagnosis.plan(device(target), found: nil, reach: nil, queues: [match], user: queues.user) {
-                    if isSafe(repair) { safe.append(asked(repair, match.queue.displayName)) } else if !repair.isAlternative { left.append(shown(repair.title)) }
-                }
+            for queue in own(target, destinations) where seen.insert(queue.queue.name.lowercased()).inserted { matched.append((target, queue)) }
+        }
+        let jobs = await jobs(matched.map(\.queue.queue.name), queues, limit)
+        if Task.isCancelled { return FixAllReport([], [], stopped: stoppedText) }
+        var safe: [Repair] = [], left: [String] = []
+        for (i, m) in matched.enumerated() {
+            var match = m.queue
+            match.jobs = jobs[i]
+            for repair in OfflineDiagnosis.plan(device(m.target), found: nil, reach: nil, queues: [match], user: queues.user) {
+                if isSafe(repair) { safe.append(asked(repair, match.queue.displayName)) } else if !repair.isAlternative { left.append(shown(repair.title)) }
             }
         }
 
@@ -186,6 +189,19 @@ public enum FleetFixAll {
         case .failed: .failed
         }
         return FixAllStep(name, repair.title, kind, outcome.message, steps: outcome.steps)
+    }
+
+    /// Each queue's jobs, in `names`' order, read at the same time (none when its read fails or doesn't answer in `limit`):
+    /// queues whose jobs don't answer cost one limit before the first question, not one each.
+    private static func jobs(_ names: [String], _ queues: any PrintQueues, _ limit: Duration) async -> [[QueueJob]] {
+        await withTaskGroup(of: (Int, [QueueJob]).self) { group in
+            for (i, name) in names.enumerated() {
+                group.addTask { (i, await FleetReader.race(limit, timedOut: { nil }) { await queues.jobs(name) } ?? []) }
+            }
+            var all = [[QueueJob]](repeating: [], count: names.count)
+            for await (i, jobs) in group { all[i] = jobs }
+            return all
+        }
     }
 
     /// cupsd's queues, or nil when it doesn't answer in `limit`.

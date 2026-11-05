@@ -149,3 +149,32 @@ extension FleetFacts {
         return f
     }
 }
+
+/// Which printers' supply history the Fleet page reads, and what it read (`FleetFacts.shown`'s `known`): a printer's last word
+/// is read once each time it stops answering, and again each time the page shows; it's dropped once the printer answers, so
+/// its next silence reads the rows written meanwhile. A read that comes back after the printer answered is dropped too.
+public struct FleetHistoryAsks: Sendable {
+    public private(set) var known: [String: FleetLastKnown] = [:]
+    private var asked = Set<String>()
+
+    public init() {}
+
+    /// The page shows again: each silent printer's history is read again.
+    public mutating func showAgain() { asked = [] }
+
+    /// `silent`: the printers not answering (not those still connecting); `answering`: those that answer. The ids whose
+    /// history to read now.
+    public mutating func due(silent: [String], answering: [String]) -> [String] {
+        for id in answering {
+            asked.remove(id)
+            known[id] = nil
+        }
+        return silent.filter { asked.insert($0).inserted }
+    }
+
+    /// A read of `id`'s history came back: kept while it's still wanted (the printer hasn't answered since it was asked).
+    public mutating func got(_ id: String, _ last: FleetLastKnown?) {
+        guard asked.contains(id) else { return }
+        known[id] = last
+    }
+}

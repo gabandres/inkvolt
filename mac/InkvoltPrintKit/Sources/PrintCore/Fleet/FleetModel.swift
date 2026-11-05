@@ -34,6 +34,9 @@ public enum FleetConnection {
     /// A queue another computer shares: its name ends in that computer's name, which an export leaves out.
     public static let shared = "Shared from another computer"
     public static let other = "Other"
+
+    /// A network printer's interfaces as the page and `status --all` both show them ("LEDM, IPP"); nil when it gave none.
+    public static func interfaces(_ list: [String]) -> String? { list.isEmpty ? nil : list.joined(separator: ", ") }
 }
 
 /// What is known of a printer, as read (the sources' own text, not trusted): `FleetPrinter.of` makes the entry.

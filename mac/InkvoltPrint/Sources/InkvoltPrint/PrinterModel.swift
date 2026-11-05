@@ -14,6 +14,8 @@ final class PrinterModel: Identifiable {
     /// Where it's reached now (it follows the printer to a new address); a queue printer's address in its device URI, else
     /// how this Mac reaches it ("USB").
     private(set) var host: String
+    /// Addresses it was reached at before (it moved), oldest first: its queues may still point there (Windows' previous hosts).
+    @ObservationIgnored private(set) var previousHosts: [String] = []
     /// Its Bonjour host name, once discovery saw it (queue matching knows it by that too).
     private(set) var hostName: String?
     /// The IPP URL Bonjour announced (or the one remembered), for setting it up in macOS when its session reads it another way.
@@ -21,7 +23,7 @@ final class PrinterModel: Identifiable {
     /// The CUPS queue its print jobs go through: a queue printer's own, or the one macOS has for a network printer.
     var queueName: String?
     private(set) var view = PrinterView.connecting
-    /// When it last gave a reading (its monitor's, or its queue's), for the Fleet page.
+    /// When it last gave a reading (its monitor's, or its queue's), for the Fleet page; a scanner of its own's is the page's now.
     @ObservationIgnored private(set) var lastReading: Date?
     /// A queue printer's queue, as last read.
     private(set) var destination: CupsDestination?
@@ -71,7 +73,6 @@ final class PrinterModel: Identifiable {
         history = nil
         systemScanner = s
         view = .scannerReady
-        lastReading = Date()
     }
 
     /// A queue printer: known only by its CUPS queue.
@@ -225,7 +226,7 @@ final class PrinterModel: Identifiable {
     /// The offline fixer found the printer at a new address and the user (or the fixer, when it's certain) took it.
     func move(to address: String) {
         guard let monitor else { return }
-        host = address
+        follow(address)
         Task {
             await monitor.move(to: address)
             if polling == nil { start() }
@@ -289,21 +290,28 @@ final class PrinterModel: Identifiable {
         case .observed(let snapshot):
             app.observe(snapshot)
         case .connected(let target, let model):
-            host = target.host
+            follow(target.host)
             app.remember(self, at: target, model: model)
         }
     }
 
     /// This printer as the Fleet page lists it, from what the app shows (nothing is read from it here). `known`: the supply
-    /// history's last word, for one that isn't answering.
-    func fleetFacts(_ known: FleetLastKnown?) -> FleetFacts {
+    /// history's last word, for one that isn't answering. A scanner of its own that macOS lists is ready `now`, as
+    /// `status --all` says (`FleetReader.scanner`).
+    func fleetFacts(_ known: FleetLastKnown?, now: Date) -> FleetFacts {
         let kind: FleetKind = isScannerOnly ? .scanner : isQueue ? .queue : .network
         let connection: String? = if isScannerOnly { "USB scanner" }
             else if let d = destination { FleetReader.connectionWord(CupsQueues.connection(d)) }
-            else { view.interfaces.isEmpty ? nil : view.interfaces.joined(separator: ", ") }
+            else { FleetConnection.interfaces(view.interfaces) }
         let shown = view.firmware.map(\.display).flatMap { $0.isEmpty ? nil : $0 }
         return .shown(id, name, kind, view: view, connection: connection, firmware: shown ?? app.store.firmware(id)?.version,
-                      lastReading: lastReading, known: known)
+                      lastReading: isScannerOnly ? now : lastReading, known: known)
+    }
+
+    /// The printer as the offline fixer and Fix All see it (Windows' `FixerDevice`): a network printer's address and the
+    /// addresses it had, so a queue still pointing at its old one is its own.
+    var fixerDevice: OfflineDevice {
+        OfflineDevice(uuid: id, name: name, model: model, host: isNetwork ? host : nil, previousHosts: previousHosts)
     }
 
     /// What Fix All looks at for this printer: a queue printer's own queue, a network printer's known ones; nil for a scanner
@@ -311,7 +319,16 @@ final class PrinterModel: Identifiable {
     var fixAllTarget: FixAllTarget? {
         if isScannerOnly { return nil }
         if let d = destination { return .queue(d.name) }
-        return .network(OfflineDevice(uuid: id, name: name, model: model, host: host))
+        return .network(fixerDevice)
+    }
+
+    /// Reached at `address` now: the one before is kept among the addresses it had.
+    private func follow(_ address: String) {
+        let old = host
+        host = address
+        guard !old.isEmpty, old.caseInsensitiveCompare(address) != .orderedSame,
+              !previousHosts.contains(where: { $0.caseInsensitiveCompare(old) == .orderedSame }) else { return }
+        previousHosts.append(old)
     }
 
     /// For the list's dot and the pane's status icon.

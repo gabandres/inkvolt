@@ -302,6 +302,25 @@ extension ProGated {
         #expect(try await FleetReader.readAll(scanners, now: Self.now, limit: .milliseconds(200)).notes.contains { $0.contains("scanners") })
     }
 
+    /// Mac: cupsd's destinations and ImageCaptureCore's scanners are asked at the same time, so two that hang cost one limit.
+    @Test func macOSs_printers_and_scanners_that_both_hang_cost_one_limit_not_two() async throws {
+        let both = Script(queuesHang: true, scannersHang: true)
+        let start = ContinuousClock.now
+        let read = try await FleetReader.readAll(both, now: Self.now, limit: .milliseconds(1500))
+        #expect(read.notes.count == 2)
+        #expect(ContinuousClock.now - start < .milliseconds(2600), "took \(ContinuousClock.now - start)")
+    }
+
+    /// Mac: a printer that answers in time never has its silent row worked out (which reads the supply history from disk):
+    /// the race's timer, cancelled, ends without its answer.
+    @Test func A_read_that_answers_in_time_never_works_out_the_silent_row() async throws {
+        let silentRows = Shared(0)
+        let answer = await FleetReader.race(.seconds(30), timedOut: { silentRows.withLock { $0 += 1 }; return 0 }) { 1 }
+        #expect(answer == 1)
+        try await Task.sleep(for: .milliseconds(300)) // the cancelled timer has ended by now
+        #expect(silentRows.withLock { $0 } == 0)
+    }
+
     @Test func Another_device_at_the_address_is_never_read_under_the_printers_name() async throws {
         // The address answers as the demo laser, with its own UUID; this printer remembers another one.
         let mac = Script(printers: [KnownPrinter(uuid: "87654321-4321-4cba-8fed-cba987654321", name: "My printer", host: FixtureTransport.demoHost)],
@@ -394,23 +413,67 @@ extension ProGated {
         #expect(fromHistory.supplies.map(\.level) == [12])
     }
 
+    /// Mac: the page and `status --all` say a network printer's interfaces by one rule: none is no connection, not "".
+    @Test func A_printer_that_gave_no_interfaces_has_no_connection_on_the_page_or_in_status() {
+        #expect(FleetConnection.interfaces([]) == nil)
+        #expect(FleetConnection.interfaces(["LEDM", "IPP"]) == "LEDM, IPP")
+    }
+
+    private static let olderWord = FleetLastKnown(day: Day(2026, 10, 29), pages: 7, supplies: [FleetTests.supply("Black", 40)])
+    private static let newerWord = FleetLastKnown(day: Day(2026, 11, 4), pages: 9, supplies: [FleetTests.supply("Black", 12)])
+
+    /// Mac: the page reads a printer's history once each time it stops answering, not once a run: the rows written while it
+    /// answered show next time.
+    @Test func The_page_reads_a_printers_history_again_each_time_it_stops_answering() {
+        var asks = FleetHistoryAsks()
+        #expect(asks.due(silent: ["a"], answering: []) == ["a"])
+        #expect(asks.due(silent: ["a"], answering: []).isEmpty) // once while it stays silent
+        asks.got("a", Self.olderWord)
+        #expect(asks.known["a"] == Self.olderWord)
+
+        #expect(asks.due(silent: [], answering: ["a"]).isEmpty)
+        #expect(asks.known["a"] == nil) // it answers: its own reading counts
+
+        #expect(asks.due(silent: ["a"], answering: []) == ["a"])
+        asks.got("a", Self.newerWord)
+        #expect(asks.known["a"] == Self.newerWord)
+    }
+
+    @Test func A_history_read_that_comes_back_after_the_printer_answered_is_dropped() {
+        var asks = FleetHistoryAsks()
+        _ = asks.due(silent: ["a"], answering: [])
+        _ = asks.due(silent: [], answering: ["a"])
+        asks.got("a", Self.olderWord)
+        #expect(asks.known["a"] == nil)
+    }
+
+    @Test func Showing_the_page_again_reads_the_history_again() {
+        var asks = FleetHistoryAsks()
+        _ = asks.due(silent: ["a"], answering: [])
+        asks.got("a", Self.olderWord)
+        asks.showAgain()
+        #expect(asks.due(silent: ["a"], answering: []) == ["a"])
+        #expect(asks.known["a"] == Self.olderWord) // shown until the new read is in
+    }
+
     // MARK: Fix all
 
     /// cupsd's queues as Fix all sees them, and what it was asked to do.
     private final class FakeFixMac: PrintQueues, QueueControl {
         let state: Shared<(queues: [CupsDestination], done: [String])>
         let jobsIn: [String: [QueueJob]]
-        let refuse: Bool, fails: String?, hangs: Bool, absent: Bool
+        let refuse: Bool, fails: String?, hangs: Bool, absent: Bool, jobsHang: Bool
         let user = "you"
 
         init(_ queues: [CupsDestination], jobs: [String: [QueueJob]] = [:], refuse: Bool = false, fails: String? = nil, hangs: Bool = false,
-             absent: Bool = false) {
+             absent: Bool = false, jobsHang: Bool = false) {
             state = Shared((queues, []))
             jobsIn = jobs
             self.refuse = refuse
             self.fails = fails
             self.hangs = hangs
             self.absent = absent
+            self.jobsHang = jobsHang
         }
 
         var queues: [CupsDestination] { state.withLock { $0.queues } }
@@ -421,7 +484,10 @@ extension ProGated {
             if hangs { await Hung.forever() }
             return absent ? nil : queues
         }
-        func jobs(_ queue: String) async -> [QueueJob]? { jobsIn[queue] ?? [] }
+        func jobs(_ queue: String) async -> [QueueJob]? {
+            if jobsHang { await Hung.forever() }
+            return jobsIn[queue] ?? []
+        }
         func cancel(_ queue: String, job: Int) async throws { state.withLock { $0.done.append("cancel \(job)") } }
 
         func resume(_ queue: String) async throws { try change("resume", queue) { $0.options["printer-state"] = "3" } }
@@ -588,6 +654,18 @@ extension ProGated {
         _ = await FleetFixAll.run([.network(device)], queues: mac, control: mac, confirm: Self.answer(true, asked))
 
         #expect(asked.all.map(\.queue) == ["Paired", "By_address"])
+    }
+
+    /// Mac: each queue's jobs are read at the same time, so queues whose jobs don't answer cost one limit before the first
+    /// question, not one each.
+    @Test func Queues_whose_jobs_dont_answer_cost_one_limit_before_the_first_question() async {
+        let mac = FakeFixMac((1...4).map { Self.facts("Q\($0)", paused: true) }, jobsHang: true)
+        let asked = Asked()
+        let start = ContinuousClock.now
+        let report = await Self.fixAll(mac, Self.answer(false, asked), "Q1", "Q2", "Q3", "Q4", limit: .milliseconds(1500))
+        #expect(asked.all.map(\.queue) == ["Q1", "Q2", "Q3", "Q4"]) // in the targets' order all the same
+        #expect(report.steps.count == 4)
+        #expect(ContinuousClock.now - start < .milliseconds(2600), "took \(ContinuousClock.now - start)")
     }
 
     @Test func A_queue_two_printers_share_is_asked_about_once() async {

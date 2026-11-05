@@ -111,7 +111,10 @@ final class PhotosModel {
 
     /// Whether the sheets go straight to the printer's macOS queue (else through the print panel). Demo mode's printers
     /// have no queue: the panel prints the sheets on any printer the reviewer has.
-    var printsToQueue: Bool { !app.isDemo && printer.queueName != nil }
+    var printsToQueue: Bool {
+        if app.isDemo { return false }
+        return printer.queueName != nil
+    }
 
     /// The printer's own papers, paper types, qualities and colors, once (its macOS queue's).
     func loadPapers() async {

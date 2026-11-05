@@ -56,12 +56,16 @@ struct MainWindow: View {
 }
 
 extension MainWindow {
-    /// The list's selection: none while the Fleet page shows; choosing a printer leaves the page.
+    /// The list's selection: none while the Fleet page shows; choosing a printer leaves the page, and deselecting one
+    /// (⌘-click) leaves none selected, as before the page. The Fleet page's own nil keeps the printer to come back to.
     private var listSelection: Binding<String?> {
         Binding(get: { model.showFleet ? nil : model.selectedID }, set: { id in
-            guard let id else { return }
-            model.selectedID = id
-            model.showFleet = false
+            if let id {
+                model.selectedID = id
+                model.showFleet = false
+            } else if !model.showFleet {
+                model.selectedID = nil
+            }
         })
     }
 }

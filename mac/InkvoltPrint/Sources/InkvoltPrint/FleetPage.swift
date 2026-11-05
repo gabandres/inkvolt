@@ -23,16 +23,19 @@ final class FleetPageModel {
     private(set) var exportMessage: String?
 
     @ObservationIgnored private unowned let app: AppModel
-    @ObservationIgnored private var known: [String: FleetLastKnown] = [:]
-    @ObservationIgnored private var asked = Set<String>()
+    /// The supply history's last word for the printers that aren't answering, and which were asked.
+    @ObservationIgnored private var history = FleetHistoryAsks()
     @ObservationIgnored private var ticking: Task<Void, Never>?
     @ObservationIgnored private var fixing: Task<FixAllReport, Never>?
+    /// Which Fix All is running: a progress line from another, or one that lands after the result, is dropped.
+    @ObservationIgnored private var fixRun = 0
     @ObservationIgnored private(set) var printers: [FleetPrinter] = []
 
     init(app: AppModel) { self.app = app }
 
-    /// The page came on screen: looks at the printers now and every two seconds.
+    /// The page came on screen: looks at the printers now and every two seconds; a silent printer's history is read again.
     func show() {
+        history.showAgain()
         refresh()
         ticking?.cancel()
         ticking = Task { [weak self] in
@@ -50,21 +53,23 @@ final class FleetPageModel {
 
     /// The rows as the printers stand now; unchanged words leave the view alone.
     func refresh() {
-        for p in app.printers where !p.view.isOnline && p.view.phase != .connecting && !asked.contains(p.id) { askHistory(p.id) }
-        printers = app.printers.map { FleetPrinter.of($0.fleetFacts(known[$0.id])) }
-        let now = FleetPage.rows(printers, Date())
-        if now != rows { rows = now }
+        let all = app.printers
+        let silent = all.filter { !$0.view.isOnline && $0.view.phase != .connecting }.map(\.id)
+        for id in history.due(silent: silent, answering: all.filter(\.view.isOnline).map(\.id)) { askHistory(id) }
+        let now = Date()
+        printers = all.map { FleetPrinter.of($0.fleetFacts(history.known[$0.id], now: now)) }
+        let shown = FleetPage.rows(printers, now)
+        if shown != rows { rows = shown }
         let said = FleetPage.summary(printers)
         if said != summary { summary = said }
     }
 
     private func askHistory(_ id: String) {
-        asked.insert(id)
-        let history = app.history
+        let store = app.history
         Task { [weak self] in
-            let last = await Task.detached { FleetLastKnown.from(history.rows(id)) }.value
-            guard let self, let last else { return }
-            self.known[id] = last
+            let last = await Task.detached { FleetLastKnown.from(store.rows(id)) }.value
+            guard let self else { return }
+            self.history.got(id, last)
             self.refresh()
         }
     }
@@ -140,16 +145,22 @@ final class FleetPageModel {
             return
         }
         isFixing = true
+        fixRun += 1
         fixSteps = []
         fixLeft = []
         fixSummary = "Looking at this Mac's printers…"
-        let targets = fixTargets, queues = app.queues, control = app.queueControl
+        let targets = fixTargets, queues = app.queues, control = app.queueControl, run = fixRun
         let ask = confirm ?? { repair in await MainActor.run { Self.ask(repair) } }
-        let progress: @Sendable (FixAllStep) -> Void = { [weak self] step in Task { @MainActor in self?.fixSteps.append(step) } }
+        let progress: @Sendable (FixAllStep) -> Void = { [weak self] step in
+            Task { @MainActor in
+                // Only while this run is still going: the result's own list replaces these lines, once.
+                guard let self, self.isFixing, self.fixRun == run else { return }
+                self.fixSteps.append(step)
+            }
+        }
         let task = Task.detached { await FleetFixAll.run(targets, queues: queues, control: control, confirm: ask, progress: progress) }
         fixing = task
         let report = await task.value
-        await Task.yield() // the last line's progress lands first
         fixSteps = report.steps
         fixLeft = report.left
         fixSummary = report.summary
