@@ -117,6 +117,31 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task BatchsPageImagesLeaveOutARefusedPageAndSayWhich()
+    {
+        var dir = Directory.CreateTempSubdirectory("inkvolt-check-batch-").FullName;
+        try
+        {
+            var file = Path.Combine(dir, "visit.pdf");
+            File.WriteAllBytes(file, Bomb("7 KB"));
+            var output = Path.Combine(dir, "out");
+            using var app = PageChecks.UseForTests(_plan);
+            var summary = await BatchRunner.RunAsync([new BatchFile(file)],
+                new BatchPlan { Steps = [new ExportStep(BatchExportFormat.Png, 36)], OutputFolder = output, Date = new DateTime(2026, 11, 5) }, new BatchHost(), null, default);
+            Assert.Equal(1, summary.Done);
+            Assert.True(File.Exists(Path.Combine(output, "visit - page 1.png")));
+            Assert.False(File.Exists(Path.Combine(output, "visit - page 2.png")));
+            Assert.True(File.Exists(Path.Combine(output, "visit - page 3.png")));
+            Assert.Equal(Loc.Format(PdfStrings.Batch_PageUnreadable, 2), Assert.Single(summary.Items[0].Notes));
+            Assert.Empty(Directory.GetFiles(output, "*.tmp"));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
     public void FindOverADocumentWithABombFinishes()
     {
         using var engine = Open(Bomb("7 KB"));

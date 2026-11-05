@@ -8957,6 +8957,10 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>Se exportaron {0} imagen(es) a {1}</value>
     <comment>{1} a folder</comment>
   </data>
+  <data name="File_ExportedImagesLeftOut" xml:space="preserve">
+    <value>Se exportaron {0} imagen(es) a {1}. Se omitieron las páginas {2}: no se pudieron leer</value>
+    <comment>{1} a folder, {2} page numbers ("2, 5-7")</comment>
+  </data>
   <data name="File_ExportCancelledImages" xml:space="preserve">
     <value>Exportación cancelada. Se guardaron {0} imagen(es) en {1}</value>
     <comment>{1} a folder</comment>

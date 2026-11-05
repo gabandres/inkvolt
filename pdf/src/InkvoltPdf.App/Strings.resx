@@ -8957,6 +8957,10 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Exported {0} image(s) to {1}</value>
     <comment>{1} a folder</comment>
   </data>
+  <data name="File_ExportedImagesLeftOut" xml:space="preserve">
+    <value>Exported {0} image(s) to {1}. Left out page(s) {2}: they couldn't be read</value>
+    <comment>{1} a folder, {2} page numbers ("2, 5-7")</comment>
+  </data>
   <data name="File_ExportCancelledImages" xml:space="preserve">
     <value>Export cancelled. {0} image(s) were saved to {1}</value>
     <comment>{1} a folder</comment>
