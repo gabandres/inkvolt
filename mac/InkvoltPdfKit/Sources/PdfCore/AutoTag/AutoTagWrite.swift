@@ -284,13 +284,16 @@ extension AutoTag {
                     let tr = child("TR", t)
                     for k in b.rows[r].indices {
                         let cell = b.rows[r][k]
+                        if cell.covered { continue } // the cell above spanning into this row holds it
                         let column = r < b.headerRows
                         let row = !column && k == 0 && b.headerColumn
                         let c = child(column || row ? "TH" : "TD", tr)
-                        if column || row || cell.colSpan > 1 {
+                        let rowSpan = min(cell.rowSpan, b.rows.count - r)
+                        if column || row || cell.colSpan > 1 || rowSpan > 1 {
                             let a = doc.dict([("O", doc.name("Table"))])
                             if column || row { a.set("Scope", doc.name(column ? "Column" : "Row")) }
                             if cell.colSpan > 1 { a.set("ColSpan", doc.int(cell.colSpan)) }
+                            if rowSpan > 1 { a.set("RowSpan", doc.int(rowSpan)) }
                             c.ref.set("A", a)
                         }
                         newLeaf(c, b.page, cell.sources, pictures: cell.pictures)

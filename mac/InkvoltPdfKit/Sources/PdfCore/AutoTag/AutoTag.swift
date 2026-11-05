@@ -22,6 +22,10 @@ public struct TagCell: Equatable, Sendable {
     public var text: String
     public var colSpan = 1
     public var pictures: [RectD] = []
+    /// How many rows it spans: its content is also what was drawn in the cells it covers.
+    public var rowSpan = 1
+    /// Part of a cell above that spans rows into this row: not written (its content is that cell's).
+    public var covered = false
 }
 
 /// One piece of a page in reading order, as Make Accessible will tag it. Boxes are in page space as shown (points, top

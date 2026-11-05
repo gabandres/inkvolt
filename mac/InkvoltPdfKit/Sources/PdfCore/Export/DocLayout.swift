@@ -47,6 +47,12 @@ public struct DocCell: Equatable, Sendable {
     public var paragraphs: [DocParagraph]
     public var colSpan = 1
     public var pictures: [DocPicture] = []
+    /// How many rows the cell spans (a ruled table without a rule under it across its columns). The rows it covers keep a
+    /// cell of their own there (`covered`) holding what was drawn in it, so the exports lay the table out as before; tagging
+    /// reads them as one cell.
+    public var rowSpan = 1
+    /// Part of the cell above that spans rows into this one (see `rowSpan`).
+    public var covered = false
 
     public init(_ paragraphs: [DocParagraph], colSpan: Int = 1) {
         self.paragraphs = paragraphs
