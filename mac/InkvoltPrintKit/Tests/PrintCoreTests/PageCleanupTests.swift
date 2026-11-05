@@ -663,6 +663,21 @@ struct PageCleanupStepsTests {
         #expect(pages.cleanupSummary(["a"], []) == "")
     }
 
+    /// No edge is counted only where it was looked for and not found: not on a page cropped by hand, one cleaned up by hand
+    /// during the check, one not checked yet, or one whose edge was found at another straightening.
+    @Test func onlyPagesTheEdgeWasLookedForOnCountAsHavingNoEdge() {
+        var pages = ScanPages([ScannedPage(id: "hand", dpi: 300, edits: PageEdits(crop: CropBox(0.2, 0.2, 0.5, 0.5))),
+                               ScannedPage(id: "filters", dpi: 300, edits: PageEdits(filters: .whiten)),
+                               ScannedPage(id: "turned", dpi: 300, edits: PageEdits(quarterTurns: 1)), ScannedPage(id: "later", dpi: 300)])
+        pages.analysed("hand", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .cropToPaper, paperEdge: nil)
+        pages.analysed("filters", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .cropToPaper, paperEdge: nil)
+        pages.analysed("turned", looksBlank: false, skew: 2, skipBlank: true, straighten: true, cleanup: .cropToPaper, paperEdge: Self.edge)
+        let all = ["hand", "filters", "turned", "later"]
+        #expect(pages.cleanupSummary(all, .cropToPaper) == "")
+        pages.analysed("later", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .cropToPaper, paperEdge: nil)
+        #expect(pages.cleanupSummary(all, .cropToPaper) == "The paper's edge couldn't be told from the lid on 1 page: kept whole.")
+    }
+
     /// Cleaned up is what the check changed (the Windows app's `BeforeCleanup`), not every page with filters: one given
     /// filters by hand during the check is left alone, and isn't one step of the scan's Undo.
     @Test func onlyPagesTheCheckCleanedUpAreCountedAsCleanedUp() {

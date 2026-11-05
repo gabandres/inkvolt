@@ -24,6 +24,8 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     public var ocrLanguage: String?
     /// The page's edits from before the scan's clean up changed them (the Windows app's `BeforeCleanup`); nil when it didn't.
     public var beforeCleanup: PageEdits?
+    /// The scan's crop to the paper was tried on the page and found no edge, so it stays whole.
+    public var noPaperEdge = false
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
                 separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil) {
@@ -112,14 +114,17 @@ public struct ScanPages: Equatable, Sendable {
         update(id) { p in
             p.analysed = true
             p.beforeCleanup = nil
+            p.noPaperEdge = false
             p.looksBlank = looksBlank || separator.kind == .blankPage
             p.separator = separator
             p.photos = photos
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
             if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
-            guard !cleanup.isEmpty, !blank, !p.looksBlank, !separator.isSeparator,
-                  let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
+            guard !cleanup.isEmpty, !p.looksBlank, !separator.isSeparator else { return }
+            // Tried only on a page with no filters or crop yet (`cleanedUp`) whose photos weren't looked for.
+            p.noPaperEdge = cleanup.contains(.cropToPaper) && photos == nil && paperEdge == nil && p.edits.filters.isEmpty && p.edits.crop == nil
+            guard let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
             p.beforeCleanup = p.edits
             p.edits = cleaned
         }
@@ -133,13 +138,13 @@ public struct ScanPages: Equatable, Sendable {
     }
 
     /// What a scan cleaned up by its settings says once its pages `ids` are checked: how many pages its clean up changed (one
-    /// step of Undo; not those given filters or a crop by hand first), and how many a crop to the paper was tried on and found no edge (they stay whole). Empty for nothing.
+    /// step of Undo; not those given filters or a crop by hand first), and how many a crop to the paper was tried on and found no edge
+    /// (`noPaperEdge`: they stay whole). Empty for nothing.
     public func cleanupSummary(_ ids: [String], _ cleanup: PageFilters) -> String {
         if cleanup.isEmpty { return "" }
-        let run = ids.compactMap(page)
+        let run = inOrder(ids)
         let changed = run.filter { $0.beforeCleanup != nil }.count
-        let noEdge = cleanup.contains(.cropToPaper)
-            ? run.filter { !$0.looksBlank && !$0.skipped && !$0.isSeparator && $0.photos == nil && !$0.edits.filters.contains(.cropToPaper) }.count : 0
+        let noEdge = cleanup.contains(.cropToPaper) ? run.filter(\.noPaperEdge).count : 0
         var parts: [String] = []
         if changed > 0 { parts.append(changed == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(changed) pages were cleaned up (Undo puts them back).") }
         if noEdge > 0 { parts.append("The paper's edge couldn't be told from the lid on \(noEdge) \(noEdge == 1 ? "page" : "pages"): kept whole.") }
@@ -149,7 +154,7 @@ public struct ScanPages: Equatable, Sendable {
     /// A two-sided batch: the other side of each patch code sheet among `ids` (one run's pages, in order) belongs to the
     /// sheet (`BatchSplit.duplexSeparatorBacks`), so it neither starts the next file nor ends up in it.
     public mutating func separatorBacks(_ ids: [String]) {
-        let run = ids.compactMap(page)
+        let run = inOrder(ids)
         let backs = BatchSplit.duplexSeparatorBacks(patch: run.map { $0.separator.kind == .patchCode }, blank: run.map(\.looksBlank))
         for i in backs where !run[i].isSeparator {
             update(run[i].id) { p in
@@ -258,6 +263,12 @@ public struct ScanPages: Equatable, Sendable {
             ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
                         separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
         }
+    }
+
+    /// The pages `ids` names, in that order (one look-up each, not a search of the list).
+    private func inOrder(_ ids: [String]) -> [ScannedPage] {
+        let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return ids.compactMap { byId[$0] }
     }
 
     private mutating func update(_ id: String, _ change: (inout ScannedPage) -> Void) {
