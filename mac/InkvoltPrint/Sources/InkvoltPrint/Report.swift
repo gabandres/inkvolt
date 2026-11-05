@@ -26,7 +26,8 @@ import PrintMac
 /// rows as VoiceOver reads them, checks Export…'s CSV and JSON (in memory in demo mode; else saved in the container) and the Pro
 /// gate, `fix` runs Fix All on demo mode's made-up queues saying yes to each question, `status` runs `status --all --json`
 /// through the reader (`fleetCheck`); `--batch-print [queue <name>]` runs Batch Print (`batchPrintCheck`: the window, lists, a
-/// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled). For checking a build over
+/// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled). A
+/// queue printer's lines say where its status and levels came from (roadmap 3.6). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -732,6 +733,8 @@ enum Report {
             lines.append("\(p.name) [\(reached)]\(p.id == model.selectedID ? " (selected)" : "")")
             lines.append("  \(v.phase): \(v.listLine)")
             if let detail = v.statusDetail { lines.append("  " + mask(detail, host: p.host)) }
+            if let origin = v.statusOrigin { lines.append("  status from: \(origin)") }
+            if let source = v.suppliesSource { lines.append("  supplies source: \(source)") }
             if let m = v.model ?? p.model { lines.append("  model: \(m)") }
             if let s = p.systemScanner { lines.append("  USB scanner: \(s.name)\(p.isScannerOnly ? " (a scanner of its own)" : "")") }
             if let q = p.queueName {

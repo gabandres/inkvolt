@@ -373,4 +373,132 @@ struct QueueDeviceTests {
         #expect(IppQueueReading.route(queue("smb://office-pc/Laser")) == nil) // shared: the other computer's printer
         #expect(IppQueueReading.route(queue("lpd://192.0.2.15/queue")) == nil)
     }
+
+    // MARK: Where they're asked (PrintMac's reader, its network part)
+
+    private static func queue(_ uri: String) -> CupsDestination {
+        CupsDestination(name: "Q", options: ["device-uri": uri, "printer-type": "4", "printer-state": "3"])
+    }
+
+    @Test func anIppUsbQueueIsAUsbPrinter() {
+        let d = Self.queue("ippusb://Demo%20Laser%202100._ipp._tcp.local./")
+        #expect(CupsQueues.connection(d) == .usb)
+        #expect(CupsQueues.connectionText(d) == "USB")
+        #expect(CupsQueues.address(d) == nil)
+    }
+
+    @Test(arguments: [
+        ("ipp://localhost:8632/ipp/print", "http://localhost:8632/ipp/print"), // a local relay
+        ("ipp://127.0.0.1:60000/ipp/print?waitprinter=false", "http://127.0.0.1:60000/ipp/print"),
+        ("ipp://[::1]:60000/ipp/print", "http://[::1]:60000/ipp/print"),
+        ("ipps://192.0.2.11/ipp/print", "https://192.0.2.11:631/ipp/print"), // IPP's port when none is given
+        ("ipp://192.0.2.11", "http://192.0.2.11:631/"),
+        ("http://192.0.2.11:8080/ipp", "http://192.0.2.11:8080/ipp"),
+        ("ipp://admin:secret@192.0.2.11/ipp/print", "http://192.0.2.11:631/ipp/print"), // credentials never kept
+    ])
+    func aQueuesOwnAddressIsAskedOverHttp(uri: String, url: String) {
+        #expect(IppQueueReading.target(Self.queue(uri)) == .url(URL(string: url)!))
+    }
+
+    @Test func aBonjourOrIppUsbQueueNamesTheServiceToResolve() {
+        let usb = IppQueueReading.target(Self.queue("ippusb://Demo%20Laser%202100._ipp._tcp.local./"))
+        #expect(usb == .service(instance: "Demo Laser 2100", type: "_ipp._tcp", domain: "local."))
+        let dnssd = IppQueueReading.target(Self.queue("dnssd://Demo%20Inkjet._ipps._tcp.local./?uuid=2f1e6c3a-5b7d-4e8f-9a0b-1c2d3e4f5a6b"))
+        #expect(dnssd == .service(instance: "Demo Inkjet", type: "_ipps._tcp", domain: "local."))
+        let named = IppQueueReading.target(Self.queue("ipp://Demo%20Inkjet._ipp._tcp/"))
+        #expect(named == .service(instance: "Demo Inkjet", type: "_ipp._tcp", domain: "local."))
+    }
+
+    @Test(arguments: [
+        "ippusb://Demo%20Inkjet/ipp/print", // CUPS 2.5's make and model: only cupsd reaches it
+        "usb://Demo/Inkjet?serial=DEMO1", "socket://192.0.2.15", "smb://office-pc/Laser",
+        "ipp://192.0.2.11:99999/ipp/print", "ipp://192.0.2.11:80a/ipp/print", // not a port
+        "ipp://192.0.2.11/ipp/../admin", "ipp://192.0.2.11/ipp\\print", // a path that leaves its place
+        "ipp://bad%20host/ipp/print", "ipp://%0Aevil/ipp/print", // not a host
+        "dnssd://Demo%20Printer._printer._tcp.local./", // LPD's service: no IPP
+        "dnssd://._ipp._tcp.local./",
+    ])
+    func nothingIsAskedWithoutASoundAddress(uri: String) {
+        #expect(IppQueueReading.target(Self.queue(uri)) == nil)
+    }
+
+    /// Asks once, read-only, for the attributes it needs, and reads the whole reply as the decorator expects.
+    final class Transport: HttpTransport, @unchecked Sendable {
+        private let lock = NSLock()
+        private var sent: [HttpRequest] = []
+        private let reply: @Sendable (HttpRequest) throws -> HttpResponse
+
+        init(_ reply: @escaping @Sendable (HttpRequest) throws -> HttpResponse) { self.reply = reply }
+
+        var requests: [HttpRequest] { lock.withLock { sent } }
+
+        func send(_ request: HttpRequest) async throws -> HttpResponse {
+            lock.withLock { sent.append(request) }
+            return try reply(request)
+        }
+    }
+
+    private static func reader(_ transport: Transport, _ url: String?, usb: Bool = true) -> IppQueueDeviceReader {
+        IppQueueDeviceReader(usb: usb, transport: { _, _ in transport }, endpoint: { url.flatMap(URL.init(string:)) })
+    }
+
+    @Test func theReaderAsksTheQueuesPrinterOnceForItsStatusAndSupplies() async throws {
+        let body = try Self.wholeResponse(try Self.fixtureText())
+        let transport = Transport { _ in HttpResponse(status: 200, headers: ["Content-Type": "application/ipp"], body: body) }
+
+        let r = try #require(try await Self.reader(transport, "http://localhost:8632/ipp/print").read())
+
+        #expect(r.from == .printerOverUsb)
+        #expect(r.supplies.count == 5)
+        let request = try #require(transport.requests.first)
+        #expect(transport.requests.count == 1)
+        #expect(request.method == "POST")
+        #expect(request.url.absoluteString == "http://localhost:8632/ipp/print")
+        #expect(request.header("Content-Type") == "application/ipp")
+        #expect(request.once)
+        #expect(request.replyLimit == IppQueueReading.maxBytes)
+        #expect(request.body == IppCodec.encodeGetPrinterAttributes("ipp://localhost:8632/ipp/print", IppQueueReading.attributes))
+    }
+
+    @Test func noAddressAnErrorPageOrARefusalIsNothing() async throws {
+        let refused = try Self.wholeResponse(try Self.fixtureText(), status: 0x0401)
+        let pages = [HttpResponse(status: 404), HttpResponse(status: 500, body: Array("<html>".utf8)), HttpResponse(status: 200, body: refused)]
+        for page in pages {
+            #expect(try await Self.reader(Transport { _ in page }, "http://192.0.2.11:631/ipp/print", usb: false).read() == nil)
+        }
+        let unused = Transport { _ in HttpResponse(status: 200) }
+        #expect(try await Self.reader(unused, nil).read() == nil)
+        #expect(unused.requests.isEmpty)
+    }
+
+    @Test func aPrinterThatDoesntAnswerThrowsSoTheDecoratorAsksLater() async {
+        let reader = Self.reader(Transport { _ in throw DeviceNetworkError.refused }, "http://localhost:8632/ipp/print")
+        await #expect(throws: DeviceNetworkError.self) { try await reader.read() }
+    }
+
+    @Test func theSuppliesLineWithoutAReaderIsTheSameAsWithOne() {
+        let none = QueueStatusRead(status: Self.ready, offline: false, supplies: [])
+        let offline = QueueStatusRead(status: Self.ready, offline: true, supplies: [])
+        let cupsd = QueueStatusRead(status: Self.ready, offline: false, supplies: [Consumable(name: "Black Toner", kind: "toner", colorCode: "K", percentRemaining: 40, state: "ok")])
+        #expect(QueueDeviceText.suppliesSource(none, from: nil) == "Not reported by this printer.")
+        #expect(QueueDeviceText.suppliesSource(offline, from: nil) == nil)
+        #expect(QueueDeviceText.suppliesSource(cupsd, from: nil) == nil) // cupsd's copy: no line, as before
+        #expect(QueueDeviceText.suppliesSource(cupsd, from: .printerOverUsb) == "From the printer over USB")
+    }
+
+    @Test func theQueuePrintersCardSaysWhereItsStatusAndLevelsCameFrom() async throws {
+        let d = try #require(Demo.destinations.first { $0.name == DemoQueueDevice.usbLaserQueue })
+        #expect(IppQueueReading.route(d) == .printerOverUsb)
+        #expect(Demo.destinations.filter { !DemoQueueDevice.readers(for: $0).isEmpty }.map(\.name) == [DemoQueueDevice.usbLaserQueue])
+        let source = DeviceQueueStatus(readers: DemoQueueDevice.readers(for: d))
+
+        let read = try #require(await source.read(QueueStatusRead.of(d)))
+        let v = CupsStatus.view(d, read: read, origin: await source.origin, suppliesSource: await source.suppliesSource(read))
+
+        #expect(v.statusOrigin == "the printer over USB (IPP)")
+        #expect(v.suppliesSource == "From the printer over USB")
+        #expect(v.supplies.map(\.percentRemaining) == [11, 64]) // the printer's own: its drum, which cupsd doesn't have
+        #expect(v.interfaces == ["USB"])
+        #expect(CupsStatus.snapshot(d, id: "q", read: read).supplies?.count == 2)
+    }
 }

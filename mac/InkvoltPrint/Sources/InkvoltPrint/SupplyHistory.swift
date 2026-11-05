@@ -18,6 +18,7 @@ struct SuppliesSection: View {
         let history = v.supplyHistory
         VStack(alignment: .leading, spacing: 10) {
             Text("Supplies").font(.headline)
+            if let source = v.suppliesSource { Text(source).font(.caption).foregroundStyle(.secondary) } // a queue printer's (roadmap 3.6)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12, alignment: .top)], alignment: .leading, spacing: 12) {
                 ForEach(Array(v.supplies.enumerated()), id: \.offset) { _, supply in
                     SupplyCard(supply: SupplyText(supply), historyLine: history?.line(for: supply))

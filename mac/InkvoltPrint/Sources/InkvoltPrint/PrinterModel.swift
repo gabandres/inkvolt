@@ -27,6 +27,12 @@ final class PrinterModel: Identifiable {
     @ObservationIgnored private(set) var lastReading: Date?
     /// A queue printer's queue, as last read.
     private(set) var destination: CupsDestination?
+    /// What a queue printer's printer says beyond its queue (roadmap 3.6); nil: macOS's queue only.
+    @ObservationIgnored private var deviceStatus: DeviceQueueStatus?
+    /// The device URI `deviceStatus`'s readers were made for.
+    @ObservationIgnored private var readersFor: String?
+    /// Queue reads started: only the newest one's result is shown.
+    @ObservationIgnored private var readsStarted = 0
 
     @ObservationIgnored private let monitor: PrinterMonitor?
     /// Its supply history: a network printer's monitor feeds it, a queue printer's queue levels do (`update`); nil for a
@@ -146,17 +152,41 @@ final class PrinterModel: Identifiable {
         return systemScanner.flatMap { app.scanDevice(for: $0) }
     }
 
-    /// The queue was read again.
+    /// The queue was read again: macOS's status of it, with what its printer said when a reader can ask it (roadmap 3.6,
+    /// `DeviceQueueStatus`: at most every 30 s, every 5 minutes while it doesn't answer; the last reading in between).
     func update(_ d: CupsDestination) {
         destination = d
         queueName = d.name
         name = d.displayName
         model = d.makeAndModel
-        var v = CupsStatus.view(d)
+        if d.deviceUri != readersFor { // new, or re-pointed: the printer to ask is another
+            readersFor = d.deviceUri
+            let readers = app.queueReaders(for: d)
+            deviceStatus = readers.isEmpty ? nil : DeviceQueueStatus(readers: readers)
+        }
+        let macOS = QueueStatusRead.of(d)
+        guard let deviceStatus else {
+            show(d, macOS, origin: QueueDeviceText.macOSOrigin, source: QueueDeviceText.suppliesSource(macOS, from: nil))
+            return
+        }
+        readsStarted += 1
+        let ticket = readsStarted
+        Task { [weak self] in
+            let read = await deviceStatus.read(macOS) ?? macOS
+            let origin = await deviceStatus.origin
+            let source = await deviceStatus.suppliesSource(read)
+            guard let self, ticket == self.readsStarted, !self.stopped else { return } // a newer read is on its way, or removed
+            self.show(d, read, origin: origin, source: source)
+        }
+    }
+
+    /// A queue read shown: the card, then its levels into the supply history, then the alert.
+    private func show(_ d: CupsDestination, _ read: QueueStatusRead, origin: String, source: String?) {
+        var v = CupsStatus.view(d, read: read, origin: origin, suppliesSource: source)
         if v.isOnline { lastReading = Date() }
         v.supplyHistory = view.supplyHistory // until the history has this reading
         if v != view { view = v }
-        let snapshot = CupsStatus.snapshot(d, id: id)
+        let snapshot = CupsStatus.snapshot(d, id: id, read: read)
         guard let history else {
             app.observe(snapshot)
             return

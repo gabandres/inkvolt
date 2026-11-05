@@ -53,7 +53,7 @@ public enum CupsQueues {
         let s = scheme(d.deviceUri)
         if s == "smb" || d.has(CupsDestination.TypeBit.remote) { return .shared }
         switch s {
-        case "usb": return .usb
+        case "usb", "ippusb": return .usb // ippusb: an IPP-over-USB printer, driverless (macOS's own backend, CUPS 2.5's)
         case "hp": return d.deviceUri?.contains("/usb/") == true ? .usb : .network // HP's driver: hp:/usb/… or hp:/net/…
         case "dnssd", "mdns", "ipp", "ipps", "http", "https", "socket", "lpd": return .network
         default: return .other
@@ -267,6 +267,22 @@ extension CupsStatus {
         return PrinterView(phase: r.offline ? .offline : .online, statusMessage: r.status.message, statusDetail: r.status.detail,
                            severity: r.status.severity, alerts: r.status.alerts, supplies: supplies(d), usage: nil, model: d.makeAndModel,
                            interfaces: [CupsQueues.connectionDetail(d)], firmware: nil, location: d.location)
+    }
+
+    /// The same with what the queue's printer said merged in (`DeviceQueueStatus.read`, roadmap 3.6): `read`'s status and
+    /// levels, the status card's origin and the supplies card's source line.
+    public static func view(_ d: CupsDestination, read: QueueStatusRead, origin: String, suppliesSource: String?) -> PrinterView {
+        var v = PrinterView(phase: read.offline ? .offline : .online, statusMessage: read.status.message, statusDetail: read.status.detail,
+                            severity: read.status.severity, alerts: read.status.alerts, supplies: read.supplies, usage: nil, model: d.makeAndModel,
+                            interfaces: [CupsQueues.connectionDetail(d)], firmware: nil, location: d.location)
+        v.statusOrigin = origin
+        v.suppliesSource = suppliesSource
+        return v
+    }
+
+    /// For the menu bar's alerts, from the merged read.
+    public static func snapshot(_ d: CupsDestination, id: String, read: QueueStatusRead) -> PrinterSnapshot {
+        PrinterSnapshot(uuid: id, name: d.displayName, reachable: !read.offline, status: read.offline ? nil : read.status, supplies: read.supplies)
     }
 
     /// For the menu bar's alerts.

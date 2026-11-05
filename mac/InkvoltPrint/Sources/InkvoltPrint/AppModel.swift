@@ -276,6 +276,12 @@ final class AppModel {
 
     /// The paper sizes Print Photos offers for a printer: its macOS queue's (libcups), demo mode's made-up inkjet's, or
     /// none (the fixed list then).
+    /// Who asks a queue printer's printer what its queue doesn't say (roadmap 3.6): route 1 over this Mac's network (a local
+    /// relay or the printer's IPP), demo mode's made-up USB laser; none for a queue with nothing to ask.
+    func queueReaders(for d: CupsDestination) -> [any QueueDeviceReader] {
+        isDemo ? DemoQueueDevice.readers(for: d) : QueueDeviceReaders.readers(for: d, transport: transport)
+    }
+
     func photoMedia(for p: PrinterModel) async -> [QueueMedia] {
         if isDemo { return p.id == Demo.inkjetUuid ? Demo.photoMedia : [] }
         guard let queue = p.queueName else { return [] }

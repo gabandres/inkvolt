@@ -5,6 +5,7 @@ The App Store's "What's New in This Version" for each update is made from these 
 collects what's done since the last release. Short lines, in the user's words.
 
 ## Next
+- USB printers that print without a driver (IPP over USB) show their own ink or toner levels and status, read from the printer itself; the status card says where its status came from, and a printer that reports no levels says so.
 - Ink and toner history: Inkvolt Print keeps a reading a day on your Mac and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).
 - Firmware watch: when a printer's firmware changes, its status card says so. HP printers: Keep My Cartridges Working, in the Settings tab, turns automatic firmware updates off, so an update that blocks non-HP cartridges can't install by itself.
 - Scanners that send only PDF work, and a scan saved untouched is kept exactly as the scanner sent it.
