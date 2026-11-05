@@ -77,6 +77,9 @@ internal static class FontUnicode
             // encoding's (OML, OMS, OMX), whatever StandardEncoding would say.
             var own = subtype is "/Type1" or "/MMType1" && !font.Elements.ContainsKey("/Encoding") && tf.Program is not Type1Program &&
                       TexGlyphs.NameIn(baseFont, 0) is not null;
+            // A Type 3 bitmap font whose glyphs are named by their codes (dvips's TeX fonts: "a65"): the codes are characters.
+            var numbered = subtype == "/Type3" ? CodeNamed(tf) : null;
+            var type3Name = numbered is null ? "" : Type3Name(font);
             for (var c = 0; c < 256; c++)
             {
                 if (tf.ToUnicodeOf(c) is { } had)
@@ -97,6 +100,11 @@ internal static class FontUnicode
                 else if (tf.GlyphNameOf(c) is { } g && g != ".notdef" && TexGlyphs.ToUnicode(g) is { } tex)
                 {
                     map[c] = tex;
+                    added = true;
+                }
+                else if (numbered is { } hex && tf.GlyphNameOf(c) is { } n && NumberOf(n, hex) == c && TexGlyphs.CodeText(type3Name, c) is { } byCode)
+                {
+                    map[c] = byCode;
                     added = true;
                 }
             }
@@ -123,6 +131,43 @@ internal static class FontUnicode
         if (!added) return false;
         font.Elements["/ToUnicode"] = PdfObj.AddStream(doc, CMap(map, 2)).Reference!;
         return true;
+    }
+
+    /// <summary>
+    /// Whether a simple font's glyphs are named by their codes: at least four in five of its named glyphs are a short
+    /// prefix and the code ("a65", "g65", "C65", "65"; or in hex, "G41"). True: hex numbers; false: decimal; null: they aren't.
+    /// </summary>
+    private static bool? CodeNamed(TextFont tf)
+    {
+        int named = 0, dec = 0, hex = 0;
+        for (var c = 0; c < 256; c++)
+        {
+            if (tf.GlyphNameOf(c) is not { } n || n == ".notdef" || GlyphNames.ToUnicode(n) is not null) continue;
+            named++;
+            if (NumberOf(n, false) == c) dec++;
+            if (NumberOf(n, true) == c) hex++;
+        }
+        if (named == 0) return null;
+        if (dec >= 0.8 * named) return false;
+        return hex >= 0.8 * named ? true : null;
+    }
+
+    /// <summary>The number a glyph name ends in after a prefix of at most four letters ("a65": 65), or -1.</summary>
+    private static int NumberOf(string name, bool hex)
+    {
+        var i = 0;
+        while (i < name.Length && i < 4 && char.IsAsciiLetter(name[i]) && !(hex && char.IsAsciiHexDigit(name[i]) && i > 0)) i++;
+        var digits = name.AsSpan(i);
+        if (digits.Length is 0 or > 3) return -1;
+        return int.TryParse(digits, hex ? NumberStyles.AllowHexSpecifier : NumberStyles.None, CultureInfo.InvariantCulture, out var v) ? v : -1;
+    }
+
+    /// <summary>A Type 3 font's name, for its TeX encoding: the first of /BaseFont, /Name and its descriptor's /FontName that is a TeX font's, else its /Name.</summary>
+    private static string Type3Name(PdfDictionary font)
+    {
+        var names = new[] { PdfObj.Name(font.Elements["/BaseFont"]), PdfObj.Name(font.Elements["/Name"]), PdfObj.Name(PdfObj.Dict(font.Elements["/FontDescriptor"])?.Elements["/FontName"]) }
+            .OfType<string>().Select(n => n.TrimStart('/')).ToList();
+        return names.FirstOrDefault(TexGlyphs.IsTexFont) ?? names.FirstOrDefault() ?? "";
     }
 
     /// <summary>A ToUnicode CMap of one- or two-byte codes.</summary>

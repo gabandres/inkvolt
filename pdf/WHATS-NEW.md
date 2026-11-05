@@ -11,6 +11,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Make Accessible tags text inside drawings a page reuses (a page placed as one drawing, a letterhead) piece by piece, so each heading and paragraph there is read as its own.
 - In the Reading Order pane, choose what a piece is under Kind: a heading and its level, a paragraph, a caption, a footnote, a formula or a picture (a list can become a table of contents). Apply changes tags it that way.
 - Make Accessible tags a table cell that spans several rows as one cell, so a screen reader reads its header with each of those rows.
+- Make Accessible and Save as PDF/A-2a give text in old TeX papers' bitmap fonts its letters, so it can be read aloud, searched and copied.
 - Batch, watched folders and the command line follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
 
 ## 1.7.0
