@@ -7,9 +7,9 @@ import Synchronization
 /// The network for one printer (`HttpTransportFactory`): URLSession with nothing kept between runs (no cookies, cache or
 /// saved credentials), redirects returned rather than followed, and every TLS handshake checked against the printer's
 /// certificate pins (`CertificateCheck`). A request sent `once` goes out on a session of its own, so it's never resent on a
-/// pooled connection. Timeouts are `DeviceHttp`'s. With `replyLimit`, a reply longer than that many bytes is given up on as
-/// it arrives (Windows' `DeviceHttp.MaxReplyBytes`): a recording's (`PrinterRecorder.maxReplyBytes`), so a printer that
-/// never stops answering can't fill this Mac's memory.
+/// pooled connection. Timeouts are `DeviceHttp`'s. Every reply is read as it arrives and given up on past the request's
+/// `replyLimit` (as Windows' `DeviceHttp` bounds every reply: 32 MB, a scanned page 1 GB), so a printer that never stops
+/// answering can't fill this Mac's memory; `replyLimit` here lowers that bound (the tests' quick one).
 public final class URLSessionTransport: HttpTransport {
     private let check: CertificateCheck
     private let localNetwork: LocalNetworkSignal?
@@ -52,14 +52,8 @@ public final class URLSessionTransport: HttpTransport {
         let session = request.once ? Self.session(check) : self.session
         defer { if request.once { session.finishTasksAndInvalidate() } }
         do {
-            let reply: HttpResponse
-            if let replyLimit {
-                reply = try await bounded(r, session, replyLimit)
-            } else {
-                let (data, response) = try await session.data(for: r)
-                guard let head = Self.head(response) else { throw DeviceNetworkError.failed("Not an HTTP reply") }
-                reply = HttpResponse(status: head.status, headers: head.headers, body: Array(data))
-            }
+            let limit = replyLimit.map { min($0, request.replyLimit) } ?? request.replyLimit
+            let reply = try await bounded(r, session, limit)
             localNetwork?.answered()
             return reply
         } catch let error as DeviceNetworkError {
@@ -78,6 +72,17 @@ public final class URLSessionTransport: HttpTransport {
             if let key = key as? String, let value = value as? String { headers[key] = value }
         }
         return (http.statusCode, headers)
+    }
+
+    /// The most a reply's buffer is made ready for before its bytes arrive; past it the buffer grows as they come, so a length
+    /// a printer claims (up to eSCL's 1 GB) costs only what it sends.
+    static let maxReservation = 4 << 20
+
+    /// What a reply whose Content-Length says `expected` reserves: that, at most `maxReservation`; nothing without one or past
+    /// `limit` (refused at once).
+    static func reservation(_ expected: Int64, limit: Int) -> Int {
+        guard expected > 0, expected <= Int64(limit) else { return 0 }
+        return Int(min(expected, Int64(maxReservation)))
     }
 
     /// The reply read in the pieces it arrives in (a task delegate counting `didReceive`), given up on (its task cancelled)
@@ -121,7 +126,7 @@ public final class URLSessionTransport: HttpTransport {
                 $0.status = head?.status
                 $0.headers = head?.headers ?? [:]
                 $0.tooLong = tooLong
-                if !tooLong, response.expectedContentLength > 0 { $0.body.reserveCapacity(Int(response.expectedContentLength)) } // bounded: ≤ limit
+                $0.body.reserveCapacity(URLSessionTransport.reservation(response.expectedContentLength, limit: limit))
             }
             completionHandler(tooLong ? .cancel : .allow)
         }

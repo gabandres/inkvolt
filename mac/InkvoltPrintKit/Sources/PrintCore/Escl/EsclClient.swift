@@ -128,7 +128,9 @@ public final class EsclClient: Sendable {
         var attempt = 0
         while true {
             let target = URL(string: "NextDocument", relativeTo: job)!.absoluteURL
-            let response = try await http.send(request("GET", target, timeout: Self.pageTimeout))
+            var next = request("GET", target, timeout: Self.pageTimeout)
+            next.allowLongReply() // a page, or a feeder's run as one PDF
+            let response = try await http.send(next)
             switch response.status {
             case 404, 410:
                 return nil

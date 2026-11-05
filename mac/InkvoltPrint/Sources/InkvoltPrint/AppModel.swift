@@ -29,8 +29,8 @@ final class AppModel {
     @ObservationIgnored let signal: LocalNetworkSignal
     @ObservationIgnored private let transport: HttpTransportFactory
     @ObservationIgnored private let snmp: any SnmpTransport
-    /// The network a recording goes through (roadmap 1.2): this Mac's, each reply bounded by `PrinterRecorder.maxReplyBytes`
-    /// and no certificate pin (it only reads); demo mode's made-up printers.
+    /// The network a recording goes through (roadmap 1.2): this Mac's, each reply bounded as every read is (32 MB, a scanned
+    /// page 1 GB) and no certificate pin (it only reads); demo mode's made-up printers.
     @ObservationIgnored let recordingTransport: @Sendable () -> any HttpTransport
     @ObservationIgnored private var tracker: AlertTracker
     /// The menu bar item and its alerts, as the user set them.
@@ -108,7 +108,7 @@ final class AppModel {
         } else {
             transport = URLSessionTransport.factory(localNetwork: signal)
             recordingTransport = {
-                URLSessionTransport(check: CertificateCheck(pin: nil), localNetwork: signal, replyLimit: PrinterRecorder.maxReplyBytes)
+                URLSessionTransport(check: CertificateCheck(pin: nil), localNetwork: signal)
             }
             snmp = UdpSnmpTransport(localNetwork: signal)
             store = StateStore(file: Self.stateFile)

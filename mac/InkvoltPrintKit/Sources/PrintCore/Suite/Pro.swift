@@ -26,8 +26,6 @@ public enum Pro {
     }
 
     public static let product = ProKeys.productPrint
-    public static let priceText = ProCheck.priceText
-    public static let buyUrl = ProCheck.buyUrl
 
     private static let check = ProCheck(product)
 
@@ -92,8 +90,9 @@ public enum Pro {
         }
     }
 
-    /// Where to get a key and where to enter it (after `locked` on the command line).
+    /// Where a key is entered (after `locked` on the command line). Mac difference (PLAN.md P12 1.6): Inkvolt Print for Mac is
+    /// the App Store's, so no refusal names a price or a shop (guidelines 3.1.1(a), 3.1.3(b)), as the Pro window names none.
     public static var howToGet: String {
-        "Inkvolt Pro is a one-time purchase (\(priceText)) at \(buyUrl); Help › Inkvolt Pro… in Inkvolt Print enters the key, and a key entered in Inkvolt PDF counts here too."
+        "Help › Inkvolt Pro… in Inkvolt Print enters an Inkvolt Pro key, and a key entered in Inkvolt PDF counts here too."
     }
 }

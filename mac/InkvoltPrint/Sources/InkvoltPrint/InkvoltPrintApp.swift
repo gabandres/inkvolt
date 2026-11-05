@@ -24,6 +24,8 @@ struct InkvoltPrintApp: App {
                     AppModel.shared.isAddingPrinter = true
                 }
                 .keyboardShortcut("n")
+                Button("Batch Print…") { BatchPrintWindow.show(AppModel.shared) }
+                    .keyboardShortcut("p", modifiers: [.command, .shift])
             }
             CommandGroup(after: .sidebar) {
                 Button("Fleet") {

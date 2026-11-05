@@ -3,12 +3,14 @@ import PrintCore
 import PrintMac
 
 /// The app's entry: `Inkvolt Print status --all [--json] [--out file]` (Inkvolt Pro, roadmap 2.6) reads every printer once and
-/// writes the list, with no window and nothing kept; anything else starts the app.
+/// writes the list, with no window and nothing kept; `Inkvolt Print print …` (roadmap 2.4, `PrintCommand`) prints a batch
+/// without a window; anything else starts the app.
 @main
 enum Launch {
     static func main() {
         let args = Array(CommandLine.arguments.dropFirst())
         if FleetCommand.isFor(args) { exit(MainActor.assumeIsolated { StatusCommand.run(args) }) }
+        if BatchPrintCommandLine.isCommand(args) { exit(MainActor.assumeIsolated { PrintCommand.run(args) }) }
         InkvoltPrintApp.main()
     }
 }

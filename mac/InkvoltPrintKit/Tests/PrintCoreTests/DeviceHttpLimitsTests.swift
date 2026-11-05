@@ -5,9 +5,10 @@ import Testing
 
 /// What a printer can't make the app do over HTTP: ask another computer. Ported from RobustnessTests.cs'
 /// DeviceHttpLimitsTests with the same names, its host tests (found missing on the Mac by ReportRecordingTests'
-/// A_printer_cant_point_the_recorder_at_another_computer, 2026-11-05). Left out: the reply limits (32 MB, a scanned page's
-/// 1 GB), which sit in the transport on the Mac (PrintMac's URLSession transport bounds a recording's replies) and aren't
-/// ported for the app's own reads yet (mac/docs/PLAN.md, P12 1.2).
+/// A_printer_cant_point_the_recorder_at_another_computer, 2026-11-05), and its reply limits (32 MB, a scanned page's 1 GB):
+/// on the Mac each request carries its limit (`HttpRequest.replyLimit`) and the transport keeps no more of a reply, so here a
+/// transport that keeps what PrintMac's URLSession transport keeps (`Bounded`); PrintMacTests' TransportTests check the real
+/// one over this Mac's sockets.
 struct DeviceHttpLimitsTests {
     private static let host = "192.0.2.10", other = "192.0.2.200"
 
@@ -112,5 +113,67 @@ struct DeviceHttpLimitsTests {
         _ = try? await PrinterConnection.probe(http, esclHint: URL(string: "http://\(Self.other):8080/eSCL/"))
         #expect(there.asked.isEmpty)
         #expect(here.asked.contains { $0.port == 8080 && $0.path == "/eSCL/ScannerCapabilities" })
+    }
+
+    /// Keeps what PrintMac's transport keeps of a reply of `size` bytes: read in 64 KB pieces, given up on past the request's
+    /// `replyLimit`. `read` is how much it read before it stopped.
+    final class Bounded: HttpTransport {
+        let size: Int
+        private let counted = Mutex(0)
+        var read: Int { counted.withLock { $0 } }
+
+        init(_ size: Int) { self.size = size }
+
+        func send(_ request: HttpRequest) async throws -> HttpResponse {
+            try Self.keep(size, request, counted)
+            return HttpResponse(status: 200, body: [UInt8](repeating: 0x30, count: size))
+        }
+
+        static func keep(_ size: Int, _ request: HttpRequest, _ counted: borrowing Mutex<Int>) throws {
+            var kept = 0
+            while kept < size {
+                let piece = min(1 << 16, size - kept)
+                if kept + piece > request.replyLimit {
+                    counted.withLock { $0 = kept + piece }
+                    throw DeviceNetworkError.failed("The reply was longer than \(request.replyLimit / (1 << 20)) MB")
+                }
+                kept += piece
+            }
+            counted.withLock { $0 = kept }
+        }
+    }
+
+    @Test func A_reply_that_never_ends_is_given_up_on_at_the_limit() async throws {
+        let reply = Bounded(300 << 20)
+        let http = DeviceHttp(host: Self.host, transport: reply)
+        await #expect(throws: DeviceNetworkError.self) { try await http.getBytesOrNil(try http.http("/x")) }
+        #expect(reply.read >= 1 && reply.read <= DeviceHttp.maxReplyBytes + (1 << 20))
+    }
+
+    @Test func A_reply_at_the_limit_is_whole_and_a_scanned_page_may_be_longer() async throws {
+        let http = DeviceHttp(host: Self.host, transport: Bounded(DeviceHttp.maxReplyBytes))
+        #expect(try await http.getBytesOrNil(try http.http("/x"))?.count == DeviceHttp.maxReplyBytes)
+
+        let page = DeviceHttp.maxReplyBytes + 1000
+        let scanner = DeviceHttp(host: Self.host, transport: Bounded(page))
+        var request = HttpRequest("GET", try scanner.http("/eSCL/ScanJobs/1/NextDocument"))
+        request.allowLongReply()
+        #expect(try await scanner.send(request).body.count == page)
+        await #expect(throws: DeviceNetworkError.self) { try await scanner.send(HttpRequest("GET", try scanner.http("/eSCL/ScannerStatus"))) }
+    }
+
+    @Test func A_scanner_can_send_a_page_longer_than_a_document() async throws {
+        let page = DeviceHttp.maxReplyBytes + 1000
+        let m234dw = Printers.folder("m234dw", scanPage: { [UInt8](repeating: 0x30, count: page) })
+        let scanner = CdmConnectionTests.Scripted { request in
+            let reply = try await m234dw.send(request)
+            try Bounded.keep(reply.body.count, request, Mutex(0))
+            return reply
+        }
+        let http = DeviceHttp(host: Self.host, transport: scanner)
+        var pages: [[UInt8]] = []
+        for try await jpeg in EsclClient(http, root: try http.http("/eSCL/")).scan(ScanRequest(source: .platen)) { pages.append(jpeg) }
+        #expect(pages.count == 1)
+        #expect(pages.first?.count == page)
     }
 }

@@ -115,7 +115,8 @@ extension ProGated {
         #expect(result.code == FleetCommand.wrong)
         #expect(result.output == "")
         #expect(result.error.contains(Pro.locked(.fleetExport)))
-        #expect(result.error.contains(Pro.buyUrl))
+        #expect(result.error.contains(Pro.howToGet))
+        #expect(!namesAPriceOrAShop(result.error), "\(result.error)") // Mac difference: the App Store copy (PLAN.md P12 1.6)
         #expect(reads.withLock { $0 } == 0)
     }
 

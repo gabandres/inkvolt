@@ -52,9 +52,9 @@ public enum PrinterRecorder {
     /// The recording's notes: what was asked, how long each reply took, what wasn't kept. Not a fixture document.
     public static let notesFile = "recording.tsv"
 
-    /// The most a recording's transport keeps of one reply (Windows' `DeviceHttp.MaxReplyBytes`): a printer's documents are
-    /// kilobytes, a 150 dpi page a few megabytes, and one that never stops mustn't fill this Mac's memory.
-    public static let maxReplyBytes = 32 << 20
+    /// The most a recording keeps of one reply: `DeviceHttp.maxReplyBytes`, as every read of the app's (a scanned page's
+    /// request is marked long, as Windows' recorder keeps it).
+    public static let maxReplyBytes = DeviceHttp.maxReplyBytes
 
     /// The SNMP objects, as `SnmpAgent.parseWalk` reads them.
     public static let snmpFile = "snmp.txt"

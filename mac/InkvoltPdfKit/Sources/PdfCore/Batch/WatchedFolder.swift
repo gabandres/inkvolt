@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// How a watched folder judges new files and how often it looks.
 public struct WatchOptions: Sendable {
@@ -290,27 +291,15 @@ public enum WatchedFolder {
         }
     }
 
-    /// The folder's lock file, held for the watch (an advisory lock; the system lets go of it if the process dies).
-    private final class Held {
-        let fd: Int32
-        let path: String
-        init(_ fd: Int32, _ path: String) {
-            self.fd = fd
-            self.path = path
-        }
-        func release() {
-            unlink(path)
-            close(fd)
-        }
-    }
-
-    private static func lock(_ folder: String) throws -> Held {
+    /// The folder's lock file, held for the watch and deleted, still held, when let go: PrintCore's `FileLock`, the one Inkvolt
+    /// Print for Mac's `DropFolder` takes on the same file (a lock on one its last holder had just deleted is never taken).
+    private static func lock(_ folder: String) throws -> FileLock {
         let path = (folder as NSString).appendingPathComponent(lockName)
-        let fd = open(path, O_RDWR | O_CREAT | O_EXLOCK | O_NONBLOCK, 0o644)
-        if fd < 0 {
-            if errno == EWOULDBLOCK || errno == EAGAIN { throw FolderWatched(folder: folder) }
-            throw PdfEditError("The folder can't be watched: \(String(cString: strerror(errno))).")
+        do {
+            guard let held = try FileLock.hold(path, create: true, deleteOnRelease: true) else { throw FolderWatched(folder: folder) }
+            return held
+        } catch let e as POSIXError {
+            throw PdfEditError("The folder can't be watched: \(String(cString: strerror(e.code.rawValue))).")
         }
-        return Held(fd, path)
     }
 }

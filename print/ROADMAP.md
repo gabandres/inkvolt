@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.6 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2 and 2.6 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.4, 2.6 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -331,8 +331,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   --list file --printer name`, the results as CSV. Test: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF that asks for
   its password) print to the demo queue in order with the estimated sheet count; exit codes match Inkvolt PDF's. Mac:
   the same through the CUPS queue. Mac's PrintCore done (2026-11-02, mac/docs/PLAN.md P12: the estimate and bounds, passwords, the run
-  and its stops, the printer's answer checked, a folder's files, the results CSV); saved lists, watched folders, `print --list`,
-  PrintMac's PDFKit pages and CUPS queue and the Batch window wait.
+  and its stops, the printer's answer checked, a folder's files, the results CSV). **Mac done 2026-11-05** (PLAN.md P12): File › Batch
+  Print…, saved lists, watched folders and `print` from the app's binary (BatchPrintListTests, BatchPrintFolderTests and
+  BatchPrintCommandLineTests ported), PDFKit and Image I/O pages, the CUPS queue with each job held, read back and only then released;
+  the sandboxed `print` reaches what the window was given. Proved on demo mode's queues and a test queue (held, cancelled): no paper.
 - **Effort** S-M. Windows and Mac.
 
 ### 2.5 TWAIN
