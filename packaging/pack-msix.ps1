@@ -206,6 +206,40 @@ Invoke-Tool $makepri @('new', '/pr', $priRoot, '/cf', $priConfig, '/mn', (Join-P
 $publishProps = @('-p:PublishSingleFile=false', "-p:Version=$Version", '-p:CopyOutputSymbolsToPublishDirectory=false')
 if ($App -eq 'Print') { $publishProps += "-p:HpCleanupInPackage=$(if ($IncludeHpCleanup) { 'true' } else { 'false' })" }
 
+# Every project in the app's graph is built afresh: its bin\Release and obj\Release, which a plain Release build (the
+# bench's, a test run) shares, are deleted first. The 1.8.0.0 pack took InkvoltPdf.Core and InkvoltPrint.Core at 1.0.0.0
+# from there, with the app built against 1.8.0.0, and Batch, the folder index, Word export and web pages failed in the
+# smoke test. (--artifacts-path would keep the pack's builds apart, but WPF's temporary project loses the RID there.)
+function Get-ProjectGraph([string]$project) {
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $left = [Collections.Generic.Stack[string]]::new()
+    $left.Push([IO.Path]::GetFullPath($project))
+    while ($left.Count -gt 0) {
+        $p = $left.Pop()
+        if (-not $seen.Add($p)) { continue }
+        foreach ($r in ([xml](Get-Content $p -Raw)).SelectNodes('//ProjectReference/@Include')) {
+            $left.Push([IO.Path]::GetFullPath((Join-Path (Split-Path $p) $r.Value)))
+        }
+    }
+    $seen
+}
+if (-not $NoBuild) {
+    foreach ($p in Get-ProjectGraph (Join-Path $appRoot "src\$name.App\$name.App.csproj")) {
+        foreach ($d in 'bin\Release', 'obj\Release') { Remove-Item (Join-Path (Split-Path $p) $d) -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+}
+
+# Every Inkvolt assembly in a publish folder (the app, its libraries, their Spanish satellites) must say $Version: a stale
+# one loads, then fails on its first call into a type or member the app expects (FileLoadException or MissingMethodException).
+function Assert-Versions([string]$pub, [string]$rid) {
+    $wrong = foreach ($f in Get-ChildItem $pub -Recurse -File -Filter 'Inkvolt*.dll') {
+        try { $v = [Reflection.AssemblyName]::GetAssemblyName($f.FullName).Version.ToString() } catch [BadImageFormatException] { continue }
+        $file = [Diagnostics.FileVersionInfo]::GetVersionInfo($f.FullName).FileVersion
+        if ($v -ne $Version -or $file -ne $Version) { "$($f.FullName.Substring($pub.Length + 1)) $v (file $file)" }
+    }
+    if ($wrong) { throw "$rid publish holds Inkvolt assemblies that aren't $Version (a stale build):`n  $($wrong -join "`n  ")" }
+}
+
 $msix = @{}
 foreach ($arch in $Architectures) {
     $rid = "win-$arch"
@@ -221,6 +255,7 @@ foreach ($arch in $Architectures) {
     foreach ($dll in $cfg.Required) {
         if (-not (Test-Path (Join-Path $pub $dll))) { throw "$rid publish lacks $dll" }
     }
+    Assert-Versions $pub $rid
 
     $layout = Join-Path $OutDir "layout\$arch"
     Remove-Item $layout -Recurse -Force -ErrorAction SilentlyContinue
