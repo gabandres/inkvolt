@@ -99,6 +99,7 @@ public enum Demo {
         CupsDestination(name: "Demo_USB_laser", options: [
             "printer-info": "Demo USB laser", "device-uri": "usb://Demo/Laser%202100?serial=DEMO0002100", "printer-make-and-model": "Demo Laser 2100",
             "printer-type": "4", "printer-state": "3", "printer-state-reasons": "toner-low-warning", "printer-is-accepting-jobs": "true",
+            "printer-is-shared": "false",
             "marker-names": "Black Toner", "marker-levels": "12", "marker-low-levels": "15", "marker-types": "toner", "marker-colors": "#000000",
         ], jobs: 0),
         CupsDestination(name: "Front_desk_demo_mac", options: [
@@ -109,6 +110,7 @@ public enum Demo {
         CupsDestination(name: "Office_color_MFP", options: [
             "printer-info": "Office color MFP", "device-uri": "socket://\(snmpQueueHost)", "printer-make-and-model": "Demo Color MFP 4400",
             "printer-location": "Copy room", "printer-type": "8", "printer-state": "4", "printer-state-reasons": "none", "printer-is-accepting-jobs": "true",
+            "printer-is-shared": "false",
         ], jobs: 1),
         CupsDestination(name: "PDFwriter", options: ["printer-info": "PDFwriter", "device-uri": "pdfwriter:/", "printer-type": "4", "printer-state": "3"]),
         CupsDestination(name: "HP_LaserJet_MFP_M234dw_demo", options: [

@@ -95,7 +95,7 @@ extension AlertTracker {
         q.lastRead = now
 
         let jobs = QueueJobText.order(queue?.jobs ?? [])
-        let moved = takeIn(jobs, q, printerName: printerName, me: me, now: now)
+        let moved = takeIn(jobs, q, printerName: printerName, me: me, othersMayPrint: queue?.othersMayPrint ?? true, now: now)
         let running = queue.map { !$0.paused && !$0.printerOffline } == true && (p.work == .ready || p.work == .printing)
         if !running {
             Self.stopStuckClock(q)
@@ -109,7 +109,7 @@ extension AlertTracker {
     }
 
     /// The jobs listed now and the ones gone since: true when the queue moved.
-    private func takeIn(_ jobs: [QueueJob], _ q: JobQueueTrack, printerName: String, me: JobOwner, now: Date) -> Bool {
+    private func takeIn(_ jobs: [QueueJob], _ q: JobQueueTrack, printerName: String, me: JobOwner, othersMayPrint: Bool, now: Date) -> Bool {
         var moved = false
         var listed = Set<String>()
         for job in jobs {
@@ -118,7 +118,7 @@ extension AlertTracker {
             let t = q.track(key)
             if Self.takeIn(t, job, now) { moved = true }
             t.absentSince = nil
-            (t.name, t.state, t.mine, t.printerName) = (job.name, job.state, me.owns(job), printerName)
+            (t.name, t.state, t.mine, t.printerName) = (job.name, job.state, me.owns(job, othersMayPrint: othersMayPrint), printerName)
         }
         for key in q.order where !listed.contains(key) {
             guard let t = q.jobs[key] else { continue }

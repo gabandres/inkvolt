@@ -28,6 +28,7 @@ public final class DemoOffline: OfflineProbes, QueueControl, QueueSetupControl, 
         office = Shared(CupsDestination(name: Self.officeQueue, options: [
             "printer-info": "Demo office laser", "device-uri": "socket://\(Demo.officeOldHost)", "printer-make-and-model": "Demo office laser",
             "printer-type": "4", "printer-state": "5", "printer-state-reasons": "paused,offline-report", "printer-is-accepting-jobs": "true",
+            "printer-is-shared": "false",
         ]))
         officeJobs = Shared([QueueJob(id: 21, name: "Invoice 1043.pdf", pages: 2, state: .stopped, submitted: now.addingTimeInterval(-14 * 60), owner: base.user)])
     }

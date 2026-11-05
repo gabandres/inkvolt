@@ -38,7 +38,7 @@ struct JobAlertTests {
                  bytes: bytes, machine: machine)
     }
 
-    private static func queue(_ jobs: QueueJob...) -> JobQueueState { JobQueueState(paused: false, printerOffline: false, jobs: jobs) }
+    private static func queue(_ jobs: QueueJob...) -> JobQueueState { JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: jobs) }
 
     /// The printer read, then its queue, at one moment: as the menu bar does it, a minute apart.
     @discardableResult
@@ -122,7 +122,7 @@ struct JobAlertTests {
 
     @Test func aFailureInAPausedQueueOrOnAPrinterThatIsntReadyIsStillTold() {
         let paused = Self.tracker()
-        #expect(Self.minutes(paused, Self.t0, 2, JobQueueState(paused: true, printerOffline: false, jobs: [Self.job(7,.stopped)])).count == 1)
+        #expect(Self.minutes(paused, Self.t0, 2, JobQueueState(paused: true, printerOffline: false, othersMayPrint: false, jobs: [Self.job(7,.stopped)])).count == 1)
         let offline = Self.tracker()
         let off = PrinterStatus(code: "offline", message: "Offline", severity: .error, alerts: [])
         #expect(Self.minutes(offline, Self.t0, 2, Self.queue(Self.job(7,.stopped)), off).count == 1)
@@ -231,7 +231,7 @@ struct JobAlertTests {
         var told: [AlertNotice] = []
         for i in 0...5 {
             let behind = (0..<i).map { n in Self.job(100 + n, .pending, owner: "alex", submitted: Self.submitted.addingTimeInterval(Double(n + 1) * 60)) }
-            told += Self.read(t, Self.at(Double(i)), JobQueueState(paused: false, printerOffline: false, jobs: [mine] + behind))
+            told += Self.read(t, Self.at(Double(i)), JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: [mine] + behind))
         }
         #expect(told.map(\.title) == ["“Report.pdf” isn't moving"])
     }
@@ -257,7 +257,7 @@ struct JobAlertTests {
 
     @Test func aQueuePausedOnPurposeHoldsNoStuckJobAndGetsTheFullWaitOnceResumed() {
         let t = Self.tracker()
-        #expect(Self.minutes(t, Self.t0, 30, JobQueueState(paused: true, printerOffline: false, jobs: [Self.job()])).isEmpty)
+        #expect(Self.minutes(t, Self.t0, 30, JobQueueState(paused: true, printerOffline: false, othersMayPrint: false, jobs: [Self.job()])).isEmpty)
         #expect(t.pendingUntil(Self.laser) == nil)
         #expect(Self.minutes(t, Self.at(31), 4, Self.queue(Self.job())).isEmpty)
         #expect(Self.minutes(t, Self.at(36), 0, Self.queue(Self.job())).count == 1)
@@ -294,7 +294,7 @@ struct JobAlertTests {
 
     /// Windows' PaperOut and Offline job bits: on the Mac, the queue's own offline reason.
     @Test func theQueueSayingThePrinterCantBeReachedHoldsNoStuckJob() {
-        #expect(Self.minutes(Self.tracker(), Self.t0, 30, JobQueueState(paused: false, printerOffline: true, jobs: [Self.job()])).isEmpty)
+        #expect(Self.minutes(Self.tracker(), Self.t0, 30, JobQueueState(paused: false, printerOffline: true, othersMayPrint: false, jobs: [Self.job()])).isEmpty)
     }
 
     @Test func aPrinterThatStopsBeingReadyStartsTheWaitAgain() {
@@ -581,13 +581,45 @@ struct JobAlertTests {
         ("gabri", #"\\10.0.0.5"#, false), // can't tell: not ours to name
     ] as [(String, String?, Bool)])
     func whoseJobItIs(owner: String, machine: String?, mine: Bool) {
-        #expect(Self.me.owns(Self.job(owner: owner, machine: machine)) == mine)
+        #expect(Self.me.owns(Self.job(owner: owner, machine: machine), othersMayPrint: false) == mine)
     }
 
     @Test func aUserNameOrMachineThisMacDoesntKnowIsNeverAMatchByAccident() {
         #expect(!JobOwner(userName: "", domain: "OFFICE", machine: "PC").owns(Self.job(owner: "")))
         #expect(!JobOwner(userName: nil, domain: nil, machine: nil).owns(Self.job(owner: "gabri")))
-        #expect(JobOwner(userName: "gabri", domain: nil, machine: nil).owns(Self.job(owner: #"OFFICE\gabri"#, machine: #"\\PC"#))) // nothing here to compare with
+        // Nothing here to compare with: in doubt, not yours (Windows names it; the Mac's user has no domain, and a job from
+        // another computer must not pass for this one's).
+        #expect(!JobOwner(userName: "gabri", domain: nil, machine: nil).owns(Self.job(owner: #"OFFICE\gabri"#, machine: #"\\PC"#)))
+        #expect(!JobOwner(userName: "gabri", domain: nil, machine: nil).owns(Self.job(owner: "gabri", machine: #"\\PC"#)))
+    }
+
+    /// The Mac's own: `cupsGetJobs2` never says which computer a job came from, and a Mac sharing its printer gets other
+    /// Macs' jobs under the same user name. A job from nowhere known is yours only on a queue no other computer prints to;
+    /// one CUPS says came from this Mac (`job-originating-host-name` is localhost) is yours on any queue.
+    @Test func aSameNamedUsersJobFromAnotherMacSharingThisQueueIsNeverNamed() throws {
+        func dest(_ options: [String: String]) -> CupsDestination {
+            CupsDestination(name: "Q", options: ["printer-type": "4", "printer-state": "3", "printer-is-accepting-jobs": "true"].merging(options) { $1 })
+        }
+        let payroll = Self.job(7, .stopped, name: "Payroll.pdf")
+        for shared in [dest(["printer-is-shared": "true"]), dest([:]), dest(["printer-is-shared": "false", "printer-type": "6"])] {
+            let t = Self.tracker()
+            #expect(Self.minutes(t, Self.t0, 3, JobQueueState.of(shared, jobs: [payroll], now: Self.t0)).isEmpty, "\(shared.options)")
+            #expect(t.shown().isEmpty)
+        }
+        var fromHere = payroll
+        fromHere.machine = "localhost"
+        let t = Self.tracker()
+        let told = Self.minutes(t, Self.t0, 3, JobQueueState.of(dest(["printer-is-shared": "true"]), jobs: [fromHere], now: Self.t0))
+        #expect(told.map(\.kind) == [.jobFailed])
+        let alone = Self.tracker()
+        #expect(Self.minutes(alone, Self.t0, 3, JobQueueState.of(dest(["printer-is-shared": "false"]), jobs: [payroll], now: Self.t0)).count == 1)
+    }
+
+    @Test(arguments: [("localhost", true), ("LOCALHOST", true), ("127.0.0.1", true), ("::1", true), ("[::1]", true),
+                      ("127.example", false), ("localhost.evil.example", false), ("192.0.2.7", false), ("other-mac.local", false)])
+    func aJobCupsSaysCameFromThisMacIsYours(machine: String, mine: Bool) {
+        #expect(Self.me.owns(Self.job(machine: machine)) == mine)
+        #expect(JobOwner(userName: "gabri").owns(Self.job(machine: machine)) == mine)
     }
 
     @Test func aLongPcNameMatchesWindowsShortNameForIt() {
@@ -596,7 +628,7 @@ struct JobAlertTests {
 
     @Test func otherPeoplesJobsOnASharedQueueNeverRaiseOne() {
         let t = Self.tracker()
-        let theirs = JobQueueState(paused: false, printerOffline: false, jobs: [
+        let theirs = JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: [
             Self.job(1, .stopped, name: "Their secret.pdf", owner: "alex"),
             Self.job(2, .processing, name: "Their other.pdf", owner: #"HOME\gabri"#, submitted: Self.submitted.addingTimeInterval(60)),
             Self.job(3, .pending, name: "Same name other PC.pdf", submitted: Self.submitted.addingTimeInterval(120), machine: #"\\FRONT-DESK"#),
@@ -642,13 +674,13 @@ struct JobAlertTests {
                 if j.id == mine.id { j.pagesPrinted += i }
                 return j
             }
-            #expect(Self.read(t, Self.at(Double(i)), JobQueueState(paused: false, printerOffline: false, jobs: moved)).isEmpty)
+            #expect(Self.read(t, Self.at(Double(i)), JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: moved)).isEmpty)
         }
     }
 
     @Test func theDemoQueueFrozenRaisesOneForMyFirstJobOnly() async throws {
         let t = Self.tracker()
-        let told = Self.minutes(t, Self.t0, 30, JobQueueState(paused: false, printerOffline: false, jobs: try await Self.demoJobs()))
+        let told = Self.minutes(t, Self.t0, 30, JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: try await Self.demoJobs()))
         try #require(told.count == 1)
         #expect(told[0].kind == .jobStuck)
         #expect(told[0].title.contains("Quarterly report.pdf"))
@@ -691,7 +723,7 @@ struct JobAlertTests {
             j.owner = "alex"
             return j
         }
-        #expect(Self.minutes(Self.tracker(), Self.t0, 30, JobQueueState(paused: false, printerOffline: false, jobs: jobs)).isEmpty)
+        #expect(Self.minutes(Self.tracker(), Self.t0, 30, JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: jobs)).isEmpty)
     }
 
     // MARK: The document's name
@@ -814,7 +846,7 @@ struct JobAlertTests {
         #expect(kept.jobs.map(\.id) == [3, 5, 6])
 
         let t = Self.tracker()
-        let told = Self.minutes(t, Self.t0, 3, JobQueueState(paused: false, printerOffline: false, jobs: [gaveUp]))
+        let told = Self.minutes(t, Self.t0, 3, JobQueueState(paused: false, printerOffline: false, othersMayPrint: false, jobs: [gaveUp]))
         #expect(told.map(\.kind) == [.jobFailed])
         #expect(told.first?.body.contains("macOS gave up on this job") == true)
     }

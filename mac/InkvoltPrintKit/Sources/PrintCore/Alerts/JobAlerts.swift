@@ -8,11 +8,15 @@ public struct JobQueueState: Equatable, Sendable {
     public var paused: Bool
     /// The queue says its printer can't be reached (`offline-report`, as `CupsStatus.describe` reads it).
     public var printerOffline: Bool
+    /// Other computers may print to the queue (`CupsDestination.othersMayPrint`): a job that doesn't say where it came from
+    /// may be another computer's (`JobOwner.owns`). True unless known otherwise.
+    public var othersMayPrint: Bool
     public var jobs: [QueueJob]
 
-    public init(paused: Bool, printerOffline: Bool, jobs: [QueueJob]) {
+    public init(paused: Bool, printerOffline: Bool, othersMayPrint: Bool = true, jobs: [QueueJob]) {
         self.paused = paused
         self.printerOffline = printerOffline
+        self.othersMayPrint = othersMayPrint
         self.jobs = jobs
     }
 
@@ -31,14 +35,18 @@ public struct JobQueueState: Equatable, Sendable {
             case .pending, .held, .processing, .stopped: true
             }
         }
-        return JobQueueState(paused: d.state == 5, printerOffline: CupsStatus.describe(d).offline, jobs: kept)
+        return JobQueueState(paused: d.state == 5, printerOffline: CupsStatus.describe(d).offline, othersMayPrint: d.othersMayPrint, jobs: kept)
     }
 }
 
 /// Who "you" are on a queue (the Windows app's `JobOwner`): this Mac's user to CUPS (`PrintQueues.user`). Stricter than
 /// `QueueJobText.isOwner`, which only decides who sees a Cancel button: two computers sharing a printer often have the same
 /// user name, so a job that says which domain or computer it came from must say this one. When in doubt the job isn't
-/// yours: another person's document is never named.
+/// yours: another person's document is never named. Stricter than Windows' in three ways, since a Mac's user has no domain
+/// and `cupsGetJobs2` says nothing of where a job came from: a domain or computer this Mac can't compare with isn't a
+/// match, a job that doesn't say where it came from is yours only on a queue no other computer prints to
+/// (`othersMayPrint`), and one CUPS says came from this Mac (`job-originating-host-name` localhost, when the reader asks
+/// for it) is yours on any queue. On the Mac: `userName` is `PrintQueues.user`, `domain` nil, `machine` the Mac's name.
 public struct JobOwner: Equatable, Sendable {
     public var userName: String?
     public var domain: String?
@@ -50,18 +58,29 @@ public struct JobOwner: Equatable, Sendable {
         self.machine = machine
     }
 
-    public func owns(_ job: QueueJob) -> Bool {
+    /// `othersMayPrint`: other computers may print to the job's queue (`JobQueueState.othersMayPrint`).
+    public func owns(_ job: QueueJob, othersMayPrint: Bool = true) -> Bool {
         let owner = job.owner.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !owner.isEmpty, let user = userName?.trimmingCharacters(in: .whitespacesAndNewlines), !user.isEmpty else { return false }
         let slash = owner.lastIndex(of: "\\")
         let name = slash.map { String(owner[owner.index(after: $0)...]) } ?? owner
         guard name.caseInsensitiveCompare(user) == .orderedSame else { return false }
-        if let slash, slash > owner.startIndex, let domain = domain?.trimmingCharacters(in: .whitespacesAndNewlines), !domain.isEmpty,
-           String(owner[..<slash]).caseInsensitiveCompare(domain) != .orderedSame {
-            return false
+        if let slash, slash > owner.startIndex {
+            let domain = (domain ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !domain.isEmpty, String(owner[..<slash]).caseInsensitiveCompare(domain) == .orderedSame else { return false }
         }
+        if Self.isThisComputer(job.machine) { return true }
         let from = Self.host(job.machine), here = Self.host(machine)
-        return from.isEmpty || here.isEmpty || from.caseInsensitiveCompare(here) == .orderedSame
+        if from.isEmpty { return !othersMayPrint }
+        return !here.isEmpty && from.caseInsensitiveCompare(here) == .orderedSame
+    }
+
+    /// "localhost", 127.x.x.x or ::1: what CUPS gives as `job-originating-host-name` for a job sent from this computer.
+    static func isThisComputer(_ machine: String?) -> Bool {
+        let host = (machine ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if host == "localhost" || host == "::1" || host == "[::1]" { return true }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts[0] == "127" && parts.allSatisfy { p in JobRules.digits(p).flatMap { Int($0) }.map { $0 <= 255 } == true }
     }
 
     /// "\\PC.office.lan" as "PC", at most 15 characters: Windows' short name for a PC is cut there, its full name isn't.

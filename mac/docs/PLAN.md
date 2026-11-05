@@ -183,7 +183,12 @@ sheet's buttons were cut off (it's wider now) |
   Use Printer Offline, Spooling and Retained have no counterpart. CUPS keeps finished jobs: printed and cancelled ones
   count as gone, one given up on is told only within 15 minutes of finishing. A job key is `Job|id|milliseconds` (Windows
   writes .NET ticks; each app reads only its own state file). Names are cut in UTF-16 units as on Windows; a lone
-  surrogate reaches Swift as U+FFFD and stays as that character.
+  surrogate reaches Swift as U+FFFD and stays as that character. Whose job it is (`JobOwner.owns`) is stricter than on
+  Windows, since `cupsGetJobs2` never says which computer a job came from and a Mac sharing its printer lists other Macs'
+  jobs under the same user name: a job that doesn't say is yours only on a queue no other computer prints to
+  (`CupsDestination.othersMayPrint`: `printer-is-shared` false and not another computer's queue; not saying counts as
+  shared), one whose `job-originating-host-name` is localhost (PrintMac's reader may ask for it) is yours on any queue,
+  and a domain or computer this Mac can't compare with is never a match (Windows names the job then).
 - The print queue card (jobs of the printer's CUPS queue, read every 3 s while on screen; Cancel for the user's own jobs,
   Cancel My Jobs) shows for a queue printer and for a network printer macOS has a queue for. Job states are IPP's
   (`JobState`), not Windows' status bits; CUPS gives no page counts through `cupsGetJobs2`, so pages show only when known.
