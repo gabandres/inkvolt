@@ -1297,6 +1297,10 @@ Details were saved to {1}</value>
     <value>Scanning through Windows with the scanner's own driver ({0}).</value>
     <comment>{0} = scanner name</comment>
   </data>
+  <data name="Scan_ViaTwainNote" xml:space="preserve">
+    <value>Scanning with the scanner's TWAIN driver ({0}). Its own window doesn't open: the settings here are the ones used.</value>
+    <comment>{0} = scanner name</comment>
+  </data>
   <data name="Scan_Scanning" xml:space="preserve">
     <value>Scanning… (the first page takes longer if the printer was asleep)</value>
   </data>
@@ -2237,6 +2241,10 @@ Details were saved to {1}</value>
     <value>Driver from</value>
     <comment>About card row label; value = manufacturer</comment>
   </data>
+  <data name="Printer_AboutScannerDriver" xml:space="preserve">
+    <value>Driver</value>
+    <comment>About card row label; value = TWAIN</comment>
+  </data>
   <data name="Printer_AboutViaWindowsEscl" xml:space="preserve">
     <value>{0} (Windows' eSCL driver)</value>
     <comment>{0} = connection, e.g. Network</comment>
@@ -2268,6 +2276,10 @@ Details were saved to {1}</value>
   <data name="Printer_AboutFirmware" xml:space="preserve">
     <value>Firmware</value>
     <comment>About card row label</comment>
+  </data>
+  <data name="Printer_SourceTwainScanner" xml:space="preserve">
+    <value>A scanner with its maker's TWAIN driver: Inkvolt Print scans with it through that driver, without opening the driver's own window. Scanners report no status this way, so a problem (no paper in the feeder, a jam) shows when you scan.</value>
+    <comment>status card note</comment>
   </data>
   <data name="Printer_SourceWiaScanner" xml:space="preserve">
     <value>A scanner Windows has a driver for: Inkvolt Print scans with it through Windows (WIA). Scanners report no status this way, so a problem (no paper in the feeder, a jam) shows when you scan.</value>

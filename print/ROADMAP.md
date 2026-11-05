@@ -49,7 +49,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 2.2 Scan from the printer's button | All of it | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
-| 2.5 TWAIN | All of it | |
+| 2.5 TWAIN | All of it (Windows done 2026-11-05, but 32-bit sources) | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
 | 3.1 Share a scanner on the network | | All of it |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
@@ -345,12 +345,19 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   tab, a hung source contained as a hung WIA driver is; 32-bit-only sources are named and declined. Test: a fake
   source (the FakeWiaSystem's twin) covers capabilities, a feeder run, an empty feeder, cancel, a hang; on hardware,
   a TWAIN-only flatbed scans at each resolution.
-- **Now (built 2026-10-30, the shared code; Inkvolt PDF only).** `Windows/Scanning/WindowsTwain` behind the same
-  `IWiaSystem` as WIA, `Core/Twain`: 64-bit sources through the TWAIN 2 manager (TWAINDSM.dll), native transfer, the
-  source's own window never shown; Inkvolt PDF's Scan dialog lists them (pdf/ROADMAP.md 2.3, `UsbScannerTests`). Not yet:
-  Inkvolt Print's printer list (matching to printers, a scanner of its own), 32-bit sources named and declined, the fake
-  source's feeder, cancel and hang tests. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC. Mac:
-  ICA, not started.
+- **Now (built 2026-10-30, the shared code; Inkvolt Print's printer list and Scan tab 2026-11-05, Windows).**
+  `Windows/Scanning/WindowsTwain` behind the same `IWiaSystem` as WIA, `Core/Twain`: 64-bit sources through the TWAIN 2
+  manager (TWAINDSM.dll), native transfer, the source's own window never shown; Inkvolt PDF's Scan dialog lists them
+  (pdf/ROADMAP.md 2.3, `UsbScannerTests`). Inkvolt Print: `Core/Wia/DriverScanners` lists TWAIN sources beside WIA's in the
+  one list the printer list, Scan, Copy, Fleet and `inkvoltprint scanners` read (ids `twain:<name>`; a source WIA already
+  lists left out; a TWAIN list that fails or hangs, 25 s, keeps the sources listed before and never costs WIA's), matched to
+  printers by `WiaMatch`'s rules or listed as a scanner of its own, scanned through the same `WiaScanner` (feeder, duplex,
+  color, grey, black and white, resolution from the capabilities, a hung source contained as a hung WIA driver is). The Scan
+  tab's Color choice offers black and white wherever the source does (eSCL, WIA, TWAIN; `ScanChoices.Pick`, as presets).
+  Tested with `FakeTwain` (the FakeWiaSystem's twin: capabilities, a feeder run, an empty feeder, cancel, a hang;
+  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). Not yet: 32-bit-only sources named
+  and declined. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
+  flatbed at each resolution, a feeder run, both sides, black and white, Cancel. Mac: ICA, not started.
 - **Effort** M. Windows; the Mac has ICA (parity check: the same flatbed through ICA).
 
 ### 2.6 Fleet page, export, command line

@@ -117,7 +117,7 @@ public partial class App : Application
                     System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
         };
 
-        var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : Demo.Pc; // chosen once: every view model takes its adapters from it
+        var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : args.Contains("--twain") ? Demo.TwainPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         var loaded = pc.LoadState();
         AppLanguage.Apply(loaded.Language, args); // before any view model or window asks for text
         _vm = new MainViewModel(loaded, pc);

@@ -16,7 +16,7 @@ public static class ScannerList
     public static string Key(ScannerKind kind, string id) => kind switch
     {
         ScannerKind.Wia => "wia:" + id,
-        ScannerKind.Twain => "twain:" + id,
+        ScannerKind.Twain => DriverScanners.TwainPrefix + id,
         _ => id,
     };
 

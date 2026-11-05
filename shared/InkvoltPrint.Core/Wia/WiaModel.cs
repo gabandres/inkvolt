@@ -41,6 +41,12 @@ public static class WiaIds
 /// <param name="Port">The driver's port: <c>USB…</c>, a network path, or <c>SWD\Escl\…</c> for Windows' own eSCL driver.</param>
 public sealed record WiaDeviceInfo(string Id, string Name, string? Manufacturer = null, string? Description = null, string? Port = null)
 {
+    /// <summary>The port a TWAIN source is listed with (<see cref="IsTwain"/>).</summary>
+    public const string TwainPort = "TWAIN";
+
+    /// <summary>A TWAIN source (listed by the TWAIN manager and scanned through it, its maker's TWAIN driver), not a WIA driver.</summary>
+    public bool IsTwain => Port == TwainPort;
+
     /// <summary>Windows reaches it with its built-in eSCL (AirScan) driver: Inkvolt Print scans such a printer over eSCL itself when it finds it.</summary>
     public bool IsEscl => Port?.StartsWith(@"SWD\Escl", StringComparison.OrdinalIgnoreCase) == true;
 

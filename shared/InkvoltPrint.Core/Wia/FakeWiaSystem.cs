@@ -51,6 +51,9 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
     /// <summary>Once the feeder is empty the driver scans the glass instead of saying so (the same page every time).</summary>
     public bool GlassWhenEmpty { get; set; }
 
+    /// <summary>Once the feeder is empty the next transfer gives no image instead of failing (a TWAIN source: <see cref="Twain.FakeTwain"/>).</summary>
+    public bool EndsWithoutImage { get; set; }
+
     /// <summary>Calls never return (a hung driver); they end only when the caller cancels.</summary>
     public bool Hangs { get; set; }
 
@@ -95,6 +98,7 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
         {
             if (GlassWhenEmpty) return draw(settings with { Feeder = false }, 255);
             Transfers.RemoveAt(Transfers.Count - 1);
+            if (EndsWithoutImage) return null;
             throw new WiaException(WiaErrors.PaperEmpty, "Feeder empty.");
         }
         _sides++;

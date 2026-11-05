@@ -160,14 +160,16 @@ switch (cmd)
         if (InkvoltPrint.Windows.Printing.UsbPrinters.ProtectedPrintOn()) Console.WriteLine("Windows protected print mode is on: makers' drivers won't install.");
         break;
     case "scanners":
-        // Read-only: the WIA scanners Windows has drivers for; --caps connects to each and prints what it offers (never scans).
-        foreach (var d in await InkvoltPrint.Windows.Scanning.WindowsWia.Instance.ListScannersAsync(ct))
+        // Read-only: the WIA scanners Windows has drivers for and the 64-bit TWAIN sources beside them, as the app lists them;
+        // --caps connects to each and prints what it offers (never scans).
+        var driverScanners = InkvoltPrint.Windows.Scanning.WindowsTwain.BesideWia(Console.WriteLine);
+        foreach (var d in await driverScanners.ListScannersAsync(ct))
         {
-            Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : "")}");
+            Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : d.IsTwain ? " (TWAIN driver)" : "")}");
             if (!args.Contains("--caps")) continue;
             try
             {
-                var w = await InkvoltPrint.Core.Wia.WiaScanner.OpenAsync(InkvoltPrint.Windows.Scanning.WindowsWia.Instance, d, ct);
+                var w = await InkvoltPrint.Core.Wia.WiaScanner.OpenAsync(driverScanners, d, ct);
                 var c = w.Capabilities;
                 Console.WriteLine($"  sources: {string.Join(", ", c.Sources)}; colors: {string.Join(", ", (c.Platen ?? c.Adf)!.ColorModes)}; " +
                                   $"resolutions: {string.Join(", ", (c.Platen ?? c.Adf)!.Resolutions)}; formats: {string.Join(", ", w.Info.Formats)}");
@@ -209,7 +211,7 @@ switch (cmd)
             inkvoltprint queues [--unplugged] [--bidi]     (read-only: installed queues as the sidebar sees them, and USB printers
                                                            that need their driver; --unplugged: also those not plugged in now;
                                                            --bidi: ask every queue's driver, also those the app doesn't)
-            inkvoltprint scanners [--caps]                 (read-only: WIA scanners; --caps connects and reads what each offers)
+            inkvoltprint scanners [--caps]                 (read-only: WIA scanners and TWAIN sources; --caps connects and reads what each offers)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]
                                                            (read-only: every reply the app reads, scrubbed, as test fixtures)

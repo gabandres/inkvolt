@@ -120,6 +120,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         {
             new(Strings.Printer_AboutWindowsScanner, scanner.Name),
             scanner.Manufacturer is { Length: > 0 } maker ? new(Strings.Printer_AboutDriverFrom, maker) : null,
+            scanner.IsTwain ? new(Strings.Printer_AboutScannerDriver, "TWAIN") : null,
             scanner.ConnectionText is { } via ? new(Strings.Printer_AboutConnectedVia, scanner.IsEscl ? string.Format(Strings.Printer_AboutViaWindowsEscl, via) : via) : null,
         }.OfType<InfoRow>().ToList());
     }
@@ -158,7 +159,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
     public string? StatusSourceNote => IsScannerOnly
-        ? Strings.Printer_SourceWiaScanner
+        ? ScannerDevice!.IsTwain ? Strings.Printer_SourceTwainScanner : Strings.Printer_SourceWiaScanner
         : _queueSource is not { } source ? null
         : source.HasSupplyLevels
         ? string.Format(_wia is null ? Strings.Printer_SourceSuppliesNoScan : Strings.Printer_SourceSuppliesScansViaWindows, source.Origin)

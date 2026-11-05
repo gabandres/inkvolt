@@ -658,7 +658,8 @@
                                   AutomationProperties.Name="{x:Static loc:Strings.ScanTab_PageSize}" />
                         <TextBlock Text="{x:Static loc:Strings.ScanTab_Quality}" Margin="0,0,0,4" />
                         <ComboBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Quality}" ItemsSource="{Binding Resolutions}" SelectedItem="{Binding Resolution}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
-                        <CheckBox Content="{x:Static loc:Strings.ScanTab_Color}" IsChecked="{Binding IsColor}" Margin="0,0,0,4" />
+                        <TextBlock Text="{x:Static loc:Strings.ScanTab_Color}" Margin="0,0,0,4" />
+                        <ComboBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Color}" ItemsSource="{Binding ColorModes}" SelectedItem="{Binding ColorMode}" Margin="0,0,0,12" HorizontalAlignment="Stretch" />
                         <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Ocr}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_OcrHelp}" IsChecked="{Binding UseOcr}" IsEnabled="{Binding OcrAvailable}">
                             <StackPanel>
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_Ocr}" />

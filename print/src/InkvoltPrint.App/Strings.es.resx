@@ -1044,6 +1044,9 @@ Los detalles se guardaron en {1}</value>
   <data name="Scan_ViaWindowsNote" xml:space="preserve">
     <value>Escaneo a través de Windows con el controlador del propio escáner ({0}).</value>
   </data>
+  <data name="Scan_ViaTwainNote" xml:space="preserve">
+    <value>Escaneo con el controlador TWAIN del escáner ({0}). Su propia ventana no se abre: se usan las opciones de aquí.</value>
+  </data>
   <data name="Scan_Scanning" xml:space="preserve">
     <value>Escaneando… (la primera página tarda más si la impresora estaba en reposo)</value>
   </data>
@@ -1827,6 +1830,9 @@ Los detalles se guardaron en {1}</value>
   <data name="Printer_AboutDriverFrom" xml:space="preserve">
     <value>Controlador de</value>
   </data>
+  <data name="Printer_AboutScannerDriver" xml:space="preserve">
+    <value>Controlador</value>
+  </data>
   <data name="Printer_AboutViaWindowsEscl" xml:space="preserve">
     <value>{0} (controlador eSCL de Windows)</value>
   </data>
@@ -1850,6 +1856,9 @@ Los detalles se guardaron en {1}</value>
   </data>
   <data name="Printer_AboutFirmware" xml:space="preserve">
     <value>Firmware</value>
+  </data>
+  <data name="Printer_SourceTwainScanner" xml:space="preserve">
+    <value>Un escáner con el controlador TWAIN de su fabricante: Inkvolt Print escanea con él a través de ese controlador, sin abrir la ventana del controlador. Así los escáneres no informan su estado, por lo que un problema (sin papel en el alimentador, un atasco) aparece al escanear.</value>
   </data>
   <data name="Printer_SourceWiaScanner" xml:space="preserve">
     <value>Un escáner con controlador de Windows: Inkvolt Print escanea con él a través de Windows (WIA). Así los escáneres no informan su estado, por lo que un problema (sin papel en el alimentador, un atasco) aparece al escanear.</value>

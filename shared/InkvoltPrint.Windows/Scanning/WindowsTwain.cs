@@ -29,6 +29,9 @@ public sealed class WindowsTwain : IWiaSystem
 
     private WindowsTwain() { }
 
+    /// <summary>This PC's WIA scanners and TWAIN sources as one list (<see cref="DriverScanners"/>): Inkvolt Print's.</summary>
+    public static DriverScanners BesideWia(Action<string>? log = null) => new(WindowsWia.Instance, Instance, log);
+
     /// <summary>The 64-bit TWAIN manager is installed (in Windows' system folder, where makers' installers put it).</summary>
     public static bool ManagerInstalled => Environment.Is64BitProcess && File.Exists(Path.Combine(Environment.SystemDirectory, Dsm));
 
@@ -64,7 +67,7 @@ public sealed class WindowsTwain : IWiaSystem
     private static IReadOnlyList<WiaDeviceInfo> List()
     {
         using var dsm = new Manager();
-        return dsm.Sources().Select(s => new WiaDeviceInfo(s.ProductName, s.ProductName, NullIfEmpty(s.Manufacturer), NullIfEmpty(s.ProductFamily), "TWAIN"))
+        return dsm.Sources().Select(s => new WiaDeviceInfo(s.ProductName, s.ProductName, NullIfEmpty(s.Manufacturer), NullIfEmpty(s.ProductFamily), WiaDeviceInfo.TwainPort))
             .ToList();
     }
 
@@ -140,7 +143,7 @@ public sealed class WindowsTwain : IWiaSystem
             try
             {
                 for (var rc = Entry(App, IntPtr.Zero, Tw.DgControl, Tw.DatIdentity, Tw.MsgGetFirst, block);
-                     rc == Tw.RcSuccess;
+                     rc == Tw.RcSuccess && list.Count < DriverScanners.MaxSources;
                      rc = Entry(App, IntPtr.Zero, Tw.DgControl, Tw.DatIdentity, Tw.MsgGetNext, block))
                 {
                     var id = Marshal.PtrToStructure<TwIdentity>(block);
