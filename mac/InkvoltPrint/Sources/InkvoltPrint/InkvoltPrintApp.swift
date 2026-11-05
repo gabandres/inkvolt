@@ -26,6 +26,7 @@ struct InkvoltPrintApp: App {
                 .keyboardShortcut("n")
             }
             CommandGroup(after: .help) {
+                Button("Report a Problem…") { ReportProblemWindowController.show(AppModel.shared) }
                 Button("Inkvolt Pro…") { ProWindow.show() }
             }
         }

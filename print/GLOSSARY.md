@@ -51,7 +51,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Recording** (of a printer): every reply the app reads from one printer, scrubbed, in the fixtures' layout, so the test
   transports (`FixtureHandler`, `SnmpAgent`) serve it as that printer (`Core/Recording/PrinterRecorder`). **Scrubbing** gives
   each identifier a stand-in of the same shape, the same one everywhere (`FixtureScrubber`); Report a problem's masks
-  (`Diagnostics.Scrub`) only blank them out.
+  (`Diagnostics.Scrub`) only blank them out. Report a problem's recording (`ReportRecording`) is one in a new folder named
+  by the clock, with a .zip of it to attach (on the Mac, in the container's `Recordings`, its files stored: `ZipArchive`).
 - **SNMP login** (of a printer): how it's read over SNMP: a community, or (Pro) an SNMPv3 user with two passphrases (`SnmpLogin`). A secret: kept in Credential Manager by printer id (`ISnmpLogins`), never in `state.json`; public when none is kept.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
 - **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer

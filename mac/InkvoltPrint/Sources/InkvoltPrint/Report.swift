@@ -18,11 +18,18 @@ import PrintMac
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
-/// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`). For checking a build over
+/// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`);
+/// `--record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` records a printer
+/// (`RecordCommand`, roadmap 1.2) into `Recordings/<folder>` in the container (demo mode: the made-up printers, into a
+/// temporary folder); `--problem` opens Help › Report a Problem… and lists its details, `--problem-record` also runs its
+/// Record This Printer and reads the .zip back (`problemCheck`). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
 enum Report {
+    /// The app was started by `--report`: windows open, nothing opens another app or the browser.
+    static var isRunning: Bool { CommandLine.arguments.contains("--report") }
+
     static func runIfAsked(_ model: AppModel) {
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--report") else { return }
@@ -54,6 +61,13 @@ enum Report {
             if args.contains("--device") { cancelled += await deviceCheck(model) }
             if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
             if model.isDemo && args.contains("--setup") { cancelled += await setupCheck(model) }
+            if let command = RecordCommand.parse(args, keyword: "--record") {
+                cancelled += await command.run(in: model.recordingsFolder, transport: model.recordingTransport(), snmp: model.snmpTransport,
+                                               who: .current)
+            }
+            if args.contains("--problem") || args.contains("--problem-record") {
+                cancelled += await problemCheck(model, record: args.contains("--problem-record"))
+            }
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")
             }
@@ -96,6 +110,62 @@ enum Report {
             lines.append("pro-window: \(size); \(Pro.licence.map { "Pro licensed to \($0.name). " } ?? "")\(shown)")
         }
         return lines + [ProSetup.reportLine]
+    }
+
+    /// Help › Report a Problem… (roadmap 1.2): the window, its details as copied and the issue it would open; with `record`,
+    /// Record This Printer on the printer shown (the selected one, once it answered), the .zip read back (each file, and
+    /// whether the printer's address or this Mac's names are left in any), then a second recording stopped by closing the
+    /// window, which must leave nothing.
+    private static func problemCheck(_ model: AppModel, record: Bool) async -> [String] {
+        for _ in 0..<80 where model.printers.contains(where: { $0.isNetwork && $0.view.phase == .connecting }) {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        let w = ReportProblemWindowController.show(model)
+        let size = w.window.map { "\(Int($0.frame.width)) × \(Int($0.frame.height)) pt" } ?? "not shown"
+        var lines = ["problem: window \(size), Record This Printer \(w.recordButton.isEnabled ? "enabled" : "disabled")",
+                     "  note: \(w.recordNote.stringValue)"]
+        lines += w.details.string.split(separator: "\n", omittingEmptySubsequences: false).map { "  | " + $0 }
+        w.issueClicked()
+        lines.append("  issue: \(w.openedIssue.map { "\($0.host ?? "?")\($0.path), \($0.absoluteString.count) characters" } ?? "none"); \(w.status.stringValue)")
+        guard record else { return lines }
+        let printer = model.printers.first { $0.id == model.selectedID }
+        let host = printer?.recordHost
+        await w.record()
+        lines.append("  recorded: \(w.status.stringValue)")
+        if let zip = w.recording {
+            lines.append("  in: \(zip.deletingLastPathComponent() == model.recordingsFolder ? model.recordingsFolder.lastPathComponent : "elsewhere")")
+            do {
+                let entries = try ZipArchive.entries(Array(try Data(contentsOf: zip)))
+                lines.append("  zip: \(zip.lastPathComponent), \(entries.count) files, \(entries.reduce(0) { $0 + $1.bytes.count }) bytes")
+                let who = Diagnostics.Identity.current
+                // The demo laser's address is the stand-in's own (192.0.2.10), so it isn't looked for.
+                let address = host == FixtureScrubber.defaultPlaceholderHost ? nil : host
+                let identifiers = [address, who.userName, who.machineName].compactMap { $0 }.filter { $0.count >= 3 }
+                var left: [String] = []
+                for e in entries {
+                    let text = String(decoding: e.bytes, as: UTF8.self)
+                    for id in identifiers where text.range(of: id, options: .caseInsensitive) != nil { left.append(e.name) }
+                }
+                lines.append("  the address or this Mac's names in the files: \(left.isEmpty ? "none" : Set(left).sorted().joined(separator: ", "))")
+                lines += entries.map { "    \($0.name) (\($0.bytes.count) bytes)" }
+            } catch {
+                lines.append("  zip: not read: \(error)")
+            }
+            lines.append("  details now end with: \(w.details.string.split(separator: "\n").last.map(String.init) ?? "-")")
+        }
+        // Closing while a recording runs stops it and leaves nothing.
+        let folder = model.recordingsFolder
+        func count() -> Int { ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).count }
+        let before = count()
+        w.recordClicked()
+        try? await Task.sleep(for: .milliseconds(30))
+        // Help › Report a Problem… again while it records: the recording goes on, and the window still says so.
+        ReportProblemWindowController.show(model)
+        lines.append("  opened again while recording: \(w.status.stringValue)")
+        w.window?.performClose(nil)
+        try? await Task.sleep(for: .seconds(3))
+        lines.append("  closed while recording: \(before) entries in the recordings folder before, \(count()) after")
+        return lines
     }
 
     /// "Set up in macOS" on the first connected demo printer macOS has no queue for, as the status pane's button does.

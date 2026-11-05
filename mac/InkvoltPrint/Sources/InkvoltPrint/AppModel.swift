@@ -29,6 +29,9 @@ final class AppModel {
     @ObservationIgnored let signal: LocalNetworkSignal
     @ObservationIgnored private let transport: HttpTransportFactory
     @ObservationIgnored private let snmp: any SnmpTransport
+    /// The network a recording goes through (roadmap 1.2): this Mac's, each reply bounded by `PrinterRecorder.maxReplyBytes`
+    /// and no certificate pin (it only reads); demo mode's made-up printers.
+    @ObservationIgnored let recordingTransport: @Sendable () -> any HttpTransport
     @ObservationIgnored private var tracker: AlertTracker
     /// The menu bar item and its alerts, as the user set them.
     private(set) var settings: AlertSettings
@@ -89,6 +92,7 @@ final class AppModel {
         if isDemo, let fixtures = Bundle.main.resourceURL?.appendingPathComponent("Demo") {
             let network = Demo.network(fixtures: fixtures) { DemoScanPage.jpeg($0, width: $1, height: $2) }
             transport = { _, _ in network.http }
+            recordingTransport = { network.http }
             snmp = network.snmp
             store = StateStore(memory: Demo.state())
             history = SupplyHistoryStore(nil, firstReading: DemoSupplyHistory.seed)
@@ -99,6 +103,9 @@ final class AppModel {
             queueSetup = offline
         } else {
             transport = URLSessionTransport.factory(localNetwork: signal)
+            recordingTransport = {
+                URLSessionTransport(check: CertificateCheck(pin: nil), localNetwork: signal, replyLimit: PrinterRecorder.maxReplyBytes)
+            }
             snmp = UdpSnmpTransport(localNetwork: signal)
             store = StateStore(file: Self.stateFile)
             history = SupplyHistoryStore(Self.historyFolder.path)
@@ -124,6 +131,16 @@ final class AppModel {
     static var historyFolder: URL { dataFolder.appendingPathComponent("history", isDirectory: true) }
 
     static var scansFolder: URL { dataFolder.appendingPathComponent("Scans") }
+
+    /// SNMP as the printers are read (UDP, or demo mode's made-up agents), for a recording.
+    var snmpTransport: any SnmpTransport { snmp }
+
+    /// Where recordings go (Windows' `RecordingsFolder`): `Recordings` beside the state file in the container (the sandbox
+    /// writes nowhere else without a save panel); demo mode's, of the made-up printers, in a temporary folder (Windows' too).
+    var recordingsFolder: URL {
+        isDemo ? FileManager.default.temporaryDirectory.appendingPathComponent("Inkvolt Print demo recordings", isDirectory: true)
+            : Self.dataFolder.appendingPathComponent("Recordings", isDirectory: true)
+    }
 
     static var dataFolder: URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("InkvoltPrint")

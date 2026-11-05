@@ -91,6 +91,24 @@ final class PrinterModel: Identifiable {
     /// A scanner of its own (no printer, no queue).
     var isScannerOnly: Bool { monitor == nil && destination == nil && systemScanner != nil }
 
+    /// The address Report a Problem can record this printer at (Windows' `RecordHost`); nil: it has none (a scanner of its
+    /// own, a queue printer on USB).
+    var recordHost: String? {
+        if isScannerOnly { return nil }
+        if isNetwork { return host }
+        return destination.flatMap(CupsQueues.address)
+    }
+
+    /// Report a Problem's recording of this printer (Windows' `RecordForReportAsync`): as `record`, through this Mac's
+    /// network with each reply bounded (demo mode's: made-up printers), into the app's recordings folder.
+    func recordForReport() async throws -> ReportRecordingDone {
+        guard let host = recordHost else { throw DeviceNetworkError.failed("This printer has no address to record.") }
+        var options = RecordOptions(transport: app.recordingTransport(), snmp: app.snmpTransport)
+        options.esclHint = await monitor?.target.esclHint // Windows' EsclRoot: the eSCL root DNS-SD or a connection found
+        options.ippHint = ippHint
+        return try await ReportRecording.run(host, parent: app.recordingsFolder, options, now: Date())
+    }
+
     /// A queue printer's (or a scanner of its own's) USB scanner, through ImageCaptureCore.
     var systemScanner: SystemScanner?
 

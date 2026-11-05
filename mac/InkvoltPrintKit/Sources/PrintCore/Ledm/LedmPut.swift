@@ -102,7 +102,7 @@ extension LedmClient {
     /// PUT an LEDM document to a path (a manifest's, such as the firmware update Config), over HTTPS. The admin password
     /// goes along when `http` has one (`DeviceHttp.setCredentials`). Throws `LedmAuthRequiredError` on 401/403.
     public func put(path: String, _ body: String) async throws {
-        let url = http.https(path)
+        let url = try http.https(path)
         let response = try await http.send(HttpRequest("PUT", url, headers: ["Content-Type": "text/xml; charset=utf-8"], body: Array(body.utf8),
                                                        timeout: Self.writeTimeout))
         if response.status == 401 || response.status == 403 { throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials) }

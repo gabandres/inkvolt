@@ -218,7 +218,7 @@ struct EsclTests {
             return try await inner.send(request)
         }
         let http = DeviceHttp(host: "192.0.2.11", transport: spy)
-        let client = EsclClient(http, root: http.http("/eSCL/"))
+        let client = EsclClient(http, root: try http.http("/eSCL/"))
 
         for try await _ in client.scan(ScanRequest()) {}
 

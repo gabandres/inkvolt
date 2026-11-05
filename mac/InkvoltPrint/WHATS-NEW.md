@@ -9,5 +9,6 @@ collects what's done since the last release. Short lines, in the user's words.
 - Firmware watch: when a printer's firmware changes, its status card says so. HP printers: Keep My Cartridges Working, in the Settings tab, turns automatic firmware updates off, so an update that blocks non-HP cartridges can't install by itself.
 - Scanners that send only PDF work, and a scan saved untouched is kept exactly as the scanner sent it.
 - Help › Inkvolt Pro…: enter an Inkvolt Pro key; Inkvolt PDF on this Mac finds it too.
+- Help › Report a Problem…: the details a bug report needs, with addresses, serial numbers and your names masked, to copy into a GitHub issue. Record This Printer saves what the printer shown answers, read only and with what identifies it taken out, as a .zip to attach. Nothing is sent.
 
 1.0 and 1.1 (build 5, submitted 2026-11-04) had their notes in `listing.json` only.

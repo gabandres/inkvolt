@@ -87,12 +87,52 @@ public final class DeviceHttp: Sendable {
 
     public func clearCredentials() { basicAuth.withLock { $0 = nil } }
 
-    public func http(_ path: String) -> URL { URL(string: path, relativeTo: httpBase)!.absoluteURL }
-    public func https(_ path: String) -> URL { URL(string: path, relativeTo: httpsBase)!.absoluteURL }
+    /// `path` (or a link a printer gave) on this printer over HTTP; a path that isn't a web address is refused, never asked
+    /// as the printer's root.
+    public func http(_ path: String) throws -> URL { try on(httpBase, path) }
+    public func https(_ path: String) throws -> URL { try on(httpsBase, path) }
+
+    private func on(_ base: URL, _ path: String) throws -> URL {
+        guard let url = URL(string: path, relativeTo: base)?.absoluteURL else {
+            throw DeviceNetworkError.failed("Not asked: the printer named an address that isn't one.")
+        }
+        return onThisPrinter(url)
+    }
+
+    /// Whether a web address is on this printer: its host, whatever the port or scheme.
+    public func isOnThisPrinter(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https", let a = url.host, let b = httpBase.host else { return false }
+        func bare(_ h: String) -> String {
+            var h = h.lowercased()
+            if h.hasPrefix("[") && h.hasSuffix("]") { h = String(h.dropFirst().dropLast()) }
+            while h.hasSuffix(".") { h.removeLast() }
+            return h
+        }
+        return bare(a) == bare(b)
+    }
+
+    /// A link a printer gave, on this printer: the same scheme, port and path, on the host in use (Windows'
+    /// `DeviceHttp.OnThisPrinter`). A printer often names itself some other way (its .local name), and what it names can't
+    /// send this app, or the password, to another computer. Anything that isn't an http(s) address is left as it is (and
+    /// `send` refuses it).
+    public func onThisPrinter(_ link: URL) -> URL {
+        guard let scheme = link.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return link }
+        if isOnThisPrinter(link) && link.user == nil && link.password == nil { return link }
+        guard var c = URLComponents(url: link, resolvingAgainstBaseURL: true),
+              let here = URLComponents(url: httpBase, resolvingAgainstBaseURL: false) else { return httpBase }
+        c.percentEncodedHost = here.percentEncodedHost
+        c.user = nil
+        c.password = nil
+        return c.url ?? httpBase
+    }
 
     public var certificateChanged: Bool { certificates.certificateChanged }
 
     public func send(_ request: HttpRequest) async throws -> HttpResponse {
+        // Every request to a printer comes through here, whatever its documents named. Nothing goes to another computer.
+        guard isOnThisPrinter(request.url) else {
+            throw DeviceNetworkError.failed("Not asked: \(request.url.scheme ?? "an") address that isn't on this printer.")
+        }
         var request = request
         // The admin password belongs to the web server (HTTPS on 443), never to another TLS port such as IPPS on 631.
         if let auth = basicAuth.withLock({ $0 }), request.url.scheme == "https", (request.url.port ?? 443) == 443 {

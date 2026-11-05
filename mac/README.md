@@ -40,6 +40,8 @@ open "/Applications/Inkvolt Print.app" --args --report icc --wait 3 --icc       
 open "/Applications/Inkvolt Print.app" --args --report scan --wait 2 --demo --scan     # a demo scan (its feeder sends PDF only), PDF, as sent and preset saved
 open "/Applications/Inkvolt Print.app" --args --report fw --wait 2 --demo --firmware   # the demo laser's firmware notice, Keep My Cartridges Working, Dismiss
 open "/Applications/Inkvolt Print.app" --args --report h --wait 2 --demo --history     # the supply history: where it's kept, rows, Export history…'s CSV, the Pro gate
+open "/Applications/Inkvolt Print.app" --args --report r --wait 2 --demo --record 192.0.2.11 inkjet  # record a printer (the demo inkjet), files in a temporary folder
+open "/Applications/Inkvolt Print.app" --args --report p --wait 2 --demo --problem-record  # Help › Report a Problem…, Record This Printer, the .zip read back
 open "/Applications/Inkvolt Print.app" --args --report fix --wait 3 --demo --fix all   # the offline fixer on the demo office laser
 open "/Applications/Inkvolt Print.app" --args --report b --wait 2 --demo --batch      # a feeder batch split at its Patch T sheet
 open "/Applications/Inkvolt Print.app" --args --report ph --wait 2 --demo --photos    # three photos on the glass, each its own JPEG

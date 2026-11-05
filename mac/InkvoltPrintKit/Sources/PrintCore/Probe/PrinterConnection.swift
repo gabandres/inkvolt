@@ -170,8 +170,8 @@ public final class PrinterConnection: Sendable {
 
     /// `http://host/eSCL/`, then the DNS-SD hint.
     private static func probeEscl(_ http: DeviceHttp, hint: URL?) async -> (ScannerCapabilities, URL)? {
-        var roots = [http.http("/eSCL/")]
-        if let hint, hint != roots[0] { roots.append(hint) }
+        var roots = [URL(string: "/eSCL/", relativeTo: http.httpBase)!.absoluteURL] // a fixed path on the printer's own base
+        if let hint = hint.map(http.onThisPrinter), hint != roots[0] { roots.append(hint) }
         for root in roots {
             if let caps = await attempt({ try await EsclClient(http, root: root).capabilities() }) { return (caps, root) }
         }
