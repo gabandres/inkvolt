@@ -300,6 +300,9 @@ internal sealed class CheckRequest(CheckedDocument doc, int page)
     /// <summary>Asked ahead, no one waiting for it yet: checked after the pages someone waits for.</summary>
     public bool Speculative { get; set; }
 
+    /// <summary>The next page, asked ahead of this one by the engine (under the engine's lock): withdrawn with it.</summary>
+    public CheckRequest? Ahead { get; set; }
+
     /// <summary>A check process has it (under the plan's lock).</summary>
     public bool Started { get; set; }
 

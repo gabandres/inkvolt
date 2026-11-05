@@ -296,6 +296,25 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void APageAskedAheadIsWithdrawnWithThePageItWasAskedFor()
+    {
+        // Scrolling fast: page 2's render is given up on while its check runs. Page 3, asked ahead of it, isn't checked
+        // after it: nobody is looking at either any more.
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = Limit, Workers = 1 };
+        using var engine = PdfEngine.Open(Bomb("1 MB"), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        using (var cancel = Timing.CancelAfter(TimeSpan.FromMilliseconds(300)))
+            Assert.ThrowsAny<OperationCanceledException>(() => engine.Render(1, 0.5, cancel: cancel.Token));
+        Thread.Sleep(Limit + TimeSpan.FromSeconds(2)); // page 2's check runs out its limit; page 3 left queued would begin after it
+        Assert.Equal(1, plan.ChecksRun);
+        Assert.Throws<PageRefusedException>(() => engine.Render(1, 0.5)); // its own check went on, and is kept
+
+        // Page 3 is checked when it is asked for.
+        engine.Render(2, 0.5);
+        Assert.Equal(2, plan.ChecksRun);
+    }
+
+    [Fact]
     public void ClosingADocumentOpenedInPlaceLetsTheCheckProcessGoOfItsFile()
     {
         var path = Path.Combine(Path.GetTempPath(), $"inkvolt-check-{Guid.NewGuid():N}.pdf");

@@ -54,7 +54,7 @@ public sealed partial class PdfEngine
             request.Speculative = false;
             request.Waiters++;
             // The next page is checked meanwhile: scrolling, Find and thumbnails go on in page order.
-            if (_checkAhead) AskAhead(page + 1);
+            if (_checkAhead) request.Ahead ??= AskAhead(page + 1);
         }
         try
         {
@@ -64,8 +64,14 @@ public sealed partial class PdfEngine
         {
             lock (_checkGate)
             {
-                if (--request.Waiters == 0 && !request.Done.IsCompleted && plan.Withdraw(request) && _checking![page] == request)
-                    _checking[page] = null;
+                if (--request.Waiters == 0 && !request.Done.IsCompleted)
+                {
+                    // Given up on (scrolled past): withdrawn unless a check process has it, and so is the page asked
+                    // ahead of it, unless someone waits for that one now.
+                    Withdraw(plan, request);
+                    if (request.Ahead is { Waiters: 0 } ahead) Withdraw(plan, ahead);
+                    request.Ahead = null;
+                }
             }
         }
         lock (_checkGate)
@@ -93,12 +99,21 @@ public sealed partial class PdfEngine
         return plan;
     }
 
-    /// <summary>Asks for a check of <paramref name="page"/> that no one waits for yet, unless it is known or asked for. Under _checkGate.</summary>
-    private void AskAhead(int page)
+    /// <summary>
+    /// Asks for a check of <paramref name="page"/> that no one waits for yet, unless it is known or asked for; returns the
+    /// request asked. Under _checkGate.
+    /// </summary>
+    private CheckRequest? AskAhead(int page)
     {
-        if (page < 0 || page >= _pages.Length || _checkedBy is not { } plan) return;
-        if ((PageVerdict)_verdicts![page] != PageVerdict.Unknown || _checking![page] is not null) return;
-        _checking[page] = plan.Ask(_checked!, page, speculative: true);
+        if (page < 0 || page >= _pages.Length || _checkedBy is not { } plan) return null;
+        if ((PageVerdict)_verdicts![page] != PageVerdict.Unknown || _checking![page] is not null) return null;
+        return _checking[page] = plan.Ask(_checked!, page, speculative: true);
+    }
+
+    /// <summary>Takes back a check no one waits for, if no check process has begun it. Under _checkGate.</summary>
+    private void Withdraw(PageCheckPlan plan, CheckRequest request)
+    {
+        if (plan.Withdraw(request) && _checking![request.Page] == request) _checking[request.Page] = null;
     }
 
     /// <summary>
