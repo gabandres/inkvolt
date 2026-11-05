@@ -176,10 +176,11 @@ public enum PaperEdge {
                 let (x, y) = (i % w, i / w)
                 count += 1
                 (minX, minY, maxX, maxY) = (min(minX, x), min(minY, y), max(maxX, x), max(maxY, y))
-                for n in [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1] where n >= 0 && mask[n] && !seen[n] {
-                    seen[n] = true
-                    stack.append(n)
-                }
+                // The four neighbours, checked in place (no array per cell).
+                if x > 0, mask[i - 1], !seen[i - 1] { seen[i - 1] = true; stack.append(i - 1) }
+                if x < w - 1, mask[i + 1], !seen[i + 1] { seen[i + 1] = true; stack.append(i + 1) }
+                if y > 0, mask[i - w], !seen[i - w] { seen[i - w] = true; stack.append(i - w) }
+                if y < h - 1, mask[i + w], !seen[i + w] { seen[i + w] = true; stack.append(i + w) }
             }
             if best == nil || count > best!.count { best = (count, minX, minY, maxX, maxY) }
         }
