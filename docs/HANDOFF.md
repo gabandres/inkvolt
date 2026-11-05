@@ -2,7 +2,44 @@
 
 ## Start here (next session)
 
-**State on 2026-11-04 (evening).** Released today (owner): **Inkvolt PDF 1.7.0.0** submitted to the Store (`5094fc8`, tag and GitHub release `pdf-v1.7.0.0`; Spanish interface, OCR 2.2, field locking, Batch's long-term action, the Flate limits; release notes en-us and es; the es description no longer says the app is in English) and **Inkvolt PDF for Mac 1.7.0** published (`pdf-mac-v1.7.0`, notarized DMG sha256 df78e9bf…d1d07a, appcast, Homebrew cask, website; comments and form data, the shared Pro key; the notarized app checked on ignia-mac: Gatekeeper accepts it, the app-group entitlement is there, it runs). Inkvolt Print for Mac 1.3 and 1.5 merged (`a986c6a`). Left from the Store listing: the es description still names What's in This PDF and Sanitize in English (`pdf/packaging/README.md`). **Architecture review (2026-11-04, owner: do the Strong ones, judge the rest).** Merged: Windows PDF `PatternRedaction` (one Redact Patterns run for the review dialog and Batch; Batch now gives redacted scans their text back) and `PageRecognizer` (one recognize-pages module; Batch follows OcrClean), Print's `PrinterMonitor` in `shared/InkvoltPrint.Core/Probe` (tests named as the Mac's), DevSnapshot reading its own flags, Mac PDF's `DocumentCommands` table (menus, enabling, palette from one table; `--only-menus` checks every action) and `Report.scenarios`. Judged not worth doing (no bug found): one password-retry edit transaction, the translated paragraph outcome, Print palette typed targets, Mac page-edit outcomes in PdfCore. Left: Export and the scan dialog still always clean pages, ignoring OcrClean; Print's queue, scanner and new-queue loops stay in PrinterViewModel (they don't go through the printer session). Only a person can check: the Mac menus and palette look the same.
+**State on 2026-11-04 (night).** Master is pushed; nothing is running.
+
+- **Released today (owner):** Inkvolt PDF 1.7.0.0 **published** in the Store (`pdf-v1.7.0.0`: Spanish interface, OCR 2.2,
+  field locking, Batch's long-term action, the Flate limits) and Inkvolt PDF for Mac 1.7.0 (`pdf-mac-v1.7.0`, DMG,
+  appcast, Homebrew, website; the notarized app runs with the app-group entitlement). Print for Mac 1.1 (build 5) waits
+  for App Review.
+- **Merged after the releases (in neither):**
+  - **Windows PDF:** 2.1 turned text and mixed font families as paragraphs; 2.4 form XObjects tagged piece by piece, a
+    piece's kind in the pane, row spans, Type 3 bitmap fonts' Unicode (all reviewed with `/code-review`, ten findings
+    fixed); `PatternRedaction` and `PageRecognizer` (Batch gives redacted scans their text back and follows OcrClean);
+    Batch's "No text recognized" note fixed.
+  - **Mac PDF:** suspect words in Batch, Scan and export (Vision reads "1111", so `MissedLines` isn't ported); the
+    `DocumentCommands` table; every rounded Double→Int checked (`mac/tools/check-int.sh`, in the `mac` CI job).
+  - **Mac Print:** 1.3 PDF-only scanners, 1.5 firmware watch and Keep My Cartridges Working, the Pro key (1.6).
+  - **Windows Print:** `PrinterMonitor` in `shared/InkvoltPrint.Core/Probe`.
+- **How agents work now:** `docs/agents/BRIEF.md` (point every agent prompt at it), review against `CODING_STANDARDS.md`
+  with `/code-review` before each merge, tests through `tools/test.ps1` (flaky ones retried and named), long Mac runs
+  through `mac.sh bg` + `mac.sh wait`.
+
+**Next session: proposed, the owner picks** (ranked; one Mac agent at a time, run the usage gate first):
+1. **Inkvolt Print for Mac, the rest of P12** (Windows parity), one item per agent: 1.1 supply history (chart, days
+   left, Export history behind Pro) → 1.2 Record a printer with Report a Problem → 2.6 Fleet page, export, `status --all`
+   → 2.4 Batch print. Then the unstarted 3.2 SNMP access, 2.3 scan cleanup, 3.4 job notifications, 3.6 USB supply
+   levels, 3.7 Spanish. Each item's "Left for the Mac" is in `mac/docs/PLAN.md` P12.
+2. **Print for Mac 1.2 build**, once 1.1 is approved: Open in Inkvolt PDF, the Pro key, 1.3, 1.5. Upload to TestFlight
+   early (the app-group entitlement is checked at upload), submit when the owner says.
+3. **Inkvolt PDF for Mac: redaction by pattern**, Windows' additions of 2026-11-01/02 (named sets, scans through OCR,
+   the review list, read-back, report and CSV, Batch's failure rules): its own session; port through `PatternRedaction`'s
+   shape.
+4. **Inkvolt PDF for Windows, small:** Export and the scan dialog follow OcrClean (Batch does now); the Store's es
+   description names What's in This PDF and Sanitize in Spanish (a listing-only update). Then Translate's "Still wrong"
+   list with a real model; `drawings.pdf` speed on an idle PC.
+5. **Next Windows release (owner):** PDF 1.8.0.0 would carry 2.1/2.4 and the Batch fixes above; run the bench first
+   (`pdf/packaging/README.md` "Upload").
+
+**Owner, on screen:** the Mac PDF menus and palette look as before (`DocumentCommands`); Help › Inkvolt Pro… in both Mac
+apps; Print for Mac's firmware notice and Keep My Cartridges Working; Inkvolt PDF's Kind list in Reading Order (Windows).
+Housekeeping: the three local `worktree-agent-*` branches (WIP of the Spanish interface) to delete by hand.
 
 **No release without the owner** (when asked: Store `packaging/pack-msix.ps1`; Mac `INKVOLT_PUBLISH=yes release.sh <v>
 --publish`, then the Homebrew tap `gabandres/homebrew-inkvolt` and the website `Z:\portfolio`, as 1.6.1 was).
@@ -32,17 +69,16 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
    2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers); 3.3 Compare with Office
    files, scans and formatting; 3.5 indexed folder search; Microsoft Office as E12's converter (on the mini, backlog
    note below); 3.1 Translate (after 2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
-3. Spanish interface (Windows has it), and What's New in Spanish on both platforms.
+3. Spanish interface (Windows has it), and What's New in Spanish on both platforms. Suspect words: done 2026-11-04.
 4. No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's
    printer settings when printing, the Snapshot tool. UX: the renames proposed in `mac/docs/UX-REVIEW.md` (owner decides).
 
 **Inkvolt PDF for Windows.**
 1. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
    `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
-2. 2.1 (turned text, mixed families), 2.4 (form XObjects piece by piece, row spans). PDF 2.2's three leftovers are done
-   (2026-11-04, `pdf/ROADMAP.md` 2.2): suspect words for Batch, Scan and export; "1111" read three strokes at a time
-   (`skipped-lines` 21.7% → 8.7%); a word left out inside a read line read again (probe: 752 → 747 edits). Still for a
-   person: a real scanner's pages through Scan with OCR, then Review Suspect Words.
+2. 2.1 and 2.4: done 2026-11-04 but for a standard Symbol/ZapfDingbats font that isn't embedded (still blocks a
+   paragraph) and the Acrobat and PAC checks (tools not installed). Still for a person: a real scanner's pages through
+   Scan with OCR, then Review Suspect Words.
 3. Speed: `drawings.pdf` misses Find (39.5 s) and scrolling (about 1 s a sheet) (`pdf/tools/bench`, RESULTS.md of
    2026-11-04, a loaded PC); `comments.pdf` scrolls on screen at 36 fps. Recheck the on-screen numbers on an idle PC.
 4. UX leftovers (UX-REVIEW round 3): Comment still goes to "…" at 150 % on 1200 DIPs; Organize's page pictures.
