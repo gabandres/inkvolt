@@ -320,26 +320,6 @@ extension AutoTag {
 
     private static func tableBlocks(_ page: Int, _ table: DocTable) -> [TagBlock] {
         let unmerged = withoutCoveredRows(table)
-        var t = withRowSpans(unmerged)
-        var rows = tagCells(t)
-        let all = rows.flatMap { $0 }.flatMap { $0.sources + $0.pictures }
-        if all.isEmpty { return [] }
-        let box = bounds(all)
-        if !plausibleTable(t) {
-            // A chart's labels (mostly numbers) are part of the chart: a figure. Text that happened to line up: paragraphs.
-            let filled = t.rows.flatMap { $0 }.filter { !empty($0) }
-            if filled.count(where: number) * 2 >= filled.count {
-                var f = TagBlock(page: page, kind: .figure, box: box)
-                f.sources = [box]
-                return [f]
-            }
-            return rows.flatMap { $0 }.filter { !$0.sources.isEmpty }.map { cell in
-                var p = TagBlock(page: page, kind: .paragraph, box: bounds(cell.sources))
-                p.sources = cell.sources
-                p.text = cell.text
-                return p
-            }
-        }
         // Column headers, told row by row as drawn (each cell with what is drawn in it, before a cell spanning rows takes
         // what it covers): a first row in bold over rows that aren't, or a row of words over rows of numbers.
         let u = unmerged.rows
@@ -356,9 +336,27 @@ extension AutoTag {
             headerRows = 2
         }
         // A column header spans no further than the header rows: the spans are cut there.
-        if headerRows > 0 {
-            t = withRowSpans(unmerged, cut: headerRows)
-            rows = tagCells(t)
+        let t = withRowSpans(unmerged, cut: headerRows)
+        let rows = tagCells(t)
+        let all = rows.flatMap { $0 }.flatMap { $0.sources + $0.pictures }
+        if all.isEmpty { return [] }
+        let box = bounds(all)
+        if !plausibleTable(t) {
+            // A chart's labels (mostly numbers) are part of the chart: a figure (with their text, a row a line). Text that
+            // happened to line up: paragraphs.
+            let filled = t.rows.flatMap { $0 }.filter { !empty($0) }
+            if filled.count(where: number) * 2 >= filled.count {
+                var f = TagBlock(page: page, kind: .figure, box: box)
+                f.sources = [box]
+                f.text = rowsText(rows)
+                return [f]
+            }
+            return rows.flatMap { $0 }.filter { !$0.sources.isEmpty }.map { cell in
+                var p = TagBlock(page: page, kind: .paragraph, box: bounds(cell.sources))
+                p.sources = cell.sources
+                p.text = cell.text
+                return p
+            }
         }
         // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers. The first column
         // is each row's first cell (a covered one too: the row header above it heads that row).
@@ -388,12 +386,14 @@ extension AutoTag {
             let union = blocks[other].box.union(chart.box)
             blocks[other].box = union
             blocks[other].sources = [union]
+            blocks[other].text = lines(blocks[other].text, chart.text)
             blocks.remove(at: at)
         }
     }
 
     /// Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too, never a
-    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it.
+    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it, and its text is the
+    /// figure's (what the figure reads if made text; labels in reading order, a line each).
     private static func figureLabels(_ blocks: inout [TagBlock]) {
         for i in blocks.indices.reversed() {
             let b = blocks[i]
@@ -404,8 +404,17 @@ extension AutoTag {
             let union = blocks[f].box.union(b.box)
             blocks[f].box = union
             blocks[f].sources = [union]
+            blocks[f].text = lines(b.text, blocks[f].text)
             blocks.remove(at: i)
         }
+    }
+
+    /// Two texts a line apart (either may be empty).
+    private static func lines(_ a: String, _ b: String) -> String { a.isEmpty ? b : b.isEmpty ? a : a + "\n" + b }
+
+    /// A table's cells' text: a row a line, cells apart by a space.
+    static func rowsText(_ rows: [[TagCell]]) -> String {
+        rows.map { r in r.map(\.text).filter { !$0.isEmpty }.joined(separator: " ") }.joined(separator: "\n")
     }
 
     /// "Figure 2:", "Table 1." and the like right before or after a figure or table (near it, overlapping it across): its caption.

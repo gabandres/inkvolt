@@ -38,7 +38,7 @@ public struct TagBlock: Equatable, Sendable {
     public var level = 0
     /// Where its content is on the page: text runs, or a figure's area.
     public var sources: [RectD] = []
-    /// Its text (a figure's is empty): what the reading order panel shows.
+    /// Its text (a figure's the text drawn in it, its labels): what the reading order panel shows.
     public var text = ""
     public var items: [TagListItem] = []
     public var rows: [[TagCell]] = []
@@ -360,27 +360,21 @@ public enum AutoTag {
         var changed = b
         changed.kind = kind
         changed.level = 0
-        switch kind {
-        case .list, .contents, .table:
-            break // between a list and contents: the entries stay
-        case .figure:
+        // Between a list and contents the entries stay; any other kind holds its content as one piece.
+        if kind == .list || kind == .contents || kind == .table { return with(plan, index) { $0 = changed } }
+        changed.items = []
+        changed.rows = []
+        changed.headerRows = 0
+        changed.headerColumn = false
+        changed.decorative = false
+        if kind == .figure {
             changed.sources = [b.box]
-            changed.items = []
-            changed.rows = []
-            changed.headerRows = 0
-            changed.headerColumn = false
             changed.alt = b.kind == .formula ? b.alt : nil
-            changed.decorative = false
-        default:
+        } else {
             changed.level = kind == .heading ? level : 0
             changed.sources = b.kind == .figure ? [b.box] : allSources(b)
             changed.text = allText(b)
-            changed.items = []
-            changed.rows = []
-            changed.headerRows = 0
-            changed.headerColumn = false
             changed.alt = kind == .formula && (b.kind == .formula || b.kind == .figure) ? b.alt : nil
-            changed.decorative = false
         }
         return with(plan, index) { $0 = changed }
     }
@@ -394,8 +388,7 @@ public enum AutoTag {
     /// A block's text: its entries' (a line each), its cells' (a row a line, cells apart by a space), else its own.
     private static func allText(_ b: TagBlock) -> String {
         if !b.items.isEmpty { return b.items.map(\.text).joined(separator: "\n") }
-        if b.rows.isEmpty { return b.text }
-        return b.rows.map { r in r.map(\.text).filter { !$0.isEmpty }.joined(separator: " ") }.joined(separator: "\n")
+        return b.rows.isEmpty ? b.text : rowsText(b.rows)
     }
 
     /// The plan with block `index` changed (alternate text, decorative, kind).

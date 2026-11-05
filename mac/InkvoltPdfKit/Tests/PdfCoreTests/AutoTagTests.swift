@@ -488,8 +488,9 @@ enum TagTest {
         #expect(plan.blocks.filter { $0.kind == .caption }.map(\.text) == ["Table 1: Fruit sold by quarter.", "Figure 1: The orchard in spring."], why)
         let note = try #require(plan.blocks.first { $0.kind == .note }, why)
         #expect(note.text.hasPrefix("1 Weights"))
-        // The label on the picture is the picture's; body text stays paragraphs.
-        #expect(!plan.blocks.contains { $0.text.contains("North orchard") || $0.text == "Hill" }, why)
+        // The label on the picture is the picture's (its text, what it says if made text); body text stays paragraphs.
+        #expect(!plan.blocks.contains { $0.kind != .figure && ($0.text.contains("North orchard") || $0.text == "Hill") }, why)
+        #expect(plan.blocks.contains { $0.kind == .figure && $0.text.contains("North orchard") }, why)
         #expect(plan.blocks.contains { $0.kind == .paragraph && $0.text.hasPrefix("The orchard grows") }, why)
     }
 

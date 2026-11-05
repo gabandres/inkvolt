@@ -97,6 +97,16 @@ import Testing
         #expect(try Self.passes(Self.write(pdf, back)))
     }
 
+    @Test func A_picture_made_text_takes_the_text_drawn_in_it() throws {
+        // The orchard's picture holds its labels ("North orchard" on it, "Hill" beside it): made a paragraph, they are its text.
+        let pdf = AutoTagKindsTests.make()
+        let plan = try TagTest.plan(pdf)
+        let i = try Self.indexOf(plan) { $0.kind == .figure }
+        let p = AutoTag.withKind(plan, i, .paragraph).blocks[i]
+        #expect(p.text == "North orchard\nHill")
+        #expect(p.sources == [plan.blocks[i].box])
+    }
+
     @Test func A_table_made_a_paragraph_reads_its_rows_in_order() throws {
         let pdf = ExportTestPdf.make(logo: true)
         let plan = TagTest.withAlt(try TagTest.plan(pdf))
