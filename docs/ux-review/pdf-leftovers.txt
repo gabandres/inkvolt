@@ -1,0 +1,26 @@
+# Round 3's "Still short" (docs/UX-REVIEW.md): Comment on the bar at Text size 150 % on a 1200-DIP window, and Organize's
+# page pictures following the Text size. Samples in C:\ux2\samples (from the tests, INKVOLTPDF_SAMPLES); shots in C:\ux4\shots.
+wait 1200
+size 1200 820
+open C:\ux2\samples\features.pdf
+wait 1500
+barstate
+textscale 1.5
+wait 600
+barstate
+shot C:\ux4\shots\bar-1200-150-after.png
+organize on
+wait 1200
+shot C:\ux4\shots\organize-150-after.png
+a11yaudit
+textscale system
+wait 1200
+shot C:\ux4\shots\organize-100-after.png
+organize off
+size 900 620
+wait 400
+barstate
+size 1400 820
+wait 400
+barstate
+exit

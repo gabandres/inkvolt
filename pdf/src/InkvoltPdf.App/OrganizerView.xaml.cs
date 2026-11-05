@@ -139,6 +139,10 @@ public partial class OrganizerView : UserControl
             ApplySize();
         };
         SizeChanged += (_, e) => { if (Math.Abs(e.NewSize.Width - e.PreviousSize.Width) > 1) Regroup(); };
+        // Windows' Text size changed: the pictures follow it. Unhooked when the view goes.
+        EventHandler rescale = (_, _) => ApplySize();
+        Loaded += (_, _) => { TextScale.Changed -= rescale; TextScale.Changed += rescale; };
+        Unloaded += (_, _) => TextScale.Changed -= rescale;
         SelectAllButton.Click += (_, _) => SelectAll();
         SelectNoneButton.Click += (_, _) => SetSelection([], keepFocus: true);
         DoneButton.Click += (_, _) => Done?.Invoke(this, EventArgs.Empty);
@@ -175,7 +179,7 @@ public partial class OrganizerView : UserControl
         {
             var g = engine.GetPage(i);
             var item = new OrganizerItem(i, g.Width, g.Height, RequestImage);
-            item.SetBox(SizeSlider.Value);
+            item.SetBox(Box);
             _items.Add(item);
         }
         Regroup();
@@ -201,17 +205,18 @@ public partial class OrganizerView : UserControl
         });
     }
 
+    /// <summary>The cards' picture size: the slider's (as at 100 %) times Windows' Text size (<see cref="OrganizeGrid.Box"/>).</summary>
+    private double Box => OrganizeGrid.Box(SizeSlider.Value, TextScale.Factor);
+
     private void ApplySize()
     {
-        foreach (var i in _items) i.SetBox(SizeSlider.Value);
+        foreach (var i in _items) i.SetBox(Box);
         Regroup();
     }
 
     private void Regroup()
     {
-        var width = Math.Max(1, ActualWidth - 48);
-        var cell = SizeSlider.Value + 20 + 8;
-        _columns = Math.Max(1, (int)(width / cell));
+        _columns = OrganizeGrid.Columns(ActualWidth, Box);
         _rows.Clear();
         foreach (var chunk in _items.Chunk(_columns)) _rows.Add(new OrganizerRow(chunk));
     }

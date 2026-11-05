@@ -178,7 +178,7 @@ every bar command is in them, so the palette lists each one (Organize › Delete
 
 - ~~**Text size 150 % on a 1200-DIP window**~~ Done 2026-11-03 (round 3, below): the bar had save, print, undo and "…".
 - ~~**The group menus**~~ Done 2026-11-03 (round 3, below): flyouts with a line under each command.
-- **Organize's page pictures** keep the thumbnail size the slider sets; their numbers and buttons scale.
+- ~~**Organize's page pictures**~~ Done 2026-11-04 (below): they follow the Text size as their numbers and buttons do.
 
 #### Round 3 (2026-11-03): the two leftovers
 
@@ -209,6 +209,15 @@ finds 0 findings at 150 % and in dark. Script: `docs/ux-review/pdf-round3.txt`.
 Still short after round 3: at 150 % on 1200 DIPs Comment is in "…" (Draw, Redact and Organize too), a priority
 choice: undo, redo and print stay as icons. A menu shot (`menushot`) draws only what is over the window, so a flyout at
 the right edge looks cut in the shots; on screen it isn't. Organize's page pictures, as above.
+
+**The leftovers (2026-11-04).** Comment at 150 % on 1200 DIPs: the bar has 318 logical DIPs there and its icons-only
+set was 8 short of Comment, so Print and Redo (Ctrl+P and Ctrl+Y, in the File and Edit menus) now give way to it, Redo
+first (`CommandBarLayout`, priority 75 against Comment's 80): save, undo, the pointer tools, Fill & Sign and Comment
+(`leftovers/pdf-bar-1200-150-before.png`, `leftovers/pdf-bar-1200-150.png`); at 100 % on 900, 1200 and 1400 DIPs the bar is
+as before. Organize's page pictures: the slider's size is as at 100 % and the picture is that times the Text size
+(`OrganizeGrid`, Core, tested), so at 150 % the hover buttons sit inside the picture instead of spilling over its edges
+(`leftovers/pdf-organize-150-before.png`, `leftovers/pdf-organize-150.png`, `pdf-organize-100.png`); they render for the
+size shown, and follow a change of Text size at once. The audit finds 0 findings. Script: `docs/ux-review/pdf-leftovers.txt`.
 
 ### Inkvolt Print
 
@@ -241,6 +250,7 @@ weighted score stays 9.61.
   `pdf-textsize.txt` is the second pass (`textscale 1.5` stands in for Windows' Text size), `pdf-round2.txt` round 2
   (dev steps `barstate`, `barclick` and `menushot`: the command bar's state, a group's menu, a shot with it open).
   `pdf-round3.txt` round 3 (the flyouts, and the bar at 150 %).
+  `pdf-leftovers.txt` the leftovers of 2026-11-04 (Comment at 150 %, Organize at 150 %; `barstate` logs the widths).
 - Inkvolt Print: `InkvoltPrint.exe --demo --snapshot out.png --a11y-audit findings.txt [--tab Scan --scan 3 | --dialog confirm …]`
   (every run: `pwsh -File docs/ux-review/print-runs.ps1 -Exe …\InkvoltPrint.exe -Out C:\ux`). `INKVOLT_TEXTSCALE=1.5`
   stands in for Windows' Text size in both apps; `--delete n` and `--undo` drive the review's Undo; round 2 adds

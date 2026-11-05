@@ -46,9 +46,11 @@ public static class CommandBarLayout
     private static readonly PerLanguage<IReadOnlyList<Entry?>> BarTable = new(() =>
     [
         new("Save", null, 100, [new("Save", "\uE74E")]),
-        new("Print", null, 100, [new("Print", "\uE749")]),
+        // Print (Ctrl+P, File › Print) and Redo (Ctrl+Y, Edit › Redo) give way to Comment when room is short (Text size
+        // 150 % on a 1200-DIP window); Redo goes first.
+        new("Print", null, 75, [new("Print", "\uE749")]),
         new("Undo", null, 100, [new("Undo", "\uE7A7")]),
-        new("Redo", null, 100, [new("Redo", "\uE7A6")]),
+        new("Redo", null, 75, [new("Redo", "\uE7A6")]),
         null,
         new(Pointer, PdfStrings.Bar_Select, 85,
             [new("ToolHand", "\uE7C9", "H", PdfStrings.Bar_HandDesc),

@@ -8,6 +8,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Batch's Redact Patterns gives the redacted pages their text back, as Apply Redactions does, so a redacted scan stays searchable and selectable.
 - Edit Text & Images edits turned text (a sideways column, a title set at an angle) as a whole paragraph too: it rewraps in its own direction, with the editor turned to match.
 - A paragraph with a word in another font (a name in Times among Arial, a line that starts with one) edits as a whole paragraph now, and that word keeps its font.
+- With large text (Windows' Text size) on a smaller window, the Comment menu stays on the command bar; Print and Redo give way to it (Ctrl+P and Ctrl+Y, and the File and Edit menus, still have them).
+- With large text, Organize's page pictures grow with it, so the rotate and delete buttons on a page fit on its picture.
 - A paragraph with Greek letters or math signs in the standard Symbol font, as older software wrote them, edits as a whole paragraph too, and they stay in Symbol.
 - Make Accessible tags text inside drawings a page reuses (a page placed as one drawing, a letterhead) piece by piece, so each heading and paragraph there is read as its own.
 - In the Reading Order pane, choose what a piece is under Kind: a heading and its level, a paragraph, a caption, a footnote, a formula or a picture (a list can become a table of contents). Apply changes tags it that way.

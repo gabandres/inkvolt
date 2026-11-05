@@ -51,7 +51,7 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow) <c>· barclick Id|More</c> (press a bar button: a group drops its menu) <c>· menushot out.png</c> (a shot with the open menus) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id|More</c> (press a bar button: a group drops its menu) <c>· menushot out.png</c> (a shot with the open menus) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -929,6 +929,8 @@ internal static class DevScript
                         .Where(b => b.IsVisible && !ToolbarPanel.GetIsOverflowButton(b)).Select(Name);
                     var over = bar.OverflowItems.OfType<System.Windows.Controls.Primitives.ButtonBase>().Select(Name);
                     log.Add($"bar {window.ActualWidth:0}: {(bar.IsCompact ? "icons only" : "labels")}; shown {string.Join(" ", shown)}; overflow {string.Join(" ", over)}");
+                    var widths = bar.Children.OfType<FrameworkElement>().Where(b => b.IsVisible).Select(b => $"{Name(b)}={b.ActualWidth:0}");
+                    log.Add($"bar widths (of {bar.ActualWidth:0}, room {bar.RenderSize.Width:0}): {string.Join(" ", widths)}");
                 }
                 break;
             }

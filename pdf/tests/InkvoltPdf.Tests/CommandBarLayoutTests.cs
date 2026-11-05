@@ -159,6 +159,28 @@ public class CommandBarLayoutTests
     }
 
     [Fact]
+    public void AtTextSize150OnA1200DipWindowCommentStaysOnTheBar()
+    {
+        // The room the bar has there and its children's widths with their margins, as measured in the app (318 DIPs; icons
+        // 36, groups 52 as icons): icons only, and Comment outranks the Redo and Print icons (Ctrl+Y and Ctrl+P, in the
+        // Edit and File menus), so the pointer tools, Fill & Sign and Comment all show; the rest is in "…".
+        var widths = new Dictionary<string, (double Full, double Compact)>
+        {
+            ["Save"] = (36, 36), ["Print"] = (36, 36), ["Undo"] = (36, 36), ["Redo"] = (36, 36), ["Pointer"] = (93, 52),
+            ["FillSign"] = (123, 52), ["Comment"] = (121, 52), ["Draw"] = (92, 52), ["Redact"] = (87, 37), ["Organize"] = (101, 37),
+        };
+        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id].Full, e.Priority, widths[e.Id].Compact)).ToList();
+        var fit = CommandBarLayout.Layout(items, 318, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
+        Assert.True(fit.Compact);
+        var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
+        Assert.Equal(["Save", "Undo", "Pointer", "FillSign", "Comment"], shown);
+
+        // A little more room (Redo's) and Print comes back first.
+        fit = CommandBarLayout.Layout(items, 318 + 36, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
+        Assert.Equal(["Save", "Print", "Undo", "Pointer", "FillSign", "Comment"], CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id));
+    }
+
+    [Fact]
     public void AtAnOrdinaryWidthTheGroupsKeepTheirLabels_InSpanishToo()
     {
         // The same rule with the Spanish labels as measured at 100 % (Mano, Llenar y firmar, Comentar, Dibujar, Eliminar
