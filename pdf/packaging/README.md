@@ -182,7 +182,7 @@ tick the generative AI question in Partner Center when submitting (below).
 
 Live since 2026-10-30 (Submission 11, Published; `msstore submission get` lists `en-us` and `es`), submitted with the en-us screenshots and the text below; plain Spanish only, which covers every Spanish market (Spanish (Americas), `es-019`, was removed). Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`), and once a draft has been edited in Partner Center the submission API refuses it (409 InvalidState, "in the state 'None'"), so a listing change goes through the Partner Center pages. Their keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check the result with `msstore submission get`. When the en-us description changes, change this one to match. The app itself is in English, and the description says so.
 
-**Since 1.7.0.0** (submitted 2026-11-04 through the API: `msstore submission get`, the JSON's release notes and descriptions changed, `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`) the app has a Spanish interface, the es description no longer says "La aplicación está en inglés.", and both descriptions say "Scan straight into a PDF from network, USB and TWAIN scanners." Left for the next listing update: the es description still names What's in This PDF and Sanitize in English; the app says "Qué hay en este PDF" and "Limpiar documento". The quoted text below is older.
+**Since 1.7.0.0** (submitted 2026-11-04 through the API: `msstore submission get`, the JSON's release notes and descriptions changed, `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`) the app has a Spanish interface, the es description no longer says "La aplicación está en inglés.", and both descriptions say "Scan straight into a PDF from network, USB and TWAIN scanners." Left for the next listing update: the es description still names What's in This PDF and Sanitize in English; the app says "Qué hay en este PDF" and "Limpiar documento" (the text to paste: "Listing proposal 2026-11-04 (es description)" below). The quoted text below is older.
 
 Short description:
 
@@ -305,6 +305,56 @@ older text under "Spanish listing (es)" above.
 
 What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type (Store search vs. links), 30
 days after the change, against the baseline in `docs/VISIBILITY.md`.
+
+### Listing proposal 2026-11-04 (es description)
+
+Not submitted: the owner pastes it into Partner Center's es listing (Store listings › Spanish › Description), the next
+time a submission goes in (with 1.8.0.0, or as a listing-only update), and checks the result with `msstore submission
+get`. It is the en-us description above in Spanish, with the interface's own names (`pdf/docs/SPANISH-REVIEW.md`):
+**Qué hay en este PDF** and **Limpiar documento** in place of What's in This PDF and Sanitize, **Eliminar por patrón**,
+**En lote**, **Configuración › Idioma**; "Scan straight into a PDF" as the line under the en-us text says; and a line
+saying the app speaks Spanish, where "La aplicación está en inglés." was. The short description, features and keywords
+stay as submitted. About 3,100 characters (the Store allows 10,000).
+
+> Inkvolt PDF es un editor y lector de PDF gratis para Windows 10 y 11 (x64 y ARM64). Abre documentos grandes al
+> instante, en pestañas, en modo claro u oscuro; edita, llena, firma, convierte, organiza y elimina información
+> confidencial sin suscripción, sin marca de agua, sin cuenta y sin enviar datos de uso a ningún sitio. Código abierto
+> (AGPL-3.0).
+>
+> - Editar PDF: haz clic en un texto para reescribirlo con su propia fuente; mueve, cambia de tamaño o reemplaza
+>   imágenes; agrega vínculos, encabezados y pies de página, números de página y marcas de agua.
+> - Llenar y firmar: llena cualquier formulario, escribe o marca en cualquier parte de la página y agrega tu firma a
+>   mano o tus iniciales. Crea formularios con campos de texto, casillas, listas y campos de firma, o detéctalos en la
+>   página.
+> - Firmas digitales: firma con un certificado, una tarjeta inteligente o Windows Hello, agrega una marca de tiempo
+>   confiable y comprueba cada firma.
+> - Comentarios y dibujo: resaltado, subrayado, notas, sellos, pluma, formas, flechas, cuadros de texto, llamadas y
+>   medidas.
+> - Unir y organizar: combina archivos; reordena, gira, inserta, extrae, divide y recorta páginas. Crea PDF a partir de
+>   imágenes, del portapapeles, de archivos de Office (con tu Microsoft Office instalado) y de páginas web.
+> - PDF a Word, Excel o texto, reconstruido como párrafos, títulos, listas y tablas que se pueden editar, en tu PC.
+> - OCR: haz que los escaneos se puedan buscar con el reconocimiento de texto de Windows, en tu PC.
+> - Eliminar información confidencial de verdad: se borran el texto y las imágenes que hay debajo, no solo se tapan, y
+>   luego se revisa todo el archivo por si queda algo. Eliminar por patrón (números de Seguro Social, de teléfono y de
+>   tarjeta, correos electrónicos, fechas). Comprueba también un PDF en el que se eliminó información con otro programa.
+> - Qué hay en este PDF: cada script, vínculo, archivo adjunto, versión anterior y elemento oculto que lleva un archivo,
+>   antes de compartirlo. Limpiar documento los quita.
+> - Protege con contraseña, reduce el tamaño del archivo, guarda como PDF/A, compara dos versiones, comprueba la
+>   accesibilidad (PDF/UA) y aplica acciones a muchos archivos a la vez (En lote).
+> - Escanea directamente a un PDF desde escáneres de red, USB y TWAIN.
+>
+> Asistente de IA opcional (desactivado de forma predeterminada): conecta la IA que elijas, como Ollama o LM Studio en
+> tu PC o un servicio con tu propia clave de API, para resumir, hacer preguntas sobre un documento o explicar un pasaje.
+> Las respuestas las genera en el momento ese modelo de IA y pueden ser incorrectas. Inkvolt PDF no incluye ninguna IA
+> propia y muestra exactamente qué texto se enviará, y adónde, antes de enviar nada.
+>
+> Sin cuenta, sin anuncios, sin telemetría. Tus documentos se quedan en tu PC, salvo el texto que envíes a un servicio
+> de IA que configures.
+>
+> La aplicación está en español y en inglés: sigue el idioma de Windows, o elígelo en Configuración › Idioma.
+>
+> Gratis y de código abierto (AGPL-3.0). Código fuente: https://github.com/gabandres/inkvolt. También para Mac:
+> https://bermudezsystems.com/products/inkvolt/
 
 ### Privacy policy
 
