@@ -152,6 +152,11 @@ public partial class DocumentTab
             var text = RoAlt.Text;
             SetPlan(AutoTag.With(_tagPlan, item.Index, b => b with { Alt = text }), select: item.Index, keepFigureEditor: true);
         };
+        RoKind.SelectionChanged += (_, _) =>
+        {
+            if (_roUpdating || RoKind.SelectedItem is not PieceKind kind) return;
+            ChangeSelectedKind(kind);
+        };
         RoDecorative.Click += (_, _) =>
         {
             if (RoList.SelectedItem is not ReadingOrderItem { Block.Kind: TagBlockKind.Figure } item || _tagPlan is null) return;
@@ -269,15 +274,80 @@ public partial class DocumentTab
                 missing == 0 ? Strings.ReadingOrder_AllAlt : Loc.Plural(missing, Strings.ReadingOrder_MissingAlt_One, Strings.ReadingOrder_MissingAlt_Many),
                 _tagPlanWritten ? Strings.ReadingOrder_Tagged : Strings.ReadingOrder_ApplyToTag,
             }.OfType<string>());
-        RoUp.IsEnabled = RoDown.IsEnabled = RoList.IsEnabled = RoFigure.IsEnabled = !stale;
+        RoUp.IsEnabled = RoDown.IsEnabled = RoList.IsEnabled = RoFigure.IsEnabled = RoPiece.IsEnabled = !stale;
         RoPageBefore.IsEnabled = !stale && page > 0;
         RoPageAfter.IsEnabled = !stale && page < plan.Pages - 1;
         RoApply.IsEnabled = !stale && !_tagPlanWritten;
         UpdatePaneDetail();
     }
 
+    /// <summary>A kind the selected piece can be made, as the kind list shows it.</summary>
+    internal sealed record PieceKind(TagBlockKind Kind, int Level, string Label);
+
+    /// <summary>The kinds a piece can be made (<see cref="AutoTag.KindsFor"/>), a heading at each level.</summary>
+    private static List<PieceKind> KindsOf(TagBlock b)
+    {
+        var list = new List<PieceKind>();
+        foreach (var k in AutoTag.KindsFor(b))
+        {
+            if (k == TagBlockKind.Heading)
+            {
+                for (var level = 1; level <= 6; level++) list.Add(new PieceKind(k, level, Loc.Format(Strings.ReadingOrder_Heading, level)));
+                continue;
+            }
+            list.Add(new PieceKind(k, 0, k switch
+            {
+                TagBlockKind.List => Strings.ReadingOrder_KindList,
+                TagBlockKind.Contents => Strings.ReadingOrder_KindContents,
+                TagBlockKind.Table => Strings.ReadingOrder_KindTable,
+                TagBlockKind.Caption => Strings.ReadingOrder_Caption,
+                TagBlockKind.Note => Strings.ReadingOrder_Footnote,
+                TagBlockKind.Formula => Strings.ReadingOrder_Formula,
+                TagBlockKind.Figure => Strings.ReadingOrder_Picture,
+                _ => Strings.ReadingOrder_Paragraph,
+            }));
+        }
+        return list;
+    }
+
+    /// <summary>Makes the selected piece another kind (a Pro fix, as moving it is), keeps it selected and says what it is now.</summary>
+    private void ChangeSelectedKind(PieceKind kind)
+    {
+        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item) return;
+        if (!MayFixOrder())
+        {
+            ShowSelectedPiece(); // the list goes back to the kind it is
+            return;
+        }
+        var plan = AutoTag.WithKind(_tagPlan, item.Index, kind.Kind, Math.Max(1, kind.Level));
+        if (ReferenceEquals(plan, _tagPlan)) return;
+        SetPlan(plan, select: item.Index);
+        AiActions.Announce(RoKind, Loc.Format(Strings.ReadingOrder_KindChanged, item.Number, kind.Label));
+    }
+
+    /// <summary>Dev script: makes the selected piece <paramref name="kind"/> ("heading 2", "paragraph", "figure"…) as the kind list does.</summary>
+    internal void RoSetKind(string kind)
+    {
+        var parts = kind.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0 || !Enum.TryParse<TagBlockKind>(parts[0] == "picture" ? "Figure" : parts[0], ignoreCase: true, out var k)) return;
+        var level = parts.Length > 1 && int.TryParse(parts[1], out var l) ? l : k == TagBlockKind.Heading ? 1 : 0;
+        if (RoKind.Items.OfType<PieceKind>().FirstOrDefault(x => x.Kind == k && x.Level == level) is { } choice) RoKind.SelectedItem = choice;
+    }
+
     private void ShowSelectedPiece()
     {
+        // The selected piece's kind, to change it.
+        var selected = RoList.SelectedItem as ReadingOrderItem;
+        RoPiece.Visibility = selected is null ? Visibility.Collapsed : Visibility.Visible;
+        if (selected is not null)
+        {
+            var wasUpdating = _roUpdating;
+            _roUpdating = true;
+            var kinds = KindsOf(selected.Block);
+            RoKind.ItemsSource = kinds;
+            RoKind.SelectedItem = kinds.FirstOrDefault(x => x.Kind == selected.Block.Kind && (x.Kind != TagBlockKind.Heading || x.Level == Math.Clamp(selected.Block.Level, 1, 6)));
+            _roUpdating = wasUpdating;
+        }
         // A picture's alternate text (or decorative), a formula's (what a screen reader says for it: its text to begin with).
         var figure = RoList.SelectedItem is ReadingOrderItem { Block.Kind: TagBlockKind.Figure or TagBlockKind.Formula } item ? item : null;
         RoFigure.Visibility = figure is null ? Visibility.Collapsed : Visibility.Visible;

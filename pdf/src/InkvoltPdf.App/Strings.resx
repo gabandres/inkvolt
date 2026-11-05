@@ -11373,4 +11373,32 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Contact and run</value>
     <comment>Batch: the address window's button</comment>
   </data>
+  <data name="Tab_PieceKind" xml:space="preserve">
+    <value>Kind</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="Tab_PieceKindName" xml:space="preserve">
+    <value>Kind of the selected piece</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="Tab_PieceKindTip" xml:space="preserve">
+    <value>What a screen reader announces this piece as: a heading, a paragraph, a picture… Apply changes to tag it so.</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindList" xml:space="preserve">
+    <value>List</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindContents" xml:space="preserve">
+    <value>Table of contents</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindTable" xml:space="preserve">
+    <value>Table</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindChanged" xml:space="preserve">
+    <value>Piece {0} is now: {1}</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
 </root>

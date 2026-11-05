@@ -515,7 +515,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   still one piece where it is drawn (a stream can hold one set of MCIDs). `AutoTagFormTests` (3: a heading and two
   paragraphs inside one form, a form two pages share, re-tagging). veraPDF 1.30.3 passes PDF/UA-1 on the form page
   tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before (50 of 50 the same; 2 of 2 papers pass; 5 of 12 office files
-  pass, the other 7 on 28-005 and 31-009/014/030). Still to do: changing a piece's kind in the pane, row spans, Unicode
+  pass, the other 7 on 28-005 and 31-009/014/030). **A piece's kind in the pane**: a
+  Kind list under the pieces (`AutoTag.KindsFor`, `AutoTag.WithKind`; a Pro fix as moving is): any piece a paragraph,
+  heading 1-6, caption, footnote, formula or picture, a list or contents either of those two; text kinds take all its
+  content (a list's entries, a table's cells row by row, a line each), a picture is everything in its box and needs
+  alternate text, a picture made text keeps its area (pictures there become decoration); nothing is made a table or a
+  list from a paragraph (their cells and entries aren't known). `AutoTagKindChangeTests` (4: paragraph to heading 2,
+  list to paragraph, text to picture and back, table to paragraph); dev script `rokind` (a paragraph made heading 2 is
+  read as Heading 1 after evening out, a line made a picture asks for alternate text). Still to do: row spans, Unicode
   for Type 3 bitmap fonts, Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;

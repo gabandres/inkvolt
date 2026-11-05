@@ -11373,4 +11373,32 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>Consultar y ejecutar</value>
     <comment>Batch: the address window's button</comment>
   </data>
+  <data name="Tab_PieceKind" xml:space="preserve">
+    <value>Tipo</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="Tab_PieceKindName" xml:space="preserve">
+    <value>Tipo de la pieza seleccionada</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="Tab_PieceKindTip" xml:space="preserve">
+    <value>Cómo anuncia esta pieza un lector de pantalla: un encabezado, un párrafo, una imagen… Aplica los cambios para etiquetarla así.</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindList" xml:space="preserve">
+    <value>Lista</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindContents" xml:space="preserve">
+    <value>Índice</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindTable" xml:space="preserve">
+    <value>Tabla</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindChanged" xml:space="preserve">
+    <value>La pieza {0} es ahora: {1}</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
 </root>
