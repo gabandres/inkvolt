@@ -347,9 +347,7 @@ enum PageBackground {
                     try isPaper.withUnsafeBufferPointer { isPaper in
                         try result.withUnsafeMutableBufferPointer { out in
                             let out = out
-                            try cleanupRows(height, stop) { y in
-                                let row = UnsafeMutableBufferPointer<Float>.allocate(capacity: width)
-                                defer { row.deallocate() }
+                            try cleanupRows(height, stop, scratch: width) { (y: Int, row: UnsafeMutableBufferPointer<Float>) in
                                 map.row(y, into: row)
                                 for x in 0..<width {
                                     let i = y * width + x
@@ -495,9 +493,7 @@ enum PageBackground {
         try gray.withUnsafeBufferPointer { g in
             try candidate.withUnsafeMutableBufferPointer { c in
                 let c = c
-                try cleanupRows(height, stop) { y in
-                    let row = UnsafeMutableBufferPointer<Float>.allocate(capacity: width)
-                    defer { row.deallocate() }
+                try cleanupRows(height, stop, scratch: width) { (y: Int, row: UnsafeMutableBufferPointer<Float>) in
                     map.row(y, into: row)
                     for x in 0..<width { c[y * width + x] = Float(g[y * width + x]) < row[x] - contrast }
                 }

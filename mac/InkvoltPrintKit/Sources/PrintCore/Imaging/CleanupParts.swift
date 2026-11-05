@@ -7,26 +7,43 @@ import Foundation
 /// Runs `body` for each of `count` rows, spread over the cores (.NET's `Parallel.For`). Rows left when `stop` fires are
 /// skipped, and it throws `CancellationError` once all have returned.
 func cleanupRows(_ count: Int, _ stop: BatchStop?, _ body: (Int) -> Void) throws {
+    try cleanupChunks(count, stop) { rows in
+        for y in rows {
+            if stop?.isStopped == true { return }
+            body(y)
+        }
+    }
+}
+
+/// `cleanupRows` with `scratch` values of room for each row's work, allocated once per chunk of rows and reused row after
+/// row (its contents are whatever the chunk's last row left).
+func cleanupRows<T: Numeric>(_ count: Int, _ stop: BatchStop?, scratch: Int, _ body: (Int, UnsafeMutableBufferPointer<T>) -> Void) throws {
+    try cleanupChunks(count, stop) { rows in
+        let buffer = UnsafeMutableBufferPointer<T>.allocate(capacity: max(scratch, 1))
+        buffer.initialize(repeating: 0)
+        defer { buffer.deallocate() }
+        for y in rows {
+            if stop?.isStopped == true { return }
+            body(y, buffer)
+        }
+    }
+}
+
+/// Runs `chunk` for each of a few runs of `count` rows, spread over the cores.
+private func cleanupChunks(_ count: Int, _ stop: BatchStop?, _ chunk: (Range<Int>) -> Void) throws {
     try stop?.check()
     if count <= 0 { return }
     let chunks = min(count, max(1, ProcessInfo.processInfo.activeProcessorCount * 4))
-    withoutActuallyEscaping(body) { body in
-        let shared = CleanupRowBody(run: body, stop: stop)
-        DispatchQueue.concurrentPerform(iterations: chunks) { c in
-            let start = count * c / chunks, end = count * (c + 1) / chunks
-            for y in start..<end {
-                if shared.stop?.isStopped == true { return }
-                shared.run(y)
-            }
-        }
+    withoutActuallyEscaping(chunk) { chunk in
+        let shared = CleanupChunkBody(run: chunk)
+        DispatchQueue.concurrentPerform(iterations: chunks) { c in shared.run(count * c / chunks..<count * (c + 1) / chunks) }
     }
     try stop?.check()
 }
 
 /// Each row writes only its own part of the result, through pointers the caller keeps alive for the call.
-private struct CleanupRowBody: @unchecked Sendable {
-    let run: (Int) -> Void
-    let stop: BatchStop?
+private struct CleanupChunkBody: @unchecked Sendable {
+    let run: (Range<Int>) -> Void
 }
 
 /// A level as a byte: below 0 (and NaN) is 0, above 255 is 255, else cut down to a whole level, as .NET's `(byte)` cast of
@@ -98,34 +115,45 @@ enum CleanupSmooth {
 struct PaperMap: Sendable {
     let width: Int, height: Int, block: Int, columns: Int, rows: Int
     let levels: [Float]
+    /// Each pixel column's two block columns and its weight between them, the same on every row (PdfCore's
+    /// `PaperLevel.XWeights`).
+    private let x0: [Int], x1: [Int], ax: [Float]
 
-    /// The paper level at a pixel, bilinear between block centres.
-    func at(_ x: Int, _ y: Int) -> Float {
-        let fx = min(max((Float(x) + 0.5) / Float(block) - 0.5, 0), Float(columns - 1))
-        let fy = min(max((Float(y) + 0.5) / Float(block) - 0.5, 0), Float(rows - 1))
-        let (x0, y0) = (Int(fx), Int(fy))
-        let (x1, y1) = (min(x0 + 1, columns - 1), min(y0 + 1, rows - 1))
-        let (ax, ay) = (fx - Float(x0), fy - Float(y0))
-        let top = levels[y0 * columns + x0] * (1 - ax) + levels[y0 * columns + x1] * ax
-        let bottom = levels[y1 * columns + x0] * (1 - ax) + levels[y1 * columns + x1] * ax
-        return top * (1 - ay) + bottom * ay
+    init(width: Int, height: Int, block: Int, columns: Int, rows: Int, levels: [Float]) {
+        (self.width, self.height, self.block, self.columns, self.rows, self.levels) = (width, height, block, columns, rows, levels)
+        var (x0, x1, ax) = ([Int](), [Int](), [Float]())
+        x0.reserveCapacity(width)
+        x1.reserveCapacity(width)
+        ax.reserveCapacity(width)
+        for x in 0..<width {
+            let fx = min(max((Float(x) + 0.5) / Float(block) - 0.5, 0), Float(columns - 1))
+            let a = Int(fx)
+            x0.append(a)
+            x1.append(min(a + 1, columns - 1))
+            ax.append(fx - Float(a))
+        }
+        (self.x0, self.x1, self.ax) = (x0, x1, ax)
     }
 
-    /// `at(x, y)` for every pixel of row `y`, into `out` (width values).
+    /// The paper level at each pixel of row `y`, bilinear between block centres, into `out` (width values).
     func row(_ y: Int, into out: UnsafeMutableBufferPointer<Float>) {
         let fy = min(max((Float(y) + 0.5) / Float(block) - 0.5, 0), Float(rows - 1))
         let y0 = Int(fy)
         let y1 = min(y0 + 1, rows - 1)
         let ay = fy - Float(y0)
+        let c = columns
         levels.withUnsafeBufferPointer { l in
-            for x in 0..<width {
-                let fx = min(max((Float(x) + 0.5) / Float(block) - 0.5, 0), Float(columns - 1))
-                let x0 = Int(fx)
-                let x1 = min(x0 + 1, columns - 1)
-                let ax = fx - Float(x0)
-                let top = l[y0 * columns + x0] * (1 - ax) + l[y0 * columns + x1] * ax
-                let bottom = l[y1 * columns + x0] * (1 - ax) + l[y1 * columns + x1] * ax
-                out[x] = top * (1 - ay) + bottom * ay
+            x0.withUnsafeBufferPointer { x0 in
+                x1.withUnsafeBufferPointer { x1 in
+                    ax.withUnsafeBufferPointer { ax in
+                        for x in 0..<width {
+                            let (a, b, w) = (x0[x], x1[x], ax[x])
+                            let top = l[y0 * c + a] * (1 - w) + l[y0 * c + b] * w
+                            let bottom = l[y1 * c + a] * (1 - w) + l[y1 * c + b] * w
+                            out[x] = top * (1 - ay) + bottom * ay
+                        }
+                    }
+                }
             }
         }
     }
