@@ -1,5 +1,4 @@
 import Foundation
-import Synchronization
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -97,61 +96,19 @@ public enum DropFolder {
         }
     }
 
-    /// The folder's lock file, held for the watch (the system lets go of it if the process ends) and deleted when let go.
-    /// Nil: another watcher has the folder.
+    /// The folder's lock file, held for the watch (the system lets go of it if the process ends) and deleted, while still held,
+    /// when let go (`FileLock`). Nil: another watcher has the folder.
     public static func lock(_ folder: String) -> Held? {
-        let path = (folder as NSString).appendingPathComponent(lockName)
-        guard let held = hold(path, create: true) else { return nil }
-        return Held {
-            try? FileManager.default.removeItem(atPath: path)
-            held.release()
-        }
+        (try? FileLock.hold((folder as NSString).appendingPathComponent(lockName), create: true, deleteOnRelease: true)) ?? nil
     }
 
-    /// A lock on one file (`flock`, what Inkvolt PDF's watched folder and apps that lock their files hold), for as long as it
-    /// is held. Nil: someone else holds it, or the file can't be opened.
+    /// A lock on one file (`FileLock`: what Inkvolt PDF's watched folder and apps that lock their files hold), for as long as
+    /// it is held. Nil: someone else holds it, or the file can't be opened.
     public static func hold(_ path: String, create: Bool = false) -> Held? {
-        #if canImport(Darwin) || canImport(Glibc)
-        let fd = create ? open(path, O_RDWR | O_CREAT, 0o644) : open(path, O_RDONLY)
-        guard fd >= 0 else { return nil }
-        guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
-            close(fd)
-            return nil
-        }
-        return Held { _ = close(fd) }
-        #else
-        // The Windows PC's test runs: a lock within this process only, which is all one process's tests need.
-        if create { _ = FileManager.default.fileExists(atPath: path) || FileManager.default.createFile(atPath: path, contents: nil) }
-        guard FileManager.default.fileExists(atPath: path) else { return nil }
-        // One file however its path is spelt ("C:\a" and "/C:/a", as Foundation's URLs give it here).
-        var key = path.lowercased().replacingOccurrences(of: "\\", with: "/")
-        if key.hasPrefix("/"), key.dropFirst().dropFirst().first == ":" { key.removeFirst() }
-        guard heldHere.withLock({ $0.insert(key).inserted }) else { return nil }
-        return Held { _ = heldHere.withLock { $0.remove(key) } }
-        #endif
+        (try? FileLock.hold(path, create: create)) ?? nil
     }
 
-    #if !(canImport(Darwin) || canImport(Glibc))
-    private static let heldHere = Mutex(Set<String>())
-    #endif
-
-    /// Something held until `release` (or until it's gone).
-    public final class Held: @unchecked Sendable {
-        private let lock = NSLock()
-        private var release_: (() -> Void)?
-
-        init(_ release: @escaping () -> Void) { release_ = release }
-
-        public func release() {
-            let r = lock.withLock { () -> (() -> Void)? in
-                defer { release_ = nil }
-                return release_
-            }
-            r?()
-        }
-
-        deinit { release_?() }
-    }
+    public typealias Held = FileLock
 }
 
 /// Which of a folder's files have stopped changing: each one's size and time when last looked at, since when they have been
