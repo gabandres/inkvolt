@@ -7,17 +7,17 @@ SSS resets 2026-11-06 about 11:40.
 32 MB reply limit on every read (all reviewed, fixes in); Windows PDF's OcrClean in Export and Scan, Symbol fonts in
 paragraphs, the two UX leftovers, the es Store description (proposal in `pdf/packaging/README.md`), and page checks
 (MuPDF bounded by time, `PageChecks`, two review rounds). Bench committed (`f0f206e`: drawings.pdf first page 1.01 s,
-a miss since page checks). **1.8.0.0 ready for the owner to upload** (`0abc412`): packed and smoked side by side
-(`pdf/publish/msix/InkvoltPdf_1.8.0.0.msixupload`, repacked from `02ca5f5` with the 2.4 tagging fixes, smoke passed); the CI failure of
-`PageCheckTests` was the test's machine speed (CI's runner is windows-11-arm and decoded the mask in time), now judged
-by memory; `pack-msix.ps1` cleans the app's projects' Release outputs and refuses an Inkvolt assembly not at the
-package version. Release steps 4-8 in `pdf/packaging/README.md` "Upload" are the owner's. Print for Mac 1.1 is still
+a miss since page checks). **Inkvolt PDF 1.8.0.0 published in the Store 2026-11-05 18:33** (owner asked; packed from
+`02ca5f5`, smoke passed; release notes en/es and the es description through the API; tag `pdf-v1.8.0.0`, GitHub
+release, website `softwareVersion` 1.8.0 deployed). The CI failure of `PageCheckTests` was the test's machine speed
+(CI's runner is windows-11-arm), now judged by memory; `pack-msix.ps1` cleans the app's projects' Release outputs and
+refuses an Inkvolt assembly not at the package version. Since 11-05 night also merged: PDF for Mac 2.4's Windows
+additions (fixes on both platforms), PrintCore halves of Print 3.6 and 3.4. Print for Mac 1.1 is still
 Waiting for Review, so no 1.2 build. Owner: free disk space on `ignia-mac` (95 % full; Vision recompiles its model and
 returns no words).
 - **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~ (done 11-05) → Print for Mac
-  1.2 build to TestFlight once 1.1 is approved (still Waiting for Review 11-05) → PDF for Mac: check that Windows'
-  2026-11-04 tagging additions (form XObjects, row spans, Type 3) are ported → Snapshot tool, printer status when printing
-  → Print 3.6 USB supply levels → Print 3.4 job notifications → PDF 2.3 scan leftovers → vector printing → Print 2.3 scan
+  1.2 build to TestFlight once 1.1 is approved (still Waiting for Review 11-05) → ~~PDF for Mac 2.4 additions~~ (done
+  11-05) → Snapshot tool, printer status when printing (branch `t3/a9dc297a`, review fixes running) → Print 3.6 USB supply levels → Print 3.4 job notifications → PDF 2.3 scan leftovers → vector printing → Print 2.3 scan
   cleanup, 3.2 SNMPv3 → Spanish for both Mac apps → PDF 3.5 folder search, 3.3 Compare → XL: redaction-by-pattern
   additions, 3.4 LTV, 2.1 paragraph editing, 3.1 Translate.
 - **Lane 2, the PC (PrintCore halves, `swift-dev.ps1`, no Mac):** 3.6, 3.4, 2.3, 3.2 ahead of their lane-1 turn
