@@ -14,17 +14,17 @@ just before (the bench's) left `InkvoltPdf.Core`/`InkvoltPrint.Core` at 1.0.0.0 
 deleting their `bin/Release` and `obj/Release` fixed it (make `pack-msix.ps1` immune). Print for Mac 1.1 is still
 Waiting for Review, so no 1.2 build. Owner: free disk space on `ignia-mac` (95 % full; Vision recompiles its model and
 returns no words).
-- **Lane 1, the Mac (one agent at a time):** 2.4 Batch print + the app's 32 MB reply limit + the `RecordingTransportTests`
-  CI flake (queued 11-05) → Print for Mac 1.2 build to TestFlight once 1.1 is approved → PDF for Mac: check that Windows'
+- **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~ (done 11-05) → Print for Mac
+  1.2 build to TestFlight once 1.1 is approved (still Waiting for Review 11-05) → PDF for Mac: check that Windows'
   2026-11-04 tagging additions (form XObjects, row spans, Type 3) are ported → Snapshot tool, printer status when printing
   → Print 3.6 USB supply levels → Print 3.4 job notifications → PDF 2.3 scan leftovers → vector printing → Print 2.3 scan
   cleanup, 3.2 SNMPv3 → Spanish for both Mac apps → PDF 3.5 folder search, 3.3 Compare → XL: redaction-by-pattern
   additions, 3.4 LTV, 2.1 paragraph editing, 3.1 Translate.
 - **Lane 2, the PC (PrintCore halves, `swift-dev.ps1`, no Mac):** 3.6, 3.4, 2.3, 3.2 ahead of their lane-1 turn
   (SNMPv3's crypto: check what Foundation offers off the Mac first).
-- **Lane 3, Windows partials:** Flate bomb bounded by time through MuPDF's cookie (owner's option A, 11-05; the byte
-  scanner `InflateGuard` on `t3/pdf-handoff-small-open-items` was rejected, don't merge it) → bench + `drawings.pdf` on an
-  idle PC, pack and smoke 1.8.0.0 (owner uploads) → TWAIN in Print's Scan tab → Translate's "Still wrong" with a real
+- **Lane 3, Windows partials:** ~~Flate bomb bounded by time~~ (page checks, done 11-05; the byte scanner `InflateGuard`
+  on `t3/pdf-handoff-small-open-items` was rejected, don't merge it) → the x64 soft-mask test and `pack-msix.ps1`'s stale
+  Release outputs, repack and smoke 1.8.0.0 (owner uploads) → TWAIN in Print's Scan tab → Translate's "Still wrong" with a real
   model → `drawings.pdf` speed.
 - **Owner:** MS Office as the Mac's converter (Microsoft 365 on the Mac, the Automation prompt); ZapfDingbats needs font
   data (a package).
