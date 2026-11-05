@@ -422,13 +422,25 @@ struct OcrLayerTests {
 
     @Test func numbersAreWrittenAsReadersParseThem() {
         #expect(PdfWriter.f(0) == "0")
-        #expect(PdfWriter.f(-0.0001) == "0")
         #expect(PdfWriter.f(612) == "612")
         #expect(PdfWriter.f(1.23456) == "1.235")
         #expect(PdfWriter.f(-2.5) == "-2.5")
         #expect(PdfWriter.f(0.0005) == "0.001") // away from zero, as .NET's "0.###"
-        #expect(PdfWriter.f(.nan) == "0")
+        #expect(PdfWriter.f(.nan) == "0") // .NET writes "NaN"; its PdfWriter never passes one (it drops such words)
         #expect(PdfWriter.f(1e20) == "100000000000000000000")
+    }
+
+    /// Byte for byte what .NET 10's `ToString("0.###", InvariantCulture)` wrote for each (checked with dotnet): a negative
+    /// that rounds to zero keeps its sign, and a double is rounded to 15 significant digits before its thousandths.
+    private static let dotNetNumbers: [(Double, String)] = [(-0.0001, "-0"), (-0.0, "-0"), (-1e-10, "-0"), (-5e-324, "-0"), (5e-324, "0"), (0.0004, "0"), (-0.0005, "-0.001"),
+                      (-1.0005, "-1.001"), (1.0005, "1.001"), (2.0005, "2.001"), (-2.0004, "-2"), (0.0015, "0.002"), (-999.9996, "-1000"),
+                      (1e15, "1000000000000000"), (-1e15, "-1000000000000000"), (1.5e15, "1500000000000000"),
+                      (1e16, "10000000000000000"), (123456789012345.67, "123456789012346"),
+                      (1e300, "1" + String(repeating: "0", count: 300))]
+
+    @Test(arguments: dotNetNumbers)
+    func numbersAreWrittenAsDotNetWritesThem(_ value: Double, _ written: String) {
+        #expect(PdfWriter.f(value) == written)
     }
 
     @Test func theTextLayerReadsTheSameAsTheWindowsOne() throws {

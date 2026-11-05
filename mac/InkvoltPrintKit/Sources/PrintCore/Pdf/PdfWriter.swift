@@ -169,20 +169,48 @@ public enum PdfWriter {
         return (w, h, Int(jpeg[off + 4]))
     }
 
-    /// A number as .NET's "0.###" writes it: at most three decimals (halves away from zero), no exponent, no "-0".
+    /// A number as .NET's "0.###" writes it, byte for byte: the double rounded to 15 significant digits, then to at most
+    /// three decimals (halves away from zero), no exponent; a negative that rounds to zero is "-0", as there. Not a number
+    /// or infinite: "0" (.NET would write "NaN", which no reader parses; its PdfWriter never passes one).
     static func f(_ d: Double) -> String {
         guard d.isFinite else { return "0" }
-        if abs(d) >= 1e15 { return String(format: "%.0f", d) } // no thousandths left to write
-        let thousandths = (abs(d) * 1000).rounded(.toNearestOrAwayFromZero)
-        if thousandths == 0 { return "0" }
-        let whole = (thousandths / 1000).rounded(.down)
-        let fraction = min(max(Int(thousandths - whole * 1000), 0), 999)
-        var s = (d < 0 ? "-" : "") + String(format: "%.0f", whole)
-        if fraction > 0 {
-            var digits = String(fraction)
-            digits = String(repeating: "0", count: 3 - digits.count) + digits
-            while digits.hasSuffix("0") { digits.removeLast() }
-            s += "." + digits
+        let sign = d.sign == .minus ? "-" : ""
+        if d == 0 { return sign + "0" }
+        // "d.dddddddddddddde±x": the 15 significant digits, and where the point goes.
+        let sci = String(format: "%.14e", abs(d))
+        guard let ePos = sci.firstIndex(of: "e"), let exponent = Int(sci[sci.index(after: ePos)...]) else { return "0" }
+        var digits = sci[..<ePos].compactMap(\.wholeNumberValue)
+        var point = exponent + 1 // digits before the point
+        let keep = point + 3
+        if keep < 0 {
+            digits = []
+        } else if keep < digits.count {
+            let up = digits[keep] >= 5
+            digits.removeLast(digits.count - keep)
+            if up {
+                var i = keep - 1
+                while i >= 0 && digits[i] == 9 {
+                    digits[i] = 0
+                    i -= 1
+                }
+                if i >= 0 {
+                    digits[i] += 1
+                } else {
+                    digits.insert(1, at: 0)
+                    point += 1
+                }
+            }
+        }
+        while let last = digits.last, last == 0, digits.count > max(point, 0) { digits.removeLast() }
+        if digits.isEmpty { return sign + "0" }
+        let text = { (ds: ArraySlice<Int>) in ds.map { String($0) }.joined() }
+        var s = sign
+        if point <= 0 {
+            s += "0." + String(repeating: "0", count: -point) + text(digits[...])
+        } else if point >= digits.count {
+            s += text(digits[...]) + String(repeating: "0", count: point - digits.count)
+        } else {
+            s += text(digits[..<point]) + "." + text(digits[point...])
         }
         return s
     }
