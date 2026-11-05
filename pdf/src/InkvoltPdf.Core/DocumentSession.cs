@@ -480,7 +480,6 @@ public sealed partial class DocumentSession : IDisposable
     {
         var old = Engine;
         lock (_dataGate) (_data, _inPlace) = (data, inPlace);
-        engine.InheritChecks(old); // pages the edit left as they were aren't checked again
         Engine = engine;
         _version = version;
         ContentChanged?.Invoke(this, new ContentChangedEventArgs(change));

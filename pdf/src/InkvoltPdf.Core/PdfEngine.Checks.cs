@@ -19,8 +19,6 @@ public sealed partial class PdfEngine
     private CheckedDocument? _checked;          // under _checkGate
     private PageCheckPlan? _checkedBy;          // under _checkGate
     private bool _checkAhead = true;            // the next page is checked while one is used (not for a preview)
-    private byte[]?[]? _identities;             // PageIdentity of each page, once worked out for InheritChecks
-    private Task? _inheriting;                  // InheritChecks' work, which the next engine's waits for
 
     /// <summary>Test hook: what the check of each page found so far.</summary>
     internal PageVerdict VerdictOf(int page) => Volatile.Read(ref _verdicts) is { } v ? (PageVerdict)Volatile.Read(ref v[page]) : PageVerdict.Unknown;
@@ -155,46 +153,6 @@ public sealed partial class PdfEngine
                 if (block is MuPDFImageStructuredTextBlock { Image: { } image } && (long)image.Width * image.Height > abovePixels)
                     _ = image.GetBytes(PixelFormats.RGB);
         }
-    }
-
-    /// <summary>
-    /// After an edit (or undo, redo): the pages whose content is unchanged (<see cref="PageIdentity"/>) take the verdicts
-    /// <paramref name="before"/>'s checks reached, so only changed pages are checked again. Worked out in the background
-    /// (the document read through PDFsharp, up to <see cref="PageIdentity.MaxBytes"/>); meanwhile, and for any page it
-    /// doesn't settle, pages are checked as usual.
-    /// </summary>
-    public void InheritChecks(PdfEngine before) => _ = InheritChecksAsync(before);
-
-    /// <summary>Test hook: <see cref="InheritChecks"/>, its work done when the task is.</summary>
-    internal Task InheritChecksAsync(PdfEngine before)
-    {
-        if (_source?.Data is not { } data || before._source?.Data is not { } previous || data.Length > PageIdentity.MaxBytes) return Task.CompletedTask;
-        // An edit undone at once: what the engine before inherited counts too, so its own inheriting is waited for.
-        var prior = Volatile.Read(ref before._inheriting) ?? Task.CompletedTask;
-        var work = Task.Run(async () =>
-        {
-            await prior.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            if (Volatile.Read(ref before._verdicts) is not { } verdicts) return;
-            var known = (byte[])verdicts.Clone();
-            if (!known.Any(v => (PageVerdict)v is PageVerdict.Fine || PageRefusedException.Refuses((PageVerdict)v))) return;
-            var was = Volatile.Read(ref before._identities) ?? PageIdentity.Of(previous);
-            if (was is null || was.Length != known.Length) return;
-            var ids = PageIdentity.Of(data);
-            Volatile.Write(ref _identities, ids);
-            if (ids is null || ids.Length != _pages.Length) return;
-            var carried = new Dictionary<string, byte>(StringComparer.Ordinal);
-            for (var p = 0; p < known.Length; p++)
-                if (was[p] is { } id && (PageVerdict)known[p] != PageVerdict.Unknown) carried[Convert.ToHexString(id)] = known[p];
-            lock (_checkGate)
-            {
-                if (_disposed || ChecksPlan() is null) return;
-                for (var p = 0; p < ids.Length; p++)
-                    if (ids[p] is { } id && (PageVerdict)_verdicts![p] == PageVerdict.Unknown && carried.TryGetValue(Convert.ToHexString(id), out var verdict))
-                        Volatile.Write(ref _verdicts[p], verdict);
-            }
-        });
-        Volatile.Write(ref _inheriting, work);
-        return work;
     }
 
     /// <summary>The engine is going away: its checks end, and the check processes let go of its document.</summary>
