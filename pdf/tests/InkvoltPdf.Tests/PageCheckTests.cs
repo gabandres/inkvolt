@@ -364,6 +364,35 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task AProcessThatFailsToStartLeavesItsPageToTheOneThatWorks()
+    {
+        // One check process works (on a page that takes a second or two); the second one to start fails. The page it
+        // took waits for the one that works instead of running unchecked, and so does what is asked meanwhile.
+        var file = ThreePages(Zlib(Drawn, 200L << 20), "/Filter /FlateDecode");
+        var doc = new CheckedDocument(file, null, InputFileTypes.PDF, 3);
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = TimeSpan.FromSeconds(20) };
+        try
+        {
+            var slow = plan.Ask(doc, 1);
+            var since = Stopwatch.StartNew();
+            while (plan.Pids.Count == 0 && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(5);
+            plan.Exe = Path.Combine(AppContext.BaseDirectory, "no-such-program.exe");
+            var first = plan.Ask(doc, 0);
+            while (plan.StartFailures == 0 && !first.Done.IsCompleted && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(5);
+            var second = plan.Ask(doc, 2);
+            await Task.WhenAll(slow.Done, first.Done, second.Done).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(30)));
+            Assert.Equal(PageVerdict.Fine, slow.Result);
+            Assert.Equal(PageVerdict.Fine, first.Result);
+            Assert.Equal(PageVerdict.Fine, second.Result);
+            Assert.Single(plan.Pids);
+        }
+        finally
+        {
+            plan.Forget(doc);
+        }
+    }
+
+    [Fact]
     public void AWaitGivenUpLeavesTheCheckGoingAndItsVerdictKept()
     {
         using var engine = Open(Bomb("1 MB"));

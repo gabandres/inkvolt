@@ -322,9 +322,10 @@ internal sealed class CheckRequest(CheckedDocument doc, int page)
 /// When no check process starts (the program is missing, or something such as an antivirus scan holds up its start
 /// past <see cref="ConnectMs"/>), pages run unchecked rather than not at all: failing open, as without page checks, since
 /// failing safe would leave every document blank on that PC. Nothing is kept of it (<see cref="PageVerdict.Unchecked"/>
-/// is never a page's verdict): pages asked about meanwhile run at once, and a start is tried again after
-/// <see cref="RetryAfter"/>, doubled with each failure in a row up to five minutes; the first one that starts checks
-/// pages again from then on.
+/// is never a page's verdict). No process is started again until <see cref="RetryAfter"/> has passed, doubled with each
+/// failure in a row up to five minutes; meanwhile a check process that runs (the other one) takes the page the failed
+/// one had and every page asked, and only when none runs do they run at once unchecked. The first one that starts
+/// ends the pause.
 /// </para>
 /// </summary>
 internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : IDisposable
@@ -408,19 +409,16 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         var request = new CheckRequest(doc, page) { Speculative = speculative };
         lock (_gate)
         {
-            if (_disposed || doc.Closed || doc.Unopenable || Pausing())
+            // While starts are paused, a check process that is running (or still starting) takes the page; with none, it
+            // runs unchecked now (failing open).
+            if (_disposed || doc.Closed || doc.Unopenable || (Pausing() && _links.Count == 0))
             {
                 request.Complete(PageVerdict.Unchecked);
                 return request;
             }
             _queue.AddLast(request);
             var idle = _links.Count(l => l.Current is null);
-            if (idle < _queue.Count && _links.Count < Workers)
-            {
-                var link = new Link(this);
-                _links.Add(link);
-                new Thread(() => Serve(link)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
-            }
+            if (idle < _queue.Count && _links.Count < Workers && !Pausing()) StartLink();
             Monitor.PulseAll(_gate);
         }
         return request;
@@ -467,15 +465,32 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// <summary>A check process failed to start a moment ago: none is tried until <see cref="RetryAfter"/> (doubled) has passed. Under _gate.</summary>
     private bool Pausing() => _startFailures > 0 && Stopwatch.GetTimestamp() < _retryAt;
 
-    /// <summary>A check process failed to start: pause, and let what waits run unchecked now rather than after another try each. Under _gate.</summary>
+    /// <summary>
+    /// A check process failed to start: no other is started until the pause is over. Its link ends; a link whose
+    /// process runs (or is starting) keeps checking what is queued. Under _gate.
+    /// </summary>
     private void StartFailed()
     {
         // Both processes failing at once is one failure: the pause doubles once.
         if (!Pausing()) _startFailures++;
         var pause = RetryAfter * Math.Pow(2, Math.Min(_startFailures - 1, 16));
         _retryAt = Stopwatch.GetTimestamp() + (long)(Math.Min(pause.TotalSeconds, Math.Max(MaxRetryAfter.TotalSeconds, RetryAfter.TotalSeconds)) * Stopwatch.Frequency);
+    }
+
+    /// <summary>No link is left and none may start now: what is queued runs unchecked rather than wait for the pause (failing open). Under _gate.</summary>
+    private void FailOpenIfNoLink()
+    {
+        if (_links.Count > 0 || !Pausing()) return;
         foreach (var r in _queue) r.Complete(PageVerdict.Unchecked);
         _queue.Clear();
+    }
+
+    /// <summary>A new link and its thread. Under _gate.</summary>
+    private void StartLink()
+    {
+        var link = new Link(this);
+        _links.Add(link);
+        new Thread(() => Serve(link)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
     }
 
     /// <summary>Takes a request no one waits for any more off the queue; false if a check process has it already (its verdict is kept).</summary>
@@ -590,21 +605,35 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     continue;
                 }
                 var verdict = PageVerdict.Unchecked;
+                var failedToStart = false;
                 try
                 {
                     verdict = link.Check(request!);
                 }
                 finally
                 {
+                    var requeued = false;
                     lock (_gate)
                     {
                         link.Current = null;
-                        if (verdict == PageVerdict.Unchecked && link.StartFailed) StartFailed();
-                        else if (link.Started) _startFailures = 0;
+                        if (verdict == PageVerdict.Unchecked && link.StartFailed)
+                        {
+                            // This link ends; the page goes back to the front of the queue for a link that runs, if any.
+                            failedToStart = true;
+                            StartFailed();
+                            if (!_disposed && !request!.Doc.Closed && _links.Any(l => l != link))
+                            {
+                                request.Started = false;
+                                _queue.AddFirst(request);
+                                requeued = true;
+                                Monitor.PulseAll(_gate);
+                            }
+                        }
                         ReleaseShared(request!.Doc);
                     }
-                    request!.Complete(verdict);
+                    if (!requeued) request!.Complete(verdict);
                 }
+                if (failedToStart) return;
             }
         }
         finally
@@ -613,13 +642,10 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             lock (_gate)
             {
                 _links.Remove(link);
-                // Requests this thread would have taken: another thread, or a new one.
-                if (_queue.Count > 0 && !_disposed && _links.Count < Workers)
-                {
-                    var next = new Link(this);
-                    _links.Add(next);
-                    new Thread(() => Serve(next)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
-                }
+                // Requests this thread would have taken: another thread, or a new one once starts may be tried again;
+                // with no link left and none to start, they run unchecked.
+                if (_queue.Count > 0 && !_disposed && _links.Count < Workers && !Pausing()) StartLink();
+                FailOpenIfNoLink();
                 Monitor.PulseAll(_gate);
             }
         }
@@ -660,9 +686,6 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
 
         /// <summary>Its last start failed (the program isn't there, or didn't connect).</summary>
         public bool StartFailed { get; private set; }
-
-        /// <summary>A process was started and connected for it at least once.</summary>
-        public bool Started { get; private set; }
 
         /// <summary>The page drawn in the process, within the limit; a process that ended on it is started again once.</summary>
         public PageVerdict Check(CheckRequest request)
@@ -768,7 +791,8 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 // It reads untrusted content: a page made to take all the memory stops at the job's limit, not the PC's.
                 FindWorkers.Job.AddLimited(process);
                 FindWorkers.AwaitConnection(pipe, process, plan.ConnectMs, CancellationToken.None);
-                Started = true;
+                // Starting works again: the pause ends.
+                lock (plan._gate) plan._startFailures = 0;
                 return true;
             }
             catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
