@@ -101,6 +101,23 @@ import Testing
         try TagTest.passesTheCheck(tagged)
     }
 
+    @Test func A_row_spanned_from_above_keeps_its_row_though_its_own_cells_are_empty() throws {
+        // "North" spans rows 2 and 3; row 3's own cells hold nothing: the row stays, so the span counts what is written.
+        let pdf = Self.table([
+            ("Region", 0, 0, true), ("2025", 0, 1, true), ("Q1", 1, 1, true), ("Q2", 1, 2, true),
+            ("North", 3, 0, false), ("40", 2, 1, false), ("52", 2, 2, false),
+            ("South", 4, 0, false), ("7", 4, 1, false), ("8", 4, 2, false),
+        ], rows: 5, unruled: [(1, 0), (3, 0)], headerSpan: true)
+        let block = try Self.tableBlock(pdf)
+        #expect(block.rows[2][0].rowSpan == 2)
+        let tagged = try Self.write(pdf)
+        let cells = try Self.writtenRows(tagged)
+        try #require(cells.count == 5)
+        #expect(cells[2][0].rowSpan == 2)
+        #expect(cells[3].count == 2)
+        try TagTest.passesTheCheck(tagged)
+    }
+
     @Test func Export_to_Word_keeps_the_table_as_it_was() throws {
         // Row spans are for the tags: the exported table has its five rows of cells as before (text where it was drawn).
         let engine = try PdfEngine.open(Self.make())

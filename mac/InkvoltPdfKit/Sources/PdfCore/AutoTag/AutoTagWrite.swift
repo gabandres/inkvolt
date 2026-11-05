@@ -33,6 +33,8 @@ extension AutoTag {
         let type: String
         var kids: [Kid] = []
         var leaf: Leaf?
+        /// A table row a row span counts: never pruned, so each RowSpan covers the rows written.
+        var spanned = false
 
         init(_ ref: PObj, _ type: String) {
             self.ref = ref
@@ -282,6 +284,8 @@ extension AutoTag {
                 if let above { newLeaf(child("Caption", t), above.page, above.sources) }
                 for r in b.rows.indices {
                     let tr = child("TR", t)
+                    // A row a span counts (its own cell spanning down, or one above spanning into it) stays, empty or not.
+                    tr.spanned = b.rows[r].contains { $0.covered || min($0.rowSpan, b.rows.count - r) > 1 }
                     for k in b.rows[r].indices {
                         let cell = b.rows[r][k]
                         if cell.covered { continue } // the cell above spanning into this row holds it
@@ -356,7 +360,8 @@ extension AutoTag {
                 // A table keeps its empty cells (rows stay the same length); an empty row or table goes.
                 return k.type != "TD" && k.type != "TH"
             }
-            if e.type == "TR" && e.kids.allSatisfy({ if case .node(let c) = $0 { c.kids.isEmpty } else { false } }) { return true }
+            // A row goes when all its cells are empty, unless a RowSpan counts it.
+            if e.type == "TR" { return !e.spanned && e.kids.allSatisfy { if case .node(let c) = $0 { c.kids.isEmpty } else { false } } }
             return e.kids.isEmpty
         }
 
