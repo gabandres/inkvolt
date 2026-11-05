@@ -102,6 +102,23 @@ public sealed class ExportPipelineTests : IDisposable
     }
 
     [Fact]
+    public void APageRecognizerReadsTheExportsPagesAsItIsSetCleanedOrAsScanned()
+    {
+        using var engine = Open(Blank(1));
+        var asScanned = new WordsReader(("Recognized", new RectD(300, 300, 400, 60)));
+        var report = DocumentExport.Export(engine, ExportFormat.Text, new MemoryStream(),
+            new ExportOptions { Recognize = new PageRecognizer(asScanned, new RecognizeOptions(Clean: false, CheckWords: false)).Page });
+        Assert.Equal(1, report.Recognized);
+        Assert.Equal([3], asScanned.Channels); // the page as rendered, once
+
+        var cleaned = new WordsReader(("Recognized", new RectD(300, 300, 400, 60)), ("rivr", new RectD(800, 300, 200, 60)));
+        report = DocumentExport.Export(engine, ExportFormat.Text, new MemoryStream(),
+            new ExportOptions { Recognize = new PageRecognizer(cleaned, new RecognizeOptions(), new WordsReader.Dictionary("Recognized")).Page });
+        Assert.Contains(1, cleaned.Channels); // the cleaned page, grey (and once as rendered, to compare for suspect words)
+        Assert.Equal(1, report.SuspectWords); // marked with its dictionary
+    }
+
+    [Fact]
     public void TheRecognizersSuspectWordsAreCounted()
     {
         using var engine = Open(Blank(2));

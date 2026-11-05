@@ -22,6 +22,13 @@ public sealed class PageRecognizer(ITextRecognizer recognizer, RecognizeOptions?
     /// <summary>The language it reads in (a BCP-47 tag), kept with the text layer for its review.</summary>
     public string Language => recognizer.Language;
 
+    /// <summary>
+    /// The words on one page, read as <see cref="Options"/> say, whether it has text or not; nothing is kept or written
+    /// (export's <see cref="ExportOptions.Recognize"/>).
+    /// </summary>
+    public IReadOnlyList<OcrWord> Page(PdfEngine engine, int page, CancellationToken cancel) =>
+        ScanText.Recognize(engine, page, recognizer, Options with { KeepCleanedImage = false }, spelling, cancel).Words;
+
     /// <summary>Reads the pages of <paramref name="data"/> (on the calling thread; the document is opened for it).</summary>
     /// <inheritdoc cref="Recognize(PdfEngine, IReadOnlyList{int}?, IReadOnlyDictionary{int, IReadOnlyList{RectD}}?, IProgress{ValueTuple{int, int}}?, CancellationToken)"/>
     public RecognizedPages Recognize(byte[] data, string? password, IReadOnlyList<int>? pages = null,

@@ -418,7 +418,9 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   words as Recognize Text does when its "Mark suspect words to check" is on (it reads each page a second time as
   scanned); Batch and Scan keep them in the text layer with its language, so the Suspect words button shows when such a
   file is opened (`TextLayer.HasSuspectWords`) and they are reviewed there; Batch's notes and Scan's message count them;
-  an export, which has no text layer to review, counts them in its message. A page whose lines don't say which way up it is
+  an export, which has no text layer to review, counts them in its message. All of them read as Recognize Text is set,
+  cleaned or as scanned too (`AppSettings.OcrClean`; `PageOcr.AsSet`, export through `PageRecognizer.Page`, 2026-11-04).
+  A page whose lines don't say which way up it is
   (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
   more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
   9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,

@@ -652,8 +652,8 @@ internal sealed class ScanDialog : Window
                 using var progress = new ProgressPrompt(this, Strings.Scan_Recognizing, Strings.Scan_Starting);
                 try
                 {
-                    // Suspect words marked as Recognize Text marks them (its choice), for the Suspect words pane.
-                    var reader = PageOcr.Pages(ocr, new RecognizeOptions(CheckWords: AppSettings.Current.OcrSuspects));
+                    // Read as Recognize Text is set (cleaned or as scanned, suspect words for the Suspect words pane).
+                    var reader = PageOcr.AsSet(ocr);
                     var suspect = 0;
                     pdf = await Task.Run(() =>
                     {

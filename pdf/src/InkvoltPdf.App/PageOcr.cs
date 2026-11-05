@@ -97,19 +97,23 @@ internal static class PageOcr
         new(ocr, options, options.CheckWords ? Spelling(ocr.Language) : null);
 
     /// <summary>
-    /// Batch's text recognition (the Batch window, a watched folder, the command line): <paramref name="ocr"/> one call at a
-    /// time (the files running together share it), reading as Recognize Text was last set: cleaned or as scanned
-    /// (<see cref="AppSettings.OcrClean"/>), suspect words marked or not (<see cref="AppSettings.OcrSuspects"/>). Null without one.
+    /// A page recognizer reading as Recognize Text was last set: cleaned or as scanned (<see cref="AppSettings.OcrClean"/>),
+    /// suspect words marked or not (<see cref="AppSettings.OcrSuspects"/>), no cleaned page kept. Export and the scan dialog
+    /// read through it, and Batch (<see cref="ForBatch"/>).
     /// </summary>
-    public static PageRecognizer? ForBatch(WindowsRecognizer? ocr) => ocr is null ? null
-        : Pages(new SerialRecognizer(ocr, new Lock()), new RecognizeOptions(Clean: AppSettings.Current.OcrClean, CheckWords: AppSettings.Current.OcrSuspects));
+    public static PageRecognizer AsSet(ITextRecognizer ocr) =>
+        Pages(ocr, new RecognizeOptions(Clean: AppSettings.Current.OcrClean, CheckWords: AppSettings.Current.OcrSuspects));
 
     /// <summary>
-    /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, nothing written
-    /// back. With <paramref name="suspects"/> (export: Recognize Text's choice, <see cref="AppSettings.OcrSuspects"/>),
-    /// suspect words are marked as Recognize Text marks them, with the spell checker for the recognizer's language; without
-    /// (Compare, re-recognizing after redaction), none are.
+    /// Batch's text recognition (the Batch window, a watched folder, the command line): <paramref name="ocr"/> one call at a
+    /// time (the files running together share it), reading as Recognize Text was last set (<see cref="AsSet"/>). Null without one.
     /// </summary>
-    public static List<OcrWord> Recognize(WindowsRecognizer engine, PdfEngine pdf, int page, CancellationToken cancel, bool suspects = false) =>
-        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: suspects), suspects ? Spelling(engine.Language) : null, cancel).Words];
+    public static PageRecognizer? ForBatch(WindowsRecognizer? ocr) => ocr is null ? null : AsSet(new SerialRecognizer(ocr, new Lock()));
+
+    /// <summary>
+    /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, no suspect words
+    /// marked, nothing written back (Compare).
+    /// </summary>
+    public static List<OcrWord> Recognize(WindowsRecognizer engine, PdfEngine pdf, int page, CancellationToken cancel) =>
+        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: false), null, cancel).Words];
 }

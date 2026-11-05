@@ -12,7 +12,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - In the Reading Order pane, choose what a piece is under Kind: a heading and its level, a paragraph, a caption, a footnote, a formula or a picture (a list can become a table of contents). Apply changes tags it that way.
 - Make Accessible tags a table cell that spans several rows as one cell, so a screen reader reads its header with each of those rows.
 - Make Accessible and Save as PDF/A-2a give text in old TeX papers' bitmap fonts its letters when the file names the TeX font, so it can be read aloud, searched and copied.
-- Batch, watched folders and the command line follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
+- Batch, watched folders, the command line, File › Scan and the exports to Word, Excel, PowerPoint, HTML and text follow Recognize Text's "Straighten and clean the pages first": turned off, they read the pages as scanned.
 
 ## 1.7.0
 - Inkvolt PDF speaks Spanish: it follows Windows' language, or choose under Settings › Language (Same as Windows, English or Español). It takes effect the next time the app starts. The command palette still finds commands by their English names.

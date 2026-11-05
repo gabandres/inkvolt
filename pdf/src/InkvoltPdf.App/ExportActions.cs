@@ -73,7 +73,7 @@ internal static class ExportActions
         {
             Pages = pages,
             Title = name,
-            Recognize = recognize ? (pdf, page, ct) => PageOcr.Recognize(ocr!, pdf, page, ct, AppSettings.Current.OcrSuspects) : null,
+            Recognize = recognize ? PageOcr.AsSet(ocr!).Page : null,
             Source = source,
             SourcePassword = sourcePassword,
             Progress = at => progress.Report(at.Stage switch
