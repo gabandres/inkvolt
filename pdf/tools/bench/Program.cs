@@ -15,6 +15,33 @@ if (args is ["find-worker-fault", var how, var badPage, .. var workerArgs] && Fi
     return FindWorkers.Run(workerArgs);
 }
 
+// The app's page check, so pages here are checked as they are in the app (and tests have a check process to start).
+if (PageChecks.IsCommand(args)) return PageChecks.Run(args);
+// A test's check process that ends itself on its first check (PageCheckTests).
+if (args is ["page-check-fault", .. var checkArgs] && PageChecks.IsCommand(checkArgs))
+{
+    PageChecks.TestCheckFault = () => System.Diagnostics.Process.GetCurrentProcess().Kill();
+    return PageChecks.Run(checkArgs);
+}
+// A test's check process in which drawing every page fails, as MuPDF's does when it runs out of memory (PageCheckTests).
+if (args is ["page-check-fail", .. var failArgs] && PageChecks.IsCommand(failArgs))
+{
+    PageChecks.TestCheckFault = () => throw new InvalidOperationException("Drawing failed.");
+    return PageChecks.Run(failArgs);
+}
+
+if (args is ["page-check-out-of-memory", .. var memoryArgs] && PageChecks.IsCommand(memoryArgs))
+{
+    // MuPDF giving up once the process held past half of what it may (1.2 GB of its 2 GB).
+    PageChecks.TestCheckFault = () =>
+    {
+        var held = GC.AllocateUninitializedArray<byte>(1200 << 20);
+        GC.KeepAlive(held);
+        throw (Exception)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(MuPDFCore.MuPDFException));
+    };
+    return PageChecks.Run(memoryArgs);
+}
+
 if (IndexWorkers.IsCommand(args)) return IndexWorkers.Run(args);
 // A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "eat" takes memory without end.
 if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerArgs] && IndexWorkers.IsCommand(indexWorkerArgs))

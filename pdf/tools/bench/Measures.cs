@@ -54,7 +54,12 @@ public static class Measures
         var sw = Stopwatch.StartNew();
         var data = inPlace ? null : File.ReadAllBytes(path);
         var readMs = Ms(sw);
-        PdfEngine OpenEngine() => data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
+        PdfEngine OpenEngine()
+        {
+            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
+            engine.CheckFirstPage(); // as DocumentSession does for the document the user opens
+            return engine;
+        }
 
         // First page: open (MuPDF parses the file and reads every page's size) and render page 1 as the viewer would.
         sw.Restart();
@@ -140,6 +145,8 @@ public static class Measures
     {
         var exe = Environment.ProcessPath ?? throw new InvalidOperationException("No process path.");
         string[] args = Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase) ? [typeof(Measures).Assembly.Location] : [];
+        // Pages are checked as the app checks them (INKVOLTPDF_BENCH_CHECKS=0: not, as before page checks).
+        if (Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_CHECKS") != "0") PageChecks.Use(exe, args);
         if (int.TryParse(Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS"), out var count))
         {
             // Started at once, whatever the search's pace says, when INKVOLTPDF_BENCH_WORKERS_NOW is set: what they cost a short search.

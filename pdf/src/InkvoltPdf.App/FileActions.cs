@@ -248,7 +248,14 @@ public static class FileActions
             var across = p.Turns == 1 ? p.Box.Height : p.Box.Width;
             var pxScale = dpi / 96 * across / region.Width;
             while (region.Width * region.Height * pxScale * pxScale > 60_000_000) pxScale *= 0.85;
-            images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
+            try
+            {
+                images[i] = PageViewer.ToBitmap(engine.Render(p.Page, pxScale, p.Source is null ? null : region, cancel));
+            }
+            catch (PageRefusedException)
+            {
+                images[i] = PageViewer.ToBitmap(new RenderedImage(1, 1, [255, 255, 255])); // a page that isn't shown prints blank; the rest prints
+            }
         }
         return new RenderedSheet(sheet, images);
     }
@@ -381,6 +388,7 @@ public static class FileActions
         }
 
         var done = 0;
+        var refused = new System.Collections.Concurrent.ConcurrentBag<int>();
         using var progress = new ProgressPrompt(owner, Strings.File_ExportingImages, Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
         var cancel = progress.Token;
         try
@@ -400,10 +408,17 @@ public static class FileActions
                         try { File.Delete(path); } catch (Exception) { } // don't leave half an image behind
                         throw;
                     }
+                    catch (PageRefusedException)
+                    {
+                        refused.Add(p); // a page that isn't shown isn't saved either: the rest are, and the status says which
+                        continue;
+                    }
                     Interlocked.Increment(ref done);
                 }
             }, cancel);
-            host.ShowStatus(Loc.Format(Strings.File_ExportedImages, done, dir));
+            host.ShowStatus(refused.IsEmpty
+                ? Loc.Format(Strings.File_ExportedImages, done, dir)
+                : Loc.Format(Strings.File_ExportedImagesLeftOut, done, dir, Core.PageRange.Format(refused)));
             Shell.Open(dir);
         }
         catch (OperationCanceledException)

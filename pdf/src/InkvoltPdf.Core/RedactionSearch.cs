@@ -534,6 +534,7 @@ public sealed partial class PdfEngine
     internal List<RectD> PictureBoxes(int page, CancellationToken cancel = default)
     {
         cancel.ThrowIfCancellationRequested();
+        Vet(page, cancel);
         EnterText(cancel);
         try
         {

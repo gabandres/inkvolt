@@ -57,7 +57,7 @@ public sealed partial class PageViewer
         if (from is not { } a || to is not { } b || _engine is null) return "";
         var engine = _engine;
         var cacheNew = b.Page - a.Page < 8;
-        return BuildText(a, b, p => _texts.TryGetValue(p, out var t) ? t : engine.GetText(p, cacheNew), PageCount, null, default);
+        return BuildText(a, b, p => _texts.TryGetValue(p, out var t) ? t : TextOf(engine, p, cacheNew, default), PageCount, null, default);
     }
 
     /// <summary>The selected text, extracted on a background thread. Reports (pages done, total pages).</summary>
@@ -72,7 +72,7 @@ public sealed partial class PageViewer
         for (var p = a.Page; p <= b.Page && p < count; p++)
             if (_texts.TryGetValue(p, out var t)) cached[p] = t;
         var total = Math.Min(b.Page, count - 1) - a.Page + 1;
-        return await Task.Run(() => BuildText(a, b, p => cached.TryGetValue(p, out var t) ? t : engine.GetText(p, cache: false, cancel), count,
+        return await Task.Run(() => BuildText(a, b, p => cached.TryGetValue(p, out var t) ? t : TextOf(engine, p, false, cancel), count,
             done => progress?.Report((done, total)), cancel), cancel);
     }
 
@@ -137,6 +137,19 @@ public sealed partial class PageViewer
         return null;
     }
 
+    /// <summary>A page's text for a selection: none on a page that isn't shown because it took too long to read.</summary>
+    internal static PageText TextOf(PdfEngine engine, int page, bool cache, CancellationToken cancel)
+    {
+        try
+        {
+            return engine.GetText(page, cache, cancel);
+        }
+        catch (PageRefusedException)
+        {
+            return PageText.Empty;
+        }
+    }
+
     /// <summary>Loads a page's text layer on the background lane (lower <paramref name="priority"/> = sooner).</summary>
     private void RequestText(int page, double priority)
     {
@@ -150,6 +163,10 @@ public sealed partial class PageViewer
             _surface.InvalidateVisual();
             if (_surface.IsMouseOver && !_surface.IsMouseCaptured) UpdateCursor(Mouse.GetPosition(_surface));
             _peer?.TextArrived(page);
+        }, ex =>
+        {
+            // A page that isn't shown has no text to select: asked once, not on every move of the mouse.
+            if (gen == _generation && ex is PageRefusedException) _texts[page] = PageText.Empty;
         }, tag: gen);
     }
 

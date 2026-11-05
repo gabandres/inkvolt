@@ -78,6 +78,7 @@ public sealed partial class PdfEngine
     /// <summary>A page's matches from what is already known of it, without reading it; null if it has to be read.</summary>
     private PageMatches? FindKnown(int page, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
     {
+        if (IsRefused(page)) return new PageMatches(page, null, [], new PageRefusedException(page, VerdictOf(page)));
         if (Volatile.Read(ref _pageStrings[page]) is { } known && !PageText.Matches(known, query, matchCase, wholeWord, ignoreAccents))
             return new PageMatches(page, null, []);
         var text = Volatile.Read(ref _pageTexts[page]);
@@ -109,9 +110,10 @@ public sealed partial class PdfEngine
         }
     }
 
-    private PageMatches FindOn(ref TextReader? reader, int page, string query, bool matchCase, bool wholeWord, bool ignoreAccents)
+    private PageMatches FindOn(ref TextReader? reader, int page, string query, bool matchCase, bool wholeWord, bool ignoreAccents, CancellationToken cancel)
     {
         if (FindKnown(page, query, matchCase, wholeWord, ignoreAccents) is { } known) return known;
+        Vet(page, cancel);
         var text = ReadPage(ref reader, page);
         Remember(page, text);
         var hits = text.Find(query, matchCase, wholeWord, ignoreAccents);
@@ -336,7 +338,7 @@ public sealed partial class PdfEngine
                     PageMatches m;
                     try
                     {
-                        m = _engine.FindOn(ref reader, i, _query, _matchCase, _wholeWord, _ignoreAccents);
+                        m = _engine.FindOn(ref reader, i, _query, _matchCase, _wholeWord, _ignoreAccents, _cancel);
                     }
                     catch (Exception ex)
                     {
@@ -498,7 +500,7 @@ public sealed partial class PdfEngine
     }
 
     /// <summary>A copy of the document's bytes in memory the workers read from, all from one place; no file behind it.</summary>
-    private sealed class SharedBytes : IDisposable
+    internal sealed class SharedBytes : IDisposable
     {
         private readonly MemoryMappedFile _file;
         public string Name { get; } = FindWorkers.NewPipeName();

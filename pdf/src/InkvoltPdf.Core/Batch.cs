@@ -1156,8 +1156,16 @@ public static class BatchRunner
                     cancel.ThrowIfCancellationRequested();
                     Report(Loc.Format(PdfStrings.Batch_SavingPage, p + 1, engine.PageCount), (double)p / engine.PageCount);
                     var dpi = PageImages.ClampDpi(engine.GetPage(p), step.Dpi);
-                    _outputs.Add(names.Place(_folder, $"{_baseName} - page {p + 1}.{(jpeg ? "jpg" : "png")}",
-                        temp => engine.SaveImage(p, dpi, temp, jpeg, cancel)));
+                    try
+                    {
+                        _outputs.Add(names.Place(_folder, $"{_baseName} - page {p + 1}.{(jpeg ? "jpg" : "png")}",
+                            temp => engine.SaveImage(p, dpi, temp, jpeg, cancel)));
+                    }
+                    catch (PageRefusedException)
+                    {
+                        // A page that took too long to read (or couldn't be): the rest are saved, and the note says which, as an export's does.
+                        _notes.Add(Loc.Format(PdfStrings.Batch_PageUnreadable, p + 1));
+                    }
                 }
                 return;
             }

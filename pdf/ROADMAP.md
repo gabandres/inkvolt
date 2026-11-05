@@ -846,6 +846,57 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Find reads pages on threads in process (`PdfEngine.findAll`, every core but one, no workers): 5,000 pages in 0.55 s, the
   drawing set in 6.9 s (33.5 s before); one copy of a file's bytes for all of an engine's instances took the drawing set's
   peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (584 ms a sheet) and its Find.
+  **A hostile file's time: MuPDF's own inflating, bounded by time (Windows, 2026-11-05).** PDFsharp's filters are bounded
+  (`BoundedFilters`, 256 MB a stream); MuPDF's inflating kept memory flat but not time: a 7 KB page Flate twice to 4 GB
+  took 52 to 116 s of one core to draw, a 1 MB one Flate once to 1 GB 13 s, a 20,000 × 20,000 picture of 1.2 MB 9 s a
+  draw (MuPDF reads a picture's samples only up to its width × height: a 10 × 10 one of 1 GB, milliseconds). MuPDF's
+  abort cookie can't reach it: the page's content is read while the display list is made, and MuPDFCore 2.0.1's wrapper
+  passes no cookie there and exports nothing of MuPDF's own; nor does MuPDF look at a render's cookie while it inflates
+  a picture. So (option A's fallback, the owner's choice over the rejected `InflateGuard` pre-scan) a page is first
+  drawn small, every picture decoded, in a **page check** (`Core/PageChecks.cs`, `PdfEngine.Checks.cs`): the app
+  started again with `--page-check`, killed after 10 s (about 30 times a drawing-set sheet's 0.3 s), the page then
+  refused with a note in the viewer and a reported empty page in exports, blank in print; Find, the other pages, text and
+  export go on. Every path that runs a page's content waits for its check once (render, save as image, text, Compare,
+  export, redaction's picture boxes, Find in process); Reduce File Size checks a picture of over 64 M samples first. In
+  the app the 7 KB page says so within 14 s, its neighbours draw, Find finds the rest (`PageCheckTests`, the dev script).
+  Cost (bench `one`, single runs on a busy PC, `INKVOLTPDF_BENCH_CHECKS=0` for without): drawing set first page 0.53 to
+  0.96 s, scroll proxy 1,068 to 1,167 ms a sheet, Find 32.9 to 34.0 s; text first page 0.09 to 0.24 s (the check
+  process starting), 5.8 to 9.6 ms a page, Find 2.78 to 2.74 s; two check processes of about 50 MB each, not in the
+  peaks above. A sheet drawn back to back costs about twice (0.45 to 1.0 s): its check (0.3 s in process) competes for
+  the same cores. Not covered: a document with a password (no secret crosses a pipe) and formats other than PDF run
+  unchecked; a document a check process can't open runs unchecked; the folder index's workers keep their own 2-minute
+  limit a file; the Mac.
+  **Its review (2026-11-05):** a check whose drawing MuPDF gave up on (damaged, or past the process's 2 GB) refuses the
+  page instead of passing it on to be drawn here unlimited; a picture of over 4,096 × 4,096 is also decoded at its full
+  size in the check (the small drawing decodes a JPEG at an eighth, a JPEG 2000 at its smallest level: a 30,000 ×
+  30,000 JPEG passed, then cost 900 M pixels in an export or a deep zoom), one too big for the 2 GB refused. When no
+  check process starts (the program missing, an antivirus holding it past 15 s), pages run unchecked (failing open, as
+  before page checks: failing safe would leave every document blank on that PC), nothing is kept of it, and a start is
+  tried again after 30 s, doubling to 5 minutes. Starting a check process and ending it can't cross any more (one
+  ended while it started opened a closed file). Only the document the user opens checks its first page as it opens
+  (not an engine opened for page sizes, a password or a thumbnail; a thumbnail checks its one page in the shared
+  process); a page asked ahead is withdrawn with the page it was asked for when that is scrolled past. Both processes
+  open one shared copy of a document.
+  Export as images, Batch's page images and Read Aloud leave a refused page out and say so; Reduce File Size measures a
+  soft mask by its picture's rule. Bench `one` after it (single runs, the PC at 50 to 100% from other work): text first
+  page 0.25 s with checks (0.07 without), 9.1 ms a page (5.6), Find 2.7 to 3.0 s (2.7); drawing set first page 1.03 s
+  (0.58), scroll and Find within the load's noise (1.1 to 1.7 s a sheet, 36 to 61 s either way); scan first page 0.21 s
+  (0.07), 27 ms a page (25). To measure again on an idle PC.
+  **Its second review (2026-11-05):** no verdict is carried to another engine any more (`PageIdentity` removed: PDFsharp's
+  view of a page vouched for what MuPDF would read, two parsers a hostile file can make disagree; a refusal stuck
+  whatever the edit changed; every edit hashed the document): an edit's, undo's or Reload's engine checks each page
+  again when it is first drawn. Measured (5 notes each, median, PC at 93%): the first draw after an edit 33 ms with
+  checks (14 without) on a text page, 1.54 s (0.99) on a 72,000-path sheet. Only MuPDF running out of the check
+  process's memory refuses a page (`PageChecks.OutOfResources`: a picture to decode of more than half of its 2 GB, or
+  the process past half of it during the check); a page MuPDF reads in part (it warns and draws what it can) is drawn
+  as before. An image's own soft mask, which MuPDF's structured text doesn't list, is decoded at its full size too
+  when over 4,096 × 4,096 (`PageMasks`: found through PDFsharp in the check process, documents up to 64 MB, only to
+  decode more); the pictures it does list (patterns, forms, comments) come from the drawing's display list, 40 to 48
+  ms after the 270 ms drawing of that sheet. A check process that fails to start leaves its page to the other one;
+  pages run unchecked only when none runs. A document closed just before its check process opens it no longer ends
+  that process. Bench `one` after it (single runs, the PC at 45 to 100%): text first page 0.27 s (0.08 without), 11 ms a
+  page (5.4); scan first page 0.33 s (0.08), 28 ms a page (29); a 2.7 MB scan, its masks read, 0.28 s (0.06); drawing
+  set first page 1.03 s (0.78), 0.98 s a sheet (1.09), Find 33 s (35).
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the

@@ -95,7 +95,7 @@ public sealed partial class PageViewer
             for (var p = a.Page; p <= last; p++)
             {
                 cancel.ThrowIfCancellationRequested();
-                var text = cached.TryGetValue(p, out var t) ? t : engine.GetText(p, cache: total <= 8, cancel);
+                var text = cached.TryGetValue(p, out var t) ? t : TextOf(engine, p, total <= 8, cancel);
                 var start = p == a.Page ? a.Caret : 0;
                 var end = p == b.Page ? Math.Min(b.Caret, text.Text.Length) : text.Text.Length;
                 if (end > start && text.GetRects(start, end).Where(r => !r.IsEmpty).ToList() is { Count: > 0 } rects) result.Add((p, rects));
@@ -109,7 +109,7 @@ public sealed partial class PageViewer
     internal bool DevSelect(int page, double x1, double y1, double x2, double y2)
     {
         if (_engine is null || page < 0 || page >= PageCount) return false;
-        var text = _texts.TryGetValue(page, out var t) ? t : _texts[page] = _engine.GetText(page);
+        var text = _texts.TryGetValue(page, out var t) ? t : _texts[page] = TextOf(_engine, page, true, default);
         if (_tool != ViewerTool.SelectText) Tool = ViewerTool.SelectText;
         _selAnchor = new TextPos(page, text.HitTest(x1, y1));
         _selActive = new TextPos(page, text.HitTest(x2, y2));

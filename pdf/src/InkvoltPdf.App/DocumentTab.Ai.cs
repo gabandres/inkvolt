@@ -311,7 +311,7 @@ public partial class DocumentTab
                         {
                             result[missing[i]] = engine.GetText(missing[i], cache: false, cts.Token).Text;
                         }
-                        catch (MuPDFCore.MuPDFException ex)
+                        catch (Exception ex) when (ex is MuPDFCore.MuPDFException or PageRefusedException)
                         {
                             Log.Write($"AI: page {missing[i] + 1} can't be read: {ex.Message}");
                             result[missing[i]] = "";

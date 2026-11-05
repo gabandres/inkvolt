@@ -17,6 +17,16 @@ locality) are used in their usual sense: the interface is everything a caller mu
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index
   current: lists the folder (**a look**), has workers read what is new or changed, commits, waits for a change notice or the next look.
+- **Page check** (`Core/PageChecks.cs`, the engine's side in `Core/PdfEngine.Checks.cs`): the app started again with
+  `--page-check <pipe name>`, drawing a page small (every picture decoded) before the app first runs that page's
+  content in MuPDF, a picture of over 4,096 × 4,096 also decoded at its full size, and so is an image's soft mask of
+  that size (found through PDFsharp, `Core/PageMasks.cs`, only to decode more). One still drawing after the limit
+  (10 s), or on which MuPDF runs out of the process's 2 GB, is ended and the page **refused** (`PageRefusedException`):
+  the viewer says it took too long or can't be displayed, Find, export, print and read aloud go on without it; any
+  other failure there draws the page as before. A page's **verdict** is kept for its engine only: an edit, undo or
+  Reload's engine checks each page again when it is first used. When one fails to start, the other takes its pages;
+  when none can, pages run unchecked and a start is tried again later. At most two, shared by every open document;
+  they end with the app.
 - **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
   are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
   unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.

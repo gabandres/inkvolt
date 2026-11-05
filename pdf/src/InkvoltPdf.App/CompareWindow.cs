@@ -367,7 +367,7 @@ internal sealed class CompareWindow : Window
                     {
                         t = engine.GetComparePage(p, cancel);
                     }
-                    catch (Exception ex) when (ex is MuPDFCore.MuPDFException or ArgumentException)
+                    catch (Exception ex) when (ex is MuPDFCore.MuPDFException or ArgumentException or PageRefusedException)
                     {
                         t = ComparePage.Empty; // a damaged page, or text mapped to no character: no text to compare (its row says so)
                     }

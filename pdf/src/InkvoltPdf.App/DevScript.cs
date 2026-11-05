@@ -369,7 +369,7 @@ internal static class DevScript
             case "findcount": // how many times the document's text has a word (what search finds)
             {
                 var hits = 0;
-                for (var p = 0; p < tab!.Session.Engine.PageCount; p++) hits += tab.Session.Engine.GetText(p).Find(arg, true, false).Count();
+                for (var p = 0; p < tab!.Session.Engine.PageCount; p++) hits += Viewer.PageViewer.TextOf(tab.Session.Engine, p, true, default).Find(arg, true, false).Count();
                 log.Add($"findcount {arg}: {hits}");
                 break;
             }

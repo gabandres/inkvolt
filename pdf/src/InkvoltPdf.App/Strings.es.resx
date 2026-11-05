@@ -5475,6 +5475,9 @@ Modificado {1:g}</value>
   <data name="Viewer_PageFailed" xml:space="preserve">
     <value>Esta página no se puede mostrar</value>
   </data>
+  <data name="Viewer_PageTooSlow" xml:space="preserve">
+    <value>Esta página tardaba demasiado en leerse y no se muestra</value>
+  </data>
   <data name="Viewer_OpenLinkTitle" xml:space="preserve">
     <value>¿Abrir este vínculo?</value>
   </data>
@@ -8953,6 +8956,10 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="File_ExportedImages" xml:space="preserve">
     <value>Se exportaron {0} imagen(es) a {1}</value>
     <comment>{1} a folder</comment>
+  </data>
+  <data name="File_ExportedImagesLeftOut" xml:space="preserve">
+    <value>Se exportaron {0} imagen(es) a {1}. Se omitieron las páginas {2}: no se pudieron leer</value>
+    <comment>{1} a folder, {2} page numbers ("2, 5-7")</comment>
   </data>
   <data name="File_ExportCancelledImages" xml:space="preserve">
     <value>Exportación cancelada. Se guardaron {0} imagen(es) en {1}</value>

@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- A page built to take minutes to read (a few kilobytes that unpack to gigabytes) is given up on after 10 seconds: it says "This page took too long to read", and the rest of the document still shows, searches, prints and exports. A picture like that on a page, or in Reduce File Size, too.
 - Batch's Redact Patterns gives the redacted pages their text back, as Apply Redactions does, so a redacted scan stays searchable and selectable.
 - Edit Text & Images edits turned text (a sideways column, a title set at an angle) as a whole paragraph too: it rewraps in its own direction, with the editor turned to match.
 - A paragraph with a word in another font (a name in Times among Arial, a line that starts with one) edits as a whole paragraph now, and that word keeps its font.

@@ -294,7 +294,8 @@ public sealed class ReadAloud : IDisposable
         if (engine is null) return null;
         try
         {
-            return await Task.Run(() => engine.GetText(page));
+            // A page that isn't shown (its check refused it) reads as empty: reading goes on with the next page.
+            return await Task.Run(() => Viewer.PageViewer.TextOf(engine, page, true, default));
         }
         catch (Exception ex) when (ex is ObjectDisposedException or InvalidOperationException or MuPDFCore.MuPDFException)
         {
