@@ -11,16 +11,25 @@ public struct HttpRequest: Sendable {
     public var timeout: Duration
     /// A request that changes something on the printer and must never arrive twice: no pooled connection, no resend.
     public var once: Bool
+    /// The most of the reply that is kept (Windows' `DeviceHttp.ReplyLimit`): `DeviceHttp.maxReplyBytes` for a printer's
+    /// documents, `maxScanReplyBytes` once `allowLongReply` marks a scanned page. A transport gives up on a longer reply as it
+    /// arrives.
+    public var replyLimit: Int
 
     public init(_ method: String, _ url: URL, headers: [String: String] = [:], body: [UInt8]? = nil, timeout: Duration = DeviceHttp.defaultTimeout,
-                once: Bool = false) {
+                once: Bool = false, replyLimit: Int = DeviceHttp.maxReplyBytes) {
         self.method = method
         self.url = url
         self.headers = headers
         self.body = body
         self.timeout = timeout
         self.once = once
+        self.replyLimit = replyLimit
     }
+
+    /// A reply that may be longer than a document: a scanned page, or a feeder's whole run as one PDF (Windows'
+    /// `DeviceHttp.AllowLongReply`).
+    public mutating func allowLongReply() { replyLimit = DeviceHttp.maxScanReplyBytes }
 
     public func header(_ name: String) -> String? { headers.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value }
 }

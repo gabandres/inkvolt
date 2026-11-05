@@ -7,9 +7,9 @@ import Synchronization
 /// The network for one printer (`HttpTransportFactory`): URLSession with nothing kept between runs (no cookies, cache or
 /// saved credentials), redirects returned rather than followed, and every TLS handshake checked against the printer's
 /// certificate pins (`CertificateCheck`). A request sent `once` goes out on a session of its own, so it's never resent on a
-/// pooled connection. Timeouts are `DeviceHttp`'s. With `replyLimit`, a reply longer than that many bytes is given up on as
-/// it arrives (Windows' `DeviceHttp.MaxReplyBytes`): a recording's (`PrinterRecorder.maxReplyBytes`), so a printer that
-/// never stops answering can't fill this Mac's memory.
+/// pooled connection. Timeouts are `DeviceHttp`'s. Every reply is read as it arrives and given up on past the request's
+/// `replyLimit` (as Windows' `DeviceHttp` bounds every reply: 32 MB, a scanned page 1 GB), so a printer that never stops
+/// answering can't fill this Mac's memory; `replyLimit` here lowers that bound (the tests' quick one).
 public final class URLSessionTransport: HttpTransport {
     private let check: CertificateCheck
     private let localNetwork: LocalNetworkSignal?
@@ -52,14 +52,8 @@ public final class URLSessionTransport: HttpTransport {
         let session = request.once ? Self.session(check) : self.session
         defer { if request.once { session.finishTasksAndInvalidate() } }
         do {
-            let reply: HttpResponse
-            if let replyLimit {
-                reply = try await bounded(r, session, replyLimit)
-            } else {
-                let (data, response) = try await session.data(for: r)
-                guard let head = Self.head(response) else { throw DeviceNetworkError.failed("Not an HTTP reply") }
-                reply = HttpResponse(status: head.status, headers: head.headers, body: Array(data))
-            }
+            let limit = replyLimit.map { min($0, request.replyLimit) } ?? request.replyLimit
+            let reply = try await bounded(r, session, limit)
             localNetwork?.answered()
             return reply
         } catch let error as DeviceNetworkError {

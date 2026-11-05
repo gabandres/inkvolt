@@ -56,6 +56,12 @@ public typealias HttpTransportFactory = @Sendable (_ host: String, _ check: Cert
 /// never a process-wide rule; the admin password goes only to the web server's HTTPS port.
 public final class DeviceHttp: Sendable {
     public static let defaultTimeout: Duration = .seconds(5)
+    /// The most kept of a reply (Windows' `DeviceHttp.MaxReplyBytes`): a printer's documents are kilobytes, and one that never
+    /// stops mustn't fill this Mac's memory. Every request carries it (`HttpRequest.replyLimit`).
+    public static let maxReplyBytes = 32 << 20
+    /// The most kept of a reply marked `HttpRequest.allowLongReply` (Windows' `MaxScanReplyBytes`): a scanned page, or a
+    /// feeder's whole run as one PDF.
+    public static let maxScanReplyBytes = 1 << 30
 
     public let host: String
     public let httpBase: URL
