@@ -11,6 +11,7 @@ A PDF, a scanner's or printer's reply, a file on disk and a number the user type
   styles. (Go to Page hung on thousands of page-label styles; a scanner PDF's page size crashed the Mac app.)
 - **A floating-point value is checked finite and in range before it becomes an integer.** In Swift, `Int(x)` traps on
   NaN, infinity or out of range; check in Double first. (A watermark width of "inf" quit the app.)
+  `mac/tools/check-int.sh` checks the rounded form.
 - **Text from outside is shortened before it fills a line** (Document Properties' producer text pushed the window off
   screen).
 

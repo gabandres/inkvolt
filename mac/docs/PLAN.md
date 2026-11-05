@@ -113,6 +113,13 @@ sheet's buttons were cut off (it's wider now) |
 
 ## Mac differences
 
+- Numbers from outside that become an Int (2026-11-04): Swift's `Int(x)` traps on NaN, infinity or a value out of range
+  where .NET's cast doesn't, so such a value is checked as a Double first (`Int(exactly:)`, or a `// bounded:` reason;
+  `mac/tools/check-int.sh` in CI; `HostileNumberTests` in both packages). Where it shows: a poster is at most
+  `PrintLayout.maxPosterTiles` (1000) sheets across or down; an image too large to state says so without its size; a field
+  font size that isn't a number reads Auto; a color component that isn't a number is written as 0; a redaction area's NaN
+  edge blacks out to the image's edge; a supply forecast from readings that make no line is steady; the photo finder looks
+  for nothing beyond 1e6 pixels per inch; Office exports write lengths within ±1e15 units.
 - Inkvolt Pro's signature check is a protocol in PrintCore (`ProSignatureVerifier`): CryptoKit in PrintMac, a stand-in in the
   Windows-run tests. Key dates stay text (yyyy-MM-dd, checked as a real date) instead of .NET's `DateOnly`. The key file has one home
   (no Store-package redirection to look through).

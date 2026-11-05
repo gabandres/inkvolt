@@ -25,6 +25,8 @@ jobs:
           if [ -n "$xcode" ]; then sudo xcode-select -s "$xcode"; fi
           xcodebuild -version
           swift --version
+      # A rounded Double turned into an Int traps on NaN, infinity or a huge value: checked form or a // bounded: reason.
+      - run: sh mac/tools/check-int.sh
       - run: swift test --package-path mac/InkvoltPrintKit -Xswiftc -warnings-as-errors
       - run: xcodebuild -project mac/InkvoltPrint/InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration Release -destination generic/platform=macOS -quiet build CODE_SIGNING_ALLOWED=NO # warnings are errors in the app target
 
