@@ -7,7 +7,7 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 
 - **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
-  `pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
+  `pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
   imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
@@ -17,7 +17,7 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
 - **From the PC, one call per step: `bash mac/tools/mac.sh`** (Git Bash; its header lists the commands). `sync` sends the
   PC's working tree, uncommitted files included, as a git commit object pushed straight to the Mac (no GitHub, no
   copying, LF as git stores it) into the worktree `~/Repos/inkvolt-pc`; `pdf-test [filter]`, `print-test`, `pdf-app`,
-  `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'` and `log <name>`. Only one session at a time
+  `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'`, then `wait <name>` as a background command (or `log <name>`). Only one session at a time
   uses `inkvolt-pc`. SSH multiplexing doesn't work from Git Bash, and isn't needed: a connection takes 0.3 s.
 - **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
   XCFramework lives in its `mac/InkvoltPdfKit/Frameworks`, which `inkvolt-pc` links to).

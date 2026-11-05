@@ -398,12 +398,17 @@ public struct BatchPasswordRequest: Sendable {
 public struct BatchHost: Sendable {
     /// Asks for a file's password (one prompt at a time); nil skips the file. Unset: files that need one are skipped.
     public var askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)?
-    /// Recognizes a page's words (page points, top-left origin); called from worker threads.
+    /// Recognizes a page's words (page points, top-left origin); called from worker threads. Words it marks as suspect
+    /// (`OcrWord.suspect`) stay marked in the text layer, for the Suspect Words pane when the file is opened.
     public var recognize: Recognizer?
+    /// The language `recognize` reads in (a BCP-47 tag), kept with the text layer for its review.
+    public var recognizeLanguage: String?
 
-    public init(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil, recognize: Recognizer? = nil) {
+    public init(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil, recognize: Recognizer? = nil,
+                recognizeLanguage: String? = nil) {
         self.askPassword = askPassword
         self.recognize = recognize
+        self.recognizeLanguage = recognizeLanguage
     }
 }
 
@@ -655,7 +660,8 @@ public enum BatchRunner {
                         try reportContents(data)
                     case .ocr:
                         let words = try recognize(data)
-                        if !words.isEmpty { data = try await edit(data) { d, pw in try TextLayer.addInvisibleText(d, pw, words) } }
+                        let language = host.recognizeLanguage
+                        if !words.isEmpty { data = try await edit(data) { d, pw in try TextLayer.addInvisibleText(d, pw, words, language: language) } }
                     default:
                         data = try await edit(data) { d, pw in try self.apply(step, d, pw) }
                         afterStep(step)
@@ -861,6 +867,8 @@ public enum BatchRunner {
                 if !found.isEmpty { words[p] = found }
             }
             if !words.isEmpty { notes.append("Text recognized on \(BatchRunner.plural(words.count, "page"))") } else if hadText < engine.pageCount { notes.append("No text recognized") }
+            let suspect = words.values.reduce(0) { n, page in n + page.filter { !$0.suspect.isEmpty }.count }
+            if suspect > 0 { notes.append("\(BatchRunner.plural(suspect, "suspect word")) to check (Tools › Review Suspect Words)") }
             return words
         }
 

@@ -31,7 +31,7 @@ public struct ExportOptions: Sendable {
     /// The document's title in the Word and Excel file.
     public var title: String?
     /// Text recognition for pages without text (scans); nil reads only the text the pages have. The app passes
-    /// `PageOcr.recognizer(VisionRecognizer())`.
+    /// Vision through Recognize Text's choices; the words it marks as suspect are counted in `ExportReport.suspectWords`.
     public var recognize: Recognizer?
     /// Called as each page is read or recognized, and once before the file is written (on the exporting thread).
     public var progress: (@Sendable (ExportProgress) -> Void)?
@@ -67,7 +67,8 @@ public struct ExportProblem: Equatable, Sendable {
 /// `recognized`: pages whose text came from the recognizer; `noText`: pages without text (after recognition),
 /// `noTextWithPictures` those with pictures (Word, PowerPoint and HTML keep them);
 /// `tables`: Excel's tables (one sheet each); `unreadable`: damaged pages, exported empty; `recognitionFailed`: pages
-/// exported without text because recognition failed.
+/// exported without text because recognition failed; `suspectWords`: of the words recognized, those the recognizer
+/// marked as suspect (worth checking against the page; `ExportOptions.recognize`).
 public struct ExportReport: Equatable, Sendable {
     public var saved: Bool
     public var pages: Int
@@ -77,6 +78,7 @@ public struct ExportReport: Equatable, Sendable {
     public var tables: Int
     public var unreadable: [ExportProblem]
     public var recognitionFailed: [ExportProblem]
+    public var suspectWords: Int = 0
 }
 
 /// Export to Word, Excel, plain text, PowerPoint and HTML (pdf/GLOSSARY.md "Document export"). `export` (to a sink) and `exportToFile`
@@ -128,7 +130,7 @@ public enum DocumentExport {
         }
         return ExportReport(saved: saved, pages: pages.count, recognized: run.recognized, noText: run.noText,
                             noTextWithPictures: run.noTextWithPictures, tables: tables, unreadable: run.unreadable,
-                            recognitionFailed: run.recognitionFailed)
+                            recognitionFailed: run.recognitionFailed, suspectWords: run.suspectWords)
     }
 
     /// `export` to `path`, through a temporary file in the same folder that is swapped in at the end: a failed or
@@ -178,7 +180,7 @@ public enum DocumentExport {
         let tags: ExportTags
         let options: ExportOptions
         let cancel: CancelToken?
-        var recognized = 0, noText = 0, noTextWithPictures = 0, withShapes = 0
+        var recognized = 0, noText = 0, noTextWithPictures = 0, withShapes = 0, suspectWords = 0
         var unreadable: [ExportProblem] = [], recognitionFailed: [ExportProblem] = []
         private var i = 0
 
@@ -224,6 +226,7 @@ public enum DocumentExport {
                         page.lines = ExportPage.linesFromOcr(words)
                         page.fromOcr = true
                         recognized += 1
+                        suspectWords += words.filter { !$0.suspect.isEmpty }.count
                     }
                 } catch is CancellationError {
                     throw CancellationError()

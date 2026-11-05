@@ -390,10 +390,13 @@ struct AppTest {
 
     private mutating func scan() async {
         ScanWindowController.useDemoScanners()
-        ScanWindowController.testRecognizer = { _, _, _ in [OcrWord("Scanned", RectD(72, 72, 120, 24))] }
+        // Read as Recognize Text reads (its choices: cleaned, suspect words listed), by a stand-in: "recognlzed" on each page.
+        ScanWindowController.testReader = OcrTest.StandInReader()
+        ScanWindowController.testSpelling = OcrTest.StandInDictionary()
         defer {
             ScanWindowController.testScanners = nil
-            ScanWindowController.testRecognizer = nil
+            ScanWindowController.testReader = nil
+            ScanWindowController.testSpelling = nil
         }
         ScanWindowController.show()
         guard let s = ScanWindowController.shared else { return check(false, "Scan: not shown") }
@@ -433,7 +436,22 @@ struct AppTest {
         _ = await wait(2) { c?.longTask != nil }
         _ = await wait(30) { c?.longTask == nil }
         let text = (try? document?.engine?.text(0))?.text ?? ""
-        check(text.contains("Scanned") && document?.session?.undoLabel != nil, "Make the text searchable: the pages recognized, their words found")
+        check(text.contains("Inkvolt") && document?.session?.undoLabel != nil, "Make the text searchable: the pages recognized, their words found")
+        // Its suspect words kept in the text layer, counted, and the Suspect Words pane opened on them.
+        let said = c?.noticeBar.message ?? ""
+        let listed = c?.sidebar.suspectWords.items.count ?? 0
+        check(said.contains("3 suspect words to check") && listed == 3 && c?.sidebar.shownPane == .suspectWords,
+              "Scan with OCR: its suspect words counted (“\(said.prefix(90))”) and listed in the Suspect Words pane (\(listed))")
+        // The file opened again (as a Batch or scan result is): the pane offers its suspect words left.
+        if let bytes = document?.session?.data, let again = NewDocuments.open(bytes, name: "Scan suspect words") {
+            let reopened = controller(again)
+            let offered = await wait(5) { reopened?.sidebar.showsSuspectWords == true && reopened?.sidebar.suspectWords.items.count == 3 }
+            let quick = TextLayer.mayHaveLayer(SyntheticPdf.make()) == false && (try? TextLayer.hasSuspectWords(bytes, nil)) == true
+            check(offered && quick, "a file opened with suspect words left offers the Suspect Words pane (a file without a text layer isn't read for one)")
+            again.close()
+        } else {
+            check(false, "a file opened with suspect words left: not opened")
+        }
 
         // Pages › Insert from Scanner… into that document: one page from the glass, inserted before page 1, one undo step.
         if let c {
@@ -454,6 +472,16 @@ struct AppTest {
             check(ready && titled && scanned == 1 && inserted && document?.engine?.pageCount == 4 && insert?.lastInserted?.at == 0
                   && label == "Insert 1 page from the scanner",
                   "Insert from Scanner: the scan window for the document, 1 page scanned and inserted before page 1 (\(document?.engine?.pageCount ?? 0) pages, “\(label)”)")
+            // The page inserted has no text: exported with a stand-in recognizer that marks one suspect word, the message counts it.
+            let plain = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("Scan suspect words.txt"))
+            let reader: Recognizer = { _, _, _ in
+                [OcrWord("Recognized", RectD(72, 72, 120, 14)), OcrWord("w0rds", RectD(200, 72, 60, 14), suspect: .lettersAndDigits)]
+            }
+            let exported = await c.runExport(.text, to: plain, pages: [0], recognize: true, recognizer: reader)
+            let note = c.noticeBar.message
+            check(exported?.saved == true && exported?.recognized == 1 && exported?.suspectWords == 1
+                  && note.contains("1 suspect word (check it against the PDF)"),
+                  "Export to text with OCR: the scanned page recognized, its suspect word counted (“\(note.prefix(110))”)")
             c.window?.undoManager?.undo()
             _ = await wait(5) { document?.engine?.pageCount == 3 }
             ScanWindowController.show()

@@ -4,7 +4,7 @@
 #   ./build.sh          Release configuration
 #   ./build.sh debug    Debug configuration
 # Signs with the Apple Development identity in ~/Library/Keychains/inkvolt-dev.keychain-db (dev-cert.sh), unlocked with
-# DEV_KEYCHAIN_PASSWORD from .env.local, so macOS keeps the app's Screen Recording and Local Network permissions from one
+# DEV_KEYCHAIN_PASSWORD from .env.local (INKVOLT_ENV names another; the release clone's from a worktree), so macOS keeps the app's Screen Recording and Local Network permissions from one
 # build to the next. Without it, or with SIGN_IDENTITY=-, signs ad-hoc: a new app to macOS each time, which asks again.
 set -eu
 cd "$(dirname "$0")"
@@ -18,7 +18,10 @@ identity="${SIGN_IDENTITY:-}"
 team=
 flags=
 keychain="$HOME/Library/Keychains/inkvolt-dev.keychain-db"
-password="$(sed -n 's/^DEV_KEYCHAIN_PASSWORD=//p' .env.local 2>/dev/null | tail -1)"
+# The PC's sync worktree (~/Repos/inkvolt-pc) has no .env.local: the release clone's is used, never printed.
+env="${INKVOLT_ENV:-.env.local}"
+[ -f "$env" ] || env="$HOME/Repos/inkvolt/mac/InkvoltPrint/.env.local"
+password="$(sed -n 's/^DEV_KEYCHAIN_PASSWORD=//p' "$env" 2>/dev/null | tail -1)"
 if [ -z "$identity" ] && [ -f "$keychain" ] && [ -n "$password" ]; then
   security unlock-keychain -p "$password" "$keychain"
   identity="$(security find-identity -v -p codesigning "$keychain" | awk '/^ *1\)/ { print $2; exit }')"

@@ -12,8 +12,10 @@
 #   mac/tools/mac.sh pdf-app [args…]            sync, build and install Inkvolt PDF.app (mac/InkvoltPdf/build.sh)
 #   mac/tools/mac.sh bg <name> '<command>'      sync, run detached; log in ~/build-logs/<name>.log, exit code in <name>.status
 #   mac/tools/mac.sh log <name> [lines]         the end of a detached run's log and its status
+#   mac/tools/mac.sh wait <name> [lines] [s]    waits (at most s seconds, default 1800) for a detached run, then `log`
 #
-# Long runs (a full test pass, the app's --self-test) go through `bg`, then `log`, so no SSH session waits on them.
+# Long runs (a full test pass, the app's --self-test) go through `bg`, then `wait` (as a background command) or `log`, so no
+# SSH session waits on them and nobody polls with sleep.
 set -euo pipefail
 
 HOST=${INKVOLT_MAC_HOST:-ignia-mac}
@@ -85,6 +87,16 @@ case ${1:-} in
         ;;
     log)
         remote "tail -n ${3:-40} ~/build-logs/$2.log; echo; if [ -f ~/build-logs/$2.status ]; then echo \"exit \$(cat ~/build-logs/$2.status)\"; else echo running; fi"
+        ;;
+    wait)
+        # Short SSH calls every 10 s (a dropped connection costs one try, not the run); exits with the run's own code.
+        deadline=$((SECONDS + ${4:-1800}))
+        until remote "test -f ~/build-logs/$2.status" 2>/dev/null; do
+            if [ $SECONDS -ge $deadline ]; then echo "still running after ${4:-1800} s"; exit 124; fi
+            sleep 10
+        done
+        remote "tail -n ${3:-40} ~/build-logs/$2.log; echo; echo \"exit \$(cat ~/build-logs/$2.status)\""
+        exit "$(remote "cat ~/build-logs/$2.status" | tr -dc 0-9)"
         ;;
     *) sed -n '2,19p' "$0"; exit 2 ;;
 esac

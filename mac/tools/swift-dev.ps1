@@ -1,5 +1,5 @@
 # Runs swift on the Windows PC for the Foundation-only packages (InkvoltPrintKit's PrintCore):
-#   pwsh -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native
+#   pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native
 # Needs the Swift toolchain (winget Swift.Toolchain) and Visual Studio's C++ ARM64 tools and Windows SDK. Loads the
 # Visual Studio developer environment (link.exe, the SDK headers) and the toolchain's SDKROOT, which a shell opened before
 # the install doesn't have. --build-system native: the default (Swift Build) loses the SDK's C headers on this setup.

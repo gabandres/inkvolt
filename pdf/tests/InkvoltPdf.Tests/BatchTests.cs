@@ -462,6 +462,7 @@ public sealed class BatchTests : IDisposable
         Directory.Delete(Out, true);
         var plain = await Run([scan], Plan(new OcrStep()), new BatchHost { Ocr = new PageRecognizer(new WordsReader(("Recognized", new RectD(40, 40, 300, 50))), new RecognizeOptions(Clean: false), new WordsReader.Dictionary("Recognized")) });
         Assert.DoesNotContain(plain.Items[0].Notes, n => n.Contains("suspect", StringComparison.Ordinal));
+        Assert.DoesNotContain(PdfStrings.Batch_NoTextRecognized, plain.Items[0].Notes); // words were read
         Assert.False(TextLayer.HasSuspectWords(File.ReadAllBytes(Path.Combine(Out, "scan.pdf")), null));
     }
 

@@ -61,6 +61,17 @@ public enum PageOcr {
         }
     }
 
+    /// A page recognizer that reads as Recognize Text does (roadmap 2.2; the Windows app's `PageOcr.Recognize` with
+    /// suspect words): each page through `ScanText` with `options` and `spelling`, so the words it marks as suspect stay
+    /// marked (Batch keeps them in the text layer for review, export counts them). Nothing is written back: a cleaned
+    /// image is never kept, so the words fit the page as it is.
+    public static func recognizer(_ reader: some TextRecognizer, options: RecognizeOptions, spelling: (any Spelling)? = nil) -> Recognizer {
+        var options = options
+        options.keepCleanedImage = false
+        let read = options
+        return { engine, page, cancel in try ScanText.recognize(engine, page, reader, read, spelling: spelling, cancel: cancel).words }
+    }
+
     /// OCR of `pages`: pages that already have text are skipped; words mostly inside an `exclude` area (blacked-out
     /// redactions) are dropped. `progress` gets (pages done, pages to do).
     /// - Throws: `CancellationError` when `cancel` fires; the recognizer's errors.

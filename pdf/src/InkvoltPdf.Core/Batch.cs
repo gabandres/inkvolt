@@ -1130,9 +1130,12 @@ public static class BatchRunner
             using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
             var read = host.Ocr!.Recognize(engine, progress: new DirectProgress<(int Done, int Total)>(p =>
                 Report(Loc.Format(PdfStrings.Batch_Recognizing, p.Done + 1, p.Total), (double)p.Done / p.Total)), cancel: cancel);
-            if (read.Words.Count > 0) _notes.Add(Loc.Plural(read.Words.Count, PdfStrings.Batch_TextRecognized_One, PdfStrings.Batch_TextRecognized_Many));
-            if (read.SuspectCount is var suspect and > 0)
-                _notes.Add(Loc.Plural(suspect, PdfStrings.Batch_SuspectWords_One, PdfStrings.Batch_SuspectWords_Many));
+            if (read.Words.Count > 0)
+            {
+                _notes.Add(Loc.Plural(read.Words.Count, PdfStrings.Batch_TextRecognized_One, PdfStrings.Batch_TextRecognized_Many));
+                if (read.SuspectCount is var suspect and > 0)
+                    _notes.Add(Loc.Plural(suspect, PdfStrings.Batch_SuspectWords_One, PdfStrings.Batch_SuspectWords_Many));
+            }
             else if (read.HadText < engine.PageCount) _notes.Add(PdfStrings.Batch_NoTextRecognized);
             return read;
         }

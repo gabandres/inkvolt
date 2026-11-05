@@ -15,4 +15,5 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test Inkvolt.slnx -c Release
+      # A failed test is run once more alone; one that passes then is a "Flaky test" warning, not a failure.
+      - run: pwsh -NoProfile -File tools/test.ps1 -Configuration Release

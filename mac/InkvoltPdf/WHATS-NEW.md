@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Batch's Recognize Text (the Batch window, watched folders and `--batch`) reads scans as Tools › Recognize Text does, with its language and choices: the words it wasn't sure of are kept for review, the file's notes say how many, and opening the file lists them in the sidebar's Suspect Words.
+- Exports to Word, Excel, PowerPoint, HTML and text that read scanned pages say how many suspect words there were, to check against the PDF.
 
 ## 1.7.0
 - Export and import comments (Tools › Annotate): XFDF for Acrobat and other PDF apps, FDF, or a CSV for spreadsheets. Replies, colors, authors and shapes come along; importing adds only what the document doesn't have yet, and one Undo takes it back.

@@ -125,6 +125,7 @@ and install together.
 | [`print/`](print/README.md) | **Inkvolt Print**: a lean, private app for your printers and scanners (status, ink or toner, scan, copy, print) | MIT |
 | `shared/` | `InkvoltPrint.Core` (protocols: eSCL, IPP, LEDM, CDM, SNMP, scan options, remembered printers) and `InkvoltPrint.Windows` (discovery, Windows queues, WIA): used by both apps; tested by `print/tests` | MIT |
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
+| `tools/` | `test.ps1`: the tests CI runs, a test that fails under load run again alone and named as flaky | MIT |
 | [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (1.0 in the [Mac App Store](https://apps.apple.com/app/id6827219248)) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
 
 The license of each folder is in its `LICENSE`. At the top level, [LICENSE](LICENSE) is the AGPL-3.0 text (Inkvolt
@@ -148,9 +149,9 @@ Needs the .NET 10 SDK on Windows 10 (19041) or later, x64 or ARM64. Each app als
 ### Install both
 
 ```powershell
-pwsh -File install-suite.ps1             # publishes both, installs to %LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf and \InkvoltPrint
-pwsh -File install-suite.ps1 -NoBuild    # install the existing publish outputs (pdf/publish, print/publish)
-pwsh -File install-suite.ps1 -Uninstall  # removes only what it added, and puts back registry values it replaced
+pwsh -NoProfile -File install-suite.ps1             # publishes both, installs to %LOCALAPPDATA%\Programs\Inkvolt\InkvoltPdf and \InkvoltPrint
+pwsh -NoProfile -File install-suite.ps1 -NoBuild    # install the existing publish outputs (pdf/publish, print/publish)
+pwsh -NoProfile -File install-suite.ps1 -Uninstall  # removes only what it added, and puts back registry values it replaced
 ```
 
 It adds a Start Menu folder "Inkvolt" with both apps ("Inkvolt PDF", "Inkvolt Print"), App Paths entries (`InkvoltPdf.exe`,
@@ -165,8 +166,8 @@ Manager. The installers don't remove an install made under the old names: uninst
 ### Microsoft Store
 
 ```powershell
-pwsh -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # → pdf/publish/msix
-pwsh -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # → pdf/publish/msix
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
 ```
 
 Partner Center values, Store policy notes and listing drafts: [`pdf/packaging/README.md`](pdf/packaging/README.md),

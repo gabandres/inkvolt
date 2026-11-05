@@ -107,7 +107,7 @@ public enum WatchedFolder {
         var plan = plan
         plan.passwords = .skip
         plan.keepSubfolders = false
-        let host = BatchHost(recognize: host.recognize) // no prompts: nobody may be there to answer
+        let host = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage) // no prompts: nobody may be there to answer
         if let planError = plan.validate(ocrAvailable: host.recognize != nil) { throw PdfEditError(planError) }
 
         let held = try lock(folder)
