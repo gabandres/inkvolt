@@ -135,11 +135,8 @@ public final class AlertTracker {
         self.rules = rules
         self.timeZone = timeZone
         for (uuid, keys) in shown.sorted(by: { $0.key < $1.key }) {
-            for key in keys {
-                if key.hasPrefix(JobRules.keyPrefix) {
-                    rememberJob(uuid, key)
-                    continue
-                }
+            rememberJobs(uuid, keys.filter { $0.hasPrefix(JobRules.keyPrefix) })
+            for key in keys where !key.hasPrefix(JobRules.keyPrefix) {
                 guard let kind = AlertCondition.kind(of: key) else { continue }
                 let t = printer(uuid).track(key, kind)
                 t.notified = true
@@ -288,7 +285,7 @@ public final class AlertTracker {
     public func shown() -> [String: [String]] {
         var result: [String: [String]] = [:]
         for (uuid, p) in printers {
-            let jobs = p.queue.order.compactMap { p.queue.jobs[$0] }.filter(\.remembered).prefix(Self.maxRememberedJobs).map { $0.line() }
+            let jobs = Self.newest(p.queue.order.compactMap { p.queue.jobs[$0] }.filter(\.remembered)).map { $0.line() }
             let keys = (p.tracks.filter { $0.value.notified }.map(\.key) + jobs).sorted()
             if !keys.isEmpty { result[uuid] = keys }
         }

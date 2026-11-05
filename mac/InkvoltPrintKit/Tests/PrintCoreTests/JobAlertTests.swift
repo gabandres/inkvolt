@@ -569,6 +569,24 @@ struct JobAlertTests {
         #expect((1...256).contains(kept))
     }
 
+    /// Over the cap, the newest told jobs are kept (by when they were submitted), at a restart and when saving: a job told
+    /// just now isn't the one forgotten, and told again after the next start.
+    @Test func overTheCapTheNewestToldJobsAreKept() throws {
+        let old = (0..<300).map { "Job|\($0)|\(1000 + $0)|1|0|0|0|0|0|0" }
+        let loaded = try #require(AlertTracker(rules: Self.rules(), shown: [Self.laser: old], timeZone: Self.zone).shown()[Self.laser])
+        #expect(loaded.count == 256)
+        #expect(loaded.contains { $0.hasPrefix("Job|299|1299|") })
+        #expect(!loaded.contains { $0.hasPrefix("Job|0|1000|") })
+
+        let t = AlertTracker(rules: Self.rules(), shown: [Self.laser: Array(old.prefix(256))], timeZone: Self.zone)
+        #expect(Self.minutes(t, Self.t0, 3, Self.queue(Self.job(7,.stopped))).count == 1)
+        let saved = try #require(t.shown()[Self.laser])
+        #expect(saved.count == 256)
+        #expect(saved.contains { $0.hasPrefix(JobRules.key(Self.job(7,.stopped)) + "|") })
+        let next = AlertTracker(rules: Self.rules(), shown: t.shown(), timeZone: Self.zone)
+        #expect(Self.minutes(next, Self.at(10), 3, Self.queue(Self.job(7,.stopped))).isEmpty)
+    }
+
     @Test func aQueueThatWentAwayTellsNothingAndHoldsNothing() {
         let t = Self.tracker()
         #expect(Self.read(t, Self.t0, Self.queue(Self.job(7,.stopped))).isEmpty)

@@ -83,11 +83,23 @@ extension AlertTracker {
     /// A job missing from this many reads in a row has left the queue.
     static let jobGoneAfterReads = 2
 
-    func rememberJob(_ uuid: String, _ line: String) {
+    /// A printer's remembered lines from the last run: the newest `maxRememberedJobs` of those that make sense.
+    func rememberJobs(_ uuid: String, _ lines: [String]) {
         let q = printer(uuid).queue
-        guard let t = JobTrack.parse(line), q.jobs.count < Self.maxRememberedJobs else { return }
-        if q.jobs[t.key] == nil { q.order.append(t.key) }
-        q.jobs[t.key] = t
+        var parsed = q.jobs // another spelling of the same printer's id, read before
+        for line in lines { if let t = JobTrack.parse(line) { parsed[t.key] = t } }
+        let kept = Self.newest(Array(parsed.values))
+        q.jobs = Dictionary(uniqueKeysWithValues: kept.map { ($0.key, $0) })
+        q.order = kept.map(\.key)
+    }
+
+    /// The newest `maxRememberedJobs` of these, oldest first: by when they were submitted (in the key), then by id.
+    static func newest(_ tracks: [JobTrack]) -> [JobTrack] {
+        func age(_ t: JobTrack) -> (Int64, Int64, String) {
+            let p = t.key.split(separator: "|", omittingEmptySubsequences: false)
+            return p.count == 3 ? (Int64(p[2]) ?? 0, Int64(p[1]) ?? 0, t.key) : (0, 0, t.key)
+        }
+        return Array(tracks.sorted { age($0) < age($1) }.suffix(maxRememberedJobs))
     }
 
     /// Takes in one read of a printer's queue (nil: it has no queue now); returns the alerts to show now. `me`: who this
