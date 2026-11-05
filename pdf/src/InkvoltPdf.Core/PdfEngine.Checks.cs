@@ -1,3 +1,6 @@
+using MuPDFCore;
+using MuPDFCore.StructuredText;
+
 namespace InkvoltPdf.Core;
 
 /// <summary>
@@ -114,6 +117,24 @@ public sealed partial class PdfEngine
 
     /// <summary>Whether a page is refused already (Find doesn't hand it to a worker): without asking for a check.</summary>
     private bool IsRefused(int page) => PageRefusedException.Refuses(VerdictOf(page));
+
+    /// <summary>
+    /// In a check process: decodes each picture on <paramref name="page"/> of more than <paramref name="abovePixels"/> at its
+    /// full size. Drawing the page small decodes a JPEG at an eighth of its size and a JPEG 2000 at its smallest level, so
+    /// what an export (pictures at their own size) or a deep zoom costs here is only found out this way.
+    /// </summary>
+    /// <exception cref="MuPDFException">MuPDF couldn't decode one (its memory past the process's limit, say).</exception>
+    internal void DecodeLargePictures(int page, long abovePixels)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            using var st = _doc.GetStructuredTextPage(page, includeAnnotations: true, StructuredTextFlags.PreserveImages);
+            foreach (var block in st)
+                if (block is MuPDFImageStructuredTextBlock { Image: { } image } && (long)image.Width * image.Height > abovePixels)
+                    _ = image.GetBytes(PixelFormats.RGB);
+        }
+    }
 
     /// <summary>The engine is going away: its checks end, and the check processes let go of its document.</summary>
     private void ForgetChecks()

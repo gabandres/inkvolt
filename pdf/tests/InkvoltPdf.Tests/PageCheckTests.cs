@@ -159,6 +159,33 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void AJpegIsCheckedAtItsFullSizeNotTheSizeTheCheckDrawsItAt()
+    {
+        // A JPEG whose header says 30,000 x 30,000: MuPDF decodes it at an eighth of that for the check's 64 pixels
+        // (milliseconds), but at its full 900 million pixels for an export or a deep zoom here.
+        var jpeg = JpegEncoder.EncodeGray(new byte[16 * 16], 16, 16, 75, 72);
+        var sof = jpeg.AsSpan().IndexOf([(byte)0xFF, (byte)0xC0]);
+        Assert.True(sof > 0);
+        jpeg[sof + 5] = jpeg[sof + 7] = 30_000 >> 8;
+        jpeg[sof + 6] = jpeg[sof + 8] = 30_000 & 0xFF;
+        using (var engine = Open(Picture(jpeg, "/Type /XObject /Subtype /Image /Width 30000 /Height 30000 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /DCTDecode")))
+        {
+            var time = Stopwatch.StartNew();
+            Assert.Throws<PageRefusedException>(() => engine.Render(0, 0.25));
+            Assert.True(time.Elapsed < Timing.Limit(Limit + Slack), $"{time.Elapsed}");
+        }
+
+        // A real scan's page, 2,550 x 3,300, is decoded in full and drawn.
+        var scan = new byte[2550 * 3300];
+        new Random(7).NextBytes(scan);
+        using (var engine = Open(Picture(JpegEncoder.EncodeGray(scan, 2550, 3300, 75, 300), "/Type /XObject /Subtype /Image /Width 2550 /Height 3300 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /DCTDecode")))
+        {
+            engine.Render(0, 0.25);
+            Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        }
+    }
+
+    [Fact]
     public void ReducingTheSizeLeavesAPictureThatInflatesForSeconds()
     {
         // The same picture, drawn small (2,880 dpi), so Reduce File Size would resample it through MuPDF: 8 s here.

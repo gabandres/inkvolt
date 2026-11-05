@@ -139,6 +139,14 @@ public static class PageChecks
     /// <summary>A check draws the page with its longer side this many pixels: every picture on it is still decoded (MuPDF decodes even one under a pixel).</summary>
     private const double CheckPixels = 64;
 
+    /// <summary>
+    /// A picture of more pixels than this (4,096 x 4,096) is decoded at its full size too, after the drawing (which
+    /// decodes a JPEG or JPEG 2000 at a fraction of it): a smaller one takes well under a second at any size, and a
+    /// scan's page (2,550 x 3,300) isn't decoded twice. One too big for the check process's memory (some 300 million
+    /// pixels) is refused (<see cref="PageVerdict.Failed"/>).
+    /// </summary>
+    internal const long FullSizePixels = 4096L * 4096;
+
     /// <summary>Opens what the parent says, draws each page asked for, and answers; ends when the pipe closes or says something else.</summary>
     private static void Serve(Stream pipe)
     {
@@ -185,6 +193,7 @@ public static class PageChecks
                             var g = engine.GetPage(page);
                             var longer = Math.Max(g.Width, g.Height);
                             engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
+                            engine.DecodeLargePictures(page, FullSizePixels);
                         }
                         catch (Exception ex) when (ex is not OutOfMemoryException)
                         {
