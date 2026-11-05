@@ -317,22 +317,6 @@ public static partial class AutoTag
     private static IEnumerable<TagBlock> TableBlocks(int page, DocTable t)
     {
         var unmerged = WithoutCoveredRows(t);
-        t = WithRowSpans(unmerged);
-        var rows = TagCells(t);
-        var all = rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures)).ToList();
-        if (all.Count == 0) yield break;
-        var box = Bounds(all);
-        if (!PlausibleTable(t))
-        {
-            // A chart's labels (mostly numbers) are part of the chart: a figure. Text that happened to line up: paragraphs.
-            var filled = t.Rows.SelectMany(r => r).Where(c => !Empty(c)).ToList();
-            if (filled.Count(Number) * 2 >= filled.Count)
-                yield return new TagBlock(page, TagBlockKind.Figure, box) { Sources = [box] };
-            else
-                foreach (var cell in rows.SelectMany(r => r).Where(c => c.Sources.Count > 0))
-                    yield return new TagBlock(page, TagBlockKind.Paragraph, Bounds(cell.Sources)) { Sources = cell.Sources, Text = cell.Text };
-            yield break;
-        }
         // Column headers, told row by row as drawn (each cell with what is drawn in it, before a cell spanning rows
         // takes what it covers): a first row in bold over rows that aren't, or a row of words over rows of numbers.
         var u = unmerged.Rows;
@@ -346,10 +330,22 @@ public static partial class AutoTag
             (u[1].All(c => Empty(c) || Bold(c)) || wordsTop && NumbersAfterFirst(u.Skip(2).ToList())))
             headerRows = 2;
         // A column header spans no further than the header rows: the spans are cut there.
-        if (headerRows > 0)
+        t = WithRowSpans(unmerged, cut: headerRows);
+        var rows = TagCells(t);
+        var all = rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures)).ToList();
+        if (all.Count == 0) yield break;
+        var box = Bounds(all);
+        if (!PlausibleTable(t))
         {
-            t = WithRowSpans(unmerged, cut: headerRows);
-            rows = TagCells(t);
+            // A chart's labels (mostly numbers) are part of the chart: a figure (with their text, a row a line). Text that
+            // happened to line up: paragraphs.
+            var filled = t.Rows.SelectMany(r => r).Where(c => !Empty(c)).ToList();
+            if (filled.Count(Number) * 2 >= filled.Count)
+                yield return new TagBlock(page, TagBlockKind.Figure, box) { Sources = [box], Text = RowsText(rows) };
+            else
+                foreach (var cell in rows.SelectMany(r => r).Where(c => c.Sources.Count > 0))
+                    yield return new TagBlock(page, TagBlockKind.Paragraph, Bounds(cell.Sources)) { Sources = cell.Sources, Text = cell.Text };
+            yield break;
         }
         // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers. The first
         // column is each row's first cell (a covered one too: the row header above it heads that row).
@@ -375,14 +371,15 @@ public static partial class AutoTag
                                               Area(b.Box.Intersect(chart.Box)) > 0.3 * Math.Min(Area(b.Box), Area(chart.Box)));
             if (at < 0 || other < 0) continue;
             var union = blocks[other].Box.Union(chart.Box);
-            blocks[other] = blocks[other] with { Box = union, Sources = [union] };
+            blocks[other] = blocks[other] with { Box = union, Sources = [union], Text = Lines(blocks[other].Text, chart.Text) };
             blocks.RemoveAt(at);
         }
     }
 
     /// <summary>
     /// Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too, never a
-    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it.
+    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it, and its text is the
+    /// figure's (what the figure reads if made text; labels in reading order, a line each).
     /// </summary>
     private static void FigureLabels(List<TagBlock> blocks)
     {
@@ -394,10 +391,17 @@ public static partial class AutoTag
             var f = blocks.FindIndex(x => x.Kind == TagBlockKind.Figure && x.Page == b.Page && Area(x.Box.Inflate(margin).Intersect(b.Box)) >= 0.75 * Area(b.Box));
             if (f < 0) continue;
             var union = blocks[f].Box.Union(b.Box);
-            blocks[f] = blocks[f] with { Box = union, Sources = [union] };
+            blocks[f] = blocks[f] with { Box = union, Sources = [union], Text = Lines(b.Text, blocks[f].Text) };
             blocks.RemoveAt(i);
         }
     }
+
+    /// <summary>Two texts a line apart (either may be empty).</summary>
+    private static string Lines(string a, string b) => a.Length == 0 ? b : b.Length == 0 ? a : a + "\n" + b;
+
+    /// <summary>A table's cells' text: a row a line, cells apart by a space.</summary>
+    private static string RowsText(IReadOnlyList<IReadOnlyList<TagCell>> rows) =>
+        string.Join("\n", rows.Select(r => string.Join(" ", r.Select(c => c.Text).Where(x => x.Length > 0))));
 
     /// <summary>"Figure 2:", "Table 1." and the like right before or after a figure or table (near it, overlapping it across): its caption.</summary>
     private static void Captions(List<TagBlock> blocks)

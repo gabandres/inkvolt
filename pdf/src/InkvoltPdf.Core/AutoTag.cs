@@ -45,7 +45,7 @@ public sealed record TagBlock(int Page, TagBlockKind Kind, RectD Box)
     /// <summary>Where its content is on the page: text runs, or a figure's area.</summary>
     public IReadOnlyList<RectD> Sources { get; init; } = [];
 
-    /// <summary>Its text (a figure's is empty): what the reading order panel shows.</summary>
+    /// <summary>Its text (a figure's the text drawn in it, its labels): what the reading order panel shows.</summary>
     public string Text { get; init; } = "";
 
     public IReadOnlyList<TagListItem> Items { get; init; } = [];
@@ -444,7 +444,7 @@ public static partial class AutoTag
     /// <summary>A block's text: its entries' (a line each), its cells' (a row a line, cells apart by a space), else its own.</summary>
     private static string AllText(TagBlock b) =>
         b.Items.Count > 0 ? string.Join("\n", b.Items.Select(i => i.Text))
-        : b.Rows.Count > 0 ? string.Join("\n", b.Rows.Select(r => string.Join(" ", r.Select(c => c.Text).Where(t => t.Length > 0))))
+        : b.Rows.Count > 0 ? RowsText(b.Rows)
         : b.Text;
 
     /// <summary>The plan with block <paramref name="index"/> changed (alternate text, decorative, kind).</summary>

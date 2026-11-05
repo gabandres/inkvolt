@@ -127,6 +127,18 @@ public class AutoTagKindChangeTests
     }
 
     [Fact]
+    public void A_picture_made_text_takes_the_text_drawn_in_it()
+    {
+        // The orchard's picture holds its labels ("North orchard" on it, "Hill" beside it): made a paragraph, they are its text.
+        var pdf = AutoTagKindsTests.Make();
+        var plan = Plan(pdf);
+        var i = IndexOf(plan, b => b.Kind == TagBlockKind.Figure);
+        var p = AutoTag.WithKind(plan, i, TagBlockKind.Paragraph).Blocks[i];
+        Assert.Equal("North orchard\nHill", p.Text);
+        Assert.Equal([plan.Blocks[i].Box], p.Sources);
+    }
+
+    [Fact]
     public void A_table_made_a_paragraph_reads_its_rows_in_order()
     {
         var pdf = ExportTestPdf.Make(logo: true);
