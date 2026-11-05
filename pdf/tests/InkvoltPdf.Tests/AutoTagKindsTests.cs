@@ -134,8 +134,9 @@ public class AutoTagKindsTests
         Assert.Equal(["Table 1: Fruit sold by quarter.", "Figure 1: The orchard in spring."], captions);
         var note = Assert.Single(plan.Blocks, b => b.Kind == TagBlockKind.Note);
         Assert.StartsWith("1 Weights", note.Text);
-        // The label on the picture is the picture's; body text stays paragraphs.
-        Assert.DoesNotContain(plan.Blocks, b => b.Text.Contains("North orchard", StringComparison.Ordinal) || b.Text == "Hill");
+        // The label on the picture is the picture's (its text, what it says if made text); body text stays paragraphs.
+        Assert.DoesNotContain(plan.Blocks, b => b.Kind != TagBlockKind.Figure && (b.Text.Contains("North orchard", StringComparison.Ordinal) || b.Text == "Hill"));
+        Assert.Contains(plan.Blocks, b => b.Kind == TagBlockKind.Figure && b.Text.Contains("North orchard", StringComparison.Ordinal));
         Assert.Contains(plan.Blocks, b => b.Kind == TagBlockKind.Paragraph && b.Text.StartsWith("The orchard grows", StringComparison.Ordinal));
     }
 

@@ -211,22 +211,144 @@ extension AutoTag {
         return Double(n) >= (0.8 * Double(rows.count)).rounded(.up)
     }
 
-    private static func tableBlocks(_ page: Int, _ t: DocTable) -> [TagBlock] {
-        let rows = t.rows.map { r in
-            r.map { c in
-                TagCell(sources: c.paragraphs.flatMap(\.sources), text: c.text.trimmedWS, colSpan: c.colSpan,
-                        pictures: c.pictures.map { $0.image.pageBox ?? $0.box })
+    /// A table with each cell that spans rows holding what was drawn in the cells it covers (text centered in a tall cell
+    /// often sits in a row below its first), those left empty. A span stops at row `cut` (the end of the header rows: a
+    /// column header never spans into the data), and what it covered below that is a cell of its own, spanning what is
+    /// left. 0: no cut.
+    private static func withRowSpans(_ t: DocTable, cut: Int = 0) -> DocTable {
+        if !t.rows.contains(where: { $0.contains { $0.rowSpan > 1 } }) { return t }
+        var rows = t.rows
+        for r in rows.indices {
+            var col = 0
+            for k in rows[r].indices {
+                let cell = rows[r][k]
+                defer { col += max(1, cell.colSpan) }
+                guard cell.rowSpan > 1 && !cell.covered else { continue }
+                let whole = min(cell.rowSpan, rows.count - r)
+                let span = cut > r && r + whole > cut ? cut - r : whole
+                var merged = cell
+                var d = 1
+                while d < span {
+                    let below = cellAtColumn(rows[r + d], col)
+                    if below < 0 || !rows[r + d][below].covered { break }
+                    merged.paragraphs += rows[r + d][below].paragraphs
+                    merged.pictures += rows[r + d][below].pictures
+                    rows[r + d][below].paragraphs = []
+                    rows[r + d][below].pictures = []
+                    d += 1
+                }
+                merged.rowSpan = d
+                rows[r][k] = merged
+                // Below the cut (or where a covered cell is missing): the next row's cell starts what is left.
+                if d < whole {
+                    let rest = cellAtColumn(rows[r + d], col)
+                    if rest >= 0 && rows[r + d][rest].covered {
+                        rows[r + d][rest].covered = false
+                        rows[r + d][rest].rowSpan = whole - d
+                    }
+                }
             }
         }
+        var out = t
+        out.rows = rows
+        return out
+    }
+
+    /// A table without its rows that are all covered by the cells above (no rule between them anywhere, only a stub that
+    /// gave the grid its line): each such row's content goes to the cell covering it, that cell spans one row less, so no
+    /// row of the table is left without a cell of its own.
+    private static func withoutCoveredRows(_ t: DocTable) -> DocTable {
+        if !t.rows.contains(where: { !$0.isEmpty && $0.allSatisfy(\.covered) }) { return t }
+        var rows = t.rows
+        var heights = t.rowHeights
+        var r = 1
+        while r < rows.count {
+            if rows[r].isEmpty || !rows[r].allSatisfy(\.covered) {
+                r += 1
+                continue
+            }
+            var col = 0
+            for cell in rows[r] {
+                // The cell covering it: the first one above at that column that isn't covered.
+                var up = r - 1
+                while up >= 0 {
+                    let k = cellAtColumn(rows[up], col)
+                    if k < 0 { break }
+                    if rows[up][k].covered {
+                        up -= 1
+                        continue
+                    }
+                    rows[up][k].paragraphs += cell.paragraphs
+                    rows[up][k].pictures += cell.pictures
+                    rows[up][k].rowSpan = max(1, rows[up][k].rowSpan - 1)
+                    break
+                }
+                col += max(1, cell.colSpan)
+            }
+            rows.remove(at: r)
+            if var h = heights, h.indices.contains(r) {
+                h[r - 1] += h[r]
+                h.remove(at: r)
+                heights = h
+            }
+        }
+        var out = t
+        out.rows = rows
+        out.rowHeights = heights
+        return out
+    }
+
+    /// The index of the cell of a row that starts at column `col`, or -1.
+    private static func cellAtColumn(_ row: [DocCell], _ col: Int) -> Int {
+        var at = 0
+        for k in row.indices {
+            if at == col { return k }
+            at += max(1, row[k].colSpan)
+        }
+        return -1
+    }
+
+    /// A table's cells as tagged: where each one's content is, its text, its spans.
+    private static func tagCells(_ t: DocTable) -> [[TagCell]] {
+        t.rows.map { r in
+            r.map { c in
+                TagCell(sources: c.paragraphs.flatMap(\.sources), text: c.text.trimmedWS, colSpan: c.colSpan,
+                        pictures: c.pictures.map { $0.image.pageBox ?? $0.box }, rowSpan: c.rowSpan, covered: c.covered)
+            }
+        }
+    }
+
+    private static func tableBlocks(_ page: Int, _ table: DocTable) -> [TagBlock] {
+        let unmerged = withoutCoveredRows(table)
+        // Column headers, told row by row as drawn (each cell with what is drawn in it, before a cell spanning rows takes
+        // what it covers): a first row in bold over rows that aren't, or a row of words over rows of numbers.
+        let u = unmerged.rows
+        let body = u.dropFirst()
+        func topBold(_ c: DocCell) -> Bool { c.paragraphs.isEmpty || bold(c) }
+        let boldTop = u.count > 1 && u[0].allSatisfy(topBold) && u[0].contains { !$0.paragraphs.isEmpty }
+            && !body.allSatisfy { $0.allSatisfy(topBold) }
+        let wordsTop = u.count > 1 && u[0].count(where: { !empty($0) }) >= 2 && !u[0].contains(where: number) && numbersAfterFirst(body)
+        var headerRows = boldTop || wordsTop ? 1 : 0
+        // A header spanning columns over the headers under it ("2025" over "Q1 Q2"): both rows are headers.
+        if headerRows == 1 && u.count > 3 && u[0].contains(where: { $0.colSpan > 1 }) && u[1].contains(where: { !empty($0) })
+            && !u[1].contains(where: number)
+            && (u[1].allSatisfy { empty($0) || bold($0) } || (wordsTop && numbersAfterFirst(u.dropFirst(2)))) {
+            headerRows = 2
+        }
+        // A column header spans no further than the header rows: the spans are cut there.
+        let t = withRowSpans(unmerged, cut: headerRows)
+        let rows = tagCells(t)
         let all = rows.flatMap { $0 }.flatMap { $0.sources + $0.pictures }
         if all.isEmpty { return [] }
         let box = bounds(all)
         if !plausibleTable(t) {
-            // A chart's labels (mostly numbers) are part of the chart: a figure. Text that happened to line up: paragraphs.
+            // A chart's labels (mostly numbers) are part of the chart: a figure (with their text, a row a line). Text that
+            // happened to line up: paragraphs.
             let filled = t.rows.flatMap { $0 }.filter { !empty($0) }
             if filled.count(where: number) * 2 >= filled.count {
                 var f = TagBlock(page: page, kind: .figure, box: box)
                 f.sources = [box]
+                f.text = rowsText(rows)
                 return [f]
             }
             return rows.flatMap { $0 }.filter { !$0.sources.isEmpty }.map { cell in
@@ -236,24 +358,16 @@ extension AutoTag {
                 return p
             }
         }
-        let body = t.rows.dropFirst()
-        func topBold(_ c: DocCell) -> Bool { c.paragraphs.isEmpty || bold(c) }
-        // Column headers: a first row in bold over rows that aren't, or a row of words over rows of numbers.
-        let boldTop = t.rows.count > 1 && t.rows[0].allSatisfy(topBold) && t.rows[0].contains { !$0.paragraphs.isEmpty }
-            && !body.allSatisfy { $0.allSatisfy(topBold) }
-        let wordsTop = t.rows.count > 1 && t.rows[0].count(where: { !empty($0) }) >= 2 && !t.rows[0].contains(where: number) && numbersAfterFirst(body)
-        var headerRows = boldTop || wordsTop ? 1 : 0
-        // A header spanning columns over the headers under it ("2025" over "Q1 Q2"): both rows are headers.
-        if headerRows == 1 && t.rows.count > 3 && t.rows[0].contains(where: { $0.colSpan > 1 }) && t.rows[1].contains(where: { !empty($0) })
-            && !t.rows[1].contains(where: number)
-            && (t.rows[1].allSatisfy { empty($0) || bold($0) } || (wordsTop && numbersAfterFirst(t.rows.dropFirst(2)))) {
-            headerRows = 2
-        }
-        // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers.
+        // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers. The first column
+        // is each row's first cell (a covered one too: the row header above it heads that row).
         let data = t.rows.dropFirst(headerRows)
-        let firstCells = data.count >= 2 && data.allSatisfy { $0.count >= 2 && !empty($0[0]) }
-        let boldFirst = data.allSatisfy { bold($0[0]) } && !data.allSatisfy { $0.dropFirst().allSatisfy { empty($0) || bold($0) } }
-        let headerColumn = firstCells && (boldFirst || (data.allSatisfy { !number($0[0]) } && numbersAfterFirst(data)))
+        let heads = data.filter { $0.isEmpty || !$0[0].covered }
+        let firstCells = data.count >= 2 && !heads.isEmpty && heads.allSatisfy { $0.count >= 2 && !empty($0[0]) }
+        func boldFirst() -> Bool {
+            heads.allSatisfy { bold($0[0]) } && !data.allSatisfy { $0.dropFirst().allSatisfy { empty($0) || bold($0) } }
+        }
+        func wordsFirst() -> Bool { heads.allSatisfy { !number($0[0]) } && numbersAfterFirst(data) }
+        let headerColumn = firstCells && (boldFirst() || wordsFirst())
         var b = TagBlock(page: page, kind: .table, box: box)
         b.rows = rows
         b.headerRows = headerRows
@@ -272,12 +386,14 @@ extension AutoTag {
             let union = blocks[other].box.union(chart.box)
             blocks[other].box = union
             blocks[other].sources = [union]
+            blocks[other].text = lines(blocks[other].text, chart.text)
             blocks.remove(at: at)
         }
     }
 
     /// Short text inside a figure (a diagram's labels, an axis title; a few words just outside its edge too, never a
-    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it.
+    /// caption) is part of the figure: its content goes in the Figure, whose box grows to hold it, and its text is the
+    /// figure's (what the figure reads if made text; labels in reading order, a line each).
     private static func figureLabels(_ blocks: inout [TagBlock]) {
         for i in blocks.indices.reversed() {
             let b = blocks[i]
@@ -288,8 +404,17 @@ extension AutoTag {
             let union = blocks[f].box.union(b.box)
             blocks[f].box = union
             blocks[f].sources = [union]
+            blocks[f].text = lines(b.text, blocks[f].text)
             blocks.remove(at: i)
         }
+    }
+
+    /// Two texts a line apart (either may be empty).
+    private static func lines(_ a: String, _ b: String) -> String { a.isEmpty ? b : b.isEmpty ? a : a + "\n" + b }
+
+    /// A table's cells' text: a row a line, cells apart by a space.
+    static func rowsText(_ rows: [[TagCell]]) -> String {
+        rows.map { r in r.map(\.text).filter { !$0.isEmpty }.joined(separator: " ") }.joined(separator: "\n")
     }
 
     /// "Figure 2:", "Table 1." and the like right before or after a figure or table (near it, overlapping it across): its caption.

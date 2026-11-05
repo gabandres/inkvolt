@@ -220,6 +220,7 @@ extension DocLayout {
         var xs: [Double]
         var ys: [Double]
         var verticals: [RectD]
+        var horizontals: [RectD]
     }
 
     struct CellKey: Hashable {
@@ -263,7 +264,7 @@ extension DocLayout {
             if hs.count < 2 || vs.count < 3 { continue }
             let xs = cluster(vs.map(\.centerX), tol)
             let ys = cluster(hs.map(\.centerY), tol)
-            if xs.count >= 3 && ys.count >= 2 { result.append(Grid(xs: xs, ys: ys, verticals: vs)) }
+            if xs.count >= 3 && ys.count >= 2 { result.append(Grid(xs: xs, ys: ys, verticals: vs, horizontals: hs)) }
         }
         return result
     }
@@ -283,8 +284,9 @@ extension DocLayout {
     }
 
     /// The table a grid draws, with the lines and pictures inside it (removed from `lines` and `images`). Cells without a
-    /// rule between them in a row are merged. Nil when fewer than two cells hold something, or none holds text (a box
-    /// around a paragraph, an empty form grid).
+    /// rule between them in a row are merged; a cell without a rule under it across its columns, over a cell of the same
+    /// columns, spans that row too (`DocCell.rowSpan`). Nil when fewer than two cells hold something, or none holds text (a
+    /// box around a paragraph, an empty form grid).
     static func tableFromGrid(_ grid: Grid, _ lines: inout [ExportLine], _ images: inout [ExportImage], _ body: Double) -> DocTable? {
         let xs = grid.xs, ys = grid.ys
         let rowCount = ys.count - 1, cols = xs.count - 1
@@ -327,16 +329,40 @@ extension DocLayout {
         lines = lines.indices.filter { !used.contains($0) }.map { lines[$0] }
         images = images.indices.filter { !usedImages.contains($0) }.map { images[$0] }
 
+        func spanAt(_ r: Int, _ c: Int) -> Int {
+            var span = 1
+            while c + span < cols && start[r][c + span] == c { span += 1 }
+            return span
+        }
+        // topRow[r][c]: the row where the cell starting at (r, c) starts going down: the one above when there is no rule
+        // between them across its columns and the cell above has the same columns.
+        var topRow = [[Int]](repeating: [Int](repeating: 0, count: cols), count: rowCount)
+        for r in 0..<rowCount {
+            for c in 0..<cols {
+                topRow[r][c] = r
+                if r == 0 || start[r][c] != c || start[r - 1][c] != c { continue }
+                let span = spanAt(r, c)
+                if spanAt(r - 1, c) != span { continue }
+                let left = xs[c], right = xs[c + span], y = ys[r]
+                let covered = grid.horizontals.filter { abs($0.centerY - y) <= 2.5 }
+                    .reduce(0.0) { $0 + max(0, min($1.right, right) - max($1.x, left)) }
+                if covered < 0.6 * (right - left) { topRow[r][c] = topRow[r - 1][c] }
+            }
+        }
+
         var docRows: [[DocCell]] = []
         for r in 0..<rowCount {
             var row: [DocCell] = []
             var c = 0
             while c < cols {
-                var span = 1
-                while c + span < cols && start[r][c + span] == c { span += 1 }
+                let span = spanAt(r, c)
+                var down = 1
+                while r + down < rowCount && start[r + down][c] == c && topRow[r + down][c] == topRow[r][c] { down += 1 }
                 let cell = RectD.fromEdges(xs[c], ys[r], xs[c + span], ys[r + 1])
                 var docCell = DocCell(content[CellKey(r: r, c: c)].map { cellParagraphs($0, cell, body) } ?? [], colSpan: span)
                 docCell.pictures = pictures[CellKey(r: r, c: c)] ?? []
+                docCell.rowSpan = topRow[r][c] == r ? down : 1
+                docCell.covered = topRow[r][c] != r
                 row.append(docCell)
                 c += span
             }

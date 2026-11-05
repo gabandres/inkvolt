@@ -22,6 +22,10 @@ public struct TagCell: Equatable, Sendable {
     public var text: String
     public var colSpan = 1
     public var pictures: [RectD] = []
+    /// How many rows it spans: its content is also what was drawn in the cells it covers.
+    public var rowSpan = 1
+    /// Part of a cell above that spans rows into this row: not written (its content is that cell's).
+    public var covered = false
 }
 
 /// One piece of a page in reading order, as Make Accessible will tag it. Boxes are in page space as shown (points, top
@@ -34,7 +38,7 @@ public struct TagBlock: Equatable, Sendable {
     public var level = 0
     /// Where its content is on the page: text runs, or a figure's area.
     public var sources: [RectD] = []
-    /// Its text (a figure's is empty): what the reading order panel shows.
+    /// Its text (a figure's the text drawn in it, its labels): what the reading order panel shows.
     public var text = ""
     public var items: [TagListItem] = []
     public var rows: [[TagCell]] = []
@@ -329,6 +333,62 @@ public enum AutoTag {
         let b = result.blocks.remove(at: index)
         result.blocks.insert(b, at: target)
         return result
+    }
+
+    /// The kinds a piece can be made in the reading order panel: any piece a paragraph, a heading (1-6), a caption, a
+    /// footnote, a formula or a picture; a list or table of contents either of those two (their entries stay). A table
+    /// stays one only as the layout found it (its rows and columns can't be made from a paragraph).
+    public static func kindsFor(_ b: TagBlock) -> [TagBlockKind] {
+        switch b.kind {
+        case .list, .contents: [.paragraph, .heading, .list, .contents, .caption, .note, .formula, .figure]
+        case .table: [.paragraph, .heading, .table, .caption, .note, .formula, .figure]
+        default: [.paragraph, .heading, .caption, .note, .formula, .figure]
+        }
+    }
+
+    /// The plan with block `index` made another kind (see `kindsFor`; the plan unchanged for one it can't be), its place,
+    /// page and language kept. Text kinds take all its content: a list's entries or a table's cells become one piece, their
+    /// text one after the other; a heading gets `level` (1-6). A picture is everything in its box (text there too) and needs
+    /// alternate text; a picture made text keeps its area, the text drawn there becomes the piece and pictures in it become
+    /// decoration. A formula keeps its text as what is read for it.
+    public static func withKind(_ plan: TagPlan, _ index: Int, _ kind: TagBlockKind, level: Int = 1) -> TagPlan {
+        guard plan.blocks.indices.contains(index) else { return plan }
+        let b = plan.blocks[index]
+        guard kindsFor(b).contains(kind) else { return plan }
+        let level = min(max(level, 1), 6)
+        if kind == b.kind && (kind != .heading || level == b.level) { return plan }
+        var changed = b
+        changed.kind = kind
+        changed.level = 0
+        // Between a list and contents the entries stay; any other kind holds its content as one piece.
+        if kind == .list || kind == .contents || kind == .table { return with(plan, index) { $0 = changed } }
+        changed.items = []
+        changed.rows = []
+        changed.headerRows = 0
+        changed.headerColumn = false
+        changed.decorative = false
+        if kind == .figure {
+            changed.sources = [b.box]
+            changed.alt = b.kind == .formula ? b.alt : nil
+        } else {
+            changed.level = kind == .heading ? level : 0
+            changed.sources = b.kind == .figure ? [b.box] : allSources(b)
+            changed.text = allText(b)
+            changed.alt = kind == .formula && (b.kind == .formula || b.kind == .figure) ? b.alt : nil
+        }
+        return with(plan, index) { $0 = changed }
+    }
+
+    /// Where all of a block's content is: its own sources, its entries', its cells' (with their pictures).
+    private static func allSources(_ b: TagBlock) -> [RectD] {
+        let cells = b.rows.flatMap { $0 }.flatMap { $0.sources + $0.pictures }
+        return b.sources + b.items.flatMap(\.sources) + cells
+    }
+
+    /// A block's text: its entries' (a line each), its cells' (a row a line, cells apart by a space), else its own.
+    private static func allText(_ b: TagBlock) -> String {
+        if !b.items.isEmpty { return b.items.map(\.text).joined(separator: "\n") }
+        return b.rows.isEmpty ? b.text : rowsText(b.rows)
     }
 
     /// The plan with block `index` changed (alternate text, decorative, kind).
