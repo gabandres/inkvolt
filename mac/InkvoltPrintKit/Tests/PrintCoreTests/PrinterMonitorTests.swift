@@ -184,4 +184,35 @@ struct PrinterMonitorTests {
         #expect(next.snapshots.last?.firmwareChange == nil)
         #expect(store.firmware(Demo.uuid)?.version == version)
     }
+
+    /// The supply history (roadmap 1.1) as the app sets it up in demo mode: the first reading of the demo laser makes up its
+    /// year, then is kept as today's row with the page count; the view carries each supply's line and the chart, and the
+    /// reading's snapshot the days left the low-supply alert names. The Windows app's PrinterViewModel.ShowSupplies.
+    @Test func eachReadingIsKeptInTheSupplyHistoryAndTheCardAndTheAlertGetWhatItSays() async throws {
+        let store = SupplyHistoryStore(nil, firstReading: DemoSupplyHistory.seed)
+        let today = Day(2026, 11, 4)
+        let log = Log()
+        let recipe = PrinterRecipe(transport: { _, _ in Self.network.http }, snmp: Self.network.snmp)
+        let printer = Self.demo(Demo.uuid)
+        let laser = PrinterMonitor(id: printer.uuid, name: printer.name, target: printer.target, recipe: recipe, accepted: { [] },
+                                   acceptUuids: { _ in }, history: SupplyHistoryFeed(store, printer.uuid, today: { today }),
+                                   onEvent: { log.add($0) })
+        #expect(await laser.check())
+
+        let v = await laser.view
+        let history = try #require(v.supplyHistory)
+        let toner = try #require(v.supplies.first { !$0.isWaste && $0.percentRemaining != nil })
+        let kept = try #require(store.rows(printer.uuid).last { $0.key == SupplyRow.keyOf(toner) })
+        #expect(kept.day == today)
+        #expect(kept.percent == toner.percentRemaining)
+        #expect(kept.pages == v.usage?.totalImpressions)
+        #expect(history.chart.hasEnoughToDraw) // the made-up year behind the first reading
+        #expect(history.line(for: toner) != nil)
+        #expect(history == SupplyHistoryView.of(store.rows(printer.uuid), today))
+        #expect(log.snapshots.last?.daysLeft == history.daysLeft)
+
+        let without = Self.monitor(printer, Log())
+        #expect(await without.check())
+        #expect(await without.view.supplyHistory == nil)
+    }
 }

@@ -25,6 +25,8 @@ final class PrinterModel: Identifiable {
     private(set) var destination: CupsDestination?
 
     @ObservationIgnored private let monitor: PrinterMonitor?
+    /// A queue printer's supply history, fed from its queue's levels (a network printer's monitor feeds its own).
+    @ObservationIgnored private var queueHistory: SupplyHistoryFeed?
     @ObservationIgnored private unowned let app: AppModel
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var events: Task<Void, Never>?
@@ -44,7 +46,8 @@ final class PrinterModel: Identifiable {
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
         let store = app.store, id = known.uuid
         monitor = PrinterMonitor(id: id, name: known.name, target: known.target, recipe: app.recipe(id), accepted: { store.accepted(id) },
-                                 acceptUuids: { store.accept(id, $0) }, firmware: store.firmwareMemory(id), onEvent: { continuation.yield($0) })
+                                 acceptUuids: { store.accept(id, $0) }, firmware: store.firmwareMemory(id),
+                                 history: SupplyHistoryFeed(app.history, id), onEvent: { continuation.yield($0) })
         events = Task { [weak self] in
             for await event in stream { self?.handle(event) }
         }
@@ -69,6 +72,7 @@ final class PrinterModel: Identifiable {
         host = CupsQueues.address(d) ?? CupsQueues.connectionText(d)
         self.app = app
         monitor = nil
+        queueHistory = SupplyHistoryFeed(app.history, id)
         update(d)
     }
 
@@ -116,9 +120,13 @@ final class PrinterModel: Identifiable {
         queueName = d.name
         name = d.displayName
         model = d.makeAndModel
-        let v = CupsStatus.view(d)
+        var v = CupsStatus.view(d)
+        // Its levels kept in the supply history first (CUPS gives no page count), as a network printer's reading is.
+        if let queueHistory, !v.supplies.isEmpty { v.supplyHistory = queueHistory.take(v.supplies, pages: nil) }
         if v != view { view = v }
-        app.observe(CupsStatus.snapshot(d, id: id))
+        var snapshot = CupsStatus.snapshot(d, id: id)
+        snapshot.daysLeft = v.supplyHistory?.daysLeft
+        app.observe(snapshot)
     }
 
     /// Starts (or restarts) the monitor's connection loop.

@@ -566,6 +566,34 @@ final class SupplyHistoryTests {
 
         #expect(store.rows(Self.printer).count == count + 1)
     }
+
+    // MARK: The feed (Mac only: the Windows app's PrinterViewModel.ShowSupplies)
+
+    /// The day the feed asks for, set by the test.
+    private final class Clock: @unchecked Sendable {
+        var day: Day
+        init(_ day: Day) { self.day = day }
+    }
+
+    @Test func The_feed_keeps_each_reading_in_the_file_and_works_the_card_out_again_only_when_a_row_or_the_day_changed() throws {
+        let store = SupplyHistoryStore(folder)
+        let clock = Clock(Self.day0)
+        let feed = SupplyHistoryFeed(store, Self.printer, today: { clock.day })
+
+        let first = feed.take([Self.toner(50), Self.box], pages: 100)
+        #expect(store.rows(Self.printer) == [Self.row(0, 50, 100)])
+        #expect(try String(contentsOfFile: try #require(files.first), encoding: .utf8).contains("\t50\tok\t100"))
+        #expect(first.line(for: Self.toner(50))?.hasPrefix("Not enough history for days left yet") == true)
+
+        // Rows put in behind the feed's back: the same reading on the same day changes no row, so the card is as it was.
+        store.importRows(Self.printer, (0..<10).map { Self.row($0 - 9, 59 - $0, nil) })
+        #expect(feed.take([Self.toner(50)], pages: nil) == first)
+
+        clock.day = Self.day0.adding(days: 1)
+        let next = feed.take([Self.toner(49)], pages: nil)
+        #expect(next == SupplyHistoryView.of(store.rows(Self.printer), clock.day))
+        #expect(next.daysLeft[SupplyRow.keyOf(Self.toner(49))] != nil)
+    }
 }
 
 /// The one CSV across all printers: its content, and the Pro check in front of it. Ported from SupplyHistoryTests.cs's

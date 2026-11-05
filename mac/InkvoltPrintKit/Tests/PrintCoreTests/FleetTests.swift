@@ -332,7 +332,7 @@ struct FleetTests {
     }
 
     @Test(arguments: [(0, "Read just now"), (59, "Read just now"), (60, "Read 1 minute ago"), (45 * 60, "Read 45 minutes ago"),
-                      (61 * 60, "Read 1 hour ago"), (5 * 3600, "Read 5 hours ago")])
+                      (61 * 60, "Read 1 hour ago"), (5 * 3600, "Read 5 hours ago")] as [(Int, String)]) // typed: Xcode took 194 ms over it
     func The_last_reading_reads_as_time_ago(_ seconds: Int, _ expected: String) {
         #expect(FleetPage.row(Self.printer("P", read: Self.now.addingTimeInterval(-Double(seconds))), Self.now).lastReadText == expected)
     }

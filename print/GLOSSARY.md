@@ -56,6 +56,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
 - **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer
   (`Core/History/SupplyHistoryStore`); what it says (cartridges, days left, the chart) is worked out from it, never stored.
+  On the Mac a printer's readings go into it through its **supply history feed** (`SupplyHistoryFeed`), which gives the card's view.
 - **Cartridge** (in the history): the rows between two changes of cartridge, a change being a level that jumps up by 20
   points or more (`SupplyAnalysis`). "Seen going in" when the change is in the history; the first one usually isn't.
 - **Firmware watch**: each printer's firmware version as last seen, with the day it was first seen and the change before

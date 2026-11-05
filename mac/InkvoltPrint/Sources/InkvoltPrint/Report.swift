@@ -10,7 +10,9 @@ import PrintMac
 /// scans the demo inkjet's feeder and saves a searchable PDF in the container, and says what it holds; `--batch` scans its
 /// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
 /// JPEG (the feeder sends PDF only: `--scan` also saves its pages as the scanner's own PDF, and with a page turned);
-/// `--firmware` shows the demo laser's firmware notice, runs Keep My Cartridges Working and dismisses the notice; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
+/// `--firmware` shows the demo laser's firmware notice, runs Keep My Cartridges Working and dismisses the notice;
+/// `--history` checks the supply history (where it's kept, Export history…'s CSV saved in the container, and with `--demo`
+/// the Pro gate switched on without a key); every printer's supplies list their history line and chart; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
 /// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer, with its paper types, qualities and colors;
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
@@ -44,6 +46,7 @@ enum Report {
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
+            if args.contains("--history") { cancelled += await historyCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
@@ -254,6 +257,50 @@ enum Report {
         p.dismissFirmwareNotice()
         try? await Task.sleep(for: .milliseconds(300))
         lines.append("  dismissed: notice \(p.view.firmwareNotice?.text ?? "none"), record dismissed: \(model.store.firmware(p.id)?.dismissed == true)")
+        return lines
+    }
+
+    /// The supply history (roadmap 1.1), once every printer that reads its supplies has: where it's kept (demo mode: in memory,
+    /// nothing written), Export history…'s CSV (the button's own call, saved without the panel in the container) and, in demo
+    /// mode without a key, the same export with the Pro gate on (refused: the button opens the Pro window instead).
+    private static func historyCheck(_ model: AppModel) async -> [String] {
+        for _ in 0..<80 where model.printers.contains(where: { $0.isNetwork && $0.view.phase == .connecting }) {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        let folder = AppModel.historyFolder
+        let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".tsv") }
+        var lines = [model.isDemo ? "history: demo mode keeps it in memory; folder \(folder.lastPathComponent) beside the state file holds \(files.count) files"
+                                  : "history: folder \(folder.lastPathComponent) beside the state file: \(files.count) files"]
+        if let first = files.sorted().first, let text = try? String(contentsOf: folder.appendingPathComponent(first), encoding: .utf8) {
+            let rows = text.split(separator: "\n")
+            let cells = rows.dropFirst().first.map { $0.split(separator: "\t", omittingEmptySubsequences: false).count } ?? 0
+            lines.append("  a file: \(rows.first.map(String.init) ?? "-"), \(rows.count - 1) rows of \(cells) cells")
+        }
+        for p in model.printers {
+            let rows = model.history.rows(p.id)
+            if rows.isEmpty { continue }
+            lines.append("  \(p.name): \(rows.count) rows, \(Set(rows.map(\.key)).count) supplies, \(rows[0].day) to \(rows[rows.count - 1].day)")
+        }
+        if let csv = SupplyHistoryExport.csv(model) {
+            let url = AppModel.dataFolder.appendingPathComponent("report-supply-history.csv")
+            do {
+                try SupplyHistoryExport.write(csv, to: url)
+                let saved = (try? Data(contentsOf: url)) ?? Data()
+                let rows = csv.components(separatedBy: "\r\n").filter { !$0.isEmpty }
+                lines.append("export: \(rows.count - 1) rows, saved \(saved.count) bytes, starts with a byte order mark: \(saved.starts(with: [0xEF, 0xBB, 0xBF]))")
+                lines.append("  columns: \(rows.first ?? "-")")
+            } catch {
+                lines.append("export: not saved: \(error.localizedDescription)")
+            }
+        } else {
+            lines.append("export: refused by the Pro check (the button opens the Pro window)")
+        }
+        if model.isDemo && Pro.licence == nil {
+            let enforced = Pro.enforced
+            Pro.enforced = true
+            lines.append("export with the Pro gate on and no key: \(SupplyHistoryExport.csv(model) == nil ? "refused" : "allowed")")
+            Pro.enforced = enforced
+        }
         return lines
     }
 
@@ -504,9 +551,12 @@ enum Report {
             if !v.interfaces.isEmpty { lines.append("  over: \(v.interfaces.joined(separator: ", "))") }
             if let f = v.firmware { lines.append("  firmware: \(f.display)") }
             if let n = v.firmwareNotice { lines.append("  firmware notice: \(n.text)") }
-            for s in v.supplies.map({ SupplyText($0) }) {
+            for supply in v.supplies {
+                let s = SupplyText(supply)
                 lines.append("  supply: \(s.name): \(s.percentText)\(s.headline.map { ", \($0)" } ?? "")")
+                if let line = v.supplyHistory?.line(for: supply) { lines.append("    history: \(line)") }
             }
+            lines += historyLines(v)
             for a in v.alerts { lines.append("  alert (\(a.severity)): \(a.message)") }
             if let u = v.usage, let pages = u.totalImpressions { lines.append("  pages printed: \(pages)") }
         }
@@ -517,6 +567,21 @@ enum Report {
             for f in search.found { lines.append("  \(f.state) \(f.name) [\(mask(f.host))]: \(mask(f.detail, host: f.host))") }
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The supplies card's chart (or why it isn't there yet) and the days left the low-supply alert names.
+    private static func historyLines(_ v: PrinterView) -> [String] {
+        guard let h = v.supplyHistory else { return [] }
+        guard h.chart.hasEnoughToDraw else { return ["  supply chart: none; \(h.chartNote(v.supplies) ?? "no note")"] }
+        var lines = ["  supply chart: \(h.chart.from) to \(h.chart.to), \(SupplyChart.marks(h.chart).count) marks"]
+        for l in h.chart.lines {
+            let points = l.segments.reduce(0) { $0 + $1.count }
+            lines.append("    \(l.supply): \(points) points in \(l.segments.count) pieces, new cartridge on \(l.changes.map(\.description))")
+        }
+        lines.append("    spoken: \(SupplyChart.spoken(h.chart))")
+        let days = h.daysLeft.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }
+        lines.append("  days left for the alert: \(days.isEmpty ? "none" : days.joined(separator: ", "))")
+        return lines
     }
 
     private static func mask(_ host: String) -> String {
