@@ -45,7 +45,17 @@ internal sealed class PageMasks
     /// </summary>
     public IEnumerable<(byte[] Pdf, long Pixels)> Large(int page, long abovePixels)
     {
-        if (_doc is null || page < 0 || page >= _doc.PageCount) yield break;
+        foreach (var (mask, pixels) in MasksOn(page))
+            if (pixels > abovePixels && Picture(mask) is { } dict) yield return (Optimizer.OneImagePage(dict, mask.Stream!.Value, 1, 1), pixels);
+    }
+
+    /// <summary>The pixels of the largest mask on <paramref name="page"/>; 0 if none was found.</summary>
+    public long Largest(int page) => MasksOn(page).Select(m => m.Pixels).DefaultIfEmpty(0).Max();
+
+    /// <summary>Every mask of a picture <paramref name="page"/> reaches, and its pixels.</summary>
+    private List<(PdfDictionary Mask, long Pixels)> MasksOn(int page)
+    {
+        if (_doc is null || page < 0 || page >= _doc.PageCount) return [];
         var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
         var masks = new List<PdfDictionary>();
         var left = new Stack<PdfItem>();
@@ -72,17 +82,16 @@ internal sealed class PageMasks
                     break;
             }
         }
-        foreach (var mask in masks.Distinct(ReferenceEqualityComparer.Instance).Cast<PdfDictionary>())
-        {
-            long w = PdfObj.Int(mask.Elements["/Width"]) ?? 0, h = PdfObj.Int(mask.Elements["/Height"]) ?? 0;
-            if (w <= 0 || h <= 0 || w * h <= abovePixels || Picture(mask, w, h) is not { } dict) continue;
-            yield return (Optimizer.OneImagePage(dict, mask.Stream!.Value, 1, 1), w * h);
-        }
+        return [.. masks.Distinct(ReferenceEqualityComparer.Instance).Cast<PdfDictionary>()
+            .Select(m => (m, (long)Math.Max(0, PdfObj.Int(m.Elements["/Width"]) ?? 0) * Math.Max(0, PdfObj.Int(m.Elements["/Height"]) ?? 0)))
+            .Where(m => m.Item2 > 0)];
     }
 
     /// <summary>The mask's dictionary as a picture of its own: gray, or a stencil; null when a value can't be written out.</summary>
-    private static string? Picture(PdfDictionary mask, long w, long h)
+    private static string? Picture(PdfDictionary mask)
     {
+        var w = PdfObj.Int(mask.Elements["/Width"]);
+        var h = PdfObj.Int(mask.Elements["/Height"]);
         var stencil = PdfObj.Resolve(mask.Elements["/ImageMask"]) is PdfBoolean { Value: true };
         var bits = stencil ? 1 : PdfObj.Int(mask.Elements["/BitsPerComponent"]) ?? 8;
         var sb = new StringBuilder($"/Type /XObject /Subtype /Image /Width {w} /Height {h} /BitsPerComponent {bits}");

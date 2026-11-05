@@ -168,6 +168,27 @@ public sealed partial class PdfEngine
         }
     }
 
+    /// <summary>In a check process: the pixels of the largest picture on <paramref name="page"/> as MuPDF lists them; 0 if it can't.</summary>
+    internal long LargestPicture(int page)
+    {
+        lock (_gate)
+        {
+            if (_disposed) return 0;
+            try
+            {
+                using var st = _doc.GetStructuredTextPage(page, includeAnnotations: true, StructuredTextFlags.PreserveImages);
+                long largest = 0;
+                foreach (var block in st)
+                    if (block is MuPDFImageStructuredTextBlock { Image: { } image }) largest = Math.Max(largest, (long)image.Width * image.Height);
+                return largest;
+            }
+            catch (MuPDFException)
+            {
+                return 0;
+            }
+        }
+    }
+
     /// <summary>
     /// In a check process: the one picture of <paramref name="pdf"/> (a mask <see cref="PageMasks"/> found) decoded by
     /// MuPDF at its full size, one component a pixel as MuPDF holds a mask.

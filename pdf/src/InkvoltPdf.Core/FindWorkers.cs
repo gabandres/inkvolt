@@ -449,7 +449,7 @@ public static class FindWorkers
         private static readonly Lazy<IntPtr> Limited = new(() => Create(LimitedBytes));
 
         /// <summary>What a process reading untrusted files for the index may hold: over this it fails, the app doesn't.</summary>
-        private const long LimitedBytes = 2048L * 1048576;
+        internal const long LimitedBytes = 2048L * 1048576;
 
         /// <summary>False if it couldn't be done (the worker's parent watch still ends it).</summary>
         public static bool Add(Process process) => Handle.Value != IntPtr.Zero && AssignProcessToJobObject(Handle.Value, process.Handle);

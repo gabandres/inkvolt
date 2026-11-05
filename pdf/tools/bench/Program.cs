@@ -30,6 +30,18 @@ if (args is ["page-check-fail", .. var failArgs] && PageChecks.IsCommand(failArg
     return PageChecks.Run(failArgs);
 }
 
+if (args is ["page-check-out-of-memory", .. var memoryArgs] && PageChecks.IsCommand(memoryArgs))
+{
+    // MuPDF giving up once the process held past half of what it may (1.2 GB of its 2 GB).
+    PageChecks.TestCheckFault = () =>
+    {
+        var held = GC.AllocateUninitializedArray<byte>(1200 << 20);
+        GC.KeepAlive(held);
+        throw (Exception)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(MuPDFCore.MuPDFException));
+    };
+    return PageChecks.Run(memoryArgs);
+}
+
 if (IndexWorkers.IsCommand(args)) return IndexWorkers.Run(args);
 // A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "eat" takes memory without end.
 if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerArgs] && IndexWorkers.IsCommand(indexWorkerArgs))

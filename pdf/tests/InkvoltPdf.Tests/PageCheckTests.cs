@@ -367,11 +367,11 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
-    public void APageWhoseCheckFailsIsRefusedNotDrawnHereUnlimited()
+    public void APageThatRunsOutOfMemoryInItsCheckIsRefusedNotDrawnHereUnlimited()
     {
-        // MuPDF failing in the check process (its allocation stopped at the process's memory limit, say) says nothing
-        // about what the page costs here, where nothing limits it.
-        using var plan = new PageCheckPlan(CheckExe, ["page-check-fail"]) { Limit = Limit };
+        // The check process running out of the memory it may hold says nothing about what the page costs here, where
+        // nothing limits it.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-out-of-memory"]) { Limit = Limit };
         using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
         engine.CheckPlan = plan;
         var refused = Assert.Throws<PageRefusedException>(() => engine.Render(0, 0.5));
@@ -379,6 +379,43 @@ public sealed class PageCheckTests : IDisposable
         Assert.Equal(PageVerdict.Failed, engine.VerdictOf(0));
         Assert.Throws<PageRefusedException>(() => engine.GetText(0));
         Assert.DoesNotContain(plan.Pids, Exited); // an answer, not a crash: the process goes on, the page isn't tried again
+    }
+
+    [Fact]
+    public void APictureTooBigForTheCheckProcessIsRefused()
+    {
+        // 30,000 x 30,000 RGB: 2.7 GB of samples, which MuPDF can't hold in the check's 2 GB even to draw it small.
+        var file = Picture(Zlib([], 30_000L * 30_000 * 3), "/Type /XObject /Subtype /Image /Width 30000 /Height 30000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode");
+        using var engine = Open(file);
+        var time = Stopwatch.StartNew();
+        Assert.Throws<PageRefusedException>(() => engine.Render(0, 0.25));
+        Assert.True(time.Elapsed < Timing.Limit(Limit + Slack), $"{time.Elapsed}");
+        Assert.True(PageRefusedException.Refuses(engine.VerdictOf(0))); // too slow here; one MuPDF can't allocate is refused as Failed
+    }
+
+    [Fact]
+    public void APageMuPdfCantFullyReadInItsCheckIsDrawnAsBefore()
+    {
+        // Any other failure (a page or picture MuPDF reads only in part) isn't a cost: the app draws what MuPDF can, as
+        // it did without page checks.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-fail"]) { Limit = Limit };
+        using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        engine.Render(0, 0.5);
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.Contains("Visit notes", engine.GetText(0).Text);
+    }
+
+    [Theory]
+    [InlineData(false, 100L * 100, 0L, 0L, false)]                  // a damaged picture: drawn here
+    [InlineData(true, 100L * 100, 0L, 0L, false)]                   // MuPDF giving up on a small one: drawn here
+    [InlineData(true, 30_000L * 30_000, 0L, 0L, true)]              // MuPDF giving up on a picture past half the process's memory
+    [InlineData(false, 0L, 100L << 20, 1200L << 20, true)]          // the process's memory spent past half during the check
+    [InlineData(false, 0L, 1800L << 20, 1800L << 20, false)]        // spent before it, not by this page
+    public void OnlyRunningOutOfMemoryRefusesAPage(bool mupdf, long largestPixels, long peakBefore, long peakAfter, bool refused)
+    {
+        var ex = mupdf ? (Exception)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(MuPDFException)) : new InvalidOperationException("Damaged.");
+        Assert.Equal(refused, PageChecks.OutOfResources(ex, largestPixels, peakBefore, peakAfter, 2048L << 20));
     }
 
     [Fact]

@@ -208,13 +208,14 @@ public static class PageChecks
                         var page = FindWorkers.ReadInt(pipe);
                         if (engine is null || page < 0 || page >= engine.PageCount) return;
                         var drawn = Drawn;
+                        long largest = 0;
+                        var peakBefore = PeakBytes();
                         try
                         {
                             TestCheckFault?.Invoke();
                             var g = engine.GetPage(page);
                             var longer = Math.Max(g.Width, g.Height);
                             engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
-                            long largest = 0;
                             if (engine.DecodeLargePictures(page, FullSizePixels, ref largest))
                             {
                                 masks ??= PageMasks.Read(FindWorkers.CopyOf(opened!.Path, view, opened.SectionBytes, PageMasks.MaxBytes), engine.PageCount);
@@ -227,7 +228,13 @@ public static class PageChecks
                         }
                         catch (Exception ex) when (ex is not OutOfMemoryException)
                         {
-                            drawn = Failed;
+                            // MuPDF giving up while drawing, before the pictures were listed: what it was asked to draw.
+                            if (ex is MuPDFException && largest == 0 && engine is not null)
+                            {
+                                largest = engine.LargestPicture(page);
+                                if (masks is not null) largest = Math.Max(largest, masks.Largest(page));
+                            }
+                            drawn = OutOfResources(ex, largest, peakBefore, PeakBytes(), FindWorkers.Job.LimitedBytes) ? Failed : Drawn;
                         }
                         FindWorkers.WriteInt(pipe, page);
                         FindWorkers.WriteInt(pipe, drawn);
@@ -251,6 +258,25 @@ public static class PageChecks
         {
             Close();
         }
+    }
+
+    /// <summary>
+    /// Whether a failure in a check is MuPDF running out of what the check process may hold, which refuses the page (here
+    /// nothing limits it), rather than a page or picture MuPDF reads only in part, which is drawn here as before (MuPDF
+    /// draws what it can; it warns of damaged content, a broken stream or a colour space it can't convert, and goes on).
+    /// MuPDF's error doesn't say which (one code for every failure), so it is told by what was asked of it: a picture to
+    /// decode at its full size of more than half the process's memory (4 bytes a pixel, as MuPDF may hold it), or the
+    /// process's memory raised past half of it during this check. A managed OutOfMemoryException ends the process
+    /// (refused as <see cref="PageVerdict.Crashed"/>).
+    /// </summary>
+    internal static bool OutOfResources(Exception ex, long largestPixels, long peakBefore, long peakAfter, long processBytes) =>
+        (ex is MuPDFException && largestPixels > processBytes / 2 / 4) || (peakAfter > peakBefore && peakAfter > processBytes / 2);
+
+    /// <summary>The most memory this process has held so far (its private bytes' peak).</summary>
+    private static long PeakBytes()
+    {
+        using var self = Process.GetCurrentProcess();
+        return self.PeakPagedMemorySize64;
     }
 
     /// <summary>The document a check process opens: its file, or a copy of its bytes in shared memory.</summary>
