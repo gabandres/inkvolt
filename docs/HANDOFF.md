@@ -7,11 +7,11 @@ SSS resets 2026-11-06 about 11:40.
 32 MB reply limit on every read (all reviewed, fixes in); Windows PDF's OcrClean in Export and Scan, Symbol fonts in
 paragraphs, the two UX leftovers, the es Store description (proposal in `pdf/packaging/README.md`), and page checks
 (MuPDF bounded by time, `PageChecks`, two review rounds). Bench committed (`f0f206e`: drawings.pdf first page 1.01 s,
-a miss since page checks). 1.8.0.0 packed, smoke passed (`pdf/publish/msix/InkvoltPdf_1.8.0.0.msixupload`), **not for
-upload yet**: first fix the `test` CI failure on x64, `PageCheckTests.APictureMuPdfDrawsOnlyThroughAnotherIsCheckedAtItsFullSizeToo`
-("a small picture's soft mask" not refused; passes on arm64 Release), then repack. Packing trap: a Release build done
-just before (the bench's) left `InkvoltPdf.Core`/`InkvoltPrint.Core` at 1.0.0.0 in the layout and the smoke failed;
-deleting their `bin/Release` and `obj/Release` fixed it (make `pack-msix.ps1` immune). Print for Mac 1.1 is still
+a miss since page checks). **1.8.0.0 ready for the owner to upload** (`0abc412`): packed and smoked side by side
+(`C:/Users/gabri/.t3/worktrees/PdfDesk/t3-32659b82/pdf/publish/msix/InkvoltPdf_1.8.0.0.msixupload`); the CI failure of
+`PageCheckTests` was the test's machine speed (CI's runner is windows-11-arm and decoded the mask in time), now judged
+by memory; `pack-msix.ps1` cleans the app's projects' Release outputs and refuses an Inkvolt assembly not at the
+package version. Release steps 4-8 in `pdf/packaging/README.md` "Upload" are the owner's. Print for Mac 1.1 is still
 Waiting for Review, so no 1.2 build. Owner: free disk space on `ignia-mac` (95 % full; Vision recompiles its model and
 returns no words).
 - **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~ (done 11-05) → Print for Mac
