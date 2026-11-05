@@ -1287,7 +1287,7 @@ enum Pictures {
         let longest = max(image.width, image.height)
         guard longest > 0 else { return nil }
         let k = min(1, 2048 / Double(longest))
-        let w = max(1, Int((Double(image.width) * k).rounded())), h = max(1, Int((Double(image.height) * k).rounded()))
+        let w = max(1, Int((Double(image.width) * k).rounded())), h = max(1, Int((Double(image.height) * k).rounded())) // bounded: the picture's own size, times at most 1
         var rgba = [UInt8](repeating: 0, count: w * h * 4)
         let drawn = rgba.withUnsafeMutableBytes { raw -> Bool in
             guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,

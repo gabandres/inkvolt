@@ -207,7 +207,7 @@ final class ScanModel {
     /// The page's resolution: what was asked, unless its size says otherwise (a scanner that sent another one).
     static func dpi(of jpeg: [UInt8], asked: Int, widthIn300ths: Int?) -> Int {
         guard let width = widthIn300ths, width > 0, let pixels = ScanImaging.size(jpeg)?.width else { return asked }
-        let measured = Int((Double(pixels) * 300 / Double(width)).rounded())
+        let measured = Int((Double(pixels) * 300 / Double(width)).rounded()) // bounded: a JPEG's width (at most 65535) x 300 over a width of at least 1
         return abs(measured - asked) <= max(asked / 30, 2) ? asked : measured
     }
 

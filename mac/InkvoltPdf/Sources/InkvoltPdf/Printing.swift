@@ -136,7 +136,7 @@ final class PrintSheetView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        let index = Int((dirtyRect.midY / max(paper.height, 1)).rounded(.down))
+        let index = Int((dirtyRect.midY / max(paper.height, 1)).rounded(.down)) // bounded: AppKit's rectangle in the print view, over at least 1
         guard index >= 0, index < plan.sheetCount, let ctx = NSGraphicsContext.current else { return }
         let top: CGFloat = CGFloat(index) * paper.height
         let sheet = plan.sheet(index)

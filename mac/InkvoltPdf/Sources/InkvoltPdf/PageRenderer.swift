@@ -126,7 +126,7 @@ final class PageRenderer {
 
     // MARK: Tiles
 
-    static func scaleKey(_ scale: Double) -> Int { Int((scale * 1000).rounded()) }
+    static func scaleKey(_ scale: Double) -> Int { Int((scale * 1000).rounded()) } // bounded: the view's zoom times the screen's scale
 
     /// A tile's side in page points at `scale`.
     static func tileSide(_ scale: Double) -> Double { Double(tilePixels) / scale }

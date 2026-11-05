@@ -260,8 +260,8 @@ struct PhotosView: View {
                             Image(decorative: p.image, scale: 1).resizable().scaledToFit().frame(width: 48, height: 48)
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(p.name).lineLimit(1).truncationMode(.middle)
-                                if let i = model.photos.firstIndex(where: { $0.id == p.id }), let dpi = model.printDpi[i] {
-                                    Text("\(Int(dpi.rounded())) dpi\(dpi < PhotoLayout.lowDpi ? ": may look soft" : "")")
+                                if let i = model.photos.firstIndex(where: { $0.id == p.id }), let dpi = model.printDpi[i], let shown = Int(exactly: dpi.rounded()) {
+                                    Text("\(shown) dpi\(dpi < PhotoLayout.lowDpi ? ": may look soft" : "")")
                                         .font(.caption).foregroundStyle(dpi < PhotoLayout.lowDpi ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                                 }
                             }

@@ -281,7 +281,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let anchor = rowsView.place(at: y)
         rowsView.zoom = zoom
         relayout()
-        zoomFit.title = zoom > 0 ? "\(Int((zoom * 100).rounded())) %" : "Fit"
+        zoomFit.title = zoom > 0 ? "\(Int((zoom * 100).rounded())) %" : "Fit" // bounded: the zoom buttons keep it within minZoom...maxZoom
         zoomOut.isEnabled = zoom == 0 || zoom > Self.minZoom + 0.0001
         zoomIn.isEnabled = zoom == 0 || zoom < Self.maxZoom - 0.0001
         if let anchor {

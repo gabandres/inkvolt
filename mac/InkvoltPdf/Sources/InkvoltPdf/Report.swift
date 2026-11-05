@@ -353,7 +353,7 @@ struct SelfTest {
         let count = engine.pageCount
         let sizesOk = (0..<count).allSatisfy { i in let g = engine.page(i); return g.width > 0 && g.height > 0 && g.width.isFinite && g.height.isFinite }
         let first = count > 0 ? engine.page(0) : PageGeometry(0, 0, 0, 0)
-        check(count > 0 && sizesOk, "geometry: \(count) pages, page 1 \(Int(first.width.rounded())) x \(Int(first.height.rounded())) pt")
+        check(count > 0 && sizesOk, "geometry: \(count) pages, page 1 \(Int(exactly: first.width.rounded()) ?? 0) x \(Int(exactly: first.height.rounded()) ?? 0) pt")
 
         // Every page drawn at three zooms, page 1 at 4x and a region (off the main thread, as the view's renders run).
         let render = await Task.detached { () -> (failed: Int, drawn: Int, seconds: Double, inked: Int) in

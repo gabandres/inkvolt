@@ -175,7 +175,7 @@ enum SignatureImages {
     /// Draws into a transparent bitmap of `size` points at 3x and converts it for the stamp.
     private static func render(_ size: CGSize, _ draw: (CGContext) -> Void) -> StampImage? {
         let scale: CGFloat = 3
-        let w = Int((size.width * scale).rounded(.up)), h = Int((size.height * scale).rounded(.up))
+        let w = Int((size.width * scale).rounded(.up)), h = Int((size.height * scale).rounded(.up)) // bounded: a signature pad's strokes or typed text, within 4000 x 400 pt
         guard w > 0, h > 0, let space = CGColorSpace(name: CGColorSpace.sRGB),
               let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }

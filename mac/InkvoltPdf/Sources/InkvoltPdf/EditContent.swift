@@ -229,7 +229,9 @@ final class ContentEditing: NSObject {
         pendingEdit = Task {
             let ok = await editor.replaceText(run, text)
             if ok && check.width - check.oldWidth > 0.5 {
-                controller.notify("Text changed. It is \(Int((check.width - check.oldWidth).rounded())) pt wider than before and doesn't reflow, "
+                // The widths come from the PDF's font: one too wide to count is said without its number.
+                let wider = Int(exactly: (check.width - check.oldWidth).rounded()).map { "\($0) pt " } ?? ""
+                controller.notify("Text changed. It is \(wider)wider than before and doesn't reflow, "
                                   + "so it may overlap what follows.", canUndo: true)
             }
             self.pendingEdit = nil
