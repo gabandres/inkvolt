@@ -548,13 +548,14 @@ extension AutoTag {
                 return (output, mcids)
             }
 
-            // A form's own content marked like a page's, through its matrix and the CTM at its Do; its MCIDs under its own
+            // A form's own content marked like a page's, from the state at its Do (its matrix times the CTM there, the text
+            // state it inherits); its MCIDs under its own
             // StructParents.
             func markInside(_ inner: PObj, _ item: Item, _ resources: PObj?, _ depth: Int) throws {
                 let res = inner.dict("Resources") ?? resources
                 let bytes = inner.streamData ?? []
                 let innerOps = try ContentLexer.parse(bytes, cancel: cancel)
-                let innerWalk = PageWalk(PageBoxes.frame(page), res, shared, start: item.matrix)
+                let innerWalk = PageWalk(PageBoxes.frame(page), res, shared, start: item.start)
                 let innerItems = try innerWalk.items(innerOps, strip: strip)
                 let marked = try mark(bytes, innerOps, innerWalk, innerItems, res, inner, depth + 1)
                 inner.setStream(marked.bytes, deflate: true)
@@ -619,38 +620,98 @@ extension AutoTag {
             return (dx * dx + dy * dy).squareRoot()
         }
 
-        /// How many times each form XObject is drawn in the document (by pages and by other forms), by identity: counted
-        /// the first time a form with text is met (a document without one is never read for it), on the pages whose
-        /// resources hold a form.
+        /// How many times each form XObject is drawn in the document (by pages and by other forms), by identity, and twice
+        /// for one drawn apart from the pages' content (an annotation's appearance, a tiling pattern, a Type 3 glyph, and
+        /// what those draw), whose MCIDs no page could own: counted the first time a form with text is met (a document
+        /// without one is never read for it).
         private var formUses: [UInt: Int]?
 
         /// How deep forms drawn by forms are marked inside (and counted).
         private static let maxFormDepth = 8
 
+        /// What counting form uses has read: each form drawn outside the content, resource dictionary, pattern and Type 3
+        /// font once.
+        private struct FormCount {
+            var uses: [UInt: Int] = [:]
+            var read = Set<UInt>()
+        }
+
         private func usesOfForms() throws -> [UInt: Int] {
             if let formUses { return formUses }
-            var uses: [UInt: Int] = [:]
+            var count = FormCount()
             for page in pages {
                 try cancel?.check()
                 let res = AutoTag.resources(page)
-                guard let xs = res?.dict("XObject"), xs.keys.contains(where: { xs.dict($0)?.name("Subtype") == "Form" }) else { continue }
-                try countForms(ContentEditor.contentBytes(page), res, 0, &uses)
+                if let xs = res?.dict("XObject"), xs.keys.contains(where: { xs.dict($0)?.name("Subtype") == "Form" }) {
+                    try countForms(ContentEditor.contentBytes(page), res, 0, outside: false, &count)
+                }
+                try countOutside(res, 0, &count)
+                // An annotation's appearances are drawn by the viewer, apart from the page's content.
+                for a in page.array("Annots")?.elements ?? [] where a.isDict {
+                    guard let ap = a.dict("AP") else { continue }
+                    for key in ["N", "R", "D"] {
+                        guard let v = ap.dict(key) else { continue }
+                        if v.isStream {
+                            try drawnOutside(v, nil, 0, &count)
+                        } else {
+                            for state in v.keys { if let s = v.dict(state), s.isStream { try drawnOutside(s, nil, 0, &count) } }
+                        }
+                    }
+                }
             }
-            formUses = uses
-            return uses
+            formUses = count.uses
+            return count.uses
         }
 
         private static let doOperator = Array("Do".utf8)
 
-        /// Counts the forms a content stream draws, and the forms they draw the first time each is met.
-        private func countForms(_ content: [UInt8], _ resources: PObj?, _ depth: Int, _ uses: inout [UInt: Int]) throws {
-            guard depth <= Self.maxFormDepth, content.firstRange(of: Self.doOperator) != nil else { return }
+        /// Counts the forms a content stream draws, and the forms they draw the first time each is met; with `outside` the
+        /// stream is drawn apart from the pages' content, and so is every form it draws.
+        private func countForms(_ content: [UInt8], _ resources: PObj?, _ depth: Int, outside: Bool, _ count: inout FormCount) throws {
+            guard depth <= Self.maxFormDepth else { return }
+            try countOutside(resources, depth, &count)
+            guard content.firstRange(of: Self.doOperator) != nil else { return }
             for op in try ContentLexer.parse(content, cancel: cancel) {
                 guard op.name == "Do", let o = op.operands.first, o.kind == .name,
                       let x = resources?.dict("XObject")?.dict(o.name), x.isStream, x.name("Subtype") == "Form" else { continue }
-                let n = (uses[x.identity] ?? 0) + 1
-                uses[x.identity] = n
-                if n == 1 { try countForms(x.streamData ?? [], x.dict("Resources") ?? resources, depth + 1, &uses) }
+                if outside {
+                    try drawnOutside(x, resources, depth + 1, &count)
+                    continue
+                }
+                let n = (count.uses[x.identity] ?? 0) + 1
+                count.uses[x.identity] = n
+                if n == 1 { try countForms(x.streamData ?? [], x.dict("Resources") ?? resources, depth + 1, outside: false, &count) }
+            }
+        }
+
+        /// A form drawn apart from the pages' content: counted twice (never piece by piece), and what it draws read once.
+        private func drawnOutside(_ x: PObj, _ resources: PObj?, _ depth: Int, _ count: inout FormCount) throws {
+            count.uses[x.identity, default: 0] += 2
+            if count.read.insert(x.identity).inserted {
+                try countForms(x.streamData ?? [], x.dict("Resources") ?? resources, depth, outside: true, &count)
+            }
+        }
+
+        /// The forms a resource dictionary's tiling patterns and Type 3 glyphs draw (each dictionary, pattern and font read
+        /// once): drawn apart from the pages' content. Every one is read, drawn by the content or not.
+        private func countOutside(_ resources: PObj?, _ depth: Int, _ count: inout FormCount) throws {
+            guard let resources, depth <= Self.maxFormDepth, count.read.insert(resources.identity).inserted else { return }
+            if let patterns = resources.dict("Pattern") {
+                for key in patterns.keys {
+                    // A tiling pattern (a shading one has no content).
+                    guard let p = patterns.dict(key), p.isStream, count.read.insert(p.identity).inserted else { continue }
+                    try countForms(p.streamData ?? [], p.dict("Resources"), depth + 1, outside: true, &count)
+                }
+            }
+            guard let fonts = resources.dict("Font") else { return }
+            for key in fonts.keys {
+                guard let font = fonts.dict(key), font.name("Subtype") == "Type3", count.read.insert(font.identity).inserted,
+                      let procs = font.dict("CharProcs") else { continue }
+                let glyphResources = font.dict("Resources") ?? resources
+                for g in procs.keys {
+                    guard let glyph = procs.dict(g), glyph.isStream else { continue }
+                    try countForms(glyph.streamData ?? [], glyphResources, depth + 1, outside: true, &count)
+                }
             }
         }
 
@@ -775,8 +836,9 @@ extension AutoTag {
         var form: PObj?
         var hasArtifact = false
         var artifactOnly = false
-        /// A form's matrix times the CTM where it is drawn: what its own content is drawn through.
-        var matrix = ContentEditor.Mat.identity
+        /// The state a form's own content starts with: the graphics state at its Do (font, spacing, scaling, rise) with its
+        /// matrix times the CTM there, what it is drawn through.
+        var start: PageWalk.State?
     }
 
     /// What every walk over one document shares: fonts once each, and what each form holds once each.
@@ -800,10 +862,10 @@ extension AutoTag {
         /// Reading a form's own content: what the forms it draws hold doesn't matter (a form drawing itself ends here;
         /// Windows' walk goes on into them, without end for such a form).
         private let insideForm: Bool
-        /// The CTM the stream starts with: a form's matrix and the CTM where it is drawn, for a form read on its own.
-        private let start: ContentEditor.Mat
+        /// The state the stream starts with, for a form read on its own: the one at its Do (`Item.start`).
+        private let start: State?
 
-        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, insideForm: Bool = false, start: ContentEditor.Mat = .identity) {
+        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, insideForm: Bool = false, start: State? = nil) {
             self.frame = frame
             self.resources = resources
             self.shared = shared
@@ -811,7 +873,8 @@ extension AutoTag {
             self.start = start
         }
 
-        private struct State {
+        /// The graphics state the walk follows: the CTM and the text state.
+        struct State {
             var ctm = ContentEditor.Mat.identity
             var font: PObj?
             var size = 12.0, charSpace = 0.0, wordSpace = 0.0, scale = 1.0, leading = 0.0, rise = 0.0
@@ -820,8 +883,7 @@ extension AutoTag {
         func items(_ ops: [COp], strip: Bool) throws -> [Item] {
             typealias Mat = ContentEditor.Mat
             var items: [Item] = []
-            var st = State()
-            st.ctm = start
+            var st = start ?? State()
             var stack: [State] = []
             var tm = Mat.identity, tlm = Mat.identity
             var path: [(Double, Double)] = []
@@ -953,9 +1015,10 @@ extension AutoTag {
                             corners = [(b.num(0), b.num(1)), (b.num(2), b.num(3)), (b.num(0), b.num(3)), (b.num(2), b.num(1))]
                         }
                         let info = insideForm ? (hasText: false, hasArtifact: false, artifactOnly: false) : try formInfo(x)
-                        let through = m.times(st.ctm)
-                        items.append(Item(startOp: i, endOp: i, kind: .form, box: box(corners, through), inArtifact: inArtifact, hasText: info.hasText,
-                                          form: x, hasArtifact: info.hasArtifact, artifactOnly: info.artifactOnly, matrix: through))
+                        var through = st
+                        through.ctm = m.times(st.ctm)
+                        items.append(Item(startOp: i, endOp: i, kind: .form, box: box(corners, through.ctm), inArtifact: inArtifact, hasText: info.hasText,
+                                          form: x, hasArtifact: info.hasArtifact, artifactOnly: info.artifactOnly, start: through))
                     }
                 default:
                     break
