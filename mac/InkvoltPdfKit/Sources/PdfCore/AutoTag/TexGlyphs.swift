@@ -52,7 +52,7 @@ enum TexGlyphs {
     }
 
     private static let sizedPattern = try! NSRegularExpression(pattern: "^([A-Za-z]+?)(big|Big|bigg|Bigg|text|display|wide|wider|widest)$")
-    private static let familyPattern = try! NSRegularExpression(pattern: #"^(?:[A-Z]{6}\+)?(CMMIB?|CMB?SY|CMEX)\d+$"#)
+    private static let familyPattern = try! NSRegularExpression(pattern: #"^(?:[A-Z]{6}\+)?(CMMIB?|CMB?SY|CMEX)\d+$"#, options: .caseInsensitive)
 
     private static func groups(_ regex: NSRegularExpression, _ s: String) -> [String]? {
         let ns = s as NSString
@@ -75,10 +75,11 @@ enum TexGlyphs {
     }
 
     /// The glyph name of `code` in a TeX math font's own encoding, by its name (CMMI, CMMIB: OML; CMSY, CMBSY: OMS; CMEX:
-    /// OMX; a subset's "ABCDEF+" prefix allowed), or nil for other fonts and codes outside 0-127.
+    /// OMX; in either case, TeX's own being "cmmi10"; a subset's "ABCDEF+" prefix allowed), or nil for other fonts and codes
+    /// outside 0-127.
     static func nameIn(_ baseFont: String, _ code: Int) -> String? {
         guard (0...127).contains(code), let m = groups(familyPattern, baseFont) else { return nil }
-        switch m[1] {
+        switch m[1].uppercased() {
         case "CMMI", "CMMIB": return oml[code]
         case "CMSY", "CMBSY": return oms[code]
         default: return omx[code]
@@ -133,7 +134,7 @@ enum TexGlyphs {
             + "quotedblleft bracketright circumflex dotaccent quoteleft a b c d e f g h i j k l m n o p q r s t u v w x y z endash emdash "
             + "hungarumlaut tilde dieresis")
 
-    private static let textFamilyPattern = try! NSRegularExpression(pattern: #"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$"#)
+    private static let textFamilyPattern = try! NSRegularExpression(pattern: #"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$"#, options: .caseInsensitive)
 
     /// What character code `code` is in a font named `font` whose glyphs say nothing but their code (a Type 3 bitmap font
     /// dvips made from TeX's PK fonts, glyphs "a65"…): by the TeX font's own encoding when the name tells it (OML, OMS, OMX
@@ -144,7 +145,7 @@ enum TexGlyphs {
         guard (0...127).contains(code) else { return nil }
         if let math = nameIn(font, code) { return toUnicode(math) }
         guard let m = groups(textFamilyPattern, font) else { return nil }
-        let family = m[1]
+        let family = m[1].uppercased()
         if family.contains("TT") {
             return (33...126).contains(code) ? String(Character(Unicode.Scalar(UInt8(code)))) : nil
         }
@@ -153,7 +154,7 @@ enum TexGlyphs {
         return ot1[code] == "suppress" ? nil : toUnicode(ot1[code])
     }
 
-    /// Whether a name is a TeX font's (CMR10, CMMI7…; a subset's prefix allowed).
+    /// Whether a name is a TeX font's (CMR10, CMMI7, cmr10…; a subset's prefix allowed).
     static func isTexFont(_ font: String) -> Bool { groups(familyPattern, font) != nil || groups(textFamilyPattern, font) != nil }
 
     private static func vector(_ names: String) -> [String] {
