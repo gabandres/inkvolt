@@ -453,7 +453,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 
 | Windows feature (`pdf/README.md`, "Using it") | Mac |
 |---|---|
-| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view, dark pages and Go to Page done 2026-11-03 |
+| Windows 11 look, tabs, start page, reading modes, side rail, find, tools, command palette, settings | D7 (a native macOS look); reading modes (single, two pages, cover), rotate view, dark pages and Go to Page done 2026-11-03; the Snapshot tool 2026-11-05 |
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them, Reverse Page Order, Extract Pages' choices and Split Document: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
@@ -1027,6 +1027,24 @@ flags, their parsing, a 14-branch chain and the quit condition each had to be ed
 - A person must look at: Export Comments' save panel with its Format row (light and dark), the file type following the
   pop-up; Import Comments' open panel; the Comments Imported sheet with a long skipped list (scrolling, VoiceOver
   reading "Skipped comments"); comments exported here opened in Acrobat or Preview, and Acrobat's XFDF imported here.
+
+### Snapshot and printer status when printing (no Windows test to port, 2026-11-05)
+
+- **Snapshot**, Windows' `ViewerTool.Snapshot` and `PageViewer.CopySnapshot`: `Snapshot` in `PdfCore/Pages`
+  (`Snapshot.swift`: the region a drag marks, cut to the page, nothing under 2 points a side; the resolution, the view's
+  zoom times the backing scale but at least 2 pixels a point, cut by a fifth until under 40 megapixels; the picture
+  rendered and turned as the view shows the page). SnapshotTests (8 tests, 20 cases, with hostile numbers). The app
+  (`SnapshotTool.swift`): `Tool.snapshot`, the third reading tool in the markup toolbar (camera.viewfinder) and Tools ›
+  Snapshot (⌥⌘C, a row in `DocumentCommands`); rendered off the main thread, put on the clipboard as PNG and TIFF sized in
+  points (so an app pastes it at the size it shows), the notice "Snapshot copied (W × H px)" (VoiceOver reads it). Mac
+  differences: no single key (Windows' G is the Signature tool's here and every letter is a tool's), so ⌥⌘C, which no
+  other command uses; Esc during the drag cancels it and Esc again goes back to Select Text, as for the other tools; the
+  split view's second pane takes it (it only reads). Copy is all Windows does, so there's no Save. `ViewTest` adds 5
+  checks (the menu item ticks the tool; a drag gives 200 × 100 points as PNG and TIFF at 2 px a point or more, on the
+  self-test's own pasteboard so a person's clipboard stays; the notice; Esc mid-drag copies nothing; Esc leaves the tool).
+- A person must look at (Snapshot): the drag's blue box at several zooms and on a turned view, the cursor, pasting into
+  Pages, Mail and Preview (the size it pastes at), the markup toolbar's third reading segment and its tooltip, VoiceOver
+  reading the notice.
 
 ### What a person must look at (unattended run, 2026-11-03)
 

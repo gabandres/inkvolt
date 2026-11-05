@@ -18,6 +18,9 @@ protocol PagesHost: AnyObject {
     func openLink(_ link: PageLink)
     /// The areas marked for redaction changed.
     func redactionsChanged()
+    /// The Snapshot tool marked `region` (page space) of `page` in the pane showing `engine`: copy it as a picture, at the
+    /// view's scale (pixels a point) and turned as the view shows the page.
+    func copySnapshot(_ engine: PdfEngine, page: Int, region: RectD, viewScale: Double, rotation: Int)
 }
 
 /// An area marked for redaction (page space), black on the page once the marks are applied.
@@ -110,7 +113,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         didSet {
             guard tool != oldValue else { return }
             // Split view's second pane is for reading: a tool that changes the document goes to the main pane.
-            if readingOnly && tool != .hand && tool != .text {
+            if readingOnly && !tool.readsOnly {
                 let wanted = tool
                 tool = oldValue
                 onWritingTool?(wanted)
@@ -766,7 +769,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch drag {
         case .text, .pan, .link:
             return
-        case .box(_, let a, let b) where boxPicker != nil:
+        case .box(_, let a, let b) where boxPicker != nil || tool == .snapshot:
             let rect = viewRect(DrawingGeometry.dragBox(a, b, square: false), r)
             NSColor.controlAccentColor.withAlphaComponent(0.12).setFill()
             rect.fill(using: .sourceOver)
@@ -1134,7 +1137,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         case .text, .highlight, .underline, .strikeOut:
             startTextSelection(event, hit)
-        case .textBox, .rectangle, .ellipse, .link, .callout:
+        case .textBox, .rectangle, .ellipse, .link, .callout, .snapshot:
             drag = .box(page: hit.page, start: p, now: p)
         case .polygon, .polyline:
             addVertex(hit.page, p, clicks: event.clickCount)
@@ -1300,6 +1303,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if case .link(let link, _, _) = finished {
             host?.openLink(link)
+            return
+        }
+        if tool == .snapshot, case .box(let page, let a, let b) = finished {
+            let g = engine.page(page)
+            if let region = Snapshot.region(a, b, pageWidth: g.width, pageHeight: g.height) {
+                host?.copySnapshot(engine, page: page, region: region, viewScale: wantedScale(), rotation: viewRotation)
+            }
             return
         }
         commit(finished, click: event.clickCount)

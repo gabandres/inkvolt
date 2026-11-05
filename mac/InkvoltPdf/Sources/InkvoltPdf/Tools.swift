@@ -10,6 +10,8 @@ enum Tool: Int, CaseIterable {
     case redact
     case measureDistance, measurePerimeter, measureArea, measureCalibrate
     case prepareForm
+    /// Copies a dragged rectangle of a page as a picture (Windows' Snapshot); last, so the other tools' tags stay.
+    case snapshot
 
     var title: String {
         switch self {
@@ -44,6 +46,7 @@ enum Tool: Int, CaseIterable {
         case .measureArea: "Measure Area"
         case .measureCalibrate: "Calibrate Scale from a Known Length"
         case .prepareForm: "Prepare Form"
+        case .snapshot: "Snapshot"
         }
     }
 
@@ -77,6 +80,8 @@ enum Tool: Int, CaseIterable {
         case .polyline: "z"
         case .redact: "f"
         case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate, .prepareForm: "" // none, as on Windows
+        // Windows' G is the Signature tool's here, and every other letter is taken: Tools › Snapshot's ⌥⌘C instead.
+        case .snapshot: ""
         }
     }
 
@@ -112,6 +117,7 @@ enum Tool: Int, CaseIterable {
         case .measurePerimeter: "point.topleft.down.to.point.bottomright.curvepath"
         case .measureArea: "square.dashed"
         case .prepareForm: "rectangle.and.pencil.and.ellipsis"
+        case .snapshot: "camera.viewfinder"
         }
     }
 
@@ -143,6 +149,7 @@ enum Tool: Int, CaseIterable {
         case .measurePerimeter, .measureArea: "Click each corner; double-click or Return finishes, Delete takes a corner back, Esc cancels"
         case .measureCalibrate: "Click both ends of something whose real length you know (a dimension, a scale bar)"
         case .prepareForm: "Add and edit form fields"
+        case .snapshot: "Snapshot: drag over part of a page to copy it as a picture; Esc cancels"
         }
     }
 
@@ -158,6 +165,12 @@ enum Tool: Int, CaseIterable {
         default: nil
         }
     }
+
+    /// What the tooltip names as its key: the single key, or Snapshot's menu shortcut.
+    var shortcut: String { self == .snapshot ? "⌥⌘C" : key.uppercased() }
+
+    /// Tools that only read the pages (split view's second pane takes them).
+    var readsOnly: Bool { self == .hand || self == .text || self == .snapshot }
 
     /// Tools that select and edit existing comments with a press.
     var selects: Bool { self == .hand || self == .text }
@@ -178,7 +191,7 @@ enum Tool: Int, CaseIterable {
 
     /// The tool strip's groups.
     static let groups: [[Tool]] = [
-        [.hand, .text],
+        [.hand, .text, .snapshot],
         [.highlight, .underline, .strikeOut, .note, .textBox, .callout],
         [.pen, .highlighter, .rectangle, .ellipse, .line, .arrow, .polygon, .polyline],
         [.stamp, .image, .link],
@@ -292,7 +305,7 @@ final class ToolStrip: NSView {
                 control.setImage(image, forSegment: i)
                 control.setImageScaling(.scaleProportionallyDown, forSegment: i)
                 control.setWidth(28, forSegment: i)
-                control.setToolTip("\(tool.help) (\(tool.key.uppercased()))", forSegment: i)
+                control.setToolTip("\(tool.help) (\(tool.shortcut))", forSegment: i)
                 if tool == .stamp || tool == .image || tool == .signature { control.setShowsMenuIndicator(true, forSegment: i) }
             }
             control.target = self
@@ -364,7 +377,7 @@ final class ToolStrip: NSView {
             controls[g].selectedSegment = group.firstIndex(of: tool) ?? -1
         }
         // Measurements are drawn in their own look (Measurements.defaultStyle), as on Windows.
-        let plain = Set<Tool>([.hand, .text, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature, .editContent] + Tool.measuring)
+        let plain = Set<Tool>([.hand, .text, .snapshot, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature, .editContent] + Tool.measuring)
         showStyle(style, usesWidth: !plain.contains(tool) && ![.highlight, .underline, .strikeOut, .note].contains(tool),
                   usesColor: !plain.contains(tool))
         stampLabel.stringValue = tool == .stamp ? (stamp ?? "") : ""
