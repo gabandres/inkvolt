@@ -215,4 +215,21 @@ struct PrinterMonitorTests {
         #expect(await without.check())
         #expect(await without.view.supplyHistory == nil)
     }
+
+    /// The printer was removed while a reading was in flight (stopping the monitor only cancels it): its history was
+    /// forgotten, so that reading keeps nothing and the file doesn't come back.
+    @Test func aReadingInFlightWhenThePrinterIsRemovedKeepsNoSupplyHistory() async {
+        let store = SupplyHistoryStore(nil)
+        let log = Log()
+        let recipe = PrinterRecipe(transport: { _, _ in Self.network.http }, snmp: Self.network.snmp)
+        let printer = Self.demo(Demo.uuid)
+        let feed = SupplyHistoryFeed(store, printer.uuid, today: { Day(2026, 11, 4) })
+        let laser = PrinterMonitor(id: printer.uuid, name: printer.name, target: printer.target, recipe: recipe, accepted: { [] },
+                                   acceptUuids: { _ in }, history: feed, onEvent: { log.add($0) })
+        feed.forget() // AppModel.remove
+        #expect(await laser.check())
+        #expect(store.rows(printer.uuid).isEmpty)
+        #expect(await laser.view.supplyHistory == nil)
+        #expect(log.snapshots.last?.daysLeft == nil)
+    }
 }

@@ -190,6 +190,9 @@ enum SupplyHistoryExport {
 
     /// UTF-8 with a byte order mark, so Excel reads the names as UTF-8 (as Windows writes it).
     static func write(_ csv: String, to url: URL) throws {
-        try (Data([0xEF, 0xBB, 0xBF]) + Data(csv.utf8)).write(to: url, options: .atomic)
+        try bytes(csv).write(to: url, options: .atomic)
     }
+
+    /// The file's bytes as `write` saves them.
+    static func bytes(_ csv: String) -> Data { Data([0xEF, 0xBB, 0xBF]) + Data(csv.utf8) }
 }

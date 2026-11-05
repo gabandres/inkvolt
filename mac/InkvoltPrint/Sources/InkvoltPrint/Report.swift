@@ -11,8 +11,8 @@ import PrintMac
 /// feeder's batch split at patch codes and saves the files; `--photos` finds the photos on its glass and saves each as a
 /// JPEG (the feeder sends PDF only: `--scan` also saves its pages as the scanner's own PDF, and with a page turned);
 /// `--firmware` shows the demo laser's firmware notice, runs Keep My Cartridges Working and dismisses the notice;
-/// `--history` checks the supply history (where it's kept, Export history…'s CSV saved in the container, and with `--demo`
-/// the Pro gate switched on without a key); every printer's supplies list their history line and chart; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
+/// `--history` checks the supply history (where it's kept, Export history…'s CSV saved in the container, and with `--demo`,
+/// which reads and saves nothing real, the CSV in memory and the Pro gate switched on without a key); every printer's supplies list their history line and chart; `--hardware` runs the new flows on the selected real printer (glass scan with photos, ID card sides, a feeder
 /// batch, Set Up in macOS with the queue deleted again; nothing printed or written to the printer); `--papers` lists the paper sizes Print Photos offers for each printer, with its paper types, qualities and colors;
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing; `--fix [all]` runs the
@@ -261,20 +261,23 @@ enum Report {
     }
 
     /// The supply history (roadmap 1.1), once every printer that reads its supplies has: where it's kept (demo mode: in memory,
-    /// nothing written), Export history…'s CSV (the button's own call, saved without the panel in the container) and, in demo
+    /// nothing written), Export history…'s CSV (the button's own call, saved without the panel in the container; in demo mode only in memory) and, in demo
     /// mode without a key, the same export with the Pro gate on (refused: the button opens the Pro window instead).
     private static func historyCheck(_ model: AppModel) async -> [String] {
         for _ in 0..<80 where model.printers.contains(where: { $0.isNetwork && $0.view.phase == .connecting }) {
             try? await Task.sleep(for: .milliseconds(250))
         }
-        let folder = AppModel.historyFolder
-        let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".tsv") }
-        var lines = [model.isDemo ? "history: demo mode keeps it in memory; folder \(folder.lastPathComponent) beside the state file holds \(files.count) files"
-                                  : "history: folder \(folder.lastPathComponent) beside the state file: \(files.count) files"]
-        if let first = files.sorted().first, let text = try? String(contentsOf: folder.appendingPathComponent(first), encoding: .utf8) {
-            let rows = text.split(separator: "\n")
-            let cells = rows.dropFirst().first.map { $0.split(separator: "\t", omittingEmptySubsequences: false).count } ?? 0
-            lines.append("  a file: \(rows.first.map(String.init) ?? "-"), \(rows.count - 1) rows of \(cells) cells")
+        // Demo mode saves nothing and reads nothing real: its history and the export stay in memory.
+        var lines = ["history: demo mode keeps it in memory; nothing is read from or saved to the history folder"]
+        if !model.isDemo {
+            let folder = AppModel.historyFolder
+            let files = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".tsv") }
+            lines = ["history: folder \(folder.lastPathComponent) beside the state file: \(files.count) files"]
+            if let first = files.sorted().first, let text = try? String(contentsOf: folder.appendingPathComponent(first), encoding: .utf8) {
+                let rows = text.split(separator: "\n")
+                let cells = rows.dropFirst().first.map { $0.split(separator: "\t", omittingEmptySubsequences: false).count } ?? 0
+                lines.append("  a file: \(rows.first.map(String.init) ?? "-"), \(rows.count - 1) rows of \(cells) cells")
+            }
         }
         for p in model.printers {
             let rows = model.history.rows(p.id)
@@ -282,15 +285,21 @@ enum Report {
             lines.append("  \(p.name): \(rows.count) rows, \(Set(rows.map(\.key)).count) supplies, \(rows[0].day) to \(rows[rows.count - 1].day)")
         }
         if let csv = SupplyHistoryExport.csv(model) {
-            let url = AppModel.dataFolder.appendingPathComponent("report-supply-history.csv")
-            do {
-                try SupplyHistoryExport.write(csv, to: url)
-                let saved = (try? Data(contentsOf: url)) ?? Data()
-                let rows = csv.components(separatedBy: "\r\n").filter { !$0.isEmpty }
-                lines.append("export: \(rows.count - 1) rows, saved \(saved.count) bytes, starts with a byte order mark: \(saved.starts(with: [0xEF, 0xBB, 0xBF]))")
+            let rows = csv.components(separatedBy: "\r\n").filter { !$0.isEmpty }
+            if model.isDemo {
+                let bytes = SupplyHistoryExport.bytes(csv)
+                lines.append("export: \(rows.count - 1) rows, \(bytes.count) bytes in memory (not saved in demo mode), starts with a byte order mark: \(bytes.starts(with: [0xEF, 0xBB, 0xBF]))")
                 lines.append("  columns: \(rows.first ?? "-")")
-            } catch {
-                lines.append("export: not saved: \(error.localizedDescription)")
+            } else {
+                let url = AppModel.dataFolder.appendingPathComponent("report-supply-history.csv")
+                do {
+                    try SupplyHistoryExport.write(csv, to: url)
+                    let saved = (try? Data(contentsOf: url)) ?? Data()
+                    lines.append("export: \(rows.count - 1) rows, saved \(saved.count) bytes, starts with a byte order mark: \(saved.starts(with: [0xEF, 0xBB, 0xBF]))")
+                    lines.append("  columns: \(rows.first ?? "-")")
+                } catch {
+                    lines.append("export: not saved: \(error.localizedDescription)")
+                }
             }
         } else {
             lines.append("export: refused by the Pro check (the button opens the Pro window)")

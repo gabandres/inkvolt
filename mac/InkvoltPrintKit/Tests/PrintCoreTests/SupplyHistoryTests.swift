@@ -580,19 +580,83 @@ final class SupplyHistoryTests {
         let clock = Clock(Self.day0)
         let feed = SupplyHistoryFeed(store, Self.printer, today: { clock.day })
 
-        let first = feed.take([Self.toner(50), Self.box], pages: 100)
+        let first = try #require(feed.show([Self.toner(50), Self.box], pages: 100))
         #expect(store.rows(Self.printer) == [Self.row(0, 50, 100)])
         #expect(try String(contentsOfFile: try #require(files.first), encoding: .utf8).contains("\t50\tok\t100"))
         #expect(first.line(for: Self.toner(50))?.hasPrefix("Not enough history for days left yet") == true)
 
         // Rows put in behind the feed's back: the same reading on the same day changes no row, so the card is as it was.
         store.importRows(Self.printer, (0..<10).map { Self.row($0 - 9, 59 - $0, nil) })
-        #expect(feed.take([Self.toner(50)], pages: nil) == first)
+        #expect(feed.show([Self.toner(50)], pages: nil) == first)
 
         clock.day = Self.day0.adding(days: 1)
-        let next = feed.take([Self.toner(49)], pages: nil)
+        let next = try #require(feed.show([Self.toner(49)], pages: nil))
         #expect(next == SupplyHistoryView.of(store.rows(Self.printer), clock.day))
         #expect(next.daysLeft[SupplyRow.keyOf(Self.toner(49))] != nil)
+    }
+
+    /// Days left count calendar days: a reading that didn't get the supplies, or a day the printer is offline, gets the card
+    /// and the alert's days left worked out for today, not the last reading's day ("About 34 days left" a week on).
+    @Test func The_feed_works_the_days_left_out_again_on_a_new_day_without_a_reading_of_its_supplies() throws {
+        let store = SupplyHistoryStore(nil)
+        let clock = Clock(Self.day0)
+        let feed = SupplyHistoryFeed(store, Self.printer, today: { clock.day })
+        #expect(feed.show(nil, pages: nil) == nil) // nothing shown before the first reading of its supplies
+        #expect(feed.current() == nil)
+        store.importRows(Self.printer, (0..<10).map { Self.row($0 - 10, 60 - $0, nil) })
+        let first = try #require(feed.show([Self.toner(50)], pages: nil))
+        let key = SupplyRow.keyOf(Self.toner(50))
+        let left = try #require(first.daysLeft[key])
+
+        clock.day = Self.day0.adding(days: 3)
+        let later = try #require(feed.show(nil, pages: nil))
+        #expect(store.rows(Self.printer).last?.day == Self.day0) // nothing kept for a reading without its supplies
+        #expect(later == SupplyHistoryView.of(store.rows(Self.printer), clock.day))
+        #expect(try #require(later.daysLeft[key]) < left)
+
+        clock.day = Self.day0.adding(days: 4)
+        #expect(feed.current() == SupplyHistoryView.of(store.rows(Self.printer), clock.day))
+    }
+
+    /// The printer was removed: its file goes, and a reading still in flight (the monitor was reading when it was stopped)
+    /// keeps nothing, so the file doesn't come back.
+    @Test func A_forgotten_feed_keeps_nothing_from_a_reading_still_in_flight() throws {
+        let store = SupplyHistoryStore(folder)
+        let feed = SupplyHistoryFeed(store, Self.printer, today: { Self.day0 })
+        #expect(feed.show([Self.toner(50)], pages: 100) != nil)
+        #expect(files.count == 1)
+
+        feed.forget()
+        #expect(feed.show([Self.toner(49)], pages: 101) == nil)
+        #expect(feed.current() == nil)
+        #expect(files.isEmpty)
+        #expect(store.rows(Self.printer).isEmpty)
+    }
+
+    /// Readings arriving together (a network printer's monitor and a check, a queue read on another thread) each get a view
+    /// with their own reading in it, and the one cached last is the store's current rows.
+    @Test func Readings_taken_together_each_get_a_view_with_their_reading() {
+        let store = SupplyHistoryStore(nil)
+        let feed = SupplyHistoryFeed(store, Self.printer, today: { Self.day0 })
+        let views = Views()
+        DispatchQueue.concurrentPerform(iterations: 200) { i in
+            let percent = 40 + i % 20
+            if let v = feed.show([Self.toner(percent)], pages: nil) { views.add(percent, v) }
+        }
+        #expect(views.count == 200)
+        #expect(feed.current() == SupplyHistoryView.of(store.rows(Self.printer), Self.day0))
+        #expect(views.allMatch)
+    }
+
+    private final class Views: @unchecked Sendable {
+        private let lock = NSLock()
+        private var all: [(Int, SupplyHistoryView)] = []
+        func add(_ percent: Int, _ v: SupplyHistoryView) { lock.withLock { all.append((percent, v)) } }
+        var count: Int { lock.withLock { all.count } }
+        /// Each view's chart ends at the level its own reading kept (one row a day: the day's last reading wins).
+        var allMatch: Bool {
+            lock.withLock { all.allSatisfy { p, v in v.chart.lines.first?.segments.last?.last?.percent == p } }
+        }
     }
 }
 

@@ -25,8 +25,12 @@ final class PrinterModel: Identifiable {
     private(set) var destination: CupsDestination?
 
     @ObservationIgnored private let monitor: PrinterMonitor?
-    /// A queue printer's supply history, fed from its queue's levels (a network printer's monitor feeds its own).
-    @ObservationIgnored private var queueHistory: SupplyHistoryFeed?
+    /// Its supply history: a network printer's monitor feeds it, a queue printer's queue levels do (`update`); nil for a
+    /// scanner of its own. Kept here so removing the printer forgets it, and a reading in flight then keeps nothing.
+    @ObservationIgnored private let history: SupplyHistoryFeed?
+    /// A queue printer's readings going into its history off the main thread, one after another.
+    @ObservationIgnored private var historyStep: Task<Void, Never>?
+    @ObservationIgnored private var stopped = false
     @ObservationIgnored private unowned let app: AppModel
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var events: Task<Void, Never>?
@@ -45,9 +49,11 @@ final class PrinterModel: Identifiable {
         self.app = app
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
         let store = app.store, id = known.uuid
+        let history = SupplyHistoryFeed(app.history, id)
+        self.history = history
         monitor = PrinterMonitor(id: id, name: known.name, target: known.target, recipe: app.recipe(id), accepted: { store.accepted(id) },
                                  acceptUuids: { store.accept(id, $0) }, firmware: store.firmwareMemory(id),
-                                 history: SupplyHistoryFeed(app.history, id), onEvent: { continuation.yield($0) })
+                                 history: history, onEvent: { continuation.yield($0) })
         events = Task { [weak self] in
             for await event in stream { self?.handle(event) }
         }
@@ -60,6 +66,7 @@ final class PrinterModel: Identifiable {
         host = "USB"
         self.app = app
         monitor = nil
+        history = nil
         systemScanner = s
         view = .scannerReady
     }
@@ -72,7 +79,7 @@ final class PrinterModel: Identifiable {
         host = CupsQueues.address(d) ?? CupsQueues.connectionText(d)
         self.app = app
         monitor = nil
-        queueHistory = SupplyHistoryFeed(app.history, id)
+        history = SupplyHistoryFeed(app.history, id)
         update(d)
     }
 
@@ -121,12 +128,35 @@ final class PrinterModel: Identifiable {
         name = d.displayName
         model = d.makeAndModel
         var v = CupsStatus.view(d)
-        // Its levels kept in the supply history first (CUPS gives no page count), as a network printer's reading is.
-        if let queueHistory, !v.supplies.isEmpty { v.supplyHistory = queueHistory.take(v.supplies, pages: nil) }
+        v.supplyHistory = view.supplyHistory // until the history has this reading
         if v != view { view = v }
-        var snapshot = CupsStatus.snapshot(d, id: id)
-        snapshot.daysLeft = v.supplyHistory?.daysLeft
+        let snapshot = CupsStatus.snapshot(d, id: id)
+        guard let history else {
+            app.observe(snapshot)
+            return
+        }
+        // Its levels kept in the supply history first (CUPS gives no page count), by the rule a network printer's reading
+        // follows, and off the main thread as the monitor's are (a file read and written): then the card and the alert.
+        let previous = historyStep, supplies = v.supplies
+        historyStep = Task.detached { [weak self] in
+            await previous?.value
+            let shown = history.show(supplies, pages: nil)
+            await self?.showHistory(shown, snapshot)
+        }
+    }
+
+    /// A queue reading's history worked out: the card's lines and chart, and the alert's days left.
+    private func showHistory(_ shown: SupplyHistoryView?, _ snapshot: PrinterSnapshot) {
+        guard !stopped else { return } // removed meanwhile: nothing is shown or alerted
+        if let shown, shown != view.supplyHistory { view.supplyHistory = shown }
+        var snapshot = snapshot
+        snapshot.daysLeft = view.supplyHistory?.daysLeft
         app.observe(snapshot)
+    }
+
+    /// Removed from the app: its supply history goes with it, and a reading still in flight keeps nothing.
+    func forgetHistory() {
+        if let history { history.forget() } else { app.history.forget(id) }
     }
 
     /// Starts (or restarts) the monitor's connection loop.
@@ -137,6 +167,8 @@ final class PrinterModel: Identifiable {
     }
 
     func stop() {
+        stopped = true
+        historyStep?.cancel()
         running?.cancel()
         running = nil
         polling?.cancel()

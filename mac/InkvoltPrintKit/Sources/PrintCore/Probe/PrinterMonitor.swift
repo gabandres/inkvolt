@@ -23,8 +23,8 @@ public struct PrinterView: Equatable, Sendable {
     public var location: String?
     /// The last firmware change while its notice shows on the status card (roadmap 1.5, `FirmwareWatch.notice`).
     public var firmwareNotice: FirmwareChange? = nil
-    /// What the supplies card shows from the printer's supply history after the last reading (roadmap 1.1): each supply's
-    /// line, the chart and the days left; nil without a history (or before the first reading of its supplies).
+    /// What the supplies card shows from the printer's supply history (roadmap 1.1), worked out for today (`SupplyHistoryFeed.show`):
+    /// each supply's line, the chart and the days left; nil without a history (or before the first reading of its supplies).
     public var supplyHistory: SupplyHistoryView? = nil
 
     public static let connecting = PrinterView(phase: .connecting, statusMessage: "Connecting…", statusDetail: nil, severity: .info, alerts: [],
@@ -274,11 +274,10 @@ public actor PrinterMonitor {
             v.severity = status.severity
             v.alerts = status.alerts
         }
-        if let supplies = reading.supplies { // not read this time: stay as they were
-            v.supplies = supplies
-            // Kept in the supply history first, so the card's lines, its chart and the alert's days left include this reading.
-            if let history { v.supplyHistory = history.take(supplies, pages: reading.usage?.totalImpressions) }
-        }
+        if let supplies = reading.supplies { v.supplies = supplies } // not read this time: stay as they were
+        // Kept in the supply history first, so the card's lines, its chart and the alert's days left include this reading
+        // (worked out for today even when the supplies weren't read). The page count is this reading's, as Windows passes it.
+        if let shown = history?.show(reading.supplies, pages: reading.usage?.totalImpressions) { v.supplyHistory = shown }
         if let usage = reading.usage { v.usage = usage }
         publish(v)
         onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: true, status: status.isUnavailable ? nil : status,
@@ -298,6 +297,8 @@ public actor PrinterMonitor {
         v.statusDetail = detail
         v.severity = .error
         v.alerts = []
+        // The card keeps its last levels; their days left count on while the printer doesn't answer.
+        if let shown = history?.current() { v.supplyHistory = shown }
         publish(v)
         onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: false, status: nil, supplies: nil)))
     }

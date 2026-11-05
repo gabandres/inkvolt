@@ -303,7 +303,11 @@ final class AppModel {
         wantedQueue = change.wantedQueue
         for id in change.unforget { store.unforget(id) }
         if change.changes {
-            for p in printers where change.removed.contains(p.id) { p.stop() }
+            // A queue macOS no longer has, or one a network printer here now stands for: its supply history goes with it.
+            for p in printers where change.removed.contains(p.id) {
+                p.stop()
+                p.forgetHistory()
+            }
             printers.removeAll { change.removed.contains($0.id) }
             for id in change.removed { tracker.forget(id) }
             printers += change.addedQueues.map { PrinterModel(queue: $0, app: self) }
@@ -442,9 +446,13 @@ final class AppModel {
         let listed = !p.isNetwork ? nil : ListedPrinter(id: p.id, kind: .network, name: p.name, model: p.model,
                                                       hosts: [p.host] + (p.hostName.map { [$0] } ?? []), acceptedUuids: store.accepted(p.id))
         // A network printer's own queues go with it, so none shows up as a printer of its own.
-        for id in listed.map({ PrinterList.hiddenWith($0, destinations ?? []) }) ?? [p.id] { store.remove(id) }
+        let gone = listed.map { PrinterList.hiddenWith($0, destinations ?? []) } ?? [p.id]
+        for id in gone { store.remove(id) }
         tracker.forget(p.id)
-        history.forget(p.id) // its supply history goes with it
+        // Its supply history goes with it (a reading in flight keeps nothing), and so does any its own queues kept while
+        // they were listed on their own: no file is left behind to count toward the store's printers.
+        p.forgetHistory()
+        for id in gone where id.caseInsensitiveCompare(p.id) != .orderedSame { history.forget(id) }
         printers.removeAll { $0 === p }
         if selectedID == p.id { selectedID = printers.first?.id }
         alertRevision += 1
