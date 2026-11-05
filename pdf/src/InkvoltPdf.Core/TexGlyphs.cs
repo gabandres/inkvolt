@@ -75,17 +75,18 @@ internal static partial class TexGlyphs
     [GeneratedRegex("^([A-Za-z]+?)(big|Big|bigg|Bigg|text|display|wide|wider|widest)$")]
     private static partial Regex SizedPattern();
 
-    [GeneratedRegex(@"^(?:[A-Z]{6}\+)?(CMMIB?|CMB?SY|CMEX)\d+$")]
+    [GeneratedRegex(@"^(?:[A-Z]{6}\+)?(CMMIB?|CMB?SY|CMEX)\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex FamilyPattern();
 
     /// <summary>
     /// The glyph name of <paramref name="code"/> in a TeX math font's own encoding, by its name (CMMI, CMMIB: OML; CMSY,
-    /// CMBSY: OMS; CMEX: OMX; a subset's "ABCDEF+" prefix allowed), or null for other fonts and codes outside 0-127.
+    /// CMBSY: OMS; CMEX: OMX; in either case, TeX's own being "cmmi10"; a subset's "ABCDEF+" prefix allowed), or null for
+    /// other fonts and codes outside 0-127.
     /// </summary>
     public static string? NameIn(string baseFont, int code)
     {
         if (code is < 0 or > 127 || FamilyPattern().Match(baseFont) is not { Success: true } m) return null;
-        var vector = m.Groups[1].Value switch
+        var vector = m.Groups[1].Value.ToUpperInvariant() switch
         {
             "CMMI" or "CMMIB" => Oml,
             "CMSY" or "CMBSY" => Oms,
@@ -141,7 +142,7 @@ internal static partial class TexGlyphs
         "quotedblleft bracketright circumflex dotaccent quoteleft a b c d e f g h i j k l m n o p q r s t u v w x y z endash emdash " +
         "hungarumlaut tilde dieresis");
 
-    [GeneratedRegex(@"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$")]
+    [GeneratedRegex(@"^(?:[A-Z]{6}\+)?(CM[A-Z]*?)\d+$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TextFamilyPattern();
 
     /// <summary>
@@ -157,14 +158,14 @@ internal static partial class TexGlyphs
         if (code is < 0 or > 127) return null;
         if (NameIn(font, code) is { } math) return ToUnicode(math);
         if (TextFamilyPattern().Match(font) is not { Success: true } m) return null;
-        var family = m.Groups[1].Value;
+        var family = m.Groups[1].Value.ToUpperInvariant();
         if (family.Contains("TT", StringComparison.Ordinal)) return code is >= 33 and <= 126 ? ((char)code).ToString() : null;
         // CMTI, CMBXTI, CMSLTI: the text italics put the pound sign at 36.
         if (code == 36 && family.EndsWith("TI", StringComparison.Ordinal)) return "£";
         return Ot1[code] is "suppress" ? null : ToUnicode(Ot1[code]);
     }
 
-    /// <summary>Whether a name is a TeX font's (CMR10, CMMI7…; a subset's prefix allowed).</summary>
+    /// <summary>Whether a name is a TeX font's (CMR10, CMMI7, cmr10…; a subset's prefix allowed).</summary>
     public static bool IsTexFont(string font) => FamilyPattern().IsMatch(font) || TextFamilyPattern().IsMatch(font);
 
     private static string[] Vector(string names)

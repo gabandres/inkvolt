@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using InkvoltPdf.Core;
 using MuPDFCore;
@@ -44,6 +45,7 @@ public class FontUnicodeTests
     [InlineData("CMEX10", 20, "bracketleftbigg")]
     [InlineData("Times-Roman", 50, null)]
     [InlineData("CMSY10", 200, null)]
+    [InlineData("cmsy10", 50, "element")] // TeX's own names are lower case
     public void Tex_math_encodings_name_codes_by_the_fonts_family(string font, int code, string? name) => Assert.Equal(name, TexGlyphs.NameIn(font, code));
 
     [Fact]
@@ -96,10 +98,11 @@ public class FontUnicodeTests
     /// A Type 3 bitmap font as dvips and Ghostscript write TeX's PK fonts: each glyph named by its code ("a65"), so no
     /// name says what it is; <paramref name="name"/> its /Name (the TeX font, or dvips's own "Fa").
     /// </summary>
-    private static A11yDoc Bitmap(string name, int[] codes, string text, string glyphPrefix = "a", int offset = 0)
+    private static A11yDoc Bitmap(string name, int[] codes, string text, string glyphPrefix = "a", int offset = 0, bool hex = false)
     {
-        var procs = string.Join(' ', codes.Select(c => $"/{glyphPrefix}{c + offset} 9 0 R"));
-        var differences = string.Join(' ', codes.Select(c => $"{c} /{glyphPrefix}{c + offset}"));
+        string Glyph(int c) => glyphPrefix + (hex ? (c + offset).ToString("X2", CultureInfo.InvariantCulture) : (c + offset).ToString(CultureInfo.InvariantCulture));
+        var procs = string.Join(' ', codes.Select(c => $"/{Glyph(c)} 9 0 R"));
+        var differences = string.Join(' ', codes.Select(c => $"{c} /{Glyph(c)}"));
         var widths = string.Join(' ', Enumerable.Range(codes.Min(), codes.Max() - codes.Min() + 1).Select(_ => "600"));
         return new A11yDoc
         {
@@ -147,10 +150,22 @@ public class FontUnicodeTests
     [InlineData("CMMI10", 11, "α")] // OML
     [InlineData("CMSY10", 50, "∈")] // OMS
     [InlineData("CMTT10", 34, "\"")] // typewriter: ASCII
+    [InlineData("cmr10", 34, "”")] // TeX's own names are lower case
+    [InlineData("cmti10", 36, "£")]
+    [InlineData("cmmi10", 11, "α")]
     public void A_type3_bitmap_font_of_a_tex_family_reads_by_its_encoding(string family, int code, string text)
     {
         var pdf = Bitmap(family, [code, 65], "A").Build();
         Assert.Contains(Hex(code, text), ToUnicode(Tag(pdf)));
+    }
+
+    [Fact]
+    public void A_type3_bitmap_font_named_by_bare_hex_codes_reads_its_letters()
+    {
+        // "41", "42", "A0"…: the names are the codes in hex, with no prefix; those from A0 up start with a hex letter.
+        var cmap = ToUnicode(Tag(Bitmap("CMR10", [65, 66, 160, 161, 162, 163], "AB", glyphPrefix: "", hex: true).Build()));
+        Assert.Contains(Hex(65, "A"), cmap);
+        Assert.Contains(Hex(66, "B"), cmap);
     }
 
     [Fact]

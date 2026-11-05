@@ -102,7 +102,7 @@ internal static class FontUnicode
                     map[c] = tex;
                     added = true;
                 }
-                else if (numbered is { } hex && tf.GlyphNameOf(c) is { } n && NumberOf(n, hex) == c && TexGlyphs.CodeText(type3Name, c) is { } byCode)
+                else if (numbered is { } hex && tf.GlyphNameOf(c) is { } n && NamesCode(n, hex, c) && TexGlyphs.CodeText(type3Name, c) is { } byCode)
                 {
                     map[c] = byCode;
                     added = true;
@@ -135,7 +135,7 @@ internal static class FontUnicode
 
     /// <summary>
     /// Whether a simple font's glyphs are named by their codes: at least four in five of its named glyphs are a short
-    /// prefix and the code ("a65", "g65", "C65", "65"; or in hex, "G41"). True: hex numbers; false: decimal; null: they aren't.
+    /// prefix and the code ("a65", "g65", "C65", "65"; or in hex, "G41", "41", "A0"). True: hex numbers; false: decimal; null: they aren't.
     /// </summary>
     private static bool? CodeNamed(TextFont tf)
     {
@@ -145,12 +145,20 @@ internal static class FontUnicode
             if (tf.GlyphNameOf(c) is not { } n || n == ".notdef" || GlyphNames.ToUnicode(n) is not null) continue;
             named++;
             if (NumberOf(n, false) == c) dec++;
-            if (NumberOf(n, true) == c) hex++;
+            if (NamesCode(n, true, c)) hex++;
         }
         if (named == 0) return null;
         if (dec >= 0.8 * named) return false;
         return hex >= 0.8 * named ? true : null;
     }
+
+    /// <summary>
+    /// Whether a glyph name is <paramref name="code"/>: the number after a prefix of at most four letters ("a65"); in hex
+    /// also the bare number ("A0", whose first digit is a letter, not a prefix).
+    /// </summary>
+    private static bool NamesCode(string name, bool hex, int code) =>
+        hex && name.Length is >= 1 and <= 3 && int.TryParse(name, NumberStyles.AllowHexSpecifier, CultureInfo.InvariantCulture, out var bare) && bare == code ||
+        NumberOf(name, hex) == code;
 
     /// <summary>The number a glyph name ends in after a prefix of at most four letters ("a65": 65), or -1.</summary>
     private static int NumberOf(string name, bool hex)
