@@ -40,6 +40,14 @@ public struct ReadingOrderItem: Equatable, Sendable {
     public var spoken: String { "\(number). \(kind). \(preview.prefix(120))" }
 }
 
+/// A kind the selected piece can be made, as the reading order pane's Kind list shows it (Windows' `PieceKind`).
+public struct PieceKind: Equatable, Sendable {
+    public let kind: TagBlockKind
+    /// A heading's level (1-6); 0 for the other kinds.
+    public let level: Int
+    public let label: String
+}
+
 /// A numbered box of the reading order pane: where a piece is, its place in its page's order, and how it shows.
 public struct ReadingOrderBox: Equatable, Sendable {
     public let page: Int
@@ -126,6 +134,41 @@ public enum ReadingOrder {
 
     /// The plan with the piece at `from` dropped on the piece at `onto` (a drag in the list, within a page).
     public static func dropped(_ plan: TagPlan, _ from: Int, onto: Int) -> TagPlan { AutoTag.move(plan, from, onto - from) }
+
+    // ---- a piece's kind ----
+
+    /// The kinds a piece can be made (`AutoTag.kindsFor`), a heading at each level, as the Kind list shows them.
+    public static func kinds(_ b: TagBlock) -> [PieceKind] {
+        var list: [PieceKind] = []
+        for k in AutoTag.kindsFor(b) {
+            if k == .heading {
+                for level in 1...6 { list.append(PieceKind(kind: k, level: level, label: "Heading \(level)")) }
+                continue
+            }
+            let label = switch k {
+            case .list: "List"
+            case .contents: "Table of contents"
+            case .table: "Table"
+            case .caption: "Caption"
+            case .note: "Footnote"
+            case .formula: "Formula"
+            case .figure: "Picture"
+            default: "Paragraph"
+            }
+            list.append(PieceKind(kind: k, level: 0, label: label))
+        }
+        return list
+    }
+
+    /// The entry of `kinds` that says what the piece is now.
+    public static func currentKind(_ b: TagBlock, _ kinds: [PieceKind]) -> Int? {
+        kinds.firstIndex { $0.kind == b.kind && ($0.kind != .heading || $0.level == min(max(b.level, 1), 6)) }
+    }
+
+    /// What is announced once a piece was made another kind.
+    public static func kindChanged(_ number: Int, _ label: String) -> String { "Piece \(number) is now: \(label)" }
+
+    public static let kindHelp = "What a screen reader announces this piece as: a heading, a paragraph, a picture… Apply Changes to tag it so."
 
     // ---- Make Accessible's window ----
 

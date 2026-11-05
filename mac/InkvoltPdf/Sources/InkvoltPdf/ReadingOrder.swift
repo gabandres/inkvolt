@@ -64,6 +64,10 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     let altField = NSTextField()
     let decorativeBox = NSButton(checkboxWithTitle: "Decorative: nothing a reader needs", target: nil, action: nil)
     let suggestButton = NSButton(title: "Suggest with AI…", target: nil, action: nil)
+    /// The selected piece's kind, to change it (heading and level, paragraph, caption, footnote, formula, picture).
+    let kindRow = NSStackView()
+    let kindPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private var kindChoices: [PieceKind] = []
     /// The suggestion being asked for (the self-test awaits it).
     private(set) var suggestion: Task<Void, Never>?
     private var suggesting: CancelToken?
@@ -170,11 +174,13 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         applyButton.isEnabled = state.canApply
         altField.isEnabled = state.editable && selectedItem?.block.decorative != true
         decorativeBox.isEnabled = state.editable
+        kindPopup.isEnabled = state.editable
         suggestButton.isEnabled = altField.isEnabled && suggesting == nil
     }
 
     /// A picture's alternate text (or decorative), a formula's (what a screen reader says for it: its text to begin with).
     private func showSelectedPiece() {
+        showKind()
         guard let item = selectedItem, item.block.kind == .figure || item.block.kind == .formula else {
             figureGroup.isHidden = true
             return
@@ -190,6 +196,33 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         let name = formula ? "How formula \(item.number) is read" : "Alternate text for picture \(item.number)"
         altLabel.stringValue = name
         altField.setAccessibilityLabel(name)
+    }
+
+    /// The Kind list for the selected piece, on what it is now.
+    private func showKind() {
+        guard let item = selectedItem else {
+            kindRow.isHidden = true
+            return
+        }
+        kindRow.isHidden = false
+        kindChoices = ReadingOrder.kinds(item.block)
+        kindPopup.removeAllItems()
+        kindPopup.addItems(withTitles: kindChoices.map(\.label))
+        if let at = ReadingOrder.currentKind(item.block, kindChoices) { kindPopup.selectItem(at: at) }
+    }
+
+    /// Makes the selected piece another kind (a Pro fix, as moving it is), keeps it selected and says what it is now.
+    func setKind(_ kind: TagBlockKind, level: Int = 1) {
+        guard let plan, let item = selectedItem, state.editable else { return }
+        guard controller?.proAllows(.readingOrder) == true else {
+            showKind() // the list goes back to the kind it is
+            return
+        }
+        let changed = AutoTag.withKind(plan, item.index, kind, level: level)
+        if changed == plan { return }
+        setPlan(changed, select: item.index)
+        let label = kindChoices.first { $0.kind == kind && ($0.kind != .heading || $0.level == level) }?.label ?? ""
+        announce(ReadingOrder.kindChanged(item.number, label))
     }
 
     private func setPlan(_ new: TagPlan, select: Int?, keepEditor: Bool = false) {
@@ -322,6 +355,11 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     @objc private func pageBeforeClicked() { moveSelectedToPage(-1) }
     @objc private func pageAfterClicked() { moveSelectedToPage(1) }
     @objc private func decorativeClicked() { setDecorative(decorativeBox.state == .on) }
+    @objc func kindChosen() {
+        let at = kindPopup.indexOfSelectedItem
+        guard kindChoices.indices.contains(at) else { return }
+        setKind(kindChoices[at].kind, level: max(1, kindChoices[at].level))
+    }
     @objc func suggestClicked() { suggestion = Task { @MainActor in await suggestAlt() } }
     @objc private func doneClicked() { hide() }
 
@@ -457,6 +495,19 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         altField.widthAnchor.constraint(equalTo: figureGroup.widthAnchor).isActive = true
         figureGroup.isHidden = true
 
+        let kindLabel = NSTextField(labelWithString: "Kind")
+        kindLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
+        kindPopup.target = self
+        kindPopup.action = #selector(kindChosen)
+        kindPopup.toolTip = ReadingOrder.kindHelp
+        kindPopup.setAccessibilityLabel("Kind of the selected piece")
+        kindPopup.setAccessibilityHelp(ReadingOrder.kindHelp)
+        kindRow.orientation = .horizontal
+        kindRow.spacing = 8
+        kindRow.addArrangedSubview(kindLabel)
+        kindRow.addArrangedSubview(kindPopup)
+        kindRow.isHidden = true
+
         applyButton.target = self
         applyButton.action = #selector(applyClicked)
         doneButton.target = self
@@ -464,7 +515,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         let endRow = NSStackView(views: [applyButton, NSView(), doneButton])
         endRow.orientation = .horizontal
 
-        let stack = NSStackView(views: [title, summaryLabel, scroll, moveRow, figureGroup, endRow])
+        let stack = NSStackView(views: [title, summaryLabel, scroll, moveRow, kindRow, figureGroup, endRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8

@@ -85,4 +85,26 @@ import Testing
         for good in ["en", "en-US", "zh-Hant-TW", "x-klingon", "es-419"] { #expect(AccessibilityCheck.isLanguage(good), "\(good)") }
         for bad in [nil, "", "english language", "en_US", "-en", String(repeating: "a", count: 70)] as [String?] { #expect(!AccessibilityCheck.isLanguage(bad), "\(bad ?? "nil")") }
     }
+
+    /// The Kind list (Windows' `KindsOf` in `DocumentTab.ReadingOrder`): what each piece can be made, a heading at each level,
+    /// the entry showing what it is now, and what is announced after a change.
+    @Test func The_kind_list_offers_what_a_piece_can_be_made() throws {
+        let plan = try plan()
+        let p = try #require(plan.blocks.first { $0.kind == .paragraph })
+        let kinds = ReadingOrder.kinds(p)
+        #expect(kinds.map(\.label) == ["Paragraph", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Heading 5", "Heading 6",
+                                       "Caption", "Footnote", "Formula", "Picture"])
+        #expect(ReadingOrder.currentKind(p, kinds).map { kinds[$0].label } == "Paragraph")
+        let list = try #require(plan.blocks.first { $0.kind == .list })
+        #expect(ReadingOrder.kinds(list).map(\.label).contains("Table of contents"))
+        #expect(ReadingOrder.currentKind(list, ReadingOrder.kinds(list)).map { ReadingOrder.kinds(list)[$0].label } == "List")
+        let table = try #require(plan.blocks.first { $0.kind == .table })
+        #expect(ReadingOrder.kinds(table).map(\.label).contains("Table"))
+        var heading = p
+        heading.kind = .heading
+        heading.level = 3
+        let hk = ReadingOrder.kinds(heading)
+        #expect(ReadingOrder.currentKind(heading, hk).map { hk[$0].label } == "Heading 3")
+        #expect(ReadingOrder.kindChanged(4, "Heading 2") == "Piece 4 is now: Heading 2")
+    }
 }

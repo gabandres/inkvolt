@@ -180,6 +180,32 @@ struct AccessibleTest {
             lines.append("note: this document has no picture")
         }
 
+        // A piece's kind (roadmap 2.4, Windows' dev script rokind): a text piece made a paragraph, a heading, a picture, and back.
+        let textKinds: [TagBlockKind] = [.paragraph, .heading, .list, .caption, .note, .contents]
+        if let index = pane.plan?.blocks.firstIndex(where: { textKinds.contains($0.kind) }), let block = pane.plan?.blocks[index] {
+            let page = AutoTag.readingPage(block)
+            if page != pane.page { pane.showPage(page - pane.page) }
+        }
+        if let row = pane.state.items.firstIndex(where: { textKinds.contains($0.block.kind) }) {
+            pane.selectRow(row)
+            let titles = pane.kindPopup.itemTitles
+            let shown = pane.kindPopup.titleOfSelectedItem ?? ""
+            check(!pane.kindRow.isHidden && !shown.isEmpty && pane.selectedItemKind.hasPrefix(String(shown.prefix(4))) && titles.contains("Heading 6") && titles.contains("Picture"),
+                  "a piece shows its kind (\(shown)), and the kinds it can be made")
+            pane.setKind(.paragraph)
+            check(pane.selectedItemKind == "Paragraph" && pane.kindPopup.titleOfSelectedItem == "Paragraph" && !pane.written, "made a paragraph, it reads as one")
+            pane.kindPopup.selectItem(withTitle: "Heading 2")
+            pane.kindChosen()
+            check(pane.selectedItemKind.hasPrefix("Heading") && pane.kindPopup.titleOfSelectedItem?.hasPrefix("Heading") == true,
+                  "chosen in the Kind list, a heading (\(pane.selectedItemKind), levels evened out)")
+            pane.setKind(.figure)
+            check(pane.selectedItemKind == "Picture: needs alternate text" && !pane.figureGroup.isHidden, "made a picture, it asks for alternate text")
+            pane.setKind(.paragraph)
+            check(pane.selectedItemKind == "Paragraph" && pane.figureGroup.isHidden, "and back to a paragraph")
+        } else {
+            check(false, "the page has a text piece to change")
+        }
+
         // The Pro check on each feature.
         Pro.enforced = true
         let locked = await controller.makeAccessible()
@@ -189,6 +215,8 @@ struct AccessibleTest {
         let unmoved = pane.plan
         press(.downArrow, .option)
         check(pane.plan == unmoved, "moving a piece asks the Pro check")
+        pane.setKind(.figure)
+        check(pane.plan == unmoved, "changing a piece's kind asks the Pro check")
         let appliedLocked = await pane.apply()
         check(!appliedLocked, "Apply Changes asks the Pro check")
         let copyLocked = await controller.saveAsPdfA2a()

@@ -8,6 +8,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 - Make Accessible gives text to the bitmap fonts of older TeX papers (Computer Modern drawn as pictures), so screen readers can read it.
 - Make Accessible tags the text inside a drawing placed on the page (a whole page placed as one picture, a letterhead) piece by piece: each heading and paragraph in it gets its own tag.
 - Make Accessible reads a ruled table's cell that spans rows as one cell, wherever its text sits in it, so a screen reader tells which rows a heading like "North" covers.
+- The Reading Order pane can change what a piece is: choose its Kind (a heading and its level, paragraph, caption, footnote, formula or picture; a list can become a table of contents), then Apply Changes.
 - Batch's Recognize Text (the Batch window, watched folders and `--batch`) reads scans as Tools › Recognize Text does, with its language and choices: the words it wasn't sure of are kept for review, the file's notes say how many, and opening the file lists them in the sidebar's Suspect Words.
 - Exports to Word, Excel, PowerPoint, HTML and text that read scanned pages say how many suspect words there were, to check against the PDF.
 
