@@ -11,45 +11,59 @@ struct ScanView: View {
     @State private var cropping: String?
     @State private var photos: String?
 
+    // One statement a modifier or two: as one expression it took Xcode's type checker past the 150 ms limit.
     var body: some View {
+        let loading = content.task { await scan.load() }
+        let withCrop = loading.sheet(item: croppingTarget) { (target: CropTarget) in cropSheet(target) }
+        let sheets = withCrop.sheet(item: photosTarget) { (target: CropTarget) in photosSheet(target) }
+        return sheets.onChange(of: app.paneRequest, initial: true) { (old: PaneRequest?, new: PaneRequest?) in requested(old, new) }
+    }
+
+    private var content: some View {
         HStack(alignment: .top, spacing: 0) {
             ScanSettings(scan: scan).frame(width: 270)
             Divider()
-            VStack(spacing: 0) {
-                ForEach(leftOver, id: \.listPath) { left in
-                    RestoreBanner(left: left) {
-                        scan.restore(left)
-                        app.leftOverScans.removeAll { $0.listPath == left.listPath }
-                    } discard: {
-                        ScanRecoveryStore.remove(left)
-                        app.leftOverScans.removeAll { $0.listPath == left.listPath }
-                    }
-                }
-                if scan.pages.isEmpty {
-                    ContentUnavailableView("No pages yet", systemImage: "doc.viewfinder",
-                                           description: Text(scan.isScanning ? "The first page is on its way." : "Put a page on the glass or pages in the feeder, then click Scan."))
-                } else {
-                    PageGrid(scan: scan, cropping: $cropping, photos: $photos)
-                }
-                Divider()
-                SaveBar(scan: scan)
-            }
-        }
-        .task { await scan.load() }
-        .sheet(item: Binding(get: { cropping.map(CropTarget.init) }, set: { cropping = $0?.id })) { target in
-            CropSheet(scan: scan, id: target.id)
-        }
-        .sheet(item: Binding(get: { photos.map(CropTarget.init) }, set: { photos = $0?.id })) { target in
-            PhotosSheet(scan: scan, id: target.id)
-        }
-        .onChange(of: app.paneRequest, initial: true) { _, request in
-            if request == .photosSheet {
-                photos = scan.pages.pages.first(where: \.hasPhotos)?.id
-            } else if request != nil {
-                photos = nil
-            }
+            pages
         }
     }
+
+    private func cropSheet(_ target: CropTarget) -> CropSheet { CropSheet(scan: scan, id: target.id) }
+
+    private func photosSheet(_ target: CropTarget) -> PhotosSheet { PhotosSheet(scan: scan, id: target.id) }
+
+    private func requested(_ old: PaneRequest?, _ request: PaneRequest?) {
+        if request == .photosSheet {
+            photos = scan.pages.pages.first(where: \.hasPhotos)?.id
+        } else if request != nil {
+            photos = nil
+        }
+    }
+
+    // Kept apart from `body`: as one expression it took Xcode's type checker past the 150 ms limit.
+    private var pages: some View {
+        VStack(spacing: 0) {
+            ForEach(leftOver, id: \.listPath) { left in
+                RestoreBanner(left: left) {
+                    scan.restore(left)
+                    app.leftOverScans.removeAll { $0.listPath == left.listPath }
+                } discard: {
+                    ScanRecoveryStore.remove(left)
+                    app.leftOverScans.removeAll { $0.listPath == left.listPath }
+                }
+            }
+            if scan.pages.isEmpty {
+                ContentUnavailableView("No pages yet", systemImage: "doc.viewfinder",
+                                       description: Text(scan.isScanning ? "The first page is on its way." : "Put a page on the glass or pages in the feeder, then click Scan."))
+            } else {
+                PageGrid(scan: scan, cropping: $cropping, photos: $photos)
+            }
+            Divider()
+            SaveBar(scan: scan)
+        }
+    }
+
+    private var croppingTarget: Binding<CropTarget?> { Binding(get: { cropping.map(CropTarget.init) }, set: { cropping = $0?.id }) }
+    private var photosTarget: Binding<CropTarget?> { Binding(get: { photos.map(CropTarget.init) }, set: { photos = $0?.id }) }
 }
 
 private struct CropTarget: Identifiable { let id: String }

@@ -4,9 +4,9 @@ import PrintCore
 /// Demo mode's scanners macOS would have drivers for (the Windows app's made-up WIA scanners): the USB laser's scanner part
 /// (glass and feeder) and a photo flatbed that belongs to no printer. Pages are `DemoScanPage`'s; nothing is asked.
 public struct DemoScanDevice: ScanDevice {
-    public static let laserScanner = SystemScanner(id: "demo-usb-laser-scanner", name: "Demo Laser 2100", usb: true)
-    public static let flatbed = SystemScanner(id: "demo-photo-scanner", name: "Demo Photo Scanner 40", usb: true)
-    public static let all = [laserScanner, flatbed]
+    public static let laserScanner = Demo.laserScanner
+    public static let flatbed = Demo.flatbed
+    public static let all = Demo.scanners
 
     private let feeder: Bool
 

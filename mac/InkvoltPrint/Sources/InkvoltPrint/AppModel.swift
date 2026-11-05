@@ -80,6 +80,10 @@ final class AppModel {
     private(set) var isSearching = true
     /// Add a printer is open (the menu command and the empty list open it).
     var isAddingPrinter = false
+    /// The Fleet page shows instead of the selected printer (the sidebar's Fleet, View › Fleet).
+    var showFleet = false
+    /// The Fleet page's rows, Export… and Fix All (roadmap 2.6).
+    @ObservationIgnored private(set) lazy var fleet = FleetPageModel(app: self)
     /// What Bonjour sees now, listed or not (Add a printer offers the removed ones).
     @ObservationIgnored private var nearby: [DiscoveredPrinter] = []
     /// Bumped whenever the alert tracker changes (it isn't observable itself).
@@ -148,6 +152,20 @@ final class AppModel {
 
     /// The connection recipe for one printer: this Mac's network (or the made-up one) and the printer's certificate pins.
     func recipe(_ id: String) -> PrinterRecipe { PrinterRecipe(transport: transport, snmp: snmp, pin: store.pins(id)) }
+
+    /// Every printer read once, for `status --all` (`FleetReader`): the state file's printers through this Mac's network (or the
+    /// made-up one), macOS's queues and USB scanners. Read only: no pin, history or state is written.
+    var fleetMac: any FleetMac {
+        let transport = transport, snmp = snmp, store = store
+        let scanners: @Sendable () async -> [SystemScanner]?
+        if isDemo {
+            scanners = { Demo.scanners }
+        } else {
+            scanners = { @Sendable () async -> [SystemScanner]? in await SystemScanners.listOnce() }
+        }
+        return AppFleetMac(store: store, makeRecipe: { PrinterRecipe(transport: transport, snmp: snmp, pin: ReadOnlyPin(store.pins($0))) },
+                           queues: queues, listScanners: scanners, history: history)
+    }
 
     /// Starts every printer's monitor, discovery and the alerts' clock. Once, at launch.
     func start() {
@@ -557,4 +575,22 @@ enum PaneRequest: Equatable {
     case scan
     case photosSheet
     case printPhotos([URL])
+}
+
+/// The app's Mac as `FleetReader` reads it: the state file, cupsd (libcups, or demo mode's made-up queues), ImageCaptureCore's
+/// USB scanners and the supply history, all only read.
+struct AppFleetMac: FleetMac {
+    let store: StateStore
+    let makeRecipe: @Sendable (String) -> PrinterRecipe
+    let queues: any PrintQueues
+    let listScanners: @Sendable () async -> [SystemScanner]?
+    let history: SupplyHistoryStore?
+
+    var remembered: [KnownPrinter] { store.current.printers }
+    var forgotten: [String] { store.current.forgottenUuids }
+    func accepted(_ id: String) -> [String] { store.accepted(id) }
+    func firmware(_ id: String) -> String? { store.firmware(id)?.version }
+    func recipe(_ printer: KnownPrinter) -> PrinterRecipe { makeRecipe(printer.uuid) }
+    func destinations() async throws -> [CupsDestination]? { await queues.destinations() }
+    func scanners() async throws -> [SystemScanner]? { await listScanners() }
 }

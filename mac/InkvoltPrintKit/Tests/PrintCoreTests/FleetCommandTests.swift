@@ -6,8 +6,8 @@ import Testing
 /// `status --all`: its arguments, its output, the file it writes and the Pro gate in front of it. Ported from FleetReadTests.cs,
 /// its command tests, with the same names; under `ProGated`, since they read the gate. Adapted: the Windows tests read the
 /// demo PC through the real readers; here the read is a made-up list in the same trouble mix (the Mac's reading is PrintMac's,
-/// with the Mac's half of 2.6). The reader's own tests (hung and vanishing printers, the spooler, WIA) and Fix all's wait
-/// for that half.
+/// with the Mac's half of 2.6). The reader's own tests (hung and vanishing printers, cupsd, the scanners) and Fix all's are
+/// FleetReadTests.
 extension ProGated {
 @Suite final class FleetCommandTests {
     init() {

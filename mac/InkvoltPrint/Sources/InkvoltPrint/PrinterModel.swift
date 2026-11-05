@@ -21,6 +21,8 @@ final class PrinterModel: Identifiable {
     /// The CUPS queue its print jobs go through: a queue printer's own, or the one macOS has for a network printer.
     var queueName: String?
     private(set) var view = PrinterView.connecting
+    /// When it last gave a reading (its monitor's, or its queue's), for the Fleet page.
+    @ObservationIgnored private(set) var lastReading: Date?
     /// A queue printer's queue, as last read.
     private(set) var destination: CupsDestination?
 
@@ -69,6 +71,7 @@ final class PrinterModel: Identifiable {
         history = nil
         systemScanner = s
         view = .scannerReady
+        lastReading = Date()
     }
 
     /// A queue printer: known only by its CUPS queue.
@@ -146,6 +149,7 @@ final class PrinterModel: Identifiable {
         name = d.displayName
         model = d.makeAndModel
         var v = CupsStatus.view(d)
+        if v.isOnline { lastReading = Date() }
         v.supplyHistory = view.supplyHistory // until the history has this reading
         if v != view { view = v }
         let snapshot = CupsStatus.snapshot(d, id: id)
@@ -279,6 +283,7 @@ final class PrinterModel: Identifiable {
     private func handle(_ event: MonitorEvent) {
         switch event {
         case .changed(let v):
+            if v.isOnline { lastReading = Date() }
             view = v
             if let m = v.model { model = m }
         case .observed(let snapshot):
@@ -287,6 +292,26 @@ final class PrinterModel: Identifiable {
             host = target.host
             app.remember(self, at: target, model: model)
         }
+    }
+
+    /// This printer as the Fleet page lists it, from what the app shows (nothing is read from it here). `known`: the supply
+    /// history's last word, for one that isn't answering.
+    func fleetFacts(_ known: FleetLastKnown?) -> FleetFacts {
+        let kind: FleetKind = isScannerOnly ? .scanner : isQueue ? .queue : .network
+        let connection: String? = if isScannerOnly { "USB scanner" }
+            else if let d = destination { FleetReader.connectionWord(CupsQueues.connection(d)) }
+            else { view.interfaces.isEmpty ? nil : view.interfaces.joined(separator: ", ") }
+        let shown = view.firmware.map(\.display).flatMap { $0.isEmpty ? nil : $0 }
+        return .shown(id, name, kind, view: view, connection: connection, firmware: shown ?? app.store.firmware(id)?.version,
+                      lastReading: lastReading, known: known)
+    }
+
+    /// What Fix All looks at for this printer: a queue printer's own queue, a network printer's known ones; nil for a scanner
+    /// of its own.
+    var fixAllTarget: FixAllTarget? {
+        if isScannerOnly { return nil }
+        if let d = destination { return .queue(d.name) }
+        return .network(OfflineDevice(uuid: id, name: name, model: model, host: host))
     }
 
     /// For the list's dot and the pane's status icon.

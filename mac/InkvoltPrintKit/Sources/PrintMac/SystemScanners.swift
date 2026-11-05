@@ -30,6 +30,16 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     public func start() { browser.start() }
 
+    /// The scanners ICC lists after browsing for `wait` (USB devices show within a moment), for a read of every printer
+    /// (`status --all`); the browser stops again.
+    public static func listOnce(wait: Duration = settle + .seconds(1)) async -> [SystemScanner] {
+        let scanners = SystemScanners { _ in }
+        scanners.start()
+        try? await Task.sleep(for: wait)
+        scanners.stop()
+        return scanners.list
+    }
+
     /// Every scanner ICC lists, network ones too (for checks: the app scans those over eSCL).
     public var allDevices: [(scanner: SystemScanner, device: SystemScanDevice)] {
         devices.map { id, d in (SystemScanner(id: id, name: d.name ?? "Scanner", usb: d.transportType?.contains("USB") == true), SystemScanDevice(d)) }

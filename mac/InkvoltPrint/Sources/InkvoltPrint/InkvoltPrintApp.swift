@@ -4,7 +4,7 @@ import PrintMac
 import SwiftUI
 import UserNotifications
 
-@main
+/// The app (started by `Launch`, which runs `status --all` without it).
 struct InkvoltPrintApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @State private var model = AppModel.shared
@@ -24,6 +24,13 @@ struct InkvoltPrintApp: App {
                     AppModel.shared.isAddingPrinter = true
                 }
                 .keyboardShortcut("n")
+            }
+            CommandGroup(after: .sidebar) {
+                Button("Fleet") {
+                    MainWindow.bringForward()
+                    AppModel.shared.showFleet = true
+                }
+                .keyboardShortcut("f", modifiers: [.command, .shift])
             }
             CommandGroup(after: .help) {
                 Button("Report a Problem…") { ReportProblemWindowController.show(AppModel.shared) }

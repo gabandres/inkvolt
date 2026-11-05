@@ -22,7 +22,10 @@ import PrintMac
 /// `--record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` records a printer
 /// (`RecordCommand`, roadmap 1.2) into `Recordings/<folder>` in the container (demo mode: the made-up printers, into a
 /// temporary folder); `--problem` opens Help › Report a Problem… and lists its details, `--problem-record` also runs its
-/// Record This Printer and reads the .zip back (`problemCheck`). For checking a build over
+/// Record This Printer and reads the .zip back (`problemCheck`); `--fleet [fix] [status]` shows the Fleet page and lists its
+/// rows as VoiceOver reads them, checks Export…'s CSV and JSON (in memory in demo mode; else saved in the container) and the Pro
+/// gate, `fix` runs Fix All on demo mode's made-up queues saying yes to each question, `status` runs `status --all --json`
+/// through the reader (`fleetCheck`). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -68,6 +71,10 @@ enum Report {
             if args.contains("--problem") || args.contains("--problem-record") {
                 cancelled += await problemCheck(model, record: args.contains("--problem-record"))
             }
+            if let i = args.firstIndex(of: "--fleet") {
+                let words = args[(i + 1)...].prefix { !$0.hasPrefix("--") }
+                cancelled += await fleetCheck(model, fix: words.contains("fix"), status: words.contains("status"))
+            }
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")
             }
@@ -110,6 +117,93 @@ enum Report {
             lines.append("pro-window: \(size); \(Pro.licence.map { "Pro licensed to \($0.name). " } ?? "")\(shown)")
         }
         return lines + [ProSetup.reportLine]
+    }
+
+    /// The Fleet page (roadmap 2.6): its summary and rows (VoiceOver's words, and which offer Fix It…), Export…'s two files with
+    /// the identifiers that must not be in them looked for, the Pro gate in front of Export… and Fix All; `fix`: Fix All on
+    /// demo mode's made-up queues, every question answered yes (never on this Mac's real queues: a person answers those);
+    /// `status`: `status --all --json` through `FleetReader`, as Terminal runs it, and refused with the gate on. Outside demo
+    /// mode every line is scrubbed (`Diagnostics.scrub`) and the exports are saved in the container as `report-fleet.*`.
+    private static func fleetCheck(_ model: AppModel, fix: Bool, status: Bool) async -> [String] {
+        for _ in 0..<80 where model.printers.contains(where: { $0.isNetwork && $0.view.phase == .connecting }) {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+        model.showFleet = true
+        let page = model.fleet
+        page.refresh()
+        let who = Diagnostics.Identity.current
+        func clean(_ text: String) -> String { model.isDemo ? text : Diagnostics.scrub(text, who) }
+        var lines = ["fleet: \(clean(page.summary))"]
+        for row in page.rows { lines.append("  \(clean(row.accessibleText))" + (page.canFix(row) ? " [Fix It…]" : "")) }
+
+        let secrets = [Demo.uuid, Demo.inkjetUuid, Demo.officeUuid, Demo.cdmUuid, "192.0.2.", "DEMO0005200", "CNB0A00000", "demo-mac", who.userName ?? "", who.machineName ?? ""]
+        func leaks(_ data: Data) -> [String] {
+            let text = String(decoding: data, as: UTF8.self)
+            return secrets.filter { !$0.isEmpty && text.range(of: $0, options: .caseInsensitive) != nil }
+        }
+        if FleetExport.allowed {
+            let csv = page.exportBytes(json: false), json = page.exportBytes(json: true)
+            let csvText = String(decoding: csv, as: UTF8.self)
+            let csvRows = csvText.components(separatedBy: "\r\n").filter { !$0.isEmpty }.count - 1
+            let leaked = leaks(csv) + leaks(json)
+            let bom = csv.starts(with: [0xEF, 0xBB, 0xBF]), ascii = json.allSatisfy { $0 < 0x80 }
+            let left = leaked.isEmpty ? "none" : "\(leaked.count)"
+            lines.append("export: CSV \(csvRows) rows, \(csv.count) bytes, byte order mark \(bom); JSON \(json.count) bytes, ASCII \(ascii); identifiers left: \(left)")
+            if model.isDemo {
+                lines.append("  in memory: nothing is saved in demo mode")
+            } else {
+                for name in ["report-fleet.csv", "report-fleet.json"] {
+                    let saved = await page.write(to: AppModel.dataFolder.appendingPathComponent(name))
+                    lines.append("  \(name): \(saved ? "saved" : page.exportMessage ?? "not saved")")
+                }
+            }
+        } else {
+            lines.append("export: refused by the Pro check (the button opens the Pro window)")
+        }
+        let enforced = Pro.enforced
+        Pro.enforced = true
+        let gated = Pro.allows(.fleetExport)
+        lines.append("gate: with the Pro check on and \(Pro.licence == nil ? "no key" : "a key"), Export… and Fix All \(gated ? "allowed" : "refused")")
+        Pro.enforced = enforced
+
+        if fix && model.isDemo {
+            let asked = Asked()
+            await page.fixAll(confirm: { repair in
+                asked.add(repair.question ?? repair.title)
+                return true
+            })
+            lines.append("fix all: \(page.fixSummary ?? "-")")
+            lines += asked.all.map { "  asked: \($0)" }
+            lines += page.fixSteps.map { "  \($0.title): \($0.message)" }
+            lines += page.fixLeft.map { "  left: \($0)" }
+        } else if fix {
+            lines.append("fix all: not run outside demo mode (each question needs a person)")
+        }
+
+        if status {
+            let fleet = model.fleetMac
+            let start = Date()
+            let read: @Sendable () async throws -> FleetRead = { try await FleetReader.readAll(fleet, now: Date()) }
+            let r = await FleetCommand.run(["status", "--all", "--json"], read: read, now: { Date() }, who)
+            let printers = r.output.components(separatedBy: "\"trouble\":").count - 1
+            let took = String(format: "%.1f", Date().timeIntervalSince(start))
+            let leftIn = leaks(Data(r.output.utf8)).count
+            lines.append("status --all --json: exit \(r.code), \(r.output.utf8.count) bytes, \(printers) printers, \(took) s; identifiers left: \(leftIn)")
+            Pro.enforced = true
+            let refused = await FleetCommand.run(["status", "--all", "--json"], read: read, now: { Date() }, who)
+            Pro.enforced = enforced
+            let why = refused.error.split(separator: "\n").first.map(String.init) ?? "-"
+            lines.append("  with the Pro check on: exit \(refused.code), \(refused.output.count) bytes on standard output, \(clean(why))")
+        }
+        return lines
+    }
+
+    /// The questions a check answered, from the task that asked them.
+    private final class Asked: @unchecked Sendable {
+        private let lock = NSLock()
+        private var list: [String] = []
+        var all: [String] { lock.withLock { list } }
+        func add(_ s: String) { lock.withLock { list.append(s) } }
     }
 
     /// Help › Report a Problem… (roadmap 1.2): the window, its details as copied and the issue it would open; with `record`,

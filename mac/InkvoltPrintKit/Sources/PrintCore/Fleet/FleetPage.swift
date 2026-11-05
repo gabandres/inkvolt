@@ -123,3 +123,29 @@ public enum FleetPage {
         return calendar.date(from: c).map { formatter.string(from: $0) } ?? day.description
     }
 }
+
+extension FleetFacts {
+    /// A printer as the Fleet page lists it, from what the app shows of it (the Windows app's `PrinterViewModel.FleetFacts`):
+    /// nothing is read from the printer here. `known`: the supply history's last word, for one that isn't answering.
+    /// Connecting counts as reachable with no usable status yet (not known yet, not "can't be reached").
+    public static func shown(_ id: String, _ name: String, _ kind: FleetKind, view: PrinterView, connection: String?, firmware: String?,
+                             lastReading: Date?, known: FleetLastKnown?) -> FleetFacts {
+        let live = view.supplies
+        let waiting = view.phase == .connecting
+        var f = FleetFacts(id, name, kind)
+        f.model = view.model
+        f.connection = connection
+        f.reachable = view.isOnline || waiting
+        f.status = waiting ? .unavailable(view.statusMessage)
+            : PrinterStatus(code: "", message: view.statusMessage, severity: view.severity, alerts: view.alerts)
+        f.supplies = live.isEmpty ? known?.supplies ?? [] : live
+        f.pages = view.usage?.totalImpressions ?? known?.pages
+        f.firmware = firmware
+        f.lastReading = lastReading
+        f.lastReadingDay = lastReading == nil ? known?.day : nil
+        let kept = !live.isEmpty || known != nil || view.usage?.totalImpressions != nil
+        f.lastKnown = !view.isOnline && !waiting && kept
+        f.oldSupplies = live.isEmpty
+        return f
+    }
+}
