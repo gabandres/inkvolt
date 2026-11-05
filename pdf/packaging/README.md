@@ -182,7 +182,7 @@ tick the generative AI question in Partner Center when submitting (below).
 
 Live since 2026-10-30 (Submission 11, Published; `msstore submission get` lists `en-us` and `es`), submitted with the en-us screenshots and the text below; plain Spanish only, which covers every Spanish market (Spanish (Americas), `es-019`, was removed). Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`), and once a draft has been edited in Partner Center the submission API refuses it (409 InvalidState, "in the state 'None'"), so a listing change goes through the Partner Center pages. Their keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check the result with `msstore submission get`. When the en-us description changes, change this one to match. The app itself is in English, and the description says so.
 
-**Since 1.7.0.0** (submitted 2026-11-04 through the API: `msstore submission get`, the JSON's release notes and descriptions changed, `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`) the app has a Spanish interface, the es description no longer says "La aplicación está en inglés.", and both descriptions say "Scan straight into a PDF from network, USB and TWAIN scanners." Left for the next listing update: the es description still names What's in This PDF and Sanitize in English; the app says "Qué hay en este PDF" and "Limpiar documento" (the text to paste: "Listing proposal 2026-11-04 (es description)" below). The quoted text below is older.
+**Since 1.7.0.0** (submitted 2026-11-04 through the API: `msstore submission get`, the JSON's release notes and descriptions changed, `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`) the app has a Spanish interface, the es description no longer says "La aplicación está en inglés.", and both descriptions say "Scan straight into a PDF from network, USB and TWAIN scanners." Since 1.8.0.0 the es description names them as the app does, "Qué hay en este PDF" and "Limpiar documento" ("Listing proposal 2026-11-04 (es description)" below). The quoted text below is older.
 
 Short description:
 
@@ -308,9 +308,8 @@ days after the change, against the baseline in `docs/VISIBILITY.md`.
 
 ### Listing proposal 2026-11-04 (es description)
 
-Not submitted: the owner pastes it into Partner Center's es listing (Store listings › Spanish › Description), the next
-time a submission goes in (with 1.8.0.0, or as a listing-only update), and checks the result with `msstore submission
-get`. It is the en-us description above in Spanish, with the interface's own names (`pdf/docs/SPANISH-REVIEW.md`):
+Submitted with 1.8.0.0 (2026-11-05, through the API as 1.7.0.0 was, its list items with "• " as the listing has them;
+checked with `msstore submission get`, no U+FFFD). It is the en-us description above in Spanish, with the interface's own names (`pdf/docs/SPANISH-REVIEW.md`):
 **Qué hay en este PDF** and **Limpiar documento** in place of What's in This PDF and Sanitize, **Eliminar por patrón**,
 **En lote**, **Configuración › Idioma**; "Scan straight into a PDF" as the line under the en-us text says; and a line
 saying the app speaks Spanish, where "La aplicación está en inglés." was. The short description, features and keywords
