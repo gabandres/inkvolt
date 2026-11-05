@@ -120,8 +120,9 @@ final class EndlessServer: Sendable {
         let listener = try NWListener(using: parameters)
         let counts = Counts()
         self.counts = counts
+        let queue = UdpServer.ownQueue()
         listener.newConnectionHandler = { connection in
-            connection.start(queue: .global())
+            connection.start(queue: queue)
             let index = counts.open()
             connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { _, _, _, _ in
                 let chunk = Data(count: 1 << 20)
@@ -137,7 +138,7 @@ final class EndlessServer: Sendable {
             }
         }
         self.listener = listener
-        port = try UdpServer.listen(listener)
+        port = try UdpServer.listen(listener, on: queue)
     }
 
     func stop() { listener.cancel() }

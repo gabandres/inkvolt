@@ -34,7 +34,7 @@ final class OfflineFixerModel {
         outcomes = [:]
         adopted = nil
         running = true
-        let device = OfflineDevice(uuid: printer.id, name: printer.name, model: printer.model, host: printer.isNetwork ? printer.host : nil)
+        let device = printer.fixerDevice
         let probes = app.offlineProbes, queues = app.queues
         task = Task {
             defer { running = false }

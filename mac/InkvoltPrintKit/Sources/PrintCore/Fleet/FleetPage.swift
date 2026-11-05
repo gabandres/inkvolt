@@ -123,3 +123,58 @@ public enum FleetPage {
         return calendar.date(from: c).map { formatter.string(from: $0) } ?? day.description
     }
 }
+
+extension FleetFacts {
+    /// A printer as the Fleet page lists it, from what the app shows of it (the Windows app's `PrinterViewModel.FleetFacts`):
+    /// nothing is read from the printer here. `known`: the supply history's last word, for one that isn't answering.
+    /// Connecting counts as reachable with no usable status yet (not known yet, not "can't be reached").
+    public static func shown(_ id: String, _ name: String, _ kind: FleetKind, view: PrinterView, connection: String?, firmware: String?,
+                             lastReading: Date?, known: FleetLastKnown?) -> FleetFacts {
+        let live = view.supplies
+        let waiting = view.phase == .connecting
+        var f = FleetFacts(id, name, kind)
+        f.model = view.model
+        f.connection = connection
+        f.reachable = view.isOnline || waiting
+        f.status = waiting ? .unavailable(view.statusMessage)
+            : PrinterStatus(code: "", message: view.statusMessage, severity: view.severity, alerts: view.alerts)
+        f.supplies = live.isEmpty ? known?.supplies ?? [] : live
+        f.pages = view.usage?.totalImpressions ?? known?.pages
+        f.firmware = firmware
+        f.lastReading = lastReading
+        f.lastReadingDay = lastReading == nil ? known?.day : nil
+        let kept = !live.isEmpty || known != nil || view.usage?.totalImpressions != nil
+        f.lastKnown = !view.isOnline && !waiting && kept
+        f.oldSupplies = live.isEmpty
+        return f
+    }
+}
+
+/// Which printers' supply history the Fleet page reads, and what it read (`FleetFacts.shown`'s `known`): a printer's last word
+/// is read once each time it stops answering, and again each time the page shows; it's dropped once the printer answers, so
+/// its next silence reads the rows written meanwhile. A read that comes back after the printer answered is dropped too.
+public struct FleetHistoryAsks: Sendable {
+    public private(set) var known: [String: FleetLastKnown] = [:]
+    private var asked = Set<String>()
+
+    public init() {}
+
+    /// The page shows again: each silent printer's history is read again.
+    public mutating func showAgain() { asked = [] }
+
+    /// `silent`: the printers not answering (not those still connecting); `answering`: those that answer. The ids whose
+    /// history to read now.
+    public mutating func due(silent: [String], answering: [String]) -> [String] {
+        for id in answering {
+            asked.remove(id)
+            known[id] = nil
+        }
+        return silent.filter { asked.insert($0).inserted }
+    }
+
+    /// A read of `id`'s history came back: kept while it's still wanted (the printer hasn't answered since it was asked).
+    public mutating func got(_ id: String, _ last: FleetLastKnown?) {
+        guard asked.contains(id) else { return }
+        known[id] = last
+    }
+}

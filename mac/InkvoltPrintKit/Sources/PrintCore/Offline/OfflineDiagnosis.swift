@@ -199,14 +199,7 @@ public enum OfflineDiagnosis {
         for d in destinations where CupsQueues.isRealQueue(d) {
             let uri = d.deviceUri ?? ""
             let host = fixedHost(uri)
-            let names = [d.displayName, d.name.replacingOccurrences(of: "_", with: " ")]
-            let reason: MatchReason? =
-                if let uuid, CupsQueues.uuidIn(uri) == uuid { .uuid }
-                else if let h = CupsQueues.host(uri), hosts.contains(where: { IpText.same($0, h) }) { .address }
-                else if let instance = CupsQueues.serviceInstance(uri), instance.caseInsensitiveCompare(device.name) == .orderedSame { .service }
-                else if host != nil, names.contains(where: { startsWithWord($0, device.model) || startsWithWord($0, device.name) }) { .name }
-                else { nil }
-            guard let reason else { continue }
+            guard let reason = reason(d, device, uuid: uuid, hosts: hosts) else { continue }
             let stale = isStale(uri, address: address, hostName: found?.hostName)
             if reason == .name, stale, let host {
                 // Same model name, another address: only ours if nothing answers there.
@@ -215,6 +208,18 @@ public enum OfflineDiagnosis {
             result.append(MatchedQueue(queue: d, reason: reason, portIsStale: stale))
         }
         return result
+    }
+
+    /// Why `d` prints to `device`, if it does: the UUID in its device URI, one of `hosts` there, its Bonjour service name,
+    /// or (a fixed-address queue) its name starting with the printer's model or name.
+    static func reason(_ d: CupsDestination, _ device: OfflineDevice, uuid: String?, hosts: [String]) -> MatchReason? {
+        let uri = d.deviceUri ?? ""
+        if let uuid, CupsQueues.uuidIn(uri) == uuid { return .uuid }
+        if let h = CupsQueues.host(uri), hosts.contains(where: { IpText.same($0, h) }) { return .address }
+        if let instance = CupsQueues.serviceInstance(uri), instance.caseInsensitiveCompare(device.name) == .orderedSame { return .service }
+        let names = [d.displayName, d.name.replacingOccurrences(of: "_", with: " ")]
+        if fixedHost(uri) != nil, names.contains(where: { startsWithWord($0, device.model) || startsWithWord($0, device.name) }) { return .name }
+        return nil
     }
 
     /// The device URI's fixed host: a socket, LPD or IPP queue set up by address or name, not by Bonjour service.

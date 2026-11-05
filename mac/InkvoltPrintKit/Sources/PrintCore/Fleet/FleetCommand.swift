@@ -33,7 +33,7 @@ public enum FleetCommand {
         args.first { !["--demo", "--no-printers", "--pro-enforce"].contains($0) } == "status"
     }
 
-    public static func run(_ args: [String], read: @Sendable () async throws -> FleetRead, now: () -> Date, _ who: Diagnostics.Identity,
+    public static func run(_ args: [String], read: @Sendable () async throws -> FleetRead, now: @Sendable () -> Date, _ who: Diagnostics.Identity,
                            timeZone: TimeZone = .current) async -> Result {
         guard Pro.allows(.fleetExport) else {
             return Result(code: wrong, output: "", error: Pro.locked(.fleetExport) + "\n" + Pro.howToGet + "\n")

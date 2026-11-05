@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.6 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2 and 2.6 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -383,7 +383,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   from the page with the gate on; the Save dialog (the snapshot aid writes the file directly); Excel opening the CSV; a screen reader, and Tab
   through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: PrintCore done
   (2026-11-02, mac/docs/PLAN.md P12: the entries, the order, the page's words, the CSV and JSON against the schema, `status --all`,
-  and `Diagnostics.scrub`, which they need); the reader over CUPS and the readers, the page, Export… and Fix all wait for the Mac.
+  and `Diagnostics.scrub`, which they need); the Mac's half done 2026-11-05 (the reader over cupsd's queues, the printer readers and ImageCaptureCore's scanners, the sidebar's Fleet page with VoiceOver's sentence per row, Export… and Fix All (Resume and Accept Jobs) behind Pro, `status --all` from the app's binary, `--report --fleet fix status`; FleetReadTests ported).
 - **Beat it when:** a Fleet page lists every printer's state, each supply's level, page count, firmware and the last
   reading's time, sorted by trouble; the offline fixer runs on queue printers too (paused, Use Printer Offline, stuck
   jobs, without the network steps). Pro: Export CSV, `inkvoltprint status --all --json` for a script or a scheduled

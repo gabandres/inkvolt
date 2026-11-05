@@ -21,7 +21,8 @@ struct MainWindow: View {
             VStack(spacing: 0) {
                 SidebarHeader()
                 if model.localNetwork == .denied { LocalNetworkBanner() }
-                List(selection: $model.selectedID) {
+                FleetButton()
+                List(selection: listSelection) {
                     ForEach(model.printers) { p in
                         PrinterRow(printer: p).tag(p.id)
                     }
@@ -36,7 +37,9 @@ struct MainWindow: View {
                 }
             }
         } detail: {
-            if let p = model.selected {
+            if model.showFleet {
+                FleetView()
+            } else if let p = model.selected {
                 PrinterPane(printer: p).id(p.id)
             } else {
                 ContentUnavailableView("No printer selected", systemImage: "printer")
@@ -49,6 +52,42 @@ struct MainWindow: View {
             model.windowChanged(open: true)
         }
         .onDisappear { model.windowChanged(open: false) }
+    }
+}
+
+extension MainWindow {
+    /// The list's selection: none while the Fleet page shows; choosing a printer leaves the page, and deselecting one
+    /// (⌘-click) leaves none selected, as before the page. The Fleet page's own nil keeps the printer to come back to.
+    private var listSelection: Binding<String?> {
+        Binding(get: { model.showFleet ? nil : model.selectedID }, set: { id in
+            if let id {
+                model.selectedID = id
+                model.showFleet = false
+            } else if !model.showFleet {
+                model.selectedID = nil
+            }
+        })
+    }
+}
+
+/// The sidebar's Fleet (roadmap 2.6): every printer on one page, most trouble first.
+struct FleetButton: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button { model.showFleet = true } label: {
+            Label("Fleet", systemImage: "square.grid.2x2")
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(model.showFleet ? Color.accentColor.opacity(0.18) : .clear, in: .rect(cornerRadius: 6))
+                .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 4)
+        .help("Every printer on one page, most trouble first")
+        .accessibilityAddTraits(model.showFleet ? .isSelected : [])
     }
 }
 
