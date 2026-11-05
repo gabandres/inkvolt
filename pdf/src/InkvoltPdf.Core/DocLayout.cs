@@ -48,6 +48,16 @@ public sealed record DocTab(double Position, bool Right, char Leader);
 public sealed record DocCell(IReadOnlyList<DocParagraph> Paragraphs, int ColSpan = 1)
 {
     public IReadOnlyList<DocPicture> Pictures { get; init; } = [];
+
+    /// <summary>
+    /// How many rows the cell spans (a ruled table without a rule under it across its columns). The rows it covers keep a
+    /// cell of their own there (<see cref="Covered"/>) holding what was drawn in it, so the exports lay the table out as
+    /// before; tagging reads them as one cell.
+    /// </summary>
+    public int RowSpan { get; init; } = 1;
+
+    /// <summary>Part of the cell above that spans rows into this one (see <see cref="RowSpan"/>).</summary>
+    public bool Covered { get; init; }
     public string Text => string.Join("\n", Paragraphs.Select(p => p.Text));
 }
 
@@ -734,7 +744,7 @@ internal static partial class DocLayout
 
     // ---- tables from ruled grids ----
 
-    private sealed record Grid(List<double> Xs, List<double> Ys, List<RectD> Verticals);
+    private sealed record Grid(List<double> Xs, List<double> Ys, List<RectD> Verticals, List<RectD> Horizontals);
 
     /// <summary>Grids of crossing horizontal and vertical rules with at least two columns.</summary>
     private static List<Grid> Grids(IReadOnlyList<RectD> rules)
@@ -762,7 +772,7 @@ internal static partial class DocLayout
             if (hs.Count < 2 || vs.Count < 3) continue;
             var xs = Cluster(vs.Select(r => r.CenterX), tol);
             var ys = Cluster(hs.Select(r => r.CenterY), tol);
-            if (xs.Count >= 3 && ys.Count >= 2) grids.Add(new Grid(xs, ys, vs));
+            if (xs.Count >= 3 && ys.Count >= 2) grids.Add(new Grid(xs, ys, vs, hs));
         }
         return grids;
     }
@@ -786,7 +796,8 @@ internal static partial class DocLayout
 
     /// <summary>
     /// The table a grid draws, with the lines and pictures inside it (removed from <paramref name="lines"/> and
-    /// <paramref name="images"/>). Cells without a rule between them in a row are merged. Null when fewer than two cells
+    /// <paramref name="images"/>). Cells without a rule between them in a row are merged; a cell without a rule under it
+    /// across its columns, over a cell of the same columns, spans that row too (<see cref="DocCell.RowSpan"/>). Null when fewer than two cells
     /// hold something, or none holds text (a box around a paragraph, an empty form grid).
     /// </summary>
     private static DocTable? TableFromGrid(Grid grid, List<ExportLine> lines, List<ExportImage> images, double body)
@@ -841,18 +852,46 @@ internal static partial class DocLayout
         foreach (var l in used) lines.Remove(l);
         foreach (var i in usedImages) images.Remove(i);
 
+        int SpanAt(int r, int c)
+        {
+            var span = 1;
+            while (c + span < cols && start[r][c + span] == c) span++;
+            return span;
+        }
+        // topRow[r][c]: the row where the cell starting at (r, c) starts going down: the one above when there is no rule
+        // between them across its columns and the cell above has the same columns.
+        var topRow = new int[rows][];
+        for (var r = 0; r < rows; r++)
+        {
+            topRow[r] = new int[cols];
+            for (var c = 0; c < cols; c++)
+            {
+                topRow[r][c] = r;
+                if (r == 0 || start[r][c] != c || start[r - 1][c] != c) continue;
+                var span = SpanAt(r, c);
+                if (SpanAt(r - 1, c) != span) continue;
+                var (left, right) = (xs[c], xs[c + span]);
+                var ruled = grid.Horizontals.Where(h => Math.Abs(h.CenterY - ys[r]) <= 2.5)
+                    .Sum(h => Math.Max(0, Math.Min(h.Right, right) - Math.Max(h.X, left))) >= 0.6 * (right - left);
+                if (!ruled) topRow[r][c] = topRow[r - 1][c];
+            }
+        }
+
         var docRows = new List<IReadOnlyList<DocCell>>();
         for (var r = 0; r < rows; r++)
         {
             var row = new List<DocCell>();
             for (var c = 0; c < cols;)
             {
-                var span = 1;
-                while (c + span < cols && start[r][c + span] == c) span++;
+                var span = SpanAt(r, c);
+                var down = 1;
+                while (r + down < rows && start[r + down][c] == c && topRow[r + down][c] == topRow[r][c]) down++;
                 var cell = RectD.FromEdges(xs[c], ys[r], xs[c + span], ys[r + 1]);
                 row.Add(new DocCell(content.TryGetValue((r, c), out var ls) ? CellParagraphs(ls, cell, body) : [], span)
                 {
                     Pictures = pictures.TryGetValue((r, c), out var pics) ? pics : [],
+                    RowSpan = topRow[r][c] == r ? down : 1,
+                    Covered = topRow[r][c] != r,
                 });
                 c += span;
             }

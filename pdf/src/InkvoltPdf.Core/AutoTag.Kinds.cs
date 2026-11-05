@@ -211,12 +211,61 @@ public static partial class AutoTag
     private static bool NumbersAfterFirst(IReadOnlyList<IReadOnlyList<DocCell>> rows) =>
         rows.Count > 0 && rows.Count(r => r.Skip(1).Any(c => !Empty(c)) && r.Skip(1).Where(c => !Empty(c)).All(Number)) >= Math.Ceiling(0.8 * rows.Count);
 
+    /// <summary>
+    /// A table with each cell that spans rows holding what was drawn in the cells it covers (text centered in a tall
+    /// cell often sits in a row below its first), those left empty.
+    /// </summary>
+    private static DocTable WithRowSpans(DocTable t)
+    {
+        if (!t.Rows.Any(r => r.Any(c => c.RowSpan > 1))) return t;
+        var rows = t.Rows.Select(r => r.ToList()).ToList();
+        for (var r = 0; r < rows.Count; r++)
+        {
+            var col = 0;
+            for (var k = 0; k < rows[r].Count; k++)
+            {
+                var cell = rows[r][k];
+                if (cell.RowSpan > 1 && !cell.Covered)
+                {
+                    var paragraphs = cell.Paragraphs.ToList();
+                    var pictures = cell.Pictures.ToList();
+                    for (var d = 1; d < cell.RowSpan && r + d < rows.Count; d++)
+                    {
+                        var below = CellAtColumn(rows[r + d], col);
+                        if (below < 0 || !rows[r + d][below].Covered) break;
+                        paragraphs.AddRange(rows[r + d][below].Paragraphs);
+                        pictures.AddRange(rows[r + d][below].Pictures);
+                        rows[r + d][below] = rows[r + d][below] with { Paragraphs = [], Pictures = [] };
+                    }
+                    rows[r][k] = cell with { Paragraphs = paragraphs, Pictures = pictures };
+                }
+                col += Math.Max(1, cell.ColSpan);
+            }
+        }
+        return t with { Rows = [.. rows.Select(r => (IReadOnlyList<DocCell>)r)] };
+    }
+
+    /// <summary>The index of the cell of a row that starts at column <paramref name="col"/>, or -1.</summary>
+    private static int CellAtColumn(IReadOnlyList<DocCell> row, int col)
+    {
+        var at = 0;
+        for (var k = 0; k < row.Count; k++)
+        {
+            if (at == col) return k;
+            at += Math.Max(1, row[k].ColSpan);
+        }
+        return -1;
+    }
+
     private static IEnumerable<TagBlock> TableBlocks(int page, DocTable t)
     {
+        t = WithRowSpans(t);
         var rows = t.Rows.Select(r => (IReadOnlyList<TagCell>)[.. r.Select(c => new TagCell(
             [.. c.Paragraphs.SelectMany(x => x.Sources)], c.Text.Trim(), c.ColSpan)
         {
             Pictures = [.. c.Pictures.Select(x => x.Image.PageBox ?? x.Box)],
+            RowSpan = c.RowSpan,
+            Covered = c.Covered,
         })]).ToList();
         var all = rows.SelectMany(r => r).SelectMany(c => c.Sources.Concat(c.Pictures)).ToList();
         if (all.Count == 0) yield break;
@@ -244,9 +293,11 @@ public static partial class AutoTag
             headerRows = 2;
         // Row headers: each row's first cell in bold when the rest aren't, or words in front of numbers.
         var data = t.Rows.Skip(headerRows).ToList();
-        var headerColumn = data.Count >= 2 && data.All(r => r.Count >= 2 && !Empty(r[0])) &&
-                           (data.All(r => Bold(r[0])) && !data.All(r => r.Skip(1).All(c => Empty(c) || Bold(c))) ||
-                            data.All(r => !Number(r[0])) && NumbersAfterFirst(data));
+        // (A row whose first cell is covered by the row header above it is under that header.)
+        var heads = data.Where(r => r.Count == 0 || !r[0].Covered).ToList();
+        var headerColumn = data.Count >= 2 && heads.Count >= 1 && heads.All(r => r.Count >= 2 && !Empty(r[0])) &&
+                           (heads.All(r => Bold(r[0])) && !data.All(r => r.Where(c => !c.Covered).Skip(1).All(c => Empty(c) || Bold(c))) ||
+                            heads.All(r => !Number(r[0])) && NumbersAfterFirst(data));
         yield return new TagBlock(page, TagBlockKind.Table, box)
         {
             Rows = rows, HeaderRows = headerRows, HeaderColumn = headerColumn,

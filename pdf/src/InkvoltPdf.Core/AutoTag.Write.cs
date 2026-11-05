@@ -249,16 +249,19 @@ public static partial class AutoTag
                         for (var k = 0; k < b.Rows[r].Count; k++)
                         {
                             var cell = b.Rows[r][k];
+                            if (cell.Covered) continue; // the cell above spanning into this row holds it
                             var column = r < b.HeaderRows;
                             var row = !column && k == 0 && b.HeaderColumn;
                             var type = column || row ? "TH" : "TD";
                             var c = Child(type, tr);
-                            if (column || row || cell.ColSpan > 1)
+                            var rowSpan = Math.Min(cell.RowSpan, b.Rows.Count - r);
+                            if (column || row || cell.ColSpan > 1 || rowSpan > 1)
                             {
                                 var a = new PdfDictionary(doc);
                                 a.Elements["/O"] = new PdfName("/Table");
                                 if (column || row) a.Elements["/Scope"] = new PdfName(column ? "/Column" : "/Row");
                                 if (cell.ColSpan > 1) a.Elements["/ColSpan"] = new PdfInteger(cell.ColSpan);
+                                if (rowSpan > 1) a.Elements["/RowSpan"] = new PdfInteger(rowSpan);
                                 c.Elements["/A"] = a;
                             }
                             NewLeaf(c, type, b.Page, cell.Sources, pictures: cell.Pictures);

@@ -522,8 +522,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   alternate text, a picture made text keeps its area (pictures there become decoration); nothing is made a table or a
   list from a paragraph (their cells and entries aren't known). `AutoTagKindChangeTests` (4: paragraph to heading 2,
   list to paragraph, text to picture and back, table to paragraph); dev script `rokind` (a paragraph made heading 2 is
-  read as Heading 1 after evening out, a line made a picture asks for alternate text). Still to do: row spans, Unicode
-  for Type 3 bitmap fonts, Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
+  read as Heading 1 after evening out, a line made a picture asks for alternate text). **Row spans**: in a ruled table a cell
+  without a rule under it across its columns, over a cell of the same columns, spans that row too (`DocLayout`'s
+  `TableFromGrid`: `DocCell.RowSpan`, the rows it covers keep a `Covered` cell with what was drawn there, so the
+  exports are as before); Make Accessible gives the cell what its covered cells hold (text centered in a tall cell
+  often sits in a lower row), writes RowSpan in its Table attributes and leaves the covered cells out; a row header
+  over two rows heads both. Borderless tables have no row spans yet (nothing marks them). `AutoTagRowSpanTests` (3:
+  a header over two header rows and a row header over two rows, read, written and checked; Word's table unchanged).
+  veraPDF 1.30.3 passes PDF/UA-1 on that table tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before; export corpus: the
+  same Word pages for 7 of 7, PowerPoint opens every slide, 3,617 of 3,641 HTML lines in order as before. Still to do:
+  Unicode for Type 3 bitmap fonts, Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
   Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
   Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
   PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model

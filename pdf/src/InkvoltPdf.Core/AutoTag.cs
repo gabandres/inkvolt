@@ -25,6 +25,12 @@ public sealed record TagListItem(IReadOnlyList<RectD> Sources, string Text)
 public sealed record TagCell(IReadOnlyList<RectD> Sources, string Text, int ColSpan = 1)
 {
     public IReadOnlyList<RectD> Pictures { get; init; } = [];
+
+    /// <summary>How many rows it spans: its content is also what was drawn in the cells it covers.</summary>
+    public int RowSpan { get; init; } = 1;
+
+    /// <summary>Part of a cell above that spans rows into this row: not written (its content is that cell's).</summary>
+    public bool Covered { get; init; }
 }
 
 /// <summary>
