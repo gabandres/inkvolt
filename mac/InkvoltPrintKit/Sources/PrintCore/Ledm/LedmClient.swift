@@ -15,7 +15,7 @@ public final class LedmClient: Sendable {
     /// Nil when the device does not speak LEDM.
     public func tree() async throws -> DiscoveryTree? {
         if let tree = cache.withLock({ $0.tree }) { return tree }
-        guard let bytes = try await http.getBytesOrNil(http.http(DiscoveryTree.path)) else { return nil }
+        guard let bytes = try await http.getBytesOrNil(try http.http(DiscoveryTree.path)) else { return nil }
         let tree = DiscoveryTree.parse(try DeviceXml.load(bytes))
         cache.withLock { $0.tree = tree }
         return tree
@@ -24,7 +24,7 @@ public final class LedmClient: Sendable {
     /// Fetch a resource by LEDM type. Nil if the device does not expose it. *Cap resources are cached.
     public func get(_ resourceType: String) async throws -> XmlElement? {
         if let cached = cache.withLock({ $0.caps[resourceType] }) { return cached }
-        guard let path = try await tree()?.uri(for: resourceType), let bytes = try await http.getBytesOrNil(http.http(path)) else { return nil }
+        guard let path = try await tree()?.uri(for: resourceType), let bytes = try await http.getBytesOrNil(try http.http(path)) else { return nil }
         let doc = try DeviceXml.load(bytes)
         if resourceType.hasSuffix("Cap") { cache.withLock { $0.caps[resourceType] = doc } }
         return doc
@@ -45,7 +45,7 @@ public final class LedmClient: Sendable {
 
     /// GET an LEDM document by path (manifest resources aren't in the DiscoveryTree). Nil on 404.
     public func get(path: String) async throws -> XmlElement? {
-        try await http.getBytesOrNil(http.http(path)).map { try DeviceXml.load($0) }
+        try await http.getBytesOrNil(try http.http(path)).map { try DeviceXml.load($0) }
     }
 
     /// Yields each time the printer's event table changes. Uses the device's delayed-reply long poll (`?timeout=` +
@@ -74,7 +74,7 @@ public final class LedmClient: Sendable {
             var notModified = false
             let started = clock.now
             do {
-                var request = HttpRequest("GET", etag == nil ? http.http(path) : http.http("\(path)?timeout=\(wait)"),
+                var request = HttpRequest("GET", etag == nil ? try http.http(path) : try http.http("\(path)?timeout=\(wait)"),
                                           timeout: Self.eventWait + .seconds(15))
                 if let etag { request.headers["If-None-Match"] = etag }
                 let response = try await http.send(request)

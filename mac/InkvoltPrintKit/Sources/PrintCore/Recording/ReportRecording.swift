@@ -34,6 +34,10 @@ public enum ReportRecording {
         }
     }
 
+    /// Removes a recording `run` finished after all: its folder and .zip (Report a Problem closed while the recording came
+    /// back, so nothing stays, as when it's cancelled during `run`).
+    public static func discard(_ done: ReportRecordingDone) { remove(done.folder, done.zip) }
+
     /// The line the report's details get: what was recorded and the file's name, no folder and nothing to identify the printer.
     public static func reportLine(_ done: ReportRecordingDone, _ who: Diagnostics.Identity) -> String {
         let what = Diagnostics.scrub("\(done.result.model ?? "A printer") (\(done.result.interfaces.joined(separator: ", "))), \(done.result.files.count) files", who)

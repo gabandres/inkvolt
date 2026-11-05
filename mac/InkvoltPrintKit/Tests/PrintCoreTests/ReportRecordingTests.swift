@@ -252,4 +252,27 @@ struct ReportRecordingTests {
         #expect(throws: ZipArchive.Damaged.self) { try ZipArchive.entries(Array(zip.prefix(zip.count - 10))) }
         #expect(throws: ZipArchive.Damaged.self) { try ZipArchive.entries([]) }
     }
+
+    @Test func The_end_record_is_looked_for_only_where_a_comment_could_put_it() throws {
+        let zip = try ZipArchive.stored([ZipArchive.Entry(name: "a.xml", bytes: Array("<a/>".utf8))], modified: Self.now)
+        // Up to a 65,535-byte comment after it is still an archive; an end record further back than that isn't this one's.
+        let commented = Array(zip.dropLast(2)) + [0xFF, 0xFF] + [UInt8](repeating: 0x20, count: 0xFFFF)
+        #expect(try ZipArchive.entries(commented).map(\.name) == ["a.xml"])
+        #expect(throws: ZipArchive.Damaged.self) { try ZipArchive.entries(zip + [UInt8](repeating: 0, count: 0x1_0000)) }
+    }
+
+    @Test func The_checksum_is_zips_crc_32() {
+        #expect(Crc32.of(Array("123456789".utf8)) == 0xCBF4_3926)
+        #expect(Crc32.of([]) == 0)
+        #expect(Crc32.update(Crc32.update(0xFFFF_FFFF, Array("1234".utf8)), Array("56789".utf8)) ^ 0xFFFF_FFFF == 0xCBF4_3926)
+    }
+
+    @Test func A_recording_kept_after_the_window_closed_is_discarded_whole() async throws {
+        let parent = Self.parent()
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let done = try await ReportRecording.run(Self.host, parent: parent, try Self.options(Self.planted()), now: Self.now)
+        #expect(Self.entries(parent).count == 2)
+        ReportRecording.discard(done)
+        #expect(Self.entries(parent).isEmpty)
+    }
 }

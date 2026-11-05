@@ -86,13 +86,22 @@ struct DeviceHttpLimitsTests {
         #expect(elsewhere.asked.isEmpty)
     }
 
-    @Test func A_settings_link_with_the_password_stays_on_the_printer_keeping_its_scheme_and_port() {
+    @Test func A_settings_link_with_the_password_stays_on_the_printer_keeping_its_scheme_and_port() throws {
         let http = DeviceHttp(host: Self.host, transport: Serving([1]))
-        #expect(http.https("https://192.0.2.200/DevMgmt/Settings.xml") == URL(string: "https://192.0.2.10/DevMgmt/Settings.xml"))
-        #expect(http.https("https://user:pw@192.0.2.200:8443/x") == URL(string: "https://192.0.2.10:8443/x"))
-        #expect(http.http("http://192.0.2.200:8080/x?a=1") == URL(string: "http://192.0.2.10:8080/x?a=1"))
-        #expect(http.https("https://192.0.2.10:8443/x") == URL(string: "https://192.0.2.10:8443/x"))
-        #expect(http.http("/DevMgmt/x.xml") == URL(string: "http://192.0.2.10/DevMgmt/x.xml"))
+        #expect(try http.https("https://192.0.2.200/DevMgmt/Settings.xml") == URL(string: "https://192.0.2.10/DevMgmt/Settings.xml"))
+        #expect(try http.https("https://user:pw@192.0.2.200:8443/x") == URL(string: "https://192.0.2.10:8443/x"))
+        #expect(try http.http("http://192.0.2.200:8080/x?a=1") == URL(string: "http://192.0.2.10:8080/x?a=1"))
+        #expect(try http.https("https://192.0.2.10:8443/x") == URL(string: "https://192.0.2.10:8443/x"))
+        #expect(try http.http("/DevMgmt/x.xml") == URL(string: "http://192.0.2.10/DevMgmt/x.xml"))
+    }
+
+    @Test func A_path_that_isnt_a_web_address_is_refused_not_sent_to_the_printers_root() async throws {
+        let printer = Serving(Array("<x/>".utf8))
+        let http = DeviceHttp(host: Self.host, transport: printer)
+        #expect(throws: DeviceNetworkError.self) { try http.http("http://[oops/x") }
+        #expect(throws: DeviceNetworkError.self) { try http.https("http://[oops/x") }
+        await #expect(throws: DeviceNetworkError.self) { try await LedmClient(http).get(path: "http://[oops/x") }
+        #expect(printer.asked.isEmpty)
     }
 
     @Test func An_escl_address_kept_from_before_is_asked_on_the_printers_address_at_its_own_port() async throws {

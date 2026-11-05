@@ -19,7 +19,7 @@ import PrintMac
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
 /// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`);
-/// `--record <address> <folder> [--scan] [--community name] [--escl url] [--ipp url] [--force]` records a printer
+/// `--record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` records a printer
 /// (`RecordCommand`, roadmap 1.2) into `Recordings/<folder>` in the container (demo mode: the made-up printers, into a
 /// temporary folder); `--problem` opens Help › Report a Problem… and lists its details, `--problem-record` also runs its
 /// Record This Printer and reads the .zip back (`problemCheck`). For checking a build over
@@ -159,6 +159,9 @@ enum Report {
         let before = count()
         w.recordClicked()
         try? await Task.sleep(for: .milliseconds(30))
+        // Help › Report a Problem… again while it records: the recording goes on, and the window still says so.
+        ReportProblemWindowController.show(model)
+        lines.append("  opened again while recording: \(w.status.stringValue)")
         w.window?.performClose(nil)
         try? await Task.sleep(for: .seconds(3))
         lines.append("  closed while recording: \(before) entries in the recordings folder before, \(count()) after")

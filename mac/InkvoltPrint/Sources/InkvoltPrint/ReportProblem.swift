@@ -138,9 +138,10 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// The details again and the printer shown (the selected one), as each opening of Windows' dialog.
+    /// The details again and the printer shown (the selected one), as each opening of Windows' dialog. A recording under way
+    /// is kept, with the window as it is: Windows' dialog is modal, so it can't be opened again while it records.
     func load(_ model: AppModel) {
-        recordingTask?.cancel()
+        guard recordingTask == nil else { return }
         self.model = model
         printer = model.printers.first { $0.id == model.selectedID }
         details.string = Self.report(model)
@@ -164,6 +165,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     }
 
     @objc func recordClicked() {
+        guard printer?.recordHost != nil, model != nil else { return }
         recordingTask?.cancel()
         recordingTask = Task { await record() }
     }
@@ -175,10 +177,18 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         recordButton.isEnabled = false
         showButton.isHidden = true
         say("Recording \(printer.name). Close this window to stop.")
-        defer { if !Task.isCancelled { recordButton.isEnabled = printer.recordHost != nil } }
+        defer {
+            if !Task.isCancelled {
+                recordButton.isEnabled = printer.recordHost != nil
+                recordingTask = nil // done: Report a Problem… loads the window again
+            }
+        }
         do {
             let done = try await printer.recordForReport()
-            if Task.isCancelled { return }
+            if Task.isCancelled { // closed as the recording came back: nothing stays
+                ReportRecording.discard(done)
+                return
+            }
             recording = done.zip
             details.string = details.string.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + ReportRecording.reportLine(done, who) + "\n"
             say(model.isDemo ? "Demo: saved as \(done.zip.lastPathComponent) in a temporary folder, from the made-up printer."
@@ -190,7 +200,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         }
     }
 
-    /// Closing stops a recording under way; `ReportRecording` removes what it wrote.
+    /// Closing stops a recording under way; `ReportRecording` removes what it wrote, or `record` does once it came back.
     func windowWillClose(_ notification: Notification) {
         recordingTask?.cancel()
         recordingTask = nil
@@ -213,8 +223,11 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     @objc func copyClicked() { copy() }
 
     @objc func issueClicked() {
-        let board = Report.isRunning ? NSPasteboard(name: .init("com.bermudezsystems.InkvoltPrint.report.problem")) : .general
-        guard copy(to: board) else { return }
+        // `--report` copies to a pasteboard of its own, released at once: the user's clipboard is left alone, and the
+        // pasteboard server keeps nothing after the run.
+        let own = Report.isRunning ? NSPasteboard(name: .init("com.bermudezsystems.InkvoltPrint.report.problem")) : nil
+        defer { own?.releaseGlobally() }
+        guard copy(to: own ?? .general) else { return }
         let address = ProblemReport.issueUrl(repository: Self.repository, app: "Inkvolt Print", version: Self.version, system: Self.system)
         guard let url = URL(string: address) else { return }
         openedIssue = url

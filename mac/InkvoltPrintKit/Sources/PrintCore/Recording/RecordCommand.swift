@@ -1,9 +1,10 @@
 import Foundation
 
-/// `record <address> <folder> [--scan] [--community name] [--escl url] [--ipp url] [--force]` (print/ROADMAP.md 1.2;
+/// `record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` (print/ROADMAP.md 1.2;
 /// Windows' developer CLI `inkvoltprint record`): records a printer through `PrinterRecorder` into a folder and says what
-/// it kept. Mac difference: the app is sandboxed, so the folder is a plain name inside the app's own recordings folder
-/// (`base`), never a path; the Mac app runs it from `--report` (`--record <address> <folder>`). What it prints masks the
+/// it kept. Mac differences: the app is sandboxed, so the folder is a plain name inside the app's own recordings folder
+/// (`base`), never a path; the Mac app runs it from `--report` (`--record <address> <folder>`), whose own `--scan` scans
+/// the demo inkjet, so scanning while recording is `--record-scan` (Windows' `--scan`). What it prints masks the
 /// address and this Mac's names (`Diagnostics.scrub`), so it can be pasted; the files are scrubbed by the recorder.
 public struct RecordCommand: Sendable, Equatable {
     public var host: String
@@ -13,8 +14,10 @@ public struct RecordCommand: Sendable, Equatable {
     public var community = SnmpClient.defaultCommunity
     public var esclHint: URL?
     public var ippHint: URL?
+    /// An option given without its value (the first one): `run` refuses the command.
+    public var missingValue: String?
 
-    public static let usage = "record <address> <folder> [--scan] [--community name] [--escl url] [--ipp url] [--force]"
+    public static let usage = "record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]"
 
     public init(host: String, folder: String) {
         self.host = host
@@ -22,14 +25,23 @@ public struct RecordCommand: Sendable, Equatable {
     }
 
     /// The command from the arguments: `keyword`, the address and the folder, then its options anywhere after them. Nil when
-    /// `keyword` isn't there; a command with an empty address or folder when they're missing (`run` says how to use it).
+    /// `keyword` isn't there; a command with an empty address or folder when they're missing, or with `missingValue` when an
+    /// option's value is (`run` says how to use it).
     public static func parse(_ args: [String], keyword: String) -> RecordCommand? {
         guard let i = args.firstIndex(of: keyword) else { return nil }
         let rest = Array(args[(i + 1)...])
         func positional(_ n: Int) -> String { n < rest.count && !rest[n].hasPrefix("--") ? rest[n] : "" }
         var command = RecordCommand(host: positional(0), folder: positional(0).isEmpty ? "" : positional(1))
-        func value(_ name: String) -> String? { rest.firstIndex(of: name).flatMap { $0 + 1 < rest.count ? rest[$0 + 1] : nil } }
-        command.scan = rest.contains("--scan")
+        /// The argument after `name`; a flag there (or nothing) is no value, and the command is refused.
+        func value(_ name: String) -> String? {
+            guard let at = rest.firstIndex(of: name) else { return nil }
+            guard at + 1 < rest.count, !rest[at + 1].hasPrefix("--") else {
+                if command.missingValue == nil { command.missingValue = name }
+                return nil
+            }
+            return rest[at + 1]
+        }
+        command.scan = rest.contains("--record-scan")
         command.force = rest.contains("--force")
         if let c = value("--community") { command.community = c }
         command.esclHint = value("--escl").flatMap(URL.init(string:))
@@ -45,6 +57,7 @@ public struct RecordCommand: Sendable, Equatable {
 
     /// Records the printer into `base/folder` and returns what to print. Never throws: a refusal or a failure is a line.
     public func run(in base: URL, transport: any HttpTransport, snmp: (any SnmpTransport)?, who: Diagnostics.Identity) async -> [String] {
+        if let missingValue { return ["record: \(missingValue) needs a value. Usage: \(Self.usage)"] }
         guard !host.isEmpty, !folder.isEmpty else { return ["Usage: \(Self.usage)"] }
         guard Self.plainName(folder) else {
             return ["record: \(folder) isn't a plain folder name; the recording goes into \(base.lastPathComponent)/<folder> in the app's own folder."]

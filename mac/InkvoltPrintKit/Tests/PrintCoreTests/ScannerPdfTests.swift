@@ -42,7 +42,7 @@ final class ScannerPdfTests {
     private static func scan(_ printer: FixtureTransport, _ source: ScanSource) async throws -> (pages: [[UInt8]], settings: [String]) {
         let network = Network(printer)
         let http = DeviceHttp(host: host, transport: network)
-        let client = EsclClient(http, root: http.http("/eSCL/"))
+        let client = EsclClient(http, root: try http.http("/eSCL/"))
         var pages: [[UInt8]] = []
         for try await page in client.scan(ScanRequest(source: source, resolution: 300)) { pages.append(page) }
         let settings = network.seen.filter { $0.method == "POST" && $0.url.path.hasSuffix("/ScanJobs") }.map { String(decoding: $0.body ?? [], as: UTF8.self) }
@@ -72,7 +72,7 @@ final class ScannerPdfTests {
         let six = Self.six
         let network = Demo.network(fixtures: Fixtures.root, scanPage: { page, _, _ in six[page] })
         let http = DeviceHttp(host: Demo.inkjetHost, transport: network.http)
-        let client = EsclClient(http, root: http.http("/eSCL/"))
+        let client = EsclClient(http, root: try http.http("/eSCL/"))
         let caps = try #require(try await client.capabilities())
         #expect(caps.adf?.pdfOnly == true)
         #expect(caps.platen?.pdfOnly == false)

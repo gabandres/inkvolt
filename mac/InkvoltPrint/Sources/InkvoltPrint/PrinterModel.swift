@@ -104,6 +104,7 @@ final class PrinterModel: Identifiable {
     func recordForReport() async throws -> ReportRecordingDone {
         guard let host = recordHost else { throw DeviceNetworkError.failed("This printer has no address to record.") }
         var options = RecordOptions(transport: app.recordingTransport(), snmp: app.snmpTransport)
+        options.esclHint = await monitor?.target.esclHint // Windows' EsclRoot: the eSCL root DNS-SD or a connection found
         options.ippHint = ippHint
         return try await ReportRecording.run(host, parent: app.recordingsFolder, options, now: Date())
     }

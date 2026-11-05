@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Minimal PNG writer for rendered pixels: 8-bit RGB or RGBA (straight alpha), no filtering (the Windows `PngEncoder`;
 /// zlib through `Deflate`).

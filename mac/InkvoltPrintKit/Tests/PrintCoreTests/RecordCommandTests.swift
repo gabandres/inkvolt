@@ -21,7 +21,7 @@ struct RecordCommandTests {
     }
 
     @Test func The_command_reads_its_address_folder_and_options_from_the_arguments() throws {
-        let args = ["Inkvolt Print", "--report", "rec", "--record", "192.0.2.10", "laser", "--scan", "--community", "private",
+        let args = ["Inkvolt Print", "--report", "rec", "--record", "192.0.2.10", "laser", "--record-scan", "--community", "private",
                     "--escl", "http://192.0.2.10:8080/eSCL", "--ipp", "ipp://192.0.2.10/ipp/print", "--force"]
         let c = try #require(RecordCommand.parse(args, keyword: "--record"))
         #expect(c.host == "192.0.2.10")
@@ -33,6 +33,25 @@ struct RecordCommandTests {
         #expect(RecordCommand.parse(["--report", "x"], keyword: "--record") == nil)
         let bare = try #require(RecordCommand.parse(["--record", "192.0.2.10"], keyword: "--record"))
         #expect(bare.community == SnmpClient.defaultCommunity && !bare.scan && bare.folder.isEmpty)
+    }
+
+    @Test func Scanning_has_a_name_of_its_own_beside_the_reports_scan() throws {
+        // `--report`'s own --scan scans the demo inkjet: a recording's scanning is asked for by --record-scan.
+        let c = try #require(RecordCommand.parse(["--report", "x", "--demo", "--scan", "--record", "192.0.2.10", "laser"], keyword: "--record"))
+        #expect(!c.scan)
+        let s = try #require(RecordCommand.parse(["--record", "192.0.2.10", "laser", "--record-scan"], keyword: "--record"))
+        #expect(s.scan)
+    }
+
+    @Test(arguments: [["--community", "--force"], ["--escl"], ["--ipp", "--record-scan"]])
+    func An_option_without_its_value_is_refused_not_given_the_next_flag(_ options: [String]) async throws {
+        let c = try #require(RecordCommand.parse(["--record", "192.0.2.10", "laser"] + options, keyword: "--record"))
+        #expect(c.community == SnmpClient.defaultCommunity && c.esclHint == nil && c.ippHint == nil)
+        let base = Self.base()
+        defer { try? FileManager.default.removeItem(at: base) }
+        let lines = await c.run(in: base, transport: Self.demoLaser(), snmp: nil, who: Self.me)
+        #expect(lines == ["record: \(options[0]) needs a value. Usage: \(RecordCommand.usage)"])
+        #expect(!FileManager.default.fileExists(atPath: base.path))
     }
 
     @Test func The_demo_laser_is_recorded_into_its_folder_and_what_is_said_masks_the_address() async throws {

@@ -87,8 +87,17 @@ public final class DeviceHttp: Sendable {
 
     public func clearCredentials() { basicAuth.withLock { $0 = nil } }
 
-    public func http(_ path: String) -> URL { onThisPrinter(URL(string: path, relativeTo: httpBase)?.absoluteURL ?? httpBase) }
-    public func https(_ path: String) -> URL { onThisPrinter(URL(string: path, relativeTo: httpsBase)?.absoluteURL ?? httpsBase) }
+    /// `path` (or a link a printer gave) on this printer over HTTP; a path that isn't a web address is refused, never asked
+    /// as the printer's root.
+    public func http(_ path: String) throws -> URL { try on(httpBase, path) }
+    public func https(_ path: String) throws -> URL { try on(httpsBase, path) }
+
+    private func on(_ base: URL, _ path: String) throws -> URL {
+        guard let url = URL(string: path, relativeTo: base)?.absoluteURL else {
+            throw DeviceNetworkError.failed("Not asked: the printer named an address that isn't one.")
+        }
+        return onThisPrinter(url)
+    }
 
     /// Whether a web address is on this printer: its host, whatever the port or scheme.
     public func isOnThisPrinter(_ url: URL) -> Bool {

@@ -76,7 +76,7 @@ struct NetTests {
     @Test func aRequestThatTakesLongerThanItsTimeoutTimesOut() async throws {
         let http = DeviceHttp(host: "192.0.2.11", transport: Network(Printers.none(), failNow: true) { _ in Network.hang() })
         await #expect(throws: DeviceNetworkError.timedOut) {
-            try await http.send(HttpRequest("GET", http.http("/"), timeout: .milliseconds(100)))
+            try await http.send(HttpRequest("GET", try http.http("/"), timeout: .milliseconds(100)))
         }
     }
 

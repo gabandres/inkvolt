@@ -126,7 +126,7 @@ public struct MaintenanceClient: Sendable {
     }
 
     private func postLedm(_ action: MaintenanceAction, _ path: String, _ body: String) async throws -> MaintenanceResult {
-        let target = http.https(path)
+        let target = try http.https(path)
         // Newer HP web servers (nginx) check these against cross-site requests (hp-printer-maintenance, ews.py _post_xml).
         var origin = http.httpsBase.absoluteString
         while origin.hasSuffix("/") { origin.removeLast() }

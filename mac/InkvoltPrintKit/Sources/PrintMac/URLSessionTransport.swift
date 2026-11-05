@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import PrintCore
 import Security
+import Synchronization
 
 /// The network for one printer (`HttpTransportFactory`): URLSession with nothing kept between runs (no cookies, cache or
 /// saved credentials), redirects returned rather than followed, and every TLS handshake checked against the printer's
@@ -51,20 +52,16 @@ public final class URLSessionTransport: HttpTransport {
         let session = request.once ? Self.session(check) : self.session
         defer { if request.once { session.finishTasksAndInvalidate() } }
         do {
-            let body: [UInt8], response: URLResponse
+            let reply: HttpResponse
             if let replyLimit {
-                (body, response) = try await bounded(r, session, replyLimit)
+                reply = try await bounded(r, session, replyLimit)
             } else {
-                let (data, reply) = try await session.data(for: r)
-                (body, response) = (Array(data), reply)
+                let (data, response) = try await session.data(for: r)
+                guard let head = Self.head(response) else { throw DeviceNetworkError.failed("Not an HTTP reply") }
+                reply = HttpResponse(status: head.status, headers: head.headers, body: Array(data))
             }
-            guard let http = response as? HTTPURLResponse else { throw DeviceNetworkError.failed("Not an HTTP reply") }
             localNetwork?.answered()
-            var headers: [String: String] = [:]
-            for (key, value) in http.allHeaderFields {
-                if let key = key as? String, let value = value as? String { headers[key] = value }
-            }
-            return HttpResponse(status: http.statusCode, headers: headers, body: body)
+            return reply
         } catch let error as DeviceNetworkError {
             throw error
         } catch {
@@ -73,25 +70,91 @@ public final class URLSessionTransport: HttpTransport {
         }
     }
 
-    /// The reply read as it arrives, given up on (its task cancelled) past `limit` bytes, or at once when its length says so.
-    private func bounded(_ r: URLRequest, _ session: URLSession, _ limit: Int) async throws -> ([UInt8], URLResponse) {
-        let (bytes, response) = try await session.bytes(for: r)
-        let tooLong = DeviceNetworkError.failed("The reply was longer than \(limit / (1 << 20)) MB")
-        let expected = response.expectedContentLength
-        if expected > Int64(limit) {
-            bytes.task.cancel()
-            throw tooLong
+    /// An HTTP reply's status and headers; nil: not an HTTP reply.
+    private static func head(_ response: URLResponse) -> (status: Int, headers: [String: String])? {
+        guard let http = response as? HTTPURLResponse else { return nil }
+        var headers: [String: String] = [:]
+        for (key, value) in http.allHeaderFields {
+            if let key = key as? String, let value = value as? String { headers[key] = value }
         }
-        var body: [UInt8] = []
-        body.reserveCapacity(expected > 0 ? Int(expected) : 64 * 1024) // bounded: expected ≤ limit, checked above
-        for try await b in bytes {
-            guard body.count < limit else {
-                bytes.task.cancel()
-                throw tooLong
+        return (http.statusCode, headers)
+    }
+
+    /// The reply read in the pieces it arrives in (a task delegate counting `didReceive`), given up on (its task cancelled)
+    /// past `limit` bytes, or at once when its length says so.
+    private func bounded(_ r: URLRequest, _ session: URLSession, _ limit: Int) async throws -> HttpResponse {
+        let reader = BoundedReader(limit: limit)
+        let task = session.dataTask(with: r)
+        task.delegate = reader // the session's delegate still answers redirects and certificates
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                reader.start(continuation)
+                task.resume()
             }
-            body.append(b)
+        } onCancel: {
+            task.cancel()
         }
-        return (body, response)
+    }
+
+    /// One bounded reply's bytes as they arrive, and its end.
+    private final class BoundedReader: NSObject, URLSessionDataDelegate, Sendable {
+        private struct State {
+            var status: Int?
+            var headers: [String: String] = [:]
+            var body: [UInt8] = []
+            var tooLong = false
+            var continuation: CheckedContinuation<HttpResponse, any Error>?
+        }
+
+        private let limit: Int
+        private let state = Mutex(State())
+
+        init(limit: Int) { self.limit = limit }
+
+        func start(_ continuation: CheckedContinuation<HttpResponse, any Error>) { state.withLock { $0.continuation = continuation } }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse,
+                        completionHandler: @escaping @Sendable (URLSession.ResponseDisposition) -> Void) {
+            let head = URLSessionTransport.head(response)
+            let tooLong = response.expectedContentLength > Int64(limit)
+            state.withLock {
+                $0.status = head?.status
+                $0.headers = head?.headers ?? [:]
+                $0.tooLong = tooLong
+                if !tooLong, response.expectedContentLength > 0 { $0.body.reserveCapacity(Int(response.expectedContentLength)) } // bounded: ≤ limit
+            }
+            completionHandler(tooLong ? .cancel : .allow)
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            let over = state.withLock { s -> Bool in
+                guard s.body.count + data.count <= limit else {
+                    s.tooLong = true
+                    return true
+                }
+                s.body.append(contentsOf: data)
+                return false
+            }
+            if over { dataTask.cancel() }
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+            let done = state.withLock { s -> State in
+                let done = s
+                s = State() // resumed once; the bytes go with it
+                return done
+            }
+            guard let continuation = done.continuation else { return }
+            if done.tooLong {
+                continuation.resume(throwing: DeviceNetworkError.failed("The reply was longer than \(limit / (1 << 20)) MB"))
+            } else if let error {
+                continuation.resume(throwing: error)
+            } else if let status = done.status {
+                continuation.resume(returning: HttpResponse(status: status, headers: done.headers, body: done.body))
+            } else {
+                continuation.resume(throwing: DeviceNetworkError.failed("Not an HTTP reply"))
+            }
+        }
     }
 
     private func map(_ error: Error) -> DeviceNetworkError {

@@ -1,5 +1,6 @@
 import Compression
 import Foundation
+import PrintCore
 
 /// Where an export's bytes go: a file being written, or memory.
 public protocol ByteSink: AnyObject {
@@ -70,77 +71,31 @@ enum Deflate {
     }
 }
 
-/// CRC-32 (ZIP's and PNG's).
-enum Crc32 {
-    static let table: [UInt32] = (0..<256).map { n -> UInt32 in
-        var c = UInt32(n)
-        for _ in 0..<8 { c = c & 1 != 0 ? 0xEDB8_8320 ^ (c >> 1) : c >> 1 }
-        return c
-    }
-
-    static func update(_ crc: UInt32, _ data: some Sequence<UInt8>) -> UInt32 {
-        var c = crc
-        for b in data { c = table[Int((c ^ UInt32(b)) & 0xFF)] ^ (c >> 8) }
-        return c
-    }
-
-    static func of(_ data: [UInt8]) -> UInt32 { update(0xFFFF_FFFF, data) ^ 0xFFFF_FFFF }
-}
-
-/// A ZIP archive written as entries arrive (what .NET's `ZipArchive` in Create mode does for the Windows writers):
-/// stored or deflated entries, UTF-8 names, then the central directory. ZIP64 isn't written: an archive over 4 GB fails.
+/// A ZIP archive written as entries arrive (what .NET's `ZipArchive` in Create mode does for the Windows writers): the
+/// suite's one ZIP writer (PrintCore's `ZipArchive.Writer`), each entry deflated here when that makes it smaller.
+/// ZIP64 isn't written: an archive over 4 GB fails.
 final class ZipWriter {
-    private let sink: ByteSink
-    private var offset = 0
-    private var central: [UInt8] = []
-    private var count = 0
-    private let time: UInt16
-    private let date: UInt16
+    private let writer: ZipArchive.Writer
 
-    init(_ sink: ByteSink) {
-        self.sink = sink
-        let c = Calendar(identifier: .gregorian).dateComponents([.year, .month, .day, .hour, .minute, .second], from: Date())
-        let hour: Int = c.hour ?? 0, minute: Int = c.minute ?? 0, second: Int = c.second ?? 0
-        let year: Int = max(0, (c.year ?? 1980) - 1980), month: Int = c.month ?? 1, day: Int = c.day ?? 1
-        let dosTime: Int = (hour << 11) | (minute << 5) | (second / 2)
-        let dosDate: Int = (year << 9) | (month << 5) | day
-        time = UInt16(dosTime)
-        date = UInt16(dosDate)
-    }
+    init(_ sink: ByteSink) { writer = ZipArchive.Writer(modified: Date()) { try sink.write($0) } }
 
     /// Adds an entry; `compress` deflates it when that makes it smaller.
     func add(_ name: String, _ data: [UInt8], compress: Bool) throws {
-        let deflated = compress ? Deflate.compress(data) : nil
-        let body = deflated ?? data
-        let method: UInt16 = deflated == nil ? 0 : 8
-        let crc = Crc32.of(data)
-        let nameBytes = Array(name.utf8)
-        guard offset + 30 + nameBytes.count + body.count < Int(UInt32.max) else {
-            throw PdfEngineError(message: "The file would be larger than 4 GB.")
+        do {
+            try writer.add(name, data, deflated: compress ? Deflate.compress(data) : nil)
+        } catch let e as ZipArchive.Damaged {
+            throw PdfEngineError(message: e.description)
         }
-        var local: [UInt8] = []
-        local += le32(0x0403_4B50) + le16(20) + le16(0x0800) + le16(method) + le16(time) + le16(date)
-        local += le32(crc) + le32(UInt32(body.count)) + le32(UInt32(data.count)) + le16(UInt16(nameBytes.count)) + le16(0)
-        local += nameBytes
-        central += le32(0x0201_4B50) + le16(20) + le16(20) + le16(0x0800) + le16(method) + le16(time) + le16(date)
-        central += le32(crc) + le32(UInt32(body.count)) + le32(UInt32(data.count)) + le16(UInt16(nameBytes.count))
-        central += le16(0) + le16(0) + le16(0) + le16(0) + le32(0) + le32(UInt32(offset))
-        central += nameBytes
-        try sink.write(local)
-        try sink.write(body)
-        offset += local.count + body.count
-        count += 1
     }
 
     /// Writes the central directory: the archive is complete.
     func finish() throws {
-        let end = le32(0x0605_4B50) + le16(0) + le16(0) + le16(UInt16(count)) + le16(UInt16(count))
-            + le32(UInt32(central.count)) + le32(UInt32(offset)) + le16(0)
-        try sink.write(central + end)
+        do {
+            try writer.finish()
+        } catch let e as ZipArchive.Damaged {
+            throw PdfEngineError(message: e.description)
+        }
     }
-
-    private func le16(_ v: UInt16) -> [UInt8] { [UInt8(v & 255), UInt8(v >> 8)] }
-    private func le32(_ v: UInt32) -> [UInt8] { [UInt8(v & 255), UInt8((v >> 8) & 255), UInt8((v >> 16) & 255), UInt8(v >> 24)] }
 }
 
 /// Writes XML the way the Windows writers' `XmlWriter` does (UTF-8, standalone declaration, no indentation), with
