@@ -14,8 +14,15 @@ public struct QueueJob: Equatable, Sendable, Identifiable {
     public var state: JobState
     public var submitted: Date
     public var owner: String
+    /// Its size as CUPS has it (`cups_job_t.size`, kilobytes, times 1024); it grows while the job is still coming in.
+    public var bytes: Int64
+    /// When CUPS finished with it (`completed_time`): printed, cancelled or given up on. Nil while it's in the queue.
+    public var finished: Date?
+    /// The computer it came from, when the reader knows (`job-originating-host-name`; `cupsGetJobs2` doesn't say).
+    public var machine: String?
 
-    public init(id: Int, name: String, pages: Int? = nil, pagesPrinted: Int = 0, state: JobState, submitted: Date, owner: String) {
+    public init(id: Int, name: String, pages: Int? = nil, pagesPrinted: Int = 0, state: JobState, submitted: Date, owner: String,
+                bytes: Int64 = 0, finished: Date? = nil, machine: String? = nil) {
         self.id = id
         self.name = name
         self.pages = pages
@@ -23,6 +30,9 @@ public struct QueueJob: Equatable, Sendable, Identifiable {
         self.state = state
         self.submitted = submitted
         self.owner = owner
+        self.bytes = bytes
+        self.finished = finished
+        self.machine = machine
     }
 }
 

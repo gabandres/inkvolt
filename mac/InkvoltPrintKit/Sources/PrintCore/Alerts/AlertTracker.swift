@@ -41,6 +41,18 @@ public struct AlertRules: Equatable, Sendable {
     /// A longer gap between two checks (the Mac slept) starts the holds again.
     public var maxGap: TimeInterval = 2 * 3600
 
+    /// Tell about your own print jobs failing or getting stuck (`AlertTracker.observeJobs`). Off by default.
+    public var jobs = false
+
+    /// Nothing in the queue moves this long, with the printer ready: your job is stuck.
+    public var jobStuckAfter: TimeInterval = 5 * 60
+
+    /// Nothing in the queue moves this long, with the printer saying it's printing: your job may be stuck.
+    public var jobHungAfter: TimeInterval = 15 * 60
+
+    /// A job is told stuck at most this many times, each after real progress since the last (a flapping job can't spam).
+    public var jobMaxStuckAlerts = 3
+
     public init() {}
 
     public func hold(for kind: AlertKind) -> TimeInterval {
@@ -55,6 +67,9 @@ public struct AlertNotice: Equatable, Sendable {
     public var kind: AlertKind
     public var title: String
     public var body: String
+    /// The print job this is about (`JobRules.key`): it gets a notification of its own, with Open the queue. Nil: the
+    /// printer's problem.
+    public var jobKey: String? = nil
 
     public var level: AlertLevel { AlertCondition.level(of: kind) }
 }
@@ -66,7 +81,7 @@ public struct AlertNotice: Equatable, Sendable {
 /// pause or alerts turned off drop them. Alerts already shown are remembered across restarts (`shown`), so starting at login
 /// doesn't repeat yesterday's low toner. Pure: the caller supplies the time.
 public final class AlertTracker {
-    private final class Track {
+    final class Track {
         let kind: AlertKind
         var condition: AlertCondition?
         var firstSeen = Date.distantPast
@@ -79,10 +94,14 @@ public final class AlertTracker {
         var due: Bool { present && confirmed && !notified }
     }
 
-    private final class Printer {
+    final class Printer {
         var name = ""
         var lastObserved: Date?
         var tracks: [String: Track] = [:]
+        /// Its queue's jobs, for job alerts (AlertTracker+Jobs).
+        let queue = JobQueueTrack()
+        /// What its last read says for a job that isn't moving; nil: never read.
+        var work: PrinterWork?
         /// Keys in the order they were first tracked (a dictionary has none), so notices come out in a stable order.
         var order: [String] = []
 
@@ -100,8 +119,8 @@ public final class AlertTracker {
         }
     }
 
-    private var printers: [String: Printer] = [:]
-    private var printerOrder: [String] = []
+    var printers: [String: Printer] = [:]
+    var printerOrder: [String] = []
     private let timeZone: TimeZone
 
     public var rules: AlertRules
@@ -116,7 +135,8 @@ public final class AlertTracker {
         self.rules = rules
         self.timeZone = timeZone
         for (uuid, keys) in shown.sorted(by: { $0.key < $1.key }) {
-            for key in keys {
+            rememberJobs(uuid, keys.filter { $0.hasPrefix(JobRules.keyPrefix) })
+            for key in keys where !key.hasPrefix(JobRules.keyPrefix) {
                 guard let kind = AlertCondition.kind(of: key) else { continue }
                 let t = printer(uuid).track(key, kind)
                 t.notified = true
@@ -125,7 +145,7 @@ public final class AlertTracker {
         }
     }
 
-    private func printer(_ uuid: String) -> Printer {
+    func printer(_ uuid: String) -> Printer {
         let key = uuid.lowercased()
         if let p = printers[key] { return p }
         let p = Printer()
@@ -142,6 +162,7 @@ public final class AlertTracker {
             for t in p.tracks.values where !t.confirmed { t.seen = false } // its hold starts again below
         }
         p.lastObserved = now
+        Self.notePrinterRead(p, snap)
 
         let found = AlertConditions.find(snap, rules) { key in p.tracks[key].map { $0.present && $0.confirmed } ?? false }
         for c in found {
@@ -182,7 +203,8 @@ public final class AlertTracker {
             guard let p = printers[uuid] else { continue }
             for key in p.order { if let t = p.tracks[key], t.due { due.append((uuid, p.name, t)) } }
         }
-        if due.isEmpty { return [] }
+        let jobsDue = jobsDue()
+        if due.isEmpty && jobsDue.isEmpty { return [] }
         let silent = !rules.enabled || (pausedUntil.map { $0 > now } ?? false)
         if !silent, let quiet = rules.quiet, quiet.contains(minuteOfDay: minuteOfDay(now)) { return [] } // held till morning
         var notices: [AlertNotice] = []
@@ -190,6 +212,9 @@ public final class AlertTracker {
             t.notified = true
             if silent || (t.kind == .offline && !rules.offline) || outranked(uuid, t) { continue }
             notices.append(AlertNotice(uuid: uuid, printerName: name, kind: t.kind, title: t.condition!.title, body: t.condition!.body))
+        }
+        for (uuid, job) in jobsDue {
+            if let notice = tellJob(uuid, job, shown: !silent && rules.jobs) { notices.append(notice) }
         }
         return notices
     }
@@ -220,14 +245,17 @@ public final class AlertTracker {
 
     /// `nextCheck` for one printer.
     public func pendingUntil(_ uuid: String) -> Date? {
-        printers[uuid.lowercased()]?.tracks.values.filter { $0.present && !$0.confirmed }
-            .map { $0.firstSeen.addingTimeInterval(rules.hold(for: $0.kind)) }.min()
+        guard let p = printers[uuid.lowercased()] else { return nil }
+        let held = p.tracks.values.filter { $0.present && !$0.confirmed }.map { $0.firstSeen.addingTimeInterval(rules.hold(for: $0.kind)) }
+        let jobs = rules.jobs ? [p.queue.stuckAt].compactMap { $0 } + failedHolds(p.queue) : []
+        return (held + jobs).min()
     }
 
     /// Problems still within their hold time start it again (the Mac woke up: the time it slept doesn't count).
     public func resetPending() {
         for p in printers.values {
             for key in p.order where p.tracks[key].map({ !$0.confirmed }) ?? false { p.remove(key) }
+            Self.restartJobClocks(p.queue)
         }
     }
 
@@ -257,7 +285,8 @@ public final class AlertTracker {
     public func shown() -> [String: [String]] {
         var result: [String: [String]] = [:]
         for (uuid, p) in printers {
-            let keys = p.tracks.filter { $0.value.notified }.map(\.key).sorted()
+            let jobs = Self.newest(p.queue.order.compactMap { p.queue.jobs[$0] }.filter(\.remembered)).map { $0.line() }
+            let keys = (p.tracks.filter { $0.value.notified }.map(\.key) + jobs).sorted()
             if !keys.isEmpty { result[uuid] = keys }
         }
         return result

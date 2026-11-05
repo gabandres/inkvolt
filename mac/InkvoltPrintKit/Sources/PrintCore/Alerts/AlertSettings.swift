@@ -14,6 +14,8 @@ public struct AlertSettings: Equatable, Sendable, Codable {
     public var quietFrom = 22
     public var quietTo = 7
     public var pausedUntil: Date?
+    /// "Tell me when my own print job fails or gets stuck" (roadmap 3.4). Off by default, as on Windows.
+    public var jobAlerts = false
 
     public static let lowChoices = [5, 10, 15, 20, 25, 30, 40, 50]
 
@@ -30,6 +32,7 @@ public struct AlertSettings: Equatable, Sendable, Codable {
         quietFrom = try c.decodeIfPresent(Int.self, forKey: .quietFrom) ?? d.quietFrom
         quietTo = try c.decodeIfPresent(Int.self, forKey: .quietTo) ?? d.quietTo
         pausedUntil = try c.decodeIfPresent(Date.self, forKey: .pausedUntil)
+        jobAlerts = try c.decodeIfPresent(Bool.self, forKey: .jobAlerts) ?? d.jobAlerts
         repair()
     }
 
@@ -47,6 +50,7 @@ public struct AlertSettings: Equatable, Sendable, Codable {
         r.lowPercent = lowPercent
         r.offline = offlineAlerts
         r.quiet = quietHours ? QuietHours(from: (quietFrom, 0), to: (quietTo, 0)) : nil
+        r.jobs = jobAlerts
         return r
     }
 

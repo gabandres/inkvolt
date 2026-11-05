@@ -42,6 +42,9 @@ public struct CupsDestination: Equatable, Sendable {
     public var state: Int? { options["printer-state"].flatMap { Int($0) } }
     public var reasons: [String] { Self.list(options["printer-state-reasons"]) }
     public var isAcceptingJobs: Bool { options["printer-is-accepting-jobs"] != "false" && !has(TypeBit.rejecting) }
+    /// Other computers may print to it: macOS shares it (`printer-is-shared`; not saying counts as shared), or it's another
+    /// computer's queue (the `remote` bit).
+    public var othersMayPrint: Bool { options["printer-is-shared"] != "false" || has(TypeBit.remote) }
 
     /// The options as the IPP attributes they came from, so the network printers' IPP readers word their status and supplies.
     public var asIpp: IppResponse {

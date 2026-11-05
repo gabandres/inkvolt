@@ -359,7 +359,9 @@ struct MaintenanceTests {
         #expect(try await client.run(align).ok)
 
         let sent = printer.seen
-        #expect(sent.map { "\($0.method) \($0.url.absoluteString)" } == ["GET http://\(Self.host)/Calibration/State", "POST https://\(Self.host)/Calibration/Session"])
+        let lines: [String] = sent.map { r in "\(r.method) \(r.url.absoluteString)" }
+        let expected: [String] = ["GET http://\(Self.host)/Calibration/State", "POST https://\(Self.host)/Calibration/Session"]
+        #expect(lines == expected)
         #expect(sent.count == 2 && String(decoding: sent[1].body ?? [], as: UTF8.self) == MaintenanceRequests.startAlignment())
     }
 
