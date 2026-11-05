@@ -24,6 +24,8 @@ extension AutoTag {
         enum Kid {
             case node(Node)
             case mcid(Int)
+            /// A marked-content reference to an MCID in a form's stream (/Stm).
+            case mcr(PObj)
             case objr(PObj)
         }
 
@@ -187,6 +189,7 @@ extension AutoTag {
                         switch kid {
                         case .node(let c): c.ref
                         case .mcid(let id): doc.int(id)
+                        case .mcr(let r): r
                         case .objr(let o): o
                         }
                     }))
@@ -444,84 +447,121 @@ extension AutoTag {
                 }
             }
 
-            // Marked content around each run of items that go to the same place.
-            var output: [UInt8] = []
-            output.reserveCapacity(content.count + items.count * 24)
-            var cursor = 0
-            func emit(_ at: Int, _ text: String, remove: Int = 0) {
-                let at = max(cursor, min(at, content.count))
-                output += content[cursor..<at]
-                output += latin1Bytes(text)
-                cursor = min(content.count, at + remove)
-            }
-            var mcids: [PObj] = []
-            var open: Target?
-            func close(_ at: Int) {
-                guard open != nil else { return }
-                emit(at, "\nEMC\n")
-                open = nil
-            }
-            func start(_ at: Int, _ t: Target) {
-                if t.artifact {
-                    emit(at, t.running ? "\n/Artifact <</Type /Pagination>> BDC\n" : "\n/Artifact BMC\n")
-                    open = t
-                    return
+            // Marked content around each run of items that go to the same place; a form drawn only here that holds text
+            // is marked inside, piece by piece (its MCIDs its own, under its StructParents), and its Do left unmarked.
+            func mark(_ content: [UInt8], _ ops: [COp], _ walk: PageWalk, _ items: [Item], _ resources: PObj?, _ form: PObj?,
+                      _ depth: Int) throws -> (bytes: [UInt8], mcids: [PObj]) {
+                var output: [UInt8] = []
+                output.reserveCapacity(content.count + items.count * 24)
+                var cursor = 0
+                func emit(_ at: Int, _ text: String, remove: Int = 0) {
+                    let at = max(cursor, min(at, content.count))
+                    output += content[cursor..<at]
+                    output += latin1Bytes(text)
+                    cursor = min(content.count, at + remove)
                 }
-                let leaf = t.leaf!
-                var owner = leaf.node!
-                var type = leaf.type
-                if t.link >= 0 {
-                    if leaf.links[t.link] == nil {
-                        let link = elem("Link", owner.ref)
-                        link.ref.set("Pg", page)
-                        owner.kids.append(.node(link))
-                        leaf.links[t.link] = link
+                var mcids: [PObj] = []
+                var open: Target?
+                func close(_ at: Int) {
+                    guard open != nil else { return }
+                    emit(at, "\nEMC\n")
+                    open = nil
+                }
+                // A leaf's or link's reference to the next MCID: the number on the page, an MCR naming the form inside one.
+                func ref(_ mcid: Int) -> Node.Kid {
+                    guard let form else { return .mcid(mcid) }
+                    return .mcr(doc.dict([("Type", doc.name("MCR")), ("Pg", page), ("Stm", form), ("MCID", doc.int(mcid))]))
+                }
+                func start(_ at: Int, _ t: Target) {
+                    if t.artifact {
+                        emit(at, t.running ? "\n/Artifact <</Type /Pagination>> BDC\n" : "\n/Artifact BMC\n")
+                        open = t
+                        return
                     }
-                    owner = leaf.links[t.link]!
-                    type = "Link"
+                    let leaf = t.leaf!
+                    var owner = leaf.node!
+                    var type = leaf.type
+                    if t.link >= 0 {
+                        if leaf.links[t.link] == nil {
+                            let link = elem("Link", owner.ref)
+                            link.ref.set("Pg", page)
+                            owner.kids.append(.node(link))
+                            leaf.links[t.link] = link
+                        }
+                        owner = leaf.links[t.link]!
+                        type = "Link"
+                    }
+                    let mcid = mcids.count
+                    mcids.append(owner.ref)
+                    owner.kids.append(ref(mcid))
+                    emit(at, "\n/\(type) <</MCID \(mcid)>> BDC\n")
+                    open = t
                 }
-                let mcid = mcids.count
-                mcids.append(owner.ref)
-                owner.kids.append(.mcid(mcid))
-                emit(at, "\n/\(type) <</MCID \(mcid)>> BDC\n")
-                open = t
+
+                var next = 0
+                var spanEnd = -1
+                for i in ops.indices {
+                    let op = ops[i]
+                    if spanEnd >= 0 {
+                        emit(spanEnd, "\nEMC\n")
+                        spanEnd = -1
+                    }
+                    switch op.name {
+                    case "BT", "ET", "q", "Q", "BMC", "BDC", "EMC": close(op.start)
+                    default: break
+                    }
+                    if let instead = walk.stripped[i] {
+                        emit(op.start, instead, remove: op.end - op.start)
+                        continue
+                    }
+                    while next < items.count && items[next].startOp < i { next += 1 }
+                    if next >= items.count || items[next].startOp != i { continue }
+                    let item = items[next]
+                    if let inner = try pieceByPiece(item, depth, inside: open != nil) {
+                        close(op.start)
+                        try markInside(inner, item, resources, depth)
+                        continue
+                    }
+                    let t = assign(item)
+                    if let o = open, o != t { close(op.start) }
+                    if open == nil && !t.none { start(op.start, t) }
+                    // A form drawn inside our marked content can't mark artifacts of its own (they'd be nested): they go.
+                    if !t.none, item.hasArtifact, let form = item.form { try unmarkArtifacts(form) }
+                    // Characters a font maps into the Private Use Area (Word's Symbol and Wingdings bullets) say what they are.
+                    if !t.none, item.kind == .text, item.startOp == item.endOp, let actual = AutoTag.actualText(item.text) {
+                        let hex = actual.utf16.map { String(format: "%04X", $0) }.joined()
+                        emit(op.start, "\n/Span <</ActualText <FEFF\(hex)>>> BDC\n")
+                        spanEnd = op.end
+                    }
+                }
+                if spanEnd >= 0 { emit(spanEnd, "\nEMC\n") }
+                close(content.count)
+                output += content[cursor...]
+                return (output, mcids)
             }
 
-            var next = 0
-            var spanEnd = -1
-            for i in ops.indices {
-                let op = ops[i]
-                if spanEnd >= 0 {
-                    emit(spanEnd, "\nEMC\n")
-                    spanEnd = -1
-                }
-                switch op.name {
-                case "BT", "ET", "q", "Q", "BMC", "BDC", "EMC": close(op.start)
-                default: break
-                }
-                if let instead = walk.stripped[i] {
-                    emit(op.start, instead, remove: op.end - op.start)
-                    continue
-                }
-                while next < items.count && items[next].startOp < i { next += 1 }
-                if next >= items.count || items[next].startOp != i { continue }
-                let item = items[next]
-                let t = assign(item)
-                if let o = open, o != t { close(op.start) }
-                if open == nil && !t.none { start(op.start, t) }
-                // A form drawn inside our marked content can't mark artifacts of its own (they'd be nested): they go.
-                if !t.none, item.hasArtifact, let form = item.form { try unmarkArtifacts(form) }
-                // Characters a font maps into the Private Use Area (Word's Symbol and Wingdings bullets) say what they are.
-                if !t.none, item.kind == .text, item.startOp == item.endOp, let actual = AutoTag.actualText(item.text) {
-                    let hex = actual.utf16.map { String(format: "%04X", $0) }.joined()
-                    emit(op.start, "\n/Span <</ActualText <FEFF\(hex)>>> BDC\n")
-                    spanEnd = op.end
+            // A form's own content marked like a page's, through its matrix and the CTM at its Do; its MCIDs under its own
+            // StructParents.
+            func markInside(_ inner: PObj, _ item: Item, _ resources: PObj?, _ depth: Int) throws {
+                let res = inner.dict("Resources") ?? resources
+                let bytes = inner.streamData ?? []
+                let innerOps = try ContentLexer.parse(bytes, cancel: cancel)
+                let innerWalk = PageWalk(PageBoxes.frame(page), res, shared, start: item.matrix)
+                let innerItems = try innerWalk.items(innerOps, strip: strip)
+                let marked = try mark(bytes, innerOps, innerWalk, innerItems, res, inner, depth + 1)
+                inner.setStream(marked.bytes, deflate: true)
+                inner.remove("StructParent")
+                if marked.mcids.isEmpty {
+                    inner.remove("StructParents")
+                } else {
+                    let key = nextKey
+                    nextKey += 1
+                    inner.set("StructParents", doc.int(key))
+                    parentTree.append((key, doc.array(marked.mcids)))
                 }
             }
-            if spanEnd >= 0 { emit(spanEnd, "\nEMC\n") }
-            close(content.count)
-            output += content[cursor...]
 
+            let (output, mcids) = try mark(content, ops, walk, items, AutoTag.resources(page), nil, 0)
             page.set("Contents", doc.addStream(output, deflate: true))
             if !mcids.isEmpty {
                 let key = nextKey
@@ -569,6 +609,50 @@ extension AutoTag {
             let dx = max(0, max(r.x - x, x - r.right))
             let dy = max(0, max(r.y - y, y - r.bottom))
             return (dx * dx + dy * dy).squareRoot()
+        }
+
+        /// How many times each form XObject is drawn in the document (by pages and by other forms), by identity: counted
+        /// the first time a form with text is met (a document without one is never read for it), on the pages whose
+        /// resources hold a form.
+        private var formUses: [UInt: Int]?
+
+        /// How deep forms drawn by forms are marked inside (and counted).
+        private static let maxFormDepth = 8
+
+        private func usesOfForms() throws -> [UInt: Int] {
+            if let formUses { return formUses }
+            var uses: [UInt: Int] = [:]
+            for page in pages {
+                try cancel?.check()
+                let res = AutoTag.resources(page)
+                guard let xs = res?.dict("XObject"), xs.keys.contains(where: { xs.dict($0)?.name("Subtype") == "Form" }) else { continue }
+                try countForms(ContentEditor.contentBytes(page), res, 0, &uses)
+            }
+            formUses = uses
+            return uses
+        }
+
+        private static let doOperator = Array("Do".utf8)
+
+        /// Counts the forms a content stream draws, and the forms they draw the first time each is met.
+        private func countForms(_ content: [UInt8], _ resources: PObj?, _ depth: Int, _ uses: inout [UInt: Int]) throws {
+            guard depth <= Self.maxFormDepth, content.firstRange(of: Self.doOperator) != nil else { return }
+            for op in try ContentLexer.parse(content, cancel: cancel) {
+                guard op.name == "Do", let o = op.operands.first, o.kind == .name,
+                      let x = resources?.dict("XObject")?.dict(o.name), x.isStream, x.name("Subtype") == "Form" else { continue }
+                let n = (uses[x.identity] ?? 0) + 1
+                uses[x.identity] = n
+                if n == 1 { try countForms(x.streamData ?? [], x.dict("Resources") ?? resources, depth + 1, &uses) }
+            }
+        }
+
+        /// The form an item draws when its content is to be marked inside it, piece by piece: a form with text, not an
+        /// artifact, drawn once in the whole document (a stream can hold only one set of MCIDs), outside any marked content
+        /// of ours, and not too deep; else nil (the Do is tagged as one piece).
+        private func pieceByPiece(_ it: Item, _ depth: Int, inside: Bool) throws -> PObj? {
+            guard it.kind == .form, it.hasText, !it.inArtifact, !it.artifactOnly, let f = it.form, f.isRef, !inside,
+                  depth < Self.maxFormDepth else { return nil }
+            return try usesOfForms()[f.identity] == 1 ? f : nil
         }
 
         /// Removes a form's own artifact marked content (its operators, not what they enclose).
@@ -683,6 +767,8 @@ extension AutoTag {
         var form: PObj?
         var hasArtifact = false
         var artifactOnly = false
+        /// A form's matrix times the CTM where it is drawn: what its own content is drawn through.
+        var matrix = ContentEditor.Mat.identity
     }
 
     /// What every walk over one document shares: fonts once each, and what each form holds once each.
@@ -706,12 +792,15 @@ extension AutoTag {
         /// Reading a form's own content: what the forms it draws hold doesn't matter (a form drawing itself ends here;
         /// Windows' walk goes on into them, without end for such a form).
         private let insideForm: Bool
+        /// The CTM the stream starts with: a form's matrix and the CTM where it is drawn, for a form read on its own.
+        private let start: ContentEditor.Mat
 
-        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, insideForm: Bool = false) {
+        init(_ frame: PageFrame?, _ resources: PObj?, _ shared: WalkShared, insideForm: Bool = false, start: ContentEditor.Mat = .identity) {
             self.frame = frame
             self.resources = resources
             self.shared = shared
             self.insideForm = insideForm
+            self.start = start
         }
 
         private struct State {
@@ -724,6 +813,7 @@ extension AutoTag {
             typealias Mat = ContentEditor.Mat
             var items: [Item] = []
             var st = State()
+            st.ctm = start
             var stack: [State] = []
             var tm = Mat.identity, tlm = Mat.identity
             var path: [(Double, Double)] = []
@@ -855,8 +945,9 @@ extension AutoTag {
                             corners = [(b.num(0), b.num(1)), (b.num(2), b.num(3)), (b.num(0), b.num(3)), (b.num(2), b.num(1))]
                         }
                         let info = insideForm ? (hasText: false, hasArtifact: false, artifactOnly: false) : try formInfo(x)
-                        items.append(Item(startOp: i, endOp: i, kind: .form, box: box(corners, m.times(st.ctm)), inArtifact: inArtifact, hasText: info.hasText,
-                                          form: x, hasArtifact: info.hasArtifact, artifactOnly: info.artifactOnly))
+                        let through = m.times(st.ctm)
+                        items.append(Item(startOp: i, endOp: i, kind: .form, box: box(corners, through), inArtifact: inArtifact, hasText: info.hasText,
+                                          form: x, hasArtifact: info.hasArtifact, artifactOnly: info.artifactOnly, matrix: through))
                     }
                 default:
                     break
