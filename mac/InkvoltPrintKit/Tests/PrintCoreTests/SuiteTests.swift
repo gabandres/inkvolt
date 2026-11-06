@@ -164,7 +164,9 @@ struct SuiteTests {
     private static func printer(_ host: String = "192.0.2.11") -> SuitePrinter { SuitePrinter(id: uuid, name: "Demo", host: host) }
 
     @Test func A_printer_that_answers_gives_its_health() async throws {
-        let h = try #require(await PrinterCheck.health(Self.printer(), transport: { _, _ in Printers.ippOnly() }))
+        // The answer is in memory, but a full parallel run on CI's runner can starve the read past the 2 s the print panel
+        // gives (seen on CI): the time limit isn't what this test checks, so it gets a generous one.
+        let h = try #require(await PrinterCheck.health(Self.printer(), transport: { _, _ in Printers.ippOnly() }, budget: .seconds(60)))
         #expect(!h.shouldWarn)
         #expect(h.summary.contains("Yellow ink is low."))
     }
