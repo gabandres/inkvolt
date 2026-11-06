@@ -530,8 +530,9 @@ public static partial class ContentEditor
     /// Characters no font here has are left out and named. At each size, a centered paragraph that doesn't fit centered
     /// in its room may move off center into <paramref name="wide"/> (<see cref="Room"/>), just as far as it must.
     /// </summary>
+    /// <param name="most">The largest size tried, of its own (<see cref="OneSizePerColumn"/>).</param>
     internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text,
-        TextParagraph? wide = null)
+        TextParagraph? wide = null, double most = 1)
     {
         bool Inside(ParagraphLayout l, TextParagraph f) =>
             l.Check.Box is var box && box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(f.Right, f.Box.Right) + 1 && box.X >= Math.Min(f.Left, f.Box.X) - 1;
@@ -548,7 +549,7 @@ public static partial class ContentEditor
         var dropped = new List<string>();
         var smallest = SmallestFit(framed.Lead.FontSize); // of the size it is written in: its first run may be a mark or a big initial
         ParagraphLayout? best = null;
-        var fit = 1.0;
+        var fit = most is > 0 and < 1 ? Math.Max(smallest, most) : 1.0;
         for (var tries = 0; ; tries++, fit = Math.Max(smallest, fit - FitStep))
         {
             if (tries > 2 / FitStep) fit = smallest; // whatever a crafted page's numbers make of the steps below
@@ -572,6 +573,45 @@ public static partial class ContentEditor
             // Far too tall: text takes room with the square of its size, so jump near where it will fit.
             var ratio = (bottom - framed.Box.Y) / Math.Max(1, box.Bottom - framed.Box.Y);
             if (double.IsFinite(ratio)) fit = Math.Min(fit, Math.Round(Math.Sqrt(Math.Max(ratio, 0.01)) * fit / FitStep) * FitStep + 2 * FitStep);
+        }
+    }
+
+    /// <summary>A paragraph's new text laid out in its room (<see cref="Room"/>, <see cref="FitText"/>), before it is written.</summary>
+    private sealed record Laid(string Text, TextParagraph Framed, double Bottom, TextParagraph? Wide, ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped);
+
+    /// <summary>A column's body text shrinks no further than this (of its size) to take the size another of its paragraphs needs.</summary>
+    private const double ColumnFloor = 0.8;
+
+    /// <summary>
+    /// Body text in one column comes out in one size: its paragraphs (two lines or more, not in a table cell, in the same
+    /// font, size and color, starting at the same left edge) all take the size the one that shrank most needs, but no smaller
+    /// than <see cref="ColumnFloor"/>; one that needs less keeps its own. A paragraph that wouldn't fit at that size keeps its own too.
+    /// </summary>
+    private static void OneSizePerColumn(List<TranslationSlot> slots, Laid?[] laid, CancellationToken cancel)
+    {
+        // Grouped by the column's left edge (to 3 pt) and the text's look: no paragraph is compared with every other.
+        var columns = new Dictionary<(double, double, int, string), List<int>>();
+        for (var i = 0; i < slots.Count; i++)
+        {
+            var p = slots[i].Paragraph;
+            if (laid[i] is null || slots[i].Cell is not null || p.Lines.Count < 2 || p.Upright is not null) continue;
+            if (!double.IsFinite(p.Left) || !(p.Lead.FontSize > 0) || !double.IsFinite(p.Lead.FontSize)) continue;
+            var key = (Math.Floor(p.Left / 3 + 0.5), Math.Round(p.Lead.FontSize * 20), p.Lead.Color, FontNames.Family(p.Lead.FontName));
+            if (!columns.TryGetValue(key, out var list)) columns[key] = list = [];
+            list.Add(i);
+        }
+        foreach (var column in columns.Values)
+        {
+            cancel.ThrowIfCancellationRequested();
+            if (column.Count < 2) continue;
+            var size = Math.Max(ColumnFloor, column.Min(i => laid[i]!.Fit));
+            foreach (var i in column)
+            {
+                var was = laid[i]!;
+                if (was.Fit <= size + 1e-6) continue;
+                var (layout, fit, fits, dropped) = FitText(was.Framed, was.Bottom, was.Text, was.Wide, size);
+                if (fits && layout.Check.Missing.Count == 0 && layout.Lines.Count > 0) laid[i] = was with { Layout = layout, Fit = fit, Fits = true, Dropped = dropped };
+            }
         }
     }
 
@@ -916,6 +956,8 @@ public static partial class ContentEditor
         // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
 
+        // Every paragraph laid out first: a column's then take one size (OneSizePerColumn) before any is written.
+        var laid = new Laid?[slots.Count];
         for (var i = 0; i < slots.Count; i++)
         {
             cancel.ThrowIfCancellationRequested();
@@ -939,6 +981,16 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));
                 continue;
             }
+            laid[i] = new Laid(text, framed, bottom, wide, layout, fit, fits, dropped);
+        }
+        OneSizePerColumn(slots, laid, cancel);
+
+        for (var i = 0; i < slots.Count; i++)
+        {
+            cancel.ThrowIfCancellationRequested();
+            if (laid[i] is not { } done) continue;
+            var p = slots[i].Paragraph;
+            var (layout, fit, fits, dropped) = (done.Layout, done.Fit, done.Fits, done.Dropped);
 
             var anchor = Anchor(p.Runs);
             var plain = PlainRun(p.Runs) with { };

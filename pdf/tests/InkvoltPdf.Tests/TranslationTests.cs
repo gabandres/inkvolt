@@ -768,6 +768,30 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_columns_paragraphs_come_out_in_one_size()
+    {
+        // attn-v7 p. 8, resnet p. 6: each paragraph shrank as much as it needed, so one column showed two or three sizes.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(72, 700, 10, 12, "Hello " + line, line) + Lines(72, 670, 10, 12, "World " + line, line) +
+            Lines(72, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        string Longer(int times) => string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", times));
+        var words = Longer(2);
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(3) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(3, sizes.Count);
+        Assert.True(sizes[0] < 10, $"{sizes[0]}");
+        Assert.All(sizes, s => Assert.Equal(sizes[0], s, 2));
+        Assert.Equal(3, r.Report.Shrunk);
+
+        // One that needs far less than the rest keeps its own size; the rest go no smaller than the floor (80%).
+        var (_, r2) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(6) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        var sizes2 = ContentEditor.Read(r2.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.True(sizes2[0] < 8, $"{sizes2[0]}");
+        Assert.Equal(8, sizes2[1], 2);
+        Assert.Equal(8, sizes2[2], 2);
+    }
+
+    [Fact]
     public void A_shorter_room_with_too_much_text_is_written_small_and_flagged()
     {
         var pdf = Page(Lines(72, 700, 10, 12, "Hello World draft, 2024!") + Lines(72, 688, 10, 12, "2024 draft! Hello World draft, 2024! Hello"), fontText: Letters);

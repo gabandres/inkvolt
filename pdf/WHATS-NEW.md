@@ -11,6 +11,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Translate with AI keeps a paragraph whole when one of its lines starts with a bracket or a quote drawn on its own, as LaTeX papers often draw "(" and "[": the paragraph is no longer cut there, its last line no longer left on its own after a hyphen, and the bracket is translated with its sentence.
 - Translate with AI keeps a table's label that ends in a colon ("Income ratios:") apart from the row under it, so the row's own label stays on its row.
 - Translate with AI keeps a short table heading at its size more often: a centered heading with free room on one side moves over into it rather than shrinking, and the spaces in a heading the table drew in one piece with its neighbor are as wide as the page's own.
+- Translate with AI writes a column's body text in one size: when one paragraph has to shrink to fit, the others in its column shrink with it (by no more than a fifth), instead of each coming out in a size of its own.
 - Flatten no longer draws what the page never shows into it: a comment's pop-up note, a comment marked invisible, or a form widget that belongs to no field.
 
 ## 1.8.0
