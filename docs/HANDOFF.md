@@ -3,6 +3,17 @@
 Mac missing features and Windows partials, three lanes, one agent each, every item reviewed (`/code-review`) before merge.
 SSS resets 2026-11-06 about 11:40.
 
+**Owner, 2026-11-06: work autonomously, and publish releases without asking** (Store upload and publish, Mac App Store
+submit, the notarized Mac PDF with appcast, Homebrew and website). Before each release: a hostile-input review of that
+app, its fixes merged, the bench / smoke / preflight steps of its README. This replaces "No release without the owner".
+**Queue after the 2026-11-06 items** (Windows: ZapfDingbats, Translate's turned tables, links, looks, the census label,
+Find on huge files; Mac: Print's Spanish, PDF's Spanish + What's New in Spanish, PDF 3.5, PDF 3.3, the XL items):
+PDF for Mac's own Flate-bomb bound (MuPDF's cookie, the Mac calls MuPDF directly) → hostile-input reviews of all four
+apps → releases: PDF for Mac 1.8, Print for Mac 1.3 (after 1.2's review), PDF for Windows 1.9, Print for Windows 1.4 →
+PDF for Mac 3.6 speed → Office as the Mac's converter (code; a person allows Automation). Left for hardware or a person:
+Print 2.1, 2.2, 3.1, 3.3 on both, paper and screen checks, the Mac UX renames, the Pro checkout.
+Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
+
 **State on 2026-11-05 (night).** Merged and pushed: Print for Mac P12 1.1, 1.2 (with Report a Problem), 2.6, 2.4 and the
 32 MB reply limit on every read (all reviewed, fixes in); Windows PDF's OcrClean in Export and Scan, Symbol fonts in
 paragraphs, the two UX leftovers, the es Store description (proposal in `pdf/packaging/README.md`), and page checks

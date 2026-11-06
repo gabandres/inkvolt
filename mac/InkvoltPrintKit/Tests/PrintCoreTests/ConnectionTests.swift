@@ -1,5 +1,6 @@
 import Foundation
 import Synchronization
+import TestTiming
 import Testing
 @testable import PrintCore
 
@@ -394,9 +395,9 @@ struct OtherBrandsConnectionTests {
         let clock = ContinuousClock()
         let started = clock.now
         let ipp = await PrinterConnection.probeIpp(http, hint: URL(string: "http://192.0.2.11:631/ipp/printer"))
-        // On CI's runner a full parallel run can starve this task for seconds (4.3 and 4.9 s seen, 5 ms on the Mac): the time is checked off CI.
-        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
-        #expect(onCI || clock.now - started < PrinterConnection.ippProbeDeadline - .seconds(1)) // not the hint's deadline
+        // On CI's runner a full parallel run can starve this task for seconds (4.3 and 4.9 s seen, 5 ms on the Mac): Timing's slack.
+        let bound = PrinterConnection.ippProbeDeadline - .seconds(1) // not the hint's deadline
+        #expect(clock.now - started < Timing.limit(bound), "took \(clock.now - started)")
         #expect(ipp?.1.path == "/ipp/print")
     }
 
@@ -408,9 +409,9 @@ struct OtherBrandsConnectionTests {
         let started = clock.now
         let ipp = await PrinterConnection.probeIpp(http, hint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         // One deadline, not one per attempt. On CI's runner, a full parallel run (the recording tests since P12 1.2) starves
-        // this task past the bound (10.7 and 11.1 s seen, under 6 s on the Mac): the time is checked off CI, as above.
-        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
-        #expect(onCI || clock.now - started < PrinterConnection.ippProbeDeadline * 2 - .seconds(1))
+        // this task past the bound (10.7 and 11.1 s seen, under 6 s on the Mac): Timing's slack, as above.
+        let bound = PrinterConnection.ippProbeDeadline * 2 - .seconds(1)
+        #expect(clock.now - started < Timing.limit(bound), "took \(clock.now - started)")
         #expect(ipp == nil)
         let probe = try await PrinterConnection.probe(http, ippHint: URL(string: "http://192.0.2.11:631/ipp/printer"))
         #expect(probe.ipp == nil)
