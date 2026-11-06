@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for roadmap 1.3 (`--edit`, on the synthetic text document; `--only-accessibility` runs it
 /// alone): Tools › Accessibility Check… from its menu item, the sidebar's pane through its own controls, a finding chosen
@@ -54,7 +55,7 @@ struct AccessibilityTest {
 
     mutating func run() async {
         lines.append("== accessibility check")
-        let item = menuItem("Accessibility Check…")
+        let item = menuItem(loc("Accessibility Check…"))
         check(item?.action == #selector(DocumentWindowController.checkAccessibility(_:)), "Tools has Accessibility Check…")
         check(item.map { controller.validateMenuItem($0) } == true, "the command is enabled on a document")
         check(!controller.sidebar.panes.contains(.accessibility) && controller.sidebar.segmentCount == controller.sidebar.panes.count, "the sidebar has no Accessibility segment before the first check")
@@ -67,7 +68,7 @@ struct AccessibilityTest {
         }
         check(controller.sidebar.panes.last == .accessibility && controller.sidebar.segmentCount == controller.sidebar.panes.count && controller.sidebar.shownPane == .accessibility, "the check opens the pane in its own sidebar segment")
         check(!report.passed && report.failedConditions.contains("UA 7.1"), "the untagged synthetic document fails: \(report.failedConditions.joined(separator: " "))")
-        check(pane.summary.hasPrefix("Fails ") && pane.failuresTitle == "Fails (\(report.failures.count))", "the pane says what fails (\(pane.failuresTitle))")
+        check(pane.summary.hasPrefix(loc("Fails") + " ") && pane.failuresTitle == loc("Fails ({0})", report.failures.count), "the pane says what fails (\(pane.failuresTitle))")
         check(pane.shownFailures == report.failures.count && !pane.showsChecklist, "the list has a row per failure")
         snapshot("accessibility-fails.png")
 
@@ -92,7 +93,7 @@ struct AccessibilityTest {
         defer { try? FileManager.default.removeItem(at: file) }
         check(controller.writeAccessibilityReport(to: file), "Save Report writes the file")
         let html = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-        check(html.contains("1 of 15 done") && html.contains("<strong>Fails.</strong>") && html.contains("UA 7.1"), "the report has the tick and the result")
+        check(html.contains(loc("Checks for a person: {0} of {1} done. A document is accessible only when it passes the machine checks and a person has made these checks.", 1, 15)) && html.contains("<strong>" + loc("Fails.") + "</strong>") && html.contains("UA 7.1"), "the report has the tick and the result")
         check(pane.saved == file, "Open Report is offered for what was saved")
 
         pane.press(again: true)
@@ -106,7 +107,7 @@ struct AccessibilityTest {
         check(!pane.isHidden, "the segment brings the pane back")
         controller.sidebar.show(.pages)
 
-        check(BatchWindowController.offered.contains { $0.title == "Check accessibility" }, "Batch offers the action")
+        check(BatchWindowController.offered.contains { $0.title == loc("Check accessibility") }, "Batch offers the action")
         finish()
     }
 

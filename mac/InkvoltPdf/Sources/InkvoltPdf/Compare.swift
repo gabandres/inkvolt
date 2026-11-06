@@ -808,7 +808,16 @@ final class CompareRowsView: NSView {
     /// Draws these rows' pictures (for the mode shown) whether or not they are in view (the self-test, whose window may
     /// be on a locked screen).
     func want(rows: [Int]) {
-        request(Set(rows.filter { layouts.indices.contains($0) }.flatMap { r in layouts[r].overlayBox != nil ? [r * 3 + 2] : [r * 3, r * 3 + 1] }))
+        var keys: Set<Int> = []
+        for r in rows where layouts.indices.contains(r) {
+            if layouts[r].overlayBox != nil {
+                keys.insert(r * 3 + 2)
+            } else {
+                keys.insert(r * 3)
+                keys.insert(r * 3 + 1)
+            }
+        }
+        request(keys)
     }
 
     /// Draws the pictures wanted that are missing (or at another scale); drops those far from view.

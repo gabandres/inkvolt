@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E14 (`--edit`, on the synthetic text document, before `FeatureTest` recognizes its scan page;
 /// `--only-ocr` runs it alone): Recognize Text with roadmap 2.2's pipeline (what the dialog runs with its choices) on the
@@ -97,7 +98,7 @@ struct OcrTest {
 
     mutating func run() async {
         lines.append("== \(name): Recognize Text with cleaning and suspect words (E14)")
-        let recognize = menuItem("Recognize Text (OCR)…"), review = menuItem("Review Suspect Words")
+        let recognize = menuItem(loc("Recognize Text (OCR)…")), review = menuItem(loc("Review Suspect Words"))
         check(recognize?.action == #selector(DocumentWindowController.recognizeText(_:))
               && review?.action == #selector(DocumentWindowController.reviewSuspectWords(_:)),
               "Tools has Recognize Text (OCR)… and Review Suspect Words")
@@ -113,7 +114,7 @@ struct OcrTest {
         let result = await controller.runRecognize(pages: [scanPage], options: RecognizeOptions(clean: true, checkWords: true),
                                                    ocr: reader, spelling: StandInDictionary())
         let r = result.report
-        check(result.outcome == .done && r?.words == 3 && r?.suspect == 1 && undoLabel == "Recognize text",
+        check(result.outcome == .done && r?.words == 3 && r?.suspect == 1 && undoLabel == loc("Recognize text"),
               "Recognize Text on page \(scanPage + 1): \(r?.words ?? 0) words, \(r?.suspect ?? 0) suspect, one undo step")
         check(reader.sawGray && reader.calls >= 2, "the recognizer was given the cleaned (grey) page, and the page as scanned to compare (\(reader.calls) readings)")
         let words = layer(scanPage)
@@ -122,7 +123,7 @@ struct OcrTest {
               "the text layer keeps the words, the language and the suspect reason: \(words?.words.map(\.text) ?? [])")
         _ = await wait(5) { controller.sidebar.shownPane == .suspectWords && pane.items.count == 1 }
         check(controller.sidebar.showsSuspectWords && controller.sidebar.shownPane == .suspectWords && pane.items.first?.word.text == "recognlzed"
-              && pane.summaryText.hasPrefix("1 suspect word on 1 page"),
+              && pane.summaryText == loc("{0} suspect word on 1 page. Correct a word or keep it as read.", 1),
               "the Suspect Words pane opens on the suspect word: \(pane.summaryText)")
 
         // Corrected through the pane's own suggestion button.
@@ -131,25 +132,25 @@ struct OcrTest {
         check(pane.suggestionTitles == ["recognized"] && pane.field.stringValue == "recognlzed",
               "choosing it shows the dictionary's suggestion and the word to correct")
         if !pane.suggestionTitles.isEmpty { pane.press(suggestion: 0) }
-        _ = await wait { undoLabel == "Correct recognized word" && pane.items.isEmpty }
-        check(undoLabel == "Correct recognized word" && layer(scanPage)?.words.map(\.text) == ["Inkvolt", "recognized", "text"]
+        _ = await wait { undoLabel == loc("Correct recognized word") && pane.items.isEmpty }
+        check(undoLabel == loc("Correct recognized word") && layer(scanPage)?.words.map(\.text) == ["Inkvolt", "recognized", "text"]
               && layer(scanPage)?.words.allSatisfy { $0.suspect.isEmpty } == true && found(scanPage, "recognized") == 1
               && found(scanPage, "recognlzed") == 0,
               "the suggestion corrects it as one undo step; search finds “recognized”, not “recognlzed”")
-        check(pane.items.isEmpty && pane.summaryText.hasPrefix("No suspect words left"), "the list follows: \(pane.summaryText)")
+        check(pane.items.isEmpty && pane.summaryText == loc("No suspect words left: every recognized word has been checked or looked right."), "the list follows: \(pane.summaryText)")
 
         // Undone, then kept as read; a two-word correction refused.
-        await undo(to: "Recognize text", steps: 1)
+        await undo(to: loc("Recognize text"), steps: 1)
         _ = await wait { pane.items.count == 1 }
-        check(undoLabel == "Recognize text" && pane.items.count == 1 && found(scanPage, "recognlzed") == 1, "Undo puts the suspect word back in the list")
+        check(undoLabel == loc("Recognize text") && pane.items.count == 1 && found(scanPage, "recognlzed") == 1, "Undo puts the suspect word back in the list")
         pane.choose(0)
         pane.field.stringValue = "recog nized"
         pane.correctButton.performClick(nil)
         try? await Task.sleep(for: .milliseconds(300))
-        check(undoLabel == "Recognize text" && pane.items.count == 1, "a correction of two words is refused: one word replaces one word")
+        check(undoLabel == loc("Recognize text") && pane.items.count == 1, "a correction of two words is refused: one word replaces one word")
         pane.keepButton.performClick(nil)
-        _ = await wait { undoLabel == "Keep recognized word" && pane.items.isEmpty }
-        check(undoLabel == "Keep recognized word" && layer(scanPage)?.words[1].text == "recognlzed"
+        _ = await wait { undoLabel == loc("Keep recognized word") && pane.items.isEmpty }
+        check(undoLabel == loc("Keep recognized word") && layer(scanPage)?.words[1].text == "recognlzed"
               && layer(scanPage)?.words[1].suspect.isEmpty == true && pane.items.isEmpty,
               "Keep as Read leaves the word as read and takes it off the list (one undo step)")
 

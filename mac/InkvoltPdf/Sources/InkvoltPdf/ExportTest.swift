@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E15 (`--edit`, on the synthetic text document; `--only-export` runs it alone): File ›
 /// Export To's PowerPoint Presentation… and HTML Web Page… chosen through the menu's own items (each opens its export
@@ -46,7 +47,7 @@ struct ExportTest {
         lines.append("== \(name): export to PowerPoint and HTML (\(controller.engine.pageCount) pages)")
         let window = controller.window
         for (title, heading) in [("PowerPoint Presentation…", "Export to PowerPoint"), ("HTML Web Page…", "Export to HTML")] {
-            guard let item = menuItem(title), let action = item.action else {
+            guard let item = menuItem(loc(title)), let action = item.action else {
                 check(false, "File › Export To › \(title) is in the menu")
                 continue
             }
@@ -54,7 +55,7 @@ struct ExportTest {
             if enabled { NSApp.sendAction(action, to: controller, from: item) } // the window may not be key over SSH
             await settle(300)
             let sheet = window?.attachedSheet
-            check(enabled && sheet != nil && words(sheet?.contentView).contains(heading),
+            check(enabled && sheet != nil && words(sheet?.contentView).contains(loc(heading)),
                   "File › Export To › \(title) opens the \(heading) sheet")
             if let sheet { window?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
             await settle(200)

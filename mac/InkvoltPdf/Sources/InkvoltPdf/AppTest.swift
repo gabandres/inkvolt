@@ -1,6 +1,7 @@
 import AppKit
 import PdfCore
 import PrintCore
+import PrintCore
 import PrintMac
 
 /// The self-test's scenario for D7 part e (`--edit` with `--quit`, once every document is done): the app's own windows
@@ -121,7 +122,7 @@ struct AppTest {
         StartWindowController.show()
         let asked = CompareWindowController.picksAsked
         start.cards[StartWindowController.ToolCard.compare.rawValue].performClick(nil)
-        check(CompareWindowController.picksAsked == asked + 1 && start.cards[StartWindowController.ToolCard.compare.rawValue].title.contains("Compare"),
+        check(CompareWindowController.picksAsked == asked + 1 && start.cards[StartWindowController.ToolCard.compare.rawValue].title.contains(loc("Compare files")),
               "start page › Compare files: asks for the original and the changed version, as File › Compare Files…")
 
         for card in StartWindowController.ToolCard.allCases where card != .combine && card != .compare && card != .create && card != .batch {
@@ -175,7 +176,7 @@ struct AppTest {
             var fromImages: PdfDocument?
             NSApp.sendAction(#selector(AppDelegate.newFromImages(_:)), to: nil, from: nil)
             _ = await wait(5) {
-                fromImages = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.first { $0.fileURL == nil && $0.name.hasPrefix("Pictures") }
+                fromImages = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.first { $0.fileURL == nil && $0.name.hasPrefix(loc("Pictures", context: "file name")) }
                 return fromImages != nil
             }
             check(fromImages?.engine?.pageCount == 2, "New PDF from Images: 2 pictures, \(fromImages?.engine?.pageCount ?? 0) pages")
@@ -258,13 +259,13 @@ struct AppTest {
         CommandPalette.show(over: window)
         guard let p = CommandPalette.shared else { return check(false, "command palette: not shown") }
         let titles = Set(p.all.map(\.title))
-        let expected = ["Zoom In", "Organize Pages", "Word…", "Settings…", "Scan…", "Highlight", "Protect with Password…"]
+        let expected = [loc("Zoom In"), loc("Organize Pages"), loc("Word…"), loc("Settings…"), loc("Scan…"), loc("Highlight"), loc("Protect with Password…")]
         let missing = expected.filter { !titles.contains($0) }
         check(p.window?.isVisible == true && p.all.count >= 60 && missing.isEmpty,
               "command palette (⇧⌘K): \(p.all.count) commands listed, \(expected.count - missing.count) of \(expected.count) looked for")
         p.field.stringValue = "export word"
         p.filter(p.field.stringValue)
-        check(p.shown.first?.title == "Word…" && p.shown.first?.path == "File › Export To", "search \"export word\": \(p.shown.count) found, File › Export To › Word first")
+        check(p.shown.first?.title == loc("Word…") && p.shown.first?.path == loc("File") + " › " + loc("Export To"), "search \"export word\": \(p.shown.count) found, File › Export To › Word first")
         p.filter("zqxj nothing")
         check(p.shown.isEmpty, "search for something no command has: none")
         p.field.stringValue = "zoom in"
@@ -273,7 +274,7 @@ struct AppTest {
         let before = c.scrollView.magnification
         p.runSelected()
         _ = await wait(3) { abs(c.scrollView.magnification - before * 1.25) < 0.01 }
-        check(p.window?.isVisible != true && abs(c.scrollView.magnification - before * 1.25) < 0.01 && p.lastRun == "Zoom In",
+        check(p.window?.isVisible != true && abs(c.scrollView.magnification - before * 1.25) < 0.01 && p.lastRun == loc("Zoom In"),
               "Return runs the first match (Zoom In: \(String(format: "%.2f", before))x to \(String(format: "%.2f", c.scrollView.magnification))x), the palette closed")
         document(at: file)?.close()
     }
@@ -292,7 +293,7 @@ struct AppTest {
         let text = WhatsNewWindowController.shared?.textView.string ?? ""
         let visible = WhatsNewWindowController.shared?.window?.isVisible == true
         snapshot(WhatsNewWindowController.shared?.window, "whats-new.png")
-        check(shown && visible && text.contains("Version 1.0.0") && AppSettings.lastVersionSeen == "1.0.0",
+        check(shown && visible && text.contains(loc("Version {0}", "1.0.0")) && AppSettings.lastVersionSeen == "1.0.0",
               "after an update (0.9.0 to 1.0.0): What's New shown once with 1.0.0's notes, the version seen kept")
         WhatsNewWindowController.shared?.closeClicked()
         let again = WhatsNew.showOnce(current: "1.0.0")
@@ -305,8 +306,9 @@ struct AppTest {
         func labels(_ v: NSView) -> [String] { ((v as? NSTextField).map { [$0.stringValue] } ?? []) + v.subviews.flatMap(labels) }
         let all = labels(view).joined(separator: "\n")
         let notices = a.notices.string
-        check(a.window?.isVisible == true && a.versionLabel.stringValue.hasPrefix("Version ") && all.contains("Bermudez Systems LLC")
-              && all.contains("Nothing you open leaves this Mac") && all.contains("AGPL-3.0"),
+        check(a.window?.isVisible == true && a.versionLabel.stringValue.hasPrefix(Shown.head(loc("Version {0}", Shown.gap))) && all.contains("Bermudez Systems LLC")
+              && all.contains(loc("Nothing you open leaves this Mac unless you send text to an AI you set up. No account, no tracking, no analytics: documents, text recognition and exports are all done here. Update checks ask Inkvolt PDF's feed on GitHub and send nothing about you."))
+              && all.contains("AGPL-3.0"),
               "About: version, copyright, the AGPL notice and \"Nothing you open leaves this Mac\"")
         check(notices.contains("MuPDF") && notices.contains("AGPL-3.0") && notices.contains("Sparkle") && notices.contains("Permission is hereby granted"),
               "About › third-party notices: MuPDF (AGPL-3.0) and Sparkle's MIT license text (\(notices.count) characters)")
@@ -324,7 +326,7 @@ struct AppTest {
     private mutating func reportProblem() {
         var menuItem: NSMenuItem?
         for top in NSApp.mainMenu?.items ?? [] {
-            if let hit = top.submenu?.items.first(where: { $0.title == "Report a Problem…" }) { menuItem = hit }
+            if let hit = top.submenu?.items.first(where: { $0.title == loc("Report a Problem…") }) { menuItem = hit }
         }
         if let menuItem, let action = menuItem.action { NSApp.sendAction(action, to: nil, from: menuItem) }
         guard let r = ReportProblemWindowController.shared, r.window?.isVisible == true else {
@@ -405,13 +407,13 @@ struct AppTest {
             popup.selectItem(at: i)
             popup.sendAction(popup.action, to: popup.target)
         }
-        let builtIns = s.presetPopup.numberOfItems == 4 && s.presetPopup.titleOfSelectedItem == "No preset"
+        let builtIns = s.presetPopup.numberOfItems == 4 && s.presetPopup.titleOfSelectedItem == loc("No preset")
         choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
         _ = await wait(5) { s.caps?.adf != nil }
-        choose(s.sourcePopup, "feeder")
-        s.colorPopup.selectItem(withTitle: "Grayscale")
-        s.resolutionPopup.selectItem(withTitle: "200 dpi")
-        choose(s.sizePopup, "Legal")
+        choose(s.sourcePopup, loc("Document feeder"))
+        s.colorPopup.selectItem(withTitle: loc("Grayscale"))
+        s.resolutionPopup.selectItem(withTitle: loc("{0} dpi", 200))
+        choose(s.sizePopup, loc("Legal (8.5 × 14 in)"))
         s.skipBlank.state = .off
         s.ocr.state = .on
         ScanWindowController.testPresetName = "Contracts"
@@ -419,34 +421,35 @@ struct AppTest {
         let saved = s.presets.last
         let choices = saved?.source == .feeder && saved?.color == false && saved?.resolution == 200
         let rest = saved?.pageSize == "legal" && saved?.skipBlank == false && saved?.fileType == .searchablePdf
-        let shown = s.presetPopup.titleOfSelectedItem == "Contracts" && s.message.stringValue == "Saved the preset \"Contracts\"."
+        let shown = s.presetPopup.titleOfSelectedItem == "Contracts" && s.message.stringValue == loc("Saved the preset \"{0}\".", "Contracts")
         check(builtIns && saved?.name == "Contracts" && choices && rest && shown,
               "Scan presets: Inkvolt Print's three to start with; Save as Preset… keeps the feeder, grey, 200 dpi, Legal, OCR and blank choices")
         let count = s.presets.count
         ScanWindowController.testPresetName = "contracts"
         s.savePresetButton.performClick(nil)
-        check(s.presets.count == count && s.message.stringValue == "Another preset is already called \"Contracts\".",
+        check(s.presets.count == count && s.message.stringValue == loc("Another preset is already called \"{0}\".", "Contracts"),
               "a second preset of the same name is refused: “\(s.message.stringValue)”")
 
         // The flatbed: no feeder, a glass too short for Legal; the preset is matched to it and says what had to give.
         choose(s.scannerPopup, DemoScanDevice.flatbed.name)
         _ = await wait(5) { s.caps != nil && s.caps?.adf == nil }
         let said = s.message.stringValue
-        let matched = s.sourcePopup.titleOfSelectedItem == "Scanner glass" && s.colorPopup.titleOfSelectedItem == "Grayscale"
-        let notes = said.contains("This scanner has no document feeder: scanning from the glass.") && said.contains("Legal (8.5 × 14 in) doesn't fit this source")
-        check(matched && notes && s.skipBlank.state == .off && s.resolutionPopup.titleOfSelectedItem == "200 dpi",
+        let matched = s.sourcePopup.titleOfSelectedItem == loc("Scanner glass") && s.colorPopup.titleOfSelectedItem == loc("Grayscale")
+        let noFit = Shown.head(loc("{0} doesn't fit this source: scanning {1}.", loc("Legal (8.5 × 14 in)"), Shown.gap))
+        let notes = said.contains(loc("This scanner has no document feeder: scanning from the glass.")) && said.contains(noFit)
+        check(matched && notes && s.skipBlank.state == .off && s.resolutionPopup.titleOfSelectedItem == loc("{0} dpi", 200),
               "a preset matched to the flatbed: the glass, grey, 200 dpi, blank pages kept, “\(said.prefix(120))”")
         // Chosen while another scanner connects, then No preset: nothing is applied once it has.
         choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
         choose(s.presetPopup, "Contracts")
-        choose(s.presetPopup, "No preset")
+        choose(s.presetPopup, loc("No preset"))
         let laserRead = await wait(5) { s.caps?.adf != nil }
         check(laserRead && s.message.stringValue.isEmpty && s.selectedPreset == nil,
               "a preset turned off while the scanner connected isn't applied once it has: “\(s.message.stringValue.prefix(120))”")
         choose(s.presetPopup, "Contracts")
         s.deletePresetButton.performClick(nil)
-        check(!s.presets.contains { $0.name == "Contracts" } && s.presetPopup.titleOfSelectedItem == "No preset"
-              && s.message.stringValue == "Deleted the preset \"Contracts\".",
+        check(!s.presets.contains { $0.name == "Contracts" } && s.presetPopup.titleOfSelectedItem == loc("No preset")
+              && s.message.stringValue == loc("Deleted the preset \"{0}\".", "Contracts"),
               "Delete Preset: gone from the list, No preset chosen")
     }
 
@@ -475,7 +478,7 @@ struct AppTest {
               "Scan: \(s.scanners.count) scanners listed (\(titles.joined(separator: ", "))): the one Inkvolt Print remembers first "
               + "(a printer without eSCL left out), the demo laser chosen and its capabilities read (\(s.sourcePopup.numberOfItems) sources)")
         // The feeder: three pages, the third blank and left out; then one from the glass, removed, and one more.
-        if let feeder = (0..<s.sourcePopup.numberOfItems).first(where: { s.sourcePopup.item(at: $0)?.title.contains("feeder") == true }) {
+        if let feeder = (0..<s.sourcePopup.numberOfItems).first(where: { s.sourcePopup.item(at: $0)?.title.contains(loc("Document feeder")) == true }) {
             s.sourcePopup.selectItem(at: feeder)
             s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
         }
@@ -485,8 +488,9 @@ struct AppTest {
         _ = await wait(1) { s.isScanning }
         _ = await wait(20) { !s.isScanning }
         let fed = s.pages.count, fedText = s.message.stringValue
-        check(skipsBlank && fed == 2 && s.lastBlank == 1 && fedText == "Done: 2 pages from the feeder (1 blank page left out)."
-              && s.scanButton.title == "Scan More Pages",
+        let fedDone = loc("Done: {0} from the feeder{1}.", loc("{0} pages", 2), " (" + loc("{0} blank page left out", 1) + ")")
+        check(skipsBlank && fed == 2 && s.lastBlank == 1 && fedText == fedDone
+              && s.scanButton.title == loc("Scan More Pages"),
               "Leave out blank pages (on by default): the feeder's blank third page left out, “\(fedText)”")
         s.sourcePopup.selectItem(at: 0)
         s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
@@ -496,8 +500,8 @@ struct AppTest {
             _ = await wait(20) { !s.isScanning }
             if remove { s.removeLastButton.performClick(nil) }
         }
-        check(s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled && s.scanButton.title == "Scan Another Page"
-              && s.message.stringValue.hasPrefix("Done. For another page, put it on the glass"),
+        check(s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled && s.scanButton.title == loc("Scan Another Page")
+              && s.message.stringValue.hasPrefix(Shown.head(loc("Done{0}. For another page, put it on the glass and press Scan Another Page; or press {1}.", "", Shown.gap))),
               "Scan: 2 pages from the feeder, 1 from the glass removed, 1 more: \(s.pages.count) pages")
         snapshot(s.window, "scan.png")
         let page = s.pages.first
@@ -518,7 +522,8 @@ struct AppTest {
         // Its suspect words kept in the text layer, counted, and the Suspect Words pane opened on them.
         let said = c?.noticeBar.message ?? ""
         let listed = c?.sidebar.suspectWords.items.count ?? 0
-        check(said.contains("3 suspect words to check") && listed == 3 && c?.sidebar.shownPane == .suspectWords,
+        let toCheck = Shown.tail(loc("{0}; {1} suspect words to check in the sidebar's Suspect Words.", Shown.gap, 3))
+        check(said.contains(toCheck) && listed == 3 && c?.sidebar.shownPane == .suspectWords,
               "Scan with OCR: its suspect words counted (“\(said.prefix(90))”) and listed in the Suspect Words pane (\(listed))")
         // The file opened again (as a Batch or scan result is): the pane offers its suspect words left.
         if let bytes = document?.session?.data, let again = NewDocuments.open(bytes, name: "Scan suspect words") {
@@ -537,7 +542,7 @@ struct AppTest {
             c.insertFromScanner(nil)
             let insert = ScanWindowController.shared
             let ready = await wait(5) { insert?.caps != nil && insert?.scanButton.isEnabled == true }
-            let titled = insert?.window?.title == "Insert from Scanner" && insert?.createButton.title == "Insert Pages" && insert?.placePopup.isHidden == false
+            let titled = insert?.window?.title == loc("Insert from Scanner") && insert?.createButton.title == loc("Insert Pages") && insert?.placePopup.isHidden == false
             insert?.ocr.state = .off
             insert?.placePopup.selectItem(at: 1) // before page 1
             insert?.scanButton.performClick(nil)
@@ -548,7 +553,7 @@ struct AppTest {
             let inserted = await wait(10) { insert?.lastInserted != nil }
             let label = document?.session?.undoLabel ?? ""
             check(ready && titled && scanned == 1 && inserted && document?.engine?.pageCount == 4 && insert?.lastInserted?.at == 0
-                  && label == "Insert 1 page from the scanner",
+                  && label == loc("Insert {0} page from the scanner", 1),
                   "Insert from Scanner: the scan window for the document, 1 page scanned and inserted before page 1 (\(document?.engine?.pageCount ?? 0) pages, “\(label)”)")
             // The page inserted has no text: exported with a stand-in recognizer that marks one suspect word, the message counts it.
             let plain = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("Scan suspect words.txt"))
@@ -558,12 +563,12 @@ struct AppTest {
             let exported = await c.runExport(.text, to: plain, pages: [0], recognize: true, recognizer: reader)
             let note = c.noticeBar.message
             check(exported?.saved == true && exported?.recognized == 1 && exported?.suspectWords == 1
-                  && note.contains("1 suspect word (check it against the PDF)"),
+                  && note.contains(loc("1 suspect word (check it against the PDF)")),
                   "Export to text with OCR: the scanned page recognized, its suspect word counted (“\(note.prefix(110))”)")
             c.window?.undoManager?.undo()
             _ = await wait(5) { document?.engine?.pageCount == 3 }
             ScanWindowController.show()
-            check(document?.engine?.pageCount == 3 && insert?.window?.title == "Scan" && insert?.createButton.title == "Create PDF",
+            check(document?.engine?.pageCount == 3 && insert?.window?.title == loc("Scan") && insert?.createButton.title == loc("Create PDF"),
                   "undone; File › Scan… is a new PDF's scan again")
             insert?.window?.orderOut(nil)
         }
@@ -579,8 +584,8 @@ struct AppTest {
     /// Finder do): the page printed by WebKit with its scripts off, the Office file through a made-up LibreOffice that
     /// writes a copy of the synthetic document, each a new unsaved document; then the menu items and document types.
     private mutating func convertFiles() async {
-        let menu = NSApp.mainMenu?.item(withTitle: "File")?.submenu?.item(withTitle: "New PDF")?.submenu
-        let items = ["New PDF from Office File…", "New PDF from Web Page…"].filter { menu?.item(withTitle: $0) != nil }
+        let menu = NSApp.mainMenu?.item(withTitle: loc("File"))?.submenu?.item(withTitle: loc("New PDF"))?.submenu
+        let items = [loc("New PDF from Office File…"), loc("New PDF from Web Page…")].filter { menu?.item(withTitle: $0) != nil }
         let types = (Bundle.main.infoDictionary?["CFBundleDocumentTypes"] as? [[String: Any]]) ?? []
         let utis = Set(types.flatMap { ($0["LSItemContentTypes"] as? [String]) ?? [] })
         let wanted = ["org.openxmlformats.wordprocessingml.document", "org.openxmlformats.spreadsheetml.sheet",

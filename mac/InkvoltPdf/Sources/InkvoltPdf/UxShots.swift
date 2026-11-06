@@ -214,3 +214,25 @@ struct UxShots {
         Report.write(lines.joined(separator: "\n"))
     }
 }
+
+/// For a self-test check that reads a shown sentence whose values it can't know (a count, a file name): the same `loc`
+/// call the app makes, with `Shown.gap` for each unknown value, split at them into its fixed words, so the check reads
+/// Spanish under `--lang es` and English otherwise.
+enum Shown {
+    static let gap = "\u{1}"
+
+    /// The sentence's fixed words, between its unknown values.
+    static func parts(_ sentence: String) -> [String] { sentence.components(separatedBy: gap) }
+
+    /// The words before the first unknown value.
+    static func head(_ sentence: String) -> String { parts(sentence).first ?? sentence }
+
+    /// The words after the last unknown value.
+    static func tail(_ sentence: String) -> String { parts(sentence).last ?? sentence }
+
+    /// Edit › Undo's title for an action named `action` (a `loc` call), as AppKit words it in the menu.
+    @MainActor static func undo(_ action: String) -> String { UndoManager().undoMenuTitle(forUndoActionName: action) }
+
+    /// Edit › Redo's title for an action named `action`.
+    @MainActor static func redo(_ action: String) -> String { UndoManager().redoMenuTitle(forUndoActionName: action) }
+}

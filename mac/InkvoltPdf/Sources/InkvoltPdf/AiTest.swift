@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E11 (`--edit`, on the synthetic text document; `--only-ai` runs it alone): the AI assistant
 /// through its own menu commands, sheets and pane, against a fake OpenAI-compatible server on loopback
@@ -91,8 +92,8 @@ struct AiTest {
         let url = "http://127.0.0.1:\(server.port)/v1"
 
         // Off by default: the menu asks for setup, and nothing has talked to anything.
-        check(!AppSettings.ai.enabled && AiService.current(AppSettings.ai).problem == "The AI assistant is off.", "off by default")
-        check(AiService.describe(AppSettings.ai).hasPrefix("Off."), "Settings says Off: \(AiService.describe(AppSettings.ai).prefix(40))")
+        check(!AppSettings.ai.enabled && AiService.current(AppSettings.ai).problem == loc("The AI assistant is off."), "off by default")
+        check(AiService.describe(AppSettings.ai) == loc("Off. Inkvolt PDF has no AI of its own; you can connect one you choose."), "Settings says Off: \(AiService.describe(AppSettings.ai).prefix(40))")
         controller.aiAsk(nil)
         var sheet = await settings()
         check(sheet?.enabled.state == .off, "Ask with the assistant off opens its settings, off")
@@ -105,7 +106,7 @@ struct AiTest {
         let hasText = (try? controller.engine.text(0))?.isEmpty == false
         controller.pages.select(0, (0, 20))
         let menuOff = controller.pages.menu(for: Self.rightClick(controller)).map { $0.items.map(\.title) } ?? []
-        check(hasText && !menuOff.contains("Explain with AI"), "no Explain with AI on the selection's menu while off")
+        check(hasText && !menuOff.contains(loc("Explain with AI")), "no Explain with AI on the selection's menu while off")
 
         // Set up: an address on this Mac, Test Connection, a key that isn't real.
         controller.aiSettings(nil)
@@ -124,11 +125,11 @@ struct AiTest {
         check(AiSettingsSheet.current === s && !s.problem.isHidden, "Save refuses it, with the reason")
         s.url.stringValue = "https://api.example.com/v1"
         s.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: s.url))
-        check(s.reach.label.stringValue.hasPrefix("Leaves this Mac: sent to api.example.com"), "an internet address is labeled as leaving this Mac")
+        check(s.reach.label.stringValue.hasPrefix(loc("Leaves this Mac: sent to {0}", "api.example.com")), "an internet address is labeled as leaving this Mac")
         snapshot(s.window, "ai-settings-internet.png")
         s.url.stringValue = url
         s.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: s.url))
-        check(s.reach.label.stringValue.hasPrefix("Stays on this Mac"), "the loopback address is labeled as staying on this Mac")
+        check(s.reach.label.stringValue.hasPrefix(loc("Stays on this Mac")), "the loopback address is labeled as staying on this Mac")
         s.key.stringValue = "not-a-real-key"
         s.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: s.key))
         var tested = false
@@ -136,7 +137,8 @@ struct AiTest {
         s.test.performClick(nil)
         _ = await waitFor { tested }
         let listed = (0..<s.model.numberOfItems).compactMap { s.model.itemObjectValue(at: $0) as? String }
-        check(listed == ["other", "test-model"] && s.testResult.stringValue.contains("2 models"), "Test Connection lists the models: \(s.testResult.stringValue.prefix(60))")
+        let twoModels = Shown.tail(loc("Connected to {1}: {0} models available.", CoreLanguage.number(2), Shown.gap))
+        check(listed == ["other", "test-model"] && s.testResult.stringValue.contains(twoModels), "Test Connection lists the models: \(s.testResult.stringValue.prefix(60))")
         let asked = server.received.first
         check(server.received.count == 1 && asked?.requestLine.hasPrefix("GET /v1/models") == true && asked?.head.contains("Bearer not-a-real-key") == true && asked?.body.isEmpty == true,
               "Test Connection sends the key and no document text")
@@ -150,7 +152,7 @@ struct AiTest {
         check(keys.get(endpoint.key) == "not-a-real-key", "the key goes to the key store")
         let inDefaults = AppSettings.defaults.dictionaryRepresentation().values.contains { "\($0)".contains("not-a-real-key") }
         check(!inDefaults, "the key isn't in the settings")
-        check(AiService.describe(saved).hasPrefix("On: test-model"), "Settings says On: \(AiService.describe(saved))")
+        check(AiService.describe(saved).hasPrefix(Shown.head(loc("On: {0} at {1}. {2}.", "test-model", Shown.gap, Shown.gap))), "Settings says On: \(AiService.describe(saved))")
 
         // The pane, and a question that is shown before it goes.
         controller.aiAsk(nil)
@@ -160,10 +162,10 @@ struct AiTest {
             return finish()
         }
         _ = await waitFor(2) { controller.isAiPaneOpen }
-        check(controller.isAiPaneOpen && pane.whereBox.label.stringValue == "test-model · Stays on this Mac", "the pane shows the model and where text goes: \(pane.whereBox.label.stringValue)")
+        check(controller.isAiPaneOpen && pane.whereBox.label.stringValue == "test-model · " + loc("Stays on this Mac"), "the pane shows the model and where text goes: \(pane.whereBox.label.stringValue)")
         snapshot(controller.window, "ai-pane-empty.png")
         let menuOn = controller.pages.menu(for: Self.rightClick(controller)).map { $0.items.map(\.title) } ?? []
-        check(menuOn.contains("Explain with AI"), "Explain with AI is on the selection's menu")
+        check(menuOn.contains(loc("Explain with AI")), "Explain with AI is on the selection's menu")
         controller.pages.clearSelection()
 
         pane.questionText = "What does it say?"
@@ -174,16 +176,19 @@ struct AiTest {
             return finish()
         }
         check(chats().isEmpty, "nothing was sent while the window is up")
-        check(first.toBox.label.stringValue.hasPrefix("To 127.0.0.1:\(server.port)") && first.toBox.label.stringValue.contains("model test-model") && first.toBox.label.stringValue.contains("Stays on this Mac"),
+        let to = first.toBox.label.stringValue
+        let model = Shown.head(loc(", model {0}\n{1}.", "test-model", Shown.gap))
+        check(to.hasPrefix(loc("To {0}", "127.0.0.1:\(server.port)")) && to.contains(model) && to.contains(loc("Stays on this Mac")),
               "the window says where: \(first.toBox.label.stringValue.replacingOccurrences(of: "\n", with: " "))")
-        check(first.whatLabel.stringValue.contains("characters (about") && first.whatLabel.stringValue.contains("1 request"), "and how much: \(first.whatLabel.stringValue.prefix(70))")
+        let how = Shown.parts(loc("{1}: {2} characters (about {3} tokens) in {0} request.", 1, Shown.gap, Shown.gap, Shown.gap))
+        check(how.count == 4 && first.whatLabel.stringValue.contains(how[2]) && first.whatLabel.stringValue.contains(how[3]), "and how much: \(first.whatLabel.stringValue.prefix(70))")
         first.disclosure.performClick(nil)
         let shown = first.preview.string
         check(!first.previewScroll.isHidden && shown.contains("── system ──") && shown.contains("── user ──\nWhat does it say?"), "and, opened, exactly what")
         snapshot(first.window, "ai-confirm.png")
         first.cancelClicked()
         await controller.ai.job?.value
-        check(chats().isEmpty && pane.statusLabel.stringValue == "Not sent." && pane.answers.isEmpty && pane.questionText == "What does it say?", "Cancel sends nothing, and keeps the question")
+        check(chats().isEmpty && pane.statusLabel.stringValue == loc("Not sent.") && pane.answers.isEmpty && pane.questionText == "What does it say?", "Cancel sends nothing, and keeps the question")
 
         pane.askClicked()
         send = await confirm()
@@ -215,14 +220,15 @@ struct AiTest {
         _ = await waitFor(2) { controller.pages.currentPage == 0 }
         check(controller.pages.currentPage == 0, "a citation goes to its page")
         answer?.copyClicked()
-        check(NSPasteboard.general.string(forType: .string)?.hasSuffix("(AI-generated, may be wrong)") == true, "Copy keeps the AI-generated note")
-        check(pane.questionText.isEmpty && pane.statusLabel.stringValue.hasPrefix("Answer ready. AI-generated"), "the box is cleared, and the status says to check it")
+        check(NSPasteboard.general.string(forType: .string)?.hasSuffix("(" + loc("AI-generated, may be wrong") + ")") == true, "Copy keeps the AI-generated note")
+        check(pane.questionText.isEmpty && pane.statusLabel.stringValue.hasPrefix(loc("Answer ready. AI-generated: check it against the pages.")), "the box is cleared, and the status says to check it")
 
         // A follow-up carries the conversation; "don't ask again" skips the window for this endpoint only.
         pane.questionText = "And then?"
         pane.askClicked()
         send = await confirm()
-        check(send?.whatLabel.stringValue.contains("conversation so far (1 earlier answer)") == true, "a follow-up says it carries the conversation")
+        let soFar = Shown.tail(loc("Your question and the text of {1}, and the conversation so far ({0} earlier answer)", 1, Shown.gap))
+        check(send?.whatLabel.stringValue.contains(soFar) == true, "a follow-up says it carries the conversation")
         send?.dontAsk?.performClick(nil)
         send?.sendClicked()
         await controller.ai.job?.value
@@ -242,11 +248,11 @@ struct AiTest {
         pane.questionText = "On a page that isn't there?"
         pane.askClicked()
         await controller.ai.job?.value
-        check(chats().count == 3 && pane.statusLabel.stringValue.hasPrefix("Pages: "), "a wrong Pages box sends nothing: \(pane.statusLabel.stringValue.prefix(50))")
+        check(chats().count == 3 && pane.statusLabel.stringValue.hasPrefix(Shown.head(loc("Pages: {0}", Shown.gap))), "a wrong Pages box sends nothing: \(pane.statusLabel.stringValue.prefix(50))")
         pane.scopeField.stringValue = "1"
         pane.askClicked()
         send = await confirm()
-        check(send?.whatLabel.stringValue.contains("page 1") == true && send?.whatLabel.stringValue.contains("pages") == false, "the Pages box limits what goes")
+        check(send?.whatLabel.stringValue.contains(loc("page {0}", 1)) == true && send?.whatLabel.stringValue.contains(Shown.head(loc("pages {0}", Shown.gap))) == false, "the Pages box limits what goes")
         send?.cancelClicked()
         await controller.ai.job?.value
         pane.scopeField.stringValue = "All"
@@ -257,7 +263,7 @@ struct AiTest {
         let selected = controller.pages.selectedText ?? ""
         controller.aiExplain(nil)
         send = await confirm()
-        check(send?.whatLabel.stringValue.hasPrefix("The selected text (page 1)") == true, "Explain says what goes")
+        check(send?.whatLabel.stringValue.hasPrefix(loc("The selected text ({0})", loc("page {0}", 1))) == true, "Explain says what goes")
         send?.sendClicked()
         await controller.ai.job?.value
         let explained = chats().last.map(messages) ?? []
@@ -272,7 +278,7 @@ struct AiTest {
             window.endSheet(ask.alert.window, returnCode: .alertFirstButtonReturn)
         }
         send = await confirm()
-        check(send?.whatLabel.stringValue.hasPrefix("The text of page 1") == true, "Summarize asks for pages, then shows what goes")
+        check(send?.whatLabel.stringValue.hasPrefix(loc("The text of {0}", loc("page {0}", 1))) == true, "Summarize asks for pages, then shows what goes")
         send?.sendClicked()
         await controller.ai.job?.value
         check(chats().last?.body.contains("Summarize this document text (page 1)") == true && pane.answers.last?.finished == true, "and sends one request")
@@ -288,7 +294,7 @@ struct AiTest {
         let running = controller.ai.job
         pane.stopClicked()
         await running?.value
-        check(!pane.isBusy && pane.answers.last?.note == "Stopped." && pane.statusLabel.stringValue == "Stopped.", "Stop ends it: \(pane.answers.last?.note ?? "no note")")
+        check(!pane.isBusy && pane.answers.last?.note == loc("Stopped.") && pane.statusLabel.stringValue == loc("Stopped."), "Stop ends it: \(pane.answers.last?.note ?? "no note")")
 
         // An error is an error on the card.
         pane.questionText = "REFUSE this"
@@ -296,7 +302,8 @@ struct AiTest {
         send = await confirm()
         send?.sendClicked()
         await controller.ai.job?.value
-        check(pane.answers.last?.note?.contains("isn't available") == true && pane.answers.last?.isCopyEnabled == false, "the server's refusal is worded on the card: \(pane.answers.last?.note?.prefix(50) ?? "none")")
+        let refused = Shown.parts(loc("The model \"{0}\" isn't available at {1} (404). Pick another one in Settings › AI assistant.", Shown.gap, Shown.gap))
+        check(refused.count == 3 && pane.answers.last?.note?.contains(refused[1]) == true && pane.answers.last?.isCopyEnabled == false, "the server's refusal is worded on the card: \(pane.answers.last?.note?.prefix(50) ?? "none")")
         snapshot(controller.window, "ai-pane-error.png")
 
         // The window's rules for what must be ticked (nothing is sent: both are cancelled).
@@ -304,7 +311,7 @@ struct AiTest {
             let owner = controller
             let restricted = Task { @MainActor in await owner.confirmSend(config, AiOutgoing([[.user("x")]], what: "X"), restricted: true) }
             let r = await confirm()
-            check(r?.sendButton.isEnabled == false && r?.blockedNote.stringValue.contains("Send it anyway") == true, "restricted text: Send is off until ticked")
+            check(r?.sendButton.isEnabled == false && r?.blockedNote.stringValue == loc("Tick \"Send it anyway\" to send text the author restricted, or Cancel."), "restricted text: Send is off until ticked")
             r?.restrictedOk?.performClick(nil)
             check(r?.sendButton.isEnabled == true, "and on once it is")
             r?.cancelClicked()
@@ -317,7 +324,7 @@ struct AiTest {
             let owner = controller
             let task = Task { @MainActor in await owner.confirmSend(cloud, AiOutgoing([[.user("x")]], what: "X"), restricted: false) }
             let c = await confirm()
-            check(c?.sendButton.isEnabled == false && c?.toBox.label.stringValue.contains("Leaves this Mac: sent to api.example.com") == true, "the first send to the internet says so, and needs I understand")
+            check(c?.sendButton.isEnabled == false && c?.toBox.label.stringValue.contains(loc("Leaves this Mac: sent to {0}", "api.example.com")) == true, "the first send to the internet says so, and needs I understand")
             snapshot(c?.window, "ai-confirm-internet.png")
             c?.cancelClicked()
             let ok = await task.value
@@ -329,14 +336,14 @@ struct AiTest {
         // The app's Settings says how it stands, and has the way in.
         SettingsWindowController.show(updates: nil)
         let general = SettingsWindowController.shared
-        check(general?.aiState.stringValue.hasPrefix("On: test-model") == true, "Settings shows the assistant's state: \(general?.aiState.stringValue.prefix(50) ?? "none")")
+        check(general?.aiState.stringValue.hasPrefix(Shown.head(loc("On: {0} at {1}. {2}.", "test-model", Shown.gap, Shown.gap))) == true, "Settings shows the assistant's state: \(general?.aiState.stringValue.prefix(50) ?? "none")")
         snapshot(general?.window, "ai-general-settings.png")
         general?.close()
         SettingsWindowController.shared = nil
 
         // Clear, close, off again.
         pane.clearClicked()
-        check(pane.answers.isEmpty && controller.ai.turns.isEmpty && pane.statusLabel.stringValue == "Conversation cleared", "Clear empties the conversation")
+        check(pane.answers.isEmpty && controller.ai.turns.isEmpty && pane.statusLabel.stringValue == loc("Conversation cleared"), "Clear empties the conversation")
         controller.closeAiPane()
         _ = await waitFor(2) { !controller.isAiPaneOpen }
         check(!controller.isAiPaneOpen, "Close hides the pane")

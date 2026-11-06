@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E13 (`--edit`, on the synthetic text document; `--only-split` runs it alone): View ›
 /// Split View through the menu's own items, the second pane opening where the main one is, page and zoom commands acting
@@ -86,14 +87,14 @@ struct SplitTest {
         await settle()
 
         // The menu.
-        let switchItem = menuItem("Switch Pane"), remove = menuItem("Remove Split")
-        check(menuItem("Split Top and Bottom") != nil && menuItem("Split Side by Side") != nil && remove != nil
+        let switchItem = menuItem(loc("Switch Pane")), remove = menuItem(loc("Remove Split"))
+        check(menuItem(loc("Split Top and Bottom")) != nil && menuItem(loc("Split Side by Side")) != nil && remove != nil
               && switchItem?.keyEquivalent == "'" && switchItem?.keyEquivalentModifierMask == .command
               && remove.map { controller.validateMenuItem($0) } == false && switchItem.map { controller.validateMenuItem($0) } == false,
               "View › Split View has Top and Bottom, Side by Side, Remove Split and Switch Pane (⌘'); the last two off while not split")
 
         // Top and bottom: the second pane opens where the main one is, and is the active one.
-        check(choose("Split Top and Bottom"), "Split Top and Bottom is enabled")
+        check(choose(loc("Split Top and Bottom")), "Split Top and Bottom is enabled")
         await settle(300)
         guard let second = controller.secondPages, let secondScroll = controller.secondScroll else {
             check(false, "the second pane opened")
@@ -107,18 +108,18 @@ struct SplitTest {
         let frames = (border(controller.scrollView), border(secondScroll))
         check(frames.1.width == 2 && frames.1.accent && frames.0.width == 2 && !frames.0.accent,
               "the active pane has the accent frame (main \(frames.0), second \(frames.1))")
-        let topItem = menuItem("Split Top and Bottom")
+        let topItem = menuItem(loc("Split Top and Bottom"))
         if let topItem { _ = controller.validateMenuItem(topItem) }
         check(topItem?.state == .on && remove.map { controller.validateMenuItem($0) } == true,
               "the menu shows Top and Bottom checked and Remove Split enabled")
 
         // Page and zoom commands act on the active pane only.
         let mainPage = pages.currentPage, mainZoom = controller.scrollView.magnification
-        choose("Next Page")
+        choose(loc("Next Page"))
         await settle()
         check(second.currentPage == mainPage + 1 && pages.currentPage == mainPage, "Next Page moves the active (second) pane only: \(controller.splitState)")
         let secondZoom = secondScroll.magnification
-        choose("Zoom In")
+        choose(loc("Zoom In"))
         await settle()
         check(secondScroll.magnification > secondZoom + 0.01 && abs(controller.scrollView.magnification - mainZoom) < 0.001,
               "Zoom In zooms the active pane only: \(controller.splitState)")
@@ -137,7 +138,7 @@ struct SplitTest {
                                    isARepeat: false, keyCode: 39)!
         // The menu takes ⌘' only in the key window (over SSH the window may not be); else the item's own action.
         let viaKey = controller.window?.isKeyWindow == true
-        let handled = viaKey ? NSApp.mainMenu?.performKeyEquivalent(with: key) ?? false : choose("Switch Pane")
+        let handled = viaKey ? NSApp.mainMenu?.performKeyEquivalent(with: key) ?? false : choose(loc("Switch Pane"))
         await settle(50)
         check(handled && controller.secondActive && controller.window?.firstResponder === second,
               "\(viaKey ? "⌘'" : "Switch Pane (the window isn't key: its menu item)") switches to the second pane")
@@ -174,7 +175,7 @@ struct SplitTest {
         await settle()
         let before = (main: pages.pageRects[0].size, second: second.pageRects[0].size)
         let edits = controller.editor.finishedEdits
-        choose("Rotate Right")
+        choose(loc("Rotate Right"))
         for _ in 0..<400 where controller.editor.finishedEdits == edits { try? await Task.sleep(for: .milliseconds(50)) }
         await settle(200)
         let rotated = second.pageRects[0].size
@@ -202,12 +203,12 @@ struct SplitTest {
         }
 
         // Side by side: the same panes, side by side; the second keeps its place.
-        choose("Switch Pane")
+        choose(loc("Switch Pane"))
         await settle(50)
         let secondPage = second.currentPage
-        choose("Split Side by Side")
+        choose(loc("Split Side by Side"))
         await settle(300)
-        let sideItem = menuItem("Split Side by Side")
+        let sideItem = menuItem(loc("Split Side by Side"))
         if let sideItem { _ = controller.validateMenuItem(sideItem) }
         check(controller.paneSplit.isVertical && controller.paneSplit.panes.count == 2 && controller.secondPages === second
               && second.currentPage == secondPage && sideItem?.state == .on,
@@ -221,7 +222,7 @@ struct SplitTest {
         await settle()
 
         // The second pane's × closes it.
-        choose("Split Top and Bottom")
+        choose(loc("Split Top and Bottom"))
         await settle(300)
         let close = controller.secondBox?.subviews.compactMap { $0 as? NSButton }.first
         close?.performClick(nil)

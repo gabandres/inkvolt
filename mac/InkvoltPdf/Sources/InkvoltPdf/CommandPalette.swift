@@ -194,15 +194,16 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         return text + key.uppercased()
     }
 
-    /// The commands whose title or menus hold every word of `query`, in the interface's language or in English (titles
-    /// starting with it first).
+    /// The commands whose title or menus hold every word of `query`, each at the start of one of their words, in the
+    /// interface's language or in English (titles starting with it first): "zoom in" finds Zoom In, not Zoom to Page
+    /// through the "in" inside "página".
     func filter(_ query: String) {
         let words = query.split(separator: " ").map(String.init).filter { !$0.isEmpty }
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         let matching = all.filter { e in
             let shown = e.title + " " + e.path
             let text = e.english.isEmpty ? shown : shown + " " + e.english
-            return words.allSatisfy { text.range(of: $0, options: options) != nil }
+            return words.allSatisfy { Self.startsAWord($0, in: text, options) }
         }
         if let first = words.first {
             let anchored = options.union(.anchored)
@@ -213,6 +214,18 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         }
         table.reloadData()
         if !shown.isEmpty { table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
+    }
+
+    /// Whether `word` is found in `text` where a word starts (after a space, a bracket, a slash or the like).
+    static func startsAWord(_ word: String, in text: String, _ options: String.CompareOptions) -> Bool {
+        var from = text.startIndex
+        while let r = text.range(of: word, options: options, range: from..<text.endIndex) {
+            if r.lowerBound == text.startIndex { return true }
+            let before = text[text.index(before: r.lowerBound)]
+            if !before.isLetter && !before.isNumber { return true }
+            from = text.index(after: r.lowerBound)
+        }
+        return false
     }
 
     func controlTextDidChange(_ obj: Notification) { filter(field.stringValue) }

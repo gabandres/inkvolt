@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E10 (`--edit`, on the synthetic text document; `--only-read-aloud` runs it alone): View ›
 /// Read Aloud through the window's own command, with a silent speaker that keeps what it was asked to say (nothing is
@@ -57,7 +58,7 @@ struct ReadAloudTest {
 
     mutating func run() async {
         lines.append("== \(name): read aloud (\(controller.engine.pageCount) pages)")
-        let item = menuItem("Read Aloud")
+        let item = menuItem(loc("Read Aloud"))
         check(item?.action == #selector(DocumentWindowController.toggleReadAloud(_:)) && item?.keyEquivalent == "y"
               && item?.keyEquivalentModifierMask == [.command, .shift] && item.map { controller.validateMenuItem($0) } == true,
               "View has Read Aloud (⇧⌘Y), enabled on a document")

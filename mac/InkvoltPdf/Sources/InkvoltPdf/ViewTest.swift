@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for the reading view (`--edit`, on the synthetic text document; `--only-view` runs it alone):
 /// View › Rotate View Clockwise and Counterclockwise through the menu's own items (the pages laid out turned, page points
@@ -98,8 +99,8 @@ struct ViewTest {
             SnapshotBoard.board = .general
             board.releaseGlobally()
         }
-        let chosen = choose("Snapshot")
-        check(chosen && pages.tool == .snapshot && ticked("Snapshot"), "Tools › Snapshot picks the tool (ticked in the menu)")
+        let chosen = choose(loc("Snapshot"))
+        check(chosen && pages.tool == .snapshot && ticked(loc("Snapshot")), "Tools › Snapshot picks the tool (ticked in the menu)")
         let g = controller.engine.page(0)
         let from = PointD(g.width * 0.2, g.height * 0.2), to = PointD(g.width * 0.2 + 200, g.height * 0.2 + 100)
         let before = board.changeCount
@@ -114,11 +115,11 @@ struct ViewTest {
         let size = image?.size ?? .zero
         check(wide && abs(size.width - 200) < 1 && abs(size.height - 100) < 1 && board.data(forType: .tiff) != nil,
               "a drag copies 200 × 100 points as PNG and TIFF (\(image?.pixelsWide ?? 0) × \(image?.pixelsHigh ?? 0) px)")
-        check(controller.noticeBar.message.hasPrefix("Snapshot copied"), "the notice says it was copied")
+        check(controller.noticeBar.message.hasPrefix(Shown.head(loc("Snapshot copied ({0} × {1} px)", Shown.gap, Shown.gap))), "the notice says it was copied")
 
         // Two snapshots in a row, the first of the whole page at a high resolution: only the second is copied, whichever
         // picture is rendered first.
-        func copies() -> Int { controller.noticeBar.history.filter { $0.hasPrefix("Snapshot copied") }.count }
+        func copies() -> Int { controller.noticeBar.history.filter { $0.hasPrefix(Shown.head(loc("Snapshot copied ({0} × {1} px)", Shown.gap, Shown.gap))) }.count }
         let copied = copies()
         controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, g.width, g.height), viewScale: 6, rotation: 0)
         controller.copySnapshot(controller.engine, page: 0, region: RectD(0, 0, 50, 40), viewScale: 2, rotation: 0)
@@ -149,13 +150,13 @@ struct ViewTest {
         }
         controller.go(0)
         GoToPageState.testAnswer = " \(n) "
-        let chosen = choose("Go to Page…")
+        let chosen = choose(loc("Go to Page…"))
         await settle()
         let shown = pages.currentPage == n - 1 && GoToPageState.lastProblem == nil
         GoToPageState.testAnswer = String(n + 1)
-        choose("Go to Page…")
+        choose(loc("Go to Page…"))
         await settle()
-        let refused = pages.currentPage == n - 1 && GoToPageState.lastProblem == "Enter a page from 1 to \(n)."
+        let refused = pages.currentPage == n - 1 && GoToPageState.lastProblem == loc("Enter a page from 1 to {0}.", n)
         GoToPageState.testAnswer = nil
         controller.go(0)
         check(chosen && shown && refused, "Go to Page…: “\(n)” shows the last page; “\(n + 1)” is refused with the range, the page kept")
@@ -225,11 +226,11 @@ struct ViewTest {
         }
         controller.setZoom(0.5)
         controller.go(0)
-        let two = choose("Two Pages")
+        let two = choose(loc("Two Pages"))
         var r = pages.pageRects
         let paired = abs(r[0].midY - r[1].midY) < 1 && r[1].minX > r[0].maxX && r[2].minY > r[0].maxY
         let hit = pages.page(at: NSPoint(x: r[1].midX, y: r[1].midY))?.page
-        check(two && pages.readingMode == .twoPages && ticked("Two Pages") && paired && hit == 1,
+        check(two && pages.readingMode == .twoPages && ticked(loc("Two Pages")) && paired && hit == 1,
               "Two Pages: pages 1 and 2 side by side, page 3 below; a point on the right page finds page 2")
         if let spot = textSpot() {
             controller.go(spot.page)
@@ -240,13 +241,13 @@ struct ViewTest {
             pages.clearSelection()
         }
 
-        let cover = choose("Two Pages with Cover")
+        let cover = choose(loc("Two Pages with Cover"))
         r = pages.pageRects
         check(cover && pages.readingMode == .cover && r[0].minX > pages.frame.midX - 1 && abs(r[1].midY - r[2].midY) < 1 && r[1].minY > r[0].maxY
               && r[2].minX > r[1].maxX,
               "Two Pages with Cover: the cover alone on the right, then pages 2 and 3 side by side")
 
-        let single = choose("Single Page")
+        let single = choose(loc("Single Page"))
         let shown = pages.pageRects.filter { !$0.isEmpty }.count
         controller.go(0)
         controller.nextPage(nil)
@@ -256,10 +257,10 @@ struct ViewTest {
         let end = pages.currentPage == n - 1
         pages.keyDown(with: key(115, String(UnicodeScalar(NSHomeFunctionKey)!)))
         let home = pages.currentPage == 0
-        check(single && ticked("Single Page") && shown == 1 && turned && end && home,
+        check(single && ticked(loc("Single Page")) && shown == 1 && turned && end && home,
               "Single Page: one page shown; Next Page shows page 2 alone, End the last, Home the first")
 
-        let back = choose("Continuous")
+        let back = choose(loc("Continuous"))
         r = pages.pageRects
         check(back && pages.readingMode == .continuous && r.allSatisfy { !$0.isEmpty } && r[1].minY > r[0].maxY
               && AppSettings.readingMode == "Continuous",
@@ -286,7 +287,7 @@ struct ViewTest {
         let dropped = sidebar.drop(board, before: 0)
         let moved = await waitEdit(since: step)
         check(move == .move && dropped && moved && firstLine(0) == lastText && controller.engine.pageCount == count
-              && controller.window?.undoManager?.undoMenuItemTitle.hasPrefix("Undo Move") == true,
+              && controller.window?.undoManager?.undoMenuItemTitle.hasPrefix(Shown.undo(loc("Move 1 page"))) == true,
               "the last page's thumbnail dropped above the first moves it there (one undo step: \(controller.window?.undoManager?.undoMenuItemTitle ?? "none"))")
         controller.window?.undoManager?.undo()
         _ = await waitEdit(since: controller.pdf.session?.undoStepId)
@@ -318,7 +319,7 @@ struct ViewTest {
             _ = sidebar.drop(board, before: count)
             let copied = await waitEdit(since: step)
             let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
-            check(across == .copy && copied && controller.engine.pageCount == count + 1 && title.hasPrefix("Undo Copy 1 page from"),
+            check(across == .copy && copied && controller.engine.pageCount == count + 1 && title.hasPrefix(Shown.head(Shown.undo(loc("Copy 1 page from {0}", Shown.gap)))),
                   "another window's thumbnail dropped here copies its page in (\(title))")
             controller.window?.undoManager?.undo()
             _ = await waitEdit(since: controller.pdf.session?.undoStepId)
@@ -335,8 +336,8 @@ struct ViewTest {
         controller.go(0)
         controller.splitTopAndBottom(nil)
         await settle()
-        let darkOn = choose("Dark Pages (Night Reading)")
-        let state = menuItem("Dark Pages (Night Reading)").map { item -> Bool in
+        let darkOn = choose(loc("Dark Pages (Night Reading)"))
+        let state = menuItem(loc("Dark Pages (Night Reading)")).map { item -> Bool in
             _ = controller.validateMenuItem(item)
             return item.state == .on
         } ?? false
@@ -348,7 +349,7 @@ struct ViewTest {
               && second && secondCorner == corner,
               "Dark Pages (Night Reading) draws the paper dark grey in both panes (\(corner.map { "\($0)" } ?? "not drawn")), ticked and kept as a setting")
         controller.removeSplit(nil)
-        choose("Dark Pages (Night Reading)")
+        choose(loc("Dark Pages (Night Reading)"))
         let back = await cornerOnceDrawn(pages)
         check(!AppSettings.darkPages && back.map { $0.allSatisfy { $0 >= 250 } } == true && controller.pdf.session?.data == before,
               "turned off: the paper white again (\(back.map { "\($0)" } ?? "not drawn")), the file unchanged")
@@ -372,7 +373,7 @@ struct ViewTest {
             pages.clearSelection()
         }
 
-        let turned = choose("Rotate View Clockwise")
+        let turned = choose(loc("Rotate View Clockwise"))
         let r0 = pages.pageRects[0]
         check(turned && pages.viewRotation == 90 && abs(r0.width - g.height) < 0.5 && abs(r0.height - g.width) < 0.5,
               "Rotate View Clockwise turns the view 90° (page 1 shown \(Int(r0.width)) x \(Int(r0.height)))")
@@ -437,7 +438,7 @@ struct ViewTest {
         if let second = controller.secondPages {
             let main = pages.viewRotation
             if controller.activePages !== second { controller.switchPane(nil) }
-            choose("Rotate View Counterclockwise")
+            choose(loc("Rotate View Counterclockwise"))
             check(second.viewRotation == RotatedView.normalize(main - 90) && pages.viewRotation == main,
                   "the split pane turns on its own (\(second.viewRotation)°, main pane \(main)°)")
             controller.removeSplit(nil)
@@ -447,7 +448,7 @@ struct ViewTest {
         }
 
         let start = pages.viewRotation
-        for _ in 0..<3 { choose("Rotate View Counterclockwise") }
+        for _ in 0..<3 { choose(loc("Rotate View Counterclockwise")) }
         check(pages.viewRotation == RotatedView.normalize(start + 90), "three turns counterclockwise (⇧⌘L) are one clockwise: \(start)° to \(pages.viewRotation)°")
         pages.setViewRotation(180)
         let path = controller.pdf.fileURL?.path ?? "/tmp/selftest.pdf"
