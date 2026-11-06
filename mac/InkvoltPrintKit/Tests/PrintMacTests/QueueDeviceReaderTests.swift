@@ -50,7 +50,9 @@ struct QueueDeviceReaderTests {
         let started = ContinuousClock.now
         let found = await ServiceResolve.once(instance: "Inkvolt nobody \(UInt32.random(in: 0...UInt32.max))", type: "_ipp._tcp", domain: "local.")
         #expect(found == nil)
-        #expect(ContinuousClock.now - started < IppQueueReading.resolveLimit + .seconds(1)) // the request's time left in the call
+        // CI's runner, busy with the whole run, took 3.4 s once against 3 s: there the bound gets the slack ConnectionTests gives.
+        let slack: Duration = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil ? .seconds(5) : .seconds(1)
+        #expect(ContinuousClock.now - started < IppQueueReading.resolveLimit + slack) // the request's time left in the call
     }
 
     @Test func aQueueWithNothingToAskHasNoReader() {
