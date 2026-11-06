@@ -52,6 +52,11 @@ internal static partial class TranslationMarkup
         var stretches = 0;
         for (var i = 0; i <= text.Length; i++)
         {
+            if (i > 0 && i < text.Length && kinds[i] == kinds[i - 1])
+            {
+                sb.Append(text[i]);
+                continue;
+            }
             var want = i < text.Length ? kinds[i] : Kind.None;
             var wanted = Ordered(want);
             var keep = 0;

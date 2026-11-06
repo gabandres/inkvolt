@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Translate with AI keeps a paragraph's bold and italic words, subscripts and superscripts ("d_model", "2¹⁰") in the translation, drawn in the page's own bold or italic when it has them; when the model's answer mixes up the marks, that paragraph is written plain.
 
 ## 1.9.0
 - Translate with AI lets a table's label that is alone on its row (a heading over the rows under it) use the empty cells beside it, so a longer translation keeps its size.

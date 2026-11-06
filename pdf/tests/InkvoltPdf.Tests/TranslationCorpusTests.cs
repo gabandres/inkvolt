@@ -16,6 +16,8 @@ public class TranslationCorpusTests(ITestOutputHelper output)
 {
     private const string Marker = "ñandú";
 
+    private static readonly System.Text.RegularExpressions.Regex Tag = new("</?(b|i|sub|sup)>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
     [Fact]
     public void Real_files_keep_their_pages_and_pictures_and_their_new_text_shows()
     {
@@ -39,6 +41,9 @@ public class TranslationCorpusTests(ITestOutputHelper output)
             output.WriteLine($"{Path.GetFileName(file)}: {pages.Length} pages, {plan.ParagraphCount} paragraphs ({plan.Texts.Count} texts), {r.Translated} written, {r.Shrunk} shrunk, {r.DoNotFit} don't fit, {r.NotTranslated} not translated, " +
                              $"{plan.Blocked.Count} blocked, scans {plan.ScanPages.Count}, turned {plan.TurnedTextPages.Count}, failed {r.FailedPages.Count}; fonts {string.Join("/", r.Fonts)}; read {read.TotalSeconds:0.0}s write {sw.Elapsed.TotalSeconds:0.0}s; {pdf.Length / 1024} KB → {(result.Data?.Length ?? 0) / 1024} KB");
             foreach (var g in plan.Blocked.GroupBy(b => b.Why).OrderByDescending(g => g.Count()).Take(3)) output.WriteLine($"  blocked {g.Count()}: {g.Key}");
+            var marked = plan.Texts.Where(t => TranslationMarkup.IsMarked(t.Text)).ToList();
+            output.WriteLine($"  {marked.Count} texts sent with markup");
+            foreach (var t in marked.Take(4)) output.WriteLine($"    p{t.Page + 1}: {(t.Text.Length > 160 ? t.Text[..160] + "…" : t.Text)}");
             if (result.Data is null) continue;
             if (outDir is not null)
             {
@@ -61,6 +66,8 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                     Assert.Contains(boxes, b => Math.Abs(b.X - image.Box.X) < 0.01 && Math.Abs(b.Y - image.Box.Y) < 0.01 && Math.Abs(b.Width - image.Box.Width) < 0.01 && Math.Abs(b.Height - image.Box.Height) < 0.01);
                 // The new text's ink: a page whose marked text can be found but whose pixels didn't change hides it.
                 if (copy.GetText(p, cache: false).Text.Contains(Marker, StringComparison.Ordinal) && SamePixels(original, copy, p)) hidden++;
+                // No tag of the markup the texts went with reaches a page.
+                Assert.False(Tag.IsMatch(copy.GetText(p, cache: false).Text) && !Tag.IsMatch(original.GetText(p, cache: false).Text), $"{Path.GetFileName(file)} p{p + 1}: a tag on the page");
                 // Line by line: what the original shows (a page's own quirks) doesn't count against the copy.
                 var problems = TranslationInk.Problems(copy, p);
                 var had = TranslationInk.Problems(original, p).Count;
