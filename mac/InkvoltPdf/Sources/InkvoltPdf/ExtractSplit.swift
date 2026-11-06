@@ -106,7 +106,7 @@ extension DocumentWindowController {
         guard let session = pdf.session else { return nil }
         let name = (session.displayName as NSString).deletingPathExtension
         var reserved = Set<String>()
-        let paths = chosen.map { SplitFiles.uniquePath(folder, loc("{0} (page {1}).pdf", name, CoreLanguage.number($0 + 1)), &reserved) }
+        let paths = chosen.map { SplitFiles.uniquePath(folder, loc("{0} (page {1}).pdf", name, $0 + 1), &reserved) }
         let data = session.data, password = session.password
         let files: [(path: String, bytes: @Sendable () throws -> [UInt8])] = zip(paths, chosen).map { path, page in
             (path: path, bytes: { try PageEditor.extract(data, password, [page]) })
