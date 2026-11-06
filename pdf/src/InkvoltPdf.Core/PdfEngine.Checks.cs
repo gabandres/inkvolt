@@ -195,6 +195,33 @@ public sealed partial class PdfEngine
     private bool IsRefused(int page) => PageRefusedException.Refuses(VerdictOf(page));
 
     /// <summary>
+    /// In a check process: the page drawn at <paramref name="scale"/> without smoothing edges, a picture no one sees. MuPDF
+    /// reads the content and decodes every picture as for any drawing; a sheet of 72,000 paths is drawn in about half the
+    /// time (anti-aliasing costs per path, not per pixel). The strips' contexts are cloned first, so later drawings
+    /// (<see cref="PageChecks"/>'s picture) are smoothed as ever.
+    /// </summary>
+    internal void RenderUnsmoothed(int page, double scale)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _clones ??= AbortableRender.Clone(_ctx, StripThreads);
+            var (graphics, text) = (_ctx.GraphicsAntiAliasing, _ctx.TextAntiAliasing);
+            _ctx.GraphicsAntiAliasing = 0;
+            _ctx.TextAntiAliasing = 0;
+            try
+            {
+                Render(page, scale);
+            }
+            finally
+            {
+                _ctx.GraphicsAntiAliasing = graphics;
+                _ctx.TextAntiAliasing = text;
+            }
+        }
+    }
+
+    /// <summary>
     /// In a check process, after the page was drawn: decodes each picture on <paramref name="page"/> of more than
     /// <paramref name="abovePixels"/> at its full size. Drawing the page small decodes a JPEG at an eighth of its size and
     /// a JPEG 2000 at its smallest level, so what an export (pictures at their own size) or a deep zoom costs here is only

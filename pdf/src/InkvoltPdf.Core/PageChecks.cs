@@ -233,7 +233,7 @@ public static class PageChecks
                             TestCheckFault?.Invoke();
                             var g = engine.GetPage(page);
                             var longer = Math.Max(g.Width, g.Height);
-                            engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
+                            engine.RenderUnsmoothed(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
                             if (engine.DecodeLargePictures(page, FullSizePixels, ref largest))
                             {
                                 masks ??= PageMasks.Read(FindWorkers.CopyOf(opened!.Path, view, opened.SectionBytes, PageMasks.MaxBytes), engine.PageCount);
