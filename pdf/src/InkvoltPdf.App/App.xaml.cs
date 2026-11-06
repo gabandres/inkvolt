@@ -61,6 +61,8 @@ public partial class App : Application
             Shutdown();
             return;
         }
+        // A check process starts while the window is made: the first page opened doesn't wait for one.
+        Core.PageChecks.Prestart();
 
         // Listen before opening the startup files: with a multi-file Explorer open, the other launches arrive now.
         // Their files wait in a queue until the window is ready.
@@ -127,6 +129,7 @@ public partial class App : Application
         // Dev mode: run UI steps off-screen, separate from any running instance.
         // Never touch the user's settings: save to INKVOLTPDF_DATA if given, else not at all.
         AppSettings.ReadOnly = Environment.GetEnvironmentVariable("INKVOLTPDF_DATA") is not { Length: > 0 };
+        Core.PageChecks.Prestart(); // as the app does
         base.OnStartup(e);
         var dev = new MainWindow { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = 0, Width = 1400, Height = 900, ShowActivated = false };
         dev.WindowState = WindowState.Normal;

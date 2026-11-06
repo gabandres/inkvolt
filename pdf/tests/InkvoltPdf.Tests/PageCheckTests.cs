@@ -686,6 +686,25 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void ACheckProcessStartedWithTheAppTakesTheFirstPage()
+    {
+        // Started before any document is open (as the window is made): the first page is checked in it, not in one started then.
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = Limit, Workers = 1 };
+        plan.Prestart();
+        var since = Stopwatch.StartNew();
+        while (plan.Pids.Count == 0 && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(10);
+        var pid = Assert.Single(plan.Pids);
+        Thread.Sleep(500); // connected
+        plan.Prestart(); // one runs: no other
+        using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        engine.GetText(0);
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.Equal(pid, Assert.Single(plan.Pids));
+        Assert.False(Exited(pid));
+    }
+
+    [Fact]
     public void AWaitGivenUpLeavesTheCheckGoingAndItsVerdictKept()
     {
         using var engine = Open(Bomb("1 MB"));

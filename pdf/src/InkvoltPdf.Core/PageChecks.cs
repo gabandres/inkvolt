@@ -83,6 +83,12 @@ public static class PageChecks
     /// <summary>Checks pages from now on, in processes started as <paramref name="exe"/> (with these arguments before the switch).</summary>
     public static void Use(string exe, params string[] args) => _plan = new PageCheckPlan(exe, args);
 
+    /// <summary>
+    /// Starts a check process now, as the app's window is made, so the first document's first page doesn't wait for one
+    /// to start (0.15 to 0.35 s). It ends as any does after <see cref="PageCheckPlan.Idle"/> with nothing to check.
+    /// </summary>
+    public static void Prestart() => _plan?.Prestart();
+
     /// <summary>The app's plan; null while <see cref="Use"/> hasn't been called (a worker process, a test): pages run unchecked.</summary>
     internal static PageCheckPlan? Plan => _plan;
 
@@ -697,12 +703,19 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         _queue.Clear();
     }
 
-    /// <summary>A new link and its thread. Under _gate.</summary>
-    private void StartLink()
+    /// <summary>A new link and its thread, its process started at once when <paramref name="now"/> (else with its first check). Under _gate.</summary>
+    private void StartLink(bool now = false)
     {
         var link = new Link(this);
         _links.Add(link);
-        new Thread(() => Serve(link)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
+        new Thread(() => Serve(link, now)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
+    }
+
+    /// <summary>A check process started before any page is asked for, unless one runs or starts are paused.</summary>
+    public void Prestart()
+    {
+        lock (_gate)
+            if (!_disposed && _links.Count == 0 && !Pausing()) StartLink(now: true);
     }
 
     /// <summary>Whether a check of <paramref name="page"/> can draw its picture at <paramref name="scale"/>.</summary>
@@ -818,10 +831,16 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     }
 
     /// <summary>One check process's thread: takes the next page, checks it, and so on until it has been idle for <see cref="Idle"/>.</summary>
-    private void Serve(Link link)
+    private void Serve(Link link, bool startNow)
     {
         try
         {
+            if (startNow && !link.Start())
+            {
+                lock (_gate)
+                    if (link.StartFailed) StartFailed();
+                return;
+            }
             while (true)
             {
                 CheckRequest? request = null;
@@ -1049,13 +1068,16 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             Open = null;
         }
 
+        /// <summary>Its process started before any page is asked for (<see cref="PageCheckPlan.Prestart"/>); false when none starts.</summary>
+        public bool Start() => EnsureStarted(null);
+
         /// <summary>
-        /// A process to check <paramref name="doc"/> in, started if need be; false when none starts (<see cref="StartFailed"/>),
+        /// A process to check <paramref name="doc"/> in (null: none yet), started if need be; false when none starts (<see cref="StartFailed"/>),
         /// or the document was closed or the link ended meanwhile (not a failure). Starting and <see cref="Kill"/> are one
         /// or the other: a process started while the link was ended, or for a document closed since, is ended before it
         /// can open anything, so whoever closed the document may save over its file at once.
         /// </summary>
-        private bool EnsureStarted(CheckedDocument doc)
+        private bool EnsureStarted(CheckedDocument? doc)
         {
             lock (_processGate)
             {
@@ -1085,7 +1107,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 plan.TestAfterStart?.Invoke();
                 lock (_processGate)
                 {
-                    if (_killed || doc.Closed || plan._disposed)
+                    if (_killed || doc is { Closed: true } || plan._disposed)
                     {
                         // Ended (or its document closed) while it started: nothing found it to end, so here.
                         _killed = true;
@@ -1107,7 +1129,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
             {
                 // The program isn't there or didn't connect: no check to be had (unless it was ended on purpose meanwhile).
-                lock (_processGate) StartFailed = !_killed && !doc.Closed && !plan._disposed;
+                lock (_processGate) StartFailed = !_killed && doc is not { Closed: true } && !plan._disposed;
                 Kill();
                 return false;
             }
