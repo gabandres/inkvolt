@@ -3,7 +3,7 @@ import Testing
 @testable import PrintCore
 
 /// Roadmap 2.3 on the Mac, what Inkvolt PDF's Scan dialog shares with Windows' (ported from UsbScannerTests.cs): blank pages
-/// left out of a scan (`ScanRun`). The WIA and TWAIN tests stay with Windows (the Mac's scanners come through ImageCaptureCore,
+/// left out of a scan (`ScanRun`) and presets from the dialog's choices (`ScanPresets.fromChoices`, matched by `PresetPlan`). The WIA and TWAIN tests stay with Windows (the Mac's scanners come through ImageCaptureCore,
 /// already tested in PrintMac), and making the PDF is PdfCore's `ImageImport` (its own tests), so the page-assembly tests
 /// count the pages kept instead of opening a PDF. Nothing here touches a real scanner.
 struct UsbScannerTests {
@@ -94,6 +94,61 @@ struct UsbScannerTests {
         #expect(ScanRun.doneText(kept: 0, blank: 3, unreadable: 0, glass: false, finish: "x").contains("Clear \"Leave out blank pages\""))
         #expect(ScanRun.doneText(kept: 0, blank: 0, unreadable: 1, glass: false, finish: "x")
             == "The scanner returned no pages (1 page that couldn't be read left out).")
+    }
+
+    // ---- Presets ----------------------------------------------------------------------------------------------------------------
+
+    static func input(_ dpi: [Int], maxHeight: Int, modes: [String]) -> InputCaps {
+        InputCaps(minWidth: 16, maxWidth: 2550, minHeight: 16, maxHeight: maxHeight, colorModes: modes, resolutions: dpi)
+    }
+
+    /// Glass and a duplex feeder (legal sheets), 75-600 dpi, color and grey; and a flatbed (A4-long glass), 150/300/600 dpi.
+    static let duplexScanner = ScannerCapabilities(version: "2.6", makeAndModel: "Example DocScan 10", uuid: nil,
+                                                   platen: input([75, 150, 200, 300, 600], maxHeight: 3508, modes: ["RGB24", "Grayscale8"]),
+                                                   adf: input([75, 150, 200, 300, 600], maxHeight: 4200, modes: ["RGB24", "Grayscale8"]), adfDuplex: true)
+    static let flatbed = ScannerCapabilities(version: "2.6", makeAndModel: "Example Flatbed", uuid: nil,
+                                             platen: input([150, 300, 600], maxHeight: 3508, modes: ["RGB24", "Grayscale8"]), adf: nil, adfDuplex: false)
+
+    @Test func A_preset_saves_the_choices_and_is_matched_to_each_scanner() throws {
+        let preset = ScanPresets.fromChoices([], name: "Contracts", source: .adfDuplex, color: .grayscale, dpi: 300, pageSize: "legal",
+                                             ocr: true, skipBlank: true)
+        #expect(preset.source == .feeder && preset.twoSided && !preset.color)
+        #expect(preset.resolution == 300 && preset.pageSize == "legal" && preset.fileType == .searchablePdf && preset.skipBlank)
+
+        // Saved with the app's settings and read back.
+        let stored = try JSONDecoder().decode(ScanPresetSettings.self, from: JSONEncoder().encode(ScanPresetSettings(items: [preset])))
+        let list = ScanPresets.normalize(stored)
+        var expected = preset
+        expected.unknown = list.first?.unknown
+        #expect(list == [expected])
+
+        let plan = PresetPlan.plan(list[0], Self.duplexScanner, feederLoaded: nil, ocrAvailable: true, metric: false)
+        #expect(plan.request == ScanRequest(source: .adfDuplex, color: .grayscale, resolution: 300, width: 2550, height: 4200))
+        #expect(plan.ocr)
+        #expect(plan.notes.isEmpty)
+
+        let flatbed = PresetPlan.plan(list[0], Self.flatbed, feederLoaded: nil, ocrAvailable: false, metric: true)
+        #expect(flatbed.request.source == .platen)
+        #expect(flatbed.request.color == .grayscale)
+        #expect(!flatbed.ocr)
+        #expect(flatbed.notes.contains("This scanner has no document feeder: scanning from the glass."))
+        #expect(flatbed.notes.contains { $0.hasPrefix("Legal (8.5 × 14 in) doesn't fit this source") })
+        #expect(flatbed.notes.contains { $0.hasPrefix("Text recognition isn't available") })
+
+        let second = ScanPresets.fromChoices(list, name: "Contracts", source: .platen, color: .color, dpi: 150, pageSize: nil, ocr: false, skipBlank: false)
+        #expect(second.name == "Contracts (2)")
+        #expect(second.source == .glass && second.color && second.fileType == .pdf)
+        #expect(ScanPresets.nameProblem(list, "", "contracts") == "Another preset is already called \"Contracts\".")
+    }
+
+    /// The Mac's own: a hostile name and resolution are made safe (trimmed and cut, clamped), an unknown page size dropped.
+    @Test func A_preset_from_odd_choices_is_made_safe() {
+        let long = "  " + String(repeating: "x", count: 200) + "  "
+        let p = ScanPresets.fromChoices([], name: long, source: .adf, color: .color, dpi: 99_999, pageSize: "tabloid", ocr: false, skipBlank: true)
+        #expect(p.name.count == ScanPresets.maxNameLength && !p.name.hasPrefix(" "))
+        #expect(p.resolution == 1200 && p.pageSize == nil && p.source == .feeder && !p.twoSided)
+        #expect(ScanPresets.isValidId(p.id))
+        #expect(ScanPresets.fromChoices([], name: "a", source: .platen, color: .color, dpi: -5, pageSize: nil, ocr: false, skipBlank: true).resolution == 75)
     }
 
     // ---- What goes wrong ----------------------------------------------------------------------------------------------------------

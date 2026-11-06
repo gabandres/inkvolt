@@ -1,5 +1,7 @@
 import AppKit
 import PdfCore
+import PrintCore
+import PrintMac
 
 /// The self-test's scenario for D7 part e (`--edit` with `--quit`, once every document is done): the app's own windows
 /// driven through their controls, on copies of the synthetic documents in a temporary folder (never a real file): the
@@ -388,6 +390,58 @@ struct AppTest {
 
     // MARK: Scan
 
+    /// Scan's presets: the laser's feeder, grey, 200 dpi, Legal, blank pages kept, saved as "Contracts"; the same name
+    /// refused; the preset matched to the flatbed (no feeder, no Legal), saying so; deleted.
+    private mutating func scanPresets() async {
+        ScanWindowController.show()
+        guard let s = ScanWindowController.shared else { return check(false, "Scan presets: not shown") }
+        defer {
+            ScanWindowController.testPresetName = nil
+            s.skipBlank.state = .on
+            s.window?.orderOut(nil)
+        }
+        func choose(_ popup: NSPopUpButton, _ text: String) {
+            guard let i = (0..<popup.numberOfItems).first(where: { popup.item(at: $0)?.title.contains(text) == true }) else { return }
+            popup.selectItem(at: i)
+            popup.sendAction(popup.action, to: popup.target)
+        }
+        let builtIns = s.presetPopup.numberOfItems == 4 && s.presetPopup.titleOfSelectedItem == "No preset"
+        choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
+        _ = await wait(5) { s.caps?.adf != nil }
+        choose(s.sourcePopup, "feeder")
+        s.colorPopup.selectItem(withTitle: "Grayscale")
+        s.resolutionPopup.selectItem(withTitle: "200 dpi")
+        choose(s.sizePopup, "Legal")
+        s.skipBlank.state = .off
+        s.ocr.state = .on
+        ScanWindowController.testPresetName = "Contracts"
+        s.savePresetButton.performClick(nil)
+        let saved = s.presets.last
+        let choices = saved?.source == .feeder && saved?.color == false && saved?.resolution == 200
+        let rest = saved?.pageSize == "legal" && saved?.skipBlank == false && saved?.fileType == .searchablePdf
+        let shown = s.presetPopup.titleOfSelectedItem == "Contracts" && s.message.stringValue == "Saved the preset \"Contracts\"."
+        check(builtIns && saved?.name == "Contracts" && choices && rest && shown,
+              "Scan presets: Inkvolt Print's three to start with; Save as Preset… keeps the feeder, grey, 200 dpi, Legal, OCR and blank choices")
+        let count = s.presets.count
+        ScanWindowController.testPresetName = "contracts"
+        s.savePresetButton.performClick(nil)
+        check(s.presets.count == count && s.message.stringValue == "Another preset is already called \"Contracts\".",
+              "a second preset of the same name is refused: “\(s.message.stringValue)”")
+
+        // The flatbed: no feeder, a glass too short for Legal; the preset is matched to it and says what had to give.
+        choose(s.scannerPopup, DemoScanDevice.flatbed.name)
+        _ = await wait(5) { s.caps != nil && s.caps?.adf == nil }
+        let said = s.message.stringValue
+        let matched = s.sourcePopup.titleOfSelectedItem == "Scanner glass" && s.colorPopup.titleOfSelectedItem == "Grayscale"
+        let notes = said.contains("This scanner has no document feeder: scanning from the glass.") && said.contains("Legal (8.5 × 14 in) doesn't fit this source")
+        check(matched && notes && s.skipBlank.state == .off && s.resolutionPopup.titleOfSelectedItem == "200 dpi",
+              "a preset matched to the flatbed: the glass, grey, 200 dpi, blank pages kept, “\(said.prefix(120))”")
+        s.deletePresetButton.performClick(nil)
+        check(!s.presets.contains { $0.name == "Contracts" } && s.presetPopup.titleOfSelectedItem == "No preset"
+              && s.message.stringValue == "Deleted the preset \"Contracts\".",
+              "Delete Preset: gone from the list, No preset chosen")
+    }
+
     private mutating func scan() async {
         ScanWindowController.useDemoScanners()
         // Read as Recognize Text reads (its choices: cleaned, suspect words listed), by a stand-in: "recognlzed" on each page.
@@ -497,6 +551,7 @@ struct AppTest {
             insert?.window?.orderOut(nil)
         }
         document?.close()
+        await scanPresets()
         let dense = ScanWindowController.withDensity([0xFF, 0xD8, 0xFF, 0xDB, 0x00, 0x02], dpi: 300)
         check(dense.count == 24 && dense[16] == 0x01 && dense[17] == 0x2C, "a scanned JPEG gets the scan's resolution in its JFIF header")
     }

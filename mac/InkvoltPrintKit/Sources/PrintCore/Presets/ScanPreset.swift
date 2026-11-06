@@ -317,6 +317,26 @@ public enum ScanPresets {
         }
     }
 
+    /// Inkvolt PDF's Scan dialog: its current choices saved under `name` (trimmed, cut, made unique), a searchable PDF when
+    /// `ocr`, reviewed in the dialog. The scanner isn't part of it: the preset is matched to whichever scanner is chosen
+    /// (`PresetPlan`). The Mac's scans are color or grey (no black and white, which Windows' drivers add).
+    public static func fromChoices(_ existing: [ScanPreset], name: String, source: ScanSource, color: ScanColor, dpi: Int, pageSize: String?,
+                                   ocr: Bool, skipBlank: Bool) -> ScanPreset {
+        var p = ScanPreset()
+        p.id = newId()
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(maxNameLength))
+        p.name = uniqueName(existing.map(\.name), trimmed)
+        p.source = source == .platen ? .glass : .feeder
+        p.twoSided = source == .adfDuplex
+        p.color = color == .color
+        p.resolution = min(max(dpi, minResolution), maxResolution)
+        p.pageSize = ScanChoices.pageSizes.contains { $0.key == pageSize } ? pageSize : nil
+        p.fileType = ocr ? .searchablePdf : .pdf
+        p.review = true
+        p.skipBlank = skipBlank
+        return p
+    }
+
     public static func create(_ existing: [ScanPreset]) -> ScanPreset {
         var p = ScanPreset()
         p.id = newId()
