@@ -83,6 +83,12 @@ public static class PageChecks
     /// <summary>Checks pages from now on, in processes started as <paramref name="exe"/> (with these arguments before the switch).</summary>
     public static void Use(string exe, params string[] args) => _plan = new PageCheckPlan(exe, args);
 
+    /// <summary>
+    /// Starts a check process now, as the app's window is made, so the first document's first page doesn't wait for one
+    /// to start (0.15 to 0.35 s). It ends as any does after <see cref="PageCheckPlan.Idle"/> with nothing to check.
+    /// </summary>
+    public static void Prestart() => _plan?.Prestart();
+
     /// <summary>The app's plan; null while <see cref="Use"/> hasn't been called (a worker process, a test): pages run unchecked.</summary>
     internal static PageCheckPlan? Plan => _plan;
 
@@ -124,6 +130,9 @@ public static class PageChecks
     /// <summary>Test hook: called in the check process before each check (the bench tool sets it, PageCheckTests).</summary>
     internal static Action? TestCheckFault { get; set; }
 
+    /// <summary>Test hook: in the check process, what becomes of a picture before it is sent (the bench tool sets it, PageCheckTests).</summary>
+    internal static Func<RenderedImage, RenderedImage>? TestPictureFault { get; set; }
+
     /// <summary>The check process's whole life, from the command line to its exit code.</summary>
     public static int Run(string[] args) => Run(args, 10_000);
 
@@ -151,6 +160,40 @@ public static class PageChecks
 
     /// <summary>A check draws the page with its longer side this many pixels: every picture on it is still decoded (MuPDF decodes even one under a pixel).</summary>
     private const double CheckPixels = 64;
+
+    /// <summary>
+    /// A render waiting for its page's check gets, after the check, the check's drawing of the whole page at its scale when
+    /// that is of this many pixels or fewer (a sheet fit to a 4K screen) and is drawn within <see cref="PictureLimit"/>:
+    /// the display list is made once, in the check process, and the two check processes draw a page and the next one at
+    /// once, where threads in one process wait on each other (pdf/ROADMAP.md 3.6). Otherwise the render draws the page
+    /// here, as before. The picture is only a shortcut: the page's verdict is sent before it is drawn, so its time never
+    /// counts against <see cref="Limit"/>.
+    /// </summary>
+    internal const long MaxPicturePixels = 8_400_000;
+
+    /// <summary>
+    /// How long a check process may take to draw the picture, after the verdict (a drawing-set sheet fit to the screen:
+    /// 0.4 to 0.8 s on four strips); one not done by then isn't sent, and the render waiting for it draws the page here.
+    /// </summary>
+    internal static readonly TimeSpan PictureLimit = TimeSpan.FromSeconds(1.5);
+
+    /// <summary>What a picture's arrival may take past <see cref="PictureLimit"/>: MuPDF stopping, then each of the header and some 25 MB over the pipe.</summary>
+    internal static readonly TimeSpan PictureSlack = TimeSpan.FromSeconds(0.5);
+
+    /// <summary>Scales past this (pixels a point) are never asked for a picture: the viewer's deepest zoom draws tiles.</summary>
+    internal const double MaxPictureScale = 64;
+
+    /// <summary>
+    /// The size of the picture of a whole page at <paramref name="scale"/>, as <see cref="PdfEngine.Render"/> rounds it;
+    /// null when no check draws one (a scale past <see cref="MaxPictureScale"/>, more than <see cref="MaxPicturePixels"/>).
+    /// What the engine asks for, the check process draws and this process takes all go by it.
+    /// </summary>
+    internal static (int Width, int Height)? PictureSize(PageGeometry g, double scale)
+    {
+        if (!(scale > 0 && scale <= MaxPictureScale) || !(g.Width > 0 && g.Height > 0) || g.Width * g.Height * scale * scale > MaxPicturePixels) return null;
+        var px = new Rectangle(g.OriginX, g.OriginY, g.OriginX + g.Width, g.OriginY + g.Height).Round(scale);
+        return px.Width > 0 && px.Height > 0 ? (px.Width, px.Height) : null;
+    }
 
     /// <summary>
     /// A picture of more pixels than this (4,096 x 4,096) is decoded at its full size too, after the drawing (which
@@ -206,14 +249,17 @@ public static class PageChecks
                         break;
                     case AskCheck:
                         var page = FindWorkers.ReadInt(pipe);
-                        if (engine is null || page < 0 || page >= engine.PageCount) return;
+                        var scale = BitConverter.Int64BitsToDouble(FindWorkers.ReadLong(pipe));
+                        var pictureMs = FindWorkers.ReadInt(pipe);
+                        if (engine is null || page < 0 || page >= engine.PageCount || !(scale >= 0 && scale <= MaxPictureScale) || pictureMs <= 0) return;
                         var drawn = Drawn;
                         long largest = 0;
                         var peakBefore = PeakBytes();
+                        var g = engine.GetPage(page);
                         try
                         {
                             TestCheckFault?.Invoke();
-                            var g = engine.GetPage(page);
+                            // Drawn as any render here draws it, smoothed: the limit stands for what the page costs here.
                             var longer = Math.Max(g.Width, g.Height);
                             engine.Render(page, double.IsFinite(longer) && longer > CheckPixels ? CheckPixels / longer : 1);
                             if (engine.DecodeLargePictures(page, FullSizePixels, ref largest))
@@ -236,9 +282,25 @@ public static class PageChecks
                             }
                             drawn = OutOfResources(ex, largest, peakBefore, PeakBytes(), FindWorkers.Job.LimitedBytes) ? Failed : Drawn;
                         }
+                        // The verdict first, as it always was: the picture's time never counts against the limit.
                         FindWorkers.WriteInt(pipe, page);
                         FindWorkers.WriteInt(pipe, drawn);
                         pipe.Flush();
+                        if (scale > 0 && drawn == Drawn)
+                        {
+                            // Then the picture the parent's render waits for, from the display list just made, so the parent
+                            // needn't make it and draw again; none if it can't be drawn within its own limit.
+                            var picture = PictureSize(g, scale) is null ? null : Picture(engine!, page, scale, TimeSpan.FromMilliseconds(pictureMs));
+                            if (picture is not null && TestPictureFault is { } fault) picture = fault(picture);
+                            FindWorkers.WriteInt(pipe, picture is null ? 0 : 1);
+                            if (picture is not null)
+                            {
+                                FindWorkers.WriteInt(pipe, picture.Width);
+                                FindWorkers.WriteInt(pipe, picture.Height);
+                                pipe.Write(picture.Pixels);
+                            }
+                            pipe.Flush();
+                        }
                         break;
                     case AskClose:
                         Close();
@@ -257,6 +319,25 @@ public static class PageChecks
         finally
         {
             Close();
+        }
+    }
+
+    /// <summary>
+    /// The whole page at <paramref name="scale"/>, as the parent's render would draw it, if drawing it takes no longer than
+    /// <paramref name="budget"/> (MuPDF stops drawing when told); null if it took longer or failed. Its verdict doesn't
+    /// depend on it: the check was done before.
+    /// </summary>
+    private static RenderedImage? Picture(PdfEngine engine, int page, double scale, TimeSpan budget)
+    {
+        if (budget <= TimeSpan.Zero) return null;
+        using var stop = new CancellationTokenSource(budget);
+        try
+        {
+            return engine.Render(page, scale, cancel: stop.Token);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return null;
         }
     }
 
@@ -307,12 +388,27 @@ public static class PageChecks
 }
 
 /// <summary>A document as page checks know it: where a check process finds it. Closed once its engine is disposed.</summary>
-internal sealed class CheckedDocument(byte[]? data, string? path, InputFileTypes type, int pages)
+internal sealed class CheckedDocument(byte[]? data, string? path, InputFileTypes type, int pages, IReadOnlyList<PageGeometry>? sizes = null)
 {
     public byte[]? Data { get; } = data;
     public string? Path { get; } = path;
     public InputFileTypes Type { get; } = type;
     public int Pages { get; } = pages;
+
+    /// <summary>Each page's size as this process reads it, which a picture from a check process must match; null: no pictures are asked for.</summary>
+    public IReadOnlyList<PageGeometry>? Sizes { get; } = sizes is not null && sizes.Count == pages ? sizes : null;
+
+    private volatile bool _pictureLate;
+
+    /// <summary>
+    /// The last picture a check process was asked for didn't come (not drawn in time, or not as asked): the viewer shows
+    /// quick previews first again until one does.
+    /// </summary>
+    public bool PictureLate
+    {
+        get => _pictureLate;
+        set => _pictureLate = value;
+    }
 
     private volatile bool _closed;
 
@@ -355,7 +451,76 @@ internal sealed class CheckRequest(CheckedDocument doc, int page)
     /// <summary>A check process has it (under the plan's lock).</summary>
     public bool Started { get; set; }
 
-    public void Complete(PageVerdict verdict) => _done.TrySetResult(verdict);
+    /// <summary>Sent to a check process: what it draws can't change any more (under the plan's lock).</summary>
+    public bool Sent { get; set; }
+
+    /// <summary>
+    /// The picture the check draws the page as, after its verdict, so the render waiting for it needn't draw it again: the
+    /// whole page with its comments at this scale (its size <see cref="PageChecks.PictureSize"/>); 0 for none. Set under
+    /// the plan's lock before it is <see cref="Sent"/>.
+    /// </summary>
+    public double PictureScale { get; set; }
+
+    private readonly Lock _pictureGate = new();
+    private RenderedImage? _picture; // under _pictureGate
+    private bool _dropped;           // under _pictureGate
+    private readonly TaskCompletionSource _pictureEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>Completes once no picture is coming any more: kept, not drawn in time, refused, or the process gone.</summary>
+    public Task PictureEnded => _pictureEnded.Task;
+
+    /// <summary>The check process's picture, kept until it is taken or dropped.</summary>
+    public void Keep(RenderedImage picture)
+    {
+        lock (_pictureGate)
+            if (!_dropped) _picture = picture;
+    }
+
+    /// <summary>Nothing more will come from the check process for this request.</summary>
+    public void EndPicture() => _pictureEnded.TrySetResult();
+
+    /// <summary>Wanted again before it was sent, after it was let go of (under the plan's lock).</summary>
+    public void Rearm()
+    {
+        lock (_pictureGate) _dropped = false;
+    }
+
+    /// <summary>Whether a picture at <paramref name="scale"/> is kept or still coming.</summary>
+    public bool PictureComing(double scale)
+    {
+        lock (_pictureGate)
+            return scale > 0 && scale == PictureScale && !_dropped && (_picture is not null || !PictureEnded.IsCompleted);
+    }
+
+    /// <summary>The picture, once, if it was drawn at <paramref name="scale"/>: nothing is kept after it is taken.</summary>
+    public RenderedImage? TakePicture(double scale)
+    {
+        lock (_pictureGate)
+        {
+            if (!(scale > 0) || scale != PictureScale) return null;
+            var picture = _picture;
+            _picture = null;
+            _dropped = true;
+            return picture;
+        }
+    }
+
+    /// <summary>No one will take the picture (another page's took its place): its memory goes. <see cref="PageCheckPlan.DropPicture"/> also unasks one not sent yet.</summary>
+    public void DropPicture()
+    {
+        lock (_pictureGate)
+        {
+            _picture = null;
+            _dropped = true;
+        }
+    }
+
+    /// <summary>Decided; anything but fine draws no picture.</summary>
+    public void Complete(PageVerdict verdict)
+    {
+        _done.TrySetResult(verdict);
+        if (verdict != PageVerdict.Fine) EndPicture();
+    }
 }
 
 /// <summary>
@@ -449,10 +614,17 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         }
     }
 
-    /// <summary>Queues a check of <paramref name="page"/>; the request completes when it is decided.</summary>
-    public CheckRequest Ask(CheckedDocument doc, int page, bool speculative = false)
+    /// <summary>
+    /// Queues a check of <paramref name="page"/>; the request completes when it is decided. With a
+    /// <paramref name="picture"/>, the check draws the whole page at that scale as well (<see cref="WantPicture"/>).
+    /// </summary>
+    public CheckRequest Ask(CheckedDocument doc, int page, bool speculative = false, double picture = 0)
     {
-        var request = new CheckRequest(doc, page) { Speculative = speculative };
+        var request = new CheckRequest(doc, page)
+        {
+            Speculative = speculative,
+            PictureScale = Draws(doc, page, picture) ? picture : 0,
+        };
         lock (_gate)
         {
             // While starts are paused, a check process that is running (or still starting) takes the page; with none, it
@@ -531,12 +703,59 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         _queue.Clear();
     }
 
-    /// <summary>A new link and its thread. Under _gate.</summary>
-    private void StartLink()
+    /// <summary>A new link and its thread, its process started at once when <paramref name="now"/> (else with its first check). Under _gate.</summary>
+    private void StartLink(bool now = false)
     {
         var link = new Link(this);
         _links.Add(link);
-        new Thread(() => Serve(link)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
+        new Thread(() => Serve(link, now)) { IsBackground = true, Name = "Inkvolt PDF page check" }.Start();
+    }
+
+    /// <summary>A check process started before any page is asked for, unless one runs or starts are paused.</summary>
+    public void Prestart()
+    {
+        lock (_gate)
+            if (!_disposed && _links.Count == 0 && !Pausing()) StartLink(now: true);
+    }
+
+    /// <summary>Whether a check of <paramref name="page"/> can draw its picture at <paramref name="scale"/>.</summary>
+    private static bool Draws(CheckedDocument doc, int page, double scale) =>
+        doc.Sizes is { } sizes && page >= 0 && page < sizes.Count && PageChecks.PictureSize(sizes[page], scale) is not null;
+
+    /// <summary>
+    /// Asks the check of <paramref name="request"/> to draw the whole page at <paramref name="scale"/> after its verdict
+    /// (instead of another scale, or none); false once it has been sent to a check process, or when it can't.
+    /// </summary>
+    public bool WantPicture(CheckRequest request, double scale)
+    {
+        lock (_gate)
+        {
+            if (request.Sent || request.Done.IsCompleted || !Draws(request.Doc, request.Page, scale)) return false;
+            request.PictureScale = scale;
+            request.Rearm();
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// No one will take the picture of <paramref name="request"/>: one not sent yet isn't asked of the check process any
+    /// more (some 25 MB drawn and sent for nothing), and one drawn already is let go of.
+    /// </summary>
+    public void DropPicture(CheckRequest request)
+    {
+        lock (_gate)
+            if (!request.Sent) request.PictureScale = 0;
+        request.DropPicture();
+    }
+
+    /// <summary>The request goes to a check process now: the picture it asks for, as it stands.</summary>
+    private double Sending(CheckRequest request)
+    {
+        lock (_gate)
+        {
+            request.Sent = true;
+            return request.PictureScale;
+        }
     }
 
     /// <summary>Takes a request no one waits for any more off the queue; false if a check process has it already (its verdict is kept).</summary>
@@ -612,10 +831,16 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     }
 
     /// <summary>One check process's thread: takes the next page, checks it, and so on until it has been idle for <see cref="Idle"/>.</summary>
-    private void Serve(Link link)
+    private void Serve(Link link, bool startNow)
     {
         try
         {
+            if (startNow && !link.Start())
+            {
+                lock (_gate)
+                    if (link.StartFailed) StartFailed();
+                return;
+            }
             while (true)
             {
                 CheckRequest? request = null;
@@ -677,7 +902,11 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                         }
                         ReleaseShared(request!.Doc);
                     }
-                    if (!requeued) request!.Complete(verdict);
+                    if (!requeued)
+                    {
+                        request!.Complete(verdict);
+                        request.EndPicture();
+                    }
                 }
                 if (failedToStart) return;
             }
@@ -752,15 +981,25 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                         if (doc.Data is not null && shared is null) return PageVerdict.Unchecked;
                         if (!OpenDocument(doc, shared)) return PageVerdict.Unchecked;
                     }
+                    var scale = plan.Sending(request);
                     FindWorkers.WriteInt(_pipe!, PageChecks.AskCheck);
                     FindWorkers.WriteInt(_pipe!, request.Page);
+                    FindWorkers.WriteLong(_pipe!, BitConverter.DoubleToInt64Bits(scale));
+                    FindWorkers.WriteInt(_pipe!, (int)Math.Clamp(PageChecks.PictureLimit.TotalMilliseconds, 1, int.MaxValue));
                     _pipe!.Flush();
                     var page = ReadInt(plan.Limit);
                     var answer = ReadInt(plan.Limit);
                     if (page != request.Page || answer is not (PageChecks.Drawn or PageChecks.Failed)) throw new InvalidDataException("Not an answer.");
                     // MuPDF giving up there (a damaged page, an allocation past the process's memory limit) says nothing
                     // of what the page costs here, where nothing limits it: refused, not tried again.
-                    return answer == PageChecks.Drawn ? PageVerdict.Fine : PageVerdict.Failed;
+                    if (answer != PageChecks.Drawn) return PageVerdict.Failed;
+                    if (scale > 0)
+                    {
+                        // Decided: the render waiting for it knows at once, then waits for the picture only so long.
+                        request.Complete(PageVerdict.Fine);
+                        ReceivePicture(request, scale);
+                    }
+                    return PageVerdict.Fine;
                 }
                 catch (TimeoutException)
                 {
@@ -774,6 +1013,42 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     if (doc.Closed || plan._disposed) return PageVerdict.Unchecked;
                     if (attempt > 0) return PageVerdict.Crashed;
                 }
+            }
+        }
+
+        /// <summary>
+        /// After a page's verdict (fine, kept whatever comes next): its picture, if the process drew it in time and as asked.
+        /// Anything else (none drawn, late, another size, the process gone) is dropped, and the render waiting for it draws
+        /// the page here; a process that said something wrong or late is ended, since what it sends next can't be trusted.
+        /// </summary>
+        private void ReceivePicture(CheckRequest request, double scale)
+        {
+            var came = false;
+            try
+            {
+                var size = PageChecks.PictureSize(request.Doc.Sizes![request.Page], scale)!.Value;
+                var drew = ReadInt(PageChecks.PictureLimit + PageChecks.PictureSlack);
+                if (drew is not (0 or 1)) throw new InvalidDataException("Not an answer.");
+                if (drew == 1)
+                {
+                    // Only the size asked for is taken: the process read an untrusted file.
+                    if (ReadInt(PageChecks.PictureSlack) != size.Width || ReadInt(PageChecks.PictureSlack) != size.Height)
+                        throw new InvalidDataException("Not the picture asked for.");
+                    var pixels = GC.AllocateUninitializedArray<byte>(checked(size.Width * size.Height * 3));
+                    ReadExactly(pixels, PageChecks.PictureSlack);
+                    request.Keep(new RenderedImage(size.Width, size.Height, pixels));
+                    came = true;
+                }
+            }
+            catch (Exception ex) when (ex is TimeoutException or IOException or InvalidDataException or ObjectDisposedException or AggregateException)
+            {
+                Kill();
+            }
+            finally
+            {
+                // The render waiting for it is told once this link is free (Serve): the document closed then is let go of
+                // as usual, not ended mid-check.
+                request.Doc.PictureLate = !came;
             }
         }
 
@@ -793,13 +1068,16 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             Open = null;
         }
 
+        /// <summary>Its process started before any page is asked for (<see cref="PageCheckPlan.Prestart"/>); false when none starts.</summary>
+        public bool Start() => EnsureStarted(null);
+
         /// <summary>
-        /// A process to check <paramref name="doc"/> in, started if need be; false when none starts (<see cref="StartFailed"/>),
+        /// A process to check <paramref name="doc"/> in (null: none yet), started if need be; false when none starts (<see cref="StartFailed"/>),
         /// or the document was closed or the link ended meanwhile (not a failure). Starting and <see cref="Kill"/> are one
         /// or the other: a process started while the link was ended, or for a document closed since, is ended before it
         /// can open anything, so whoever closed the document may save over its file at once.
         /// </summary>
-        private bool EnsureStarted(CheckedDocument doc)
+        private bool EnsureStarted(CheckedDocument? doc)
         {
             lock (_processGate)
             {
@@ -829,7 +1107,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 plan.TestAfterStart?.Invoke();
                 lock (_processGate)
                 {
-                    if (_killed || doc.Closed || plan._disposed)
+                    if (_killed || doc is { Closed: true } || plan._disposed)
                     {
                         // Ended (or its document closed) while it started: nothing found it to end, so here.
                         _killed = true;
@@ -851,7 +1129,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
             {
                 // The program isn't there or didn't connect: no check to be had (unless it was ended on purpose meanwhile).
-                lock (_processGate) StartFailed = !_killed && !doc.Closed && !plan._disposed;
+                lock (_processGate) StartFailed = !_killed && doc is not { Closed: true } && !plan._disposed;
                 Kill();
                 return false;
             }
@@ -887,13 +1165,20 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         private int ReadInt(TimeSpan limit)
         {
             var buffer = new byte[4];
+            ReadExactly(buffer, limit);
+            return System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(buffer);
+        }
+
+        /// <summary>Fills <paramref name="buffer"/> from the process, within <paramref name="limit"/>.</summary>
+        /// <exception cref="TimeoutException">It didn't come in time.</exception>
+        private void ReadExactly(byte[] buffer, TimeSpan limit)
+        {
             var read = _pipe!.ReadExactlyAsync(buffer).AsTask();
             if (!read.Wait(limit))
             {
                 _ = read.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted); // observed, when the end of the process ends it
                 throw new TimeoutException();
             }
-            return System.Buffers.Binary.BinaryPrimitives.ReadInt32LittleEndian(buffer);
         }
 
         /// <summary>Ends the process and waits for it, so its hold on the document's file is gone too. Any number of times.</summary>

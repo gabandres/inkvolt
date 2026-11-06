@@ -30,35 +30,58 @@ public sealed partial class PdfEngine
     /// </summary>
     /// <exception cref="PageRefusedException">The page took too long in its check, MuPDF ran out of memory on it there, or it ended the check process.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired while the check went on (it goes on without the caller).</exception>
-    private void Vet(int page, CancellationToken cancel)
+    private void Vet(int page, CancellationToken cancel) => Vet(page, 0, null, cancel);
+
+    /// <summary>
+    /// <see cref="Vet(int, CancellationToken)"/> for a render of the whole page with its comments at
+    /// <paramref name="scale"/>: after its verdict the check draws the page at that scale too, when the picture isn't too
+    /// large (<see cref="PageChecks.PictureSize"/>), and each page asked ahead at the scale <paramref name="view"/> gives it.
+    /// </summary>
+    /// <returns>The check's picture of the page at <paramref name="scale"/>; null when the page is to be drawn here.</returns>
+    private RenderedImage? Vet(int page, double scale, ViewScale? view, CancellationToken cancel)
     {
         if (Volatile.Read(ref _verdicts) is { } known)
             switch ((PageVerdict)Volatile.Read(ref known[page]))
             {
-                case PageVerdict.Fine: return;
+                case PageVerdict.Fine: return null;
                 case var v when PageRefusedException.Refuses(v): throw new PageRefusedException(page, v);
             }
         CheckRequest request;
         PageCheckPlan plan;
+        var picture = PictureOf(page, scale);
         lock (_checkGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            if (ChecksPlan() is not { } p) return;
+            if (ChecksPlan() is not { } p) return null;
             plan = p;
             if ((PageVerdict)_verdicts![page] != PageVerdict.Unknown)
             {
                 Decided(page);
-                return;
+                return null;
             }
-            request = _checking![page] ??= plan.Ask(_checked!, page);
+            request = _checking![page] ??= plan.Ask(_checked!, page, picture: picture);
             request.Speculative = false;
-            request.Waiters++;
-            // The next page is checked meanwhile: scrolling, Find and thumbnails go on in page order.
-            if (_checkAhead) request.Ahead ??= AskAhead(page + 1);
+            request.Waiters++; // before Pictured: a picture someone waits for is never let go of
+            if (picture > 0 && (request.PictureScale == picture || plan.WantPicture(request, picture))) Pictured(request);
+            // The next two pages are checked meanwhile, one in each check process: scrolling, Find and thumbnails go on in
+            // page order. The one after next is asked ahead of the next, so a page given up on takes both back with it.
+            if (_checkAhead)
+            {
+                request.Ahead ??= AskAhead(page + 1, view);
+                if (page + 1 < _pages.Length && _checking[page + 1] is { } next) next.Ahead ??= AskAhead(page + 2, view);
+            }
         }
+        RenderedImage? taken = null;
         try
         {
             request.Done.Wait(cancel);
+            // The picture comes after the verdict, within its own limit: waited for only so long, then drawn here. Taken
+            // while this render still counts as waiting, so no newer picture takes its place meanwhile.
+            if (picture > 0 && request.Result == PageVerdict.Fine && request.PictureScale == picture)
+            {
+                request.PictureEnded.Wait(PageChecks.PictureLimit + 3 * PageChecks.PictureSlack, cancel);
+                taken = request.TakePicture(picture);
+            }
         }
         finally
         {
@@ -66,10 +89,10 @@ public sealed partial class PdfEngine
             {
                 if (--request.Waiters == 0 && !request.Done.IsCompleted)
                 {
-                    // Given up on (scrolled past): withdrawn unless a check process has it, and so is the page asked
-                    // ahead of it, unless someone waits for that one now.
+                    // Given up on (scrolled past): withdrawn unless a check process has it, and so are the pages asked
+                    // ahead of it, unless someone waits for one of them now.
                     Withdraw(plan, request);
-                    if (request.Ahead is { Waiters: 0 } ahead) Withdraw(plan, ahead);
+                    for (var ahead = request.Ahead; ahead is { Waiters: 0 }; ahead = ahead.Ahead) Withdraw(plan, ahead);
                     request.Ahead = null;
                 }
             }
@@ -84,8 +107,63 @@ public sealed partial class PdfEngine
                 if (request.Result != PageVerdict.Unchecked) Volatile.Write(ref _verdicts![page], (byte)request.Result);
             }
             Decided(page);
+            _pictured.Remove(request);
+        }
+        return taken;
+    }
+
+    /// <summary>
+    /// Whether a render of the whole page with its comments at <paramref name="scale"/> would come from the page's check
+    /// (not decided yet, the picture small enough, and still to be asked for or still coming at that scale; none of this
+    /// document's late): the viewer asks for it at once instead of a quick preview first, which would leave the full
+    /// render here to make the display list again.
+    /// </summary>
+    public bool CheckDraws(int page, double scale)
+    {
+        if (PictureOf(page, scale) <= 0) return false;
+        lock (_checkGate)
+        {
+            if (_disposed || ChecksPlan() is null || (PageVerdict)_verdicts![page] != PageVerdict.Unknown || _checked!.PictureLate) return false;
+            return _checking![page] switch
+            {
+                null => true,
+                { Sent: false, Done.IsCompleted: false } => true, // asked for at this scale when its render waits
+                var asked => asked.PictureComing(scale),
+            };
         }
     }
+
+    /// <summary>Requests whose check draws a picture not taken yet (under _checkGate), oldest first.</summary>
+    private readonly List<CheckRequest> _pictured = [];
+
+    /// <summary>Pictures kept for pages no render waits for yet (asked ahead): the last few, so pages scrolled past don't keep theirs.</summary>
+    private const int PicturesAhead = 3;
+
+    /// <summary>
+    /// A request now draws a picture: the oldest of those no render waits for, beyond <see cref="PicturesAhead"/>, let go
+    /// of theirs. One a render waits for is kept, however many pages are on screen. Under _checkGate.
+    /// </summary>
+    private void Pictured(CheckRequest request)
+    {
+        _pictured.Remove(request);
+        _pictured.Add(request);
+        var ahead = _pictured.Count(r => r.Waiters == 0);
+        for (var i = 0; ahead > PicturesAhead && i < _pictured.Count;)
+        {
+            if (_pictured[i].Waiters > 0)
+            {
+                i++;
+                continue;
+            }
+            _checkedBy!.DropPicture(_pictured[i]);
+            _pictured.RemoveAt(i);
+            ahead--;
+        }
+    }
+
+    /// <summary>The scale a check of <paramref name="page"/> draws its picture at for a render at <paramref name="scale"/>: 0 for none (too large).</summary>
+    private double PictureOf(int page, double scale) =>
+        page >= 0 && page < _pages.Length && PageChecks.PictureSize(_pages[page], scale) is not null ? scale : 0;
 
     /// <summary>The plan this engine's pages are checked by, its state made on first use; null when they aren't. Under _checkGate.</summary>
     private PageCheckPlan? ChecksPlan()
@@ -93,7 +171,7 @@ public sealed partial class PdfEngine
         if (_checkedBy is not null) return _checkedBy;
         if (_source is null || (CheckPlan ?? PageChecks.Plan) is not { } plan) return null;
         _checkedBy = plan;
-        _checked = new CheckedDocument(_source.Data, _source.Path, _source.Type, _pages.Length);
+        _checked = new CheckedDocument(_source.Data, _source.Path, _source.Type, _pages.Length, _pages);
         _checking = new CheckRequest?[_pages.Length];
         Volatile.Write(ref _verdicts, new byte[_pages.Length]);
         return plan;
@@ -103,11 +181,15 @@ public sealed partial class PdfEngine
     /// Asks for a check of <paramref name="page"/> that no one waits for yet, unless it is known or asked for; returns the
     /// request asked. Under _checkGate.
     /// </summary>
-    private CheckRequest? AskAhead(int page)
+    /// <param name="view">The view whose render asks: the page's picture is drawn at the scale it gives this page.</param>
+    private CheckRequest? AskAhead(int page, ViewScale? view = null)
     {
         if (page < 0 || page >= _pages.Length || _checkedBy is not { } plan) return null;
         if ((PageVerdict)_verdicts![page] != PageVerdict.Unknown || _checking![page] is not null) return null;
-        return _checking[page] = plan.Ask(_checked!, page, speculative: true);
+        var picture = view is { } v ? PictureOf(page, v.For(_pages[page])) : 0;
+        var request = _checking[page] = plan.Ask(_checked!, page, speculative: true, picture);
+        if (request.PictureScale > 0) Pictured(request);
+        return request;
     }
 
     /// <summary>Takes back a check no one waits for, if no check process has begun it. Under _checkGate.</summary>

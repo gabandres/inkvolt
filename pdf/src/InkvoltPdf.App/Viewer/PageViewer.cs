@@ -845,6 +845,7 @@ public sealed partial class PageViewer : ScrollViewer
         var scale = _zoom * PtToDip * DpiScale; // device pixels per point
         var center = vp.Top + vp.Height / 2;
         var maxFull = MaxFullPixels;
+        var view = new ViewScale(scale, maxFull);
         var cacheBudget = Math.Max(MinCachePixels, 3 * maxFull); // the visible pages and their neighbours at the cap
 
         foreach (var page in wanted)
@@ -854,9 +855,7 @@ public sealed partial class PageViewer : ScrollViewer
             var dist = Math.Abs((_rects[page].Top + _rects[page].Bottom) / 2 - center) / Math.Max(1, vp.Height);
             var priority = (isVisible ? 0 : 50) + Math.Min(dist, 40); // always on the scheduler's view lane
 
-            var fullScale = scale;
-            var px = g.Width * g.Height * scale * scale;
-            if (px > maxFull) fullScale = Math.Sqrt(maxFull / (g.Width * g.Height));
+            var fullScale = view.For(g);
 
             if (_failed.Contains(page))
             {
@@ -864,13 +863,15 @@ public sealed partial class PageViewer : ScrollViewer
             }
             else if (!_full.TryGetValue(page, out var have) || Math.Abs(have.Scale - fullScale) > 1e-6 || have.Rotation != rotation)
             {
-                // Previews of the visible pages, then of their neighbours, come before every full render.
-                if (have is null && !_stale.ContainsKey(page)) QueuePreview(page, (isVisible ? -2 : -1) + Math.Min(dist, 0.9), fullScale);
+                // Previews of the visible pages, then of their neighbours, come before every full render; not for a page
+                // its check draws in full (a check process draws it, and the next ones meanwhile, as quickly).
+                if (have is null && !_stale.ContainsKey(page) && !engine.CheckDraws(page, fullScale))
+                    QueuePreview(page, (isVisible ? -2 : -1) + Math.Min(dist, 0.9), fullScale);
                 var p = page;
                 var s = fullScale;
                 var whole = new RectD(0, 0, g.Width, g.Height);
                 var (ox, oy) = PixelOrigin(g, whole, s);
-                _scheduler.Enqueue($"p{page}", priority, ct => ToBitmap(engine.Render(p, s, null, ct).Rotated(rotation, ct), invert, ct), result =>
+                _scheduler.Enqueue($"p{page}", priority, ct => ToBitmap(engine.Render(p, view, ct).Rotated(rotation, ct), invert, ct), result =>
                 {
                     if (gen != _generation || result is not BitmapSource bmp) return;
                     _full[p] = new PageBitmap(bmp, s, whole, ox, oy, rotation);

@@ -916,12 +916,53 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   that process. Bench `one` after it (single runs, the PC at 45 to 100%): text first page 0.27 s (0.08 without), 11 ms a
   page (5.4); scan first page 0.33 s (0.08), 28 ms a page (29); a 2.7 MB scan, its masks read, 0.28 s (0.06); drawing
   set first page 1.03 s (0.78), 0.98 s a sheet (1.09), Find 33 s (35).
+  **The drawing set after page checks (2026-11-06).** Where a sheet's time goes (one core, PC at 30 to 70% from other
+  sessions): MuPDF making its display list (reading the 72,000 paths) 190 to 350 ms; the text from that list 40 to 60
+  ms; drawing it at 1,200 px 750 to 1,500 ms on one thread, about half that on four strips; the check's 64 px drawing
+  110 to 280 ms, almost as dear as a large one (anti-aliasing costs per path, not per pixel). Before, every sheet's list
+  was made twice (the check, then the render) and drawn twice. Now (`PageChecks`, `PdfEngine.Checks.cs`) a render
+  waiting for its page's check gets the check's own drawing of the whole page at its scale (after the check as before,
+  from the list just made, up to 8.4 MP, only of the size asked), and the next two pages are drawn ahead, one in each
+  check process, so sheets come in pairs; the check's small drawing was unsmoothed (215 to 93 ms a sheet; undone by the
+  review below); the viewer asks at once for the
+  full render of a page its check draws (`PdfEngine.CheckDraws`), with no preview first that would leave the full render
+  to make the list again on the one view lane. The bomb tests stay green: the check itself is unchanged. Bench `run` (the
+  PC at 25 to 30%, other sessions idle; RESULTS.md): first page 1.01 s to 0.81 s on one run and 1.03 s (runs of 0.77,
+  1.0, 1.0 s) on the next, still on the line: a check process already running (as after the start page's thumbnails)
+  takes 0.15 to 0.35 s off; scroll proxy 969 to 524 ms a sheet; frames with a blank page on screen 214 of 238 to 165 of
+  241, a page still blank 200 ms after the stop (1, as before; 2 on the run before the viewer change); the same pages
+  again 742 to 923 ms (their lists are in the check processes now). Find 38.4 to 29.5 s, its code unchanged (the
+  load's noise): it is MuPDF's list making, 80% of a sheet's text, and MuPDFCore 2.0.1's wrapper extracts text only
+  from a display list (no text-only device, no page run without one); eight processes sustain about 13 sheets a second
+  here (one alone, 4), so 400 sheets take some 30 s. Still missed: Find (a text-only reading would take MuPDF's own
+  entry points, which the wrapper doesn't export, or a content reader of our own, which the review ruled out for
+  disagreeing with MuPDF), the scroll proxy (no sheet's list and drawing fit in 200 ms on one process), and a page blank
+  after the stop.
+  **Its review (2026-11-06):** the picture is only a shortcut: it must never make a fine page fail, weaken the guard or
+  leave a page blank longer. The check process now sends the verdict first, then draws the picture within its own 1.5 s
+  (`PageChecks.PictureLimit`), so its time never counts against the limit; the render waits for it only that long plus
+  half a second each to arrive, then draws the page here, and the viewer's quick previews come back for a document
+  whose last picture was late (`CheckedDocument.PictureLate`). A picture of another size, late, or from a process gone
+  mid-picture is dropped and the process ended, the page fine (it was refused before). The check's small drawing is
+  smoothed again: the limit stands for what a page costs here, and a path of 100,000 edges across the page took a
+  fifteenth of its time drawn unsmoothed (3 s against 0.2 s), so a page twice over the limit passed; the test
+  `APageTheLimitRefusedDrawnSmoothIsRefusedStill` keeps it refused. A picture a render waits for is never let go of (two
+  pages on screen dropped each other's), only those asked ahead past the last three, and one let go of before it is
+  sent isn't drawn; `CheckDraws` holds only for a picture still coming; pages asked ahead are drawn at the scale the view
+  gives each (`ViewScale`, the viewer's rule now in Core: an A1 sheet after A4 pages gets its picture). A check process
+  starts with the app's window (`PageChecks.Prestart`): bench `one`, drawings.pdf, three runs each, first page 813, 864,
+  813 ms against 958, 877, 1,012 ms without. Bench `run`, master c932ac4 and this branch back to back (PC at 2 to 10%
+  before each; RESULTS.md): drawings.pdf first page 0.91 to 0.82 s, scroll proxy 873 to 685 ms a sheet (524 on the
+  unsmoothed run before, at 25 to 30% load: smoothing back costs the check some 120 ms a sheet), frames with a blank
+  page 216 to 174 of 240, pages still blank after the stop 2 to 1, the same pages again 579 to 919 ms, Find 35.0 to
+  30.7 s; text first page 0.29 to 0.24 s, scan 0.25 to 0.23 s, comments 0.89 to 0.67 s. Still missed as above.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
-- **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30);
-  the drawing set's scroll and first Find remain over target; Mac: the benchmark and Find on threads done (E16,
+- **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30),
+  page checks that draw the render's picture (2026-11-06); the drawing set's scroll, first Find and (on the line) first
+  page remain over target; Mac: the benchmark and Find on threads done (E16,
   2026-11-02), the same two over target.
 
 ### 3.7 Spanish interface

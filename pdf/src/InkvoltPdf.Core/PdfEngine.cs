@@ -231,10 +231,29 @@ public sealed partial class PdfEngine : IDisposable
     /// <exception cref="InvalidOperationException">The image would exceed <see cref="MaxPixels"/>.</exception>
     /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     /// <param name="annotations">Whether comments, stamps and form fields are drawn (false: the page's own content only).</param>
-    public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default, bool annotations = true)
+    public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default, bool annotations = true) =>
+        Render(page, scale, region, cancel, annotations, region is null && annotations ? new ViewScale(scale, long.MaxValue) : null);
+
+    /// <summary>
+    /// Renders the whole page with its comments at the scale <paramref name="view"/> gives it; a page not checked yet has the
+    /// pages after it checked meanwhile, each drawn at the scale the view gives it.
+    /// </summary>
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired (MuPDF stops mid-render).</exception>
+    /// <exception cref="InvalidOperationException">The image would exceed <see cref="MaxPixels"/>.</exception>
+    /// <exception cref="PageRefusedException">The page's check refused it.</exception>
+    public RenderedImage Render(int page, ViewScale view, CancellationToken cancel = default) =>
+        Render(page, view.For(_pages[page]), null, cancel, true, view);
+
+    private RenderedImage Render(int page, double scale, RectD? region, CancellationToken cancel, bool annotations, ViewScale? view)
     {
         cancel.ThrowIfCancellationRequested();
-        Vet(page, cancel);
+        // A page not checked yet is drawn by its check, at this scale, when the whole page is asked for.
+        if (Vet(page, view is null ? 0 : scale, view, cancel) is { } drawn)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancel.ThrowIfCancellationRequested();
+            return drawn;
+        }
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);

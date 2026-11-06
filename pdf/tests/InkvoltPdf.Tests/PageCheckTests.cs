@@ -476,6 +476,235 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void ACheckDrawsThePictureItsRenderWaitsForAndTheNextPagesAhead()
+    {
+        // The whole page at the render's scale comes from the check process, as this process draws it: the display list
+        // is made once, there. The next two pages are drawn ahead at that scale, one in each process.
+        var file = ThreePages(Drawn, "");
+        using var engine = Open(file);
+        using var plain = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        foreach (var page in new[] { 0, 1, 2 })
+            Assert.Equal(plain.Render(page, 1.5).Pixels, engine.Render(page, 1.5).Pixels);
+        Assert.Equal(0, engine.LoadedCounts().Render.Lists);
+        Assert.Equal(3, _plan.ChecksRun);
+
+        // Drawn here: a checked page at another scale, a part of a page, a page without its comments.
+        Assert.Equal(plain.Render(0, 0.5).Pixels, engine.Render(0, 0.5).Pixels);
+        Assert.Equal(1, engine.LoadedCounts().Render.Lists);
+        using var other = Open(file);
+        var part = new RectD(10, 20, 300, 200);
+        Assert.Equal(plain.Render(1, 1.5, part).Pixels, other.Render(1, 1.5, part).Pixels);
+        Assert.Equal(plain.Render(2, 1.5, annotations: false).Pixels, other.Render(2, 1.5, annotations: false).Pixels);
+        Assert.Equal(2, other.LoadedCounts().Render.Lists);
+    }
+
+    [Fact]
+    public void APageAskedAheadIsDrawnAtTheScaleTheViewGivesIt()
+    {
+        // A letter page, then a sheet four times its width: the view draws the sheet smaller (its pixels capped), and so
+        // does the check that draws it ahead.
+        var file = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 2592 1728] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            Core2Pdf.Stream("BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ]);
+        using var engine = Open(file);
+        using var plain = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        var view = new ViewScale(1.5, 2_000_000);
+        Assert.Equal(1.5, view.For(engine.GetPage(0)));
+        Assert.True(view.For(engine.GetPage(1)) < 0.7);
+        engine.Render(0, view);
+        var since = Stopwatch.StartNew();
+        while (_plan.ChecksRun < 3 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
+        Thread.Sleep(300); // both sent and answered: what they draw can't change any more
+        Assert.Equal(plain.Render(1, view.For(plain.GetPage(1))).Pixels, engine.Render(1, view).Pixels);
+        Assert.Equal(0, engine.LoadedCounts().Render.Lists);
+    }
+
+    [Fact]
+    public void TheViewerAsksAtOnceForAPageItsCheckDraws()
+    {
+        // A page not checked yet, at a size the check draws: no quick preview first (its full render here would make the
+        // display list again). Once decided, or too large a picture, or with no checks, the preview comes first as before.
+        using var engine = Open(ThreePages(Drawn, ""));
+        Assert.True(engine.CheckDraws(0, 1.5));
+        var tooLarge = Math.Sqrt(PageChecks.MaxPicturePixels / (612.0 * 792)) * 1.01;
+        Assert.False(engine.CheckDraws(0, tooLarge));
+        engine.Render(0, 1.5);
+        Assert.False(engine.CheckDraws(0, 1.5));
+        using var plain = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        Assert.False(plain.CheckDraws(0, 1.5));
+    }
+
+    [Fact]
+    public void APictureOfAnotherSizeThanAskedIsNeverShown()
+    {
+        // A check process reads an untrusted file: a picture it wasn't asked for is never shown, and the process is ended
+        // (what it sends next can't be trusted). The picture is only a shortcut: the page's verdict came before it, so the
+        // page is drawn here as it would have been without it.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-wrong-picture"]) { Limit = Limit };
+        var file = ThreePages(Drawn, "");
+        using var engine = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        using var plain = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        Assert.Equal(plain.Render(0, 1.5).Pixels, engine.Render(0, 1.5).Pixels);
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.Equal(1, engine.LoadedCounts().Render.Lists);
+        Assert.Contains(plan.Pids, Exited);
+        // Checked small, with no picture to send, a page reads.
+        using var reader = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        reader.CheckPlan = plan;
+        Assert.Contains("Visit notes", reader.GetText(2).Text);
+    }
+
+    /// <summary><paramref name="count"/> pages that each draw "Visit notes".</summary>
+    private static byte[] Pages(int count) => Core2Pdf.Build([
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        $"<< /Type /Pages /Kids [{string.Join(" ", Enumerable.Range(0, count).Select(i => $"{5 + i} 0 R"))}] /Count {count} >>",
+        Core2Pdf.Stream("BT /F1 18 Tf 72 700 Td (Visit notes) Tj ET"),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        .. Enumerable.Range(0, count).Select(_ => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 3 0 R /Resources << /Font << /F1 4 0 R >> >> >>"),
+    ]);
+
+    [Fact]
+    public void AFinePageWhosePictureCantBeDrawnInTimeIsDrawnHereAndPreviewsComeBack()
+    {
+        // The picture is drawn after the verdict is sent, so its time never counts against the limit: a fine page stays
+        // fine. A render waits for it only so long, then draws the page here; and the viewer asks for quick previews
+        // again, since this document's pictures don't come in time.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-slow-picture"]) { Limit = Limit };
+        var file = ThreePages(Drawn, "");
+        using var engine = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        using var plain = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        Assert.True(engine.CheckDraws(0, 1.5));
+        var time = Stopwatch.StartNew();
+        Assert.Equal(plain.Render(0, 1.5).Pixels, engine.Render(0, 1.5).Pixels);
+        Assert.True(time.Elapsed < Timing.Limit(Slack + PageChecks.PictureLimit + TimeSpan.FromSeconds(1)), $"{time.Elapsed}");
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.False(engine.CheckDraws(1, 1.5));
+        Assert.False(engine.CheckDraws(2, 1.5));
+    }
+
+    [Fact]
+    public async Task TwoPagesOnScreenKeepTheirPicturesWhileTheirRendersWait()
+    {
+        // Each render asks two pages ahead with pictures; the pictures kept for pages no one waits for are few, but a
+        // picture a render waits for is never let go of.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-slow"]) { Limit = Limit };
+        using var engine = PdfEngine.Open(Pages(8), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        var top = Task.Run(() => engine.Render(0, 1.5));
+        Thread.Sleep(100);
+        var bottom = Task.Run(() => engine.Render(5, 1.5));
+        await Task.WhenAll(top, bottom).WaitAsync(Timing.Limit(Limit + Slack + Slack));
+        Assert.Equal(0, engine.LoadedCounts().Render.Lists);
+    }
+
+    [Fact]
+    public async Task APictureLetGoOfBeforeItsCheckIsSentIsNotDrawn()
+    {
+        // The process is busy with one page; the next is let go of its picture while still queued: the check process
+        // isn't asked for it (some 25 MB drawn and sent for nothing).
+        var file = ThreePages(Drawn, "");
+        var doc = new CheckedDocument(file, null, InputFileTypes.PDF, 3, [.. Enumerable.Repeat(new PageGeometry(0, 0, 612, 792), 3)]);
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-slow"]) { Limit = Limit, Workers = 1 };
+        try
+        {
+            var busy = plan.Ask(doc, 0);
+            var queued = plan.Ask(doc, 1, picture: 1.5);
+            Assert.Equal(1.5, queued.PictureScale);
+            plan.DropPicture(queued);
+            Assert.Equal(0, queued.PictureScale);
+            await Task.WhenAll(busy.Done, queued.Done).WaitAsync(Timing.Limit(Limit + Slack));
+            Assert.Equal(PageVerdict.Fine, queued.Result);
+            Assert.Null(queued.TakePicture(1.5));
+        }
+        finally
+        {
+            plan.Forget(doc);
+        }
+    }
+
+    [Fact]
+    public void ThePreviewIsSkippedOnlyForAPictureStillComing()
+    {
+        // Page 2's picture, drawn ahead and let go of for newer ones, is not coming: the viewer shows its preview first.
+        using var engine = Open(Pages(8));
+        engine.Render(0, 1.5);
+        var since = Stopwatch.StartNew();
+        while (_plan.ChecksRun < 3 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
+        Thread.Sleep(300); // their answers in
+        engine.Render(5, 1.5);
+        Assert.False(engine.CheckDraws(1, 1.5));
+        Assert.True(engine.CheckDraws(2, 1.5));
+    }
+
+    [Fact]
+    public async Task ARenderOfADocumentClosedMeanwhileNeverReturnsItsPicture()
+    {
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-slow"]) { Limit = Limit };
+        var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        var render = Task.Run(() => engine.Render(0, 1.5));
+        Thread.Sleep(150);
+        engine.Dispose();
+        await Assert.ThrowsAnyAsync<ObjectDisposedException>(() => render);
+    }
+
+    [Fact]
+    public void APageTheLimitRefusedDrawnSmoothIsRefusedStill()
+    {
+        // The limit stands for what drawing the page costs here, smoothed: a page that takes some one and a half to three
+        // times the limit drawn so is refused, however much faster MuPDF would draw it without anti-aliasing. One path of
+        // 100,000 edges, each across the whole page: its check took some 15 times as long smoothed as without (3 s against
+        // 0.2 s; a check process draws it in 0.6 to 1.3 times what this process takes, with the PC's load).
+        var zigzag = new StringBuilder("0 0 m ");
+        for (var i = 1; i <= 100_000; i++) zigzag.Append(FormattableString.Invariant($"{i * 612.0 / 100_000:0.####} {(i % 2 == 0 ? 0 : 792)} l "));
+        zigzag.Append("f");
+        var file = ThreePages(Zlib(Encoding.ASCII.GetBytes(zigzag.ToString()), 0), "/Filter /FlateDecode");
+        var small = 64 / 792.0; // as the check draws it
+        var smoothed = TimeSpan.MaxValue;
+        for (var i = 0; i < 3; i++)
+        {
+            using var here = PdfEngine.Open(file, InputFileTypes.PDF, null);
+            var time = Stopwatch.StartNew();
+            here.Render(1, small);
+            if (time.Elapsed < smoothed) smoothed = time.Elapsed;
+        }
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = smoothed / 2.5, Workers = 1 };
+        using var engine = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        Assert.Contains("Visit notes", engine.GetText(0).Text); // the process started and the document open
+        var checking = Stopwatch.StartNew();
+        var refused = Record.Exception(() => engine.GetText(1));
+        Assert.True(refused is PageRefusedException { TooSlow: true }, $"{smoothed.TotalMilliseconds:0} ms drawn here, {checking.Elapsed.TotalMilliseconds:0} ms to {refused?.GetType().Name ?? "fine"}");
+    }
+
+    [Fact]
+    public void ACheckProcessStartedWithTheAppTakesTheFirstPage()
+    {
+        // Started before any document is open (as the window is made): the first page is checked in it, not in one started then.
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = Limit, Workers = 1 };
+        plan.Prestart();
+        var since = Stopwatch.StartNew();
+        while (plan.Pids.Count == 0 && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(10);
+        var pid = Assert.Single(plan.Pids);
+        Thread.Sleep(500); // connected
+        plan.Prestart(); // one runs: no other
+        using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        engine.GetText(0);
+        Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        Assert.Equal(pid, Assert.Single(plan.Pids));
+        Assert.False(Exited(pid));
+    }
+
+    [Fact]
     public void AWaitGivenUpLeavesTheCheckGoingAndItsVerdictKept()
     {
         using var engine = Open(Bomb("1 MB"));
@@ -516,8 +745,12 @@ public sealed class PageCheckTests : IDisposable
             using (var engine = PdfEngine.OpenFile(path, InputFileTypes.PDF, null))
             {
                 engine.CheckPlan = _plan;
-                engine.Render(0, 0.25);
-                Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+                // Every page drawn, so no check of it is under way (one would be ended with the document, as below).
+                for (var page = 0; page < 3; page++)
+                {
+                    engine.Render(page, 0.25);
+                    Assert.Equal(PageVerdict.Fine, engine.VerdictOf(page));
+                }
             }
             File.Delete(path); // the check process (still running, for the next document) has let go of it
             Assert.Contains(_plan.Pids, pid => !Exited(pid));
