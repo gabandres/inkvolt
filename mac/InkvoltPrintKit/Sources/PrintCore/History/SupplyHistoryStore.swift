@@ -160,9 +160,14 @@ public final class SupplyHistoryStore: @unchecked Sendable {
             log?("Supply history not read")
             return rows
         }
+        var keys = Set<String>() // kept as the lines go: a file of 100,000 lines loads in a moment, not minutes
         for line in String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: true) {
             guard let row = Self.parse(String(line)) else { continue }
-            if rows.contains(where: { $0.key == row.key }) || Set(rows.map(\.key)).count < Self.maxSupplies { rows.append(row) }
+            let key = row.key
+            if keys.contains(key) || keys.count < Self.maxSupplies {
+                keys.insert(key)
+                rows.append(row)
+            }
         }
         Self.tidy(&rows)
         return rows
