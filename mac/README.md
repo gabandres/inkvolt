@@ -27,6 +27,11 @@ and Windows SDK):
 pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native
 ```
 
+A test that measures time takes its limit through `Timing.limit(_:)` (`Tests/TestTiming`, as Windows' `shared/Testing/Timing.cs`):
+the Mac's and the PC's limit, five times longer on CI's busy runner. Work that must end on time (a socket's receive loop, a
+connection's state handler) runs on a thread or serial queue of its own, never GCD's global pool, which a busy machine
+holds for seconds; `PoolHold` in PrintMacTests' TransportTests holds that pool to prove it.
+
 The app builds on a Mac only (Xcode 26 or later), into a sandboxed `.app` signed ad-hoc (or `SIGN_IDENTITY` names an
 identity) and installed in /Applications:
 

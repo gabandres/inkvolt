@@ -1,4 +1,5 @@
 import Foundation
+import TestTiming
 import Testing
 @testable import PrintCore
 
@@ -507,8 +508,8 @@ struct PageCleanupTests {
     }
 
     /// CI's runner takes about three minutes over the huge page in a debug build (176 s seen), past the limit and the job's
-    /// patience: it runs on the Mac and the PC, not on `GITHUB_ACTIONS`, as OcrCorpus.runs does.
-    static let hugePageRuns = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil
+    /// patience: it runs on the Mac and the PC, not on CI (`Timing.onCI`), as OcrCorpus.runs does.
+    static let hugePageRuns = !Timing.onCI
 
     @Test(.enabled(if: hugePageRuns)) func aHugePageIsCleanedInReasonableTimeAndCancelsQuickly() throws {
         // 600 dpi Letter in grey: 33.7 million pixels. The limits are generous: other builds run beside these tests.
