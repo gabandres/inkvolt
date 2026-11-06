@@ -1010,6 +1010,25 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_cell_with_text_beside_it_on_its_row_keeps_its_column()
+    {
+        // A row with a name and a figure, its last column empty: the figure isn't a label alone on its row, its cell ends at its column.
+        double[] xs = [72, 160, 250, 400];
+        string[][] rows = [["North", "1,204", "Growing fast"], ["East", "55", ""], ["South", "987", "Steady demand"]];
+        var sb = new StringBuilder("0 G 0.5 w ");
+        for (var r = 0; r <= rows.Length; r++) sb.Append($"{xs[0]} {700 - 16 * r} m {xs[^1]} {700 - 16 * r} l S ");
+        foreach (var x in xs) sb.Append($"{x} 700 m {x} {700 - 16 * rows.Length} l S ");
+        for (var r = 0; r < rows.Length; r++)
+            for (var c = 0; c < 3; c++)
+                if (rows[r][c].Length > 0) sb.Append(Lines(xs[c] + 3, 700 - 16 * r - 12, 9, 11, rows[r][c]));
+        var (plan, _) = Translate(Page(sb.ToString(), fontText: Letters + ":,"), t => t);
+        var figure = Assert.Single(plan.Pages[0].Cells, c => c.Contains(200, 792 - 684 + 8));
+        Assert.Equal(250, figure.Right, 1);
+        var name = Assert.Single(plan.Pages[0].Cells, c => c.Contains(100, 792 - 684 + 8));
+        Assert.Equal(160, name.Right, 1);
+    }
+
+    [Fact]
     public void A_sentence_wrapped_after_a_colon_stays_one_paragraph()
     {
         // Short lines of a narrow column: a line ending in ":" and the next going on in lowercase are one sentence.
