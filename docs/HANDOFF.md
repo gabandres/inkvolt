@@ -12,6 +12,11 @@ PDF for Mac's own Flate-bomb bound (MuPDF's cookie, the Mac calls MuPDF directly
 apps → releases: PDF for Mac 1.8, Print for Mac 1.3 (after 1.2's review), PDF for Windows 1.9, Print for Windows 1.4 →
 PDF for Mac 3.6 speed → Office as the Mac's converter (code; a person allows Automation). Left for hardware or a person:
 Print 2.1, 2.2, 3.1, 3.3 on both, paper and screen checks, the Mac UX renames, the Pro checkout.
+**Mac order changed 2026-11-06 (afternoon), releases first:** after PDF's Spanish + What's New in Spanish: PDF for Mac's
+Flate-bomb bound → hostile-input reviews of PDF for Mac and Print for Mac → PDF for Mac 1.8 release (and Print for Mac 1.3
+once 1.2 is approved) → PDF 3.5 → PDF 3.3 → 3.6 speed → Office converter → the XL items (redaction by pattern, 3.4 LTV,
+2.1 paragraph editing, 3.1 Translate). Windows: Translate keeping bold, italic, sub- and superscripts (agent running);
+both Windows apps otherwise released (PDF 1.9.0.0, Print 1.4.0.0).
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
