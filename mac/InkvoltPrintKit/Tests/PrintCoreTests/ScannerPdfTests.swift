@@ -165,10 +165,29 @@ final class ScannerPdfTests {
         ("/Filter /DCTDecode", "/Filter /FlateDecode"), // not a JPEG
         ("/Filter /DCTDecode", "/SMask 3 0 R /Filter /DCTDecode"), // a mask over it
         ("%PDF-1.4", "%PS-Adobe"), // not a PDF
+        ("/Filter /DCTDecode", "/DecodeParms << /Filter /DCTDecode >> /Filter /FlateDecode"), // the picture's own filter counts
+        ("/Filter /DCTDecode", "/Filter [/DCTDecode /FlateDecode]"), // two filters
+        ("/Filter /DCTDecode", "/Filter /DCTDecodeX"),
+        ("/Filter /DCTDecode", "/Mask [0 0] /Filter /DCTDecode"),
+        ("/Filter /DCTDecode", "/Decode [1 0] /Filter /DCTDecode"), // its colours inverted
+        ("/Filter /DCTDecode", "/ImageMask true /Filter /DCTDecode"),
+        ("/BitsPerComponent 8", "/BitsPerComponent 16"),
     ])
     func Anything_else_is_left_to_the_renderer(_ from: String, _ to: String) {
         let pdf = Self.edit(Self.pdf([(Self.six[0], 300, nil)]), from, to)
         #expect(ScannerPdf.jpegPages(pdf) == nil)
+    }
+
+    @Test(arguments: [
+        ("/Filter /DCTDecode", "/Filter [ /DCTDecode ]"),
+        ("/Filter /DCTDecode", "/Alt (/SMask /Decode) /Filter /DCTDecode"), // a key's name in a string isn't the key
+        ("/Filter /DCTDecode", "/DecodeParms << /ColorTransform 1 >> /Filter /DCTDecode"),
+        ("/BitsPerComponent 8 ", ""),
+    ])
+    func A_JPEG_written_another_way_still_comes_out_byte_for_byte(_ from: String, _ to: String) {
+        let pdf = Self.edit(Self.pdf([(Self.six[0], 300, nil)]), from, to)
+        #expect(pdf != Self.pdf([(Self.six[0], 300, nil)]))
+        #expect(ScannerPdf.jpegPages(pdf) == [Self.six[0]])
     }
 
     final class FakeRenderer: PdfPageRenderer {

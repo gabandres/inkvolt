@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from SupplyHistoryTests.cs. Supply history (roadmap 1.1): the local store (one row a day per supply), the forecast
@@ -176,6 +177,24 @@ final class SupplyHistoryTests {
         try #require(rows.count == 2)
         #expect((rows[0].percent, rows[0].pages) == (45, 100))
         #expect(rows[1].percent == nil && rows[1].pages == nil) // out of range: no level, no count
+    }
+
+    @Test func A_file_of_forty_thousand_lines_loads_in_seconds_not_minutes() throws {
+        let store = SupplyHistoryStore(folder)
+        store.record(Self.printer, [Self.toner(45)], 100, Self.day0)
+        let file = try #require(files.first)
+        var text = ""
+        for i in 0..<40_000 { text += "2025-10-01\tS\(i % 20)\tK\t10\tok\t1\n" } // 20 supplies, 16 kept
+        let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: file))
+        handle.seekToEndOfFile()
+        handle.write(Data(text.utf8))
+        try handle.close()
+        let started = Date()
+
+        let rows = SupplyHistoryStore(folder).rows(Self.printer)
+
+        #expect(Date().timeIntervalSince(started) < Timing.limit(5.0)) // a debug build in the full parallel suite; the set rebuilt per line took minutes
+        #expect(Set(rows.map(\.key)).count == SupplyHistoryStore.maxSupplies)
     }
 
     @Test func The_file_holds_levels_and_counts_and_no_identifiers() throws {

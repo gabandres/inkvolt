@@ -6834,6 +6834,17 @@
         }
       }
     },
+    "The scanner sent a PDF of more than {0} pages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner envió un PDF de más de {0} páginas."
+          }
+        }
+      }
+    },
     "The scanner sent a PDF without pages.": {
       "extractionState": "manual",
       "localizations": {

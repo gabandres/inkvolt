@@ -43,6 +43,13 @@ public enum ScannerPdf {
     /// its page's bytes live, which Swift's value arrays can't follow, so the Mac bounds the table instead.
     static let rememberedDocuments = 32
 
+    /// A scanner's PDF of more pages than this is refused (no feeder holds as many): pages that share one picture would
+    /// otherwise each hold their own copy of it.
+    public static let maxPages = 1_000
+
+    /// The refusal of a PDF of more than `maxPages` pages (here, and by the renderer).
+    public static var tooManyPages: ScanError { ScanError(loc("The scanner sent a PDF of more than {0} pages.", CoreLanguage.number(maxPages))) }
+
     private struct State {
         var renderer: (any PdfPageRenderer)?
         var origins: [[UInt8]: PdfOrigin] = [:]
@@ -63,7 +70,12 @@ public enum ScannerPdf {
 
     /// The scanner's PDF as JPEG pages (see the type's summary).
     public static func pages(_ pdf: [UInt8], dpi: Int) async throws -> [[UInt8]] {
-        var pages = jpegPages(pdf)
+        var pages: [[UInt8]]?
+        switch takeOut(pdf) {
+        case .jpegs(let jpegs): pages = jpegs
+        case .render: pages = nil
+        case .tooManyPages: throw tooManyPages
+        }
         let rendered = pages == nil
         if pages == nil {
             guard let renderer else { throw ScanError(loc("This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.")) }
@@ -117,19 +129,53 @@ public enum ScannerPdf {
     /// Each page's JPEG, taken out as it is, when every page is one DCT-encoded picture (grey or color, no mask, not turned);
     /// nil when any isn't, or the file can't be read this simply (then it is rendered).
     public static func jpegPages(_ pdf: [UInt8]) -> [[UInt8]]? {
-        guard let doc = MiniPdf(pdf), let pages = doc.pages(), !pages.isEmpty else { return nil }
+        if case .jpegs(let jpegs) = takeOut(pdf) { jpegs } else { nil }
+    }
+
+    private enum TakenOut {
+        case jpegs([[UInt8]])
+        case render
+        case tooManyPages
+    }
+
+    /// Each page's JPEG (`jpegPages`), or more pages than `maxPages`. Pages that share resources or a picture (inherited
+    /// resources, the same picture on every page) have them read once: the picture's bytes are one array, shared.
+    private static func takeOut(_ pdf: [UInt8]) -> TakenOut {
+        guard let doc = MiniPdf(pdf), let pages = doc.pages(limit: maxPages), !pages.isEmpty else { return .render }
+        if pages.count > maxPages { return .tooManyPages }
+        var pictureOf: [Range<Int>: Int] = [:] // resources → their one picture's object number
+        var jpegOf: [Int: [UInt8]] = [:] // picture → its JPEG
         var jpegs: [[UInt8]] = []
         for (_, resources, rotate) in pages {
-            if rotate % 360 != 0 { return nil }
-            let images = doc.xObjects(resources).map(doc.object)
-            guard images.count == 1, let image = images[0], MiniPdf.is(image.dict, "Subtype", "Image") else { return nil }
-            if !MiniPdf.matches(#"/Filter\s*(?:/DCTDecode\b|\[\s*/DCTDecode\s*\])"#, image.dict)
-                || MiniPdf.matches(#"/(SMask|Mask|Decode|ImageMask)\b"#, image.dict) { return nil }
-            guard let jpeg = doc.streamData(image), jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else { return nil }
-            guard let components = jpegComponents(jpeg), components == 1 || components == 3 else { return nil }
+            if rotate % 360 != 0 { return .render }
+            let id: Int
+            if let known = pictureOf[resources] {
+                id = known
+            } else {
+                let images = doc.xObjects(resources)
+                guard images.count == 1 else { return .render }
+                id = images[0]
+                pictureOf[resources] = id
+            }
+            if let jpeg = jpegOf[id] {
+                jpegs.append(jpeg)
+                continue
+            }
+            guard let image = doc.object(id), let jpeg = plainJpeg(doc, image) else { return .render }
+            jpegOf[id] = jpeg
             jpegs.append(jpeg)
         }
-        return jpegs
+        return .jpegs(jpegs)
+    }
+
+    /// The picture's JPEG when it is one as it stands: DCT-encoded alone, 8 bits, no mask, no decode array, grey or color.
+    private static func plainJpeg(_ doc: MiniPdf, _ image: MiniPdf.Obj) -> [UInt8]? {
+        guard doc.isImage(image), doc.names(image, "/Filter") == ["/DCTDecode"] else { return nil }
+        for key in ["/SMask", "/Mask", "/Decode", "/ImageMask"] where doc.value(image, key) != nil { return nil }
+        if let bits = doc.value(image, "/BitsPerComponent"), bits != "8" { return nil }
+        guard let jpeg = doc.streamData(image), jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else { return nil }
+        guard let components = jpegComponents(jpeg), components == 1 || components == 3 else { return nil }
+        return jpeg
     }
 
     /// The JPEG's colour components from its frame header; nil when it has none or no size.
@@ -189,176 +235,5 @@ public enum ScannerPdf {
         for id in 1..<size { table += offsets[id].map { String(format: "%010d 00000 n \n", $0) } ?? "0000000000 65535 f \n" }
         table += "trailer\n<< /Size \(size) /Root 1 0 R /Info 3 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
         return out + Array(table.utf8)
-    }
-}
-
-/// Just enough of a PDF to find each page's pictures: objects, the page tree, resources (inherited too), streams. The
-/// text is the file's bytes as Latin-1, one UTF-16 unit per byte, so `NSString` positions are byte offsets.
-struct MiniPdf {
-    struct Obj {
-        var id: Int
-        var dict: String
-        var streamStart: Int
-    }
-
-    private let bytes: [UInt8]
-    private let text: NSString
-    private var objects: [Int: Obj] = [:]
-
-    private static func regex(_ pattern: String) -> NSRegularExpression {
-        // The patterns are fixed and valid.
-        try! NSRegularExpression(pattern: pattern)
-    }
-
-    private static let objectStart = regex(#"(?<![0-9])(\d+)\s+\d+\s+obj\b"#)
-    private static let streamKeyword = regex(#"(?<![a-z])stream\r?\n"#)
-    private static let rootRef = regex(#"/Root\s+(\d+)\s+\d+\s+R"#)
-    private static let refPattern = regex(#"(\d+)\s+\d+\s+R\b"#)
-
-    init?(_ bytes: [UInt8]) {
-        guard let text = String(data: Data(bytes), encoding: .isoLatin1), text.hasPrefix("%PDF-") else { return nil }
-        self.bytes = bytes
-        self.text = text as NSString
-        let length = self.text.length
-        // Object by object, stepping over each stream's data, so bytes inside a picture are never taken for an object.
-        var pos = 0
-        while pos < length, let m = Self.objectStart.firstMatch(in: text, range: NSRange(location: pos, length: length - pos)) {
-            let start = m.range.location + m.range.length
-            let endRange = self.text.range(of: "endobj", options: .literal, range: NSRange(location: start, length: length - start))
-            var end = endRange.location == NSNotFound ? -1 : endRange.location
-            let stream = Self.streamKeyword.firstMatch(in: text, range: NSRange(location: start, length: length - start))
-            let isStream = stream != nil && (end < 0 || stream!.range.location < end)
-            if end < 0 && !isStream { end = length }
-            guard let id = Int(self.text.substring(with: m.range(at: 1))) else { return nil }
-            let dictEnd = isStream ? stream!.range.location : end
-            let obj = Obj(id: id, dict: self.text.substring(with: NSRange(location: start, length: dictEnd - start)),
-                          streamStart: isStream ? stream!.range.location + stream!.range.length : -1)
-            objects[id] = obj // a later revision of an object replaces the earlier one
-            if !isStream {
-                pos = end
-                continue
-            }
-            let declared = Self.value(obj.dict, "Length").flatMap { Int($0.trimmingCharacters(in: .whitespaces)) } ?? 0
-            let data = min(obj.streamStart + max(0, declared), length)
-            let after = self.text.range(of: "endstream", options: .literal, range: NSRange(location: data, length: length - data))
-            pos = after.location == NSNotFound ? length : after.location
-        }
-    }
-
-    func object(_ id: Int) -> Obj? { objects[id] }
-
-    /// The pages in order, each with the resources it uses (its own or inherited) and its turn.
-    func pages() -> [(page: Obj, resources: String, rotate: Int)]? {
-        let all = Self.rootRef.matches(in: text as String, range: NSRange(location: 0, length: text.length))
-        guard let last = all.last, let catalog = object(ref(last, in: text)) else { return nil }
-        guard let pagesId = Self.refAfter(catalog.dict, "Pages"), let tree = object(pagesId) else { return nil }
-        var pages: [(Obj, String, Int)] = []
-        var seen = Set<Int>()
-        guard walk(tree, "", 0, &pages, 0, &seen) else { return nil }
-        return pages
-    }
-
-    private func walk(_ node: Obj, _ resources: String, _ rotate: Int, _ pages: inout [(Obj, String, Int)], _ depth: Int, _ seen: inout Set<Int>) -> Bool {
-        guard depth <= 32, seen.insert(node.id).inserted else { return false } // the page tree loops
-        let resources = Self.value(node.dict, "Resources") ?? resources
-        let rotate = Self.value(node.dict, "Rotate").flatMap { Int($0) } ?? rotate
-        if Self.is(node.dict, "Type", "Pages") {
-            guard let kids = Self.value(node.dict, "Kids") else { return false }
-            for k in Self.refPattern.matches(in: kids, range: NSRange(location: 0, length: (kids as NSString).length)) {
-                guard let kid = object(ref(k, in: kids as NSString)), walk(kid, resources, rotate, &pages, depth + 1, &seen) else { return false }
-            }
-        } else {
-            pages.append((node, resources, rotate))
-        }
-        return true
-    }
-
-    /// The object numbers of the pictures and forms a page's resources name.
-    func xObjects(_ resources: String) -> [Int] {
-        let dict = resolve(resources)
-        guard let xobjects = Self.value(dict, "XObject") else { return [] }
-        let list = resolve(xobjects) as NSString
-        return Self.refPattern.matches(in: list as String, range: NSRange(location: 0, length: list.length)).map { ref($0, in: list) }
-    }
-
-    func streamData(_ obj: Obj) -> [UInt8]? {
-        if obj.streamStart < 0 { return nil }
-        let start = obj.streamStart
-        let lengthText = Self.value(obj.dict, "Length")
-        var length: Int
-        if let lengthText, let m = Self.refPattern.firstMatch(in: lengthText, range: NSRange(location: 0, length: (lengthText as NSString).length)),
-           let lengthObj = object(ref(m, in: lengthText as NSString)) {
-            guard let n = Int(lengthObj.dict.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
-            length = n
-        } else if let lengthText, let n = Int(lengthText.trimmingCharacters(in: .whitespaces)) {
-            length = n
-        } else {
-            let end = text.range(of: "endstream", options: .literal, range: NSRange(location: start, length: text.length - start))
-            if end.location == NSNotFound { return nil }
-            length = end.location - start
-            while length > 0 && (bytes[start + length - 1] == 0x0A || bytes[start + length - 1] == 0x0D) { length -= 1 }
-        }
-        guard length >= 0, start + length <= bytes.count else { return nil } // the stream runs past the file
-        return Array(bytes[start..<start + length])
-    }
-
-    /// An indirect reference's object's text, or the text itself.
-    private func resolve(_ value: String) -> String {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines) as NSString
-        if let m = Self.refPattern.firstMatch(in: trimmed as String, range: NSRange(location: 0, length: trimmed.length)),
-           m.range.location == 0, m.range.length == trimmed.length, let o = object(ref(m, in: trimmed)) {
-            return o.dict
-        }
-        return value
-    }
-
-    private func ref(_ m: NSTextCheckingResult, in text: NSString) -> Int { Int(text.substring(with: m.range(at: 1))) ?? -1 }
-
-    private static func refAfter(_ dict: String, _ key: String) -> Int? {
-        guard let v = value(dict, key), let m = refPattern.firstMatch(in: v, range: NSRange(location: 0, length: (v as NSString).length)) else { return nil }
-        return Int((v as NSString).substring(with: m.range(at: 1)))
-    }
-
-    static func matches(_ pattern: String, _ text: String) -> Bool { text.range(of: pattern, options: .regularExpression) != nil }
-
-    static func `is`(_ dict: String, _ key: String, _ name: String) -> Bool { matches("/\(key)\\s*/\(name)\\b", dict) }
-
-    /// A key's value in a dictionary's text: a nested dictionary or array (balanced), a reference, or one token.
-    static func value(_ dict: String, _ key: String) -> String? {
-        let ns = dict as NSString
-        guard let m = regex("/\(key)(?![A-Za-z0-9])\\s*").firstMatch(in: dict, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        let i = m.range.location + m.range.length
-        if i >= ns.length { return nil }
-        let rest = ns.substring(from: i)
-        if rest.hasPrefix("[") || rest.hasPrefix("<<") {
-            let (open, close) = rest.hasPrefix("[") ? ("[", "]") : ("<<", ">>")
-            var depth = 0
-            var j = i
-            while j < ns.length {
-                let here = ns.substring(from: j)
-                if here.hasPrefix(open) {
-                    depth += 1
-                    j += open.count
-                } else if here.hasPrefix(close) {
-                    depth -= 1
-                    j += close.count
-                    if depth == 0 { return ns.substring(with: NSRange(location: i, length: j - i)) }
-                } else {
-                    j += 1
-                }
-            }
-            return nil // unbalanced
-        }
-        if let r = refPattern.firstMatch(in: dict, range: NSRange(location: i, length: ns.length - i)), r.range.location == i {
-            return ns.substring(with: r.range)
-        }
-        var end = i
-        while end < ns.length {
-            let c = ns.character(at: end)
-            let isStop = c == 0x2F || c == 0x3E || c == 0x5B || c == 0x3C || c == 0x20 || c == 0x0A || c == 0x0D || c == 0x09
-            if isStop && !(end == i && c == 0x2F) { break }
-            end += 1
-        }
-        return ns.substring(with: NSRange(location: i, length: end - i))
     }
 }

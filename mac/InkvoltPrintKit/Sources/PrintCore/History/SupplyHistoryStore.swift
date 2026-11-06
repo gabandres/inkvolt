@@ -160,9 +160,14 @@ public final class SupplyHistoryStore: @unchecked Sendable {
             log?("Supply history not read")
             return rows
         }
+        var keys = Set<String>() // kept as the lines go: a file of 100,000 lines loads in a moment, not minutes
         for line in String(decoding: data, as: UTF8.self).split(separator: "\n", omittingEmptySubsequences: true) {
             guard let row = Self.parse(String(line)) else { continue }
-            if rows.contains(where: { $0.key == row.key }) || Set(rows.map(\.key)).count < Self.maxSupplies { rows.append(row) }
+            let key = row.key
+            if keys.contains(key) || keys.count < Self.maxSupplies {
+                keys.insert(key)
+                rows.append(row)
+            }
         }
         Self.tidy(&rows)
         return rows
@@ -213,6 +218,10 @@ public final class SupplyHistoryStore: @unchecked Sendable {
 
     /// What a printer reports, fit for one cell: no control characters (tabs, line ends), cut to length.
     static func clean(_ text: String?, _ max: Int) -> String {
+        // Printable ASCII has no control characters: no filtering (a long file's every cell goes through here).
+        if let text, text.utf8.allSatisfy({ $0 >= 0x20 && $0 < 0x7F }), text.first != " ", text.last != " " {
+            return text.utf8.count <= max ? text : String(text.prefix(max))
+        }
         let clean = String(String.UnicodeScalarView((text ?? "").unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
             .trimmingCharacters(in: .whitespaces)
         return clean.count <= max ? clean : String(clean.prefix(max))
