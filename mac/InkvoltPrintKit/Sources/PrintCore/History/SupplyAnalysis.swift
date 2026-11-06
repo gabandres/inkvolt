@@ -27,13 +27,14 @@ public struct SupplyForecast: Equatable, Sendable {
 
     public var text: String? {
         switch state {
-        case .notEnoughData: "Not enough history for days left yet (about \(moreDays) more \(Self.days(moreDays)))"
-        case .steady: "Level steady, so no estimate of days left"
+        case .notEnoughData: moreDays == 1 ? loc("Not enough history for days left yet (about {0} more day)", moreDays)
+            : loc("Not enough history for days left yet (about {0} more days)", moreDays)
+        case .steady: loc("Level steady, so no estimate of days left")
         case .estimate:
             switch daysLeft {
-            case nil: "More than two years left"
-            case 0?: "Could run out any day"
-            case let n?: "About \(NumberText.n0(n)) \(Self.days(n)) left"
+            case nil: loc("More than two years left")
+            case 0?: loc("Could run out any day")
+            case let n?: n == 1 ? loc("About {0} day left", NumberText.n0(n)) : loc("About {0} days left", NumberText.n0(n))
             }
         default: nil
         }
@@ -72,7 +73,11 @@ public struct SupplySummary: Equatable, Sendable {
     /// The supplies card's line ("About 34 days left · 1,240 pages since this cartridge went in"); nil when there's nothing to say.
     public var line: String? {
         let pages = pagesOnCurrent.map { n in
-            "\(NumberText.n0(n)) \(n == 1 ? "page" : "pages") since \(cartridges.last!.seenGoingIn ? "this cartridge went in" : "Inkvolt Print started keeping track")"
+            let count = NumberText.n0(n)
+            return cartridges.last!.seenGoingIn
+                ? (n == 1 ? loc("{0} page since this cartridge went in", count) : loc("{0} pages since this cartridge went in", count))
+                : (n == 1 ? loc("{0} page since Inkvolt Print started keeping track", count)
+                    : loc("{0} pages since Inkvolt Print started keeping track", count))
         }
         let line = [forecast.text, pages].compactMap { $0 }.joined(separator: " · ")
         return line.isEmpty ? nil : line

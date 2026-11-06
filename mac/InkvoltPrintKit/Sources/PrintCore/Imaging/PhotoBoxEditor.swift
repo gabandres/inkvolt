@@ -172,13 +172,14 @@ public struct PhotoBoxEditor: Sendable {
     /// "Photo 2 of 3: 6.0 × 4.0 in, straightened by 3°." for the selected photo, or how many there are; `widthInches` is the
     /// scan's width.
     public func status(widthInches: Double) -> String {
-        if boxes.isEmpty { return "No photos marked: the whole scan is saved as one picture. Drag over a photo to mark it." }
+        if boxes.isEmpty { return loc("No photos marked: the whole scan is saved as one picture. Drag over a photo to mark it.") }
         guard let b = selectedBox else {
-            return boxes.count == 1 ? "1 photo, saved as its own picture." : "\(boxes.count) photos, each saved as its own picture."
+            return boxes.count == 1 ? loc("{0} photo, saved as its own picture.", 1) : loc("{0} photos, each saved as its own picture.", boxes.count)
         }
-        let turns = b.quarterTurns % 4 == 0 ? "" : ", saved turned \(90 * b.quarterTurns)°"
-        return "Photo \(selected + 1) of \(boxes.count): \(Self.oneDecimal(b.width * widthInches)) × "
-            + "\(Self.oneDecimal(b.height * widthInches)) in, straightened by \(Self.degrees(b.angle))°\(turns)."
+        let (n, of) = (selected + 1, boxes.count)
+        let (w, h, angle) = (Self.oneDecimal(b.width * widthInches), Self.oneDecimal(b.height * widthInches), Self.degrees(b.angle))
+        if b.quarterTurns % 4 == 0 { return loc("Photo {0} of {1}: {2} × {3} in, straightened by {4}°.", n, of, w, h, angle) }
+        return loc("Photo {0} of {1}: {2} × {3} in, straightened by {4}°, saved turned {5}°.", n, of, w, h, angle, 90 * b.quarterTurns)
     }
 
     private mutating func replace(_ box: PhotoBox) {

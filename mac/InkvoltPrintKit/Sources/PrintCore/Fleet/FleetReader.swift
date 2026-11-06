@@ -51,13 +51,13 @@ public enum FleetReader {
     public static let printerLimit: Duration = .seconds(30)
     public static let atOnce = 8
 
-    static let noAnswerInTime = "It didn't answer in time"
-    static let couldntRead = "Inkvolt Print couldn't read it"
-    static let differentDevice = "A different device answers at this address"
-    static let cantReach = "Can't reach the printer"
-    static let snmpRefused = "The printer refused its SNMP login"
-    static let readyToScan = "Ready to scan"
-    static let queuesNote = "macOS's printers couldn't be read, so printers known only to macOS aren't listed."
+    static var noAnswerInTime: String { loc("It didn't answer in time") }
+    static var couldntRead: String { loc("Inkvolt Print couldn't read it") }
+    static var differentDevice: String { loc("A different device answers at this address") }
+    static var cantReach: String { loc("Can't reach the printer") }
+    static var snmpRefused: String { loc("The printer refused its SNMP login") }
+    static var readyToScan: String { loc("Ready to scan") }
+    static var queuesNote: String { loc("macOS's printers couldn't be read, so printers known only to macOS aren't listed.") }
     static let scannersNote = "macOS's scanners couldn't be read, so scanners on their own aren't listed."
 
     public static func readAll(_ mac: any FleetMac, now: Date, limit: Duration = printerLimit) async throws -> FleetRead {
@@ -239,7 +239,7 @@ public enum FleetReader {
 
     static func scanner(_ s: SystemScanner, _ now: Date) -> FleetFacts {
         var f = FleetFacts(ScannerMatch.id(for: s), s.name, .scanner)
-        f.connection = "USB scanner"
+        f.connection = loc("USB scanner")
         f.reachable = true
         f.status = PrinterStatus(code: "ready", message: readyToScan, severity: .info, alerts: [])
         f.lastReading = now

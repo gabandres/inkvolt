@@ -198,7 +198,7 @@ public enum AlertText {
     /// A document's name in a title, leaving room for the words around it in a balloon's 63 characters.
     public static let maxDocument = 48
     public static let maxPrinter = 60
-    public static let untitled = "Untitled"
+    public static var untitled: String { loc("Untitled") }
 
     /// A job's document as a notification names it: a path or address is cut to its last part, which also keeps folders
     /// and links off the screen.
@@ -209,7 +209,7 @@ public enum AlertText {
 
     public static func printer(_ name: String?) -> String {
         let shown = clean(name, maxPrinter)
-        return shown.isEmpty ? "the printer" : shown
+        return shown.isEmpty ? loc("the printer") : shown
     }
 
     /// One line of visible characters: controls, invisible, private-use and unassigned characters out, runs of space as one.
@@ -286,11 +286,8 @@ public enum AlertText {
 extension AlertRules {
     /// The Settings checkbox's explanation ("Tell me when my own print job fails or gets stuck").
     public var jobsNote: String {
-        "Naming the document and the printer: macOS stops or gives up on the job, or it hasn't moved for \(JobText.minutes(jobStuckAfter)) minutes "
-            + "while the printer is ready, or \(JobText.minutes(jobHungAfter)) minutes while the printer says it's printing (macOS gives no page "
-            + "counts, so a long job can raise this by mistake). A stuck job is told again only after real progress, at most \(jobMaxStuckAlerts) "
-            + "times. Other people's jobs never raise one. The notification shows the document's name, also on the lock screen if macOS shows "
-            + "notifications there; Inkvolt Print doesn't keep it or log it."
+        loc("Naming the document and the printer: macOS stops or gives up on the job, or it hasn't moved for {0} minutes while the printer is ready, or {1} minutes while the printer says it's printing (macOS gives no page counts, so a long job can raise this by mistake). A stuck job is told again only after real progress, at most {2} times. Other people's jobs never raise one. The notification shows the document's name, also on the lock screen if macOS shows notifications there; Inkvolt Print doesn't keep it or log it.",
+            JobText.minutes(jobStuckAfter), JobText.minutes(jobHungAfter), jobMaxStuckAlerts)
     }
 }
 
@@ -299,16 +296,16 @@ enum JobText {
     static func minutes(_ seconds: TimeInterval) -> Int { Int(exactly: (seconds / 60).rounded()) ?? 0 }
 
     static func failed(_ document: String, _ printer: String, _ reason: String) -> (title: String, body: String) {
-        ("“\(document)” didn't print", "\(printer): \(reason). Open the queue to cancel it or print it again.")
+        (loc("“{0}” didn't print", document), loc("{0}: {1}. Open the queue to cancel it or print it again.", printer, reason))
     }
 
     static func stuck(_ document: String, _ printer: String, _ wait: TimeInterval) -> (title: String, body: String) {
-        ("“\(document)” isn't moving",
-         "\(printer) is ready, but this job hasn't moved for \(minutes(wait)) minutes. Open the queue to cancel it or print it again.")
+        (loc("“{0}” isn't moving", document),
+         loc("{0} is ready, but this job hasn't moved for {1} minutes. Open the queue to cancel it or print it again.", printer, minutes(wait)))
     }
 
     static func hung(_ document: String, _ printer: String, _ wait: TimeInterval) -> (title: String, body: String) {
-        ("“\(document)” may be stuck",
-         "\(printer) says it's printing, but this job hasn't moved for \(minutes(wait)) minutes and may be stuck. Open the queue to cancel it or print it again.")
+        (loc("“{0}” may be stuck", document),
+         loc("{0} says it's printing, but this job hasn't moved for {1} minutes and may be stuck. Open the queue to cancel it or print it again.", printer, minutes(wait)))
     }
 }

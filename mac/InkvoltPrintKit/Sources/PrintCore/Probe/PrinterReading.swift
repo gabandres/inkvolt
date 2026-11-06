@@ -122,12 +122,12 @@ struct PrinterReader: Sendable {
             // Supplies that timed out aren't asked of the next interface (the same host), but they end nothing.
             if case .offline? = r.supplies { need.remove(.supplies) }
         }
-        let gone = PrinterStatus.offline("Printer is not responding")
+        let gone = PrinterStatus.offline(loc("Printer is not responding"))
         if status == nil && offline { return PrinterReading(status: gone, supplies: nil, usage: nil) } // nothing else counts
         return PrinterReading(
             status: status ?? (offline ? gone
-                : statusMissed ? .unavailable("The printer is busy; status will update shortly")
-                : PrinterStatus(code: "unknown", message: "Status not available", severity: .info, alerts: [])),
+                : statusMissed ? .unavailable(loc("The printer is busy; status will update shortly"))
+                : PrinterStatus(code: "unknown", message: loc("Status not available"), severity: .info, alerts: [])),
             supplies: supplies ?? (offline || suppliesMissed ? nil : []),
             usage: usage)
     }

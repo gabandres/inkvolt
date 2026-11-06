@@ -68,6 +68,6 @@ public struct AlertSettings: Equatable, Sendable, Codable {
     public func pauseText(now: Date, calendar: Calendar = .current, locale: Locale = .current) -> String? {
         guard let until = pausedUntil, until > now else { return nil }
         let time = until.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale, calendar: calendar, timeZone: calendar.timeZone))
-        return "Alerts are paused until \(time)\(calendar.isDate(until, inSameDayAs: now) ? "" : " tomorrow")."
+        return calendar.isDate(until, inSameDayAs: now) ? loc("Alerts are paused until {0}.", time) : loc("Alerts are paused until {0} tomorrow.", time)
     }
 }

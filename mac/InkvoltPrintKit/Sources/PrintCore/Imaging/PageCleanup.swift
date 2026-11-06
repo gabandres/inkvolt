@@ -82,10 +82,10 @@ public enum PageCleanup {
     /// "cropped to the paper, whitened": what a set of filters does, in the review's words. Empty for none.
     public static func describe(_ filters: PageFilters) -> String {
         var parts: [String] = []
-        if filters.contains(.cropToPaper) { parts.append("cropped to the paper") }
-        if filters.contains(.whiten) { parts.append("whitened") }
-        if filters.contains(.descreen) { parts.append("descreened") }
-        if filters.contains(.restoreColors) { parts.append("colors restored") }
+        if filters.contains(.cropToPaper) { parts.append(loc("cropped to the paper")) }
+        if filters.contains(.whiten) { parts.append(loc("whitened")) }
+        if filters.contains(.descreen) { parts.append(loc("descreened")) }
+        if filters.contains(.restoreColors) { parts.append(loc("colors restored")) }
         return parts.joined(separator: ", ")
     }
 }

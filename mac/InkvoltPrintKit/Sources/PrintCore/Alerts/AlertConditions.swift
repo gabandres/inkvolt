@@ -83,15 +83,15 @@ public enum AlertConditions {
     public static func find(_ snap: PrinterSnapshot, _ rules: AlertRules, isActive: (String) -> Bool) -> [AlertCondition] {
         var found: [AlertCondition] = []
         if !snap.reachable {
-            found.append(AlertCondition(key: "Offline", kind: .offline, title: "\(snap.name) is offline",
-                                        body: "Inkvolt Print can't reach it. It may be turned off, asleep or off the network."))
+            found.append(AlertCondition(key: "Offline", kind: .offline, title: loc("{0} is offline", snap.name),
+                                        body: loc("Inkvolt Print can't reach it. It may be turned off, asleep or off the network.")))
             return found
         }
         if let status = snap.status { addStatus(&found, snap.name, status) }
         for s in snap.supplies ?? [] { addSupply(&found, snap.name, s, rules, isActive, snap.daysLeft) }
         if let fw = snap.firmwareChange {
-            found.append(AlertCondition(key: "\(AlertKind.firmwareChanged.rawValue)|\(fw.key)", kind: .firmwareChanged, title: "\(snap.name): firmware changed",
-                                        body: "\(fw.text) If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off."))
+            found.append(AlertCondition(key: "\(AlertKind.firmwareChanged.rawValue)|\(fw.key)", kind: .firmwareChanged, title: loc("{0}: firmware changed", snap.name),
+                                        body: loc("{0} If it came from HP, cartridges with non-HP chips may stop working; Inkvolt Print can turn automatic updates off.", fw.text)))
         }
         return found
     }
@@ -127,26 +127,27 @@ public enum AlertConditions {
     }
 
     private static func classify(_ id: String, _ message: String, _ printer: String) -> (AlertKind, String, String) {
-        if has(id, "jam") { return (.paperJam, "Paper jam", "\(printer): clear the jam to keep printing.") }
+        if has(id, "jam") { return (.paperJam, loc("Paper jam"), loc("{0}: clear the jam to keep printing.", printer)) }
         if ["media-empty", "media-needed", "trayEmptyOrOpen", "mediaPrompt", "input-tray-missing"].contains(id) {
-            return (.paperOut, message, "\(printer): load paper to keep printing.")
+            return (.paperOut, message, loc("{0}: load paper to keep printing.", printer))
         }
-        if has(id, "cover") || has(id, "door") || id == "interlock-open" { return (.coverOpen, message, "\(printer): close it to keep printing.") }
-        return (.error, message, "\(printer): check the printer.")
+        if has(id, "cover") || has(id, "door") || id == "interlock-open" { return (.coverOpen, message, loc("{0}: close it to keep printing.", printer)) }
+        return (.error, message, loc("{0}: check the printer.", printer))
     }
 
     private static func addSupply(_ found: inout [AlertCondition], _ printer: String, _ s: Consumable, _ rules: AlertRules,
                                   _ isActive: (String) -> Bool, _ daysLeft: [String: Int]?) {
         let detail = "\(s.name)|\(s.colorCode ?? "")"
+        let name = SupplyNames.display(s.name)
         if s.isWaste {
             let full = s.state == "full"
             if full {
-                found.append(AlertCondition(key: "WasteFull|\(detail)", kind: .wasteFull, title: "\(s.name) full",
-                                            body: "\(printer): replace it to keep printing."))
+                found.append(AlertCondition(key: "WasteFull|\(detail)", kind: .wasteFull, title: loc("{0} full", name),
+                                            body: loc("{0}: replace it to keep printing.", printer)))
             }
             if full || s.state == "almostFull" {
-                found.append(AlertCondition(key: "WasteAlmostFull|\(detail)", kind: .wasteAlmostFull, title: "\(s.name) almost full",
-                                            body: "\(printer): replace it soon."))
+                found.append(AlertCondition(key: "WasteAlmostFull|\(detail)", kind: .wasteAlmostFull, title: loc("{0} almost full", name),
+                                            body: loc("{0}: replace it soon.", printer)))
             }
             return
         }
@@ -161,19 +162,23 @@ public enum AlertConditions {
             low = s.state == "low" || s.state == "veryLow"
         }
         if empty {
-            found.append(AlertCondition(key: "SupplyEmpty|\(detail)", kind: .supplyEmpty, title: "\(s.name) empty",
-                                        body: "\(printer): replace it to keep printing."))
+            found.append(AlertCondition(key: "SupplyEmpty|\(detail)", kind: .supplyEmpty, title: loc("{0} empty", name),
+                                        body: loc("{0}: replace it to keep printing.", printer)))
         }
         guard low else { return }
-        var left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? "about \(grouped($0)) pages left" : nil }
+        var left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? loc("about {0} pages left", grouped($0)) : nil }
         if let days = daysLeft?[SupplyRow.keyOf(s)] {
-            let word = days == 1 ? "day" : "days"
-            left = left.map { "\($0), about \(grouped(days)) \(word) at this rate" } ?? "about \(grouped(days)) \(word) left at this rate"
+            let n = grouped(days)
+            if let pages = left {
+                left = days == 1 ? loc("{1}, about {0} day at this rate", n, pages) : loc("{1}, about {0} days at this rate", n, pages)
+            } else {
+                left = days == 1 ? loc("about {0} day left at this rate", n) : loc("about {0} days left at this rate", n)
+            }
         }
-        let part = partNumber(s).map { "Replacement: \($0)." }
-        let body = "\(printer): \(left ?? "running low")." + (part.map { " \($0)" } ?? "")
-        found.append(AlertCondition(key: lowKey, kind: .supplyLow, title: s.percentRemaining.map { "\(s.name) low (\($0)%)" } ?? "\(s.name) low",
-                                    body: body))
+        let part = partNumber(s).map { loc("Replacement: {0}.", $0) }
+        let body = loc("{0}: {1}.", printer, left ?? loc("running low")) + (part.map { " \($0)" } ?? "")
+        let title = s.percentRemaining.map { loc("{0} low ({1}%)", name, $0) } ?? loc("{0} low", name)
+        found.append(AlertCondition(key: lowKey, kind: .supplyLow, title: title, body: body))
     }
 
     /// The cartridge number the supplies card already shows (HP's selectability number, then the product number).

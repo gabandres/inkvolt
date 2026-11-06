@@ -64,8 +64,8 @@ public final class DemoOffline: OfflineProbes, QueueControl, QueueSetupControl, 
         guard isOffice(queue) else { return try await base.cancel(queue, job: job) }
         let user = user
         let refused: PrintJobCancelError? = officeJobs.withLock { jobs in
-            guard let i = jobs.firstIndex(where: { $0.id == job }) else { return PrintJobCancelError("It has already finished.") }
-            guard QueueJobText.isOwner(jobs[i].owner, user) else { return PrintJobCancelError("Only an administrator can cancel someone else's job.") }
+            guard let i = jobs.firstIndex(where: { $0.id == job }) else { return PrintJobCancelError(loc("It has already finished.")) }
+            guard QueueJobText.isOwner(jobs[i].owner, user) else { return PrintJobCancelError(loc("Only an administrator can cancel someone else's job.")) }
             jobs.remove(at: i)
             return nil
         }

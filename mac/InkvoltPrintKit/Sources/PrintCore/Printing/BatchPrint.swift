@@ -26,18 +26,18 @@ public enum BatchPrintLimits {
 
     /// Why a picture of this size won't be decoded, or nil.
     public static func pictureProblem(_ width: Int64, _ height: Int64) -> String? {
-        if width <= 0 || height <= 0 { return "The picture is damaged: it has no size." }
+        if width <= 0 || height <= 0 { return loc("The picture is damaged: it has no size.") }
         if width.multipliedReportingOverflow(by: height).overflow || width * height > maxPicturePixels {
-            return "The picture is too large to print (\(FleetPage.grouped(Int(clamping: width))) × \(FleetPage.grouped(Int(clamping: height))) pixels)."
+            return loc("The picture is too large to print ({0} × {1} pixels).", FleetPage.grouped(Int(clamping: width)), FleetPage.grouped(Int(clamping: height)))
         }
         return nil
     }
 
     /// Why a file of this many pages won't be printed, or nil.
     public static func pagesProblem(_ pages: Int) -> String? {
-        if pages <= 0 { return "The file has no pages." }
+        if pages <= 0 { return loc("The file has no pages.") }
         if pages > maxPages {
-            return "The file has \(FleetPage.grouped(pages)) pages: a batch takes at most \(FleetPage.grouped(maxPages)) per file. Print a PDF or split it first."
+            return loc("The file has {0} pages: a batch takes at most {1} per file. Print a PDF or split it first.", FleetPage.grouped(pages), FleetPage.grouped(maxPages))
         }
         return nil
     }
@@ -109,24 +109,24 @@ public struct BatchHeldFile: Sendable {
     /// - Throws: `BatchFileError`: it's gone, unreadable, a link, empty or too large.
     public static func open(_ path: String) throws -> BatchHeldFile {
         let manager = FileManager.default
-        if (try? manager.destinationOfSymbolicLink(atPath: path)) != nil { throw BatchFileError("This is a link to a file elsewhere: add the file itself.") }
+        if (try? manager.destinationOfSymbolicLink(atPath: path)) != nil { throw BatchFileError(loc("This is a link to a file elsewhere: add the file itself.")) }
         var isFolder: ObjCBool = false
-        if manager.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue { throw BatchFileError("This is a folder, not a file.") }
+        if manager.fileExists(atPath: path, isDirectory: &isFolder), isFolder.boolValue { throw BatchFileError(loc("This is a folder, not a file.")) }
         let size: Int64
         do {
             size = (try manager.attributesOfItem(atPath: path)[.size] as? NSNumber)?.int64Value ?? 0
         } catch {
             throw BatchFileError(BatchPrintText.describe(error))
         }
-        if size > BatchPrintLimits.maxFileBytes { throw BatchFileError("The file is too large to print here (\(FleetPage.grouped(Int(size >> 20))) MB).") }
+        if size > BatchPrintLimits.maxFileBytes { throw BatchFileError(loc("The file is too large to print here ({0} MB).", FleetPage.grouped(Int(size >> 20)))) }
         let bytes: [UInt8]
         do {
             bytes = Array(try Data(contentsOf: URL(fileURLWithPath: path)))
         } catch {
             throw BatchFileError(BatchPrintText.describe(error))
         }
-        if bytes.isEmpty { throw BatchFileError("The file is empty.") }
-        if Int64(bytes.count) > BatchPrintLimits.maxFileBytes { throw BatchFileError("The file is too large to print here.") }
+        if bytes.isEmpty { throw BatchFileError(loc("The file is empty.")) }
+        if Int64(bytes.count) > BatchPrintLimits.maxFileBytes { throw BatchFileError(loc("The file is too large to print here.")) }
         return BatchHeldFile(path: path, bytes: bytes, fingerprint: BatchFingerprint(length: Int64(bytes.count), sha256: Digest.hex(Digest.sha256(bytes), uppercase: true)))
     }
 }
@@ -249,13 +249,14 @@ public enum BatchTicketCheck {
     public static func problem(_ askedCopies: Int, _ askedTwoSided: Bool, _ askedPaper: (width: Double, height: Double)?,
                                _ gotCopies: Int?, _ gotTwoSided: Bool?, _ gotPaper: (width: Double, height: Double)?) -> String? {
         if let copies = gotCopies, copies != askedCopies {
-            return "The printer would print \(copies) \(copies == 1 ? "copy" : "copies") instead of \(askedCopies)."
+            return copies == 1 ? loc("The printer would print {0} copy instead of {1}.", copies, askedCopies)
+                : loc("The printer would print {0} copies instead of {1}.", copies, askedCopies)
         }
-        if askedTwoSided && gotTwoSided != true { return "The printer wouldn't print this two-sided, which would take more paper than the estimate." }
-        if !askedTwoSided && gotTwoSided == true { return "The printer would print this two-sided though one-sided was asked for." }
+        if askedTwoSided && gotTwoSided != true { return loc("The printer wouldn't print this two-sided, which would take more paper than the estimate.") }
+        if !askedTwoSided && gotTwoSided == true { return loc("The printer would print this two-sided though one-sided was asked for.") }
         if let paper = askedPaper {
             guard let got = gotPaper, abs(got.width - paper.width) <= 2, abs(got.height - paper.height) <= 2 else {
-                return "The printer wouldn't keep the paper chosen for this file."
+                return loc("The printer wouldn't keep the paper chosen for this file.")
             }
         }
         return nil
@@ -268,15 +269,15 @@ public enum BatchPrintText {
         if let e = error as? BatchFileError { return e.message }
         if let e = error as? CocoaError {
             switch e.code {
-            case .fileNoSuchFile, .fileReadNoSuchFile: return "The file is gone."
-            case .fileReadNoPermission: return "macOS doesn't let Inkvolt Print read this file."
+            case .fileNoSuchFile, .fileReadNoSuchFile: return loc("The file is gone.")
+            case .fileReadNoPermission: return loc("macOS doesn't let Inkvolt Print read this file.")
             default: break
             }
         }
         let ns = error as NSError
-        if ns.domain == NSPOSIXErrorDomain && ns.code == Int(ENOENT) { return "The file is gone." }
+        if ns.domain == NSPOSIXErrorDomain && ns.code == Int(ENOENT) { return loc("The file is gone.") }
         if ns.domain == NSCocoaErrorDomain && (ns.code == CocoaError.fileReadNoSuchFile.rawValue || ns.code == CocoaError.fileNoSuchFile.rawValue) {
-            return "The file is gone."
+            return loc("The file is gone.")
         }
         return error.localizedDescription
     }
@@ -289,7 +290,16 @@ public enum BatchPrintText {
 
     private static func isControl(_ s: Unicode.Scalar) -> Bool { s.properties.generalCategory == .control }
 
-    public static func count(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(FleetPage.grouped(n)) \(word)s" }
+    /// "1 file", "12 pages", "3 sheets", in the interface's language.
+    public static func count(_ n: Int, _ word: String) -> String {
+        let number = FleetPage.grouped(n)
+        switch word {
+        case "page": return n == 1 ? loc("{0} page", number) : loc("{0} pages", number)
+        case "sheet": return n == 1 ? loc("{0} sheet", number) : loc("{0} sheets", number)
+        case "file": return n == 1 ? loc("{0} file", number) : loc("{0} files", number)
+        default: return n == 1 ? "1 \(word)" : "\(number) \(word)s"
+        }
+    }
 
     /// A number as the app writes counts: "1,234".
     public static func number(_ n: Int) -> String { FleetPage.grouped(n) }
@@ -418,7 +428,7 @@ public struct BatchMeasure: Sendable, CustomStringConvertible {
         self.password = password
     }
 
-    public var description: String { state == .ready ? "\(pageCount) pages" : problem ?? "\(state)" }
+    public var description: String { state == .ready ? BatchPrintText.count(pageCount, "page") : problem ?? "\(state)" }
 }
 
 /// The time limits around calls into engines and printers that may hang on a hostile file or a stuck queue: the batch goes
@@ -511,12 +521,12 @@ public enum BatchMeasurer {
                     continue
                 }
                 if ask == nil || asked >= BatchPrintLimits.maxPasswordTries {
-                    return wrong ? BatchMeasure(.wrongPassword, problem: "The password doesn't open this PDF: it's left out.")
-                        : BatchMeasure(.needsPassword, problem: "This PDF needs a password: it's left out.")
+                    return wrong ? BatchMeasure(.wrongPassword, problem: loc("The password doesn't open this PDF: it's left out."))
+                        : BatchMeasure(.needsPassword, problem: loc("This PDF needs a password: it's left out."))
                 }
                 asked += 1
                 password = await ask?((path as NSString).lastPathComponent, wrong)
-                if password == nil { return BatchMeasure(.needsPassword, problem: "This PDF needs a password: it's left out.") }
+                if password == nil { return BatchMeasure(.needsPassword, problem: loc("This PDF needs a password: it's left out.")) }
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -533,7 +543,7 @@ public enum BatchMeasurer {
         case .late:
             opening.stop()
             try stop.check()
-            throw BatchFileError("The file took too long to open: it may be damaged. It's left out.")
+            throw BatchFileError(loc("The file took too long to open: it may be damaged. It's left out."))
         }
     }
 }
@@ -564,15 +574,15 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
     public var description: String { "\(BatchPrintText.clean(name)): \(problem ?? BatchPrintText.sheets(sheets))" }
 
     private static func check(_ s: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?) -> (String?, [Int]) {
-        if measure.state != .ready { return (measure.problem ?? "This file can't be read.", []) }
-        if s.copies < 1 || s.copies > BatchPrintLimits.maxCopies { return ("Copies must be 1 to \(BatchPrintLimits.maxCopies).", []) }
-        if s.twoSided, let queue, !queue.canTwoSided { return ("This printer doesn't print two-sided.", []) }
+        if measure.state != .ready { return (measure.problem ?? loc("This file can't be read."), []) }
+        if s.copies < 1 || s.copies > BatchPrintLimits.maxCopies { return (loc("Copies must be 1 to {0}.", BatchPrintLimits.maxCopies), []) }
+        if s.twoSided, let queue, !queue.canTwoSided { return (loc("This printer doesn't print two-sided."), []) }
         if let paper = s.paper, let queue, !queue.papers.contains(where: { $0.key.lowercased() == paper.lowercased() }) {
-            return ("This printer doesn't offer the paper \"\(BatchPrintText.clean(paper))\".", [])
+            return (loc("This printer doesn't offer the paper \"{0}\".", BatchPrintText.clean(paper)), [])
         }
         switch PageRange.parse(s.range, measure.pageCount) {
         case .success(let pages): return (nil, pages)
-        case .failure(let invalid): return ("The pages \"\(BatchPrintText.clean(s.range ?? ""))\" can't be printed: \(invalid.message).", [])
+        case .failure(let invalid): return (loc("The pages \"{0}\" can't be printed: {1}.", BatchPrintText.clean(s.range ?? ""), invalid.message), [])
         }
     }
 }
@@ -642,14 +652,14 @@ public struct BatchPrintSummary: Sendable {
     /// "Stopped at file 7 of 50 (report.pdf): Paper jam. 6 sent, 44 not sent." or "48 sent (87 sheets), 1 skipped, 1 failed."
     public var text: String {
         var parts: [String] = []
-        if sent > 0 || items.isEmpty { parts.append("\(FleetPage.grouped(sent)) sent (\(BatchPrintText.sheets(sheetsSent)))") }
-        if skipped > 0 { parts.append("\(FleetPage.grouped(skipped)) skipped") }
-        if failed > 0 { parts.append("\(FleetPage.grouped(failed)) failed") }
-        if notSent > 0 { parts.append("\(FleetPage.grouped(notSent)) not sent") }
+        if sent > 0 || items.isEmpty { parts.append((sent == 1 ? loc("{0} sent ({1})", context: "one", FleetPage.grouped(sent), BatchPrintText.sheets(sheetsSent)) : loc("{0} sent ({1})", context: "many", FleetPage.grouped(sent), BatchPrintText.sheets(sheetsSent)))) }
+        if skipped > 0 { parts.append((skipped == 1 ? loc("{0} skipped", context: "one", FleetPage.grouped(skipped)) : loc("{0} skipped", context: "many", FleetPage.grouped(skipped)))) }
+        if failed > 0 { parts.append((failed == 1 ? loc("{0} failed", context: "one", FleetPage.grouped(failed)) : loc("{0} failed", context: "many", FleetPage.grouped(failed)))) }
+        if notSent > 0 { parts.append((notSent == 1 ? loc("{0} not sent", context: "one", FleetPage.grouped(notSent)) : loc("{0} not sent", context: "many", FleetPage.grouped(notSent)))) }
         let counts = parts.joined(separator: ", ") + "."
         guard let at = stoppedAt else { return counts }
         let place = at < items.count
-            ? "Stopped at file \(FleetPage.grouped(at + 1)) of \(FleetPage.grouped(items.count)) (\(BatchPrintText.clean(items[at].name)))" : "Stopped"
+            ? loc("Stopped at file {0} of {1} ({2})", FleetPage.grouped(at + 1), FleetPage.grouped(items.count), BatchPrintText.clean(items[at].name)) : loc("Stopped")
         return "\(place): \(stopReason ?? "") \(counts)"
     }
 }
@@ -687,11 +697,11 @@ public enum BatchPrintRunner {
                 continue
             }
             if stop.isStopped {
-                halt(i, "You stopped the batch.")
+                halt(i, loc("You stopped the batch."))
                 finish(i, line, .stopped, notSentText)
                 continue
             }
-            progress?(BatchPrintProgress(index: i, state: .sending, message: "Getting it ready…", result: nil))
+            progress?(BatchPrintProgress(index: i, state: .sending, message: loc("Getting it ready…"), result: nil))
             let outcome = await sendOne(line, queue, documents, options, progress, i, stop)
             if let why = outcome.stop { halt(i, why) }
             finish(i, line, outcome.state, outcome.message, sheetsSent: outcome.sheets, unsure: outcome.unsure)
@@ -699,7 +709,7 @@ public enum BatchPrintRunner {
         return BatchPrintSummary(items: results, stoppedAt: stoppedAt, stopReason: stopReason)
     }
 
-    private static let notSentText = "Not sent: the batch stopped before it."
+    private static var notSentText: String { loc("Not sent: the batch stopped before it.") }
 
     /// A file's progress lines, passed on as they come (before its result).
     private static func relay(_ index: Int) -> (@escaping @Sendable (BatchPrintProgress) -> Void) -> @Sendable (String) -> Void {
@@ -721,7 +731,7 @@ public enum BatchPrintRunner {
             do {
                 switch try await within(options.queueTimeout, { try await queue.problem() }) {
                 case .done(let said): problem = said
-                case .late: problem = "macOS doesn't answer about the printer."
+                case .late: problem = loc("macOS doesn't answer about the printer.")
                 }
             } catch is CancellationError {
                 throw CancellationError()
@@ -735,18 +745,18 @@ public enum BatchPrintRunner {
             do {
                 document = try await BatchMeasurer.open(line.path, line.measure.password, documents, options, stop)
             } catch is BatchPasswordError {
-                return Outcome(state: .failed, message: "The file changed since the estimate: its password no longer opens it. Not printed.")
+                return Outcome(state: .failed, message: loc("The file changed since the estimate: its password no longer opens it. Not printed."))
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                return Outcome(state: .failed, message: "\(BatchPrintText.describe(error)) Not printed.")
+                return Outcome(state: .failed, message: loc("{0} Not printed.", BatchPrintText.describe(error)))
             }
             defer { document.close() }
 
             if document.fingerprint != line.measure.fingerprint || document.pageCount != line.measure.pageCount {
                 let counts = document.pageCount != line.measure.pageCount
-                    ? " (\(BatchPrintText.count(line.measure.pageCount, "page")) then, \(FleetPage.grouped(document.pageCount)) now)" : ""
-                return Outcome(state: .failed, message: "The file changed since the estimate\(counts). Not printed: check the list again to print it.")
+                    ? loc(" ({0} then, {1} now)", BatchPrintText.count(line.measure.pageCount, "page"), FleetPage.grouped(document.pageCount)) : ""
+                return Outcome(state: .failed, message: loc("The file changed since the estimate{0}. Not printed: check the list again to print it.", counts))
             }
 
             let job = BatchPrintJob(name: line.name, pages: line.pages, copies: line.settings.copies, twoSided: line.settings.twoSided,
@@ -765,27 +775,27 @@ public enum BatchPrintRunner {
             case .late:
                 sendStop.stop()
                 let spooled = spooling.load(ordering: .acquiring)
-                return Outcome(state: .failed, message: spooled ? "macOS didn't finish taking it in time: check the queue before sending it again."
-                    : "It took too long to draw: it may be damaged. Not printed.", stop: spooled ? "The printer's queue stopped taking jobs." : nil, unsure: spooled)
+                return Outcome(state: .failed, message: spooled ? loc("macOS didn't finish taking it in time: check the queue before sending it again.")
+                    : loc("It took too long to draw: it may be damaged. Not printed."), stop: spooled ? loc("The printer's queue stopped taking jobs.") : nil, unsure: spooled)
             }
             if receipt.sheets > line.sheets {
-                return Outcome(state: .failed, message: "The queue took \(BatchPrintText.sheets(receipt.sheets)), more than the \(FleetPage.grouped(line.sheets)) estimated.",
-                               sheets: receipt.sheets, stop: "A job came to more sheets than its estimate, so nothing more is sent.", unsure: true)
+                return Outcome(state: .failed, message: loc("The queue took {0}, more than the {1} estimated.", BatchPrintText.sheets(receipt.sheets), FleetPage.grouped(line.sheets)),
+                               sheets: receipt.sheets, stop: loc("A job came to more sheets than its estimate, so nothing more is sent."), unsure: true)
             }
-            return Outcome(state: .sent, message: "Sent to the queue: \(BatchPrintText.sheets(receipt.sheets)).", sheets: receipt.sheets)
+            return Outcome(state: .sent, message: loc("Sent to the queue: {0}.", BatchPrintText.sheets(receipt.sheets)), sheets: receipt.sheets)
         } catch is CancellationError {
-            return Outcome(state: .stopped, message: notSentText, stop: "You stopped the batch.")
+            return Outcome(state: .stopped, message: notSentText, stop: loc("You stopped the batch."))
         } catch let e as BatchSettingRefused {
-            return Outcome(state: .failed, message: "\(e.message) Not printed.")
+            return Outcome(state: .failed, message: loc("{0} Not printed.", e.message))
         } catch let e as BatchFileError {
-            return Outcome(state: .failed, message: "\(e.message) Not printed.")
+            return Outcome(state: .failed, message: loc("{0} Not printed.", e.message))
         } catch let e as BatchQueueError {
             return e.mayHaveSent
-                ? Outcome(state: .failed, message: "Sending failed part-way: check the queue before sending it again.", stop: e.message, unsure: true)
+                ? Outcome(state: .failed, message: loc("Sending failed part-way: check the queue before sending it again."), stop: e.message, unsure: true)
                 : Outcome(state: .stopped, message: notSentText, stop: e.message)
         } catch {
             // Queue and printer errors come in many types. Whether any of the job got there isn't known.
-            return Outcome(state: .failed, message: "Sending failed: check the queue before sending it again.", stop: "\(error)", unsure: true)
+            return Outcome(state: .failed, message: loc("Sending failed: check the queue before sending it again."), stop: "\(error)", unsure: true)
         }
     }
 }

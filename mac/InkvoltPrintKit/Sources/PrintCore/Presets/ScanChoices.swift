@@ -9,21 +9,21 @@ public struct ScanPageSize: Equatable, Sendable {
 /// The scan options a dialog offers for a scanner, from its eSCL capabilities, and the `ScanRequest` they make. Shared by
 /// Inkvolt Print's Scan tab (page sizes) and, later, Inkvolt PDF's Scan dialog.
 public enum ScanChoices {
-    public static let pageSizes = [
-        ScanPageSize(key: "letter", label: "Letter (8.5 × 11 in)", width: 2550, height: 3300),
-        ScanPageSize(key: "a4", label: "A4 (210 × 297 mm)", width: 2480, height: 3508),
-        ScanPageSize(key: "legal", label: "Legal (8.5 × 14 in)", width: 2550, height: 4200),
-        ScanPageSize(key: "full", label: "Whole scanning area", width: nil, height: nil),
-    ]
+    public static var pageSizes: [ScanPageSize] { [
+        ScanPageSize(key: "letter", label: loc("Letter (8.5 × 11 in)"), width: 2550, height: 3300),
+        ScanPageSize(key: "a4", label: loc("A4 (210 × 297 mm)"), width: 2480, height: 3508),
+        ScanPageSize(key: "legal", label: loc("Legal (8.5 × 14 in)"), width: 2550, height: 4200),
+        ScanPageSize(key: "full", label: loc("Whole scanning area"), width: nil, height: nil),
+    ] }
 
     /// Document resolutions offered by Inkvolt PDF: enough for text and OCR, small files.
     public static let documentResolutions = [150, 200, 300]
 
     public static func sourceLabel(_ s: ScanSource) -> String {
         switch s {
-        case .platen: "Scanner glass"
-        case .adf: "Document feeder"
-        case .adfDuplex: "Document feeder (both sides)"
+        case .platen: loc("Scanner glass")
+        case .adf: loc("Document feeder")
+        case .adfDuplex: loc("Document feeder (both sides)")
         }
     }
 

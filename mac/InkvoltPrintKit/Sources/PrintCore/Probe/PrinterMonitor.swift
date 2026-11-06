@@ -34,12 +34,12 @@ public struct PrinterView: Equatable, Sendable {
     /// A queue printer's supplies card: "From the printer over USB", "Not reported by this printer." (`QueueDeviceText`).
     public var suppliesSource: String? = nil
 
-    public static let connecting = PrinterView(phase: .connecting, statusMessage: "Connecting…", statusDetail: nil, severity: .info, alerts: [],
-                                               supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil)
+    public static var connecting: PrinterView { PrinterView(phase: .connecting, statusMessage: loc("Connecting…"), statusDetail: nil, severity: .info, alerts: [],
+                                               supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil) }
 
     /// A scanner of its own (a USB scanner macOS has a driver for): it has no status to read.
-    public static let scannerReady = PrinterView(phase: .online, statusMessage: "Ready to scan", statusDetail: nil, severity: .info, alerts: [],
-                                                 supplies: [], usage: nil, model: nil, interfaces: ["USB scanner"], firmware: nil, location: nil)
+    public static var scannerReady: PrinterView { PrinterView(phase: .online, statusMessage: loc("Ready to scan"), statusDetail: nil, severity: .info, alerts: [],
+                                                 supplies: [], usage: nil, model: nil, interfaces: [loc("USB scanner")], firmware: nil, location: nil) }
 
     public var isOnline: Bool { phase == .online }
 
@@ -306,8 +306,8 @@ public actor PrinterMonitor {
     private func setRefused(_ why: SnmpRefusal) {
         var v = view
         v.phase = .refused
-        v.statusMessage = "The printer refused its SNMP login"
-        v.statusDetail = "\(SnmpAccessError(why)) Choose SNMP Access… in the printer's menu to change it."
+        v.statusMessage = loc("The printer refused its SNMP login")
+        v.statusDetail = loc("{0} Choose SNMP Access… in the printer's menu to change it.", SnmpAccessError(why))
         v.severity = .error
         v.alerts = []
         if let shown = history?.current() { v.supplyHistory = shown }
@@ -316,8 +316,8 @@ public actor PrinterMonitor {
     }
 
     private func setOffline() {
-        setOffline("Can't reach the printer",
-                   "Make sure it's turned on and connected to the same network as this Mac (\(target.host)). Inkvolt Print keeps trying in the background.")
+        setOffline(loc("Can't reach the printer"),
+                   loc("Make sure it's turned on and connected to the same network as this Mac ({0}). Inkvolt Print keeps trying in the background.", target.host))
     }
 
     private func setOffline(_ message: String, _ detail: String, phase: PrinterView.Phase = .offline) {
@@ -338,10 +338,8 @@ public actor PrinterMonitor {
     private func setElsewhere(_ uuids: [String], _ snmp: SnmpIdentity?) {
         foreignUuids = uuids
         foreignSnmp = snmp
-        setOffline("A different device answers at this address",
-                   "Another device now has \(target.host), so its status isn't shown here. The printer probably got a new address: "
-                       + "Inkvolt Print watches for it on the network. If the printer was repaired or reset and this really is it, "
-                       + "choose This is my printer.",
+        setOffline(loc("A different device answers at this address"),
+                   loc("Another device now has {0}, so its status isn't shown here. The printer probably got a new address: Inkvolt Print watches for it on the network. If the printer was repaired or reset and this really is it, choose This is my printer.", target.host),
                    phase: .elsewhere)
     }
 

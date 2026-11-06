@@ -30,7 +30,7 @@ public enum ScannerList {
 
     /// "Name  (host)", with " · found on the network" for one Inkvolt Print doesn't remember; "Name  (USB)".
     public static func label(_ scanner: EsclScanner) -> String {
-        "\(scanner.name)  (\(scanner.host))\(scanner.remembered ? "" : " · found on the network")"
+        "\(scanner.name)  (\(scanner.host))\(scanner.remembered ? "" : loc(" · found on the network"))"
     }
 
     /// Which of the listed scanners (`ids`) is chosen: the one chosen now when the user chose it, else the saved one (also when

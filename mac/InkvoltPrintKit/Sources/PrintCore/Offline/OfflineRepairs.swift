@@ -43,7 +43,7 @@ public struct Repair: Equatable, Sendable {
     public var manualSteps: [String]
 
     public init(_ kind: RepairKind, _ title: String, _ detail: String, queue: String? = nil, target: String? = nil, targetUri: String? = nil,
-                jobIds: [Int] = [], question: String? = nil, confirm: String = "Fix it", manualOnly: Bool = false, isAlternative: Bool = false,
+                jobIds: [Int] = [], question: String? = nil, confirm: String = loc("Fix it"), manualOnly: Bool = false, isAlternative: Bool = false,
                 manualSteps: [String] = []) {
         self.kind = kind
         self.title = title
@@ -63,28 +63,28 @@ public struct Repair: Equatable, Sendable {
 /// The steps for each repair in macOS's wording (System Settings › Printers & Scanners), for hand-offs and anything
 /// macOS refuses. `queue` is the name Printers & Scanners shows.
 public enum ManualSteps {
-    private static let printers = "Open System Settings › Printers & Scanners"
+    private static var printers: String { loc("Open System Settings › Printers & Scanners") }
 
     public static func `for`(_ kind: RepairKind, queue: String? = nil, target: String? = nil, uri: String? = nil) -> [String] {
-        let q = queue.map { "“\($0)”" } ?? "the printer"
-        let openQueue = "\(printers), select \(q), then click Printer Queue…."
-        let remove = "\(printers), select \(q) and click Remove Printer…."
+        let q = queue.map { "“\($0)”" } ?? loc("the printer")
+        let openQueue = loc("{0}, select {1}, then click Printer Queue….", printers, q)
+        let remove = loc("{0}, select {1} and click Remove Printer….", printers, q)
         switch kind {
         case .resumeQueue:
-            return [openQueue, "In the queue window, click Resume. macOS asks for an administrator's name and password when needed."]
+            return [openQueue, loc("In the queue window, click Resume. macOS asks for an administrator's name and password when needed.")]
         case .acceptJobs:
-            return [remove, "Click Add Printer, Scanner, or Fax… and add it again: macOS accepts jobs for a printer it has just added."]
+            return [remove, loc("Click Add Printer, Scanner, or Fax… and add it again: macOS accepts jobs for a printer it has just added.")]
         case .cancelStuckJobs:
-            return [openQueue, "Select each stuck job and click the ✕ beside it. Other people's jobs need an administrator."]
+            return [openQueue, loc("Select each stuck job and click the ✕ beside it. Other people's jobs need an administrator.")]
         case .cancelOthersJobs:
-            return [openQueue, "Select each stuck job and click the ✕ beside it; macOS asks for an administrator's name and password."]
+            return [openQueue, loc("Select each stuck job and click the ✕ beside it; macOS asks for an administrator's name and password.")]
         case .pointAt:
             let (name, path) = protocolOf(uri)
-            let queuePart = path.isEmpty ? "" : ", with \(path) as the queue"
-            return [remove, "Click Add Printer, Scanner, or Fax…, then IP at the top of the window.",
-                    "Enter \(target ?? "the printer's address") as the address and choose \(name) as the protocol\(queuePart), then click Add."]
+            let queuePart = path.isEmpty ? "" : loc(", with {0} as the queue", path)
+            return [remove, loc("Click Add Printer, Scanner, or Fax…, then IP at the top of the window."),
+                    loc("Enter {0} as the address and choose {1} as the protocol{2}, then click Add.", target ?? loc("the printer's address"), name, queuePart)]
         case .addAgain:
-            return [remove, "Click Add Printer, Scanner, or Fax…, select the printer in the list (macOS finds it on the network), then click Add."]
+            return [remove, loc("Click Add Printer, Scanner, or Fax…, select the printer in the list (macOS finds it on the network), then click Add.")]
         }
     }
 
@@ -140,8 +140,8 @@ public struct RepairOutcome: Equatable, Sendable {
 /// prompt in the sandbox), and a refusal becomes the steps.
 public enum RepairRunner {
     public static func run(_ repair: Repair, queues: any PrintQueues, control: any QueueControl) async -> RepairOutcome {
-        if repair.manualOnly { return RepairOutcome(.manual, "Do this in System Settings:", repair.manualSteps) }
-        guard let queue = repair.queue else { return RepairOutcome(.failed, "There's no printer to change.", repair.manualSteps) }
+        if repair.manualOnly { return RepairOutcome(.manual, loc("Do this in System Settings:"), repair.manualSteps) }
+        guard let queue = repair.queue else { return RepairOutcome(.failed, loc("There's no printer to change."), repair.manualSteps) }
         switch repair.kind {
         case .resumeQueue, .acceptJobs, .pointAt:
             do {
@@ -149,13 +149,12 @@ public enum RepairRunner {
                 case .resumeQueue: try await control.resume(queue)
                 case .acceptJobs: try await control.acceptJobs(queue)
                 default:
-                    guard let uri = repair.targetUri else { return RepairOutcome(.failed, "There's no address to point it at.", repair.manualSteps) }
+                    guard let uri = repair.targetUri else { return RepairOutcome(.failed, loc("There's no address to point it at."), repair.manualSteps) }
                     try await control.setDeviceUri(queue, uri)
                 }
-                return .fixed("Done.")
+                return .fixed(loc("Done."))
             } catch QueueControlError.refused {
-                return RepairOutcome(.manual, "macOS lets only an administrator of this Mac do this from Inkvolt Print. Do it in System Settings, "
-                    + "which asks for an administrator's name and password:", repair.manualSteps)
+                return RepairOutcome(.manual, loc("macOS lets only an administrator of this Mac do this from Inkvolt Print. Do it in System Settings, which asks for an administrator's name and password:"), repair.manualSteps)
             } catch QueueControlError.failed(let message) {
                 return RepairOutcome(.failed, message, repair.manualSteps)
             } catch {
@@ -174,14 +173,15 @@ public enum RepairRunner {
                     why = why ?? String(describing: error)
                 }
             }
-            guard let why else { return .fixed("Done.") }
+            guard let why else { return .fixed(loc("Done.")) }
             let left = repair.jobIds.count - done
-            let message = done == 0 ? why : "\(jobs(done)) \(done == 1 ? "was" : "were") cancelled. The other \(jobs(left)) couldn't be: \(why)"
+            let message = done == 0 ? why : done == 1 ? loc("{0} was cancelled. The other {1} couldn't be: {2}", jobs(done), jobs(left), why)
+                : loc("{0} were cancelled. The other {1} couldn't be: {2}", jobs(done), jobs(left), why)
             return RepairOutcome(.failed, message, repair.manualSteps)
         case .cancelOthersJobs, .addAgain:
-            return RepairOutcome(.manual, "Do this in System Settings:", repair.manualSteps)
+            return RepairOutcome(.manual, loc("Do this in System Settings:"), repair.manualSteps)
         }
     }
 
-    private static func jobs(_ n: Int) -> String { n == 1 ? "1 job" : "\(n) jobs" }
+    private static func jobs(_ n: Int) -> String { n == 1 ? loc("1 job") : loc("{0} jobs", n) }
 }

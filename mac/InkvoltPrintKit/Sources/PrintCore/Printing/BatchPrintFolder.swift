@@ -83,7 +83,7 @@ public struct BatchFolderBusyError: Error, Sendable {
     public var message: String
 
     init(_ folder: String) {
-        message = "\(BatchPrintText.clean(folder)) is already watched (by Inkvolt Print or Inkvolt PDF, the app or a command line). Stop that one first."
+        message = loc("{0} is already watched (by Inkvolt Print or Inkvolt PDF, the app or a command line). Stop that one first.", BatchPrintText.clean(folder))
     }
 }
 
@@ -98,10 +98,10 @@ public enum BatchPrintFolder {
 
     /// What is wrong with watching this folder, or nil.
     public static func validate(_ folder: String) -> String? {
-        if folder.trimmingCharacters(in: .whitespaces).isEmpty || !(folder as NSString).isAbsolutePath { return "Choose the folder to watch." }
+        if folder.trimmingCharacters(in: .whitespaces).isEmpty || !(folder as NSString).isAbsolutePath { return loc("Choose the folder to watch.") }
         var isFolder: ObjCBool = false
         return FileManager.default.fileExists(atPath: folder, isDirectory: &isFolder) && isFolder.boolValue
-            ? nil : "There is no folder \(BatchPrintText.clean(folder))."
+            ? nil : loc("There is no folder {0}.", BatchPrintText.clean(folder))
     }
 
     /// The printable files already at the top of the folder: those would print as soon as the watch starts.
@@ -127,7 +127,7 @@ public enum BatchPrintFolder {
         let left = ((try? FileManager.default.contentsOfDirectory(atPath: working)) ?? []).filter { !$0.hasPrefix(".") }.sorted(by: NaturalOrder.less)
         for name in left {
             let entry = finish(folder, (working as NSString).appendingPathComponent(name), name, .failed,
-                               "Interrupted: Inkvolt Print closed while sending it, so it may have printed. Put it back in the folder to print it again.", 0)
+                               loc("Interrupted: Inkvolt Print closed while sending it, so it may have printed. Put it back in the folder to print it again."), 0)
             progress?(BatchFolderProgress(finished: entry))
             failed += 1
         }
@@ -146,7 +146,7 @@ public enum BatchPrintFolder {
                 do {
                     switch try await within(options.print.queueTimeout, { try await queue.problem() }) {
                     case .done(let said): problem = said
-                    case .late: problem = "macOS doesn't answer about the printer."
+                    case .late: problem = loc("macOS doesn't answer about the printer.")
                     }
                 } catch is CancellationError {
                     break
@@ -171,7 +171,7 @@ public enum BatchPrintFolder {
                         look.forget(path)
                         if cutOff {
                             let entry = finish(folder, moved, (path as NSString).lastPathComponent, .failed,
-                                               "It reads as cut off and hasn't changed since. Not printed: if it is whole, print it from the Batch Print window.", 0)
+                                               loc("It reads as cut off and hasn't changed since. Not printed: if it is whole, print it from the Batch Print window."), 0)
                             progress?(BatchFolderProgress(finished: entry))
                             failed += 1
                             continue
@@ -221,32 +221,32 @@ public enum BatchPrintFolder {
         let stopReason: String?
         do {
             guard let info = try await queue.read() else {
-                return (finish(folder, path, name, .stopped, "Not sent: this printer has no queue now. It's back in the folder.", 0, back: true),
-                        Halt(why: "This printer has no queue now.", final: true))
+                return (finish(folder, path, name, .stopped, loc("Not sent: this printer has no queue now. It's back in the folder."), 0, back: true),
+                        Halt(why: loc("This printer has no queue now."), final: true))
             }
             let measure = try await BatchMeasurer.measure(path, offered: options.password, documents, ask: nil, options: options.print, stop)
             let line = BatchPrintLine(path, options.settings, measure, info)
             if line.problem == nil && line.sheets > options.maxSheets {
                 return (finish(folder, path, name, .failed,
-                               "It would print \(BatchPrintText.sheets(line.sheets)), more than the \(FleetPage.grouped(options.maxSheets)) a run may send. Not printed.", 0), nil)
+                               loc("It would print {0}, more than the {1} a run may send. Not printed.", BatchPrintText.sheets(line.sheets), FleetPage.grouped(options.maxSheets)), 0), nil)
             }
             if line.problem == nil && sheetsSoFar + line.sheets > options.maxSheets {
-                let why = "This run has sent \(BatchPrintText.sheets(sheetsSoFar)), and the next file would pass the \(FleetPage.grouped(options.maxSheets)) it may send."
-                return (finish(folder, path, name, .stopped, "Not sent: the run's limit of sheets. It's back in the folder.", 0, back: true), Halt(why: why, final: true))
+                let why = loc("This run has sent {0}, and the next file would pass the {1} it may send.", BatchPrintText.sheets(sheetsSoFar), FleetPage.grouped(options.maxSheets))
+                return (finish(folder, path, name, .stopped, loc("Not sent: the run's limit of sheets. It's back in the folder."), 0, back: true), Halt(why: why, final: true))
             }
             let summary = await BatchPrintRunner.run([line], queue, documents, options: options.print, stop)
             result = summary.items[0]
             stopReason = summary.stopReason
         } catch is CancellationError {
-            return (finish(folder, path, name, .stopped, "Stopped before it was sent: it's back in the folder for next time.", 0, back: true), nil)
+            return (finish(folder, path, name, .stopped, loc("Stopped before it was sent: it's back in the folder for next time."), 0, back: true), nil)
         } catch {
             // Asking the printer what it takes failed: nothing was sent.
-            return (finish(folder, path, name, .stopped, "Not sent: the printer can't be read. It's back in the folder for next time.", 0, back: true),
+            return (finish(folder, path, name, .stopped, loc("Not sent: the printer can't be read. It's back in the folder for next time."), 0, back: true),
                     Halt(why: BatchPrintText.describe(error), final: false))
         }
         // Sure not sent: it can go back. Anything less sure stays out of the folder, so it can't print twice.
         if result.state == .stopped {
-            return (finish(folder, path, name, .stopped, "Not sent: \(stopReason ?? "") It's back in the folder for next time.", 0, back: true),
+            return (finish(folder, path, name, .stopped, loc("Not sent: {0} It's back in the folder for next time.", stopReason ?? ""), 0, back: true),
                     stopReason.map { Halt(why: $0, final: false) })
         }
         let state: BatchPrintState = result.state == .sent ? .sent : .failed
@@ -260,7 +260,7 @@ public enum BatchPrintFolder {
         let moved = DropFolder.moveTo(path, target, name)
         var message = message
         if moved == nil && FileManager.default.fileExists(atPath: path) {
-            message += " (the original stays in \(DropFolder.workingFolder): it couldn't be moved)"
+            message += loc(" (the original stays in {0}: it couldn't be moved)", DropFolder.workingFolder)
         }
         let entry = BatchFolderEntry(time: Date(), fileName: name, state: state, message: message, sheetsSent: sheets, movedTo: moved)
         DropFolder.appendLog((folder as NSString).appendingPathComponent(logName), entry.logLine)

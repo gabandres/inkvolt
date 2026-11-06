@@ -73,7 +73,7 @@ public enum JobNotices {
     public static func text(_ jobs: [AlertNotice]) -> (title: String, text: String) {
         guard jobs.count > 1 else { return (jobs.first?.title ?? "", jobs.first?.body ?? "") }
         var lines = jobs.prefix(maxJobNotices).map(\.title)
-        if jobs.count > lines.count { lines.append("and \(jobs.count - lines.count) more") }
-        return ("\(jobs.count) print jobs need attention", lines.joined(separator: "\n"))
+        if jobs.count > lines.count { lines.append(loc("and {0} more", jobs.count - lines.count)) }
+        return (loc("{0} print jobs need attention", jobs.count), lines.joined(separator: "\n"))
     }
 }

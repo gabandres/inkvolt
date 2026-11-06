@@ -179,15 +179,15 @@ public enum PrinterCheck {
 
     /// "isn't responding", "has a problem": the warning after the printer's name.
     public static func problem(_ h: PrinterHealth, _ printer: String) -> String {
-        h.state == .offline ? "\(printer) isn't responding" : "\(printer) has a problem"
+        h.state == .offline ? loc("{0} isn't responding", printer) : loc("{0} has a problem", printer)
     }
 
     /// What to do about a printer that `shouldWarn`s (Windows' words, with macOS's queue).
     public static func advice(_ h: PrinterHealth) -> String {
         if h.state == .offline {
-            return "It didn't answer just now: it may be off, or not on this network. If you print anyway, macOS keeps the job until the printer is back."
+            return loc("It didn't answer just now: it may be off, or not on this network. If you print anyway, macOS keeps the job until the printer is back.")
         }
-        return "\(h.summary). Fix it on the printer first, or print anyway: the job waits in the macOS queue until the printer can print it."
+        return loc("{0}. Fix it on the printer first, or print anyway: the job waits in the macOS queue until the printer can print it.", h.summary)
     }
 
     /// The line for a printer: "Office laser: Ready · toner 45%" (only names and values).

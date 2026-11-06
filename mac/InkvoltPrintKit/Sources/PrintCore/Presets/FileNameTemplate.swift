@@ -34,7 +34,7 @@ public enum FileNameTemplate {
     public static let maxNameLength = 120
 
     private static let defaultDate = "yyyy-MM-dd", defaultTime = "HHmm"
-    private static let fallback = "Scan"
+    private static var fallback: String { loc("Scan", context: "file name") }
     private static let tokenList = "{date}, {time}, {preset}, {printer}, {n} or {pages}"
 
     // Windows' reserved characters, whatever the OS (a Mac's names may sync to a PC).
@@ -63,14 +63,14 @@ public enum FileNameTemplate {
             switch part.text.lowercased() {
             case "date", "time":
                 if let f = part.format, DotNetFormat.date(f, Date(timeIntervalSince1970: 0), TimeZone(identifier: "UTC")!, Locale(identifier: "en_US_POSIX")) == nil {
-                    return "{\(part.text):\(f)} isn't a date or time format."
+                    return loc("{0} isn't a date or time format.", "{\(part.text):\(f)}")
                 }
             case "n":
                 break
             case "preset", "printer", "pages":
-                if part.format != nil { return "{\(part.text)} takes no format." }
+                if part.format != nil { return loc("{0} takes no format.", "{\(part.text)}") }
             default:
-                return "Unknown token {\(part.text)}. Use \(tokenList)."
+                return loc("Unknown token {0}. Use {1}.", "{\(part.text)}", tokenList)
             }
         }
         return error
@@ -116,7 +116,7 @@ public enum FileNameTemplate {
             let set = count == 1 ? [join(folder, name + ext)] : (1...count).map { join(folder, "\(name) (\($0))\(ext)") }
             if !set.contains(where: exists) { return set }
         }
-        throw CocoaError(.fileWriteFileExists, userInfo: [NSLocalizedDescriptionKey: "Too many files called \"\(stem)\" in \(folder)."])
+        throw CocoaError(.fileWriteFileExists, userInfo: [NSLocalizedDescriptionKey: loc("Too many files called \"{0}\" in {1}.", stem, folder)])
     }
 
     /// Moves files already written under temporary names to their final names as one set, never over another file: when a
@@ -132,10 +132,10 @@ public enum FileNameTemplate {
             while moved < temps.count && tryMove(temps[moved], targets[moved]) { moved += 1 }
             if moved == temps.count { return targets }
             for i in stride(from: moved - 1, through: 0, by: -1) where !tryMove(targets[i], temps[i]) {
-                throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: "Couldn't put \(targets[i]) back while picking another name."])
+                throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: loc("Couldn't put {0} back while picking another name.", targets[i])])
             }
         }
-        throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: "Couldn't find a free name for \"\(stem)\" in \(folder)."])
+        throw CocoaError(.fileWriteUnknown, userInfo: [NSLocalizedDescriptionKey: loc("Couldn't find a free name for \"{0}\" in {1}.", stem, folder)])
     }
 
     private static func join(_ folder: String, _ name: String) -> String { folder.hasSuffix("/") ? folder + name : folder + "/" + name }
@@ -199,7 +199,7 @@ public enum FileNameTemplate {
                 i += 1
             } else if c == "{" {
                 guard let end = chars[(i + 1)...].firstIndex(of: "}") else {
-                    if error == nil { error = "A { has no closing }. Type {{ for a brace." }
+                    if error == nil { error = loc("A { has no closing }. Type {{ for a brace.") }
                     text += String(chars[i...])
                     break
                 }
@@ -212,7 +212,7 @@ public enum FileNameTemplate {
                 }
                 i = end
             } else if c == "}" {
-                if error == nil { error = "A } has no opening {. Type }} for a brace." }
+                if error == nil { error = loc("A } has no opening {. Type }} for a brace.") }
                 text.append(c)
             } else if c == "/" || c == "\\" {
                 flushText()

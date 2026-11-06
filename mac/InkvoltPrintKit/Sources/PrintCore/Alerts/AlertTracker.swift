@@ -278,7 +278,7 @@ public final class AlertTracker {
         current(uuid).filter { AlertCondition.level(of: $0.kind) > .ok }.sorted {
             let (a, b) = (AlertCondition.level(of: $0.kind), AlertCondition.level(of: $1.kind))
             return a != b ? a > b : $0.kind < $1.kind
-        }.first.map { $0.kind == .offline ? "Offline" : $0.condition!.title }
+        }.first.map { $0.kind == .offline ? loc("Offline") : $0.condition!.title }
     }
 
     /// Keys of the alerts shown that are still going on, per printer: kept across restarts.
@@ -328,13 +328,13 @@ public enum TrayText {
 
     /// "Inkvolt Print" then a line per printer, problems first, cut to fit with "+n more".
     public static func tooltip(_ printers: [PrinterLine], paused: Bool) -> String {
-        var text = paused ? "Inkvolt Print (alerts paused)" : "Inkvolt Print"
+        var text = paused ? loc("Inkvolt Print (alerts paused)") : "Inkvolt Print"
         let lines = printers.enumerated().sorted { $0.element.level != $1.element.level ? $0.element.level > $1.element.level : $0.offset < $1.offset }
             .map { cut("\($0.element.name): \($0.element.text)", 60) }
         for (i, line) in lines.enumerated() {
             let rest = lines.count - i - 1
-            let more = rest > 0 ? "\n+\(rest) more" : ""
-            if text.count + 1 + line.count + more.count > maxLength { return text + "\n+\(lines.count - i) more" }
+            let more = rest > 0 ? "\n" + loc("+{0} more", rest) : ""
+            if text.count + 1 + line.count + more.count > maxLength { return text + "\n" + loc("+{0} more", lines.count - i) }
             text += "\n" + line
         }
         return text
@@ -359,6 +359,6 @@ extension TrayText {
     /// One alert: its own title and text. Several at once: a line each.
     public static func notice(_ notices: [AlertNotice]) -> (title: String, text: String) {
         notices.count == 1 ? (notices[0].title, notices[0].body)
-            : ("\(notices.count) printer alerts", notices.map { "\($0.printerName): \($0.title)" }.joined(separator: "\n"))
+            : (loc("{0} printer alerts", notices.count), notices.map { "\($0.printerName): \($0.title)" }.joined(separator: "\n"))
     }
 }

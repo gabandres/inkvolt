@@ -127,27 +127,27 @@ public enum ProKeys {
     /// Reads and checks a key against `publicKey` (an uncompressed P-256 point; Inkvolt's by default).
     public static func parse(_ key: String, verifier: ProSignatureVerifier, publicKey: [UInt8] = ProKeys.publicKey) throws -> ProLicence {
         let compact = self.compact(key)
-        if compact.isEmpty { throw ProKeyError("Paste the key you were sent.") }
+        if compact.isEmpty { throw ProKeyError(loc("Paste the key you were sent.")) }
         let head = self.compact(prefix)
-        guard compact.hasPrefix(head) else { throw ProKeyError("That isn't an Inkvolt Pro key: a key starts with \(prefix).") }
+        guard compact.hasPrefix(head) else { throw ProKeyError(loc("That isn't an Inkvolt Pro key: a key starts with {0}.", prefix)) }
         let body = Array(compact.dropFirst(head.count))
         if body.contains(where: { !alphabet.contains($0) }) {
-            throw ProKeyError("The key has a character that doesn't belong in it (a key uses the letters A to Z and the digits 2 to 7). Paste it exactly as it was sent.")
+            throw ProKeyError(loc("The key has a character that doesn't belong in it (a key uses the letters A to Z and the digits 2 to 7). Paste it exactly as it was sent."))
         }
         let bytes = fromBase32(body)
-        if bytes.count < 1 + signatureLength + 4 { throw ProKeyError("The key is incomplete: paste all of it.") }
-        if bytes[0] != version { throw ProKeyError("This key was made for a newer version of the Inkvolt apps. Update the app, then enter it again.") }
+        if bytes.count < 1 + signatureLength + 4 { throw ProKeyError(loc("The key is incomplete: paste all of it.")) }
+        if bytes[0] != version { throw ProKeyError(loc("This key was made for a newer version of the Inkvolt apps. Update the app, then enter it again.")) }
         let payload = Array(bytes.dropLast(signatureLength))
         let signature = Array(bytes.suffix(signatureLength))
         guard publicKey.count == 65, publicKey[0] == 4 else { throw ProKeyError("The public key must be an uncompressed P-256 point (65 bytes).") }
         guard verifier.isValid(signature: signature, for: payload, publicKey: publicKey) else {
-            throw ProKeyError("This key has been altered or didn't paste whole. Paste it exactly as it was sent, or ask for it again.")
+            throw ProKeyError(loc("This key has been altered or didn't paste whole. Paste it exactly as it was sent, or ask for it again."))
         }
         guard let text = String(validating: payload.dropFirst(), as: UTF8.self) else {
-            throw ProKeyError("The key's contents can't be read. Ask for it again.")
+            throw ProKeyError(loc("The key's contents can't be read. Ask for it again."))
         }
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
-        guard lines.count == 4, isDate(lines[2]) else { throw ProKeyError("The key's contents can't be read. Ask for it again.") }
+        guard lines.count == 4, isDate(lines[2]) else { throw ProKeyError(loc("The key's contents can't be read. Ask for it again.")) }
         let products = lines[3].split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
         return ProLicence(name: lines[0], email: lines[1], issued: lines[2], products: products)
     }

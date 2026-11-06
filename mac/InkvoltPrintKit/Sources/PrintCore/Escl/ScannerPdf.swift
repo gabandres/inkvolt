@@ -66,7 +66,7 @@ public enum ScannerPdf {
         var pages = jpegPages(pdf)
         let rendered = pages == nil
         if pages == nil {
-            guard let renderer else { throw ScanError("This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.") }
+            guard let renderer else { throw ScanError(loc("This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.")) }
             do {
                 pages = try await renderer.render(pdf, dpi: dpi)
             } catch let e as CancellationError {
@@ -74,10 +74,10 @@ public enum ScannerPdf {
             } catch let e as ScanError {
                 throw e
             } catch {
-                throw ScanError("The scanner's PDF couldn't be opened: \(error)")
+                throw ScanError(loc("The scanner's PDF couldn't be opened: {0}", error))
             }
         }
-        guard let pages, !pages.isEmpty else { throw ScanError("The scanner sent a PDF without pages.") }
+        guard let pages, !pages.isEmpty else { throw ScanError(loc("The scanner sent a PDF without pages.")) }
         state.withLock { s in
             let document = s.next
             s.next += 1
@@ -108,8 +108,8 @@ public enum ScannerPdf {
     public static func whyNotAsSent(_ pages: [PageToSave]) -> String? {
         if pages.allSatisfy({ $0.origin == nil }) || keepAsSent(pages) != nil { return nil }
         return pages.contains { $0.changed }
-            ? "Your changes (or the text layer) are in it, so it was made from the scanner's pages, pictures unchanged."
-            : "Pages were added, left out, moved or split into files, so it was made from the scanner's pages, pictures unchanged."
+            ? loc("Your changes (or the text layer) are in it, so it was made from the scanner's pages, pictures unchanged.")
+            : loc("Pages were added, left out, moved or split into files, so it was made from the scanner's pages, pictures unchanged.")
     }
 
     // MARK: Taking pictures out

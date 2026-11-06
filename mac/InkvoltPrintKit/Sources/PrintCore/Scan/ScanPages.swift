@@ -49,18 +49,20 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     /// What happened to the page, under its number: "Straightened", "Edited", "Blank, not saved", what it was cleaned up
     /// with, or nothing.
     public var note: String {
-        if isSeparator { return "Separator: \(separator.description)" }
+        if isSeparator { return loc("Separator: {0}", separator.description) }
         if hasPhotos {
-            let count = photos!.count == 1 ? "1 photo" : "\(photos!.count) photos"
-            return edits.filters.isEmpty ? count : "\(count), \(PageCleanup.describe(edits.filters))"
+            let n = photos!.count
+            if edits.filters.isEmpty { return n == 1 ? loc("{0} photo", n) : loc("{0} photos", n) }
+            let done = PageCleanup.describe(edits.filters)
+            return n == 1 ? loc("{0} photo, {1}", n, done) : loc("{0} photos, {1}", n, done)
         }
-        if skipped { return looksBlank ? "Blank, not saved" : "Not saved" }
+        if skipped { return looksBlank ? loc("Blank, not saved") : loc("Not saved") }
         if !edits.filters.isEmpty {
             let done = PageCleanup.describe(edits.filters)
             return done.prefix(1).uppercased() + done.dropFirst()
         }
-        if edits.deskew != 0 && edits.crop == nil && edits.quarterTurns % 4 == 0 { return "Straightened" }
-        return edits.isEmpty ? "" : "Edited"
+        if edits.deskew != 0 && edits.crop == nil && edits.quarterTurns % 4 == 0 { return loc("Straightened") }
+        return edits.isEmpty ? "" : loc("Edited")
     }
 }
 
@@ -146,8 +148,14 @@ public struct ScanPages: Equatable, Sendable {
         let changed = run.filter { $0.beforeCleanup != nil }.count
         let noEdge = cleanup.contains(.cropToPaper) ? run.filter(\.noPaperEdge).count : 0
         var parts: [String] = []
-        if changed > 0 { parts.append(changed == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(changed) pages were cleaned up (Undo puts them back).") }
-        if noEdge > 0 { parts.append("The paper's edge couldn't be told from the lid on \(noEdge) \(noEdge == 1 ? "page" : "pages"): kept whole.") }
+        if changed > 0 {
+            parts.append(changed == 1 ? loc("{0} page was cleaned up (Undo puts it back).", changed)
+                : loc("{0} pages were cleaned up (Undo puts them back).", changed))
+        }
+        if noEdge > 0 {
+            parts.append(noEdge == 1 ? loc("The paper's edge couldn't be told from the lid on {0} page: kept whole.", noEdge)
+                : loc("The paper's edge couldn't be told from the lid on {0} pages: kept whole.", noEdge))
+        }
         return parts.joined(separator: " ")
     }
 
@@ -249,17 +257,17 @@ public struct ScanPages: Equatable, Sendable {
 
     /// "3 pages", "3 pages, 1 not saved", "1 page", "5 pages in 2 files, 1 separator left out", "1 page (3 photos)".
     public var summary: String {
-        if pages.isEmpty { return "No pages yet" }
-        var all = pages.count == 1 ? "1 page" : "\(pages.count) pages"
+        if pages.isEmpty { return loc("No pages yet") }
+        var all = ScanRun.pages(pages.count)
         let parts = files
-        if parts.count > 1 { all += " in \(parts.count) files" }
+        if parts.count > 1 { all = loc("{0} in {1} files", all, parts.count) }
         let photos = parts.joined().reduce(0) { $0 + ($1.hasPhotos ? $1.photos!.count : 0) }
-        if photos > 0 { all += photos == 1 ? " (1 photo)" : " (\(photos) photos)" }
+        if photos > 0 { all = photos == 1 ? loc("{0} ({1} photo)", all, photos) : loc("{0} ({1} photos)", all, photos) }
         let separators = keepSeparators ? 0 : pages.filter(\.isSeparator).count
         let left = pages.filter { $0.skipped && !$0.isSeparator }.count
         var notes: [String] = []
-        if separators > 0 { notes.append(separators == 1 ? "1 separator left out" : "\(separators) separators left out") }
-        if left > 0 { notes.append("\(left) not saved") }
+        if separators > 0 { notes.append(separators == 1 ? loc("{0} separator left out", separators) : loc("{0} separators left out", separators)) }
+        if left > 0 { notes.append(loc("{0} not saved", left)) }
         return ([all] + notes).joined(separator: ", ")
     }
 

@@ -3,46 +3,48 @@ import Foundation
 /// Plain names for what a print queue offers: paper sizes (by their size, since drivers name the same paper in different
 /// ways), paper types, print quality and color modes (the Print Schema names, e.g. PhotographicGlossy).
 public enum PhotoPaperText {
-    private static let known: [(w: Double, h: Double, name: String)] = [
-        (8.5, 11, "Letter (8.5 × 11 in)"),
-        (8.5, 14, "Legal (8.5 × 14 in)"),
-        (11, 17, "Tabloid (11 × 17 in)"),
-        (7.25, 10.5, "Executive (7.25 × 10.5 in)"),
+    private static var known: [(w: Double, h: Double, name: String)] {
+[
+        (8.5, 11, loc("Letter (8.5 × 11 in)")),
+        (8.5, 14, loc("Legal (8.5 × 14 in)")),
+        (11, 17, loc("Tabloid (11 × 17 in)")),
+        (7.25, 10.5, loc("Executive (7.25 × 10.5 in)")),
         (210 / 25.4, 297 / 25.4, "A4 (21 × 29.7 cm)"),
         (148 / 25.4, 210 / 25.4, "A5 (14.8 × 21 cm)"),
         (105 / 25.4, 148 / 25.4, "A6 (10.5 × 14.8 cm)"),
         (297 / 25.4, 420 / 25.4, "A3 (29.7 × 42 cm)"),
         (182 / 25.4, 257 / 25.4, "B5 (18.2 × 25.7 cm)"),
-        (100 / 25.4, 148 / 25.4, "Hagaki postcard (10 × 14.8 cm)"),
-        (3.5, 5, "3.5 × 5 in photo"),
-        (4, 6, "4 × 6 in photo"),
-        (5, 7, "5 × 7 in photo"),
-        (8, 10, "8 × 10 in photo"),
-        (100 / 25.4, 150 / 25.4, "10 × 15 cm photo"),
-        (130 / 25.4, 180 / 25.4, "13 × 18 cm photo"),
+        (100 / 25.4, 148 / 25.4, loc("Hagaki postcard (10 × 14.8 cm)")),
+        (3.5, 5, loc("3.5 × 5 in photo")),
+        (4, 6, loc("4 × 6 in photo")),
+        (5, 7, loc("5 × 7 in photo")),
+        (8, 10, loc("8 × 10 in photo")),
+        (100 / 25.4, 150 / 25.4, loc("10 × 15 cm photo")),
+        (130 / 25.4, 180 / 25.4, loc("13 × 18 cm photo")),
         (5, 8, "5 × 8 in"),
     ]
+    }
 
     /// "Letter (8.5 × 11 in)", "4 × 6 in photo"; otherwise its size in inches. `name` is the driver's (unused for now:
     /// sizes are what count).
     public static func paper(_ name: String?, _ widthIn: Double, _ heightIn: Double) -> String {
         let (a, b) = (min(widthIn, heightIn), max(widthIn, heightIn))
         for k in known where abs(a - k.w) < 0.04 && abs(b - k.h) < 0.04 { return k.name }
-        return "\(number(a)) × \(number(b)) in"
+        return loc("{0} × {1} in", number(a), number(b))
     }
 
     /// Print Schema media type → "Photo paper, glossy", "Plain paper"…
     public static func mediaType(_ name: String) -> String {
         switch name {
-        case "Plain": "Plain paper"
-        case "AutoSelect": "Let the printer choose"
-        case "Photographic": "Photo paper"
-        case "PhotographicGlossy": "Photo paper, glossy"
-        case "PhotographicHighGloss": "Photo paper, high gloss"
-        case "PhotographicSemiGloss": "Photo paper, semi-gloss"
-        case "PhotographicMatte": "Photo paper, matte"
-        case "PhotographicSatin": "Photo paper, satin"
-        case "PhotographicFilm": "Photo film"
+        case "Plain": loc("Plain paper")
+        case "AutoSelect": loc("Let the printer choose")
+        case "Photographic": loc("Photo paper")
+        case "PhotographicGlossy": loc("Photo paper, glossy")
+        case "PhotographicHighGloss": loc("Photo paper, high gloss")
+        case "PhotographicSemiGloss": loc("Photo paper, semi-gloss")
+        case "PhotographicMatte": loc("Photo paper, matte")
+        case "PhotographicSatin": loc("Photo paper, satin")
+        case "PhotographicFilm": loc("Photo film")
         default: words(name)
         }
     }
@@ -50,13 +52,23 @@ public enum PhotoPaperText {
     public static func isPhotoMedia(_ name: String) -> Bool { name.hasPrefix("Photographic") }
 
     /// Print Schema output quality → a plain word.
-    public static func quality(_ name: String) -> String { name == "Photographic" ? "Photo (best)" : words(name) }
+    public static func quality(_ name: String) -> String {
+        switch name {
+        case "Photographic": loc("Photo (best)")
+        case "Draft": loc("Draft")
+        case "Normal": loc("Normal")
+        case "High": loc("High")
+        default: words(name)
+        }
+    }
 
     /// Print Schema output color → a plain word.
     public static func color(_ name: String) -> String {
         switch name {
-        case "Grayscale": "Shades of grey"
-        case "Monochrome": "Black and white"
+        case "Grayscale": loc("Shades of grey")
+        case "Monochrome": loc("Black and white")
+        case "Color": loc("Color")
+        case "Automatic": loc("Automatic")
         default: words(name)
         }
     }

@@ -165,7 +165,7 @@ public final class URLSessionTransport: HttpTransport {
     private func map(_ error: Error) -> DeviceNetworkError {
         if LocalNetworkSignal.isDenied(error) {
             localNetwork?.denied()
-            return .failed("Local Network access is off")
+            return .failed(loc("Local Network access is off"))
         }
         guard let url = error as? URLError else { return .failed(error.localizedDescription) }
         switch url.code {
@@ -174,7 +174,7 @@ public final class URLSessionTransport: HttpTransport {
             // Refused outright (nothing listens on the port), unless the stream says the host was unreachable or silent.
             let stream = (url as NSError).userInfo["_kCFStreamErrorCodeKey"] as? Int
             return stream == nil || stream == Int(ECONNREFUSED) ? .refused : .failed(url.localizedDescription)
-        case .cancelled where check.certificateChanged: return .failed("The printer's certificate changed")
+        case .cancelled where check.certificateChanged: return .failed(loc("The printer's certificate changed"))
         default: return .failed(url.localizedDescription)
         }
     }

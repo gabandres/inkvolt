@@ -12,19 +12,19 @@ public struct SupplyText: Equatable, Sendable {
         self.locale = locale
     }
 
-    public var name: String { supply.name }
+    public var name: String { SupplyNames.display(supply.name) }
 
     /// "About 100 pages left", or the state when no estimate is available; nil for a waste box with room left.
     public var headline: String? {
         switch supply.state {
-        case "missing": return "Missing — install it"
-        case "full": return "Replace now"
-        case "almostFull": return "Replace soon"
-        case "out": return "Empty — replace now"
+        case "missing": return loc("Missing — install it")
+        case "full": return loc("Replace now")
+        case "almostFull": return loc("Replace soon")
+        case "out": return loc("Empty — replace now")
         default:
             if supply.isWaste { return nil }
-            if let pages = supply.estimatedPagesRemaining { return "About \(pages.formatted(.number.locale(locale))) pages left" }
-            return supply.isLow ? "Running low" : "OK"
+            if let pages = supply.estimatedPagesRemaining { return loc("About {0} pages left", pages.formatted(.number.locale(locale))) }
+            return supply.isLow ? loc("Running low") : loc("OK", context: "supply")
         }
     }
 
@@ -32,7 +32,7 @@ public struct SupplyText: Equatable, Sendable {
     public var cartridge: String? {
         // The selectability number is LEDM's (HP) only.
         let parts = [supply.selectibilityNumber.map { "HP \($0)" }, supply.productNumber].compactMap { $0 }
-        return parts.isEmpty ? nil : "Replacement: " + parts.joined(separator: "  ·  ")
+        return parts.isEmpty ? nil : loc("Replacement: {0}", parts.joined(separator: "  ·  "))
     }
 
     public var level: Level { ["out", "full", "missing"].contains(supply.state) ? .empty : supply.isLow ? .low : .ok }
@@ -44,11 +44,11 @@ public struct SupplyText: Equatable, Sendable {
     public var percentText: String {
         if let p = supply.percentRemaining { return "\(p)%" }
         switch supply.state {
-        case "full": return "Full"
-        case "almostFull": return "Almost full"
-        case "out": return "Empty"
-        case "missing": return "Missing"
-        case "ok": return "OK"
+        case "full": return loc("Full")
+        case "almostFull": return loc("Almost full")
+        case "out": return loc("Empty")
+        case "missing": return loc("Missing")
+        case "ok": return loc("OK", context: "supply")
         default: return "—"
         }
     }

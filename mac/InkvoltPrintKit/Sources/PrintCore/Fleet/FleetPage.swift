@@ -37,12 +37,13 @@ public enum FleetPage {
         } else {
             status = "\(p.status) · \(p.problems.joined(separator: " · "))"
         }
-        let known = p.lastKnown ? " (last known)" : ""
-        let pages = p.pages.map { "\(grouped($0)) pages printed\(known)" } ?? (p.kind == .scanner ? "Pages: a scanner has no count" : "Pages not reported")
-        let firmware = p.firmware.map { "Firmware \($0)\(known)" } ?? "Firmware not reported"
+        let known = p.lastKnown
+        let notReported = p.kind == .scanner ? loc("Pages: a scanner has no count") : loc("Pages not reported")
+        let pages = p.pages.map { known ? loc("{0} pages printed (last known)", grouped($0)) : loc("{0} pages printed", grouped($0)) } ?? notReported
+        let firmware = p.firmware.map { known ? loc("Firmware {0} (last known)", $0) : loc("Firmware {0}", $0) } ?? loc("Firmware not reported")
         let read = lastRead(p, now, timeZone)
-        let none: String? = !supplies.isEmpty ? nil : p.kind == .scanner ? "No supplies: it's a scanner" : "Supplies not reported"
-        let suppliesSaid = !supplies.isEmpty ? supplies.map { $0.isLow ? "\($0.text), low" : $0.text }.joined(separator: ", ") : none
+        let none: String? = !supplies.isEmpty ? nil : p.kind == .scanner ? loc("No supplies: it's a scanner") : loc("Supplies not reported")
+        let suppliesSaid = !supplies.isEmpty ? supplies.map { $0.isLow ? loc("{0}, low", $0.text) : $0.text }.joined(separator: ", ") : none
         let said = [p.name, troubleText(p.trouble), status, suppliesSaid, pages, firmware, read].compactMap { $0 }.joined(separator: ". ")
         return FleetRow(printer: p, statusLine: status, supplies: supplies, noSuppliesText: none, pagesText: pages, firmwareText: firmware,
                         lastReadText: read, accessibleText: said + ".")
@@ -50,50 +51,58 @@ public enum FleetPage {
 
     /// "9 printers: 1 with an error, 3 needing attention, 2 can't be reached, 3 fine."
     public static func summary(_ printers: [FleetPrinter]) -> String {
-        if printers.isEmpty { return "No printers yet." }
+        if printers.isEmpty { return loc("No printers yet.") }
         func count(_ t: FleetTrouble) -> Int { printers.filter { $0.trouble == t }.count }
-        let parts: [(Int, String)] = [
-            (count(.error), count(.error) == 1 ? "with an error" : "with errors"),
-            (count(.warning), "needing attention"),
-            (count(.offline), "can't be reached"),
-            (count(.unknown), "not known yet"),
-            (count(.ok), "fine"),
-        ]
-        let said = parts.filter { $0.0 > 0 }.map { "\($0.0) \($0.1)" }.joined(separator: ", ")
-        return "\(printers.count) \(printers.count == 1 ? "printer" : "printers"): \(said)."
+        func said(_ t: FleetTrouble) -> String? {
+            let n = count(t)
+            guard n > 0 else { return nil }
+            let one = n == 1
+            switch t {
+            case .error: return one ? loc("{0} with an error", n) : loc("{0} with errors", n)
+            case .warning: return one ? loc("{0} needing attention", context: "one", n) : loc("{0} needing attention", context: "many", n)
+            case .offline: return one ? loc("{0} can't be reached", context: "one", n) : loc("{0} can't be reached", context: "many", n)
+            case .unknown: return one ? loc("{0} not known yet", context: "one", n) : loc("{0} not known yet", context: "many", n)
+            case .ok: return one ? loc("{0} fine", context: "one", n) : loc("{0} fine", context: "many", n)
+            }
+        }
+        let parts = [FleetTrouble.error, .warning, .offline, .unknown, .ok].compactMap(said).joined(separator: ", ")
+        return printers.count == 1 ? loc("{0} printer: {1}.", printers.count, parts) : loc("{0} printers: {1}.", printers.count, parts)
     }
 
     public static func troubleText(_ trouble: FleetTrouble) -> String {
         switch trouble {
-        case .error: "Error"
-        case .warning: "Needs attention"
-        case .offline: "Can't be reached"
-        case .unknown: "Not known yet"
-        case .ok: "Fine"
+        case .error: loc("Error")
+        case .warning: loc("Needs attention")
+        case .offline: loc("Can't be reached")
+        case .unknown: loc("Not known yet")
+        case .ok: loc("Fine")
         }
     }
 
     private static func supplyText(_ s: FleetSupply) -> String {
-        if let level = s.level { return "\(s.name) \(level)%" }
+        let name = SupplyNames.display(s.name)
+        if let level = s.level { return "\(name) \(level)%" }
         switch s.state {
-        case "full": return "\(s.name): full"
-        case "almostFull": return "\(s.name): almost full"
-        case "out": return "\(s.name): empty"
-        case "missing": return "\(s.name): missing"
-        case "low", "veryLow": return "\(s.name): low"
-        case "ok": return "\(s.name): OK"
-        default: return s.name
+        case "full": return loc("{0}: full", name)
+        case "almostFull": return loc("{0}: almost full", name)
+        case "out": return loc("{0}: empty", name)
+        case "missing": return loc("{0}: missing", name)
+        case "low", "veryLow": return loc("{0}: low", name)
+        case "ok": return loc("{0}: OK", name)
+        default: return name
         }
     }
 
     private static func isLow(_ s: FleetSupply) -> Bool { ["low", "veryLow", "out", "almostFull", "full", "missing"].contains(s.state) }
 
-    /// .NET's "N0" with the invariant culture: 12,345.
+    /// .NET's "N0" with the invariant culture: 12,345; with the interface in another language (`CoreLanguage`), the Mac's
+    /// regional separator (12.345 in Spain).
     static func grouped(_ n: Int) -> String {
         let digits = String(n.magnitude)
+        let separator = CoreLanguage.groupingSeparator
         var out = ""
         for (i, c) in digits.enumerated() {
-            if i > 0 && (digits.count - i) % 3 == 0 { out.append(",") }
+            if i > 0 && (digits.count - i) % 3 == 0 { out.append(separator) }
             out.append(c)
         }
         return (n < 0 ? "-" : "") + out
@@ -102,12 +111,13 @@ public enum FleetPage {
     private static func lastRead(_ p: FleetPrinter, _ now: Date, _ timeZone: TimeZone) -> String {
         if let time = p.lastReading {
             let ago = now.timeIntervalSince(time)
-            if ago < 60 { return "Read just now" }
-            if ago < 3600 { return Int(ago / 60) == 1 ? "Read 1 minute ago" : "Read \(Int(ago / 60)) minutes ago" }
-            if ago < 86400 { return Int(ago / 3600) == 1 ? "Read 1 hour ago" : "Read \(Int(ago / 3600)) hours ago" }
-            return "Last read \(dayText(Day(time, timeZone: timeZone)))"
+            if ago < 60 { return loc("Read just now") }
+            let minutes = Int(ago / 60), hours = Int(ago / 3600)
+            if ago < 3600 { return minutes == 1 ? loc("Read {0} minute ago", minutes) : loc("Read {0} minutes ago", minutes) }
+            if ago < 86400 { return hours == 1 ? loc("Read {0} hour ago", hours) : loc("Read {0} hours ago", hours) }
+            return loc("Last read {0}", dayText(Day(time, timeZone: timeZone)))
         }
-        return p.lastReadingDay.map { "Last read \(dayText($0))" } ?? "Not read yet"
+        return p.lastReadingDay.map { loc("Last read {0}", dayText($0)) } ?? loc("Not read yet")
     }
 
     /// "29 Oct 2026", in the Mac's language.

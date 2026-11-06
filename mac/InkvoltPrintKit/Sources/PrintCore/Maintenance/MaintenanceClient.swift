@@ -87,14 +87,14 @@ public struct MaintenanceClient: Sendable {
             case .alignment: return try await align(action)
             default:
                 guard let job = action.jobType, let target = action.target else {
-                    return MaintenanceResult(false, "The printer doesn't offer this to apps after all. Use its control panel or web page.")
+                    return MaintenanceResult(false, loc("The printer doesn't offer this to apps after all. Use its control panel or web page."))
                 }
                 return try await postLedm(action, target, try MaintenanceRequests.internalPrint(job))
             }
         } catch let error as DeviceNetworkError {
             if let why = Self.neverSent(error) { return MaintenanceResult(false, why) }
             // Sent, then no answer: the printer may well be doing it. Saying so keeps a cleaning from being sent twice.
-            return MaintenanceResult(false, "The printer didn't answer, so the request may have started anyway. Check the printer before trying again.")
+            return MaintenanceResult(false, loc("The printer didn't answer, so the request may have started anyway. Check the printer before trying again."))
         }
     }
 
@@ -104,7 +104,7 @@ public struct MaintenanceClient: Sendable {
     /// `DeviceNetworkError.failed` like a lost answer, so it counts as maybe sent (the Windows app can tell them apart).
     static func neverSent(_ error: DeviceNetworkError) -> String? {
         switch error {
-        case .refused: "Not sent: the printer refused the connection. Check that it's on, then try again."
+        case .refused: loc("Not sent: the printer refused the connection. Check that it's on, then try again.")
         case .timedOut, .failed: nil
         }
     }
@@ -113,11 +113,10 @@ public struct MaintenanceClient: Sendable {
         if let ledm = connection.ledm, let state = try await Self.attempt({ try await ledm.get(path: MaintenanceRequests.calibrationStatePath) }) {
             switch MaintenanceRequests.readCalibration(state) {
             case .running:
-                return MaintenanceResult(false, "An alignment is already under way on the printer. Finish it there first.")
+                return MaintenanceResult(false, loc("An alignment is already under way on the printer. Finish it there first."))
             case .awaitingParameters:
                 // HPLIP base/maint.py: "ParmsRequested" → "Restart device and start alignment".
-                return MaintenanceResult(false, "An earlier alignment is still waiting to be finished on the printer. Finish it on the "
-                    + "printer's control panel, or turn the printer off and on again, then try again.")
+                return MaintenanceResult(false, loc("An earlier alignment is still waiting to be finished on the printer. Finish it on the printer's control panel, or turn the printer off and on again, then try again."))
             case .idle:
                 break
             }
@@ -140,28 +139,28 @@ public struct MaintenanceClient: Sendable {
         switch response.status {
         case 401, 403: throw LedmAuthRequiredError(credentialsWereSent: http.hasCredentials)
         case 200..<300: return MaintenanceResult(true, action.sent)
-        case 404, 405, 501: return MaintenanceResult(false, "The printer doesn't offer this to apps after all. Use its control panel or web page.")
-        case 409, 503, 429: return MaintenanceResult(false, "The printer is busy and didn't start it. Try again when it's idle.")
-        case let s: return MaintenanceResult(false, "The printer refused it (HTTP \(s)).")
+        case 404, 405, 501: return MaintenanceResult(false, loc("The printer doesn't offer this to apps after all. Use its control panel or web page."))
+        case 409, 503, 429: return MaintenanceResult(false, loc("The printer is busy and didn't start it. Try again when it's idle."))
+        case let s: return MaintenanceResult(false, loc("The printer refused it (HTTP {0}).", s))
         }
     }
 
     private func identify(_ action: MaintenanceAction) async throws -> MaintenanceResult {
-        guard let ipp = connection.ipp else { return MaintenanceResult(false, "The printer doesn't answer IPP any more.") }
+        guard let ipp = connection.ipp else { return MaintenanceResult(false, loc("The printer doesn't answer IPP any more.")) }
         let r: IppResponse
         do {
             r = try await ipp.identifyPrinter(actions: action.identifyActions, userName: userName)
         } catch let error as DeviceHttpError {
-            return MaintenanceResult(false, "The printer refused it (\(error)).")
+            return MaintenanceResult(false, loc("The printer refused it ({0}).", error))
         } catch let error as IppFormatError {
-            return MaintenanceResult(false, "The printer refused it (\(error)).")
+            return MaintenanceResult(false, loc("The printer refused it ({0}).", error))
         }
         switch r.statusCode {
         case ..<0x0100: return MaintenanceResult(true, action.sent)
         // PWG 5100.13 §4.1: a printer SHOULD ask for an authenticated user and answers with one of these when it does.
-        case 0x0401, 0x0402, 0x0403: return MaintenanceResult(false, "The printer only does this for a signed-in user. Use its control panel or web page.")
-        case 0x0501: return MaintenanceResult(false, "The printer doesn't offer this after all.")
-        case let s: return MaintenanceResult(false, "The printer refused it (IPP status 0x\(String(format: "%04X", Int(s)))).")
+        case 0x0401, 0x0402, 0x0403: return MaintenanceResult(false, loc("The printer only does this for a signed-in user. Use its control panel or web page."))
+        case 0x0501: return MaintenanceResult(false, loc("The printer doesn't offer this after all."))
+        case let s: return MaintenanceResult(false, loc("The printer refused it (IPP status 0x{0}).", String(format: "%04X", Int(s))))
         }
     }
 

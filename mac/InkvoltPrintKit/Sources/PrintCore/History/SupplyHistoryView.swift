@@ -42,7 +42,7 @@ public struct SupplyHistoryView: Equatable, Sendable {
     public func chartNote(_ supplies: [Consumable]) -> String? {
         if chart.hasEnoughToDraw { return nil }
         return supplies.contains { !$0.isWaste && ($0.percentRemaining.map { (0...100).contains($0) } ?? false) }
-            ? "The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this Mac."
+            ? loc("The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this Mac.")
             : nil
     }
 }

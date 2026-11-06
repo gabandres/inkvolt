@@ -72,33 +72,33 @@ public enum BatchPrintList {
         let shown = BatchPrintText.clean(path)
         var isFolder: ObjCBool = false
         guard FileManager.default.fileExists(atPath: path, isDirectory: &isFolder), !isFolder.boolValue else {
-            throw BatchListError("There is no list file \(shown).")
+            throw BatchListError(loc("There is no list file {0}.", shown))
         }
         let bytes: [UInt8]
         do {
             let size = (try FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)?.intValue ?? 0
-            if size > maxFileBytes { throw BatchListError("This list file is too large.") }
+            if size > maxFileBytes { throw BatchListError(loc("This list file is too large.")) }
             bytes = Array(try Data(contentsOf: URL(fileURLWithPath: path)))
         } catch let e as BatchListError {
             throw e
         } catch {
-            throw BatchListError("The list file can't be read: \(BatchPrintText.describe(error))")
+            throw BatchListError(loc("The list file can't be read: {0}", BatchPrintText.describe(error)))
         }
-        if bytes.count > maxFileBytes { throw BatchListError("This list file is too large.") }
-        guard let text = plainText(bytes) else { throw BatchListError("This isn't a batch list, or it's damaged.") }
+        if bytes.count > maxFileBytes { throw BatchListError(loc("This list file is too large.")) }
+        guard let text = plainText(bytes) else { throw BatchListError(loc("This isn't a batch list, or it's damaged.")) }
         guard let json = Json.parse(Array(text.utf8), handWritten: true, maxDepth: maxDepth) else {
-            throw BatchListError("This isn't a batch list, or it's damaged.")
+            throw BatchListError(loc("This isn't a batch list, or it's damaged."))
         }
-        if json == .null { throw BatchListError("This isn't a batch list: it's empty.") }
-        guard let root = json.objectValue.map(lowered) else { throw BatchListError("This isn't a batch list, or it's damaged.") }
+        if json == .null { throw BatchListError(loc("This isn't a batch list: it's empty.")) }
+        guard let root = json.objectValue.map(lowered) else { throw BatchListError(loc("This isn't a batch list, or it's damaged.")) }
 
         let fileVersion = try int(root["version"]) ?? 0
         let defaults = try object(root["defaults"])
         let lines = try array(root["files"])
-        if fileVersion > version { throw BatchListError("This list was made by a newer Inkvolt Print: update it to open the list.") }
-        guard fileVersion >= 1, let lines else { throw BatchListError("This isn't a batch list: it says no version or no files.") }
+        if fileVersion > version { throw BatchListError(loc("This list was made by a newer Inkvolt Print: update it to open the list.")) }
+        guard fileVersion >= 1, let lines else { throw BatchListError(loc("This isn't a batch list: it says no version or no files.")) }
         if lines.count > BatchPrintLimits.maxFiles {
-            throw BatchListError("This list has \(FleetPage.grouped(lines.count)) lines: a batch takes at most \(FleetPage.grouped(BatchPrintLimits.maxFiles)) files.")
+            throw BatchListError(loc("This list has {0} lines: a batch takes at most {1} files.", FleetPage.grouped(lines.count), FleetPage.grouped(BatchPrintLimits.maxFiles)))
         }
         let defaultCopies = try int(defaults?["copies"])
         let defaultTwoSided = try bool(defaults?["twosided"])
@@ -108,29 +108,29 @@ public enum BatchPrintList {
         var entries: [BatchListEntry] = []
         var servers: [String] = []
         for (n, raw) in lines.enumerated() {
-            func refuse(_ why: String) -> BatchListError { BatchListError("Line \(n + 1) of the list: \(why)") }
+            func refuse(_ why: String) -> BatchListError { BatchListError(loc("Line {0} of the list: {1}", n + 1, why)) }
             guard case .object(let members) = raw else {
-                if raw == .null { throw refuse("it has no path, or too long a one.") }
-                throw BatchListError("This isn't a batch list, or it's damaged.")
+                if raw == .null { throw refuse(loc("it has no path, or too long a one.")) }
+                throw BatchListError(loc("This isn't a batch list, or it's damaged."))
             }
             let line = lowered(members)
             let checked = checkPath(try string(line["path"]), folder)
-            guard let full = checked.full else { throw refuse(checked.why ?? "it has no path, or too long a one.") }
+            guard let full = checked.full else { throw refuse(checked.why ?? loc("it has no path, or too long a one.")) }
             if let server = checked.server, !servers.contains(where: { $0.caseInsensitiveCompare(server) == .orderedSame }) { servers.append(server) }
             let copies = try int(line["copies"]) ?? defaultCopies ?? 1
             if copies < 1 || copies > BatchPrintLimits.maxCopies {
-                throw refuse("copies must be 1 to \(BatchPrintLimits.maxCopies) (\(copies) asked for).")
+                throw refuse(loc("copies must be 1 to {0} ({1} asked for).", BatchPrintLimits.maxCopies, copies))
             }
             let range = try string(line["range"])
-            if let range, range.count > maxRange { throw refuse("its pages are too long a text.") }
+            if let range, range.count > maxRange { throw refuse(loc("its pages are too long a text.")) }
             let paper = try string(line["paper"]) ?? defaultPaper
-            if let paper, paper.count > 200 { throw refuse("its paper is too long a text.") }
+            if let paper, paper.count > 200 { throw refuse(loc("its paper is too long a text.")) }
             let twoSided = try bool(line["twosided"]) ?? defaultTwoSided ?? false
             entries.append(BatchListEntry(full, BatchPrintSettings(copies: copies, range: range, twoSided: twoSided, paper: paper)))
         }
         if !servers.isEmpty && !allowNetwork {
             let sorted = servers.sorted { $0.caseInsensitiveCompare($1) == .orderedAscending }
-            throw BatchListError("This list points at files on other computers (\(sorted.map(BatchPrintText.clean).joined(separator: ", "))).", servers: sorted)
+            throw BatchListError(loc("This list points at files on other computers ({0}).", sorted.map(BatchPrintText.clean).joined(separator: ", ")), servers: sorted)
         }
         return entries
     }
@@ -148,10 +148,10 @@ public enum BatchPrintList {
             } else if BatchPrintFiles.isSupported(entry.path) {
                 files.append(entry)
             } else {
-                throw BatchListError("The list names \(BatchPrintText.clean(entry.path)), which is neither a PDF, a picture nor a folder.")
+                throw BatchListError(loc("The list names {0}, which is neither a PDF, a picture nor a folder.", BatchPrintText.clean(entry.path)))
             }
             if files.count > BatchPrintLimits.maxFiles {
-                throw BatchListError("This list comes to more than \(FleetPage.grouped(BatchPrintLimits.maxFiles)) files, the most a batch takes.")
+                throw BatchListError(loc("This list comes to more than {0} files, the most a batch takes.", FleetPage.grouped(BatchPrintLimits.maxFiles)))
             }
         }
         return files
@@ -160,10 +160,10 @@ public enum BatchPrintList {
     /// A line's path made full and checked without touching anything.
     public static func checkPath(_ raw: String?, _ listFolder: String) -> BatchListPath {
         func refuse(_ why: String) -> BatchListPath { BatchListPath(full: nil, server: nil, why: why) }
-        guard let raw, !raw.trimmingCharacters(in: .whitespaces).isEmpty, raw.count <= 4000 else { return refuse("it has no path, or too long a one.") }
+        guard let raw, !raw.trimmingCharacters(in: .whitespaces).isEmpty, raw.count <= 4000 else { return refuse(loc("it has no path, or too long a one.")) }
         let shown = BatchPrintText.clean(raw)
         if raw.unicodeScalars.contains(where: { $0.properties.generalCategory == .control || "<>\"|?*".unicodeScalars.contains($0) }) {
-            return refuse("\"\(shown)\" isn't a path a list may use.")
+            return refuse(loc("\"{0}\" isn't a path a list may use.", shown))
         }
         let slashed = raw.replacingOccurrences(of: "\\", with: "/")
         #if os(Windows)
@@ -174,9 +174,9 @@ public enum BatchPrintList {
         #endif
         let rest = drive.map { String(slashed.dropFirst($0.count)) } ?? slashed
         // A colon is a web address (http:, smb:), never a file on this Mac.
-        if rest.contains(":") { return refuse("\"\(shown)\" isn't a file on this Mac.") }
+        if rest.contains(":") { return refuse(loc("\"{0}\" isn't a file on this Mac.", shown)) }
         // The shell's ~ isn't this Mac's home to a list.
-        if rest.hasPrefix("~") { return refuse("\"\(shown)\" isn't a full path, or one from the list's folder.") }
+        if rest.hasPrefix("~") { return refuse(loc("\"{0}\" isn't a full path, or one from the list's folder.", shown)) }
         let isFull = rest.hasPrefix("/")
 
         var parts: [Substring] = []
@@ -194,7 +194,7 @@ public enum BatchPrintList {
             if part == ".." {
                 cleanAlready = false
                 if parts.isEmpty {
-                    if !isFull { return refuse("\"\(shown)\" leaves the list's folder: use a full path for that.") }
+                    if !isFull { return refuse(loc("\"{0}\" leaves the list's folder: use a full path for that.", shown)) }
                     continue
                 }
                 parts.removeLast()
@@ -202,7 +202,7 @@ public enum BatchPrintList {
             }
             parts.append(part)
         }
-        if parts.isEmpty { return refuse("\"\(shown)\" isn't a path a list may use.") }
+        if parts.isEmpty { return refuse(loc("\"{0}\" isn't a path a list may use.", shown)) }
         let full: String
         if isFull {
             #if os(Windows)
@@ -218,12 +218,12 @@ public enum BatchPrintList {
 
         if isFull && drive == nil {
             let first = parts[0].lowercased()
-            if first == "dev" || first == ".vol" { return refuse("\"\(shown)\" names a device.") }
+            if first == "dev" || first == ".vol" { return refuse(loc("\"{0}\" names a device.", shown)) }
             var server: Substring?
             if first == "net" { server = parts.count > 1 ? parts[1] : "" }
             if first == "network", parts.count > 1, parts[1].lowercased() == "servers" { server = parts.count > 2 ? parts[2] : "" }
             if let server {
-                if server.isEmpty || parts.count < (first == "net" ? 3 : 4) { return refuse("\"\(shown)\" isn't a file on this Mac.") }
+                if server.isEmpty || parts.count < (first == "net" ? 3 : 4) { return refuse(loc("\"{0}\" isn't a file on this Mac.", shown)) }
                 return BatchListPath(full: full, server: String(server), why: nil)
             }
         }
@@ -255,7 +255,7 @@ public enum BatchPrintList {
         return out
     }
 
-    private static let damaged = BatchListError("This isn't a batch list, or it's damaged.")
+    private static var damaged: BatchListError { BatchListError(loc("This isn't a batch list, or it's damaged.")) }
 
     private static func int(_ v: Json?) throws -> Int? {
         switch v {

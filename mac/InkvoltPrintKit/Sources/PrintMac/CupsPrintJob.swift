@@ -51,7 +51,7 @@ extension LibCups {
         let all = options + (hold ? [("job-hold-until", "indefinite")] : [])
         let sent: Result<Int, PrintJobSendError> = await Self.run {
             cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
-            let words = { cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused the job." }
+            let words = { cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system refused the job.") }
             var list: UnsafeMutablePointer<cups_option_t>?
             var count: Int32 = 0
             for o in all { count = cupsAddOption(o.name, o.value, count, &list) }

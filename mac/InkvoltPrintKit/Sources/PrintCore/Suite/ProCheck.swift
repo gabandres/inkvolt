@@ -73,7 +73,7 @@ public final class ProCheck: @unchecked Sendable {
     public func install(_ key: String) throws -> ProLicence {
         let licence = try ProKeys.parse(key, verifier: verifier)
         if !licence.covers(product) {
-            throw ProKeyError("This key is for \(Self.names(licence)), not \(productName). A key for \(productName) lists it.")
+            throw ProKeyError(loc("This key is for {0}, not {1}. A key for {2} lists it.", Self.names(licence), productName, productName))
         }
         lock.withLock {
             storeValue.write(ProKeys.format(key))
@@ -106,16 +106,16 @@ public final class ProCheck: @unchecked Sendable {
             if licence.covers(product) {
                 licenceValue = licence
             } else {
-                problemValue = "The saved key is for \(Self.names(licence)), not \(productName)."
+                problemValue = loc("The saved key is for {0}, not {1}.", Self.names(licence), productName)
             }
         } catch let e as ProKeyError {
-            problemValue = "The saved key no longer checks out: \(e.message)"
+            problemValue = loc("The saved key no longer checks out: {0}", e.message)
         } catch {
-            problemValue = "The saved key no longer checks out."
+            problemValue = loc("The saved key no longer checks out.")
         }
     }
 
-    private static func names(_ licence: ProLicence) -> String { licence.products.map(ProKeys.productName).joined(separator: " and ") }
+    private static func names(_ licence: ProLicence) -> String { MaintenanceCatalog.and(licence.products.map(ProKeys.productName)) }
 }
 
 /// The licence key where both apps find it: `<root>/Inkvolt/pro-key.txt`, one line, the key as it is shown. On the Mac the
