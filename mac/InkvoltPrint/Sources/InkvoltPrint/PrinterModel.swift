@@ -56,6 +56,7 @@ final class PrinterModel: Identifiable {
         model = known.model
         host = known.host
         ippHint = known.ippUri.flatMap { URL(string: $0) }
+        readOverSnmp = known.snmp != nil
         self.app = app
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
         let store = app.store, id = known.uuid
@@ -101,6 +102,25 @@ final class PrinterModel: Identifiable {
     /// Found on the network or added by address: it has a printer monitor.
     var isNetwork: Bool { monitor != nil }
 
+    /// Added as SNMP-only (it answered none of LEDM, CDM and IPP), and not upgraded since: read over SNMP with its login.
+    private(set) var readOverSnmp = false
+
+    /// The printer's menu offers SNMP Access…: a network printer read over SNMP (its community may change). Windows'
+    /// `CanSetSnmpLogin`.
+    var canSetSnmpLogin: Bool { isNetwork && readOverSnmp }
+
+    /// The SNMP login kept for it now (public when none is).
+    var snmpLogin: SnmpLogin { app.snmpLogins.get(id) ?? .public }
+
+    /// The printer's menu › SNMP Access…: the login it's read with, kept in the Keychain (public: nothing kept), then a new
+    /// connection with it. False when the Keychain refused (nothing changed).
+    func setSnmpLogin(_ chosen: SnmpLogin) -> Bool {
+        guard canSetSnmpLogin, chosen != snmpLogin else { return true }
+        guard app.snmpLogins.save(chosen, for: id) else { return false }
+        if polling == nil { start() } // connects again, with it
+        return true
+    }
+
     /// A scanner of its own (no printer, no queue).
     var isScannerOnly: Bool { monitor == nil && destination == nil && systemScanner != nil }
 
@@ -117,6 +137,7 @@ final class PrinterModel: Identifiable {
     func recordForReport() async throws -> ReportRecordingDone {
         guard let host = recordHost else { throw DeviceNetworkError.failed("This printer has no address to record.") }
         var options = RecordOptions(transport: app.recordingTransport(), snmp: app.snmpTransport)
+        options.login = app.snmpLogins.get(id) // asked as its readings are; never written into the recording
         options.esclHint = await monitor?.target.esclHint // Windows' EsclRoot: the eSCL root DNS-SD or a connection found
         options.ippHint = ippHint
         return try await ReportRecording.run(host, parent: app.recordingsFolder, options, now: Date())
@@ -352,6 +373,7 @@ final class PrinterModel: Identifiable {
             app.observe(snapshot)
         case .connected(let target, let model):
             follow(target.host)
+            readOverSnmp = target.snmp != nil
             app.remember(self, at: target, model: model)
         }
     }

@@ -27,13 +27,16 @@ public struct PrinterRecipe: Sendable {
     public var pin: (any CertificatePin)?
     /// For the intervals below; tests pass their own.
     public var now: @Sendable () -> Date
+    /// The printer's SNMP login as kept now (`SnmpLogins`), asked at each connection; nil: public.
+    public var snmpLogin: @Sendable () -> SnmpLogin?
 
     public init(transport: @escaping HttpTransportFactory, snmp: any SnmpTransport, pin: (any CertificatePin)? = nil,
-                now: @escaping @Sendable () -> Date = { Date() }) {
+                now: @escaping @Sendable () -> Date = { Date() }, snmpLogin: @escaping @Sendable () -> SnmpLogin? = { nil }) {
         self.transport = transport
         self.snmp = snmp
         self.pin = pin
         self.now = now
+        self.snmpLogin = snmpLogin
     }
 }
 
@@ -104,7 +107,8 @@ public actor PrinterSession {
     /// Connects at target: `.connected`, or `.offline`, or `.elsewhere` (nothing kept).
     public func connect(_ target: PrinterWhere) async throws -> SessionStep {
         let conn = try await PrinterConnection.open(target.host, transport: recipe.transport, esclHint: target.esclHint, ippHint: target.ippHint,
-                                                    pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp))
+                                                    pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp),
+                                                    snmpLogin: recipe.snmpLogin())
         if !conn.probe.reachable { return .offline }
         if identify(target.host, conn.probe.reportedUuids) == .different { return letGo(conn.probe.reportedUuids, host: target.host) }
         if let snmp = conn.probe.snmp, target.snmp?.identify(snmp) == .different { return letGo([], host: target.host, snmp: snmp) }
@@ -164,7 +168,8 @@ public actor PrinterSession {
         defer { checkingHost = nil }
         do {
             let probe = try await PrinterConnection.probe(DeviceHttp(host: host, transport: recipe.transport), esclHint: candidate.esclHint,
-                                                          ippHint: candidate.ippHint, snmp: SnmpDevice.transport(for: current.snmp, recipe.snmp))
+                                                          ippHint: candidate.ippHint, snmp: SnmpDevice.transport(for: current.snmp, recipe.snmp),
+                                                          snmpLogin: recipe.snmpLogin())
             let identity: DeviceIdentity
             if !probe.reachable {
                 identity = .unknown

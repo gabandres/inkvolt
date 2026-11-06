@@ -1,6 +1,7 @@
 import Foundation
 
-/// Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself.
+/// Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself; and the
+/// `login` it answered to (never kept: `SnmpDevice.from` takes only what the printer said).
 public struct SnmpIdentity: Equatable, Sendable {
     public var version: SnmpVersion
     public var deviceIndex: UInt32
@@ -9,10 +10,10 @@ public struct SnmpIdentity: Equatable, Sendable {
     public var systemName: String?
     public var location: String?
     public var serialNumber: String?
-    public var community: String
+    public var login: SnmpLogin?
 
     public init(version: SnmpVersion, deviceIndex: UInt32, deviceDescription: String?, systemDescription: String?, systemName: String?,
-                location: String?, serialNumber: String?, community: String = SnmpClient.defaultCommunity) {
+                location: String?, serialNumber: String?, login: SnmpLogin? = nil) {
         self.version = version
         self.deviceIndex = deviceIndex
         self.deviceDescription = deviceDescription
@@ -20,8 +21,11 @@ public struct SnmpIdentity: Equatable, Sendable {
         self.systemName = systemName
         self.location = location
         self.serialNumber = serialNumber
-        self.community = community
+        self.login = login
     }
+
+    /// The login every later read of this printer uses.
+    public var loginOrPublic: SnmpLogin { login ?? .public }
 
     /// The model: hrDeviceDescr ("Brand Model"), else the first line of sysDescr (often model plus firmware).
     public var model: String? {
@@ -52,7 +56,7 @@ public actor SnmpPrinterClient {
     public init(transport: any SnmpTransport, host: String, identity: SnmpIdentity, timeout: Duration? = nil) {
         self.identity = identity
         self.transport = transport
-        client = SnmpClient(transport: transport, host: host, version: identity.version, community: identity.community,
+        client = SnmpClient(transport: transport, host: host, version: identity.version, community: identity.loginOrPublic.community,
                             timeout: timeout ?? Self.probeTimeout)
     }
 
@@ -62,15 +66,15 @@ public actor SnmpPrinterClient {
     /// hrPrinterStatus, over v2c and v1 at once (v2c kept when both answer). Only an agent with a Host Resources printer entry
     /// counts (a router or a PC answering "public" isn't a printer). Then its model and serial number. Nil when nothing
     /// answers, or it isn't a printer.
-    public static func probe(transport: any SnmpTransport, host: String, community: String = SnmpClient.defaultCommunity)
-        async throws -> SnmpPrinterClient? {
+    /// - Parameter login: the printer's own login (`SnmpLogins`); nil: `SnmpLogin.public`.
+    public static func probe(transport: any SnmpTransport, host: String, login: SnmpLogin? = nil) async throws -> SnmpPrinterClient? {
         enum Event: Sendable {
             case answer(SnmpVersion, SnmpIdentity?)
             case v2cDeadline
         }
         let found = await withTaskGroup(of: Event.self) { group -> SnmpIdentity? in
             for version in [SnmpVersion.v2c, .v1] {
-                group.addTask { .answer(version, await identify(transport, host, version, community)) }
+                group.addTask { .answer(version, await identify(transport, host, version, login)) }
             }
             var pending = 2
             var v1Answer: SnmpIdentity?
@@ -105,9 +109,10 @@ public actor SnmpPrinterClient {
         return found.map { SnmpPrinterClient(transport: transport, host: host, identity: $0) }
     }
 
-    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ community: String) async
+    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?) async
         -> SnmpIdentity? {
         do {
+            let community = (login ?? .public).community
             let client = SnmpClient(transport: transport, host: host, version: version, community: community, timeout: probeTimeout)
             let next = try await client.getNext([PrinterMib.sysDescr, PrinterMib.sysName, PrinterMib.sysLocation, PrinterMib.hrPrinterStatus])
             guard !next[3].value.isException, let index = next[3].name.after(PrinterMib.hrPrinterStatus), index.count == 1 else { return nil }
@@ -115,7 +120,7 @@ public actor SnmpPrinterClient {
             let more = try await client.get([PrinterMib.hrDeviceDescr.appending(index[0]), PrinterMib.prtGeneralSerialNumber.appending(index[0])])
             return SnmpIdentity(version: version, deviceIndex: index[0], deviceDescription: more[0].value.text,
                                 systemDescription: text(0, PrinterMib.sysDescr), systemName: text(1, PrinterMib.sysName),
-                                location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, community: community)
+                                location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, login: login)
         } catch {
             return nil
         }
@@ -141,10 +146,10 @@ public actor SnmpPrinterClient {
         }
     }
 
-    /// Who answers SNMP at the printer's address now (asked as `probe` does, with this printer's community), to tell whether
-    /// it is still this printer (`SnmpDevice.identify`). Nil when nothing answers.
+    /// Who answers SNMP at the printer's address now (asked as `probe` does, with this printer's login), to tell whether it
+    /// is still this printer (`SnmpDevice.identify`). Nil when nothing answers.
     public nonisolated func readIdentity() async throws -> SnmpIdentity? {
-        try await Self.probe(transport: transport, host: host, community: identity.community)?.identity
+        try await Self.probe(transport: transport, host: host, login: identity.login)?.identity
     }
 
     public func status() async throws -> PrinterStatus { SnmpPrinterStatus.toStatus(try await read()) }

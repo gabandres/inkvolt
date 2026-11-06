@@ -8,6 +8,8 @@ public struct RecordOptions: Sendable {
     /// Where SNMP goes (UDP in PrintMac, or a made-up agent in tests); nil: SNMP isn't recorded.
     public var snmp: (any SnmpTransport)?
     public var community = SnmpClient.defaultCommunity
+    /// The printer's own login (its community), when it has one; else `community`. Never written into the recording.
+    public var login: SnmpLogin?
     /// eSCL and IPP addresses from DNS-SD, when the printer's aren't the usual ones (as `PrinterConnection.open`).
     public var esclHint: URL?
     public var ippHint: URL?
@@ -104,7 +106,7 @@ public enum PrinterRecorder {
             _ = await quietly { try await scanner.status() }
             if options.scan { await scan(scanner, &scans, &notKept) }
         }
-        if let snmp { await walkSnmp(snmp, host, options.community) }
+        if let snmp { await walkSnmp(snmp, host, options.login ?? (try? SnmpLogin.forCommunity(options.community)) ?? .public) }
 
         // The documents, by the names FixtureTransport serves them under (any case, as on Windows).
         var documents: [String: (name: String, text: String)] = [:]
@@ -174,14 +176,14 @@ public enum PrinterRecorder {
         }
     }
 
-    private static func walkSnmp(_ snmp: SnmpCapture, _ host: String, _ community: String) async {
+    private static func walkSnmp(_ snmp: SnmpCapture, _ host: String, _ login: SnmpLogin) async {
         // As the app asks first: the probe (v2c and v1 at once). Then each subtree, one GetNext at a time.
-        guard let found = await quietly({ try await SnmpPrinterClient.probe(transport: snmp, host: host, community: community) }), let printer = found else {
+        guard let found = await quietly({ try await SnmpPrinterClient.probe(transport: snmp, host: host, login: login) }), let printer = found else {
             return
         }
         snmp.setModel(printer.identity.model)
         _ = await quietly { try await printer.read() }
-        let client = SnmpClient(transport: snmp, host: host, version: printer.identity.version, community: community)
+        let client = SnmpClient(transport: snmp, host: host, version: printer.identity.version, community: login.community)
         let started = ContinuousClock.now
         for root in snmpSubtrees {
             var at = root

@@ -5,6 +5,7 @@ The App Store's "What's New in This Version" for each update is made from these 
 collects what's done since the last release. Short lines, in the user's words.
 
 ## Next
+- SNMP access: a printer that answers only SNMP and whose administrator changed its read community can be added with that community (Add a Printer › Know its address? › SNMP access) and changed later (SNMP Access… in the printer's menu in the sidebar). It's kept in your keychain and used only to read the printer.
 
 ## 1.2
 - Scan clean up (Scan settings › Clean up, and in each preset): crop to the paper, whiten the background, descreen printed pictures, restore faded colors. Clean Up… on a page shows it large to try each one, Show as scanned to compare, and All Pages; Undo puts a clean up back.

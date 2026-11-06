@@ -20,6 +20,10 @@ final class AddPrinterModel {
     var address = ""
     private(set) var addressError: String?
     private(set) var isAddingAddress = false
+    /// The SNMP access part: the login a printer that answers only SNMP is asked with (roadmap 3.2).
+    let snmpAccess = SnmpAccessModel()
+    /// The SNMP access part is open (the user opened it, or what's in it needs checking).
+    var showsSnmp = false
 
     @ObservationIgnored private let app: AppModel
     @ObservationIgnored private var search: Task<Void, Never>?
@@ -112,16 +116,32 @@ final class AddPrinterModel {
             return
         }
         guard let host = a.host else { return }
+        guard let login = showsSnmp ? snmpAccess.read() : .public else {
+            addressError = "Check SNMP access below."
+            return
+        }
         isAddingAddress = true
         Task {
             defer { isAddingAddress = false }
-            guard let f = await app.identify(host, ipp: a.ipp), let probe = f.probe else {
-                addressError = AddPrinterText.noAnswer(host)
+            guard let f = await app.identify(host, ipp: a.ipp, snmpLogin: login), let probe = f.probe else {
+                addressError = AddPrinterText.noAnswer(host) + " " + Self.snmpHint(login)
                 return
             }
-            if let listed = app.listed(probe, host) { app.selectedID = listed.id } else { app.add(probe, host: host) }
+            if let listed = app.listed(probe, host) {
+                // The login it answered to now: kept, and the printer connects again with it.
+                if let answered = probe.snmp, listed.canSetSnmpLogin { _ = listed.setSnmpLogin(answered.loginOrPublic) }
+                app.selectedID = listed.id
+            } else {
+                app.add(probe, host: host)
+            }
             app.isAddingPrinter = false
         }
+    }
+
+    /// What may be wrong when nothing answered, about SNMP.
+    static func snmpHint(_ login: SnmpLogin) -> String {
+        login.isDefault ? "A printer that answers only SNMP may need its community: open SNMP access below."
+            : "Check the SNMP community too."
     }
 }
 
@@ -224,6 +244,14 @@ private struct AddPrinterContent: View {
             }
             Text("It's on the printer's screen (network or Wi-Fi settings) or on a network report it prints. For example 192.168.1.40, printer.local or ipp://printer.local/ipp/print.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("SNMP access", isExpanded: $model.showsSnmp) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("For a printer that answers only SNMP and whose administrator changed its read community.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    SnmpAccessFields(model: model.snmpAccess)
+                }
+                .padding(.top, 4)
+            }
         }
     }
 }

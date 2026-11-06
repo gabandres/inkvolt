@@ -131,20 +131,25 @@ public final class PrinterConnection: Sendable {
     ///   - transport: the network for this printer (URLSession in the app; fixtures in demo mode and tests).
     ///   - ippHint: IPP printer URL from DNS-SD (`rp` TXT + port, https for `_ipps`), tried first.
     ///   - snmp: where SNMP goes when the printer has neither LEDM, CDM nor IPP; nil: SNMP isn't tried.
+    ///   - snmpLogin: the printer's SNMP login (its community); nil: `SnmpLogin.public`. Every SNMP read of the connection uses it.
     public static func open(_ host: String, transport: @escaping HttpTransportFactory, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil) async throws -> PrinterConnection {
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+        async throws -> PrinterConnection {
         let http = DeviceHttp(host: host, transport: transport, pin: pin)
-        return PrinterConnection(http: http, probe: try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp), snmp: snmp)
+        let found = try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp, snmpLogin: snmpLogin)
+        return PrinterConnection(http: http, probe: found, snmp: snmp)
     }
 
     /// The same network for every host (demo mode, tests).
     public static func open(_ host: String, transport: any HttpTransport, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil) async throws -> PrinterConnection {
-        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp)
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+        async throws -> PrinterConnection {
+        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp, snmpLogin: snmpLogin)
     }
 
     /// SNMP is asked only after LEDM, CDM and IPP all stayed silent.
-    public static func probe(_ http: DeviceHttp, esclHint: URL? = nil, ippHint: URL? = nil, snmp: (any SnmpTransport)? = nil)
+    public static func probe(_ http: DeviceHttp, esclHint: URL? = nil, ippHint: URL? = nil, snmp: (any SnmpTransport)? = nil,
+                             snmpLogin: SnmpLogin? = nil)
         async throws -> ProbeResult {
         // CDM only when the printer clearly has no LEDM (see probeLedm): an offline or waking printer costs nothing more, and a
         // printer with LEDM never gets a CDM request.
@@ -157,7 +162,7 @@ public final class PrinterConnection: Sendable {
         // SNMP last, and only for a printer none of the others reached.
         var snmpIdentity: SnmpIdentity?
         if l.ledm.tree == nil && l.cdm == nil && i == nil, let snmp {
-            snmpIdentity = try await SnmpPrinterClient.probe(transport: snmp, host: http.host)?.identity
+            snmpIdentity = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin)?.identity
         }
         return ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
                            ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)

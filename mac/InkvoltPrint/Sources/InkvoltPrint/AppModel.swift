@@ -29,6 +29,8 @@ final class AppModel {
     @ObservationIgnored let signal: LocalNetworkSignal
     @ObservationIgnored private let transport: HttpTransportFactory
     @ObservationIgnored private let snmp: any SnmpTransport
+    /// Each printer's SNMP login (roadmap 3.2): the Keychain, or (demo mode) memory. Never in the state file.
+    @ObservationIgnored let snmpLogins: any SnmpLogins
     /// The network a recording goes through (roadmap 1.2): this Mac's, each reply bounded as every read is (32 MB, a scanned
     /// page 1 GB) and no certificate pin (it only reads); demo mode's made-up printers.
     @ObservationIgnored let recordingTransport: @Sendable () -> any HttpTransport
@@ -102,6 +104,7 @@ final class AppModel {
             recordingTransport = { network.http }
             snmp = network.snmp
             store = StateStore(memory: Demo.state())
+            snmpLogins = MemorySnmpLogins()
             history = SupplyHistoryStore(nil, firstReading: DemoSupplyHistory.seed)
             let offline = DemoOffline()
             queues = offline
@@ -115,6 +118,7 @@ final class AppModel {
             }
             snmp = UdpSnmpTransport(localNetwork: signal)
             store = StateStore(file: Self.stateFile)
+            snmpLogins = SnmpLoginKeychain()
             history = SupplyHistoryStore(Self.historyFolder.path)
             queues = LibCups()
             offlineProbes = NetworkOfflineProbes(localNetwork: signal)
@@ -154,19 +158,25 @@ final class AppModel {
     }
 
     /// The connection recipe for one printer: this Mac's network (or the made-up one) and the printer's certificate pins.
-    func recipe(_ id: String) -> PrinterRecipe { PrinterRecipe(transport: transport, snmp: snmp, pin: store.pins(id)) }
+    func recipe(_ id: String) -> PrinterRecipe {
+        let logins = snmpLogins
+        return PrinterRecipe(transport: transport, snmp: snmp, pin: store.pins(id), snmpLogin: { logins.get(id) })
+    }
 
     /// Every printer read once, for `status --all` (`FleetReader`): the state file's printers through this Mac's network (or the
     /// made-up one), macOS's queues and USB scanners. Read only: no pin, history or state is written.
     var fleetMac: any FleetMac {
-        let transport = transport, snmp = snmp, store = store
+        let transport = transport, snmp = snmp, store = store, logins = snmpLogins
         let scanners: @Sendable () async -> [SystemScanner]?
         if isDemo {
             scanners = { Demo.scanners }
         } else {
             scanners = { @Sendable () async -> [SystemScanner]? in await SystemScanners.listOnce() }
         }
-        return AppFleetMac(store: store, makeRecipe: { PrinterRecipe(transport: transport, snmp: snmp, pin: ReadOnlyPin(store.pins($0))) },
+        let recipe: @Sendable (String) -> PrinterRecipe = { id in
+            PrinterRecipe(transport: transport, snmp: snmp, pin: ReadOnlyPin(store.pins(id)), snmpLogin: { logins.get(id) })
+        }
+        return AppFleetMac(store: store, makeRecipe: recipe,
                            queues: queues, listScanners: scanners, history: history)
     }
 
@@ -507,12 +517,17 @@ final class AppModel {
         try await NetworkSearch.search(SocketNetworkScanner(localNetwork: signal), found: found, progress: progress)
     }
 
-    /// Asks the device at `host` what it is, and makes Add a printer's entry for it (nil: not a printer).
-    func identify(_ host: String, ipp: URL? = nil) async -> FoundPrinter? {
-        await AddPrinter.identify(host, ipp: ipp, transport: transport, snmp: snmp) { [weak self] probe, host in
+    /// Asks the device at `host` what it is (over SNMP with `snmpLogin`, public when nil), and makes Add a printer's entry for
+    /// it (nil: not a printer).
+    func identify(_ host: String, ipp: URL? = nil, snmpLogin: SnmpLogin? = nil) async -> FoundPrinter? {
+        await AddPrinter.identify(host, ipp: ipp, transport: transport, snmp: snmp, snmpLogin: snmpLogin) { [weak self] probe, host in
             await self?.listedEntry(probe, host)
         }
     }
+
+    /// Keeps a printer's SNMP login (public: nothing kept). False when the Keychain refused; nothing is logged of it.
+    @discardableResult
+    func keepSnmpLogin(_ id: String, _ login: SnmpLogin) -> Bool { snmpLogins.save(login, for: id) }
 
     private func listedEntry(_ probe: ProbeResult, _ host: String) -> (id: String, name: String)? {
         listed(probe, host).map { (id: $0.id, name: $0.name) }
@@ -524,10 +539,12 @@ final class AppModel {
         return printers.first { $0.isKnown(as: id) || $0.host.caseInsensitiveCompare(host) == .orderedSame }
     }
 
-    /// Lists, remembers and selects the printer that answered at `host`.
+    /// Lists, remembers and selects the printer that answered at `host`. A printer read over SNMP keeps the login it answered
+    /// to (`SnmpIdentity.login`) in the Keychain, never in the state file; one that answered HTTP has no use for it.
     @discardableResult
     func add(_ probe: ProbeResult, host: String) -> PrinterModel {
         let known = AddPrinter.knownPrinter(probe, host: host)
+        if let answered = probe.snmp { keepSnmpLogin(known.uuid, answered.loginOrPublic) }
         store.unforget(known.uuid)
         if let p = printers.first(where: { $0.id.caseInsensitiveCompare(known.uuid) == .orderedSame }) {
             selectedID = p.id
@@ -558,6 +575,7 @@ final class AppModel {
         // A network printer's own queues go with it, so none shows up as a printer of its own.
         let gone = listed.map { PrinterList.hiddenWith($0, destinations ?? []) } ?? [p.id]
         for id in gone { store.remove(id) }
+        snmpLogins.delete(p.id) // its SNMP login goes with it: Add a Printer asks for it again
         tracker.forget(p.id)
         // Its supply history goes with it (a reading in flight keeps nothing), and so does any its own queues kept while
         // they were listed on their own: no file is left behind to count toward the store's printers.
