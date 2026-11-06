@@ -467,7 +467,10 @@ struct AiLoopbackTests {
         let started = Date()
         let message = await aiMessage { _ = try await client.chat([.user("private text")]) }
         #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
-        #expect(Date().timeIntervalSince(started) < 3, "took \(Date().timeIntervalSince(started)) s")
+        // The client's own connection still runs on GCD's pool, as in the app: on CI's runner under the full suite it took
+        // 14 s and 17 s (2026-11-06), so CI's limit only tells the server's 110 s apart.
+        let limit: Double = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 3 : 30
+        #expect(Date().timeIntervalSince(started) < limit, "took \(Date().timeIntervalSince(started)) s")
     }
 
     @Test func happyEyeballsSkipsAnAddressThatRefuses() async throws {
