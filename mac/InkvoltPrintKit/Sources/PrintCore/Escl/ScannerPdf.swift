@@ -142,7 +142,7 @@ public enum ScannerPdf {
 
     /// JPEG pages as a scanner's PDF, each embedded as it is at its resolution (the fixture scanner's PDF answers, and the
     /// tests; a scan saved by the app goes through PrintMac's `ScanPdf`). `words`: a text run per page, as a text layer adds.
-    public static func write(_ pages: [(jpeg: [UInt8], dpi: Int, words: [String]?)], title: String = "Scan") -> [UInt8] {
+    public static func write(_ pages: [(jpeg: [UInt8], dpi: Int, words: [String]?)], title: String = "Scan") -> [UInt8] { // English: the fixture scanner's PDF title
         var out: [UInt8] = Array("%PDF-1.4\n%".utf8) + [0xE2, 0xE3, 0xCF, 0xD3, 0x0A]
         var offsets: [Int: Int] = [:]
         func obj(_ id: Int, _ body: String) {

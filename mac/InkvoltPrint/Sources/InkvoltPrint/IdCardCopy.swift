@@ -155,6 +155,6 @@ struct IdCardCopySheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(image == nil ? String(localized: "\(label), not scanned yet") : "\(label), scanned")
+        .accessibilityLabel(image == nil ? String(localized: "\(label), not scanned yet") : String(localized: "\(label), scanned"))
     }
 }

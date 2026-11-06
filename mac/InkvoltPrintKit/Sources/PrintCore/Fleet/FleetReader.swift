@@ -58,7 +58,7 @@ public enum FleetReader {
     static var snmpRefused: String { loc("The printer refused its SNMP login") }
     static var readyToScan: String { loc("Ready to scan") }
     static var queuesNote: String { loc("macOS's printers couldn't be read, so printers known only to macOS aren't listed.") }
-    static let scannersNote = "macOS's scanners couldn't be read, so scanners on their own aren't listed."
+    static var scannersNote: String { loc("macOS's scanners couldn't be read, so scanners on their own aren't listed.") }
 
     public static func readAll(_ mac: any FleetMac, now: Date, limit: Duration = printerLimit) async throws -> FleetRead {
         let remembered = mac.remembered

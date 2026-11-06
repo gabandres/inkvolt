@@ -597,6 +597,19 @@ public enum BatchPrintState: String, Sendable {
     case failed = "Failed"
     /// The batch stopped before it: not sent.
     case stopped = "Stopped"
+
+    /// The state as the batch list shows it, in the interface's language (the raw value is the results file's and the
+    /// report's, English as on Windows).
+    public var text: String {
+        switch self {
+        case .waiting: loc("Waiting", context: "batch file")
+        case .sending: loc("Sending", context: "batch file")
+        case .sent: loc("Sent", context: "batch file")
+        case .skipped: loc("Skipped", context: "batch file")
+        case .failed: loc("Failed", context: "batch file")
+        case .stopped: loc("Stopped", context: "batch file")
+        }
+    }
 }
 
 /// One file's result.

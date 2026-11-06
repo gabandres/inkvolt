@@ -46,7 +46,7 @@ final class BatchRow: Identifiable {
 
     var stateText: String {
         if let activity { return activity }
-        if let result { return "\(result.state.rawValue): \(result.message)" }
+        if let result { return "\(result.state.text): \(result.message)" }
         guard let measure else { return String(localized: "Looking at it…") }
         return line?.problem ?? (measure.state == .ready ? String(localized: "Ready") : measure.problem ?? "")
     }

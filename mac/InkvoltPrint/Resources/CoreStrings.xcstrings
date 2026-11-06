@@ -1854,6 +1854,24 @@
         }
       }
     },
+    "Failed [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error"
+          }
+        }
+      }
+    },
     "Feeds a sheet of plain paper through the printer to clean ink smears off the rollers. Takes a few minutes; uses a little ink.": {
       "extractionState": "manual",
       "localizations": {
@@ -5205,6 +5223,24 @@
         }
       }
     },
+    "Sending [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviando"
+          }
+        }
+      }
+    },
     "Sending failed part-way: check the queue before sending it again.": {
       "extractionState": "manual",
       "localizations": {
@@ -5245,6 +5281,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sensor bloqueado"
+          }
+        }
+      }
+    },
+    "Sent [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviado"
           }
         }
       }
@@ -5502,6 +5556,24 @@
         }
       }
     },
+    "Skipped [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Skipped"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Omitido"
+          }
+        }
+      }
+    },
     "Sleep after": {
       "extractionState": "manual",
       "localizations": {
@@ -5604,6 +5676,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detenida"
+          }
+        }
+      }
+    },
+    "Stopped [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No enviado"
           }
         }
       }
@@ -7740,6 +7830,24 @@
         }
       }
     },
+    "Waiting [batch file]": {
+      "comment": "batch file",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En espera"
+          }
+        }
+      }
+    },
     "Waiting for manual feed": {
       "extractionState": "manual",
       "localizations": {
@@ -8679,6 +8787,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "El sistema de impresión de macOS lo rechazó."
+          }
+        }
+      }
+    },
+    "macOS's scanners couldn't be read, so scanners on their own aren't listed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer los escáneres de macOS, así que no aparecen los escáneres independientes."
           }
         }
       }

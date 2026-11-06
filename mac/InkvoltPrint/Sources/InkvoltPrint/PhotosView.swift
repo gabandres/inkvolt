@@ -359,7 +359,7 @@ struct PhotosView: View {
                     if model.printing { ProgressView().controlSize(.small) }
                     Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                     if let sent = model.sent { Text(sent).foregroundStyle(.secondary) }
-                    Button(model.printsToQueue ? "Print" : "Print…") { Task { await model.print() } }
+                    Button(model.printsToQueue ? String(localized: "Print") : String(localized: "Print…")) { Task { await model.print() } }
                         .buttonStyle(.borderedProminent)
                         .disabled(model.sheets.isEmpty || model.printing)
                 }

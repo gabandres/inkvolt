@@ -94,7 +94,7 @@ enum ProWindow {
             let host = NSHostingView(rootView: ProView(panel: panel))
             let w = NSWindow(contentRect: NSRect(origin: .zero, size: host.fittingSize), styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.contentView = host
-            w.title = "Inkvolt Pro"
+            w.title = "Inkvolt Pro" // English: the product's name
             w.isReleasedWhenClosed = false
             w.isRestorable = false
             w.center()

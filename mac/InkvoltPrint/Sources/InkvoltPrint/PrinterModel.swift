@@ -447,8 +447,8 @@ enum Notifier {
 
     /// The job notification's buttons; once, at launch.
     static func registerCategories() {
-        let open = UNNotificationAction(identifier: openQueueAction, title: "Open the Queue", options: [.foreground])
-        let pause = UNNotificationAction(identifier: pauseAction, title: "Pause Alerts", options: [])
+        let open = UNNotificationAction(identifier: openQueueAction, title: String(localized: "Open the Queue"), options: [.foreground])
+        let pause = UNNotificationAction(identifier: pauseAction, title: String(localized: "Pause Alerts"), options: [])
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: jobCategory, actions: [open, pause], intentIdentifiers: []),
         ])

@@ -10,7 +10,7 @@ struct InkvoltPrintApp: App {
     @State private var model = AppModel.shared
 
     var body: some Scene {
-        Window(model.isDemo ? String(localized: "Inkvolt Print — Demo") : "Inkvolt Print", id: MainWindow.id) {
+        Window(model.isDemo ? String(localized: "Inkvolt Print — Demo") : "Inkvolt Print", id: MainWindow.id) { // English: the app's name
             MainWindow().environment(model)
         }
         .defaultSize(width: 920, height: 620)

@@ -339,6 +339,16 @@
         }
       }
     },
+    "%@, scanned": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@, escaneado"
+          }
+        }
+      }
+    },
     "%@, so automatic updates were set back to “%@”. “%@” is no longer offered for it.": {
       "localizations": {
         "en": {
@@ -3460,6 +3470,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir en Inkvolt PDF los PDF que se acaban de guardar"
+          }
+        }
+      }
+    },
+    "Open the Queue": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la cola"
           }
         }
       }
