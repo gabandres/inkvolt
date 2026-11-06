@@ -30,10 +30,17 @@ public enum ScanImaging {
         return GrayImage(width: w, height: h, pixels: pixels)
     }
 
-    /// The page with its edits: straightened by `deskew` degrees, cropped, turned. `maxPixels`: decoded at most that many pixels
-    /// on its longest side first (thumbnails); nil: full size.
-    public static func render(_ jpeg: [UInt8], _ edits: PageEdits, maxPixels: Int? = nil) throws -> CGImage {
+    /// The page with its edits: straightened by `deskew` degrees, cropped, cleaned up by its filters (PrintCore's
+    /// `PageCleanup`, on the page scanned at `dpi`), turned. `maxPixels`: decoded at most that many pixels on its longest side
+    /// first (thumbnails, previews: the filters then go by that copy's own resolution); nil: full size. A page too large to
+    /// clean up is drawn without its filters, as it is saved (`PageEdits.for(width:height:)`), however small the copy.
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func render(_ jpeg: [UInt8], _ given: PageEdits, maxPixels: Int? = nil, dpi: Int = 300, stop: BatchStop? = nil) throws -> CGImage {
+        let edits = asSaved(given, jpeg)
         var image = try decode(jpeg, maxPixels: maxPixels)
+        let grey = image.colorSpace?.model == .monochrome
+        let copyDpi = maxPixels == nil ? dpi : self.copyDpi(dpi, jpeg, decodedWidth: image.width)
+        try stop?.check()
         if edits.deskew != 0 { image = try straightened(image, by: edits.deskew) }
         if let crop = edits.crop, !crop.isFull {
             let w = CGFloat(image.width), h = CGFloat(image.height)
@@ -42,14 +49,91 @@ public enum ScanImaging {
             guard let cropped = image.cropping(to: rect) else { throw ImageError() } // CGImage's crop is top-left based, as CropBox is
             image = cropped
         }
+        image = try cleaned(image, edits.filters, dpi: copyDpi, grey: grey, stop: stop)
         let turns = ((edits.quarterTurns % 4) + 4) % 4
         if turns != 0 { image = try turned(image, turns) }
         return image
     }
 
-    /// The page as saved: the scanner's JPEG when it has no edits, else the edited page encoded once.
-    public static func jpeg(_ original: [UInt8], _ edits: PageEdits) throws -> [UInt8] {
-        edits.isEmpty ? original : try jpeg(render(original, edits))
+    /// The page as saved: the scanner's JPEG when it has no edits (filters on a page too large to clean up are none), else
+    /// the edited page encoded once.
+    public static func jpeg(_ original: [UInt8], _ edits: PageEdits, dpi: Int = 300, stop: BatchStop? = nil) throws -> [UInt8] {
+        let fitting = asSaved(edits, original)
+        return fitting.isEmpty ? original : try jpeg(render(original, fitting, dpi: dpi, stop: stop))
+    }
+
+    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` without its filters.
+    static func asSaved(_ edits: PageEdits, _ jpeg: [UInt8]) -> PageEdits {
+        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? edits
+    }
+
+    /// The sheet as a crop of the page straightened by `deskew` degrees (`PaperEdge.find` on the analysis copy, whose
+    /// resolution is its width × `dpi` ÷ the scan's), or nil when its edge can't be told from the lid.
+    public static func paperEdge(_ jpeg: [UInt8], dpi: Int, deskew: Double = 0) -> CropBox? {
+        guard let gray = try? analysis(jpeg) else { return nil }
+        return PaperEdge.find(gray, ppi: ppi(of: gray, jpeg, dpi: dpi), deskew: deskew)
+    }
+
+    /// The analysis copy's pixels an inch, for a page scanned at `dpi`.
+    public static func ppi(of gray: GrayImage, _ jpeg: [UInt8], dpi: Int) -> Double {
+        Double(gray.width) * Double(dpi) / Double(max(size(jpeg)?.width ?? gray.width, 1))
+    }
+
+    /// A smaller copy holds its inch in fewer pixels: the filters' sizes go by this, not the scan's.
+    static func copyDpi(_ dpi: Int, _ jpeg: [UInt8], decodedWidth: Int) -> Int {
+        guard let full = size(jpeg)?.width, full > 0 else { return dpi }
+        let share = Double(min(max(decodedWidth, 0), full)) / Double(full)
+        return max(1, Int((Double(dpi) * share).rounded())) // bounded: dpi times a share of at most 1, over a width above 0
+    }
+
+    /// The picture through PrintCore's `PageCleanup` (grey as one channel, colour as three); the same picture when no filter
+    /// changes pixels or it is too large to clean up.
+    static func cleaned(_ image: CGImage, _ filters: PageFilters, dpi: Int, grey: Bool, stop: BatchStop?) throws -> CGImage {
+        let (w, h) = (image.width, image.height)
+        if filters.isDisjoint(with: .pixelFilters) || PageCleanup.tooLarge(w, h) { return image }
+        let channels = grey ? 1 : 3
+        let packed = try pixels(image, channels: channels)
+        let done = try PageCleanup.apply(packed, width: w, height: h, channels: channels, dpi: dpi, filters, stop: stop)
+        if done.done.isEmpty { return image }
+        return try picture(done.pixels, width: w, height: h, channels: channels)
+    }
+
+    /// The image's pixels as rows of width × `channels` bytes, no padding (1: grey, 3: RGB).
+    static func pixels(_ image: CGImage, channels: Int) throws -> [UInt8] {
+        let (w, h) = (image.width, image.height)
+        let stride = channels == 1 ? w : w * 4
+        var drawn = [UInt8](repeating: 255, count: stride * h)
+        let space = channels == 1 ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB()
+        let info = channels == 1 ? CGImageAlphaInfo.none.rawValue : CGImageAlphaInfo.noneSkipLast.rawValue
+        let ok: Bool = drawn.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: stride, space: space,
+                                          bitmapInfo: info) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard ok else { throw ImageError() }
+        if channels == 1 { return drawn }
+        var packed = [UInt8](repeating: 0, count: w * h * 3)
+        packed.withUnsafeMutableBufferPointer { out in
+            drawn.withUnsafeBufferPointer { src in
+                for i in 0..<(w * h) {
+                    out[i * 3] = src[i * 4]
+                    out[i * 3 + 1] = src[i * 4 + 1]
+                    out[i * 3 + 2] = src[i * 4 + 2]
+                }
+            }
+        }
+        return packed
+    }
+
+    /// Rows of width × `channels` bytes (1: grey, 3: RGB) as an image.
+    static func picture(_ pixels: [UInt8], width: Int, height: Int, channels: Int) throws -> CGImage {
+        let space = channels == 1 ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB()
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData),
+              let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8 * channels, bytesPerRow: width * channels,
+                                  space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue), provider: provider,
+                                  decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { throw ImageError() }
+        return image
     }
 
     public static func jpeg(_ image: CGImage) throws -> [UInt8] {
@@ -61,9 +145,21 @@ public enum ScanImaging {
     }
 
     /// One photo found on the glass, cut out of the full-size scan straight (`GlassPhotoCrop`: only the pixels around it are
-    /// turned) and given its quarter turns, as a JPEG.
-    public static func photo(_ jpeg: [UInt8], _ box: PhotoBox) throws -> [UInt8] {
-        let image = try decode(jpeg, maxPixels: nil)
+    /// turned), cleaned up by what of `filters` suits a print (descreen, restore colors: no paper to crop to or whiten) and
+    /// given its quarter turns, as a JPEG.
+    public static func photo(_ jpeg: [UInt8], _ box: PhotoBox, filters: PageFilters = [], dpi: Int = 300, stop: BatchStop? = nil) throws -> [UInt8] {
+        try Self.jpeg(photoImage(jpeg, box, filters: filters, maxPixels: nil, dpi: dpi, stop: stop))
+    }
+
+    /// One photo cut out and cleaned up, from the scan decoded at most `maxPixels` on its longest side, for the clean up view.
+    public static func photoPreview(_ jpeg: [UInt8], _ box: PhotoBox, filters: PageFilters, maxPixels: Int, dpi: Int, stop: BatchStop? = nil) throws -> CGImage {
+        try photoImage(jpeg, box, filters: filters, maxPixels: maxPixels, dpi: dpi, stop: stop)
+    }
+
+    static func photoImage(_ jpeg: [UInt8], _ box: PhotoBox, filters: PageFilters, maxPixels: Int?, dpi: Int, stop: BatchStop?) throws -> CGImage {
+        let image = try decode(jpeg, maxPixels: maxPixels)
+        let grey = image.colorSpace?.model == .monochrome
+        let copyDpi = maxPixels == nil ? dpi : self.copyDpi(dpi, jpeg, decodedWidth: image.width)
         let r = GlassPhotoCrop.bounds(box, width: image.width, height: image.height)
         guard let part = image.cropping(to: CGRect(x: r.x, y: r.y, width: r.width, height: r.height)) else { throw ImageError() }
         let stride = r.width * 4
@@ -83,9 +179,10 @@ public enum ScanImaging {
               var photo = CGImage(width: cut.width, height: cut.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: cut.stride, space: space,
                                   bitmapInfo: CGBitmapInfo(rawValue: info), provider: provider, decode: nil, shouldInterpolate: true,
                                   intent: .defaultIntent) else { throw ImageError() }
+        photo = try cleaned(photo, filters.intersection([.descreen, .restoreColors]), dpi: copyDpi, grey: grey, stop: stop)
         let turns = ((box.quarterTurns % 4) + 4) % 4
         if turns != 0 { photo = try turned(photo, turns) }
-        return try Self.jpeg(photo)
+        return photo
     }
 
     /// Width and height in pixels without decoding the page.

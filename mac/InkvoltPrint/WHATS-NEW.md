@@ -5,6 +5,8 @@ The App Store's "What's New in This Version" for each update is made from these 
 collects what's done since the last release. Short lines, in the user's words.
 
 ## Next
+- Scan clean up (Scan settings › Clean up, and in each preset): crop to the paper, whiten the background, descreen printed pictures, restore faded colors. Clean Up… on a page shows it large to try each one, Show as scanned to compare, and All Pages; Undo puts a clean up back.
+- Searchable PDFs keep text in every language your Mac reads, Russian, Arabic, Chinese, Japanese and Korean included, so Preview and other PDF apps find it; choose the Text language for a scan or a preset.
 - USB printers that print without a driver (IPP over USB) show their own ink or toner levels and status, read from the printer itself; the status card says where its status came from, and a printer that reports no levels says so.
 - Job notifications (Settings › Alerts, off until you turn them on): when your own print job fails or stops moving, a notification names the document and the printer, with Open the Queue and Pause Alerts. Other people's jobs never raise one.
 - Ink and toner history: Inkvolt Print keeps a reading a day on your Mac and shows a chart of the levels over the last year, about how many days each cartridge has left, and how many pages you've printed since it went in. Low-ink alerts say how many days are left too. Export history… saves it all as one spreadsheet file (an Inkvolt Pro feature, free for now).

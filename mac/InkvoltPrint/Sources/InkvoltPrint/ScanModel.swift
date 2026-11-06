@@ -58,6 +58,15 @@ final class ScanModel {
     var findPhotos: Bool {
         didSet { UserDefaults.standard.set(findPhotos, forKey: "scanFindPhotos") }
     }
+    /// The tab's clean up (Scan settings › Clean up): what each scanned page gets (a preset has its own), each to be changed
+    /// on a page in the review. Stored as Windows' number.
+    var cleanup: PageFilters {
+        didSet { UserDefaults.standard.set(cleanup.rawValue, forKey: "scanCleanup") }
+    }
+    /// The language text is recognised in (a tag Vision lists); nil: Vision tells it itself.
+    var ocrLanguage: String? {
+        didSet { UserDefaults.standard.set(ocrLanguage, forKey: "scanOcrLanguage") }
+    }
 
     private(set) var pages = ScanPages()
     private(set) var thumbnails: [String: NSImage] = [:]
@@ -68,6 +77,8 @@ final class ScanModel {
     private(set) var problem: String?
     /// The PDFs the last save wrote (a batch: one per file), for the save bar's Open in Inkvolt PDF.
     private(set) var savedPdfs: [URL] = []
+    /// The review's Undo of a clean up: a scan's by its settings, the Clean up view's Done or All Pages, each one step.
+    private(set) var undoSteps: [UndoStep] = []
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
     /// The scanner's PDF each page came from, for a scanner that sends only PDF (roadmap 1.3, `ScannerPdf.origin`).
@@ -89,6 +100,8 @@ final class ScanModel {
         splitAt = split.isKnown ? split : .none
         keepSeparators = d.bool(forKey: "scanKeepSeparators")
         findPhotos = d.bool(forKey: "scanFindPhotos")
+        cleanup = PageFilters(rawValue: d.integer(forKey: "scanCleanup")).intersection(.all)
+        ocrLanguage = d.string(forKey: "scanOcrLanguage")
         sizeKey = Locale.current.measurementSystem == .metric ? "a4" : "letter"
     }
 
@@ -143,7 +156,7 @@ final class ScanModel {
         let notes = plan.notes
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
-                              findPhotos: p.findPhotos && plan.request.source == .platen)
+                              findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage)
         scan(check: check, keepSeparators: p.keepSeparators) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
@@ -158,12 +171,15 @@ final class ScanModel {
         isScanning = true
         status = source == .platen ? "Scanning…" : "Scanning from the feeder…"
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
-        var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos)
+        var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
+                                   ocrLanguage: ocrLanguage)
         if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
         let check = c, split = c.splitAt, photos = c.findPhotos
         let duplex = source == .adfDuplex
         if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
-        if app.isDemo { Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos) }
+        if app.isDemo {
+            Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper))
+        }
         let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
         scanning = Task {
             defer {
@@ -177,28 +193,47 @@ final class ScanModel {
             }
             var count = 0
             var added: [String] = []
+            var failure: (any Error)?
             do {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
                     status = "Scanned \(count) \(count == 1 ? "page" : "pages")…"
                     added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
                 }
-                // The page checks finish (blank pages skipped, separators found) before a preset saves.
-                for _ in 0..<150 where pages.pages.contains(where: { !$0.analysed }) { try await Task.sleep(for: .milliseconds(100)) }
-                if duplex { pages.separatorBacks(added) }
-                keep()
-                let found = notes(added, split: split, photos: photos, duplex: duplex) + pdfNote(added, request)
+            } catch {
+                failure = error
+            }
+            // Every page check lands (blank pages skipped, separators found, pages cleaned up) before the scan's clean up
+            // becomes its step of Undo and a preset saves, as Windows waits for them all; a stopped scan's pages too.
+            await checksLanded()
+            if failure == nil && duplex { pages.separatorBacks(added) }
+            keep()
+            let cleaned = recordCleanup(added, check.cleanup)
+            switch failure {
+            case nil:
+                let found = notes(added, split: split, photos: photos, duplex: duplex) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
                 status = count == 0 ? "No pages came from the scanner." : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 await finished?()
-            } catch is CancellationError {
+            case is CancellationError:
                 status = "Scan stopped."
-            } catch let e as ScanError {
+            case let e as ScanError:
                 problem = e.description
                 status = count > 0 ? pages.summary : ""
-            } catch {
+            default:
                 problem = "The scan didn't finish: the scanner stopped answering."
                 status = count > 0 ? pages.summary : ""
             }
+        }
+    }
+
+    /// The page checks still running (each page's, beside the next page's scan), by page.
+    @ObservationIgnored private var checks: [String: Task<Void, Never>] = [:]
+
+    /// Waits for every page check that is running; each ends by itself (the analysis copy is at most 1100 pixels).
+    private func checksLanded() async {
+        while let next = checks.first {
+            await next.value.value
+            if checks[next.key] == next.value { checks[next.key] = nil }
         }
     }
 
@@ -217,6 +252,9 @@ final class ScanModel {
         var straighten: Bool
         var splitAt: SplitAt
         var findPhotos: Bool
+        /// What each page is cleaned up with (`ScanPages.analysed`), and the language its text is read in.
+        var cleanup: PageFilters = []
+        var ocrLanguage: String?
     }
 
     /// What the page check found.
@@ -225,6 +263,8 @@ final class ScanModel {
         var skew: Double
         var separator: SeparatorFound
         var photos: [PhotoBox]?
+        /// The sheet's edge, looked for when the clean up crops to the paper (`ScanPages.wantsPaperEdge`).
+        var paperEdge: CropBox?
     }
 
     /// Separator, blank and skew checks (the Windows app's `AnalyseAsync`), and the photos on the glass. A separator sheet is
@@ -238,7 +278,9 @@ final class ScanModel {
         let blank = c.skipBlank && looksBlank && !separator.isSeparator
         let photos = c.findPhotos && !blank && !separator.isSeparator ? PhotoFinder.find(gray, pixelsPerInch: ppi) : nil
         let skew = c.straighten && !blank && !separator.isSeparator && (photos?.isEmpty ?? true) ? Deskew.angle(gray) : 0
-        return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos)
+        let wantsEdge = ScanPages.wantsPaperEdge(c.cleanup, looksBlank: looksBlank, separator: separator, photos: photos)
+        let edge = wantsEdge ? PaperEdge.find(gray, ppi: ppi, deskew: skew) : nil
+        return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos, paperEdge: edge)
     }
 
     @discardableResult
@@ -246,18 +288,19 @@ final class ScanModel {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
         if let origin = ScannerPdf.origin(of: jpeg) { origins[id] = origin }
-        pages.add(ScannedPage(id: id, dpi: dpi))
+        pages.add(ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage))
         keep()
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
-        Task {
+        checks[id] = Task {
+            defer { checks[id] = nil }
             let result: Checked? = await offPool { Self.check(jpeg, dpi: dpi, c) }
             guard let result, pages.page(id) != nil else {
                 pages.analysed(id, looksBlank: false, skew: 0, skipBlank: false, straighten: false) // the page stays as scanned
                 return
             }
             pages.analysed(id, looksBlank: result.looksBlank, skew: result.skew, skipBlank: c.skipBlank, straighten: c.straighten,
-                           separator: result.separator, photos: result.photos)
+                           separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge)
             keep()
             refreshThumbnail(id)
             if !isScanning { status = pages.summary }
@@ -355,11 +398,168 @@ final class ScanModel {
     func keepPage(_ id: String) { change(id) { $0.keep(id) } }
     func skipPage(_ id: String) { change(id) { $0.skip(id) } }
 
+    // MARK: Clean up (roadmap 2.3)
+
+    /// One step of the review's Undo: each page's edits before a clean up and right after it (what of its crop and filters
+    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`).
+    struct UndoStep {
+        var name: String
+        var before: [String: PageEdits]
+        var after: [String: PageEdits]
+    }
+
+    /// Counts every change to the steps of Undo: Edit › Undo is registered again on each, even when two steps share a name.
+    private(set) var undoChanges = 0
+
+    /// "Clean up page 2": what Undo would undo; nil when there's nothing.
+    var undoName: String? { undoSteps.last?.name }
+
+    /// Undo can run: there's a step, and no scan or save is under way (Windows' `CanUndo`, not while busy).
+    var canUndo: Bool { !undoSteps.isEmpty && !isSaving && !isScanning }
+
+    /// Undoes the last clean up.
+    func undo() {
+        guard canUndo, let step = undoSteps.popLast() else { return }
+        undoChanges += 1
+        savedParts.clear()
+        pages.restoreCleanup(step.before, after: step.after)
+        keep()
+        for id in step.before.keys { refreshThumbnail(id) }
+        status = "Undone: \(step.name.prefix(1).lowercased() + step.name.dropFirst())."
+    }
+
+    private func recordUndo(_ name: String, _ before: [String: PageEdits], after: [String: PageEdits]) {
+        guard !before.isEmpty else { return }
+        undoSteps.append(UndoStep(name: name, before: before, after: after))
+        undoChanges += 1
+    }
+
+    /// A scan cleaned up by its settings is one step of Undo, however many pages it has; what to say about it
+    /// (`ScanPages.cleanupSummary`: how many pages, and any whose paper's edge couldn't be found).
+    private func recordCleanup(_ added: [String], _ cleanup: PageFilters) -> String {
+        guard !cleanup.isEmpty else { return "" }
+        var before: [String: PageEdits] = [:], after: [String: PageEdits] = [:]
+        for id in added {
+            guard let page = pages.page(id), let edits = page.beforeCleanup else { continue }
+            before[id] = edits
+            after[id] = page.edits
+        }
+        let name = before.count == 1 ? "Clean up page \(pages.number(before.keys.first!) ?? 1)" : "Clean up \(before.count) pages"
+        recordUndo(name, before, after: after)
+        return pages.cleanupSummary(added, cleanup)
+    }
+
+    /// Each page's paper edge as `PaperEdge.find` saw it on the page straightened by `deskew` (nil edge: none to be sure
+    /// of), so the Clean up view's choices don't decode and look again on every switch.
+    @ObservationIgnored private var paperEdges: [String: (deskew: Double, edge: CropBox?)] = [:]
+
+    /// The page's edits with `filters` in place of its own (`PageEdits.withFilters`): the paper's edge is looked for on the
+    /// analysis copy only when a crop to it is new, once per page and straightening. Nil when the page isn't there.
+    func edits(_ id: String, with filters: PageFilters) async -> PageEdits? {
+        guard let jpeg = images[id], let page = pages.page(id) else { return nil }
+        let (edits, photos, dpi) = (page.edits, page.hasPhotos, page.dpi)
+        if let known = paperEdges[id], known.deskew == edits.deskew {
+            return edits.withFilters(filters, photos: photos) { known.edge }
+        }
+        let (result, looked): (PageEdits, CropBox??) = await offPool {
+            var looked: CropBox?? = nil
+            let result = edits.withFilters(filters, photos: photos) { () -> CropBox? in
+                let edge = ScanImaging.paperEdge(jpeg, dpi: dpi, deskew: edits.deskew)
+                looked = .some(edge)
+                return edge
+            }
+            return (result, looked)
+        }
+        if case .some(let edge) = looked, images[id] != nil { paperEdges[id] = (edits.deskew, edge) }
+        return result
+    }
+
+    /// What the Clean up view shows: the page (or a scan's first photo) with `filters`, at most 1600 pixels on its longest
+    /// side, and what it says about them; nil when `stop` fired (a newer choice) or the page is gone.
+    func cleanPreview(_ id: String, _ filters: PageFilters, stop: BatchStop) async -> (image: NSImage?, note: String)? {
+        guard let jpeg = images[id], let page = pages.page(id), let edits = await edits(id, with: filters), !stop.isStopped else { return nil }
+        let (dpi, photo) = (page.dpi, page.photos?.first)
+        let result: Result<CGImage, any Error> = await offPool {
+            Result {
+                if let photo { return try ScanImaging.photoPreview(jpeg, photo, filters: filters, maxPixels: 1600, dpi: dpi, stop: stop) }
+                return try ScanImaging.render(jpeg, edits, maxPixels: 1600, dpi: dpi, stop: stop)
+            }
+        }
+        if stop.isStopped { return nil }
+        guard case .success(let image) = result else { return (nil, "Couldn't show the page: it couldn't be read.") }
+        return (NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)), cleanNote(id, filters, edits))
+    }
+
+    /// What the Clean up view says after drawing `edits` for `wanted` (the Windows app's `CleanNote`).
+    func cleanNote(_ id: String, _ wanted: PageFilters, _ edits: PageEdits) -> String {
+        if let size = images[id].flatMap(ScanImaging.size), PageCleanup.tooLarge(size.width, size.height), !wanted.isDisjoint(with: .pixelFilters) {
+            return "This page is too large to clean up (\(size.width * size.height / 1_000_000) million pixels): it is saved as scanned."
+        }
+        let photos = pages.page(id)?.hasPhotos ?? false
+        if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
+            return "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole."
+        }
+        return wanted.isEmpty ? "As scanned." : "Shown \(PageCleanup.describe(wanted))."
+    }
+
+    /// The Clean up view's Done: the page gets `filters`, one step of Undo.
+    func applyClean(_ id: String, _ filters: PageFilters) async {
+        guard let edits = await edits(id, with: filters), let page = pages.page(id), edits != page.edits else { return }
+        recordUndo("Clean up page \(pages.number(id) ?? 1)", [id: page.edits], after: [id: edits])
+        change(id) { $0.setEdits(id, edits) }
+    }
+
+    /// All Pages' progress while it looks at the pages: how many are done of how many.
+    private(set) var cleanProgress: (done: Int, total: Int)?
+
+    /// The Clean up view's All Pages: the switches it shows (`shown`; a page of photos has no crop or whiten) set as
+    /// `chosen` has them on every page that is saved (not a separator, not left out), the others' own left alone; one step
+    /// of Undo. The pages are looked at a few at a time (`cleanProgress`); `stop` (the view's Cancel) changes none.
+    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, stop: BatchStop = BatchStop()) async {
+        let targets = pages.pages.filter { !$0.isSeparator && !$0.skipped }.map { ($0.id, $0.edits.filters.setting(shown, as: chosen)) }
+        var found: [String: PageEdits] = [:]
+        cleanProgress = (0, targets.count)
+        defer { cleanProgress = nil }
+        let width = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount - 1))
+        await withTaskGroup(of: (String, PageEdits?).self) { group in
+            var next = 0
+            func start() {
+                guard next < targets.count, !stop.isStopped else { return }
+                let (id, filters) = targets[next]
+                next += 1
+                group.addTask { (id, await self.edits(id, with: filters)) }
+            }
+            for _ in 0..<width { start() }
+            for await (id, edits) in group {
+                if let edits { found[id] = edits }
+                cleanProgress?.done += 1
+                start()
+            }
+        }
+        if stop.isStopped {
+            status = "Clean up stopped: no page was changed."
+            return
+        }
+        var before: [String: PageEdits] = [:], after: [String: PageEdits] = [:]
+        for (id, _) in targets {
+            guard let edits = found[id], let now = pages.page(id), edits != now.edits else { continue }
+            before[id] = now.edits
+            after[id] = edits
+            pages.setEdits(id, edits)
+            refreshThumbnail(id)
+        }
+        savedParts.clear()
+        keep()
+        recordUndo(before.count == 1 ? "Clean up 1 page" : "Clean up \(before.count) pages", before, after: after)
+        status = before.count == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(before.count) pages were cleaned up (Undo puts them back)."
+    }
+
     func delete(_ id: String) {
         savedParts.clear()
         pages.delete(id)
         images[id] = nil
         thumbnails[id] = nil
+        paperEdges[id] = nil
         keep()
         status = pages.summary
     }
@@ -385,17 +585,23 @@ final class ScanModel {
         images = [:]
         origins = [:]
         thumbnails = [:]
+        paperEdges = [:]
+        if !undoSteps.isEmpty {
+            undoSteps = []
+            undoChanges += 1
+        }
         problem = nil
         status = ""
         app.scanStore?.forget(printer.id)
     }
 
-    /// The page with its edits, for the crop view.
+    /// The page with its edits, for the crop view: its filters too, so the crop goes on the page as it is.
     func image(_ id: String, maxPixels: Int = 1600, asScanned: Bool = false) async -> NSImage? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         // The crop is what's drawn on it; photos are found and cut on the scan as it came.
-        let edits = asScanned ? PageEdits.none : PageEdits(quarterTurns: page.edits.quarterTurns, deskew: page.edits.deskew)
-        let image: CGImage? = await offPool { try? ScanImaging.render(jpeg, edits, maxPixels: maxPixels) }
+        let edits = asScanned ? PageEdits.none : PageEdits(quarterTurns: page.edits.quarterTurns, deskew: page.edits.deskew, filters: page.edits.filters)
+        let dpi = page.dpi
+        let image: CGImage? = await offPool { try? ScanImaging.render(jpeg, edits, maxPixels: maxPixels, dpi: dpi) }
         return image.map { NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height)) }
     }
 
@@ -408,9 +614,10 @@ final class ScanModel {
     }
 
     private func refreshThumbnail(_ id: String) {
-        guard let jpeg = images[id], let edits = pages.page(id)?.edits else { return }
+        guard let jpeg = images[id], let page = pages.page(id) else { return }
+        let (edits, dpi) = (page.edits, page.dpi)
         Task {
-            let image: CGImage? = await offPool { try? ScanImaging.render(jpeg, edits, maxPixels: 520) }
+            let image: CGImage? = await offPool { try? ScanImaging.render(jpeg, edits, maxPixels: 520, dpi: dpi) }
             guard let image, pages.page(id)?.edits == edits else { return } // a later edit's thumbnail wins
             thumbnails[id] = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
         }
@@ -448,8 +655,19 @@ final class ScanModel {
 
     /// The skew the page check measures on the page as it would be saved (0 when straightening worked); for `--report`.
     func residualSkew(_ id: String) async -> Double? {
-        guard let jpeg = images[id], let edits = pages.page(id)?.edits else { return nil }
-        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits))).map(Deskew.angle) }
+        guard let jpeg = images[id], let page = pages.page(id) else { return nil }
+        let (edits, dpi) = (page.edits, page.dpi)
+        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits, dpi: dpi))).map(Deskew.angle) }
+    }
+
+    /// The page as the scanner sent it; for `--report`.
+    func scannedJpeg(_ id: String) -> [UInt8]? { images[id] }
+
+    /// The page as it would be saved, as JPEG (its edits and clean up); for `--report`.
+    func savedJpeg(_ id: String) async -> [UInt8]? {
+        guard let jpeg = images[id], let page = pages.page(id) else { return nil }
+        let (edits, dpi) = (page.edits, page.dpi)
+        return await offPool { try? ScanImaging.jpeg(jpeg, edits, dpi: dpi) }
     }
 
     // MARK: Printing (copy)
@@ -488,6 +706,8 @@ final class ScanModel {
         var edits: PageEdits
         var dpi: Int
         var photos: [PhotoBox]?
+        /// The language the page's text is read in (nil: Vision's choice).
+        var ocrLanguage: String?
     }
 
     /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos).
@@ -495,20 +715,38 @@ final class ScanModel {
         var jpeg: [UInt8]
         var dpi: Int
         var isPhoto: Bool
+        var ocrLanguage: String?
     }
 
     private func jobs(_ files: [[ScannedPage]]) -> [[PageJob]] {
-        files.map { file in file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil) } }
+        files.map { file in
+            file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil, ocrLanguage: $0.ocrLanguage) }
+        }
     }
 
-    nonisolated private static func render(_ jobs: [[PageJob]]) throws -> [[OutputImage]] {
+    /// Each page as saved: cleaned up by its filters (a page of photos: each photo by what suits a print), checked against
+    /// `stop` (a save's Cancel) between pages and inside the filters.
+    nonisolated private static func render(_ jobs: [[PageJob]], stop: BatchStop? = nil) throws -> [[OutputImage]] {
         try jobs.map { file in
             try file.flatMap { job -> [OutputImage] in
-                if let photos = job.photos { return try photos.map { OutputImage(jpeg: try ScanImaging.photo(job.jpeg, $0), dpi: job.dpi, isPhoto: true) } }
-                return [OutputImage(jpeg: try ScanImaging.jpeg(job.jpeg, job.edits), dpi: job.dpi, isPhoto: false)]
+                try stop?.check()
+                if let photos = job.photos {
+                    return try photos.map { box in
+                        let jpeg = try ScanImaging.photo(job.jpeg, box, filters: job.edits.filters, dpi: job.dpi, stop: stop)
+                        return OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: true)
+                    }
+                }
+                let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
+                return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage)]
             }
         }
     }
+
+    /// The running save's stop (its Cancel); nil when none runs.
+    @ObservationIgnored private var saveStop: BatchStop?
+
+    /// The save bar's Cancel while saving: the files not written yet aren't, the pages stay.
+    func cancelSave() { saveStop?.stop() }
 
     /// The images each file holds: one per page, or one per photo.
     var imagesPerFile: [Int] { pages.files.map { file in file.reduce(0) { $0 + ($1.hasPhotos ? $1.photos!.count : 1) } } }
@@ -516,31 +754,54 @@ final class ScanModel {
     /// Saving makes more than one file (a batch, or several images): the save panel asks for a folder.
     var savesSeveralFiles: Bool { format == .jpeg ? imagesPerFile.reduce(0, +) > 1 : imagesPerFile.count > 1 }
 
+    /// A save's Cancel: the files written before it (`written[f]`, empty for those that weren't), which stay.
+    private struct SaveStopped: Error {
+        var written: [[URL]]
+    }
+
     /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first. A
     /// file whose `asSent[f]` is there is the scanner's own PDF, written as it sent it (nothing rendered).
-    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?]) throws -> [URL] {
+    /// - Throws: `SaveStopped` with the files written so far when `stop` fires.
+    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
+                                          stop: BatchStop? = nil) throws -> [URL] {
+        var written: [[URL]] = jobs.map { _ in [] }
+        do {
+            try write(jobs, to: targets, format: format, asSent: asSent, stop: stop, written: &written)
+        } catch is CancellationError {
+            throw SaveStopped(written: written)
+        }
+        return written.flatMap { $0 }
+    }
+
+    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
+                                          stop: BatchStop?, written: inout [[URL]]) throws {
         var files: [[OutputImage]] = []
-        for (f, job) in jobs.enumerated() { files.append(f < asSent.count && asSent[f] != nil ? [] : try render([job])[0]) }
-        var written: [URL] = []
+        for (f, job) in jobs.enumerated() { files.append(f < asSent.count && asSent[f] != nil ? [] : try render([job], stop: stop)[0]) }
         for (f, (file, urls)) in zip(files, targets).enumerated() {
+            try stop?.check()
             if format != .jpeg, f < asSent.count, let pdf = asSent[f] {
                 try Data(pdf).write(to: urls[0], options: .atomic) // the scanner's own PDF, as it sent it
-                written.append(urls[0])
+                written[f] = [urls[0]]
                 continue
             }
             switch format {
             case .pdf, .searchablePdf:
-                let pdfPages = file.map { ScanPdf.Page(jpeg: $0.jpeg, dpi: $0.dpi, words: format == .searchablePdf && !$0.isPhoto ? ScanPdf.recognize($0.jpeg) : nil) }
+                let pdfPages = try file.map { image in
+                    try stop?.check()
+                    let words = format == .searchablePdf && !image.isPhoto ? ScanPdf.recognize(image.jpeg, language: image.ocrLanguage) : nil
+                    return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words)
+                }
                 try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
-                written.append(urls[0])
+                written[f] = [urls[0]]
             case .jpeg:
+                var images: [URL] = []
                 for (image, url) in zip(file, urls) {
                     try Data(image.jpeg).write(to: url, options: urls.count == 1 && files.count == 1 ? .atomic : .withoutOverwriting)
-                    written.append(url)
+                    images.append(url)
                 }
+                written[f] = images
             }
         }
-        return written
     }
 
     /// Where each file goes in `folder`, named after `stem`: "Scan.pdf"; a batch "Scan (1).pdf", "Scan (2).pdf"; images
@@ -592,6 +853,9 @@ final class ScanModel {
         isSaving = true
         problem = nil
         status = format == .searchablePdf ? "Recognising text…" : "Saving…"
+        let stop = BatchStop()
+        saveStop = stop
+        defer { saveStop = nil }
         for (f, file) in files.enumerated() {
             let ids = file.map(\.id)
             if let done = savedParts.find(ids) {
@@ -610,8 +874,15 @@ final class ScanModel {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
                     let count = format == .jpeg ? counts[f] : 1
                     let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
-                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent)
+                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop)
                 }
+            }
+            if case .failure(let error) = result, error is SaveStopped || error is CancellationError {
+                isSaving = false
+                savedPdfs = all.filter { $0.pathExtension.lowercased() == "pdf" }
+                status = all.isEmpty ? "Save cancelled. The pages are still here."
+                    : "Save cancelled after \(all.count) \(all.count == 1 ? "file" : "files"): Save again writes the rest."
+                return
             }
             guard case .success(let urls) = result else {
                 isSaving = false
@@ -683,12 +954,30 @@ final class ScanModel {
             return
         }
         let files = pages.files
-        let job = jobs(files), sent = asSent(files)
-        let result: Result<[URL], any Error> = await offPool { Result { try Self.write(job, to: targets, format: format, asSent: sent) } }
+        // The files a cancelled save wrote stay written: saving again writes only the rest (`savedParts`).
+        let earlier = files.map { savedParts.find($0.map(\.id)) }
+        let rest = files.indices.filter { earlier[$0] == nil }
+        let job = jobs(rest.map { files[$0] }), sent = asSent(rest.map { files[$0] }), restTargets = rest.map { targets[$0] }
+        let stop = BatchStop()
+        saveStop = stop
+        let result: Result<[URL], any Error> = await offPool {
+            Result { try Self.write(job, to: restTargets, format: format, asSent: sent, stop: stop) }
+        }
+        saveStop = nil
         isSaving = false
+        let before = earlier.compactMap { $0 }.flatMap { $0 }.map { URL(fileURLWithPath: $0) }
+        // Cancel stops before the next page or file; one that came after everything was written changes nothing.
+        if case .failure(let error) = result, let stopped = error as? SaveStopped {
+            for (i, urls) in stopped.written.enumerated() where !urls.isEmpty { savedParts.add(files[rest[i]].map(\.id), paths: urls.map(\.path)) }
+            let saved = before + stopped.written.flatMap { $0 }
+            savedPdfs = saved.filter { $0.pathExtension.lowercased() == "pdf" }
+            status = saved.isEmpty ? "Save cancelled. The pages are still here."
+                : "Save cancelled after \(saved.count) \(saved.count == 1 ? "file" : "files") (\(saved.map(\.lastPathComponent).joined(separator: ", "))): Save again writes the rest."
+            return
+        }
         switch result {
         case .success(let urls):
-            await finishSaving(urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
+            await finishSaving(before + urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
         case .failure:
             problem = "The scan couldn't be saved there. Choose another place, or check there's room on the disk."
             status = pages.summary
