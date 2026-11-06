@@ -228,10 +228,10 @@ public enum BatchPrintFolder {
             let line = BatchPrintLine(path, options.settings, measure, info)
             if line.problem == nil && line.sheets > options.maxSheets {
                 return (finish(folder, path, name, .failed,
-                               loc("It would print {0}, more than the {1} a run may send. Not printed.", BatchPrintText.sheets(line.sheets), FleetPage.grouped(options.maxSheets)), 0), nil)
+                               loc("It would print {0}, more than the {1} a run may send. Not printed.", BatchPrintText.sheets(line.sheets), CoreLanguage.number(options.maxSheets)), 0), nil)
             }
             if line.problem == nil && sheetsSoFar + line.sheets > options.maxSheets {
-                let why = loc("This run has sent {0}, and the next file would pass the {1} it may send.", BatchPrintText.sheets(sheetsSoFar), FleetPage.grouped(options.maxSheets))
+                let why = loc("This run has sent {0}, and the next file would pass the {1} it may send.", BatchPrintText.sheets(sheetsSoFar), CoreLanguage.number(options.maxSheets))
                 return (finish(folder, path, name, .stopped, loc("Not sent: the run's limit of sheets. It's back in the folder."), 0, back: true), Halt(why: why, final: true))
             }
             let summary = await BatchPrintRunner.run([line], queue, documents, options: options.print, stop)

@@ -5,11 +5,9 @@ public struct SupplyText: Equatable, Sendable {
     public enum Level: String, Sendable { case ok, low, empty }
 
     public let supply: Consumable
-    private let locale: Locale
 
-    public init(_ supply: Consumable, locale: Locale = .current) {
+    public init(_ supply: Consumable) {
         self.supply = supply
-        self.locale = locale
     }
 
     public var name: String { SupplyNames.display(supply.name) }
@@ -23,7 +21,7 @@ public struct SupplyText: Equatable, Sendable {
         case "out": return loc("Empty — replace now")
         default:
             if supply.isWaste { return nil }
-            if let pages = supply.estimatedPagesRemaining { return loc("About {0} pages left", pages.formatted(.number.locale(locale))) }
+            if let pages = supply.estimatedPagesRemaining { return loc("About {0} pages left", CoreLanguage.number(pages)) }
             return supply.isLow ? loc("Running low") : loc("OK", context: "supply")
         }
     }

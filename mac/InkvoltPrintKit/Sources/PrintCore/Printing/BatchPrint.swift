@@ -28,7 +28,7 @@ public enum BatchPrintLimits {
     public static func pictureProblem(_ width: Int64, _ height: Int64) -> String? {
         if width <= 0 || height <= 0 { return loc("The picture is damaged: it has no size.") }
         if width.multipliedReportingOverflow(by: height).overflow || width * height > maxPicturePixels {
-            return loc("The picture is too large to print ({0} × {1} pixels).", FleetPage.grouped(Int(clamping: width)), FleetPage.grouped(Int(clamping: height)))
+            return loc("The picture is too large to print ({0} × {1} pixels).", CoreLanguage.number(Int(clamping: width)), CoreLanguage.number(Int(clamping: height)))
         }
         return nil
     }
@@ -37,7 +37,7 @@ public enum BatchPrintLimits {
     public static func pagesProblem(_ pages: Int) -> String? {
         if pages <= 0 { return loc("The file has no pages.") }
         if pages > maxPages {
-            return loc("The file has {0} pages: a batch takes at most {1} per file. Print a PDF or split it first.", FleetPage.grouped(pages), FleetPage.grouped(maxPages))
+            return loc("The file has {0} pages: a batch takes at most {1} per file. Print a PDF or split it first.", CoreLanguage.number(pages), CoreLanguage.number(maxPages))
         }
         return nil
     }
@@ -118,7 +118,7 @@ public struct BatchHeldFile: Sendable {
         } catch {
             throw BatchFileError(BatchPrintText.describe(error))
         }
-        if size > BatchPrintLimits.maxFileBytes { throw BatchFileError(loc("The file is too large to print here ({0} MB).", FleetPage.grouped(Int(size >> 20)))) }
+        if size > BatchPrintLimits.maxFileBytes { throw BatchFileError(loc("The file is too large to print here ({0} MB).", CoreLanguage.number(Int(size >> 20)))) }
         let bytes: [UInt8]
         do {
             bytes = Array(try Data(contentsOf: URL(fileURLWithPath: path)))
@@ -290,21 +290,20 @@ public enum BatchPrintText {
 
     private static func isControl(_ s: Unicode.Scalar) -> Bool { s.properties.generalCategory == .control }
 
+    /// What `count` counts.
+    public enum Noun: Sendable { case page, sheet, file }
+
     /// "1 file", "12 pages", "3 sheets", in the interface's language.
-    public static func count(_ n: Int, _ word: String) -> String {
-        let number = FleetPage.grouped(n)
-        switch word {
-        case "page": return n == 1 ? loc("{0} page", number) : loc("{0} pages", number)
-        case "sheet": return n == 1 ? loc("{0} sheet", number) : loc("{0} sheets", number)
-        case "file": return n == 1 ? loc("{0} file", number) : loc("{0} files", number)
-        default: return n == 1 ? "1 \(word)" : "\(number) \(word)s"
+    public static func count(_ n: Int, _ noun: Noun) -> String {
+        let number = CoreLanguage.number(n)
+        switch noun {
+        case .page: return n == 1 ? loc("{0} page", number) : loc("{0} pages", number)
+        case .sheet: return n == 1 ? loc("{0} sheet", number) : loc("{0} sheets", number)
+        case .file: return n == 1 ? loc("{0} file", number) : loc("{0} files", number)
         }
     }
 
-    /// A number as the app writes counts: "1,234".
-    public static func number(_ n: Int) -> String { FleetPage.grouped(n) }
-
-    public static func sheets(_ n: Int) -> String { count(n, "sheet") }
+    public static func sheets(_ n: Int) -> String { count(n, .sheet) }
 }
 
 /// Order in a folder: as the Finder sorts by name, so "page 2" comes before "page 10" (the Windows app's `NaturalOrder`).
@@ -428,7 +427,7 @@ public struct BatchMeasure: Sendable, CustomStringConvertible {
         self.password = password
     }
 
-    public var description: String { state == .ready ? BatchPrintText.count(pageCount, "page") : problem ?? "\(state)" }
+    public var description: String { state == .ready ? BatchPrintText.count(pageCount, .page) : problem ?? "\(state)" }
 }
 
 /// The time limits around calls into engines and printers that may hang on a hostile file or a stuck queue: the batch goes
@@ -652,14 +651,14 @@ public struct BatchPrintSummary: Sendable {
     /// "Stopped at file 7 of 50 (report.pdf): Paper jam. 6 sent, 44 not sent." or "48 sent (87 sheets), 1 skipped, 1 failed."
     public var text: String {
         var parts: [String] = []
-        if sent > 0 || items.isEmpty { parts.append((sent == 1 ? loc("{0} sent ({1})", context: "one", FleetPage.grouped(sent), BatchPrintText.sheets(sheetsSent)) : loc("{0} sent ({1})", context: "many", FleetPage.grouped(sent), BatchPrintText.sheets(sheetsSent)))) }
-        if skipped > 0 { parts.append((skipped == 1 ? loc("{0} skipped", context: "one", FleetPage.grouped(skipped)) : loc("{0} skipped", context: "many", FleetPage.grouped(skipped)))) }
-        if failed > 0 { parts.append((failed == 1 ? loc("{0} failed", context: "one", FleetPage.grouped(failed)) : loc("{0} failed", context: "many", FleetPage.grouped(failed)))) }
-        if notSent > 0 { parts.append((notSent == 1 ? loc("{0} not sent", context: "one", FleetPage.grouped(notSent)) : loc("{0} not sent", context: "many", FleetPage.grouped(notSent)))) }
+        if sent > 0 || items.isEmpty { parts.append((sent == 1 ? loc("{0} sent ({1})", context: "one", CoreLanguage.number(sent), BatchPrintText.sheets(sheetsSent)) : loc("{0} sent ({1})", context: "many", CoreLanguage.number(sent), BatchPrintText.sheets(sheetsSent)))) }
+        if skipped > 0 { parts.append((skipped == 1 ? loc("{0} skipped", context: "one", CoreLanguage.number(skipped)) : loc("{0} skipped", context: "many", CoreLanguage.number(skipped)))) }
+        if failed > 0 { parts.append((failed == 1 ? loc("{0} failed", context: "one", CoreLanguage.number(failed)) : loc("{0} failed", context: "many", CoreLanguage.number(failed)))) }
+        if notSent > 0 { parts.append((notSent == 1 ? loc("{0} not sent", context: "one", CoreLanguage.number(notSent)) : loc("{0} not sent", context: "many", CoreLanguage.number(notSent)))) }
         let counts = parts.joined(separator: ", ") + "."
         guard let at = stoppedAt else { return counts }
         let place = at < items.count
-            ? loc("Stopped at file {0} of {1} ({2})", FleetPage.grouped(at + 1), FleetPage.grouped(items.count), BatchPrintText.clean(items[at].name)) : loc("Stopped")
+            ? loc("Stopped at file {0} of {1} ({2})", CoreLanguage.number(at + 1), CoreLanguage.number(items.count), BatchPrintText.clean(items[at].name)) : loc("Stopped")
         return "\(place): \(stopReason ?? "") \(counts)"
     }
 }
@@ -755,7 +754,7 @@ public enum BatchPrintRunner {
 
             if document.fingerprint != line.measure.fingerprint || document.pageCount != line.measure.pageCount {
                 let counts = document.pageCount != line.measure.pageCount
-                    ? loc(" ({0} then, {1} now)", BatchPrintText.count(line.measure.pageCount, "page"), FleetPage.grouped(document.pageCount)) : ""
+                    ? loc(" ({0} then, {1} now)", BatchPrintText.count(line.measure.pageCount, .page), CoreLanguage.number(document.pageCount)) : ""
                 return Outcome(state: .failed, message: loc("The file changed since the estimate{0}. Not printed: check the list again to print it.", counts))
             }
 
@@ -779,7 +778,7 @@ public enum BatchPrintRunner {
                     : loc("It took too long to draw: it may be damaged. Not printed."), stop: spooled ? loc("The printer's queue stopped taking jobs.") : nil, unsure: spooled)
             }
             if receipt.sheets > line.sheets {
-                return Outcome(state: .failed, message: loc("The queue took {0}, more than the {1} estimated.", BatchPrintText.sheets(receipt.sheets), FleetPage.grouped(line.sheets)),
+                return Outcome(state: .failed, message: loc("The queue took {0}, more than the {1} estimated.", BatchPrintText.sheets(receipt.sheets), CoreLanguage.number(line.sheets)),
                                sheets: receipt.sheets, stop: loc("A job came to more sheets than its estimate, so nothing more is sent."), unsure: true)
             }
             return Outcome(state: .sent, message: loc("Sent to the queue: {0}.", BatchPrintText.sheets(receipt.sheets)), sheets: receipt.sheets)

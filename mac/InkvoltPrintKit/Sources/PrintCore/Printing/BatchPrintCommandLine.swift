@@ -101,7 +101,7 @@ public enum BatchPrintCommandLine {
         func number(_ name: String, _ low: Int, _ high: Int) throws -> Int {
             let text = try value(name)
             guard let n = Int(text), n >= low, n <= high else {
-                throw BatchCommandError("\(name) must be a number from \(low) to \(FleetPage.grouped(high)) (\"\(BatchPrintText.clean(text))\" isn't).")
+                throw BatchCommandError("\(name) must be a number from \(low) to \(CoreLanguage.number(high)) (\"\(BatchPrintText.clean(text))\" isn't).")
             }
             return n
         }
@@ -262,7 +262,7 @@ public enum BatchPrintCommandLine {
                     throw BatchListError("\(BatchPrintText.clean(odd)) is neither a PDF, a picture nor a folder. Nothing was sent.")
                 }
                 if files.count > BatchPrintLimits.maxFiles {
-                    throw BatchListError("That's \(FleetPage.grouped(files.count)) files: a batch takes at most \(FleetPage.grouped(BatchPrintLimits.maxFiles)).")
+                    throw BatchListError("That's \(CoreLanguage.number(files.count)) files: a batch takes at most \(CoreLanguage.number(BatchPrintLimits.maxFiles)).")
                 }
                 entries = files.map { BatchListEntry($0, request.settings) }
             }
@@ -290,7 +290,7 @@ public enum BatchPrintCommandLine {
                 if let problem = line.problem {
                     err("\(place) left out \(BatchPrintText.clean(line.name)): \(problem)")
                 } else if !request.quiet {
-                    out("\(place) estimate \(BatchPrintText.clean(line.name)): \(BatchPrintText.count(line.pages.count, "page")), \(BatchPrintText.sheets(line.sheets))")
+                    out("\(place) estimate \(BatchPrintText.clean(line.name)): \(BatchPrintText.count(line.pages.count, .page)), \(BatchPrintText.sheets(line.sheets))")
                 }
             }
         } catch {
@@ -299,10 +299,10 @@ public enum BatchPrintCommandLine {
         }
         let total = lines.reduce(0) { $0 + $1.sheets }
         if !request.quiet {
-            out("Estimate: \(BatchPrintText.count(lines.count, "file")), \(BatchPrintText.sheets(total)) on \(BatchPrintText.clean(info.name)).")
+            out("Estimate: \(BatchPrintText.count(lines.count, .file)), \(BatchPrintText.sheets(total)) on \(BatchPrintText.clean(info.name)).")
         }
         if total > request.maxSheets {
-            err("That's \(BatchPrintText.sheets(total)), more than --max-sheets allows (\(FleetPage.grouped(request.maxSheets))). Nothing was sent.")
+            err("That's \(BatchPrintText.sheets(total)), more than --max-sheets allows (\(CoreLanguage.number(request.maxSheets))). Nothing was sent.")
             return BatchPrintSummary.wrong
         }
         if request.dryRun { return lines.contains { $0.problem != nil } ? BatchPrintSummary.someFailed : BatchPrintSummary.done }
@@ -363,10 +363,10 @@ public enum BatchPrintCommandLine {
                 let line = "\(BatchFolderEntry.stamp(e.time, date: false)) \(word) \(BatchPrintText.clean(e.fileName)): \(e.message)"
                 if e.state == .failed { err(line) } else { out(line) }
             }, stop)
-            out("\(BatchPrintText.count(summary.sent, "file")) sent (\(BatchPrintText.sheets(summary.sheetsSent))), \(FleetPage.grouped(summary.failed)) failed.")
+            out("\(BatchPrintText.count(summary.sent, .file)) sent (\(BatchPrintText.sheets(summary.sheetsSent))), \(CoreLanguage.number(summary.failed)) failed.")
             if let why = summary.stopReason { err("Stopped: \(why)") }
             if summary.leftWaiting > 0 {
-                err("\(BatchPrintText.count(summary.leftWaiting, "file")) left in the folder for the next run: cut off, or still changing. Not printed.")
+                err("\(BatchPrintText.count(summary.leftWaiting, .file)) left in the folder for the next run: cut off, or still changing. Not printed.")
             }
             // Control-C is how a plain watch ends; a run that was to finish the folder (--once) stopped before the end.
             var code = summary.stopReason != nil || (request.once && stop.isStopped) ? BatchPrintSummary.stopped

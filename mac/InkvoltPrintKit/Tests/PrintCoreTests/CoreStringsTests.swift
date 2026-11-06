@@ -5,7 +5,6 @@ import Testing
 /// The Spanish interface's sentences from PrintCore and PrintMac (roadmap 3.7, Windows' LocalizationTests): every
 /// `loc("…")` in the sources is in the app's `CoreStrings.xcstrings` with its Spanish, the same `{0}`, `{1}`… and nothing
 /// the sources no longer ask for; the text then reads in Spanish once the table is installed, and in English without it.
-@Suite(.serialized)
 struct CoreStringsTests {
     /// mac/InkvoltPrint/Resources/CoreStrings.xcstrings, read in place: each key's Spanish ("" when it has none).
     static let spanish: [String: String] = {
@@ -142,29 +141,55 @@ struct CoreStringsTests {
         #expect(Self.keys(in: source).map(\.0) == ["Paper jam", "About {0} pages left", "Black [supply color]", "Say \"Hi\" “now”"])
     }
 
+    /// The catalog's Spanish as the app installs it.
+    static var spanishTable: CoreLanguage.Table {
+        .init(language: "es", sentences: spanish.filter { !$0.value.isEmpty })
+    }
+
     @Test func Without_a_table_text_is_English_and_with_one_Spanish() {
-        CoreLanguage.table = nil
         let supply = Consumable(name: "Black toner", kind: "toner", colorCode: "K", percentRemaining: 12, state: "low",
                                 estimatedPagesRemaining: 12_000)
-        #expect(SupplyText(supply, locale: Locale(identifier: "en_US")).headline == "About 12,000 pages left")
-        #expect(SupplyText(supply).name == "Black toner")
-
-        CoreLanguage.table = .init(language: "es", sentences: Self.spanish.filter { !$0.value.isEmpty })
-        defer { CoreLanguage.table = nil }
-        #expect(SupplyText(supply, locale: Locale(identifier: "es")).headline == "Quedan unas 12.000 páginas")
-        #expect(SupplyText(supply).name == "Tóner negro")
-        let ink = Consumable(name: "Black ink", kind: "ink", colorCode: "K", percentRemaining: 50, state: "ok")
-        #expect(SupplyText(ink).name == "Tinta negra")
-        #expect(SupplyNames.display("Toner Cartridge HP 26A") == "Toner Cartridge HP 26A") // a printer's own name
-        #expect(CoreLanguage.untranslated.isEmpty)
+        CoreLanguage.withTable(nil) {
+            #expect(SupplyText(supply).headline == "About 12,000 pages left")
+            #expect(SupplyText(supply).name == "Black toner")
+        }
+        let table = Self.spanishTable
+        CoreLanguage.withTable(table) {
+            #expect(SupplyText(supply).headline == "Quedan unas 12.000 páginas")
+            #expect(SupplyText(supply).name == "Tóner negro")
+            let ink = Consumable(name: "Black ink", kind: "ink", colorCode: "K", percentRemaining: 50, state: "ok")
+            #expect(SupplyText(ink).name == "Tinta negra")
+            #expect(SupplyNames.display("Toner Cartridge HP 26A") == "Toner Cartridge HP 26A") // a printer's own name
+        }
+        #expect(table.untranslated.isEmpty)
     }
 
     @Test func A_sentence_the_table_lacks_shows_in_English_and_is_listed() {
-        CoreLanguage.table = .init(language: "es", sentences: ["Paper jam": "Atasco de papel"])
-        defer { CoreLanguage.table = nil }
-        #expect(loc("Paper jam") == "Atasco de papel")
-        #expect(loc("{0} is offline", "Office") == "Office is offline")
-        #expect(CoreLanguage.untranslated == ["{0} is offline"])
+        let table = CoreLanguage.Table(language: "es", sentences: ["Paper jam": "Atasco de papel"])
+        CoreLanguage.withTable(table) {
+            #expect(loc("Paper jam") == "Atasco de papel")
+            #expect(loc("{0} is offline", "Office") == "Office is offline")
+            #expect(CoreLanguage.untranslated == ["{0} is offline"])
+        }
+        #expect(table.untranslated == ["{0} is offline"])
+    }
+
+    /// The language is the task's own: a test (or a window) in Spanish leaves the suites running beside it in English.
+    @Test func A_table_for_one_task_leaves_the_others_English() async {
+        let table = CoreLanguage.Table(language: "es", sentences: ["Paper jam": "Atasco de papel"])
+        await withTaskGroup(of: Void.self) { group in
+            for i in 0..<40 {
+                group.addTask {
+                    if i.isMultiple(of: 2) {
+                        CoreLanguage.withTable(table) { #expect(loc("Paper jam") == "Atasco de papel") }
+                    } else {
+                        #expect(loc("Paper jam") == "Paper jam")
+                        #expect(CoreLanguage.number(12_345) == "12,345")
+                    }
+                }
+            }
+        }
+        #expect(CoreLanguage.table == nil)
     }
 
     @Test func Placeholders_take_their_values_in_any_order() {

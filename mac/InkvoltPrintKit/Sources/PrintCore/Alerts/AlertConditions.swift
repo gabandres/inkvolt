@@ -166,9 +166,9 @@ public enum AlertConditions {
                                         body: loc("{0}: replace it to keep printing.", printer)))
         }
         guard low else { return }
-        var left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? loc("about {0} pages left", grouped($0)) : nil }
+        var left = s.estimatedPagesRemaining.flatMap { $0 > 0 ? loc("about {0} pages left", CoreLanguage.number($0)) : nil }
         if let days = daysLeft?[SupplyRow.keyOf(s)] {
-            let n = grouped(days)
+            let n = CoreLanguage.number(days)
             if let pages = left {
                 left = days == 1 ? loc("{1}, about {0} day at this rate", n, pages) : loc("{1}, about {0} days at this rate", n, pages)
             } else {
@@ -185,13 +185,5 @@ public enum AlertConditions {
     private static func partNumber(_ s: Consumable) -> String? {
         let parts = [s.selectibilityNumber.map { "HP \($0)" }, s.productNumber].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    /// 1500 → "1,500" in the user's locale, as .NET's N0.
-    private static func grouped(_ n: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: n)) ?? String(n)
     }
 }

@@ -56,7 +56,7 @@ enum AppLanguage {
         }
         current = language(Bundle.main.preferredLocalizations.first ?? "en") == "es" ? "es" : "en"
         guard current == "es" else { return }
-        CoreLanguage.table = CoreLanguage.Table(language: "es", sentences: sentences("es"), locale: .current)
+        CoreLanguage.install(CoreLanguage.Table(language: "es", sentences: sentences("es"), locale: .current))
     }
 
     /// The compiled `CoreStrings` table of `language` (es.lproj/CoreStrings.strings): English sentence → its translation.

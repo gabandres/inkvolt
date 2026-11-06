@@ -41,7 +41,7 @@ final class BatchRow: Identifiable {
     /// The password that opened it, in memory only.
     var password: String? { measure?.password }
 
-    var pagesText: String { measure?.state == .ready ? BatchPrintText.count(measure?.pageCount ?? 0, "page") : "" }
+    var pagesText: String { measure?.state == .ready ? BatchPrintText.count(measure?.pageCount ?? 0, .page) : "" }
     var sheetsText: String { line?.problem == nil && line != nil ? BatchPrintText.sheets(line?.sheets ?? 0) : "" }
 
     var stateText: String {
@@ -158,8 +158,8 @@ final class BatchPrintModel {
     var summary: String {
         let waiting = stillToSend
         let skipped = waiting.filter { $0.line?.problem != nil }.count
-        var text = String(localized: "\(BatchPrintText.count(waiting.count, "file")), \(BatchPrintText.sheets(totalSheets)) to send")
-        if skipped > 0 { text += String(localized: " (\(BatchPrintText.number(skipped)) left out)") }
+        var text = String(localized: "\(BatchPrintText.count(waiting.count, .file)), \(BatchPrintText.sheets(totalSheets)) to send")
+        if skipped > 0 { text += String(localized: " (\(CoreLanguage.number(skipped)) left out)") }
         return rows.isEmpty ? String(localized: "Add PDFs and pictures, or a folder of them.") : text + "."
     }
 
@@ -224,10 +224,10 @@ final class BatchPrintModel {
             }
         }
         var notes: [String] = []
-        if repeated > 0 { notes.append(String(localized: "\(BatchPrintText.count(repeated, "file")) already on the list")) }
-        if leftOut > 0 { notes.append(String(localized: "\(BatchPrintText.count(leftOut, "file")) neither a PDF nor a picture")) }
-        if overLimit > 0 { notes.append(String(localized: "\(BatchPrintText.number(overLimit)) over the \(BatchPrintText.number(BatchPrintLimits.maxFiles)) a batch takes")) }
-        say(notes.isEmpty ? nil : String(localized: "Added \(BatchPrintText.number(added)): \(notes.joined(separator: ", ")).", comment: "files added to the batch list"), error: overLimit > 0)
+        if repeated > 0 { notes.append(String(localized: "\(BatchPrintText.count(repeated, .file)) already on the list")) }
+        if leftOut > 0 { notes.append(String(localized: "\(BatchPrintText.count(leftOut, .file)) neither a PDF nor a picture")) }
+        if overLimit > 0 { notes.append(String(localized: "\(CoreLanguage.number(overLimit)) over the \(CoreLanguage.number(BatchPrintLimits.maxFiles)) a batch takes")) }
+        say(notes.isEmpty ? nil : String(localized: "Added \(CoreLanguage.number(added)): \(notes.joined(separator: ", ")).", comment: "files added to the batch list"), error: overLimit > 0)
         await estimate()
     }
 
@@ -304,7 +304,7 @@ final class BatchPrintModel {
     /// Forgets every result, so Print sends the whole list again.
     func startOver() async {
         let done = rows.filter { !$0.stillToSend }.count
-        if done > 0, !confirm(String(localized: "\(BatchPrintText.count(done, "file")) of this list went to the printer already. Send the whole list again?"), String(localized: "Start Over")) { return }
+        if done > 0, !confirm(String(localized: "\(BatchPrintText.count(done, .file)) of this list went to the printer already. Send the whole list again?"), String(localized: "Start Over")) { return }
         for row in rows { row.forget() }
         say(nil)
         await estimate()
@@ -513,7 +513,7 @@ final class BatchPrintModel {
         let folder = url.path
         let already = BatchPrintFolder.readyToPrint(folder)
         if already > 0,
-           !confirm(String(localized: "\(BatchPrintText.count(already, "file")) in \(BatchPrintText.clean(url.lastPathComponent)) would print as soon as it's watched. Print them?"),
+           !confirm(String(localized: "\(BatchPrintText.count(already, .file)) in \(BatchPrintText.clean(url.lastPathComponent)) would print as soon as it's watched. Print them?"),
                     String(localized: "Print Them")) { return }
         let stop = BatchStop()
         watching = stop
@@ -533,7 +533,7 @@ final class BatchPrintModel {
         let documents = documents, chosen = options
         do {
             let summary = try await Task.detached { try await BatchPrintFolder.run(folder, queue, documents, chosen, progress: progressing, stop) }.value
-            say(String(localized: "Stopped watching: \(BatchPrintText.count(summary.sent, "file")) sent (\(BatchPrintText.sheets(summary.sheetsSent))), \(BatchPrintText.number(summary.failed)) failed.\(summary.stopReason.map { " " + $0 } ?? "")"), error: summary.stopReason != nil)
+            say(String(localized: "Stopped watching: \(BatchPrintText.count(summary.sent, .file)) sent (\(BatchPrintText.sheets(summary.sheetsSent))), \(CoreLanguage.number(summary.failed)) failed.\(summary.stopReason.map { " " + $0 } ?? "")"), error: summary.stopReason != nil)
         } catch let e as BatchFolderBusyError {
             say(e.message, error: true)
         } catch {

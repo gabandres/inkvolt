@@ -39,7 +39,7 @@ public enum FleetPage {
         }
         let known = p.lastKnown
         let notReported = p.kind == .scanner ? loc("Pages: a scanner has no count") : loc("Pages not reported")
-        let pages = p.pages.map { known ? loc("{0} pages printed (last known)", grouped($0)) : loc("{0} pages printed", grouped($0)) } ?? notReported
+        let pages = p.pages.map { known ? loc("{0} pages printed (last known)", CoreLanguage.number($0)) : loc("{0} pages printed", CoreLanguage.number($0)) } ?? notReported
         let firmware = p.firmware.map { known ? loc("Firmware {0} (last known)", $0) : loc("Firmware {0}", $0) } ?? loc("Firmware not reported")
         let read = lastRead(p, now, timeZone)
         let none: String? = !supplies.isEmpty ? nil : p.kind == .scanner ? loc("No supplies: it's a scanner") : loc("Supplies not reported")
@@ -94,19 +94,6 @@ public enum FleetPage {
     }
 
     private static func isLow(_ s: FleetSupply) -> Bool { ["low", "veryLow", "out", "almostFull", "full", "missing"].contains(s.state) }
-
-    /// .NET's "N0" with the invariant culture: 12,345; with the interface in another language (`CoreLanguage`), the Mac's
-    /// regional separator (12.345 in Spain).
-    static func grouped(_ n: Int) -> String {
-        let digits = String(n.magnitude)
-        let separator = CoreLanguage.groupingSeparator
-        var out = ""
-        for (i, c) in digits.enumerated() {
-            if i > 0 && (digits.count - i) % 3 == 0 { out.append(separator) }
-            out.append(c)
-        }
-        return (n < 0 ? "-" : "") + out
-    }
 
     private static func lastRead(_ p: FleetPrinter, _ now: Date, _ timeZone: TimeZone) -> String {
         if let time = p.lastReading {

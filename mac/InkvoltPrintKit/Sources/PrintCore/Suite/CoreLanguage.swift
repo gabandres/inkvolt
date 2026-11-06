@@ -15,47 +15,76 @@ public enum CoreLanguage {
         /// The language code ("es"), for the report and `Locale`.
         public let language: String
         public let sentences: [String: String]
-        /// Numbers and dates: the Mac's regional format in the interface's language (es_US groups 1,200; es_ES 1.200).
+        /// Numbers and dates: the Mac's regional format in the interface's language (es_US groups 1,200; es_ES 12.000).
         public let locale: Locale
+        private let missed = Missed()
 
         public init(language: String, sentences: [String: String], locale: Locale? = nil) {
             self.language = language
             self.sentences = sentences
             self.locale = locale ?? Locale(identifier: language)
         }
-    }
 
-    /// What groups thousands in numbers written as .NET's N0: "," in English (the invariant culture, as the command lines
-    /// write them), else the table's locale's.
-    public static var groupingSeparator: String {
-        table.map { $0.locale.groupingSeparator ?? "," } ?? ","
-    }
+        /// The English sentences asked of this table that it has no translation of, each shown in English.
+        public var untranslated: [String] { missed.list.withLock { $0.sorted() } }
 
-    private static let installed = Mutex<Table?>(nil)
-    private static let missed = Mutex<Set<String>>([])
-
-    /// The table in use; nil (the default) is English. Set once at launch, before the first window (tests set and clear it).
-    public static var table: Table? {
-        get { installed.withLock { $0 } }
-        set {
-            installed.withLock { $0 = newValue }
-            missed.withLock { $0 = [] }
+        func text(_ english: String) -> String {
+            if let text = sentences[english], !text.isEmpty { return text }
+            missed.list.withLock { _ = $0.insert(english) }
+            return english
         }
     }
 
-    /// The language code text comes out in: "en" unless a table is installed.
+    private final class Missed: Sendable {
+        let list = Mutex<Set<String>>([])
+    }
+
+    /// A table for the current task only (`withTable`), over the installed one; nil inside is English.
+    private struct Scope: Sendable { let table: Table? }
+
+    @TaskLocal private static var scoped: Scope?
+    private static let installed = Mutex<Table?>(nil)
+
+    /// The app's table, installed once at launch before the first window; nil (the default) is English. Tests never
+    /// install one: they use `withTable`, which other suites running at the same time don't see.
+    public static func install(_ table: Table?) {
+        installed.withLock { $0 = table }
+    }
+
+    /// `body` with `table` (nil: English) as the language of this task and the tasks it starts, whatever is installed.
+    public static func withTable<R>(_ table: Table?, _ body: () throws -> R) rethrows -> R {
+        try $scoped.withValue(Scope(table: table), operation: body)
+    }
+
+    /// The table in effect: this task's (`withTable`), else the installed one; nil is English.
+    public static var table: Table? {
+        if let scoped { return scoped.table }
+        return installed.withLock { $0 }
+    }
+
+    /// The language code text comes out in: "en" unless a table is in effect.
     public static var language: String { table?.language ?? "en" }
 
-    /// The English sentences asked for while a table was installed that it has no translation of (the report's check):
-    /// each is shown in English, never as an empty line.
-    public static var untranslated: [String] { missed.withLock { $0.sorted() } }
+    /// The locale numbers are written in: the table's, else English as the command lines write them (.NET's invariant
+    /// culture: 12,345).
+    public static var locale: Locale { table?.locale ?? english }
+
+    private static let english = Locale(identifier: "en_US")
+
+    /// A whole number as .NET's N0 writes it, grouped in `locale`'s way: 12,345 in English, 12.345 in Spain. The one
+    /// formatter for every number in the interface's sentences.
+    public static func number(_ n: Int) -> String {
+        n.formatted(.number.locale(locale))
+    }
+
+    /// The English sentences asked for while the table in effect was in use that it has no translation of (the report's
+    /// check): each is shown in English, never as an empty line.
+    public static var untranslated: [String] { table?.untranslated ?? [] }
 
     /// `english` in the interface's language.
     static func text(_ english: String) -> String {
-        guard let table = installed.withLock({ $0 }) else { return english }
-        if let text = table.sentences[english], !text.isEmpty { return text }
-        missed.withLock { _ = $0.insert(english) }
-        return english
+        guard let table else { return english }
+        return table.text(english)
     }
 
     /// `{0}`, `{1}`… in `format` replaced by `values` (as interpolation writes them); a placeholder without a value stays.
@@ -79,8 +108,8 @@ public enum CoreLanguage {
 }
 
 /// A sentence the interface shows, in its language (`CoreLanguage`): `loc("Paper jam")`, `loc("About {0} pages left", n)`.
-/// The key is always a literal written in English, so `CoreStringsTests` finds it in the sources. Values are written as
-/// interpolation writes them; format a number or a date before passing it.
+/// The key is a literal written in English, so `CoreStringsTests` finds it in the sources (or a `LocKey`'s, which a static
+/// table keeps). Values are written as interpolation writes them; format a number (`CoreLanguage.number`) or a date first.
 public func loc(_ english: String, _ values: Any...) -> String {
     CoreLanguage.fill(CoreLanguage.text(english), values)
 }
@@ -91,4 +120,20 @@ public func loc(_ english: String, context: String, _ values: Any...) -> String 
     let key = "\(english) [\(context)]"
     let text = CoreLanguage.text(key)
     return CoreLanguage.fill(text == key ? english : text, values)
+}
+
+/// A sentence a static table keeps in English by id ("jamInPrinter": "Paper jam"), turned into the interface's language
+/// only where it is shown (`text`), so a lookup translates one sentence, not the table. Its literal is a key
+/// `CoreStringsTests` finds, as `loc`'s.
+public struct LocKey: Hashable, Sendable {
+    public let english: String
+    public let context: String?
+
+    public init(_ english: String, context: String? = nil) {
+        self.english = english
+        self.context = context
+    }
+
+    /// The sentence in the interface's language.
+    public var text: String { context.map { loc(english, context: $0) } ?? loc(english) }
 }

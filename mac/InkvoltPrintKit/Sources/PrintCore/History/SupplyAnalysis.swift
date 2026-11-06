@@ -34,7 +34,7 @@ public struct SupplyForecast: Equatable, Sendable {
             switch daysLeft {
             case nil: loc("More than two years left")
             case 0?: loc("Could run out any day")
-            case let n?: n == 1 ? loc("About {0} day left", NumberText.n0(n)) : loc("About {0} days left", NumberText.n0(n))
+            case let n?: n == 1 ? loc("About {0} day left", CoreLanguage.number(n)) : loc("About {0} days left", CoreLanguage.number(n))
             }
         default: nil
         }
@@ -73,7 +73,7 @@ public struct SupplySummary: Equatable, Sendable {
     /// The supplies card's line ("About 34 days left · 1,240 pages since this cartridge went in"); nil when there's nothing to say.
     public var line: String? {
         let pages = pagesOnCurrent.map { n in
-            let count = NumberText.n0(n)
+            let count = CoreLanguage.number(n)
             return cartridges.last!.seenGoingIn
                 ? (n == 1 ? loc("{0} page since this cartridge went in", count) : loc("{0} pages since this cartridge went in", count))
                 : (n == 1 ? loc("{0} page since Inkvolt Print started keeping track", count)

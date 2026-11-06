@@ -98,7 +98,7 @@ public enum BatchPrintList {
         if fileVersion > version { throw BatchListError(loc("This list was made by a newer Inkvolt Print: update it to open the list.")) }
         guard fileVersion >= 1, let lines else { throw BatchListError(loc("This isn't a batch list: it says no version or no files.")) }
         if lines.count > BatchPrintLimits.maxFiles {
-            throw BatchListError(loc("This list has {0} lines: a batch takes at most {1} files.", FleetPage.grouped(lines.count), FleetPage.grouped(BatchPrintLimits.maxFiles)))
+            throw BatchListError(loc("This list has {0} lines: a batch takes at most {1} files.", CoreLanguage.number(lines.count), CoreLanguage.number(BatchPrintLimits.maxFiles)))
         }
         let defaultCopies = try int(defaults?["copies"])
         let defaultTwoSided = try bool(defaults?["twosided"])
@@ -151,7 +151,7 @@ public enum BatchPrintList {
                 throw BatchListError(loc("The list names {0}, which is neither a PDF, a picture nor a folder.", BatchPrintText.clean(entry.path)))
             }
             if files.count > BatchPrintLimits.maxFiles {
-                throw BatchListError(loc("This list comes to more than {0} files, the most a batch takes.", FleetPage.grouped(BatchPrintLimits.maxFiles)))
+                throw BatchListError(loc("This list comes to more than {0} files, the most a batch takes.", CoreLanguage.number(BatchPrintLimits.maxFiles)))
             }
         }
         return files
