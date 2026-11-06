@@ -38,11 +38,16 @@ struct CoreStringsTests {
         return found
     }()
 
-    /// The keys of `loc("…")` and `loc("…", context: "…")` calls in Swift source.
+    /// The keys of `loc("…")` and `loc("…", context: "…")` calls in Swift source, then of `LocKey("…")` (the same with a
+    /// context), the English a static table keeps.
     static func keys(in text: String) -> [(String, String?)] {
+        keys(in: text, after: "loc(\"") + keys(in: text, after: "LocKey(\"")
+    }
+
+    private static func keys(in text: String, after opening: String) -> [(String, String?)] {
         var out: [(String, String?)] = []
         var rest = text[...]
-        while let r = rest.range(of: "loc(\"") {
+        while let r = rest.range(of: opening) {
             let before = rest[..<r.lowerBound].last
             rest = rest[r.upperBound...]
             if let before, before.isLetter || before.isNumber || before == "_" || before == "." { continue }
@@ -96,16 +101,32 @@ struct CoreStringsTests {
         return nil
     }
 
-    private static func placeholders(_ s: String) -> [String] {
+    /// The tokens a sentence fills in: `{0}`, `{1}`… (loc's values) and a preset's own (`{date}`, `{time}`, `{date:yyyy}`,
+    /// `{n:000}`): a brace, a name of letters and digits, an optional `:format` without spaces, a brace. Prose braces ("A {
+    /// has no closing }", "{{") are not tokens.
+    static func placeholders(_ s: String) -> [String] {
         var found: Set<String> = []
         var rest = s[...]
         while let open = rest.firstIndex(of: "{") {
             let after = rest[rest.index(after: open)...]
-            guard let close = after.firstIndex(of: "}") else { break }
-            if Int(after[..<close]) != nil { found.insert(String(after[..<close])) }
             rest = after
+            guard let close = after.firstIndex(of: "}") else { break }
+            let inside = after[..<close]
+            let name = inside.prefix { $0 != ":" }
+            let format = inside.dropFirst(name.count)
+            guard !name.isEmpty, name.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber) }),
+                  !format.contains(where: { $0 == " " || $0 == "{" }) else { continue }
+            found.insert("{\(inside)}")
         }
         return found.sorted()
+    }
+
+    @Test func Placeholders_are_loc_values_and_preset_tokens() {
+        #expect(Self.placeholders("About {0} pages left, {1}") == ["{0}", "{1}"])
+        #expect(Self.placeholders("Receipt {date} {n:000}") == ["{date}", "{n:000}"])
+        #expect(Self.placeholders("Scans/Receipts/{date:yyyy} {time}") == ["{date:yyyy}", "{time}"])
+        #expect(Self.placeholders("A { has no closing }. Type {{ for a brace.").isEmpty)
+        #expect(Self.placeholders("Recibo {fecha} {n:000}") != Self.placeholders("Receipt {date} {n:000}"))
     }
 
     @Test func Every_sentence_the_sources_ask_for_is_in_the_catalog_with_its_Spanish() {
@@ -137,8 +158,26 @@ struct CoreStringsTests {
             let a = loc("Paper jam"), b = loc("About {0} pages left", n)
             let c = loc("Black", context: "supply color"), d = myloc("Not this"), e = x.loc("Nor this")
             let f = loc("Say \"Hi\" \u{201C}now\u{201D}")
+            let g: [String: LocKey] = ["ready": LocKey("Ready"), "group": LocKey("General", context: "settings group")]
+            let h = LocKey(verbatim: "A4 (21 × 29.7 cm)")
             """#
-        #expect(Self.keys(in: source).map(\.0) == ["Paper jam", "About {0} pages left", "Black [supply color]", "Say \"Hi\" “now”"])
+        let keys = Self.keys(in: source).map(\.0)
+        #expect(keys == ["Paper jam", "About {0} pages left", "Black [supply color]", "Say \"Hi\" “now”", "Ready", "General [settings group]"])
+    }
+
+    /// The status, settings and page-size tables keep English by id: a lookup asks the language for its own sentence only,
+    /// so the report's "asked without Spanish" lists what was shown, not every entry of a table.
+    @Test func A_table_lookup_asks_for_its_own_sentence_only() {
+        let table = CoreLanguage.Table(language: "es", sentences: ["Paper jam": "Atasco de papel"])
+        CoreLanguage.withTable(table) {
+            #expect(LedmStatusText.describe("jamInPrinter") == "Atasco de papel")
+            #expect(IppStatusText.describe("media-jam") == "Atasco de papel")
+            #expect(LedmStatusText.explain("ready") == "Waiting for something to print or scan.")
+            #expect(LedmSettingCatalog.all[0].label == "Printer name")
+            #expect(ScanChoices.pageSizes[0].label == "Letter (8.5 × 11 in)")
+            #expect(PhotoPaperText.paper(nil, 8.27, 11.69) == "A4 (21 × 29.7 cm)")
+        }
+        #expect(table.untranslated == ["Letter (8.5 × 11 in)", "Printer name", "Waiting for something to print or scan."])
     }
 
     /// The catalog's Spanish as the app installs it.

@@ -3,33 +3,31 @@ import Foundation
 /// Plain names for what a print queue offers: paper sizes (by their size, since drivers name the same paper in different
 /// ways), paper types, print quality and color modes (the Print Schema names, e.g. PhotographicGlossy).
 public enum PhotoPaperText {
-    private static var known: [(w: Double, h: Double, name: String)] {
-[
-        (8.5, 11, loc("Letter (8.5 × 11 in)")),
-        (8.5, 14, loc("Legal (8.5 × 14 in)")),
-        (11, 17, loc("Tabloid (11 × 17 in)")),
-        (7.25, 10.5, loc("Executive (7.25 × 10.5 in)")),
-        (210 / 25.4, 297 / 25.4, "A4 (21 × 29.7 cm)"),
-        (148 / 25.4, 210 / 25.4, "A5 (14.8 × 21 cm)"),
-        (105 / 25.4, 148 / 25.4, "A6 (10.5 × 14.8 cm)"),
-        (297 / 25.4, 420 / 25.4, "A3 (29.7 × 42 cm)"),
-        (182 / 25.4, 257 / 25.4, "B5 (18.2 × 25.7 cm)"),
-        (100 / 25.4, 148 / 25.4, loc("Hagaki postcard (10 × 14.8 cm)")),
-        (3.5, 5, loc("3.5 × 5 in photo")),
-        (4, 6, loc("4 × 6 in photo")),
-        (5, 7, loc("5 × 7 in photo")),
-        (8, 10, loc("8 × 10 in photo")),
-        (100 / 25.4, 150 / 25.4, loc("10 × 15 cm photo")),
-        (130 / 25.4, 180 / 25.4, loc("13 × 18 cm photo")),
-        (5, 8, "5 × 8 in"),
+    private static let known: [(w: Double, h: Double, name: LocKey)] = [
+        (8.5, 11, LocKey("Letter (8.5 × 11 in)")),
+        (8.5, 14, LocKey("Legal (8.5 × 14 in)")),
+        (11, 17, LocKey("Tabloid (11 × 17 in)")),
+        (7.25, 10.5, LocKey("Executive (7.25 × 10.5 in)")),
+        (210 / 25.4, 297 / 25.4, LocKey(verbatim: "A4 (21 × 29.7 cm)")),
+        (148 / 25.4, 210 / 25.4, LocKey(verbatim: "A5 (14.8 × 21 cm)")),
+        (105 / 25.4, 148 / 25.4, LocKey(verbatim: "A6 (10.5 × 14.8 cm)")),
+        (297 / 25.4, 420 / 25.4, LocKey(verbatim: "A3 (29.7 × 42 cm)")),
+        (182 / 25.4, 257 / 25.4, LocKey(verbatim: "B5 (18.2 × 25.7 cm)")),
+        (100 / 25.4, 148 / 25.4, LocKey("Hagaki postcard (10 × 14.8 cm)")),
+        (3.5, 5, LocKey("3.5 × 5 in photo")),
+        (4, 6, LocKey("4 × 6 in photo")),
+        (5, 7, LocKey("5 × 7 in photo")),
+        (8, 10, LocKey("8 × 10 in photo")),
+        (100 / 25.4, 150 / 25.4, LocKey("10 × 15 cm photo")),
+        (130 / 25.4, 180 / 25.4, LocKey("13 × 18 cm photo")),
+        (5, 8, LocKey(verbatim: "5 × 8 in")),
     ]
-    }
 
     /// "Letter (8.5 × 11 in)", "4 × 6 in photo"; otherwise its size in inches. `name` is the driver's (unused for now:
     /// sizes are what count).
     public static func paper(_ name: String?, _ widthIn: Double, _ heightIn: Double) -> String {
         let (a, b) = (min(widthIn, heightIn), max(widthIn, heightIn))
-        for k in known where abs(a - k.w) < 0.04 && abs(b - k.h) < 0.04 { return k.name }
+        for k in known where abs(a - k.w) < 0.04 && abs(b - k.h) < 0.04 { return k.name.text }
         return loc("{0} × {1} in", number(a), number(b))
     }
 

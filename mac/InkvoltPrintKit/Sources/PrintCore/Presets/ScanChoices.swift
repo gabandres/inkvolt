@@ -1,20 +1,23 @@
 /// A scan area in 1/300 inch (eSCL units). Nil size = the source's whole area.
 public struct ScanPageSize: Equatable, Sendable {
     public let key: String
-    public let label: String
+    /// The label, kept in English (`label` in the interface's language).
+    public let name: LocKey
     public let width: Int?
     public let height: Int?
+
+    public var label: String { name.text }
 }
 
 /// The scan options a dialog offers for a scanner, from its eSCL capabilities, and the `ScanRequest` they make. Shared by
 /// Inkvolt Print's Scan tab (page sizes) and, later, Inkvolt PDF's Scan dialog.
 public enum ScanChoices {
-    public static var pageSizes: [ScanPageSize] { [
-        ScanPageSize(key: "letter", label: loc("Letter (8.5 × 11 in)"), width: 2550, height: 3300),
-        ScanPageSize(key: "a4", label: loc("A4 (210 × 297 mm)"), width: 2480, height: 3508),
-        ScanPageSize(key: "legal", label: loc("Legal (8.5 × 14 in)"), width: 2550, height: 4200),
-        ScanPageSize(key: "full", label: loc("Whole scanning area"), width: nil, height: nil),
-    ] }
+    public static let pageSizes: [ScanPageSize] = [
+        ScanPageSize(key: "letter", name: LocKey("Letter (8.5 × 11 in)"), width: 2550, height: 3300),
+        ScanPageSize(key: "a4", name: LocKey("A4 (210 × 297 mm)"), width: 2480, height: 3508),
+        ScanPageSize(key: "legal", name: LocKey("Legal (8.5 × 14 in)"), width: 2550, height: 4200),
+        ScanPageSize(key: "full", name: LocKey("Whole scanning area"), width: nil, height: nil),
+    ]
 
     /// Document resolutions offered by Inkvolt PDF: enough for text and OCR, small files.
     public static let documentResolutions = [150, 200, 300]

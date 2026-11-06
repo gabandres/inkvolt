@@ -7,8 +7,9 @@ public enum SettingKind: Sendable { case choice, text, integer }
 /// come from the matching Cap resource.
 public struct LedmSettingDef: Equatable, Sendable {
     public let key: String
-    public let label: String
-    public let group: String
+    /// The label and the group as the interface shows them, kept in English (`label`, `group` in its language).
+    public let labelKey: LocKey
+    public let groupKey: LocKey
     public let dynResource: String
     public let capResource: String
     public let path: [String]
@@ -16,11 +17,14 @@ public struct LedmSettingDef: Equatable, Sendable {
     public let kind: SettingKind
     public let keySiblings: [String]
 
-    public init(_ key: String, _ label: String, _ group: String, _ dynResource: String, _ capResource: String, _ path: [String],
+    public var label: String { labelKey.text }
+    public var group: String { groupKey.text }
+
+    public init(_ key: String, _ label: LocKey, _ group: LocKey, _ dynResource: String, _ capResource: String, _ path: [String],
                 _ capElement: String, _ kind: SettingKind, keySiblings: [String] = []) {
         self.key = key
-        self.label = label
-        self.group = group
+        labelKey = label
+        groupKey = group
         self.dynResource = dynResource
         self.capResource = capResource
         self.path = path
@@ -54,27 +58,25 @@ public enum LedmSettingCatalog {
     private static let pr = LedmResource.printConfigDyn, prCap = LedmResource.printConfigCap
     private static let mh = LedmResource.mediaHandlingDyn, mhCap = LedmResource.mediaHandlingCap
 
-    public static var all: [LedmSettingDef] {
-[
-        LedmSettingDef("FriendlyName", loc("Printer name"), loc("General", context: "settings group"), pc, pcCap, ["ProductSettings", "FriendlyName"], "FriendlyName", .text),
-        LedmSettingDef("DeviceLocation", loc("Location"), loc("General", context: "settings group"), pc, pcCap, ["ProductSettings", "DeviceInformation", "DeviceLocation"], "DeviceLocation", .text),
-        LedmSettingDef("PowerSaveTimeout", loc("Sleep after"), loc("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "PowerSaveTimeout"], "PowerSaveTimerSupport", .choice),
-        LedmSettingDef("ShutDownDelay", loc("Turn off after"), loc("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "ShutDownDelay"], "ShutDownDelaySupport", .choice),
-        LedmSettingDef("ShutDownDelayApply", loc("Delay turn-off while ports are active"), loc("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "ShutDownDelayApply"],
+    public static let all: [LedmSettingDef] = [
+        LedmSettingDef("FriendlyName", LocKey("Printer name"), LocKey("General", context: "settings group"), pc, pcCap, ["ProductSettings", "FriendlyName"], "FriendlyName", .text),
+        LedmSettingDef("DeviceLocation", LocKey("Location"), LocKey("General", context: "settings group"), pc, pcCap, ["ProductSettings", "DeviceInformation", "DeviceLocation"], "DeviceLocation", .text),
+        LedmSettingDef("PowerSaveTimeout", LocKey("Sleep after"), LocKey("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "PowerSaveTimeout"], "PowerSaveTimerSupport", .choice),
+        LedmSettingDef("ShutDownDelay", LocKey("Turn off after"), LocKey("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "ShutDownDelay"], "ShutDownDelaySupport", .choice),
+        LedmSettingDef("ShutDownDelayApply", LocKey("Delay turn-off while ports are active"), LocKey("Power", context: "settings group"), pc, pcCap, ["ProductSettings", "ShutDownDelayApply"],
                        "ShutDownDelayApplySupport", .choice),
-        LedmSettingDef("Duplex", loc("Print on both sides by default"), loc("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "Duplex"], "DuplexSupport", .choice),
-        LedmSettingDef("DuplexBindingOption", loc("Two-sided binding"), loc("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "DuplexBindingOption"],
+        LedmSettingDef("Duplex", LocKey("Print on both sides by default"), LocKey("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "Duplex"], "DuplexSupport", .choice),
+        LedmSettingDef("DuplexBindingOption", LocKey("Two-sided binding"), LocKey("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "DuplexBindingOption"],
                        "DuplexBindingOptionSupport", .choice),
-        LedmSettingDef("ManualFeed", loc("Manual feed"), loc("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "ManualFeed"], "ManualFeedSupport", .choice),
-        LedmSettingDef("DefaultPrintCopies", loc("Default copies"), loc("Printing", context: "settings group"), pr, prCap, ["DefaultPrintCopies"], "DefaultPrintCopies", .integer),
-        LedmSettingDef("AutoContinue", loc("Continue automatically after errors"), loc("Printing", context: "settings group"), pr, prCap, ["AutoContinue"], "PrintOptionAutoContinueSupport", .choice),
-        LedmSettingDef("MediaSizeName", loc("Tray paper size"), loc("Paper", context: "settings group"), mh, mhCap, ["InputTray", "MediaSizeName"], "MediaSizeNameSupport", .choice,
+        LedmSettingDef("ManualFeed", LocKey("Manual feed"), LocKey("Printing", context: "settings group"), pc, pcCap, ["ProductSettings", "ManualFeed"], "ManualFeedSupport", .choice),
+        LedmSettingDef("DefaultPrintCopies", LocKey("Default copies"), LocKey("Printing", context: "settings group"), pr, prCap, ["DefaultPrintCopies"], "DefaultPrintCopies", .integer),
+        LedmSettingDef("AutoContinue", LocKey("Continue automatically after errors"), LocKey("Printing", context: "settings group"), pr, prCap, ["AutoContinue"], "PrintOptionAutoContinueSupport", .choice),
+        LedmSettingDef("MediaSizeName", LocKey("Tray paper size"), LocKey("Paper", context: "settings group"), mh, mhCap, ["InputTray", "MediaSizeName"], "MediaSizeNameSupport", .choice,
                        keySiblings: ["InputBin"]),
-        LedmSettingDef("MediaType", loc("Tray paper type"), loc("Paper", context: "settings group"), mh, mhCap, ["InputTray", "MediaType"], "MediaTypeSupport", .choice, keySiblings: ["InputBin"]),
-        LedmSettingDef("MediaOutActionType", loc("When paper runs out"), loc("Paper", context: "settings group"), mh, mhCap, ["MediaHandlingInfo", "MediaOutActionType"],
+        LedmSettingDef("MediaType", LocKey("Tray paper type"), LocKey("Paper", context: "settings group"), mh, mhCap, ["InputTray", "MediaType"], "MediaTypeSupport", .choice, keySiblings: ["InputBin"]),
+        LedmSettingDef("MediaOutActionType", LocKey("When paper runs out"), LocKey("Paper", context: "settings group"), mh, mhCap, ["MediaHandlingInfo", "MediaOutActionType"],
                        "MediaOutActionTypeSupport", .choice),
     ]
-    }
 
     /// Settings present in `dyn` and marked readWrite in `cap`.
     public static func read(_ defs: some Sequence<LedmSettingDef>, dyn: XmlElement, cap: XmlElement?) -> [LedmSetting] {

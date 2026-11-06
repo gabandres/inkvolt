@@ -128,12 +128,24 @@ public func loc(_ english: String, context: String, _ values: Any...) -> String 
 public struct LocKey: Hashable, Sendable {
     public let english: String
     public let context: String?
+    private let verbatim: Bool
 
     public init(_ english: String, context: String? = nil) {
         self.english = english
         self.context = context
+        verbatim = false
+    }
+
+    /// A name every language writes the same way ("A4 (21 × 29.7 cm)", as Windows leaves it): shown as it is.
+    public init(verbatim text: String) {
+        english = text
+        context = nil
+        verbatim = true
     }
 
     /// The sentence in the interface's language.
-    public var text: String { context.map { loc(english, context: $0) } ?? loc(english) }
+    public var text: String {
+        if verbatim { return english }
+        return context.map { loc(english, context: $0) } ?? loc(english)
+    }
 }

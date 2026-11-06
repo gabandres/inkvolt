@@ -110,18 +110,16 @@ public enum CdmParsers {
 
     // MARK: Status
 
-    private static var knownAlerts: [String: (text: String, severity: Severity, detail: String?)] {
-[
-        "doorOpen": (loc("Door open"), .error, loc("A door or cover is open. Close it to continue.")),
-        "trayEmpty": (loc("Load paper"), .error, loc("Load paper into the tray and push it all the way in.")),
-        "trayOpen": (loc("Tray open"), .error, loc("Push the paper tray all the way in.")),
-        "cartridgeLow": (loc("Cartridge low"), .warning, loc("Printing goes on; have a replacement ready.")),
-        "cartridgeVeryLow": (loc("Cartridge very low"), .warning, loc("Print quality may drop soon; replace the cartridge.")),
-        "cartridgeOut": (loc("Cartridge empty"), .error, loc("Replace the cartridge to keep printing.")),
-        "cartridgeMissing": (loc("Cartridge missing"), .error, loc("Put the cartridge back in and close the door.")),
-        "jam": (loc("Paper jam"), .error, loc("Open the doors the printer shows, gently pull out the jammed paper, and close them.")),
+    private static let knownAlerts: [String: (text: LocKey, severity: Severity, detail: LocKey?)] = [
+        "doorOpen": (LocKey("Door open"), .error, LocKey("A door or cover is open. Close it to continue.")),
+        "trayEmpty": (LocKey("Load paper"), .error, LocKey("Load paper into the tray and push it all the way in.")),
+        "trayOpen": (LocKey("Tray open"), .error, LocKey("Push the paper tray all the way in.")),
+        "cartridgeLow": (LocKey("Cartridge low"), .warning, LocKey("Printing goes on; have a replacement ready.")),
+        "cartridgeVeryLow": (LocKey("Cartridge very low"), .warning, LocKey("Print quality may drop soon; replace the cartridge.")),
+        "cartridgeOut": (LocKey("Cartridge empty"), .error, LocKey("Replace the cartridge to keep printing.")),
+        "cartridgeMissing": (LocKey("Cartridge missing"), .error, LocKey("Put the cartridge back in and close the door.")),
+        "jam": (LocKey("Paper jam"), .error, LocKey("Open the doors the printer shows, gently pull out the jammed paper, and close them.")),
     ]
-    }
 
     /// `/cdm/system/v1/status` (ready, inPowerSave, processing…) with the alerts of `/cdm/alert/v1/alerts`; without a system
     /// status, the print status's `printerState`. Information alerts (such as "genuine HP supply") are left out. An error
@@ -145,9 +143,9 @@ public enum CdmParsers {
             default: severity = known?.severity ?? .warning
             }
             guard let severity else { continue }
-            var text = known?.text ?? LedmStatusText.humanize(category)
+            var text = known?.text.text ?? LedmStatusText.humanize(category)
             if let color = color(a) { text = "\(text) (\(SupplyNames.color(color)))" }
-            alerts.append((PrinterAlert(id: category, severity: severity, message: text), known?.detail))
+            alerts.append((PrinterAlert(id: category, severity: severity, message: text), known?.detail?.text))
         }
 
         if code == nil && alerts.isEmpty { return PrinterStatus(code: "unknown", message: loc("Status not available"), severity: .info, alerts: []) }
