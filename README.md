@@ -126,7 +126,7 @@ and install together.
 | `shared/` | `InkvoltPrint.Core` (protocols: eSCL, IPP, LEDM, CDM, SNMP, scan options, remembered printers) and `InkvoltPrint.Windows` (discovery, Windows queues, WIA): used by both apps; tested by `print/tests` | MIT |
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
 | `tools/` | `test.ps1`: the tests CI runs, a test that fails under load run again alone and named as flaky | MIT |
-| [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (1.0 in the [Mac App Store](https://apps.apple.com/app/id6827219248)) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
+| [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (1.1 in the [Mac App Store](https://apps.apple.com/app/id6827219248)) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
 
 The license of each folder is in its `LICENSE`. At the top level, [LICENSE](LICENSE) is the AGPL-3.0 text (Inkvolt
 PDF's) and [LICENSE-MIT](LICENSE-MIT) the MIT text, which covers the top-level scripts. Inkvolt PDF's
