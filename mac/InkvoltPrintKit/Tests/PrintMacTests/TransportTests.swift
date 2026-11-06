@@ -110,6 +110,20 @@ struct TransportTests {
         }
     }
 
+    /// A printer's answer is read while GCD's pool is busy: the session's delegate callbacks (the reply's bytes, its end)
+    /// don't wait for a pool thread past `DeviceHttp`'s timeout, on Swift's clock.
+    @Test func anAnswerIsReadWhileThePoolIsBusy() async throws {
+        let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello" }
+        defer { server.stop() }
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let device = DeviceHttp(host: "127.0.0.1", transport: URLSessionTransport.factory(localNetwork: nil))
+        let url = URL(string: "http://127.0.0.1:\(server.port)/")!
+        let reply = try await device.send(HttpRequest("GET", url, timeout: .seconds(2)))
+        #expect(reply.text == "hello")
+    }
+
     @Test func anAnswerFromTheNetworkCountsAsLocalNetworkAllowed() async throws {
         let server = try HttpServer { _ in "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n" }
         defer { server.stop() }
