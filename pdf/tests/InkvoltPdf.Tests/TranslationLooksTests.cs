@@ -282,6 +282,17 @@ public class TranslationLooksTests
         Assert.Equal([Span(text, "marrón", B), Span(text, "model", Sub)], spans);
     }
 
+    [Theory]
+    [InlineData("i > 0")]
+    [InlineData("b >= a")]
+    [InlineData("i>0 y sub>2")]
+    public void A_comparison_after_a_lone_b_or_i_stays_as_text_and_the_looks_are_kept(string comparison)
+    {
+        var (text, spans) = TranslationMarkup.Read($"El zorro <b>marrón</b> salta sobre d<sub>model</sub> si {comparison}.", Text, Looks);
+        Assert.Equal($"El zorro marrón salta sobre dmodel si {comparison}.", text);
+        Assert.Equal([Span(text, "marrón", B), Span(text, "model", Sub)], spans);
+    }
+
     [Fact]
     public void An_arrow_in_a_reply_whose_markup_cant_be_trusted_stays_as_text()
     {

@@ -259,12 +259,14 @@ internal static partial class TranslationMarkup
     [GeneratedRegex(@"</?[A-Za-z][^<>]{0,60}>|<[!?][^<>]{0,60}>")]
     private static partial Regex AnyTag();
 
-    // What is left of one of ours cut short or garbled: "<b", "</sub", "< sup>", "/b>", "/SUB >", "sup>", " i>".
-    [GeneratedRegex(@"<\s*/?\s*(?:b|i|sub|sup)\b(?:\s*>)?|/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}])(?:b|i|sub|sup)\s*>", RegexOptions.IgnoreCase)]
+    // What is left of one of ours cut short or garbled: "<b", "</sub", "< sup>", "/b>", "/SUB >", "sup>", " i>". A lone
+    // letter's '>' counts only when it touches the letter and no number or '=' follows: "i > 0", "b >= a", "i>0" are text.
+    [GeneratedRegex(@"<\s*/?\s*(?:b|i|sub|sup)\b(?:\s*>)?|/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}])(?:b|i|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
     private static partial Regex TagPiece();
 
-    // The end of one of ours whose '<' is gone ("negrita/b>", "x /sub>", "word i>"); a whole tag ("<b>", "</b>") isn't one.
-    [GeneratedRegex(@"(?<!<)/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}</])(?:b|i|sub|sup)\s*>", RegexOptions.IgnoreCase)]
+    // The end of one of ours whose '<' is gone ("negrita/b>", "x /sub>", "word i>"); a whole tag ("<b>", "</b>") isn't one,
+    // nor a comparison ("i > 0", "b >= a", "i>0").
+    [GeneratedRegex(@"(?<!<)/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}</])(?:b|i|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
     private static partial Regex BrokenEnd();
 
     // A '<' that opens a tag never closed ("<span", "</").
