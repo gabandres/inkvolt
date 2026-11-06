@@ -112,6 +112,21 @@ public class JobAlertTests
         Assert.Empty(Read(t, T0.AddMinutes(1), Queue(Job(status: JobStatus.Printing, printed: 2))));
     }
 
+    /// <summary>A failure within its hold asks for a read when the hold runs out, as a printer's own problem does.</summary>
+    [Fact]
+    public void A_failed_job_asks_for_a_read_when_its_hold_runs_out()
+    {
+        var t = Tracker();
+        Assert.Empty(Read(t, T0, Queue(Job(status: JobStatus.Error))));
+        Assert.Equal(T0 + t.Rules.ErrorHold, t.PendingUntil(Laser));
+        Assert.Equal(T0 + t.Rules.ErrorHold, t.NextCheck);
+        Assert.Equal([AlertKind.JobFailed], Read(t, T0.AddMinutes(1), Queue(Job(status: JobStatus.Error))).Select(n => n.Kind));
+        Assert.Null(t.PendingUntil(Laser));
+        var someoneElses = Tracker();
+        Assert.Empty(Read(someoneElses, T0, Queue(Job(status: JobStatus.Error, owner: "alex"))));
+        Assert.Null(someoneElses.PendingUntil(Laser));
+    }
+
     [Theory]
     [InlineData(JobStatus.Error, true)]
     [InlineData(JobStatus.Error | JobStatus.Printing, true)]
@@ -605,6 +620,27 @@ public class JobAlertTests
         Assert.Empty(Minutes(t, T0.AddMinutes(5), 5, Queue(Job(status: JobStatus.Error))));
     }
 
+    /// <summary>
+    /// A job missing from one read hasn't left, so neither its own wait nor the wait of a job behind it starts again; missing from two
+    /// reads in a row, it left when it was first missed (as on the Mac).
+    /// </summary>
+    [Fact]
+    public void A_job_one_read_misses_doesnt_start_the_stuck_wait_again()
+    {
+        var mine = Job(2, JobStatus.Printing, name: "Mine.pdf");
+        var t = Tracker();
+        Assert.Empty(Minutes(t, T0, 3, Queue(mine)));
+        Assert.Empty(Read(t, T0.AddMinutes(4), Queue()));
+        Assert.Equal([AlertKind.JobStuck], Read(t, T0.AddMinutes(5), Queue(mine)).Select(n => n.Kind));
+
+        var theirs = Job(1, JobStatus.Printing, owner: "alex", submitted: Submitted.AddMinutes(-5));
+        var behind = Job(2, JobStatus.None, name: "Mine.pdf");
+        var u = Tracker();
+        Assert.Empty(Minutes(u, T0, 3, Queue(theirs, behind)));
+        Assert.Empty(Read(u, T0.AddMinutes(4), Queue(behind))); // not yet known to have left: nothing decided stuck
+        Assert.Equal([AlertKind.JobStuck], Read(u, T0.AddMinutes(5), Queue(theirs, behind)).Select(n => n.Kind));
+    }
+
     [Fact]
     public void A_job_id_the_spooler_used_again_is_a_new_job()
     {
@@ -645,6 +681,28 @@ public class JobAlertTests
         Assert.Empty(new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = keys }).Shown());
         var many = Enumerable.Range(0, 5000).Select(i => $"Job|{i}|{i}|1|0|0|0|0|0|0").ToList();
         Assert.InRange(new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = many }).Shown()[Laser].Count, 1, 256);
+    }
+
+    /// <summary>
+    /// Over the cap, the newest told jobs are kept (by when they were submitted), at a restart and when saving: a job told just now isn't
+    /// the one forgotten, and told again after the next start.
+    /// </summary>
+    [Fact]
+    public void Over_the_cap_the_newest_told_jobs_are_kept()
+    {
+        var old = Enumerable.Range(0, 300).Select(i => $"Job|{i}|{1000 + i}|1|0|0|0|0|0|0").ToList();
+        var loaded = new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = old }).Shown()[Laser];
+        Assert.Equal(256, loaded.Count);
+        Assert.Contains(loaded, k => k.StartsWith("Job|299|1299|", StringComparison.Ordinal));
+        Assert.DoesNotContain(loaded, k => k.StartsWith("Job|0|1000|", StringComparison.Ordinal));
+
+        var t = new AlertTracker(new AlertRules { Jobs = true }, new Dictionary<string, IReadOnlyList<string>> { [Laser] = old[..256] });
+        Assert.Single(Minutes(t, T0, 3, Queue(Job(status: JobStatus.Error))));
+        var saved = t.Shown()[Laser];
+        Assert.Equal(256, saved.Count);
+        Assert.Contains(saved, k => k.StartsWith(JobRules.Key(Job(status: JobStatus.Error)) + "|", StringComparison.Ordinal));
+        var next = new AlertTracker(t.Rules, t.Shown());
+        Assert.Empty(Minutes(next, T0.AddMinutes(10), 3, Queue(Job(status: JobStatus.Error))));
     }
 
     [Fact]

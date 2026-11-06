@@ -11,7 +11,8 @@ namespace InkvoltPrint.Core.Alerts;
 /// <item><b>Stuck</b>: your first job in the queue, with nothing in the queue moving while the queue runs, for
 /// <see cref="AlertRules.JobStuckAfter"/> with the printer saying it's ready, or <see cref="AlertRules.JobHungAfter"/> with it saying it's
 /// printing (worded "may be stuck": a big job on a driver that counts no pages looks the same, and can raise one false alert). Moving means
-/// <see cref="JobProgress"/> going forward, on any job in the queue, or a job leaving: another person's job printing ahead of yours counts,
+/// <see cref="JobProgress"/> going forward, on any job in the queue, or a job leaving (missing from <see cref="JobGoneAfterReads"/> reads in a
+/// row, as of the first: one read that misses a job decides nothing stuck and starts no wait again): another person's job printing ahead of yours counts,
 /// so a job waiting its turn isn't stuck, and flicker (a state going back and forth, a count going down) doesn't count, so it can't hide a hung
 /// job either. Jobs behind your first one wait for it, so they aren't told as well. The clock starts when the job is first seen, not when it was
 /// submitted, so a restart gives it the full time again.</item>
@@ -25,6 +26,9 @@ public sealed partial class AlertTracker
 {
     private const int MaxRememberedJobs = 256;
 
+    /// <summary>A job missing from this many reads in a row has left the queue.</summary>
+    private const int JobGoneAfterReads = 2;
+
     private sealed class JobTrack(string key)
     {
         public string Key { get; } = key;
@@ -36,6 +40,8 @@ public sealed partial class AlertTracker
         public JobProgress Best, Mark;
         public DateTimeOffset FirstSeen;
         public DateTimeOffset? FailedSince, AbsentSince;
+        /// <summary>Reads in a row it was missing from, up to <see cref="JobGoneAfterReads"/>.</summary>
+        public int Missed;
         public AlertKind? Due;
 
         /// <summary>Stuck may be told: never told yet, or moved on since, and under the cap.</summary>
@@ -67,11 +73,23 @@ public sealed partial class AlertTracker
         public DateTimeOffset? LastRead, StillSince, ReadySince, StuckAt;
     }
 
-    private void RememberJob(string uuid, string line)
+    /// <summary>A printer's remembered lines from the last run: the newest <see cref="MaxRememberedJobs"/> of those that make sense.</summary>
+    private void RememberJobs(string uuid, IEnumerable<string> lines)
     {
         var jobs = PrinterOf(uuid).Queue.Jobs;
-        if (JobTrack.Parse(line) is { } t && jobs.Count < MaxRememberedJobs) jobs[t.Key] = t;
+        var parsed = new Dictionary<string, JobTrack>(jobs, StringComparer.Ordinal); // another spelling of the same printer's id, read before
+        foreach (var line in lines)
+            if (JobTrack.Parse(line) is { } t) parsed[t.Key] = t;
+        jobs.Clear();
+        foreach (var t in Newest(parsed.Values)) jobs[t.Key] = t;
     }
+
+    /// <summary>The newest <see cref="MaxRememberedJobs"/> of these, oldest first: by when they were submitted (in the key), then by id.</summary>
+    private static IEnumerable<JobTrack> Newest(IEnumerable<JobTrack> tracks) =>
+        tracks.Select(t => (Track: t, Parts: t.Key.Split('|')))
+            .OrderBy(x => long.Parse(x.Parts[2], CultureInfo.InvariantCulture)).ThenBy(x => int.Parse(x.Parts[1], CultureInfo.InvariantCulture))
+            .ThenBy(x => x.Track.Key, StringComparer.Ordinal)
+            .Select(x => x.Track).TakeLast(MaxRememberedJobs);
 
     /// <summary>Takes in one read of a printer's queue (null: it has no queue now); returns the alerts to show now.</summary>
     public IReadOnlyList<AlertNotice> ObserveJobs(string uuid, string printerName, JobQueueState? queue, JobOwner me, DateTimeOffset now)
@@ -84,35 +102,15 @@ public sealed partial class AlertTracker
         q.LastRead = now;
 
         var jobs = QueueJobText.Order(queue?.Jobs ?? []);
-        var moved = false;
-        var listed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var job in jobs)
-        {
-            var key = JobRules.Key(job);
-            listed.Add(key);
-            if (!q.Jobs.TryGetValue(key, out var t)) q.Jobs[key] = t = new JobTrack(key);
-            moved |= TakeIn(t, job, now);
-            t.AbsentSince = null;
-            (t.Name, t.Status, t.Mine, t.PrinterName) = (job.Name, job.Status, me.Owns(job), printerName);
-        }
-        foreach (var (key, t) in q.Jobs.ToList())
-        {
-            if (listed.Contains(key)) continue;
-            if (t.Seen && t.AbsentSince is null) moved = true; // a job left: the queue moved
-            t.AbsentSince ??= now;
-            t.Due = null;
-            // Kept a while once told: a read can miss a job that's still there, and it mustn't be told again when it's back.
-            if (!t.Remembered || now - t.AbsentSince >= Rules.ClearHold) q.Jobs.Remove(key);
-        }
+        var moved = TakeIn(q, jobs, printerName, me, now);
 
         var running = queue is { Paused: false, WorkOffline: false } && printer.Work is PrinterWork.Ready or PrinterWork.Printing
                                                                      && !jobs.Any(j => JobRules.SaysPrinterNotReady(j.Status));
         if (!running) StopStuckClock(q);
         else
         {
-            if (moved || q.StillSince is null) q.StillSince = now;
-            if (printer.Work != PrinterWork.Ready) q.ReadySince = null;
-            else if (moved || q.ReadySince is null) q.ReadySince = now;
+            q.StillSince = Since(q.StillSince, moved, now);
+            q.ReadySince = printer.Work != PrinterWork.Ready ? null : Since(q.ReadySince, moved, now);
         }
 
         foreach (var job in jobs)
@@ -135,7 +133,7 @@ public sealed partial class AlertTracker
         }
 
         // Your first job that should be moving; a failed one stands for those behind it.
-        var first = jobs.Select(j => q.Jobs[JobRules.Key(j)]).FirstOrDefault(t => t.Mine && JobRules.ShouldMove(t.Status));
+        var first = Unsure(q) ? null : jobs.Select(j => q.Jobs[JobRules.Key(j)]).FirstOrDefault(t => t.Mine && JobRules.ShouldMove(t.Status));
         foreach (var t in q.Jobs.Values.Where(t => t.Due == AlertKind.JobStuck && t != first)) t.Due = null;
         q.StuckAt = null;
         if (first is not null)
@@ -158,6 +156,49 @@ public sealed partial class AlertTracker
         }
         return Release(now);
     }
+
+    /// <summary>The jobs listed now and the ones gone since: when the queue last moved, null if it didn't.</summary>
+    private DateTimeOffset? TakeIn(JobQueueTrack q, IReadOnlyList<QueueJob> jobs, string printerName, JobOwner me, DateTimeOffset now)
+    {
+        DateTimeOffset? moved = null;
+        var listed = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var job in jobs)
+        {
+            var key = JobRules.Key(job);
+            listed.Add(key);
+            if (!q.Jobs.TryGetValue(key, out var t)) q.Jobs[key] = t = new JobTrack(key);
+            if (TakeIn(t, job, now)) moved = now;
+            (t.AbsentSince, t.Missed) = (null, 0);
+            (t.Name, t.Status, t.Mine, t.PrinterName) = (job.Name, job.Status, me.Owns(job), printerName);
+        }
+        foreach (var (key, t) in q.Jobs.ToList())
+        {
+            if (listed.Contains(key)) continue;
+            var gone = t.AbsentSince ??= now;
+            t.Due = null;
+            if (t.Missed < JobGoneAfterReads)
+            {
+                // One read can miss a job that's still there: whether it left is known at the next.
+                if (++t.Missed < JobGoneAfterReads) continue;
+                if (t.Seen) moved = moved is { } m && m > gone ? m : gone; // a job left when it was first missed: the queue moved
+            }
+            // Kept a while once told: a read can miss a job that's still there, and it mustn't be told again when it's back.
+            if (!t.Remembered || now - gone >= Rules.ClearHold) q.Jobs.Remove(key);
+        }
+        return moved;
+    }
+
+    /// <summary>A clock that started at <paramref name="start"/>, after the queue moved at <paramref name="moved"/>: started now if it wasn't running.</summary>
+    private static DateTimeOffset Since(DateTimeOffset? start, DateTimeOffset? moved, DateTimeOffset now) =>
+        start is not { } s ? now : moved is { } m ? Later(s, m) : s;
+
+    /// <summary>A job a read missed that may still be there: whether the queue moved is known at the next read.</summary>
+    private static bool Unsure(JobQueueTrack q) => q.Jobs.Values.Any(t => t.Seen && t.AbsentSince is not null && t.Missed < JobGoneAfterReads);
+
+    /// <summary>When your failed jobs still within their hold (<see cref="AlertRules.ErrorHold"/>) will be due (<see cref="PendingUntil"/> asks for a read then).</summary>
+    private IEnumerable<DateTimeOffset?> FailedHolds(JobQueueTrack q) =>
+        q.Jobs.Values.Where(t => t.Mine && !t.FailedTold && t.Due is null && t.AbsentSince is null && t.FailedSince is not null)
+            .Select(t => (DateTimeOffset?)(t.FailedSince!.Value + Rules.ErrorHold));
 
     /// <summary>One job's read: true when it went forward, which is what "the queue moved" means. A restart is a fresh try, so it starts from where the job is now.</summary>
     private static bool TakeIn(JobTrack t, QueueJob job, DateTimeOffset now)
