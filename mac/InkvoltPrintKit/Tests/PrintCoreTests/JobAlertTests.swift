@@ -531,6 +531,18 @@ struct JobAlertTests {
         #expect(Self.read(u, Self.at(5), Self.queue(theirs, behind)).map(\.kind) == [.jobStuck])
     }
 
+    /// A read that misses someone else's job decides nothing stuck: my stuck alert held by quiet hours stays held.
+    @Test func aReadThatMissesAJobLeavesAHeldStuckAlertAsItIs() {
+        let rules = Self.rules { $0.quiet = QuietHours(from: (22, 0), to: (7, 0)) }
+        let night = Self.t0.addingTimeInterval(11 * 3600) // 23:00
+        let mine = Self.job(7, .processing)
+        let theirs = Self.job(8, .pending, owner: "alex", submitted: Self.submitted.addingTimeInterval(300))
+        let t = Self.tracker(rules)
+        #expect(Self.minutes(t, night, 6, Self.queue(mine, theirs)).isEmpty)
+        #expect(Self.read(t, Self.at(7, from: night), Self.queue(mine)).isEmpty)
+        #expect(t.release(now: night.addingTimeInterval(8.5 * 3600)).map(\.kind) == [.jobStuck])
+    }
+
     @Test func aJobIdTheSpoolerUsedAgainIsANewJob() {
         let t = Self.tracker()
         #expect(Self.minutes(t, Self.t0, 3, Self.queue(Self.job(7, .stopped, name: "First.pdf"))).count == 1)

@@ -223,14 +223,6 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
     /// straightened by <paramref name="measuredAt"/> degrees) crops only a page straightened by that much: one edited during the
     /// check, or not straightened, stays whole. Null when nothing changes.
     /// </summary>
-    /// <summary>
-    /// The scan's crop to the paper was looked for on this page (<paramref name="searched"/>: kept by the check, not photos) and found
-    /// no edge, on edits <see cref="CleanedUp"/> would have cropped (no filters or crop yet), so it stays whole: what the scan's summary
-    /// counts. Not a page cropped or cleaned up by hand, nor one never looked on.
-    /// </summary>
-    public bool NoPaperEdge(PageFilters cleanup, bool searched, CropBox? paperEdge) =>
-        cleanup.HasFlag(PageFilters.CropToPaper) && searched && paperEdge is null && Filters == PageFilters.None && Crop is null;
-
     public PageEdits? CleanedUp(PageFilters cleanup, bool photos, CropBox? paperEdge, double measuredAt)
     {
         if (cleanup == PageFilters.None || Filters != PageFilters.None || Crop is not null) return null;
@@ -239,6 +231,14 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
         if (crop is not null) filters |= PageFilters.CropToPaper;
         return filters == PageFilters.None ? null : this with { Crop = crop, Filters = filters };
     }
+
+    /// <summary>
+    /// The scan's crop to the paper was looked for on this page (<paramref name="searched"/>: kept by the check, not photos) and found
+    /// no edge, on edits <see cref="CleanedUp"/> would have cropped (no filters or crop yet), so it stays whole: what the scan's summary
+    /// counts. Not a page cropped or cleaned up by hand, nor one never looked on.
+    /// </summary>
+    public bool NoPaperEdge(PageFilters cleanup, bool searched, CropBox? paperEdge) =>
+        cleanup.HasFlag(PageFilters.CropToPaper) && searched && paperEdge is null && Filters == PageFilters.None && Crop is null;
 }
 
 /// <summary>Arbitrary-angle rotation of raw pixels (straightening a page), bilinear, same size, uncovered corners white.</summary>

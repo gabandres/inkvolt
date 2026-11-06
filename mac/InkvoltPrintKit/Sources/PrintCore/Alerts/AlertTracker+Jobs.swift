@@ -194,7 +194,9 @@ extension AlertTracker {
     /// Your first job that should be moving; a failed one stands for those behind it.
     private func decideStuck(_ jobs: [QueueJob], _ p: Printer, now: Date) {
         let q = p.queue
-        let first = Self.unsure(q) ? nil : jobs.lazy.compactMap { q.jobs[JobRules.key($0)] }.first { $0.mine && JobRules.shouldMove($0.state) }
+        // A read that missed a job decides nothing stuck: a stuck alert held (quiet hours) stays as it is till a sure read.
+        if Self.unsure(q) { return }
+        let first = jobs.lazy.compactMap { q.jobs[JobRules.key($0)] }.first { $0.mine && JobRules.shouldMove($0.state) }
         for key in q.order { if let t = q.jobs[key], t.due == .jobStuck, t !== first { t.due = nil } }
         q.stuckAt = nil
         guard let first else { return }

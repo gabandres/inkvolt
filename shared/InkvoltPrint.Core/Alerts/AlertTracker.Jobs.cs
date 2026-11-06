@@ -132,8 +132,10 @@ public sealed partial class AlertTracker
             }
         }
 
+        // A read that missed a job decides nothing stuck: a stuck alert held (quiet hours) stays as it is till a sure read.
+        if (Unsure(q)) return Release(now);
         // Your first job that should be moving; a failed one stands for those behind it.
-        var first = Unsure(q) ? null : jobs.Select(j => q.Jobs[JobRules.Key(j)]).FirstOrDefault(t => t.Mine && JobRules.ShouldMove(t.Status));
+        var first = jobs.Select(j => q.Jobs[JobRules.Key(j)]).FirstOrDefault(t => t.Mine && JobRules.ShouldMove(t.Status));
         foreach (var t in q.Jobs.Values.Where(t => t.Due == AlertKind.JobStuck && t != first)) t.Due = null;
         q.StuckAt = null;
         if (first is not null)

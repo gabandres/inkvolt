@@ -641,6 +641,20 @@ public class JobAlertTests
         Assert.Equal([AlertKind.JobStuck], Read(u, T0.AddMinutes(5), Queue(theirs, behind)).Select(n => n.Kind));
     }
 
+    /// <summary>A read that misses someone else's job decides nothing stuck: my stuck alert held by quiet hours stays held.</summary>
+    [Fact]
+    public void A_read_that_misses_a_job_leaves_a_held_stuck_alert_as_it_is()
+    {
+        var rules = new AlertRules { Jobs = true, Quiet = new QuietHours(new TimeOnly(22, 0), new TimeOnly(7, 0)) };
+        var night = new DateTimeOffset(2026, 10, 24, 23, 0, 0, T0.Offset);
+        var mine = Job(7, JobStatus.Printing);
+        var theirs = Job(8, JobStatus.None, owner: "alex", submitted: Submitted.AddMinutes(5));
+        var t = Tracker(rules);
+        Assert.Empty(Minutes(t, night, 6, Queue(mine, theirs)));
+        Assert.Empty(Read(t, night.AddMinutes(7), Queue(mine)));
+        Assert.Equal([AlertKind.JobStuck], t.Release(night.AddHours(8.5)).Select(n => n.Kind));
+    }
+
     [Fact]
     public void A_job_id_the_spooler_used_again_is_a_new_job()
     {

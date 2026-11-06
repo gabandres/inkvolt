@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using InkvoltPrint.Core;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Suite;
@@ -211,6 +212,29 @@ public class TwainTests
 
         // Nothing in its place (no TWAIN source either): the list fails, as before, so callers say Windows' list didn't answer.
         await Assert.ThrowsAsync<WiaException>(() => new DriverScanners(new FailingWia(), new ListingTwain([])).ListScannersAsync(CancellationToken.None));
+    }
+
+    /// <summary>Inkvolt PDF's Scan dialog: WIA failing with anything (a COM error, not only a WiaException) and no TWAIN source to list instead.</summary>
+    [Fact]
+    public async Task The_scan_dialogs_driver_list_survives_any_WIA_failure_and_logs_it_once()
+    {
+        foreach (var failure in new Exception[] { new COMException("The RPC server is unavailable.", unchecked((int)0x800706BA)), new InvalidOperationException("Broken.") })
+        {
+            var notes = new List<string>();
+            var added = new List<WiaDeviceInfo>();
+            var system = new DriverScanners(new ListedWia([]) { Fails = failure }, new ListingTwain([]), notes.Add);
+            var read = true;
+            Assert.Null(await Record.ExceptionAsync(async () => read = await ScannerList.ListDriversAsync(system, added.AddRange)));
+            Assert.False(read); // the dialog says Windows' list of scanners didn't answer
+            Assert.Empty(added);
+            Assert.Single(notes);
+        }
+
+        var twain = new ListingTwain([new WiaDeviceInfo("Example FilmScan 7200", "Example FilmScan 7200", Port: WiaDeviceInfo.TwainPort)]);
+        var withTwain = new DriverScanners(new ListedWia([]) { Fails = new COMException("Class not registered.") }, twain);
+        var listed = new List<WiaDeviceInfo>();
+        Assert.True(await ScannerList.ListDriversAsync(withTwain, listed.AddRange));
+        Assert.Equal(["Example FilmScan 7200"], listed.Select(d => d.Name).Distinct());
     }
 
     [Fact]
