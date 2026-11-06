@@ -27,11 +27,12 @@ public struct UdpSnmpTransport: SnmpTransport {
         let port = port
         let once = OnceResult<Exchange>()
         // Cancelled, the wait ends at once: not when the blocking loop next looks at `stop`, which on a busy machine may be
-        // long after (the block can wait for a thread; CI once took 28 s to end a cancelled 30 s wait).
+        // long after (the block can wait for a thread; CI once took 28 s to end a cancelled 30 s wait). The exchange runs on
+        // a thread of its own, so its timeout starts when asked, not when GCD's pool has a thread (21.9 s for 300 ms on CI).
         let result = await withTaskCancellationHandler {
             await withCheckedContinuation { (done: CheckedContinuation<Exchange, Never>) in
                 once.start(done)
-                DispatchQueue.global(qos: .utility).async {
+                OwnThread.run("inkvolt.snmp") {
                     once.finish(Self.exchange(request, host: host, port: port, timeout: timeout, stop: stop))
                 }
             }

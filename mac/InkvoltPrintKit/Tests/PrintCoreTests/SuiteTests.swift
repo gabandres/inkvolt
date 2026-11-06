@@ -1,4 +1,5 @@
 import Foundation
+import TestTiming
 import Testing
 @testable import PrintCore
 
@@ -194,7 +195,8 @@ struct SuiteTests {
         let start = clock.now
         let h = try #require(await PrinterCheck.health(Self.printer(), transport: { _, _ in hanging }, budget: .milliseconds(300)))
         #expect(h.state == .offline && h.text == PrinterCheck.notResponding)
-        #expect(clock.now - start < .seconds(5))
+        // 5.9 s once on CI's busy runner (2026-11-06): the timer waits for a thread there too. CI gets slack.
+        #expect(clock.now - start < Self.bound)
     }
 
     /// Mac: the print panel moving on cancels its check, which ends then (offline, never shown) rather than at the budget.
@@ -206,7 +208,10 @@ struct SuiteTests {
         try await Task.sleep(for: .milliseconds(200))
         check.cancel()
         let h = await check.value
-        #expect(clock.now - start < .seconds(5), "took \(clock.now - start)")
+        #expect(clock.now - start < Self.bound, "took \(clock.now - start)")
         #expect(h?.state == .offline)
     }
+
+    /// 5 s here; CI's busy runner starves the timers (5.9 s seen), so it gets Timing's slack.
+    private static let bound = Timing.limit(.seconds(5))
 }

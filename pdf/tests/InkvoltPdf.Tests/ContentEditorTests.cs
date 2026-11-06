@@ -267,6 +267,23 @@ public class ContentEditorTests
     }
 
     [Fact]
+    public void APdfTeXLinesWordSpacesKeepTheirMeasuredGapWhenEdited()
+    {
+        // pdfTeX's font has no space glyph: its word spaces are TJ adjustments, and the one after a line's last word moves
+        // what follows. An edit's spaces are as wide as the line's own, 0.4 em, not the gap after it nor the 0.25 em default.
+        var pdf = ContentEditPdf.Make("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(quick) -400 (brown) -400 (fox) -120] TJ 1 0 0 1 72 680 Tm [(lazy) -400] TJ ET", fontText: "quickbrownfoxlazy");
+        using (var doc = PdfObj.Open(pdf, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify, "x"))
+        {
+            var runs = ContentEditor.ReadRaw(doc.Pages[0], 0, default).Runs;
+            Assert.Equal(0.4, runs.Single(r => r.Text == "quick brown fox").GapEms, 3);
+            Assert.Equal(0.25, runs.Single(r => r.Text == "lazy").GapEms, 3); // a one-word operator measures none
+        }
+        var edited = ContentEditor.ReplaceText(pdf, null, Run(pdf, "quick brown fox"), "quick fox brown");
+        Assert.Equal("quick fox brown", Run(edited, "quick fox brown").Text);
+        Assert.Contains("-400", ContentEditPdf.Content(edited), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TextInAFormXObjectIsListedWithItsOwnIdsAndEdited()
     {
         var pdf = ContentEditPdf.Make("q /Fm1 Do Q BT /FA 12 Tf 72 600 Td (draft) Tj ET", form: "BT /FA 12 Tf 72 700 Td (Hello) Tj ET");
