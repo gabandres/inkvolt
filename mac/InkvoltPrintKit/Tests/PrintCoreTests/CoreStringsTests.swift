@@ -31,7 +31,9 @@ struct CoreStringsTests {
             guard let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { continue }
             for case let file as URL in files where file.pathExtension == "swift" {
                 guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
-                let code = text.split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                // By lines whatever the checkout's endings: CRLF is one Character, which split(separator: "\n") never meets,
+                // so a file starting with a comment was dropped whole on the PC.
+                let code = text.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
                 for (key, _) in keys(in: code.joined(separator: "\n")) { found[key] = file.lastPathComponent }
             }
         }
@@ -39,9 +41,10 @@ struct CoreStringsTests {
     }()
 
     /// The keys of `loc("…")` and `loc("…", context: "…")` calls in Swift source, then of `LocKey("…")` (the same with a
-    /// context), the English a static table keeps.
-    static func keys(in text: String) -> [(String, String?)] {
-        keys(in: text, after: "loc(\"") + keys(in: text, after: "LocKey(\"")
+    /// context), the English a static table keeps; `openers` adds calls whose first literal is a key (Inkvolt PDF's menu
+    /// table, `PdfStringsTests`).
+    static func keys(in text: String, openers: [String] = []) -> [(String, String?)] {
+        (["loc(\"", "LocKey(\""] + openers).flatMap { keys(in: text, after: $0) }
     }
 
     private static func keys(in text: String, after opening: String) -> [(String, String?)] {
