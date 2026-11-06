@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Which interfaces a printer answered on. Probed once, in parallel, with short timeouts.
 public struct ProbeResult: Sendable {
@@ -18,6 +19,9 @@ public struct ProbeResult: Sendable {
     /// The printer answered SNMP with the Printer MIB: asked only when neither LEDM, CDM nor IPP answered, and only when
     /// the caller passed an SNMP transport.
     public var snmp: SnmpIdentity?
+
+    /// An SNMPv3 agent answered and refused the login's user or keys (nothing else answered); nil otherwise.
+    public var snmpRefused: SnmpRefusal?
 
     public var reachable: Bool { ledm != nil || scanner != nil || ipp != nil || cdm != nil || snmp != nil }
 
@@ -131,20 +135,25 @@ public final class PrinterConnection: Sendable {
     ///   - transport: the network for this printer (URLSession in the app; fixtures in demo mode and tests).
     ///   - ippHint: IPP printer URL from DNS-SD (`rp` TXT + port, https for `_ipps`), tried first.
     ///   - snmp: where SNMP goes when the printer has neither LEDM, CDM nor IPP; nil: SNMP isn't tried.
+    ///   - snmpLogin: the printer's SNMP login (its community); nil: `SnmpLogin.public`. Every SNMP read of the connection uses it.
     public static func open(_ host: String, transport: @escaping HttpTransportFactory, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil) async throws -> PrinterConnection {
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+        async throws -> PrinterConnection {
         let http = DeviceHttp(host: host, transport: transport, pin: pin)
-        return PrinterConnection(http: http, probe: try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp), snmp: snmp)
+        let found = try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp, snmpLogin: snmpLogin)
+        return PrinterConnection(http: http, probe: found, snmp: snmp)
     }
 
     /// The same network for every host (demo mode, tests).
     public static func open(_ host: String, transport: any HttpTransport, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil) async throws -> PrinterConnection {
-        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp)
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+        async throws -> PrinterConnection {
+        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp, snmpLogin: snmpLogin)
     }
 
     /// SNMP is asked only after LEDM, CDM and IPP all stayed silent.
-    public static func probe(_ http: DeviceHttp, esclHint: URL? = nil, ippHint: URL? = nil, snmp: (any SnmpTransport)? = nil)
+    public static func probe(_ http: DeviceHttp, esclHint: URL? = nil, ippHint: URL? = nil, snmp: (any SnmpTransport)? = nil,
+                             snmpLogin: SnmpLogin? = nil)
         async throws -> ProbeResult {
         // CDM only when the printer clearly has no LEDM (see probeLedm): an offline or waking printer costs nothing more, and a
         // printer with LEDM never gets a CDM request.
@@ -156,11 +165,15 @@ public final class PrinterConnection: Sendable {
 
         // SNMP last, and only for a printer none of the others reached.
         var snmpIdentity: SnmpIdentity?
+        let refused = RefusalSeen()
         if l.ledm.tree == nil && l.cdm == nil && i == nil, let snmp {
-            snmpIdentity = try await SnmpPrinterClient.probe(transport: snmp, host: http.host)?.identity
+            let found = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin, refused: { refused.saw($0) })
+            snmpIdentity = found?.identity
         }
-        return ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
-                           ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)
+        var result = ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
+                                 ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)
+        if snmpIdentity == nil { result.snmpRefused = refused.reason }
+        return result
     }
 
     private static func probeLedmAndCdm(_ http: DeviceHttp) async -> (ledm: LedmProbe, cdm: CdmProbe?) {
@@ -316,4 +329,13 @@ public final class PrinterConnection: Sendable {
             return nil
         }
     }
+}
+
+/// Why the probe's SNMPv3 agent refused, as its callback tells it.
+final class RefusalSeen: Sendable {
+    private let seen = Mutex<SnmpRefusal?>(nil)
+
+    var reason: SnmpRefusal? { seen.withLock { $0 } }
+
+    func saw(_ reason: SnmpRefusal) { seen.withLock { $0 = reason } }
 }

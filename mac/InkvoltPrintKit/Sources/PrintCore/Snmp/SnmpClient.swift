@@ -6,10 +6,12 @@ public struct SnmpRow: Equatable, Sendable {
     public let value: SnmpValue
 }
 
-/// A read-only SNMPv1/v2c manager for one agent: Get, GetNext and (v2c) GetBulk, and table walks built on them. It has no
+/// A read-only SNMP manager for one agent: Get, GetNext and (v2c, v3) GetBulk, and table walks built on them. It has no
 /// way to send a Set. Each request waits `timeout` and is sent again `retries` times (UDP may drop it); no reply at all is
 /// an `SnmpTimeoutError` (the printer is off or has no agent), an error the client can't work around an `SnmpErrorStatus`.
-/// A reply that isn't SNMP counts as no reply.
+/// A reply that isn't SNMP counts as no reply. Over SNMPv3 (a login with an `SnmpV3User`) every request is authenticated
+/// and encrypted (authPriv) after the agent's engine is discovered (RFC 3414 §4), every reply is checked before it's read
+/// (`SnmpClient+V3`), and an agent that refuses the user or its keys is an `SnmpAccessError`.
 public final class SnmpClient: Sendable {
     /// The read community nearly every printer ships with.
     public static let defaultCommunity = "public"
@@ -22,12 +24,38 @@ public final class SnmpClient: Sendable {
     /// Rows a walk reads at most per column (a printer's alert or supply table is far shorter).
     public let maxRows: Int
 
-    private let transport: any SnmpTransport
+    let transport: any SnmpTransport
     private let community: String
     private let lastRequestId: Mutex<Int>
+    /// SNMPv3: the user, the system's cryptography (`Usm.crypto` when the client was made) and the session with the agent
+    /// (its engine as discovered), which another client of the same printer and user may share.
+    let user: SnmpV3User?
+    let crypto: (any SnmpCrypto)?
+    let v3: SnmpV3Session
 
-    public init(transport: any SnmpTransport, host: String, version: SnmpVersion, community: String = SnmpClient.defaultCommunity,
-                timeout: Duration = .seconds(1), retries: Int = 1, maxRows: Int = 64) {
+    /// A v1 or v2c client with `community`.
+    public convenience init(transport: any SnmpTransport, host: String, version: SnmpVersion, community: String = SnmpClient.defaultCommunity,
+                            timeout: Duration = .seconds(1), retries: Int = 1, maxRows: Int = 64) {
+        precondition(version != .v3, "SNMPv3 needs a login with a user.")
+        self.init(transport, host, version, community, nil, nil, timeout, retries, maxRows)
+    }
+
+    /// A client with `login`: its community over `version` (v1, v2c), or its SNMPv3 user (`version` v3). Throws when the two
+    /// don't go together: SNMPv3 goes with a login with a user, and only it.
+    public convenience init(transport: any SnmpTransport, host: String, version: SnmpVersion, login: SnmpLogin, timeout: Duration = .seconds(1),
+                            retries: Int = 1, maxRows: Int = 64) throws {
+        guard (version == .v3) == (login.user != nil) else { throw SnmpLoginError("SNMPv3 goes with a login with a user, and only it.") }
+        self.init(transport, host, version, login.community, login.user, nil, timeout, retries, maxRows)
+    }
+
+    /// An SNMPv3 client of `user`, going on with `session` (another client's of the same printer) when it was made for that
+    /// user.
+    convenience init(transport: any SnmpTransport, host: String, user: SnmpV3User, session: SnmpV3Session?, timeout: Duration) {
+        self.init(transport, host, .v3, "", user, session, timeout, 1, 64)
+    }
+
+    private init(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ community: String, _ user: SnmpV3User?,
+                 _ session: SnmpV3Session?, _ timeout: Duration, _ retries: Int, _ maxRows: Int) {
         self.transport = transport
         self.host = host
         self.version = version
@@ -35,7 +63,19 @@ public final class SnmpClient: Sendable {
         self.timeout = timeout
         self.retries = retries
         self.maxRows = maxRows
+        self.user = user
+        crypto = user == nil ? nil : Usm.crypto
+        v3 = session.flatMap { $0.user != nil && $0.user == user ? $0 : nil } ?? SnmpV3Session(user: user)
         lastRequestId = Mutex(Int.random(in: 1..<Int(Int32.max / 2)))
+    }
+
+    /// The next request-id (and SNMPv3 msgID): positive, 31 bits.
+    func nextId() -> Int {
+        lastRequestId.withLock { id in
+            id = (id + 1) & Int(Int32.max)
+            if id == 0 { id = 1 }
+            return id
+        }
     }
 
     /// The values of `names`, in order. An object the agent doesn't have comes back as an exception value (SNMPv2's
@@ -71,9 +111,9 @@ public final class SnmpClient: Sendable {
         return result.map { $0! }
     }
 
-    /// RFC 3416 §4.2.3 GetBulk (v2c only): `nonRepeaters` objects once, then up to `maxRepetitions` successors of the rest.
+    /// RFC 3416 §4.2.3 GetBulk (v2c and v3): `nonRepeaters` objects once, then up to `maxRepetitions` successors of the rest.
     public func getBulk(nonRepeaters: Int, maxRepetitions: Int, _ names: [Oid]) async throws -> [SnmpVarBind] {
-        precondition(version == .v2c, "GetBulk is SNMPv2 only.")
+        precondition(version != .v1, "GetBulk is SNMPv2 and v3 only.")
         let reply = try await send(.getBulkRequest, nonRepeaters, maxRepetitions, names)
         try throwOnError(reply)
         return reply.varBinds
@@ -89,7 +129,7 @@ public final class SnmpClient: Sendable {
         var at = columns
         var done = [Bool](repeating: false, count: columns.count)
         var repetitions = 16
-        var bulk = version == .v2c
+        var bulk = version != .v1
         var request = 0
         while request < maxRows * 2 && done.contains(false) {
             request += 1
@@ -143,12 +183,11 @@ public final class SnmpClient: Sendable {
     /// Sends a request and waits for its Response (same request-id), trying again on silence. Never anything but a read.
     private func send(_ type: SnmpPduType, _ a: Int, _ b: Int, _ names: [Oid]) async throws -> SnmpMessage {
         precondition([.getRequest, .getNextRequest, .getBulkRequest].contains(type), "Inkvolt Print only reads over SNMP.")
-        let id = lastRequestId.withLock { id in
-            id = (id + 1) & Int(Int32.max)
-            return id
-        }
-        let request = SnmpMessage(version, community, type, requestId: id, errorStatus: a, errorIndex: b,
-                                  varBinds: names.map { SnmpVarBind($0, .null) }).encode()
+        let id = nextId()
+        let pdu = SnmpMessage(version, community, type, requestId: id, errorStatus: a, errorIndex: b,
+                              varBinds: names.map { SnmpVarBind($0, .null) })
+        if version == .v3 { return try await sendV3(pdu) }
+        let request = pdu.encode()
         for _ in 0...retries {
             guard let bytes = try await transport.send(request, to: host, timeout: timeout) else { continue }
             // Not an SNMP message (garbage, or something else on the port): no answer.

@@ -106,10 +106,12 @@ public enum AddPrinter {
         return total.withLock { $0 }
     }
 
-    /// Asks the device at `host` what it is (LEDM, CDM, IPP at `ipp` or the default, eSCL, SNMP) and makes its entry.
+    /// Asks a device the search found what it is (LEDM, CDM, IPP at `ipp` or the default, eSCL, SNMP with public) and makes
+    /// its entry. An address typed in, with its SNMP access, is probed by the app itself (`PrinterConnection.probe`).
     public static func identify(_ host: String, ipp: URL? = nil, transport: @escaping HttpTransportFactory, snmp: any SnmpTransport,
                                 listed: Listed) async -> FoundPrinter? {
-        guard let probe = try? await PrinterConnection.probe(DeviceHttp(host: host, transport: transport), ippHint: ipp, snmp: snmp) else { return nil }
+        let http = DeviceHttp(host: host, transport: transport)
+        guard let probe = try? await PrinterConnection.probe(http, ippHint: ipp, snmp: snmp) else { return nil }
         return found(probe, host: host, listed: await listed(probe, host))
     }
 

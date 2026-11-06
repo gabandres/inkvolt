@@ -96,6 +96,7 @@ struct PrinterRow: View {
     let printer: PrinterModel
     @Environment(AppModel.self) private var model
     @State private var confirmRemove = false
+    @State private var settingSnmp = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -108,8 +109,10 @@ struct PrinterRow: View {
         .padding(.vertical, 2)
         .accessibilityElement(children: .combine)
         .contextMenu {
+            if printer.canSetSnmpLogin { Button("SNMP Access…") { settingSnmp = true } }
             Button("Remove from Inkvolt Print…") { confirmRemove = true }
         }
+        .sheet(isPresented: $settingSnmp) { SnmpAccessSheet(printer: printer) }
         .confirmationDialog("Remove \(printer.name) from Inkvolt Print?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { model.remove(printer) }
         } message: {

@@ -147,6 +147,21 @@ struct RecordingTests {
         #expect(objects.allSatisfy(kept.contains), "\(objects.filter { !kept.contains($0) })")
     }
 
+    @Test func aRecordingAsksWithThePrintersOwnLoginOnly() async throws {
+        let dir = Self.folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let host = "192.0.2.14"
+        let agent = SnmpAgent(try SnmpAgent.parseWalk(Fixtures.text("snmp-demo/workgroup-laser.txt")), community: "kx9-office")
+        var options = Self.options(HostRouter([:]), snmp: agent, placeholder: host)
+        options.login = try SnmpLogin.forCommunity("kx9-office")
+        let result = try await PrinterRecorder.record(host, to: dir, options)
+        #expect(result.files.contains(PrinterRecorder.snmpFile))
+        #expect(!agent.received.isEmpty)
+        #expect(agent.received.allSatisfy { $0.community == "kx9-office" }) // the connection's probe and reading too, never public
+        let recorded = try String(contentsOf: dir.appendingPathComponent(PrinterRecorder.snmpFile), encoding: .utf8)
+        #expect(!recorded.contains("kx9-office"))
+    }
+
     /// The fixtures behind a network that notes each request's method and content type.
     private final class Spy: HttpTransport {
         private let inner: any HttpTransport

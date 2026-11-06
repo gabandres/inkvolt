@@ -89,7 +89,8 @@ public struct DeviceHttpError: Error, CustomStringConvertible {
 
 /// How a failure reading a printer counts (one rule for every interface).
 public enum DeviceFailure {
-    /// No answer: the printer is off, asleep past waking, or gone.
+    /// No answer: the printer is off, asleep past waking, or gone. An SNMPv3 agent refusing the user or keys isn't one: it
+    /// answers, and the read throws its `SnmpAccessError` (the printer monitor's refused state).
     public static func isOffline(_ error: Error) -> Bool { error is DeviceNetworkError || error is SnmpTimeoutError }
 
     /// The printer answered, but with an error status or an unreadable body (common while it wakes up).

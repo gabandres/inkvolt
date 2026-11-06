@@ -249,6 +249,113 @@ public class SnmpV3Tests
         await Assert.ThrowsAsync<TimeoutException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
     }
 
+    private static readonly byte[] OtherEngine = Hex("80001f8880aaaaaaaaaaaaaaaa");
+
+    [Theory]
+    [InlineData("unknownUserNames", false)] // from another engine: anyone's
+    [InlineData("unknownEngineIDs", true)] // after discovery: no reason to discover again
+    [InlineData("notInTimeWindows", true)] // unsigned: never sets the clock, never "doesn't take authPriv"
+    public async Task An_unsigned_report_RFC_3414_doesnt_allow_is_no_answer(string counter, bool fromItsEngine)
+    {
+        var agent = Agent();
+        var spoofer = new Spoofer(agent);
+        var client = new SnmpClient(spoofer, "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
+        await client.GetAsync([PrinterMib.SysName.Append(0)]);
+        spoofer.Counter = counter switch { "unknownUserNames" => Usm.UnknownUserNames, "unknownEngineIDs" => Usm.UnknownEngineIds, _ => Usm.NotInTimeWindows };
+        spoofer.EngineId = fromItsEngine ? Engine : OtherEngine;
+        await Assert.ThrowsAsync<TimeoutException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
+        Assert.Single(agent.V3Log, e => e == "discovery");
+    }
+
+    [Fact]
+    public async Task An_unsigned_refusal_from_the_agents_own_engine_still_says_which()
+    {
+        var spoofer = new Spoofer(Agent());
+        var client = new SnmpClient(spoofer, "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
+        await client.GetAsync([PrinterMib.SysName.Append(0)]);
+        (spoofer.Counter, spoofer.EngineId) = (Usm.WrongDigests, Engine);
+        var ex = await Assert.ThrowsAsync<SnmpAccessException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
+        Assert.Equal(SnmpRefusal.WrongAuthKey, ex.Reason);
+    }
+
+    [Theory]
+    [InlineData(-1, 0, false)]
+    [InlineData(0, -(Usm.TimeWindow + 1), false)]
+    [InlineData(0, -(Usm.TimeWindow - 10), true)]
+    public async Task A_signed_answer_outside_the_time_window_is_no_answer_and_leaves_the_clock(int boots, int time, bool inWindow)
+    {
+        var agent = Agent();
+        var stale = new Stale(agent, Usm.Keys.For(Right, Engine));
+        var client = new SnmpClient(stale, "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
+        await client.GetAsync([PrinterMib.SysName.Append(0)]);
+        stale.Shift = (boots, time);
+        var got = await Record.ExceptionAsync(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
+        if (inWindow) Assert.Null(got);
+        else Assert.IsType<TimeoutException>(got);
+        stale.Shift = null; // the clock wasn't moved by it: the next request is answered at once
+        await client.GetAsync([PrinterMib.SysName.Append(0)]);
+        Assert.DoesNotContain("notInTimeWindows", agent.V3Log);
+    }
+
+    [Fact]
+    public async Task The_clock_is_set_from_a_signed_report_once_per_request()
+    {
+        var agent = Agent();
+        var client = new SnmpClient(new Restarting(agent), "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
+        await Assert.ThrowsAsync<TimeoutException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
+        Assert.Equal(2, agent.V3Log.Count(e => e == "notInTimeWindows")); // resynchronized once, then no answer
+    }
+
+    /// <summary>Unsigned reports of <see cref="Counter"/> from <see cref="EngineId"/>, once set, for every request but a discovery: anyone on the network can send one.</summary>
+    private sealed class Spoofer(SnmpAgent agent) : ISnmpTransport
+    {
+        public InkvoltPrint.Core.Snmp.Oid? Counter { get; set; }
+        public byte[] EngineId { get; set; } = [];
+
+        public async Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
+        {
+            var m = SnmpV3Message.Decode(request);
+            if (Counter is null || m.EngineId.Length == 0) return await agent.SendAsync(host, request, timeout, ct);
+            var report = new SnmpMessage(SnmpVersion.V3, "", SnmpPduType.Report, 0, 0, 0, [new SnmpVarBind(Counter, SnmpValue.Unsigned(Ber.Counter32, 1))]);
+            return new SnmpV3Message
+            {
+                MessageId = m.MessageId, Flags = 0, EngineId = EngineId, EngineBoots = 9, EngineTime = 99_999, UserName = m.UserName,
+                ContextEngineId = EngineId, Pdu = report,
+            }.Encode();
+        }
+    }
+
+    /// <summary>The agent's answers with their boots and time moved by <see cref="Shift"/> (encrypted and signed again with the user's keys), as an old answer replayed would carry.</summary>
+    private sealed class Stale(SnmpAgent agent, Usm.Keys keys) : ISnmpTransport
+    {
+        public (int Boots, int Time)? Shift { get; set; }
+
+        public async Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
+        {
+            var reply = await agent.SendAsync(host, request, timeout, ct);
+            if (reply is null || Shift is not { } by) return reply;
+            var m = SnmpV3Message.Decode(reply);
+            if (!m.Private || m.Encrypted is null) return reply;
+            var clear = Usm.AesCfb(keys.Priv, Usm.AesIv(m.EngineBoots, m.EngineTime, m.PrivParameters), m.Encrypted, encrypt: false);
+            var (boots, time) = (m.EngineBoots + by.Boots, m.EngineTime + by.Time);
+            return new SnmpV3Message
+            {
+                MessageId = m.MessageId, Flags = m.Flags, EngineId = m.EngineId, EngineBoots = boots, EngineTime = time, UserName = m.UserName,
+                PrivParameters = m.PrivParameters, Encrypted = Usm.AesCfb(keys.Priv, Usm.AesIv(boots, time, m.PrivParameters), clear, encrypt: true),
+            }.Sign(keys.Auth);
+        }
+    }
+
+    /// <summary>An agent that restarts before every request it's sent (but a discovery): each comes outside its time window.</summary>
+    private sealed class Restarting(SnmpAgent agent) : ISnmpTransport
+    {
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
+        {
+            if (SnmpV3Message.Decode(request).EngineId.Length > 0) agent.EngineBoots++;
+            return agent.SendAsync(host, request, timeout, ct);
+        }
+    }
+
     /// <summary>Flips a byte in the encrypted answer, as someone on the way could.</summary>
     private sealed class Tamper(SnmpAgent agent) : ISnmpTransport
     {

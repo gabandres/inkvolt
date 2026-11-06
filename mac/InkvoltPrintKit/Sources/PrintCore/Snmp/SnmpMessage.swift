@@ -1,9 +1,11 @@
 import Foundation
 
-/// SNMP message versions Inkvolt Print speaks: v1 (RFC 1157) and community-based v2c (RFC 1901). Never v3.
+/// SNMP message versions Inkvolt Print speaks: v1 (RFC 1157), community-based v2c (RFC 1901), and v3 with the User-based
+/// Security Model (RFC 3412, RFC 3414; `SnmpV3Message`), authPriv only.
 public enum SnmpVersion: Int, Sendable {
     case v1 = 0
     case v2c = 1
+    case v3 = 3
 }
 
 /// PDU tags (RFC 1157 §4.1, RFC 3416 §3). Inkvolt Print sends only Get, GetNext and GetBulk: never Set.
@@ -187,10 +189,15 @@ public struct SnmpMessage: Equatable, Sendable {
     public var maxRepetitions: Int { errorIndex }
 
     public func encode() -> [UInt8] {
+        precondition(version != .v3, "An SNMPv3 message is written by SnmpV3Message.")
+        return Ber.constructed(Ber.sequence, Ber.integer32(Int64(version.rawValue)), Ber.octets(Array(community.utf8)), encodePdu())
+    }
+
+    /// The PDU alone (RFC 3416 §3): what an SNMPv3 scoped PDU carries.
+    public func encodePdu() -> [UInt8] {
         let bindings = varBinds.map { Ber.constructed(Ber.sequence, Ber.objectId($0.name), $0.value.encode()) }
-        let pdu = Ber.constructed(type.rawValue, Ber.integer32(Int64(requestId)), Ber.integer32(Int64(errorStatus)),
-                                  Ber.integer32(Int64(errorIndex)), Ber.constructed(Ber.sequence, parts: bindings))
-        return Ber.constructed(Ber.sequence, Ber.integer32(Int64(version.rawValue)), Ber.octets(Array(community.utf8)), pdu)
+        return Ber.constructed(type.rawValue, Ber.integer32(Int64(requestId)), Ber.integer32(Int64(errorStatus)),
+                               Ber.integer32(Int64(errorIndex)), Ber.constructed(Ber.sequence, parts: bindings))
     }
 
     /// A message from the network. `SnmpFormatError` for anything that isn't a v1/v2c message.
@@ -198,11 +205,16 @@ public struct SnmpMessage: Equatable, Sendable {
         var outer = Ber.Reader(data)
         var message = try outer.enter(Ber.sequence)
         let versionNumber = try message.readInteger()
-        guard let version = SnmpVersion(rawValue: Int(clamping: versionNumber)) else {
+        guard let version = SnmpVersion(rawValue: Int(clamping: versionNumber)), version != .v3 else {
             throw SnmpFormatError("SNMP: version \(versionNumber) isn't v1 or v2c.")
         }
         let community = String(decoding: try message.readOctets(), as: UTF8.self)
-        let (tag, start, length) = try message.next()
+        return try decodePdu(data, &message, version: version, community: community)
+    }
+
+    /// The next element of `from` as a PDU (an SNMPv3 scoped PDU's data too), as `version`'s.
+    static func decodePdu(_ data: [UInt8], _ from: inout Ber.Reader, version: SnmpVersion, community: String) throws -> SnmpMessage {
+        let (tag, start, length) = try from.next()
         guard let type = SnmpPduType(rawValue: tag) else { throw SnmpFormatError("SNMP: PDU type \(Ber.hex(tag)) isn't handled.") }
         var pdu = Ber.Reader(data, start: start, end: start + length)
         let requestId = try int32(pdu.readInteger())

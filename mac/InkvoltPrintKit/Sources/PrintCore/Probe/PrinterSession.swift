@@ -27,13 +27,16 @@ public struct PrinterRecipe: Sendable {
     public var pin: (any CertificatePin)?
     /// For the intervals below; tests pass their own.
     public var now: @Sendable () -> Date
+    /// The printer's SNMP login as kept now (`SnmpLogins`), asked at each connection; nil: public.
+    public var snmpLogin: @Sendable () -> SnmpLogin?
 
     public init(transport: @escaping HttpTransportFactory, snmp: any SnmpTransport, pin: (any CertificatePin)? = nil,
-                now: @escaping @Sendable () -> Date = { Date() }) {
+                now: @escaping @Sendable () -> Date = { Date() }, snmpLogin: @escaping @Sendable () -> SnmpLogin? = { nil }) {
         self.transport = transport
         self.snmp = snmp
         self.pin = pin
         self.now = now
+        self.snmpLogin = snmpLogin
     }
 }
 
@@ -41,6 +44,8 @@ public struct PrinterRecipe: Sendable {
 public enum SessionStep: Sendable {
     /// Nothing answers at the printer's address.
     case offline
+    /// The printer's SNMPv3 agent refused its login (the user, or one of its keys): it answers, so it isn't offline.
+    case refused(SnmpRefusal)
     /// Another device answers at the address (it reports other UUIDs, or over SNMP another serial number, model or name).
     /// The session has let go of every connection: nothing of that device is read under this printer's name.
     case elsewhere(uuids: [String], snmp: SnmpIdentity?)
@@ -101,11 +106,25 @@ public actor PrinterSession {
         self.acceptUuids = acceptUuids
     }
 
-    /// Connects at target: `.connected`, or `.offline`, or `.elsewhere` (nothing kept).
+    /// The SNMP login asked at the last connection: one kept since (SNMP Access…, or Inkvolt Pro ending) makes it stale.
+    private var connectedLogin: SnmpLogin?
+
+    /// The connection reads over SNMP with another login than the one kept now: the caller connects again, so every read
+    /// uses the login kept (the connection's client is made with the login once).
+    public var loginChanged: Bool {
+        guard let connection, connection.overSnmp else { return false }
+        return recipe.snmpLogin() != connectedLogin
+    }
+
+    /// Connects at target: `.connected`, or `.offline`, `.refused` (an SNMPv3 agent refused the login) or `.elsewhere`
+    /// (nothing kept).
     public func connect(_ target: PrinterWhere) async throws -> SessionStep {
+        let login = recipe.snmpLogin()
         let conn = try await PrinterConnection.open(target.host, transport: recipe.transport, esclHint: target.esclHint, ippHint: target.ippHint,
-                                                    pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp))
-        if !conn.probe.reachable { return .offline }
+                                                    pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp),
+                                                    snmpLogin: login)
+        if !conn.probe.reachable { return conn.probe.snmpRefused.map(SessionStep.refused) ?? .offline }
+        connectedLogin = login
         if identify(target.host, conn.probe.reportedUuids) == .different { return letGo(conn.probe.reportedUuids, host: target.host) }
         if let snmp = conn.probe.snmp, target.snmp?.identify(snmp) == .different { return letGo([], host: target.host, snmp: snmp) }
         let now = recipe.now()
@@ -164,7 +183,8 @@ public actor PrinterSession {
         defer { checkingHost = nil }
         do {
             let probe = try await PrinterConnection.probe(DeviceHttp(host: host, transport: recipe.transport), esclHint: candidate.esclHint,
-                                                          ippHint: candidate.ippHint, snmp: SnmpDevice.transport(for: current.snmp, recipe.snmp))
+                                                          ippHint: candidate.ippHint, snmp: SnmpDevice.transport(for: current.snmp, recipe.snmp),
+                                                          snmpLogin: recipe.snmpLogin())
             let identity: DeviceIdentity
             if !probe.reachable {
                 identity = .unknown

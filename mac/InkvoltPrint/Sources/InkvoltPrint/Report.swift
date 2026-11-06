@@ -27,7 +27,8 @@ import PrintMac
 /// gate, `fix` runs Fix All on demo mode's made-up queues saying yes to each question, `status` runs `status --all --json`
 /// through the reader (`fleetCheck`); `--batch-print [queue <name>]` runs Batch Print (`batchPrintCheck`: the window, lists, a
 /// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled); `--jobs` reads
-/// every printer's queue as job alerts do and lists the alerts a tracker of its own would raise (`jobsCheck`, roadmap 3.4). A
+/// every printer's queue as job alerts do and lists the alerts a tracker of its own would raise (`jobsCheck`, roadmap 3.4); `--snmp` checks SNMP access
+/// (`snmpCheck`, roadmap 3.2: the Keychain store, the made-up agent's community and its SNMPv3 user). A
 /// queue printer's lines say where its status and levels came from (roadmap 3.6). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
@@ -65,6 +66,7 @@ enum Report {
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
             if args.contains("--jobs") { cancelled += await jobsCheck(model) }
+            if args.contains("--snmp") { cancelled += await snmpCheck(model) }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
             if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
             if model.isDemo && args.contains("--setup") { cancelled += await setupCheck(model) }

@@ -68,7 +68,11 @@ public struct RecordCommand: Sendable, Equatable {
             return ["record: \(base.lastPathComponent)/\(folder) isn't empty: choose a new folder, or add --force to write into it."]
         }
         var options = RecordOptions(transport: transport, snmp: snmp)
-        options.community = community
+        do {
+            options.login = try SnmpLogin.forCommunity(community)
+        } catch {
+            return ["record: --community: \(error)"]
+        }
         options.esclHint = esclHint
         options.ippHint = ippHint
         options.scan = scan

@@ -1,6 +1,7 @@
 import Foundation
 
-/// Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself.
+/// Who answered over SNMP: the version it speaks, its printer's hrDeviceIndex, and what it says about itself; and the
+/// `login` it answered to (never kept: `SnmpDevice.from` takes only what the printer said).
 public struct SnmpIdentity: Equatable, Sendable {
     public var version: SnmpVersion
     public var deviceIndex: UInt32
@@ -9,10 +10,19 @@ public struct SnmpIdentity: Equatable, Sendable {
     public var systemName: String?
     public var location: String?
     public var serialNumber: String?
-    public var community: String
+    public var login: SnmpLogin?
+    /// SNMPv3: the probe's session with the agent (its engine and keys), which the printer's reader and identity checks go
+    /// on with instead of discovering it again. Not part of who answered (`==` leaves it out).
+    var session: SnmpV3Session?
+
+    public static func == (a: SnmpIdentity, b: SnmpIdentity) -> Bool {
+        a.version == b.version && a.deviceIndex == b.deviceIndex && a.deviceDescription == b.deviceDescription
+            && a.systemDescription == b.systemDescription && a.systemName == b.systemName && a.location == b.location
+            && a.serialNumber == b.serialNumber && a.login == b.login
+    }
 
     public init(version: SnmpVersion, deviceIndex: UInt32, deviceDescription: String?, systemDescription: String?, systemName: String?,
-                location: String?, serialNumber: String?, community: String = SnmpClient.defaultCommunity) {
+                location: String?, serialNumber: String?, login: SnmpLogin? = nil) {
         self.version = version
         self.deviceIndex = deviceIndex
         self.deviceDescription = deviceDescription
@@ -20,8 +30,11 @@ public struct SnmpIdentity: Equatable, Sendable {
         self.systemName = systemName
         self.location = location
         self.serialNumber = serialNumber
-        self.community = community
+        self.login = login
     }
+
+    /// The login every later read of this printer uses.
+    public var loginOrPublic: SnmpLogin { login ?? .public }
 
     /// The model: hrDeviceDescr ("Brand Model"), else the first line of sysDescr (often model plus firmware).
     public var model: String? {
@@ -52,8 +65,17 @@ public actor SnmpPrinterClient {
     public init(transport: any SnmpTransport, host: String, identity: SnmpIdentity, timeout: Duration? = nil) {
         self.identity = identity
         self.transport = transport
-        client = SnmpClient(transport: transport, host: host, version: identity.version, community: identity.community,
-                            timeout: timeout ?? Self.probeTimeout)
+        client = Self.makeClient(transport, host, identity.version, identity.login, identity.session, timeout ?? Self.probeTimeout)
+    }
+
+    /// A client with `login`: an SNMPv3 user is always asked over v3 (going on with `session`), whatever `version` says, so
+    /// a v3 login never becomes a v1 or v2c request with an empty community; a community over `version` (v2c for a v3
+    /// identity without a user).
+    private static func makeClient(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?,
+                                   _ session: SnmpV3Session?, _ timeout: Duration) -> SnmpClient {
+        let login = login ?? .public
+        if let user = login.user { return SnmpClient(transport: transport, host: host, user: user, session: session, timeout: timeout) }
+        return SnmpClient(transport: transport, host: host, version: version == .v3 ? .v2c : version, community: login.community, timeout: timeout)
     }
 
     public nonisolated var host: String { client.host }
@@ -62,15 +84,30 @@ public actor SnmpPrinterClient {
     /// hrPrinterStatus, over v2c and v1 at once (v2c kept when both answer). Only an agent with a Host Resources printer entry
     /// counts (a router or a PC answering "public" isn't a printer). Then its model and serial number. Nil when nothing
     /// answers, or it isn't a printer.
-    public static func probe(transport: any SnmpTransport, host: String, community: String = SnmpClient.defaultCommunity)
-        async throws -> SnmpPrinterClient? {
+    /// - Parameters:
+    ///   - login: the printer's own login (`SnmpLogins`); nil: `SnmpLogin.public`. With an SNMPv3 user only v3 is asked
+    ///     (authPriv), never v1 or v2c.
+    ///   - refused: told why an SNMPv3 agent refused the user or its keys (the probe then finds nothing).
+    public static func probe(transport: any SnmpTransport, host: String, login: SnmpLogin? = nil,
+                             refused: (@Sendable (SnmpRefusal) -> Void)? = nil) async throws -> SnmpPrinterClient? {
+        try await probe(transport, host, login, nil, refused)
+    }
+
+    /// `probe`, going on with an SNMPv3 `session` from an earlier probe of the printer (its identity checks).
+    static func probe(_ transport: any SnmpTransport, _ host: String, _ login: SnmpLogin?, _ session: SnmpV3Session?,
+                      _ refused: (@Sendable (SnmpRefusal) -> Void)?) async throws -> SnmpPrinterClient? {
+        if login?.user != nil {
+            let v3 = await identify(transport, host, .v3, login, session, refused)
+            try Task.checkCancellation()
+            return v3.map { SnmpPrinterClient(transport: transport, host: host, identity: $0) }
+        }
         enum Event: Sendable {
             case answer(SnmpVersion, SnmpIdentity?)
             case v2cDeadline
         }
         let found = await withTaskGroup(of: Event.self) { group -> SnmpIdentity? in
             for version in [SnmpVersion.v2c, .v1] {
-                group.addTask { .answer(version, await identify(transport, host, version, community)) }
+                group.addTask { .answer(version, await identify(transport, host, version, login, nil, nil)) }
             }
             var pending = 2
             var v1Answer: SnmpIdentity?
@@ -97,6 +134,8 @@ public actor SnmpPrinterClient {
                     }
                 case .v2cDeadline:
                     return v1Answer
+                case .answer(.v3, _):
+                    continue // never asked here
                 }
             }
             return v1Answer
@@ -105,17 +144,22 @@ public actor SnmpPrinterClient {
         return found.map { SnmpPrinterClient(transport: transport, host: host, identity: $0) }
     }
 
-    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ community: String) async
-        -> SnmpIdentity? {
+    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?,
+                                 _ session: SnmpV3Session?, _ refused: (@Sendable (SnmpRefusal) -> Void)?) async -> SnmpIdentity? {
         do {
-            let client = SnmpClient(transport: transport, host: host, version: version, community: community, timeout: probeTimeout)
+            let client = makeClient(transport, host, version, login, session, probeTimeout)
             let next = try await client.getNext([PrinterMib.sysDescr, PrinterMib.sysName, PrinterMib.sysLocation, PrinterMib.hrPrinterStatus])
             guard !next[3].value.isException, let index = next[3].name.after(PrinterMib.hrPrinterStatus), index.count == 1 else { return nil }
             func text(_ i: Int, _ column: Oid) -> String? { next[i].name.after(column) == [0] ? next[i].value.text : nil }
             let more = try await client.get([PrinterMib.hrDeviceDescr.appending(index[0]), PrinterMib.prtGeneralSerialNumber.appending(index[0])])
-            return SnmpIdentity(version: version, deviceIndex: index[0], deviceDescription: more[0].value.text,
-                                systemDescription: text(0, PrinterMib.sysDescr), systemName: text(1, PrinterMib.sysName),
-                                location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, community: community)
+            var identity = SnmpIdentity(version: version, deviceIndex: index[0], deviceDescription: more[0].value.text,
+                                        systemDescription: text(0, PrinterMib.sysDescr), systemName: text(1, PrinterMib.sysName),
+                                        location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, login: login)
+            if version == .v3 { identity.session = client.v3 }
+            return identity
+        } catch let error as SnmpAccessError {
+            refused?(error.reason)
+            return nil
         } catch {
             return nil
         }
@@ -141,10 +185,10 @@ public actor SnmpPrinterClient {
         }
     }
 
-    /// Who answers SNMP at the printer's address now (asked as `probe` does, with this printer's community), to tell whether
-    /// it is still this printer (`SnmpDevice.identify`). Nil when nothing answers.
+    /// Who answers SNMP at the printer's address now (asked as `probe` does, with this printer's login), to tell whether it
+    /// is still this printer (`SnmpDevice.identify`). Nil when nothing answers.
     public nonisolated func readIdentity() async throws -> SnmpIdentity? {
-        try await Self.probe(transport: transport, host: host, community: identity.community)?.identity
+        try await Self.probe(transport, host, identity.login, identity.session, nil)?.identity
     }
 
     public func status() async throws -> PrinterStatus { SnmpPrinterStatus.toStatus(try await read()) }

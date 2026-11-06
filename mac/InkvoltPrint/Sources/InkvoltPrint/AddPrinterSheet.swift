@@ -20,6 +20,10 @@ final class AddPrinterModel {
     var address = ""
     private(set) var addressError: String?
     private(set) var isAddingAddress = false
+    /// The SNMP access part: the login a printer that answers only SNMP is asked with (roadmap 3.2).
+    let snmpAccess = SnmpAccessModel()
+    /// The SNMP access part is open (the user opened it, or what's in it needs checking).
+    var showsSnmp = false
 
     @ObservationIgnored private let app: AppModel
     @ObservationIgnored private var search: Task<Void, Never>?
@@ -85,7 +89,18 @@ final class AddPrinterModel {
 
     func add(_ f: FoundPrinter) {
         guard let i = found.firstIndex(where: { $0.id == f.id }), found[i].state == .canAdd else { return }
-        let p: PrinterModel? = if let d = f.removed { app.addBack(d) } else if let probe = f.probe { app.add(probe, host: f.host) } else { nil }
+        let p: PrinterModel?
+        if let d = f.removed {
+            p = app.addBack(d)
+        } else if let probe = f.probe {
+            guard let added = app.add(probe, host: f.host) else {
+                found[i].error = SnmpAccessText.notAdded
+                return
+            }
+            p = added
+        } else {
+            p = nil
+        }
         guard let p else {
             found[i].error = "Couldn't add it: it isn't on the network now."
             return
@@ -112,14 +127,33 @@ final class AddPrinterModel {
             return
         }
         guard let host = a.host else { return }
+        // What's filled in counts, shown or not; nothing typed is public.
+        guard let login = snmpAccess.isBlank ? .public : snmpAccess.read() else {
+            showsSnmp = true // why it can't be used shows there
+            addressError = "Check SNMP access below."
+            return
+        }
         isAddingAddress = true
         Task {
             defer { isAddingAddress = false }
-            guard let f = await app.identify(host, ipp: a.ipp), let probe = f.probe else {
-                addressError = AddPrinterText.noAnswer(host)
+            let answer = await app.probe(host, ipp: a.ipp, snmpLogin: login)
+            guard let probe = answer, probe.reachable else {
+                let refused = answer?.snmpRefused
+                addressError = AddPrinterText.noAnswer(host) + " " + SnmpAccessText.noAnswerHint(login, refused: refused)
+                if refused != nil { showsSnmp = true }
                 return
             }
-            if let listed = app.listed(probe, host) { app.selectedID = listed.id } else { app.add(probe, host: host) }
+            if let listed = app.listed(probe, host) {
+                // The login it answered to now: kept, and the printer connects again with it.
+                if let answered = probe.snmp, listed.canSetSnmpLogin, !listed.setSnmpLogin(answered.loginOrPublic) {
+                    addressError = SnmpAccessText.keychainRefused
+                    return
+                }
+                app.selectedID = listed.id
+            } else if app.add(probe, host: host) == nil {
+                addressError = SnmpAccessText.notAdded
+                return
+            }
             app.isAddingPrinter = false
         }
     }
@@ -224,6 +258,14 @@ private struct AddPrinterContent: View {
             }
             Text("It's on the printer's screen (network or Wi-Fi settings) or on a network report it prints. For example 192.168.1.40, printer.local or ipp://printer.local/ipp/print.")
                 .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            DisclosureGroup("SNMP access", isExpanded: $model.showsSnmp) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("For a printer that answers only SNMP and whose administrator changed its read community.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    SnmpAccessFields(model: model.snmpAccess)
+                }
+                .padding(.top, 4)
+            }
         }
     }
 }

@@ -6,6 +6,8 @@ public struct PrinterView: Equatable, Sendable {
         case connecting, online, offline
         /// Another device answers at the printer's address: nothing of it is shown.
         case elsewhere
+        /// The printer's SNMPv3 agent refused its login: it answers, but nothing can be read until SNMP Access… changes it.
+        case refused
     }
 
     public var phase: Phase
@@ -103,7 +105,8 @@ public actor PrinterMonitor {
 
     /// Runs until the task is cancelled. `reuse`: a connection still good (watched again without probing).
     public func run(reuse: Bool = false) async {
-        var reused = reuse && view.isOnline ? await session.connection : nil
+        let stale = await session.loginChanged // a login kept since: connected again with it
+        var reused = reuse && view.isOnline && !stale ? await session.connection : nil
         if reused != nil { await session.askIdentityFirst() } // time passed: the reused connection is asked who it is first
         while !Task.isCancelled {
             do {
@@ -140,7 +143,7 @@ public actor PrinterMonitor {
             } catch is CancellationError {
                 return
             } catch {
-                setOffline()
+                setOffline(error)
                 if (try? await Task.sleep(for: retryDelay)) == nil { return }
             }
         }
@@ -184,17 +187,17 @@ public actor PrinterMonitor {
     /// beside `run`.
     public func check() async -> Bool {
         do {
-            if view.isOnline, await session.connection != nil {
+            if view.isOnline, await session.connection != nil, !(await session.loginChanged) {
                 await session.askIdentityFirst() // time passed: who answers is asked again first
             } else {
-                guard try await connect() else { return false }
+                guard try await connect() else { return false } // a login kept since: connected again with it
             }
             guard try await refresh() else { return false }
             return view.isOnline
         } catch is CancellationError {
             return view.isOnline
         } catch {
-            setOffline()
+            setOffline(error)
             return false
         }
     }
@@ -235,6 +238,9 @@ public actor PrinterMonitor {
             return true
         case .elsewhere(let uuids, let snmp):
             setElsewhere(uuids, snmp)
+            return false
+        case .refused(let why):
+            setRefused(why)
             return false
         default:
             setOffline()
@@ -288,6 +294,25 @@ public actor PrinterMonitor {
         onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: true, status: status.isUnavailable ? nil : status,
                                           supplies: reading.supplies, firmwareChange: v.firmwareNotice, daysLeft: v.supplyHistory?.daysLeft)))
         return true
+    }
+
+    /// A connection or read failed: offline, unless an SNMPv3 agent refused the login (a printer that answers isn't offline).
+    private func setOffline(_ error: any Error) {
+        if let refused = error as? SnmpAccessError { setRefused(refused.reason) } else { setOffline() }
+    }
+
+    /// The printer's SNMPv3 agent refused its login: its own state, saying which part, with where to change it. The printer
+    /// answers, so no offline alert follows (the snapshot is reachable, with nothing read).
+    private func setRefused(_ why: SnmpRefusal) {
+        var v = view
+        v.phase = .refused
+        v.statusMessage = "The printer refused its SNMP login"
+        v.statusDetail = "\(SnmpAccessError(why)) Choose SNMP Access… in the printer's menu to change it."
+        v.severity = .error
+        v.alerts = []
+        if let shown = history?.current() { v.supplyHistory = shown }
+        publish(v)
+        onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: true, status: nil, supplies: nil)))
     }
 
     private func setOffline() {
