@@ -7,15 +7,19 @@ namespace InkvoltPdf.Core;
 /// How a stretch of a paragraph looks where it differs from the paragraph's own (roadmap 2.1, part c): an installed font
 /// family ("Georgia"), its size on the page (points), its color (0xRRGGBB), bold, italic. Null keeps the paragraph's own.
 /// </summary>
-public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null)
+/// <param name="Script">A subscript or superscript: smaller, below or above the line's baseline (a translated copy's "d_model", "2^10").</param>
+public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null, TextScript? Script = null)
 {
     public static readonly TextLook Plain = new();
 
-    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null;
+    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null && Script is null;
 
     /// <summary>This look with what <paramref name="other"/> sets laid over it.</summary>
-    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic);
+    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic, other.Script ?? Script);
 }
+
+/// <summary>Text set below or above its line's baseline, smaller.</summary>
+public enum TextScript { Sub, Super }
 
 /// <summary>A stretch of a paragraph's text (UTF-16 offsets into the text as written, line breaks as "\n") and its look.</summary>
 public readonly record struct TextSpan(int Start, int Length, TextLook Look)
@@ -56,7 +60,11 @@ public static partial class ContentEditor
     /// paragraph's), the installed font it is drawn in (null: a page font), the look as asked (for the tag), and the
     /// page's own font it is drawn in when the paragraph has that face (a bold word's font; null: the paragraph's own).
     /// </summary>
-    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null);
+    /// <param name="Rise">How far its baseline sits above the line's (a superscript) or below (negative, a subscript), in ems of the paragraph's text.</param>
+    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null, double Rise = 0);
+
+    /// <summary>A subscript's or superscript's size against its line's text, and how far its baseline moves (ems of the line's text, up positive).</summary>
+    internal const double ScriptScale = 0.7, SubRise = -0.15, SuperRise = 0.35;
 
     /// <summary>The look of each UTF-16 unit of <paramref name="text"/> (null: the paragraph's own), later spans over earlier ones.</summary>
     private static TextLook?[] LooksOf(string text, IReadOnlyList<TextSpan>? spans)
@@ -96,6 +104,32 @@ public static partial class ContentEditor
             else spans.Add(new TextSpan(start, length, look));
         }
         return spans;
+    }
+
+    /// <summary>
+    /// For a translated copy, the look a run of a paragraph's line has that its translation keeps (<see cref="TranslationMarkup"/>):
+    /// bold or italic where the paragraph's own text (<paramref name="own"/>) isn't (with its family when that is another,
+    /// so the page's face for it is found again: LaTeX's bold and italic are families of their own); a subscript or a
+    /// superscript where it is smaller than its line's text and below or above its baseline. Null: the paragraph's own.
+    /// </summary>
+    private static TextLook? TranslationLook(TextRun own, PLine line, TextRun r)
+    {
+        if (r.Text.Trim().Length == 0) return null;
+        var main = line.Lead;
+        TextScript? script = null;
+        if (main.FontSize > 0 && r.FontSize <= 0.85 * main.FontSize)
+        {
+            var drop = r.Origin.Y - main.Origin.Y; // page space: down is positive
+            if (drop >= 0.08 * main.FontSize) script = TextScript.Sub;
+            else if (drop <= -0.12 * main.FontSize) script = TextScript.Super;
+        }
+        // A stand-in an earlier edit drew says its look only by its tag.
+        bool bold = r.Tag?.Bold ?? (r.StandIn ? own.Bold : r.Bold), italic = r.Tag?.Italic ?? (r.StandIn ? own.Italic : r.Italic);
+        var b = bold && !own.Bold;
+        var i = italic && !own.Italic;
+        if (!b && !i && script is null) return null;
+        var family = (b || i) && !r.StandIn && r.Tag is null && r.Font is not null && !SameFamily(r, own) ? FontNames.Family(r.FontName) : null;
+        return new TextLook(family, Bold: b ? true : null, Italic: i ? true : null, Script: script);
     }
 
     /// <summary>

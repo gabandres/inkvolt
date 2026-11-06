@@ -223,7 +223,8 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
     /// direction the run's leading spaces inherit, and extraction leaves it out.
     /// </para>
     /// </summary>
-    public void Emit(StringBuilder sb, ShapedLine line, double size)
+    /// <param name="baseRise">The text rise in effect (a subscript's or a superscript's): glyphs' own offsets go on top of it, and it is set back after.</param>
+    public void Emit(StringBuilder sb, ShapedLine line, double size, double baseRise = 0)
     {
         // A cluster drawn with more glyphs than it has characters leaves glyphs with no text of their own: the line's
         // /ActualText then gives extraction the exact string.
@@ -235,7 +236,7 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
             sb.Append(">>> BDC ");
         }
         Used? cur = null;
-        double pen = 0, rise = 0;
+        double pen = 0, rise = baseRise;
         var open = false;
         void Close()
         {
@@ -259,7 +260,7 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
                 sb.Append(CultureInfo.InvariantCulture, $"/Span <</ActualText ()>> BDC <{mark:X4}> Tj EMC ");
                 direction = g.Rtl;
             }
-            var y = g.Y * size;
+            var y = baseRise + g.Y * size;
             if (Math.Abs(y - rise) > 0.001)
             {
                 Close();
@@ -276,7 +277,7 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
             pen = target + Width(g.Font, g.Glyph);
         }
         Close();
-        if (rise != 0) sb.Append("0 Ts ");
+        if (Math.Abs(rise - baseRise) > 0.001) sb.Append(CultureInfo.InvariantCulture, $"{PdfObj.F(baseRise)} Ts ");
         if (actual) sb.Append("EMC ");
     }
 

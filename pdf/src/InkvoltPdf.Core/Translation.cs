@@ -233,7 +233,8 @@ public static class Translation
                         }
                         pageHasWords = true;
                         paragraphs++;
-                        if (seen.Add(t.Text)) texts.Add((t.Text, p));
+                        var key = Key(t);
+                        if (seen.Add(key)) texts.Add((key, p));
                     }
                     if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => ContentEditor.IsInvisible(r.Blocked))))
                         scans.Add(p);
@@ -356,9 +357,21 @@ public static class Translation
         }
     }
 
-    /// <summary>What goes out: each distinct text, a long one in pieces that fit the model.</summary>
+    /// <summary>A paragraph's text as it is sent, and its answer kept: with its looks as markup (<see cref="TranslationMarkup"/>).</summary>
+    private static string Key(TextParagraph p) => TranslationMarkup.Mark(p.Text, p.Spans);
+
+    /// <summary>
+    /// What goes out: each distinct text, a long one in pieces that fit the model. Markup goes only with a text sent
+    /// whole: a piece could cut a stretch's tags apart, so a text in pieces goes without its looks.
+    /// </summary>
     public static IReadOnlyList<TranslationJob> Jobs(TranslationPlan plan, int pieceTokens) =>
-        [.. plan.Texts.Select(t => new TranslationJob(t.Text, t.Page, [.. AiText.Pieces(t.Text, pieceTokens)]))];
+        [.. plan.Texts.Select(t => new TranslationJob(t.Text, t.Page, Pieces(t.Text, pieceTokens)))];
+
+    private static List<string> Pieces(string text, int tokens)
+    {
+        var pieces = AiText.Pieces(text, tokens).ToList();
+        return pieces.Count > 1 && TranslationMarkup.IsMarked(text) ? [.. AiText.Pieces(TranslationMarkup.Plain(text), tokens)] : pieces;
+    }
 
     /// <summary>The requests, as the "what is sent, where" window shows them.</summary>
     public static IReadOnlyList<IReadOnlyList<AiMessage>> Requests(IEnumerable<TranslationJob> jobs, string language) =>
@@ -454,7 +467,9 @@ public static class Translation
             {
                 if (depth < 3 && piece.Length > 40)
                 {
-                    var half = AiText.Pieces(piece, Math.Max(20, AiText.EstimateTokens(piece) / 2)).ToList();
+                    // Without its markup: a half could cut a stretch's tags apart.
+                    var whole = TranslationMarkup.IsMarked(piece) ? TranslationMarkup.Plain(piece) : piece;
+                    var half = AiText.Pieces(whole, Math.Max(20, AiText.EstimateTokens(whole) / 2)).ToList();
                     var parts = new List<string>(half.Count);
                     foreach (var h in half)
                     {
@@ -541,9 +556,10 @@ public static class Translation
                 var (slots, written, refused) = ContentEditor.TranslatePage(writer, doc, page.Page, page.Cells, page.Obstacles, (slot, p) =>
                 {
                     if (!TranslationText.HasWords(p.Text)) return null;
-                    if (p.Blocked is not null) return answers.Done.GetValueOrDefault(p.Text) ?? p.Text; // refused below, with its reason
-                    if (!answers.Done.TryGetValue(p.Text, out var text)) return null;
-                    if (text == p.Text)
+                    var key = Key(p);
+                    if (p.Blocked is not null) return answers.Done.GetValueOrDefault(key) ?? p.Text; // refused below, with its reason
+                    if (!answers.Done.TryGetValue(key, out var text)) return null;
+                    if (text == key)
                     {
                         unchanged++;
                         return null;
@@ -575,12 +591,12 @@ public static class Translation
                         untranslated++;
                         flagged.Add(new TranslationFlag(TranslationFlagKind.NotTranslated, page.Page, p.Box, Loc.Format(PdfStrings.Translate_NotTranslated, r.Why)));
                     }
-                    else if (answers.Done.TryGetValue(p.Text, out var same) && same == p.Text) { /* counted as unchanged */ }
+                    else if (Key(p) is var key && answers.Done.TryGetValue(key, out var same) && same == key) { /* counted as unchanged */ }
                     else
                     {
                         untranslated++;
-                        var reached = answers.Failed.ContainsKey(p.Text) || p.Text.Length > MaxParagraphChars;
-                        var why = answers.Failed.TryGetValue(p.Text, out var f) ? f
+                        var reached = answers.Failed.ContainsKey(key) || p.Text.Length > MaxParagraphChars;
+                        var why = answers.Failed.TryGetValue(key, out var f) ? f
                             : p.Text.Length > MaxParagraphChars ? PdfStrings.Translate_BlockedTooLong
                             : answers.Cancelled ? PdfStrings.Translate_StoppedFirst
                             : answers.StoppedBecause is not null ? PdfStrings.Translate_EndpointStoppedFirst
@@ -660,10 +676,14 @@ public static partial class TranslationText
 
     private const string Firm = " Your last answer couldn't be used. Give only the translation of this one paragraph, as one paragraph.";
 
+    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <sub> (subscript) and <sup> (superscript): " +
+        "put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup.";
+
     /// <summary>The request for a paragraph or a piece of one. Nothing else about the document goes with it.</summary>
     /// <param name="firm">It asks again, more firmly, after an answer that couldn't be used.</param>
     public static IReadOnlyList<AiMessage> Request(string text, string language, bool firm = false) =>
-        [AiMessage.System(string.Format(global::System.Globalization.CultureInfo.InvariantCulture, System, Sanitized(language)) + (firm ? Firm : "")), AiMessage.User(text)];
+        [AiMessage.System(string.Format(global::System.Globalization.CultureInfo.InvariantCulture, System, Sanitized(language))
+            + (TranslationMarkup.IsMarked(text) ? Tagged : "") + (firm ? Firm : "")), AiMessage.User(text)];
 
     /// <summary>The language as typed, one short line: it goes into a prompt.</summary>
     private static string Sanitized(string language)
@@ -741,7 +761,9 @@ public static partial class TranslationText
         text = Fence().Replace(text.Trim(), "$1").Trim();
         if (!Label().IsMatch(source)) text = Label().Replace(text, "").TrimStart();
         text = Characters(text);
-        if (!source.Contains('<')) text = Tags().Replace(text, "");
+        // Text sent with markup (TranslationMarkup) keeps its tags, read when the copy is written; any other tag goes.
+        if (TranslationMarkup.IsMarked(source)) text = TranslationMarkup.WithoutOtherTags(text);
+        else if (!source.Contains('<')) text = Tags().Replace(text, "");
         if (!source.Contains('&')) text = global::System.Net.WebUtility.HtmlDecode(text);
         if (!source.Contains("**", StringComparison.Ordinal)) text = text.Replace("**", "", StringComparison.Ordinal);
         if (!source.Contains("__", StringComparison.Ordinal)) text = text.Replace("__", "", StringComparison.Ordinal);

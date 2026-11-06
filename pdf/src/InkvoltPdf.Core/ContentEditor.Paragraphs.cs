@@ -454,6 +454,7 @@ public static partial class ContentEditor
 
         var text = new StringBuilder();
         var at = new List<(TextRun Run, int Start, int Length)>(); // where each run's text is in the paragraph's
+        var looks = translating ? new List<TextSpan>() : null;
         var soft = false; // the line before ended with a soft hyphen
         foreach (var l in lines)
         {
@@ -474,6 +475,12 @@ public static partial class ContentEditor
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
+                if (looks is not null && to > from && TranslationLook(own, l, l.Runs[i]) is { } look)
+                {
+                    // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
+                    if (looks.Count > 0 && looks[^1].Look == look && looks[^1].End >= text.Length + from - 1) looks[^1] = looks[^1] with { Length = text.Length + to - looks[^1].Start };
+                    else looks.Add(new TextSpan(text.Length + from, to - from, look));
+                }
             }
             text.Append(t);
         }
@@ -510,7 +517,7 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = translating ? [] : SpansOf(plain, at),
+            Spans = looks ?? SpansOf(plain, at),
             Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
@@ -730,8 +737,15 @@ public static partial class ContentEditor
             _text = text;
             _looks = looks;
             var lacking = new Dictionary<TextFont, List<string>>();
+            // For one face: the page's other faces a look draws in (a bold word in the page's bold), with the elements each draws.
+            var faces = new Dictionary<TextFont, HashSet<string>>();
             foreach (var (el, at) in Elements(0, text.Length))
             {
+                if (oneFace && el != "\n" && Resolve(at) is { Face: null, Page.Font: { } other } && !ReferenceEquals(other, font))
+                {
+                    if (!faces.TryGetValue(other, out var set)) faces[other] = set = [];
+                    set.Add(el);
+                }
                 if (el.All(char.IsWhiteSpace)) continue;
                 var look = Resolve(at);
                 if (look is { Face: { } face })
@@ -746,7 +760,12 @@ public static partial class ContentEditor
                 if (!lacking.TryGetValue(pageFont, out var list)) lacking[pageFont] = list = [];
                 if (!list.Contains(el)) list.Add(el);
             }
-            if (oneFace && lacking.Count > 0) lacking = new() { [font] = [.. Elements(0, text.Length).Select(e => e.Element).Where(e => e != "\n").Distinct()] };
+            if (oneFace && lacking.Count > 0)
+            {
+                // Then all of it from installed fonts: its own font's text, and each other face's from the installed font closest to that face.
+                lacking = new() { [font] = [.. Elements(0, text.Length).Select(e => e.Element).Where(e => e != "\n").Distinct()] };
+                foreach (var (other, els) in faces) lacking[other] = [.. els];
+            }
             foreach (var (pageFont, els) in lacking)
             {
                 var standIns = _standIns[pageFont] = StandInFonts.For(pageFont, [.. els.SelectMany(TrueTypeFont.CodePoints).Distinct()]);
@@ -779,6 +798,8 @@ public static partial class ContentEditor
             if (_resolved.TryGetValue(look, out var known)) return known;
             var lead = _p.Lead;
             var scale = look.Size is > 0 and var size && Math.Abs(size - _p.FontSize) > 0.01 ? size / _p.FontSize : 1;
+            var rise = look.Script switch { TextScript.Sub => SubRise, TextScript.Super => SuperRise, _ => 0 };
+            if (look.Script is not null) scale *= ScriptScale;
             int? color = look.Color is { } c && c != lead.Color ? c : null;
             var bold = look.Bold ?? lead.Bold;
             var italic = look.Italic ?? lead.Italic;
@@ -802,7 +823,7 @@ public static partial class ContentEditor
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
-            var resolved = scale == 1 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page);
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise);
             _resolved[look] = resolved;
             return resolved;
         }
@@ -1060,19 +1081,28 @@ public static partial class ContentEditor
             ownFont = true;
             cur = (face.Font!, h, size);
         }
+        var ts = info.Rise; // the text rise in effect
+        void Rise(double want)
+        {
+            if (Math.Abs(want - ts) < 1e-9) return;
+            Close();
+            sb.Append(ContentLexer.Number(want)).Append(" Ts ");
+            ts = want;
+        }
         foreach (var part in parts)
         {
             Look(part.Look);
             var s = part.Look?.Scale ?? 1;
+            // A subscript or superscript: its baseline moved by the text rise, in ems of the paragraph's text.
+            Rise(info.Rise + (part.Look?.Rise ?? 0) * plain.Size);
             if (part.StandIn is { } standIn)
             {
                 Close();
                 var tc = Math.Abs(run.CharSpacing) > 1e-9;
                 if (tc) sb.Append("0 Tc ");
-                writer.Emit(sb, standIn, plain.Size * s);
+                writer.Emit(sb, standIn, plain.Size * s, ts);
                 ownFont = false;
                 if (tc) sb.Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc ");
-                if (Math.Abs(info.Rise) > 1e-9) sb.Append(ContentLexer.Number(info.Rise)).Append(" Ts ");
                 continue;
             }
             var face = part.Look?.Page ?? plain;
@@ -1085,6 +1115,7 @@ public static partial class ContentEditor
             }
         }
         Look(null);
+        Rise(info.Rise);
         Use(run, hex, run.Size); // the font and size the operator had
         Close();
     }
