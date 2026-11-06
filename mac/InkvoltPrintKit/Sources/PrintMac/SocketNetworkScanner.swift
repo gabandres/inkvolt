@@ -77,15 +77,23 @@ public struct SocketNetworkScanner: NetworkScanner {
                               answered: @escaping @Sendable (String) -> Void) async throws {
         let stop = StopFlag()
         let signal = localNetwork
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-                DispatchQueue.global(qos: .utility).async {
-                    Self.broadcast(broadcasts, requests: requests, window: window, stop: stop, signal: signal, answered: answered)
-                    done.resume()
+        let once = OnceResult<Bool>()
+        // On a thread of its own, so the window starts when asked, not when GCD's pool has a thread for the receive loop
+        // (as SNMP's exchange, UdpSnmpTransport); a cancel ends the wait itself, the loop stops at its next look.
+        _ = await withTaskCancellationHandler {
+            await withCheckedContinuation { (done: CheckedContinuation<Bool, Never>) in
+                once.start(done)
+                OwnThread.run("inkvolt.snmp-broadcast") {
+                    // Nothing reported once cancelled: the search may have ended before the loop's next look.
+                    Self.broadcast(broadcasts, requests: requests, window: window, stop: stop, signal: signal) { a in
+                        if !stop.isSet { answered(a) }
+                    }
+                    once.finish(true)
                 }
             }
         } onCancel: {
             stop.set()
+            once.finish(false)
         }
         try Task.checkCancellation()
     }

@@ -171,6 +171,28 @@ struct TransportTests {
         #expect(try await SocketNetworkScanner().isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
     }
 
+    /// The SNMP question to every network (Search my network): its answer window starts when asked, not when GCD's pool
+    /// gives the receive loop a thread. Asked of loopback, where nothing answers on 161.
+    @Test func theSnmpWindowEndsOnTimeWhileThePoolIsBusy() async throws {
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let started = ContinuousClock.now
+        try await SocketNetworkScanner().broadcastSnmp(["127.0.0.1"], requests: [[0x30, 0x00]], window: .milliseconds(300)) { _ in }
+        #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
+    }
+
+    @Test func theSnmpWindowEndsWhenCancelled() async throws {
+        let started = ContinuousClock.now
+        let task = Task {
+            try await SocketNetworkScanner().broadcastSnmp(["127.0.0.1"], requests: [[0x30, 0x00]], window: .seconds(30)) { _ in }
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
+    }
+
     @Test func theScannerSearchesNoLoopbackOrTunnel() {
         for net in SocketNetworkScanner().localNetworks() {
             #expect(!net.address.hasPrefix("127."))
