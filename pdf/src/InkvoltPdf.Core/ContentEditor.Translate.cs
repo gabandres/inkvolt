@@ -971,7 +971,7 @@ public static partial class ContentEditor
                 }
                 catch (Exception ex) when (ex is ContentEditException or InvalidOperationException or ArgumentException)
                 {
-                    // The page's new content can't be read again: its links stay as they were.
+                    // The page's new content can't be read again: its links and their underlines stay as they were.
                 }
             }
         }
@@ -1035,8 +1035,8 @@ public static partial class ContentEditor
         var paints = walk.PaintsCut ? null : walk.Paints;
         // A turned part's surroundings in its frame, worked out once it has a paragraph to lay out.
         var framed = new Dictionary<int, (PageThings Things, List<RectD> Obstacles, List<(RectD, int)> Fills, List<Paint>? Paints)>();
-        // Where each upright paragraph's new text went, and how far it shrank: its links follow it (LinksOfWritten).
-        var placed = new Dictionary<int, (RectD Box, double Fit)>();
+        // Where each upright paragraph's new text went, and how far it shrank, where its lines start: its links follow it (LinksOfWritten).
+        var placed = new Dictionary<int, (RectD Box, double Fit, List<PointD> Lines)>();
         // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
         // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
@@ -1164,7 +1164,7 @@ public static partial class ContentEditor
             foreach (var name in layout.Check.StandIns)
                 if (!writer.FontNames.Contains(name)) writer.FontNames.Add(name);
             written.Add(new TranslationWritten(i, fit, fits, dropped));
-            if (slots[i].Part is null) placed[i] = (layout.Check.Box, fit);
+            if (slots[i].Part is null) placed[i] = (layout.Check.Box, fit, [.. layout.Lines.Select(l => l.Origin)]);
         }
 
         if (columned.Count > 0)
@@ -1174,8 +1174,8 @@ public static partial class ContentEditor
             foreach (var (edits, op, id, parts) in columned.Values)
                 edits.Add((op.Start, op.End, string.Join(' ', columnsOf[id].OrderBy(r => r.Info!.Column).Select(r => parts[r.Info!.Column] ?? Kept(op, r)))));
         }
-        // Underlines under the old words go with them; links are moved once the page and its fonts are written.
-        var links = written.Count > 0 ? LinksOfWritten(page, slots, written, placed, ops, paints, pageEdits) : [];
+        // Links, and their underlines, are moved once the page and its fonts are written.
+        var links = written.Count > 0 ? LinksOfWritten(page, slots, written, placed, ops, paints) : [];
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);

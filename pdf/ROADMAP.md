@@ -693,13 +693,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   count, so a line's "800-" "63A," finds "800-63A,"), a copy of the link for each further line they reach, and its
   underline is drawn again under them (its distance from the baseline and thickness scaled with the text, its color); a
   link whose words were translated is taken off the page and out of the structure tree (what they became can't be
-  told), and a thin stroke or filled rectangle under the old words, no wider than their line, goes (its painting
-  operator ends the path unpainted) (`ContentEditor.TranslateLinks.cs`: `LinksOfWritten`, `Follow`, `FixLinks`, run by
-  `TranslationWriter.Finish` once the copy's fonts are in it, so the new words can be read). A turned paragraph's links
-  are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`, `A_link_whose_words…`;
-  NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a line's end and "800-"
-  on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
-  **A label alone on its row (2026-11-06).** The last cell with text on a table's row takes the empty cells after it
+  told), with its underline (its painting operator ends the path unpainted) (`ContentEditor.TranslateLinks.cs`:
+  `LinksOfWritten`, `Follow`, `FixLinks`, run by `TranslationWriter.Finish` once the copy's fonts are in it, so the new
+  words can be read). A turned paragraph's links are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`,
+  `A_link_whose_words…`; NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a
+  line's end and "800-" on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
+  Review (2026-11-06): a link's underline is only one rectangle filled in a plain color within the link's width; any
+  other mark under the words (no link's, a stroke, a spot color, two links' underlines in one operator) stays as drawn.
+  The underlines are blanked in the same step that moves the links, after the page is read again (a page that can't be
+  keeps both as they were). A link is looked for only in its own paragraph's new lines, at the place nearest where it was;
+  two places as near drop it. `Follow` tries only new words that can start the stretch.
+  **A label alone on its row (2026-11-06).** The only cell with text on a table's row takes the empty cells after it
   (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
   column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
   answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.

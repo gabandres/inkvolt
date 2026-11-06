@@ -8,8 +8,8 @@ namespace InkvoltPdf.Core;
 /// A translated paragraph's links and underlines (roadmap 3.1). The words move, so what marked them where they were would
 /// mark the middle of other words: a link (/Link) whose words the translation keeps as they were (an identifier, a
 /// document number: "SP 800-63A", "(SP) 800-63A") moves onto them, a copy for each further line they reach, with its underline redrawn
-/// under them; a link whose words were translated is taken off the page (it can't be told what they became), and a
-/// thin underline drawn under the old words goes.
+/// under them; a link whose words were translated is taken off the page (it can't be told what they became), with its
+/// underline. An underline that is no link's, or that can't be drawn again, stays as drawn.
 /// </summary>
 public static partial class ContentEditor
 {
@@ -24,10 +24,12 @@ public static partial class ContentEditor
 
     /// <summary>
     /// A link on a translated paragraph's lines (<see cref="TranslationWritten.Slot"/>): its annotation, where it was, its
-    /// words then, the underline under them and the baseline of its line; where the new text is and how far it shrank
-    /// (null: a turned paragraph, whose link is dropped), and the paragraph's size.
+    /// words then, its underline (<see cref="LinkUnderline"/>; null: none to move) and the baseline of its line; where the
+    /// new text is, where its lines start (page as shown) and how far it shrank (<paramref name="Placed"/> null: a turned
+    /// paragraph, whose link is dropped), and the paragraph's size.
     /// </summary>
-    internal sealed record LinkFix(int Slot, PdfDictionary Annot, RectD Box, List<string> Words, Paint? Underline, double Baseline, RectD? Placed, double Fit, double FontSize);
+    internal sealed record LinkFix(int Slot, PdfDictionary Annot, RectD Box, List<string> Words, Paint? Underline, double Baseline, RectD? Placed,
+        IReadOnlyList<PointD> Lines, double Fit, double FontSize);
 
     /// <summary>The page's /Link annotations and where they are (none past <see cref="MaxLinksToFollow"/>).</summary>
     private static List<(PdfDictionary Annot, RectD Box)> PageLinks(PdfPage page)
@@ -54,18 +56,24 @@ public static partial class ContentEditor
     }
 
     /// <summary>
-    /// A thin stroke or filled rectangle under one of an upright paragraph's lines (an underline): no thicker than a
-    /// sixth of the text, its top between the line's middle and a third of an em below it, and no wider than the line
-    /// (a table's rule under a cell's text reaches past it).
+    /// A link's underline on an upright paragraph's line: one rectangle filled in a plain color (so it can be drawn again,
+    /// and no other link's or line's mark is in the same operator), no thicker than a sixth of the text, its top between
+    /// the line's middle and a third of an em below it, and within the link's own width. Null when there is none: a stroke,
+    /// a color that isn't followed, several marks filled together, or one reaching past the link stays as drawn.
+    /// <paramref name="gone"/>: underlines already a link's.
     /// </summary>
-    private static bool Underlines(TextParagraph p, Paint paint, List<COp> ops)
+    private static Paint? LinkUnderline(TextParagraph p, RectD line, RectD link, IReadOnlyList<Paint> paints, List<COp> ops, HashSet<int> gone)
     {
-        if (paint.Box is not { } b || paint.Id < 0 || paint.Id >= ops.Count || ops[paint.Id].Name is not ("f" or "F" or "f*" or "S" or "s" or "B" or "B*" or "b" or "b*")) return false;
         var em = p.FontSize;
-        if (b.Height > Math.Max(1, em / 6) || b.Width < 0.5 * em) return false;
-        foreach (var l in p.Lines)
-            if (b.X >= l.X - 1 && b.Right <= l.Right + 1 && b.Y >= l.CenterY && b.Y <= l.Bottom + em / 3) return true;
-        return false;
+        var tol = 0.3 * em;
+        foreach (var u in paints)
+        {
+            if (u is not { Rect: true, Color: not null, Box: { } b } || u.Id < 0 || u.Id >= ops.Count || ops[u.Id].Name is not ("f" or "F" or "f*") || gone.Contains(u.Id)) continue;
+            if (b.Height > Math.Max(1, em / 6) || b.Width < 0.5 * em || b.X < link.X - tol || b.Right > link.Right + tol || b.Y < line.CenterY || b.Y > line.Bottom + em / 3) continue;
+            gone.Add(u.Id);
+            return u;
+        }
+        return null;
     }
 
     /// <summary>The words of a paragraph's runs inside a box, in order (upright runs only, where their glyphs are).</summary>
@@ -79,48 +87,90 @@ public static partial class ContentEditor
         return words.Count > MaxLinkWords ? words[..MaxLinkWords] : words;
     }
 
-    /// <summary>A word as compared: without the punctuation around it.</summary>
-    private static string Bare(string word) => word.Trim(',', '.', ';', ':', '!', '?', '"', '\'', '“', '”', '‘', '’', '(', ')', '[', ']', '«', '»');
+    private static readonly char[] AroundWords = [',', '.', ';', ':', '!', '?', '"', '\'', '“', '”', '‘', '’', '(', ')', '[', ']', '«', '»'];
 
-    /// <summary>Words worth following a link by: a figure, or a word of 4 letters or more (not "the" or "and").</summary>
-    private static bool Telling(IEnumerable<string> words) => words.Select(Bare).Any(w => w.Any(char.IsDigit) || w.Count(char.IsLetter) >= 4);
+    /// <summary>A word as compared: without the punctuation around it.</summary>
+    private static string Bare(string word) => word.Trim(AroundWords);
+
+    /// <summary>A bare word worth following a link by: with a figure, or of 4 letters or more (not "the" or "and").</summary>
+    private static bool Telling(string bare) => bare.Any(char.IsDigit) || bare.Count(char.IsLetter) >= 4;
 
     /// <summary>
-    /// Where a link's words are in the new text: the longest stretch of them, in their order, that the new words have as
-    /// they were (not already taken by another link), worth following (<see cref="Telling"/>); null when there is none.
-    /// Spaces don't count, so "800-" "63A," (a line's gaps fall where its maker spaced it) is "800-63A," as one word.
+    /// Where a link's words are in the new text: each place (its first word, how many) the new words have the longest
+    /// stretch of them, in their order, as they were (not already taken by another link), worth following
+    /// (<see cref="Telling"/>); none when there is none. Spaces don't count, so "800-" "63A," (a line's gaps fall where
+    /// its maker spaced it) is "800-63A," as one word. Only new words whose first letter starts the stretch are tried.
     /// </summary>
-    internal static (int Start, int Count)? Follow(IReadOnlyList<string> linkWords, IReadOnlyList<string> newWords, ISet<int> taken)
+    internal static List<(int Start, int Count)> Follow(IReadOnlyList<string> linkWords, IReadOnlyList<string> newWords, ISet<int> taken)
     {
-        for (var len = linkWords.Count; len >= 1; len--)
+        var found = new List<(int Start, int Count)>();
+        var placesFound = new HashSet<int>();
+        var telling = linkWords.Select(w => Telling(Bare(w))).ToArray();
+        var bare = new string[newWords.Count];
+        var startsWith = new Dictionary<char, List<int>>();
+        for (var i = 0; i < newWords.Count; i++)
+        {
+            bare[i] = Bare(newWords[i]);
+            if (bare[i].Length == 0) continue;
+            if (!startsWith.TryGetValue(bare[i][0], out var list)) startsWith[bare[i][0]] = list = [];
+            list.Add(i);
+        }
+        for (var len = linkWords.Count; len >= 1 && found.Count == 0; len--)
             for (var from = 0; from + len <= linkWords.Count; from++)
             {
-                var stretch = linkWords.Skip(from).Take(len).ToList();
-                var want = Bare(string.Concat(stretch));
-                if (want.Length < 2 || !Telling(stretch)) continue;
-                for (var at = 0; at < newWords.Count; at++)
+                if (Array.IndexOf(telling, true, from, len) < 0) continue;
+                var want = Bare(string.Concat(linkWords.Skip(from).Take(len)));
+                if (want.Length < 2 || !startsWith.TryGetValue(want[0], out var starts)) continue;
+                foreach (var at in starts)
                 {
-                    var joined = new StringBuilder();
+                    // The stretch, without the punctuation before it, starts with the first word's bare form.
+                    if (taken.Contains(at) || placesFound.Contains(at) || !want.StartsWith(bare[at], StringComparison.Ordinal)) continue;
+                    var joined = "";
                     for (var end = at; end < newWords.Count && !taken.Contains(end); end++)
                     {
-                        joined.Append(newWords[end]);
-                        var got = Bare(joined.ToString());
-                        if (got == want && Bare(newWords[at]).Length > 0) return (at, end - at + 1);
-                        if (got.Length > want.Length) break;
+                        joined += newWords[end];
+                        var got = joined.AsSpan().TrimStart(AroundWords);
+                        if (got.TrimEnd(AroundWords).SequenceEqual(want))
+                        {
+                            found.Add((at, end - at + 1));
+                            placesFound.Add(at);
+                            break;
+                        }
+                        // More words only add to the end: once it isn't how the stretch begins, it never is.
+                        if (!want.AsSpan().StartsWith(got, StringComparison.Ordinal)) break;
                     }
                 }
             }
-        return null;
+        return found;
     }
 
     /// <summary>
-    /// The links and underlines of the paragraphs just written on a page: underlines' painting operators become "n" (the
-    /// path ends unpainted) in <paramref name="pageEdits"/>; the links are returned, to be moved or dropped once the
-    /// page's fonts are in the document (<see cref="FixLinks"/>). <paramref name="placed"/>: where each upright paragraph's
-    /// new text is and how far it shrank. Turned paragraphs' links are dropped, their underlines left.
+    /// Of the places a link's words are in its paragraph's new text (<see cref="Follow"/>), the one nearest where the link
+    /// was (its first word's start and line against the link's left edge and middle); null when there is none or another
+    /// is as near (within half an em): the link would then be on words that may not be its own.
     /// </summary>
-    private static List<LinkFix> LinksOfWritten(PdfPage page, List<TranslationSlot> slots, List<TranslationWritten> written, IReadOnlyDictionary<int, (RectD Box, double Fit)> placed,
-        List<COp> ops, IReadOnlyList<Paint>? paints, List<(int Start, int End, string Text)> pageEdits)
+    private static (int Start, int Count)? Nearest(List<(int Start, int Count)> found, List<(string Text, double Start, double End, TextRun Run)> words, RectD was, double em)
+    {
+        (int Start, int Count)? best = null;
+        double nearest = double.MaxValue, next = double.MaxValue;
+        foreach (var f in found)
+        {
+            var w = words[f.Start];
+            var d = Math.Sqrt(Math.Pow(w.Start - was.X, 2) + Math.Pow(w.Run.Box.CenterY - was.CenterY, 2));
+            if (d < nearest) (next, nearest, best) = (nearest, d, f);
+            else next = Math.Min(next, d);
+        }
+        return next - nearest > 0.5 * em ? best : null;
+    }
+
+    /// <summary>
+    /// The links of the paragraphs just written on a page, to be moved with their underlines or dropped once the page's
+    /// fonts are in the document (<see cref="FixLinks"/>); nothing on the page changes yet. <paramref name="placed"/>: where
+    /// each upright paragraph's new text is, where its lines start and how far it shrank. Turned paragraphs' links are
+    /// dropped, their underlines left.
+    /// </summary>
+    private static List<LinkFix> LinksOfWritten(PdfPage page, List<TranslationSlot> slots, List<TranslationWritten> written,
+        IReadOnlyDictionary<int, (RectD Box, double Fit, List<PointD> Lines)> placed, List<COp> ops, IReadOnlyList<Paint>? paints)
     {
         var found = new List<LinkFix>();
         var links = PageLinks(page);
@@ -130,8 +180,6 @@ public static partial class ContentEditor
         {
             var p = slots[w.Slot].Paragraph;
             var upright = p.Upright is null;
-            var under = upright && paints is not null ? paints.Where(x => Underlines(p, x, ops) && gone.Add(x.Id)).ToList() : [];
-            foreach (var u in under) pageEdits.Add((ops[u.Id].Start, ops[u.Id].End, "n"));
             foreach (var (annot, box) in links)
             {
                 if (claimed.Contains(annot)) continue;
@@ -141,53 +189,87 @@ public static partial class ContentEditor
                 var words = upright ? WordsIn(p.Runs, box) : [];
                 var l = p.Lines[line];
                 var baseline = p.Runs.Where(r => r.Box.CenterY >= l.Y && r.Box.CenterY <= l.Bottom).Select(r => r.Origin.Y).DefaultIfEmpty(l.Bottom).Max();
-                // Its underline: under its own words, in a plain color to draw it again in.
-                var mine = under.Where(u => u.Color is not null && u.Box!.Value.CenterX >= box.X - 1 && u.Box.Value.CenterX <= box.Right + 1 && u.Box.Value.Y >= l.CenterY)
-                    .Select(u => (Paint?)u).FirstOrDefault();
-                var to = upright && placed.TryGetValue(w.Slot, out var at) ? at : ((RectD Box, double Fit)?)null;
-                found.Add(new LinkFix(w.Slot, annot, box, words, mine, baseline, to?.Box, to?.Fit ?? 1, p.FontSize));
+                var underline = upright && paints is not null ? LinkUnderline(p, l, box, paints, ops, gone) : null;
+                var to = upright && placed.TryGetValue(w.Slot, out var at) ? at : ((RectD Box, double Fit, List<PointD> Lines)?)null;
+                found.Add(new LinkFix(w.Slot, annot, box, words, underline, baseline, to?.Box, to?.Lines ?? [], to?.Fit ?? 1, p.FontSize));
             }
         }
         return found;
     }
 
     /// <summary>
+    /// A paragraph's new words where they are now, line by line: those of the runs written on its new lines (starting on
+    /// one of their baselines, at or after its start) inside where it was placed, so no other text there is taken for it.
+    /// </summary>
+    private static List<(string Text, double Start, double End, TextRun Run)> WrittenWords(PageContent after, RectD placed, IReadOnlyList<PointD> lines, double em)
+    {
+        var area = placed.Inflate(0.25 * em);
+        var words = new List<(string Text, double Start, double End, TextRun Run)>();
+        var mine = after.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && area.Contains(r.Box.CenterX, r.Box.CenterY)
+            && lines.Any(o => Math.Abs(r.Origin.Y - o.Y) < 0.5 && r.Origin.X >= o.X - 1));
+        foreach (var r in mine.OrderBy(r => Math.Round(r.Origin.Y, 1)).ThenBy(r => r.Box.X))
+            foreach (var (start, end, text) in LineWords(r))
+                foreach (var part in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    if (words.Count < MaxWordsToSearch) words.Add((part, start, end, r));
+        return words;
+    }
+
+    /// <summary>
     /// Once a page's translated paragraphs are written and the fonts they use are in the document: each link
-    /// (<see cref="LinksOfWritten"/>) is moved onto its words where the new text keeps them (its /Rect around them,
-    /// /QuadPoints for each line they reach), with its underline redrawn under them as it was (its distance from the
-    /// baseline and thickness scaled with the text, its color), or else taken off the page, and out of the structure tree.
+    /// (<see cref="LinksOfWritten"/>) is moved onto its words where its paragraph's new text keeps them (its /Rect around
+    /// them, a copy for each further line they reach), with its underline redrawn under them as it was (its distance from
+    /// the baseline and thickness scaled with the text, its color), or else taken off the page, and out of the structure
+    /// tree, with its underline. The page is read first and changed after: if it can't be read, its links and underlines
+    /// stay as they were; an underline not found again as it was drawn stays, and isn't drawn again.
     /// </summary>
     internal static void FixLinks(PdfDocument doc, int pageIndex, IReadOnlyList<LinkFix> links)
     {
         if (links.Count == 0) return;
         var page = doc.Pages[pageIndex];
-        PageContent? after = null;
+        var streams = Streams(page);
+        var ops = ContentLexer.Parse(streams.Bytes, CancellationToken.None);
+        var walk = Walk(page, pageIndex, ops, CancellationToken.None);
+        var paints = walk.PaintsCut ? null : walk.Paints;
         var drop = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        var blank = new List<(int Start, int End, string Text)>();
         var underlines = new StringBuilder();
-        var added = new List<PdfDictionary>();
+        var moves = new List<(PdfDictionary Annot, List<RectD> Boxes)>();
+
+        // A link's underline in the page's content now: the one filled rectangle of its color where it was (unchanged by
+        // the paragraph's rewrite), its operator to become "n" (the path ends unpainted). False: not found, or not alone.
+        bool Blank(Paint? underline)
+        {
+            if (underline is not { Box: { } was, Color: { } color } || paints is null) return false;
+            var hit = -1;
+            foreach (var x in paints)
+                if (x is { Rect: true, Box: { } b } && x.Color == color && x.Id >= 0 && x.Id < ops.Count && ops[x.Id].Name is "f" or "F" or "f*"
+                    && Math.Abs(b.X - was.X) < 0.01 && Math.Abs(b.Y - was.Y) < 0.01 && Math.Abs(b.Right - was.Right) < 0.01 && Math.Abs(b.Bottom - was.Bottom) < 0.01)
+                {
+                    if (hit >= 0) return false;
+                    hit = x.Id;
+                }
+            if (hit < 0) return false;
+            blank.Add((ops[hit].Start, ops[hit].End, "n"));
+            return true;
+        }
+
         foreach (var group in links.GroupBy(l => l.Slot))
         {
             var first = group.First();
-            if (first.Placed is not { } placed || group.All(l => l.Words.Count == 0))
+            if (first.Placed is not { } placed)
             {
                 foreach (var l in group) drop.Add(l.Annot);
                 continue;
             }
-            after ??= Walk(page, pageIndex, ContentLexer.Parse(Streams(page).Bytes, CancellationToken.None), CancellationToken.None).Content;
-            // The new text's words where they are now: the runs in its box, line by line.
-            var area = placed.Inflate(0.25 * first.FontSize);
-            var words = new List<(string Text, double Start, double End, TextRun Run)>();
-            foreach (var r in after.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && area.Contains(r.Box.CenterX, r.Box.CenterY)).OrderBy(r => Math.Round(r.Origin.Y, 1)).ThenBy(r => r.Box.X))
-                foreach (var (start, end, text) in LineWords(r))
-                    foreach (var part in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-                        if (words.Count < MaxWordsToSearch) words.Add((part, start, end, r));
+            var words = WrittenWords(walk.Content, placed, first.Lines, first.FontSize);
             var texts = words.Select(x => x.Text).ToList();
             var taken = new HashSet<int>();
             foreach (var l in group.OrderBy(x => x.Box.Y).ThenBy(x => x.Box.X))
             {
-                if (Follow(l.Words, texts, taken) is not var (at, count))
+                if (l.Words.Count == 0 || Nearest(Follow(l.Words, texts, taken), words, l.Box, l.FontSize) is not var (at, count))
                 {
                     drop.Add(l.Annot);
+                    Blank(l.Underline);
                     continue;
                 }
                 for (var k = at; k < at + count; k++) taken.Add(k);
@@ -200,8 +282,8 @@ public static partial class ContentEditor
                         boxes[^1] = (RectD.FromEdges(boxes[^1].Box.X, Math.Min(boxes[^1].Box.Y, run.Box.Y), Math.Max(boxes[^1].Box.Right, end), Math.Max(boxes[^1].Box.Bottom, run.Box.Bottom)), run);
                     else boxes.Add((RectD.FromEdges(start, run.Box.Y, end, run.Box.Bottom), run));
                 }
-                added.AddRange(Place(doc, page, l.Annot, [.. boxes.Select(b => b.Box)]));
-                if (l.Underline is { Box: { } was, Color: { } color })
+                moves.Add((l.Annot, [.. boxes.Select(b => b.Box)]));
+                if (l.Underline is { Box: { } was, Color: { } color } && Blank(l.Underline))
                 {
                     var below = (was.Y - l.Baseline) * l.Fit;
                     var thick = Math.Max(0.25, was.Height * l.Fit);
@@ -209,7 +291,12 @@ public static partial class ContentEditor
                 }
             }
         }
+
+        // Read and worked out: now the page changes (a damaged page refuses the first write, before anything else).
+        if (blank.Count > 0) WriteContent(doc, page, streams, ops, blank);
         if (underlines.Length > 0) PdfObj.AppendContent(doc, page, underlines.ToString());
+        var added = new List<PdfDictionary>();
+        foreach (var (annot, boxes) in moves) added.AddRange(Place(doc, page, annot, boxes));
         if (drop.Count == 0 && added.Count == 0) return;
         var keys = new List<int>();
         if (PdfObj.Array(page.Elements["/Annots"]) is { } annots)
