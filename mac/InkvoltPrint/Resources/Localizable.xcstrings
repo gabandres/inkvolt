@@ -4790,6 +4790,16 @@
         }
       }
     },
+    "Shown %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se muestra %@."
+          }
+        }
+      }
+    },
     "Shows the page without the filters, to compare": {
       "localizations": {
         "es": {

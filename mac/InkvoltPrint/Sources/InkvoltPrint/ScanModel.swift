@@ -513,7 +513,7 @@ final class ScanModel {
         if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
             return String(localized: "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.")
         }
-        return wanted.isEmpty ? String(localized: "As scanned.") : "Shown \(PageCleanup.describe(wanted))."
+        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted)).")
     }
 
     /// The Clean up view's Done: the page gets `filters`, one step of Undo.

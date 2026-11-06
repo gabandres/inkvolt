@@ -265,7 +265,7 @@ public enum OfflineDiagnosis {
                 pointAt(&list, m, target, found?.hostName, caution)
             } else if !m.portIsStale, answers, !m.isPaused, CupsStatus.describe(q).offline {
                 // It answers, the address is right, yet macOS says offline.
-                list.append(Repair(.addAgain, "Add “\(shown)” again",
+                list.append(Repair(.addAgain, loc("Add “{0}” again", shown),
                                    loc("The printer answers, but macOS still shows it offline. Removing it and adding it again makes macOS find it afresh."),
                                    queue: q.name, manualOnly: true, manualSteps: ManualSteps.for(.addAgain, queue: shown)))
             }

@@ -562,6 +562,17 @@
         }
       }
     },
+    "Add “{0}” again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a agregar “{0}”"
+          }
+        }
+      }
+    },
     "Alerts are paused until {0} tomorrow.": {
       "extractionState": "manual",
       "localizations": {
