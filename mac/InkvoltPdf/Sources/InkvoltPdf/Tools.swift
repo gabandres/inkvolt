@@ -52,43 +52,8 @@ enum Tool: Int, CaseIterable {
     }
 
     /// The tool's name in the interface's language (menus, tooltips, VoiceOver); `title` stays the English identity that
-    /// `PlainWords.note(for:)` and the menus look tools up by.
-    var shownTitle: String {
-        switch self {
-        case .hand: loc("Hand")
-        case .text: loc("Select Text")
-        case .highlight: loc("Highlight")
-        case .underline: loc("Underline")
-        case .strikeOut: loc("Strike Out")
-        case .note: loc("Note")
-        case .textBox: loc("Text Box")
-        case .pen: loc("Pen")
-        case .highlighter: loc("Highlighter Pen")
-        case .rectangle: loc("Rectangle")
-        case .ellipse: loc("Ellipse")
-        case .line: loc("Line")
-        case .arrow: loc("Arrow")
-        case .stamp: loc("Stamp")
-        case .image: loc("Image")
-        case .link: loc("Link")
-        case .fillText: loc("Add Text")
-        case .fillCheck: loc("Check Mark")
-        case .fillCross: loc("Cross")
-        case .fillDate: loc("Date")
-        case .signature: loc("Signature")
-        case .editContent: loc("Edit Text & Images")
-        case .callout: loc("Callout")
-        case .polygon: loc("Polygon")
-        case .polyline: loc("Polyline")
-        case .redact: loc("Redact")
-        case .measureDistance: loc("Measure Distance")
-        case .measurePerimeter: loc("Measure Perimeter")
-        case .measureArea: loc("Measure Area")
-        case .measureCalibrate: loc("Calibrate Scale from a Known Length")
-        case .prepareForm: loc("Prepare Form")
-        case .snapshot: loc("Snapshot")
-        }
-    }
+    /// `PlainWords.note(for:)` and the menus look tools up by (its literals are keys: `PdfStringsTests` reads them).
+    var shownTitle: String { loc(title) }
 
     /// The single key that picks the tool ("" for none).
     var key: String {

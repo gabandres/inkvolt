@@ -37,6 +37,19 @@ struct PdfStringsTests {
     /// The menu table's titles are keys too: `c("Open…", …)` and `CommandMenu("File", …)` (shown through `shownTitle`).
     static let menuTable = "DocumentCommands.swift"
 
+    /// The tools' titles are keys too: `Tool.title`'s `case .hand: "Hand"` (shown through `shownTitle`, `loc(title)`).
+    static let toolTable = "Tools.swift"
+
+    /// The literals of `var title: String`'s switch in `code`.
+    static func toolTitles(in code: String) -> [String] {
+        guard let start = code.range(of: "var title: String {"),
+              let end = code.range(of: "\n    }\n", range: start.upperBound..<code.endIndex) else { return [] }
+        return code[start.upperBound..<end.lowerBound].split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: "\"", omittingEmptySubsequences: false)
+            return line.trimmingCharacters(in: .whitespaces).hasPrefix("case .") && parts.count == 3 ? String(parts[1]) : nil
+        }
+    }
+
     /// Every key asked for under `root`: key → the file asking.
     static func keys(under root: String) -> [String: String] {
         var found: [String: String] = [:]
@@ -46,7 +59,9 @@ struct PdfStringsTests {
             guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
             let code = text.replacingOccurrences(of: "\r\n", with: "\n").split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             let openers = file.lastPathComponent == menuTable ? ["c(\"", "CommandMenu(\""] : []
-            for (key, _) in CoreStringsTests.keys(in: code.joined(separator: "\n"), openers: openers) { found[key] = file.lastPathComponent }
+            let joined = code.joined(separator: "\n")
+            for (key, _) in CoreStringsTests.keys(in: joined, openers: openers) { found[key] = file.lastPathComponent }
+            if file.lastPathComponent == toolTable { for key in toolTitles(in: joined) { found[key] = toolTable } }
         }
         return found
     }
@@ -59,6 +74,7 @@ struct PdfStringsTests {
         #expect(!Self.localizable.isEmpty, "Localizable.xcstrings not found or not read")
         #expect(Self.coreKeys["Open…"] == Self.menuTable && Self.coreKeys["View"] == Self.menuTable, "the menu table's titles weren't read")
         #expect(Self.appKeys["Same as macOS"] == "AppLanguage.swift")
+        #expect(Self.appKeys["Calibrate Scale from a Known Length"] == Self.toolTable, "the tools' titles weren't read")
     }
 
     @Test func Every_sentence_PdfCore_asks_for_is_in_PdfStrings_with_its_Spanish() {
