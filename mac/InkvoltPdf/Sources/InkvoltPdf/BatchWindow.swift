@@ -216,8 +216,9 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     required init?(coder: NSCoder) { fatalError("not used") }
 
     /// The actions as the Add Action menu offers them, with their default settings (the watermark's and the footer's
-    /// default text in the interface's language: words the person edits first, as Windows').
-    static var offered: [BatchStep] {
+    /// default text in the interface's language: words the person edits first, as Windows'), built at first use, after
+    /// `AppLanguage.apply`.
+    static let offered: [BatchStep] = {
         var steps: [BatchStep] = [.optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect]
         steps += [.sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })), .redactPatterns(RedactionPatternOptions())]
         steps += [.checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: loc("DRAFT")))]
@@ -228,7 +229,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         steps += [.export(.commentsXfdf, dpi: 150), .export(.commentsFdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150)]
         steps += [.export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150), .export(.formDataCsv, dpi: 150), .export(.formDataJson, dpi: 150)]
         return steps
-    }
+    }()
 
     private static var defaultHeaderFooter: HeaderFooterOptions {
         var o = HeaderFooterOptions()

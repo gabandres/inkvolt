@@ -866,22 +866,21 @@ final class RedactionReportSheet: NSWindowController {
 /// dimmed), what the rewrite also drops, the signatures' warning; Sanitize removes the chosen kinds.
 @MainActor
 final class SanitizeSheet: NSWindowController {
-    /// The kinds in order, with their labels and group headings in the interface's language.
-    static var kinds: [(item: SanitizeItem, label: String, group: String?)] {
-        [
-            (.metadata, loc("Document properties, XMP metadata, comment authors and dates, other apps' private data"), loc("Document details")),
-            (.hiddenLayers, loc("Hidden layers, with what they draw"), loc("Hidden data")),
-            (.hiddenAnnotations, loc("Hidden comments and form fields"), nil),
-            (.comments, loc("Comments, markup, stamps and drawings"), nil),
-            (.formValues, loc("Form field values (the fields stay, empty)"), nil),
-            (.bookmarks, loc("Bookmarks"), nil),
-            (.thumbnails, loc("Embedded page thumbnails"), nil),
-            (.activeContent, loc("JavaScript, actions that run programs or send data, multimedia"), loc("Active content")),
-            (.externalLinks, loc("Links to web pages and other files"), nil),
-            (.embeddedFiles, loc("Attached files"), loc("Attachments")),
-            (.signatures, loc("Digital signatures (the signature fields stay, empty)"), loc("Signatures")),
-        ]
-    }
+    /// The kinds in order, with their labels and group headings in the interface's language (built at first use, after
+    /// `AppLanguage.apply`).
+    static let kinds: [(item: SanitizeItem, label: String, group: String?)] = [
+        (.metadata, loc("Document properties, XMP metadata, comment authors and dates, other apps' private data"), loc("Document details")),
+        (.hiddenLayers, loc("Hidden layers, with what they draw"), loc("Hidden data")),
+        (.hiddenAnnotations, loc("Hidden comments and form fields"), nil),
+        (.comments, loc("Comments, markup, stamps and drawings"), nil),
+        (.formValues, loc("Form field values (the fields stay, empty)"), nil),
+        (.bookmarks, loc("Bookmarks"), nil),
+        (.thumbnails, loc("Embedded page thumbnails"), nil),
+        (.activeContent, loc("JavaScript, actions that run programs or send data, multimedia"), loc("Active content")),
+        (.externalLinks, loc("Links to web pages and other files"), nil),
+        (.embeddedFiles, loc("Attached files"), loc("Attachments")),
+        (.signatures, loc("Digital signatures (the signature fields stay, empty)"), loc("Signatures")),
+    ]
 
     /// A kind in the one line of what the document doesn't hold.
     static func absentName(_ item: SanitizeItem) -> String {
