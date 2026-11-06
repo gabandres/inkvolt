@@ -243,7 +243,8 @@ struct AppTest {
         s.saveClicked()
         let back = AppSettings.theme == "System" && AppSettings.zoomMode == "FitWidth" && AppSettings.restorePosition && AppSettings.keepRecoveryCopies
             && AppSettings.authorName.isEmpty && NSApp.appearance == nil && RecoveryCopies.shared.enabled
-        check(back, "Settings › Reset to Defaults: back at once to how Inkvolt PDF starts")
+            && s.language.indexOfSelectedItem == AppLanguage.Choice.allCases.firstIndex(of: .system)
+        check(back, "Settings › Reset to Defaults: back at once to how Inkvolt PDF starts, the language to Same as macOS")
         RecoveryCopies.shared.enabled = true
     }
 

@@ -15280,13 +15280,13 @@
         }
       }
     },
-    "These settings back to how Inkvolt PDF starts. Recent files are kept.": {
+    "These settings back to how Inkvolt PDF starts; the language follows macOS from the next launch. Recent files are kept.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Devuelve esta configuración a como empieza Inkvolt PDF. Los archivos recientes se conservan."
+            "value": "Devuelve esta configuración a como empieza Inkvolt PDF; el idioma sigue al de macOS desde el próximo inicio. Los archivos recientes se conservan."
           }
         }
       }

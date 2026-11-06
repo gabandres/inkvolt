@@ -275,7 +275,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         note.preferredMaxLayoutWidth = 460
         // A change applies at once, as in every Mac app's settings (no Save or Cancel; UX review, 2026-11-03).
         let reset = NSButton(title: loc("Reset to Defaults"), target: self, action: #selector(resetClicked))
-        reset.toolTip = loc("These settings back to how Inkvolt PDF starts. Recent files are kept.")
+        reset.toolTip = loc("These settings back to how Inkvolt PDF starts; the language follows macOS from the next launch. Recent files are kept.")
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [reset, spacer])
@@ -325,9 +325,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
     }
 
+    /// Every control back to Inkvolt PDF's defaults; the language back to Same as macOS (macOS's own setting for the app,
+    /// read at the next launch, as picking one is).
     @objc func resetClicked() {
         theme.selectItem(at: 0)
         zoom.selectItem(at: 0)
+        language.selectItem(at: AppLanguage.Choice.allCases.firstIndex(of: .system) ?? 0)
         restore.state = .on
         recovery.state = .on
         dark.state = .off
