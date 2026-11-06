@@ -259,11 +259,15 @@ struct MacImagingTests {
     static func uniformGreyJpeg(width: Int, height: Int, level: Int) -> [UInt8] {
         func be16(_ v: Int) -> [UInt8] { [UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)] }
         var out: [UInt8] = [0xFF, 0xD8]
-        out += [0xFF, 0xDB] + be16(67) + [0x00] + [UInt8](repeating: 1, count: 64)
-        out += [0xFF, 0xC0] + be16(11) + [8] + be16(height) + be16(width) + [1, 1, 0x11, 0]
-        let dcCounts: [UInt8] = [1, 1] + [UInt8](repeating: 0, count: 14), acCounts: [UInt8] = [1] + [UInt8](repeating: 0, count: 15)
-        out += [0xFF, 0xC4] + be16(2 + 1 + 16 + 2 + 1 + 16 + 1) + [0x00] + dcCounts + [0, 10] + [0x10] + acCounts + [0x00]
-        out += [0xFF, 0xDA] + be16(8) + [1, 1, 0x00, 0, 63, 0]
+        // One append each: CI's older Xcode gives up type-checking a long chain of array literals and `+`.
+        func put(_ parts: [UInt8]...) { for part in parts { out.append(contentsOf: part) } }
+        put([0xFF, 0xDB], be16(67), [0x00], [UInt8](repeating: 1, count: 64))
+        put([0xFF, 0xC0], be16(11), [8], be16(height), be16(width), [1, 1, 0x11, 0])
+        let dcCounts: [UInt8] = [1, 1] + [UInt8](repeating: 0, count: 14)
+        let acCounts: [UInt8] = [1] + [UInt8](repeating: 0, count: 15)
+        let tablesLength: Int = 2 + 1 + 16 + 2 + 1 + 16 + 1
+        put([0xFF, 0xC4], be16(tablesLength), [0x00], dcCounts, [0, 10], [0x10], acCounts, [0x00])
+        put([0xFF, 0xDA], be16(8), [1, 1, 0x00, 0, 63, 0])
         // The first block: DC category 10 ("10"), its 10 bits (8 × the level less 128), end of block ("0").
         let dc = 8 * (level - 128)
         precondition(dc >= 512 && dc < 1024, "a level the category 10 code holds")
