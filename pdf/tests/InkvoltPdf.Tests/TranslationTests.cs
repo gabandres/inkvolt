@@ -1425,12 +1425,6 @@ public class TranslationCopyTests
         Assert.Equal([(1, 2), (5, 1)], ContentEditor.Follow(["SP", "800-63A"], ["see", "800-", "63A,", "and", "the", "(800-63A)"], none));
         Assert.Empty(ContentEditor.Follow(["the", "and"], ["the", "and", "dog"], none));
         Assert.Equal([(2, 1)], ContentEditor.Follow(["800-63A"], ["800-63A", "x", "800-63A"], new HashSet<int> { 0 }));
-        // The most words a link and a paragraph give, nothing matching past each first word: quick.
-        var link = Enumerable.Range(0, 64).Select(i => $"w{i}").ToList();
-        var text = Enumerable.Repeat("w0", 4_000).ToList();
-        var watch = Stopwatch.StartNew();
-        Assert.Equal(4_000, ContentEditor.Follow(link, text, none).Count);
-        Assert.True(watch.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)), $"{watch.Elapsed}");
     }
 
     [Fact]
@@ -2220,5 +2214,22 @@ public class TranslationCopyTests
     private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
     {
         public void Report(T value) => report(value);
+    }
+}
+
+/// <summary>A translated link's words looked for in its paragraph's new text, timed: alone, as a test holding a deadline (<see cref="Timing.Alone"/>).</summary>
+[Collection(Timing.Alone)]
+public class TranslationLinkTimingTests
+{
+    [Fact]
+    public void A_links_words_are_looked_for_quickly_in_a_long_paragraph()
+    {
+        // The most words a link and a paragraph give, every new word beginning the link's first: milliseconds, not seconds.
+        var link = Enumerable.Range(0, 64).Select(i => $"w{i}").ToList();
+        var text = Enumerable.Repeat("w0", 4_000).ToList();
+        ContentEditor.Follow(["w0"], ["w0"], new HashSet<int>()); // compiled before it is timed
+        var watch = Stopwatch.StartNew();
+        Assert.Equal(4_000, ContentEditor.Follow(link, text, new HashSet<int>()).Count);
+        Assert.True(watch.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)), $"{watch.Elapsed}");
     }
 }
