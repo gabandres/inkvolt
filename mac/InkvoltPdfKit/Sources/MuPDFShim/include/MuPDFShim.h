@@ -76,14 +76,18 @@ inkv_cookie *inkv_new_cookie(void);
 void inkv_cookie_abort(inkv_cookie *cookie);
 void inkv_drop_cookie(inkv_cookie *cookie);
 
-/// Bounds the calls made with the cookie: `seconds` for reading the page's content, and again for drawing what was read
-/// (0: no limit), however much the file's bytes inflate to; pictures of at most `max_samples` width x height x
-/// components (0: no limit), refused before anything decodes them.
-void inkv_cookie_limit(inkv_cookie *cookie, double seconds, double max_samples);
+/// Bounds the calls made with the cookie: `seconds` of the calling thread's own time for reading the page's content, and
+/// again for drawing what was read (0: no limit), however much the file's bytes inflate to; pictures of at most
+/// `max_pixels` width x height (0: no limit), refused before anything decodes them.
+void inkv_cookie_limit(inkv_cookie *cookie, double seconds, double max_pixels);
 
-/// Why the last call made with the cookie stopped: 0 it didn't; 1 inkv_cookie_abort; 2 its time ran out; 3 a picture on
-/// the page is larger than the limit.
+/// Why the last call made with the cookie stopped: 0 it didn't; 1 inkv_cookie_abort; 2 its time ran out (or a pattern's
+/// tiles would outlast it); 3 a picture on the page is larger than the limit; 4 a stream on the page is decompressed more
+/// than twice in a row.
 int inkv_cookie_stopped(inkv_cookie *cookie);
+
+/// Test hook: each read of the document's bytes, while a call reads a page, waits `seconds` first (a slow share).
+void inkv_test_slow_reads(inkv_doc *doc, double seconds);
 
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
@@ -116,7 +120,7 @@ void inkv_free_links(inkv_link *links, int count);
 int inkv_outline(void *ctx, inkv_doc *doc, inkv_outline_item **items, int *count, char *err);
 void inkv_free_outline(inkv_outline_item *items, int count);
 
-/// The PDF written out whole with MuPDF's write options ("garbage,compress", "encrypt=aes-256,user-password=â¦");
+/// The PDF written out whole with MuPDF's write options ("garbage,compress", "encrypt=aes-256,user-password=…");
 /// the bytes are malloc'ed for the caller (inkv_free). 0 on failure.
 int inkv_write_pdf(void *ctx, inkv_doc *doc, const char *options, uint8_t **out, size_t *length, char *err);
 

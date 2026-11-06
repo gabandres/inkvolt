@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
+#include <stdatomic.h>
 #include <mupdf/fitz.h>
 #include <mupdf/pdf.h>
 #include <stdio.h>
@@ -22,38 +23,56 @@
 //   FZ_ERROR_TRYLATER, which MuPDF passes up through its filters and object loading as "not available yet" (its
 //   progressive loading) without repairing the file or keeping anything half read;
 // - a device between the page and its target (`inkv_guard`), which looks at the time at each drawing call (nested
-//   forms drawn a billion times read nothing) and refuses a picture larger than the cap before anything decodes it
-//   (MuPDF inflates all of a picture's samples for every draw, whatever the zoom: 1.2 GB for a 20,000 x 20,000 one).
+//   forms drawn a billion times read nothing), refuses a picture larger than the cap before anything decodes it
+//   (MuPDF inflates all of a picture's pixels for every draw, whatever the zoom: 1.2 GB for a 20,000 x 20,000 one), and,
+//   in front of a draw device, a pattern whose tiles would take longer to draw than the time left (the draw device
+//   draws them all inside one call);
+// - before a page is read, its streams (`inkv_check_streams`): one decompressed more than twice in a row is refused, as
+//   the stream's bound above can't see what its inner filters make (four Flates make terabytes of each byte read).
+// The time is the reading thread's own (CPU time): waiting for the disk or for other threads isn't the page's cost.
 
 #define INKV_STOP_CANCELLED 1
 #define INKV_STOP_SLOW 2
 #define INKV_STOP_LARGE 3
+#define INKV_STOP_FILTERS 4
 
 struct inkv_cookie {
-    fz_cookie cookie;
-    double seconds;     // a part's reading budget (the reading, then the drawing); 0: none
-    double max_samples; // the largest picture, width x height x components; 0: none
-    double deadline;    // when the current part's time is up; 0: none
-    int cancelled;      // set from any thread by inkv_cookie_abort
-    int stopped;        // INKV_STOP_*: why the call stopped, once it did
+    fz_cookie cookie;      // its abort is set from any thread, never cleared once a cancel set it
+    double seconds;        // a part's reading budget (the reading, then the drawing); 0: none
+    double max_pixels;     // the largest picture, width x height; 0: none
+    double deadline;       // the thread's CPU time at which the current part's time is up; 0: none
+    atomic_int cancelled;  // set from any thread by inkv_cookie_abort
+    atomic_int stopped;    // INKV_STOP_*: why the call stopped, once it did
 };
 
-static double inkv_now(void) { return (double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9; }
+/// The calling thread's CPU time: a call runs on one thread, and the time it waits isn't counted.
+static double inkv_cpu(void) { return (double)clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) / 1e9; }
+
+/// MuPDF's own flag, which it reads between operators and display-list nodes.
+static void inkv_set_abort(inkv_cookie *c) { __atomic_store_n(&c->cookie.abort, 1, __ATOMIC_SEQ_CST); }
+
+/// Stops the call for `why` (unless it already stopped for another reason): throws `code`.
+static void inkv_stop(fz_context *ctx, inkv_cookie *c, int why, int code, const char *message) {
+    int none = 0;
+    atomic_compare_exchange_strong(&c->stopped, &none, why);
+    inkv_set_abort(c);
+    fz_throw(ctx, code, "%s", message);
+}
 
 /// Stops the call (throws `code`, the cookie aborted) once it was cancelled or its time is up; nothing otherwise.
 static void inkv_watch(fz_context *ctx, inkv_cookie *c, int code) {
     if (!c) return;
-    if (!c->stopped) {
-        if (c->cancelled) c->stopped = INKV_STOP_CANCELLED;
-        else if (c->deadline > 0 && inkv_now() > c->deadline) c->stopped = INKV_STOP_SLOW;
+    if (!atomic_load(&c->stopped)) {
+        if (atomic_load(&c->cancelled)) atomic_store(&c->stopped, INKV_STOP_CANCELLED);
+        else if (c->deadline > 0 && inkv_cpu() > c->deadline) atomic_store(&c->stopped, INKV_STOP_SLOW);
         else return;
     }
-    c->cookie.abort = 1;
+    inkv_set_abort(c);
     fz_throw(ctx, code, "The page's reading was stopped.");
 }
 
 /// The bytes a document reads: in place in memory, or from a file. While a call reads (`active`), at most `chunk`
-/// bytes at a time, starting at 16 and growing while MuPDF asks again quickly.
+/// bytes at a time, starting at 16 and growing while MuPDF uses them up quickly.
 typedef struct {
     const unsigned char *data; // NULL for a file
     fz_buffer *owned;          // the copy `data` points into, if the document has its own
@@ -63,7 +82,8 @@ typedef struct {
     int64_t next_at;           // where the last chunk ended: reading on from there keeps the chunk's size
     inkv_cookie *active;
     size_t chunk;
-    double last;
+    double last;               // the reading thread's CPU time when it was handed the last chunk
+    double delay;              // test hook: seconds each read waits while a call reads (a slow share)
     unsigned char buffer[16384];
 } inkv_source;
 
@@ -79,14 +99,15 @@ static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     if (s->active) {
         inkv_watch(ctx, s->active, FZ_ERROR_TRYLATER);
         // Reading somewhere else (another object, another stream) starts small again: chunks grown on the page's
-        // quick objects would hand MuPDF a whole 7 KB bomb at once. A chunk used up slowly may have inflated a lot: the
+        // quick objects would hand MuPDF a whole 7 KB bomb at once. A chunk that took MuPDF long to use up (its own
+        // time since it was handed over: a slow disk or a busy machine doesn't count) may have inflated a lot: the
         // next ones are smaller, so the time is looked at often.
-        double now = inkv_now();
+        double spent = inkv_cpu() - s->last;
         if (s->pos != s->next_at) s->chunk = 16;
-        else if (now - s->last > 0.004) s->chunk = s->chunk > 16 ? s->chunk / 16 : 1;
+        else if (spent > 0.004) s->chunk = s->chunk > 16 ? s->chunk / 16 : 1;
         else if (s->chunk < INKV_CHUNK_MAX) s->chunk *= 2;
-        s->last = now;
         if (n > s->chunk) n = s->chunk;
+        if (s->delay > 0) usleep((useconds_t)(s->delay * 1e6));
     }
     if (s->fd >= 0) {
         ssize_t got;
@@ -103,6 +124,7 @@ static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     s->pos += (int64_t)n;
     s->next_at = s->pos;
     stm->pos = s->pos;
+    if (s->active) s->last = inkv_cpu();
     return *stm->rp++;
 }
 
@@ -145,13 +167,22 @@ static fz_stream *inkv_new_source(fz_context *ctx, const unsigned char *data, in
     return stm;
 }
 
-/// A device in front of another: the call's time looked at with each drawing call, every picture's size checked.
+/// A device in front of another: the call's time looked at with each drawing call, every picture's size checked; in
+/// front of a draw device (`drawing`), every pattern's tiles counted too.
 typedef struct {
     fz_device super;
     fz_device *target;
     inkv_cookie *cookie;
-    unsigned calls; // the clock is read every 64 calls (72,000 paths a sheet read it 150,000 times: 4% of Find)
+    unsigned calls;      // the clock is read every 64 calls (72,000 paths a sheet read it 150,000 times: 4% of Find)
+    int drawing;
+    fz_matrix transform; // the draw device's own, from what it is handed to its pixels
+    fz_irect pixels;     // the draw device's pixels
 } inkv_guard;
+
+// What drawing a pattern's tile costs the draw device, each tile and each of its pixels: on an M1 MacBook Air, 194 M tiles of
+// 81 pixels (a 1-point cell every 0.05 point at 600 dpi) took 16-17 s, 85 ns a tile.
+#define INKV_TILE_SECONDS 30e-9
+#define INKV_TILE_PIXEL_SECONDS 0.7e-9
 
 #define TARGET(dev) (((inkv_guard *)(dev))->target)
 
@@ -167,21 +198,39 @@ typedef struct {
 static void guard_check(fz_context *ctx, fz_device *dev) {
     inkv_guard *g = (inkv_guard *)dev;
     inkv_cookie *c = g->cookie;
-    if (c->stopped || c->cancelled || (++g->calls & 63) == 0) inkv_watch(ctx, c, FZ_ERROR_ABORT);
+    if (atomic_load(&c->stopped) || atomic_load(&c->cancelled) || (++g->calls & 63) == 0) inkv_watch(ctx, c, FZ_ERROR_ABORT);
 }
 
-/// Refuses a picture (or its soft mask) of more samples than the cookie allows, before MuPDF decodes any of it.
+/// Refuses a picture (or its soft mask) of more pixels than the cookie allows, before MuPDF decodes any of it; the
+/// time is looked at before every picture, as decoding one can take a second.
 static void guard_picture(fz_context *ctx, fz_device *dev, fz_image *image) {
     inkv_cookie *c = ((inkv_guard *)dev)->cookie;
-    guard_check(ctx, dev);
-    for (int depth = 0; image && depth < 4 && c->max_samples > 0; depth++, image = image->mask) {
-        double samples = (double)image->w * (double)image->h * (double)(image->n > 0 ? image->n : 1);
-        if (samples > c->max_samples) {
-            c->stopped = INKV_STOP_LARGE;
-            c->cookie.abort = 1;
-            fz_throw(ctx, FZ_ERROR_ABORT, "A picture on the page is too large.");
-        }
-    }
+    inkv_watch(ctx, c, FZ_ERROR_ABORT);
+    for (int depth = 0; image && depth < 4 && c->max_pixels > 0; depth++, image = image->mask)
+        if ((double)image->w * (double)image->h > c->max_pixels)
+            inkv_stop(ctx, c, INKV_STOP_LARGE, FZ_ERROR_ABORT, "A picture on the page is too large.");
+}
+
+/// Refuses a pattern whose tiles would take the draw device longer than the part's time left: it draws every tile
+/// inside one call (its end of the tile), which nothing stops. The tiles are counted over what its pixels show of the
+/// area, as the draw device counts them, each the size of the pattern's cell (a cell larger than its step overlaps).
+static void guard_tiles(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm) {
+    inkv_guard *g = (inkv_guard *)dev;
+    inkv_cookie *c = g->cookie;
+    inkv_watch(ctx, c, FZ_ERROR_ABORT);
+    if (!g->drawing || c->deadline <= 0) return;
+    fz_matrix m = fz_concat(ctm, g->transform); // pattern space to pixels
+    fz_rect shown = fz_intersect_rect(area, fz_transform_rect(fz_rect_from_irect(g->pixels), fz_invert_matrix(m)));
+    if (fz_is_empty_rect(shown)) return;
+    double cell_w = fmax(view.x1 - view.x0, 0), cell_h = fmax(view.y1 - view.y0, 0);
+    double across = (shown.x1 - shown.x0 + cell_w) / fabs((double)xstep) + 1;
+    double down = (shown.y1 - shown.y0 + cell_h) / fabs((double)ystep) + 1;
+    fz_rect cell = fz_transform_rect(view, m);
+    double cell_pixels = fmax(cell.x1 - cell.x0, 1) * fmax(cell.y1 - cell.y0, 1);
+    double cost = across * down * (INKV_TILE_SECONDS + cell_pixels * INKV_TILE_PIXEL_SECONDS);
+    // A step of 0 (or not a number) gives no finite cost: refused too.
+    if (!(cost <= c->deadline - inkv_cpu()))
+        inkv_stop(ctx, c, INKV_STOP_SLOW, FZ_ERROR_ABORT, "A pattern on the page has too many tiles to draw in time.");
 }
 
 static void guard_fill_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_colorspace *cs,
@@ -236,7 +285,7 @@ static void guard_ignore_text(fz_context *ctx, fz_device *dev, const fz_text *te
 }
 
 static void guard_fill_shade(fz_context *ctx, fz_device *dev, fz_shade *shade, fz_matrix ctm, float alpha, fz_color_params cp) {
-    guard_check(ctx, dev);
+    inkv_watch(ctx, ((inkv_guard *)dev)->cookie, FZ_ERROR_ABORT); // a shading's mesh is drawn in one call
     FORWARD(dev, fill_shade, shade, ctm, alpha, cp);
 }
 
@@ -275,7 +324,7 @@ static void guard_begin_group(fz_context *ctx, fz_device *dev, fz_rect area, fz_
 static void guard_end_group(fz_context *ctx, fz_device *dev) { fz_end_group(ctx, TARGET(dev)); }
 
 static int guard_begin_tile(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id) {
-    guard_check(ctx, dev);
+    guard_tiles(ctx, dev, area, view, xstep, ystep, ctm);
     return fz_begin_tile_id(ctx, TARGET(dev), area, view, xstep, ystep, ctm, id);
 }
 
@@ -341,6 +390,133 @@ static fz_device *inkv_new_guard(fz_context *ctx, fz_device *target, inkv_cookie
     return &g->super;
 }
 
+/// A guard in front of a draw device made with `transform` over `pix` (NULL without a cookie: nothing to guard). Throws.
+static fz_device *inkv_new_draw_guard(fz_context *ctx, fz_device *draw, inkv_cookie *cookie, fz_matrix transform, fz_pixmap *pix) {
+    if (!cookie) return NULL;
+    inkv_guard *g = (inkv_guard *)inkv_new_guard(ctx, draw, cookie);
+    g->drawing = 1;
+    g->transform = transform;
+    g->pixels = fz_pixmap_bbox(ctx, pix);
+    return &g->super;
+}
+
+// ---- A page's streams, before it is read ----
+
+/// Filters that make more bytes than they read; two in a row make at most a megabyte of each byte (Flate's 1,032 to 1,
+/// twice), which the document's stream sees within milliseconds. No real file chains more.
+static const char *const inkv_inflating[] = {
+    "FlateDecode", "Fl", "LZWDecode", "LZW", "RunLengthDecode", "RL", "BrotliDecode", "Br", "CCITTFaxDecode", "CCF",
+    "JBIG2Decode", "DCTDecode", "DCT", "JPXDecode",
+};
+#define INKV_MAX_INFLATING 2
+
+static int inkv_inflates(fz_context *ctx, pdf_obj *filter) {
+    int many = pdf_is_array(ctx, filter), n = many ? pdf_array_len(ctx, filter) : 1, count = 0;
+    for (int i = 0; i < n; i++) {
+        const char *name = pdf_to_name(ctx, many ? pdf_array_get(ctx, filter, i) : filter);
+        for (size_t k = 0; k < sizeof(inkv_inflating) / sizeof(*inkv_inflating); k++)
+            if (!strcmp(name, inkv_inflating[k])) {
+                count++;
+                break;
+            }
+    }
+    return count;
+}
+
+/// Keys that lead away from what drawing the page reads: up the page tree, to other pages, actions, the outline.
+static int inkv_away(fz_context *ctx, pdf_obj *key) {
+    static pdf_obj *const keys[] = {
+        PDF_NAME(Parent), PDF_NAME(P), PDF_NAME(Dest), PDF_NAME(A), PDF_NAME(AA), PDF_NAME(Next), PDF_NAME(Prev),
+        PDF_NAME(First), PDF_NAME(Last), PDF_NAME(Popup), PDF_NAME(IRT), PDF_NAME(Thumb), PDF_NAME(B), PDF_NAME(PieceInfo),
+        PDF_NAME(Metadata),
+    };
+    for (size_t k = 0; k < sizeof(keys) / sizeof(*keys); k++)
+        if (pdf_name_eq(ctx, key, keys[k])) return 1;
+    return 0;
+}
+
+/// Refuses the page (INKV_STOP_FILTERS) when a stream it reaches (its content, forms, patterns, pictures, fonts,
+/// shadings, its annotations' appearances) is decompressed more than twice in a row: the inner filters' bytes never
+/// reach the document's stream, so nothing would bound them. Each object once; the call's time and Cancel looked at as
+/// it goes. Throws.
+static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
+    pdf_page *pp = c ? pdf_page_from_fz_page(ctx, page) : NULL;
+    if (!pp) return;
+    pdf_obj **stack = NULL, *at = NULL;
+    unsigned char *seen = NULL;
+    int top = 0, capacity = 64, bits = 0;
+    unsigned steps = 0;
+    fz_var(stack);
+    fz_var(at);
+    fz_var(seen);
+    fz_var(top);
+    fz_var(capacity);
+    fz_var(bits);
+    fz_try(ctx) {
+        pdf_obj *root = pdf_resolve_indirect(ctx, pp->obj);
+        stack = fz_malloc_array(ctx, capacity, pdf_obj *);
+        stack[top++] = pdf_keep_obj(ctx, pp->obj);
+        while (top > 0) {
+            at = stack[--top];
+            if ((++steps & 255) == 0) inkv_watch(ctx, c, FZ_ERROR_ABORT);
+            fz_try(ctx) {
+                pdf_obj *o = at;
+                int visit = 1;
+                if (pdf_is_indirect(ctx, at)) {
+                    int num = pdf_to_num(ctx, at);
+                    if (num >= bits) {
+                        // Objects an edit or a repair added are past the length the walk started with.
+                        int more = num + 1 > 2 * bits ? num + 1 : 2 * bits;
+                        size_t had = bits ? (size_t)bits / 8 + 1 : 0, need = (size_t)more / 8 + 1;
+                        seen = fz_realloc(ctx, seen, need);
+                        memset(seen + had, 0, need - had);
+                        bits = more;
+                    }
+                    if (num <= 0 || (seen[num >> 3] & (1 << (num & 7)))) visit = 0;
+                    else {
+                        seen[num >> 3] |= (unsigned char)(1 << (num & 7));
+                        if (pdf_is_stream(ctx, at) && inkv_inflates(ctx, pdf_dict_get(ctx, at, PDF_NAME(Filter))) > INKV_MAX_INFLATING)
+                            inkv_stop(ctx, c, INKV_STOP_FILTERS, FZ_ERROR_ABORT, "A stream on the page is decompressed too many times.");
+                        o = pdf_resolve_indirect(ctx, at);
+                    }
+                }
+                if (visit && pdf_is_dict(ctx, o)) {
+                    pdf_obj *type = pdf_dict_get(ctx, o, PDF_NAME(Type));
+                    if (o != root && (pdf_name_eq(ctx, type, PDF_NAME(Page)) || pdf_name_eq(ctx, type, PDF_NAME(Pages)))) visit = 0;
+                }
+                int dict = visit && pdf_is_dict(ctx, o), n = !visit ? 0 : dict ? pdf_dict_len(ctx, o) : pdf_is_array(ctx, o) ? pdf_array_len(ctx, o) : 0;
+                for (int i = 0; i < n; i++) {
+                    if (dict && inkv_away(ctx, pdf_dict_get_key(ctx, o, i))) continue;
+                    pdf_obj *v = dict ? pdf_dict_get_val(ctx, o, i) : pdf_array_get(ctx, o, i);
+                    // Numbers, names and strings lead nowhere.
+                    if (!pdf_is_indirect(ctx, v) && !pdf_is_dict(ctx, v) && !pdf_is_array(ctx, v)) continue;
+                    if (top == capacity) {
+                        stack = fz_realloc_array(ctx, stack, capacity * 2, pdf_obj *);
+                        capacity *= 2;
+                    }
+                    stack[top++] = pdf_keep_obj(ctx, v);
+                }
+            }
+            fz_always(ctx) {
+                pdf_drop_obj(ctx, at);
+                at = NULL;
+            }
+            fz_catch(ctx) {
+                // A damaged object is MuPDF's to report when it draws; the walk goes on. A stop doesn't.
+                if (atomic_load(&c->stopped) || fz_caught(ctx) == FZ_ERROR_TRYLATER || fz_caught(ctx) == FZ_ERROR_SYSTEM)
+                    fz_rethrow(ctx);
+                fz_ignore_error(ctx);
+            }
+        }
+    }
+    fz_always(ctx) {
+        while (top > 0) pdf_drop_obj(ctx, stack[--top]);
+        fz_free(ctx, stack);
+        fz_free(ctx, seen);
+    }
+    fz_catch(ctx) fz_rethrow(ctx);
+}
+
 /// An open document and the pages it keeps loaded: at most `capacity`, the least recently used freed first (with
 /// their display lists), so memory stays bounded however far a long document is scrolled.
 struct inkv_doc {
@@ -358,20 +534,27 @@ struct inkv_doc {
 /// Starts a call that reads a page's content with `c` (NULL: unbounded): its first part's time from now.
 static void inkv_begin(inkv_doc *d, inkv_cookie *c) {
     if (c) {
-        c->stopped = c->cancelled ? INKV_STOP_CANCELLED : 0;
-        c->cookie.abort = c->cancelled;
-        c->deadline = c->seconds > 0 ? inkv_now() + c->seconds : 0;
+        atomic_store(&c->stopped, atomic_load(&c->cancelled) ? INKV_STOP_CANCELLED : 0);
+        // A cookie used again starts unaborted, unless it was cancelled: a cancel racing this clear sets it again
+        // after (it sets `cancelled` first, then the abort; this clears, then looks at `cancelled` again).
+        if (!atomic_load(&c->cancelled)) {
+            __atomic_store_n(&c->cookie.abort, 0, __ATOMIC_SEQ_CST);
+            if (atomic_load(&c->cancelled)) inkv_set_abort(c);
+        } else {
+            inkv_set_abort(c);
+        }
+        c->deadline = c->seconds > 0 ? inkv_cpu() + c->seconds : 0;
     }
     if (d->src) {
         d->src->active = c;
         d->src->chunk = 16;
-        d->src->last = inkv_now();
+        d->src->last = inkv_cpu();
     }
 }
 
 /// The call's next part (drawing what was read) gets a budget of its own.
 static void inkv_next_part(inkv_cookie *c) {
-    if (c && c->seconds > 0) c->deadline = inkv_now() + c->seconds;
+    if (c && c->seconds > 0) c->deadline = inkv_cpu() + c->seconds;
 }
 
 static void inkv_end(inkv_doc *d) {
@@ -382,7 +565,10 @@ static void inkv_end(inkv_doc *d) {
 }
 
 /// Whether the call that used `c` was stopped (its time, a picture, Cancel).
-static int inkv_halted(inkv_cookie *c) { return c && (c->stopped || c->cancelled); }
+static int inkv_halted(inkv_cookie *c) { return c && (atomic_load(&c->stopped) || atomic_load(&c->cancelled)); }
+
+/// Whether MuPDF was asked to stop (the cookie's own flag, which a cancel sets from another thread).
+static int inkv_aborted(inkv_cookie *c) { return c && (inkv_halted(c) || __atomic_load_n(&c->cookie.abort, __ATOMIC_SEQ_CST)); }
 
 /// Copies the caught error's message for Swift and marks it handled (MuPDF warns of errors a catch leaves unreported).
 static void inkv_error(fz_context *ctx, char *err) {
@@ -471,6 +657,7 @@ static fz_display_list *inkv_new_list(fz_context *ctx, fz_page *page, int conten
     fz_var(dev);
     fz_var(guard);
     fz_try(ctx) {
+        inkv_check_streams(ctx, page, c);
         dev = fz_new_list_device(ctx, list);
         guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
         fz_device *run = guard ? guard : dev;
@@ -669,31 +856,37 @@ void inkv_loaded(inkv_doc *d, int *pages, int *lists) {
 inkv_cookie *inkv_new_cookie(void) { return calloc(1, sizeof(inkv_cookie)); }
 void inkv_cookie_abort(inkv_cookie *c) {
     if (!c) return;
-    c->cancelled = 1;
-    c->cookie.abort = 1;
+    atomic_store(&c->cancelled, 1);
+    inkv_set_abort(c);
 }
 void inkv_drop_cookie(inkv_cookie *c) { free(c); }
 
-void inkv_cookie_limit(inkv_cookie *c, double seconds, double max_samples) {
+void inkv_cookie_limit(inkv_cookie *c, double seconds, double max_pixels) {
     if (!c) return;
     c->seconds = seconds > 0 ? seconds : 0;
-    c->max_samples = max_samples > 0 ? max_samples : 0;
+    c->max_pixels = max_pixels > 0 ? max_pixels : 0;
 }
 
 int inkv_cookie_stopped(inkv_cookie *c) {
     if (!c) return 0;
-    return c->stopped ? c->stopped : c->cancelled ? INKV_STOP_CANCELLED : 0;
+    int stopped = atomic_load(&c->stopped);
+    return stopped ? stopped : atomic_load(&c->cancelled) ? INKV_STOP_CANCELLED : 0;
+}
+
+void inkv_test_slow_reads(inkv_doc *d, double seconds) {
+    if (d && d->src) d->src->delay = seconds > 0 ? seconds : 0;
 }
 
 static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, float scale, float x0, float y0, float x1, float y1,
                       inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
-    fz_device *dev = NULL;
+    fz_device *dev = NULL, *guard = NULL;
     fz_display_list *own = NULL;
     int aborted = 0;
     fz_var(pix);
     fz_var(dev);
+    fz_var(guard);
     fz_var(own);
     fz_var(aborted);
     *pixels = NULL;
@@ -709,9 +902,11 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), box, NULL, 0);
         fz_clear_pixmap_with_value(ctx, pix, 255);
         dev = fz_new_draw_device(ctx, fz_identity, pix);
-        fz_run_display_list(ctx, list, dev, ctm, fz_transform_rect(area, ctm), cookie ? &cookie->cookie : NULL);
+        guard = inkv_new_draw_guard(ctx, dev, cookie, fz_identity, pix);
+        fz_run_display_list(ctx, list, guard ? guard : dev, ctm, fz_transform_rect(area, ctm), cookie ? &cookie->cookie : NULL);
+        if (guard) fz_close_device(ctx, guard);
         fz_close_device(ctx, dev);
-        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) {
+        if (inkv_aborted(cookie)) {
             aborted = 1;
         } else {
             int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
@@ -726,13 +921,14 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         }
     }
     fz_always(ctx) {
+        fz_drop_device(ctx, guard);
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
         fz_drop_display_list(ctx, own);
         inkv_end(d);
     }
     fz_catch(ctx) {
-        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) {
+        if (inkv_aborted(cookie)) {
             fz_ignore_error(ctx);
             return 2;
         }
@@ -755,9 +951,10 @@ int inkv_render_rgb_contents(void *vctx, inkv_doc *d, int index, float scale, fl
 int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char *path, int jpeg, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
-    fz_device *dev = NULL;
+    fz_device *dev = NULL, *guard = NULL;
     fz_var(pix);
     fz_var(dev);
+    fz_var(guard);
     inkv_begin(d, cookie);
     fz_try(ctx) {
         fz_display_list *list = inkv_list(ctx, d, index, cookie);
@@ -767,13 +964,16 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(fz_transform_rect(fz_bound_display_list(ctx, list), ctm)), NULL, 0);
         fz_clear_pixmap_with_value(ctx, pix, 255);
         dev = fz_new_draw_device(ctx, ctm, pix);
-        fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
+        guard = inkv_new_draw_guard(ctx, dev, cookie, ctm, pix);
+        fz_run_display_list(ctx, list, guard ? guard : dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
+        if (guard) fz_close_device(ctx, guard);
         fz_close_device(ctx, dev);
-        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
+        if (inkv_aborted(cookie)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
         if (jpeg) fz_save_pixmap_as_jpeg(ctx, pix, path, 90);
         else fz_save_pixmap_as_png(ctx, pix, path);
     }
     fz_always(ctx) {
+        fz_drop_device(ctx, guard);
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
         inkv_end(d);
@@ -792,6 +992,7 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
 /// Runs the page (its own content, or with its annotations and widgets) into a text device, under the cookie's
 /// bounds; throws when the reading was stopped. Throws.
 static void inkv_run_text(fz_context *ctx, fz_page *page, int annotations, fz_device *dev, inkv_cookie *c) {
+    inkv_check_streams(ctx, page, c);
     fz_device *guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
     fz_try(ctx) {
         fz_device *run = guard ? guard : dev;
@@ -1864,7 +2065,12 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
                 e->width = img ? img->w : 0;
                 e->height = img ? img->h : 0;
                 e->jpeg = (long long)e->width * e->height > jpeg_above;
-                if (images == 1 && img && e->width > 0 && e->height > 0) inkv_encode_image(ctx, img, e->jpeg, e); /* 2: where it is, without its pixels */
+                if (images == 1 && img && e->width > 0 && e->height > 0) {
+                    // Each picture is decoded whole (a second for the largest allowed): Cancel, closing and the
+                    // encoding's time are looked at between them.
+                    inkv_watch(ctx, cookie, FZ_ERROR_ABORT);
+                    inkv_encode_image(ctx, img, e->jpeg, e);
+                } /* 2: where it is, without its pixels */
             } else if (b->type == FZ_STEXT_BLOCK_VECTOR) {
                 inkv_evector *e = &out->vectors[out->vector_count++];
                 e->x0 = b->bbox.x0;
@@ -1898,9 +2104,10 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
                             uint8_t **pixels, int *width, int *height, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
-    fz_device *dev = NULL;
+    fz_device *dev = NULL, *guard = NULL;
     fz_var(pix);
     fz_var(dev);
+    fz_var(guard);
     *pixels = NULL;
     inkv_begin(d, cookie);
     fz_try(ctx) {
@@ -1911,9 +2118,11 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(area), NULL, 1);
         fz_clear_pixmap(ctx, pix);
         dev = fz_new_draw_device(ctx, fz_identity, pix);
-        fz_run_display_list(ctx, list, dev, ctm, area, cookie ? &cookie->cookie : NULL);
+        guard = inkv_new_draw_guard(ctx, dev, cookie, fz_identity, pix);
+        fz_run_display_list(ctx, list, guard ? guard : dev, ctm, area, cookie ? &cookie->cookie : NULL);
+        if (guard) fz_close_device(ctx, guard);
         fz_close_device(ctx, dev);
-        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
+        if (inkv_aborted(cookie)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
         int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
         size_t stride = (size_t)fz_pixmap_stride(ctx, pix), row = (size_t)w * 4;
         uint8_t *px = malloc(row * (size_t)(h > 0 ? h : 1));
@@ -1934,6 +2143,7 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
         *height = h;
     }
     fz_always(ctx) {
+        fz_drop_device(ctx, guard);
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
         inkv_end(d);

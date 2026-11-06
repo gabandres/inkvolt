@@ -20,8 +20,14 @@ struct PageCheckTests {
     /// What a refusal may take past the limit on a loaded runner.
     static let slack = 3.0
 
-    /// A zlib stream (RFC 1950) of `head` then `zeros` zero bytes, deflated as it goes (4 GB is never held).
+    /// A zlib stream (RFC 1950) of `head` then `zeros` zero bytes, built by hand (`HandDeflate`): 4 GB costs microseconds and
+    /// is never held. MuPDF inflates it as any zlib stream (TheHandBuiltBombsInflateToWhatTheySay).
     static func zlib(_ head: [UInt8], zeros: Int) -> [UInt8] {
+        HandDeflate.zlib(RunBytes(head: head, count: zeros)).bytes
+    }
+
+    /// A zlib stream of real data (pictures, drawings), by Apple's Compression.
+    static func zlib(_ data: [UInt8]) -> [UInt8] {
         var out: [UInt8] = [0x78, 0x9C]
         let stream = UnsafeMutablePointer<compression_stream>.allocate(capacity: 1)
         defer { stream.deallocate() }
@@ -43,33 +49,23 @@ struct PageCheckTests {
                 if status != COMPRESSION_STATUS_OK || (stream.pointee.src_size == 0 && (!final || stream.pointee.dst_size > 0)) { break }
             }
         }
-        head.withUnsafeBufferPointer { pump($0, final: false) }
-        let chunk = [UInt8](repeating: 0, count: 1 << 20)
-        var left = zeros
-        while left > 0 {
-            let n = min(left, chunk.count)
-            chunk.withUnsafeBufferPointer { pump(UnsafeBufferPointer(rebasing: $0.prefix(n)), final: false) }
-            left -= n
-        }
+        data.withUnsafeBufferPointer { pump($0, final: false) }
         [UInt8]().withUnsafeBufferPointer { pump($0, final: true) }
-        // Adler-32 of the head, then of the zeros (a stays, b grows by a for each).
-        var a: UInt64 = 1, b: UInt64 = 0
-        for byte in head {
-            a = (a + UInt64(byte)) % 65521
-            b = (b + a) % 65521
-        }
-        b = (b + a * (UInt64(zeros) % 65521)) % 65521
-        let sum = UInt32(b << 16 | a)
+        let sum = RunBytes(head: data).adler32
         return out + [UInt8(sum >> 24), UInt8((sum >> 16) & 255), UInt8((sum >> 8) & 255), UInt8(sum & 255)]
     }
 
     static let drawn = Array("BT /F1 12 Tf 72 600 Td (Hidden) Tj ET ".utf8)
 
     /// About 4 KB that inflate twice to 4 GB: MuPDF took 52 to 116 s of one core to draw its page on Windows.
-    static let twiceTo4Gb = zlib(zlib(drawn, zeros: 4 << 30), zeros: 0)
+    static let twiceTo4Gb = HandDeflate.zlib(RunBytes(head: drawn, count: 4 << 30), times: 2).bytes
 
     /// About 1 MB that inflates once to 1 GB: 13 s a draw on Windows.
     static let onceTo1Gb = zlib(drawn, zeros: 1 << 30)
+
+    /// Some 100 bytes that inflate four times to 16 GB: each byte the document's stream hands MuPDF makes a gigabyte
+    /// inside the filters, which never read it again while they do.
+    static let fourTimesTo16Gb = HandDeflate.zlib(RunBytes(head: drawn, count: 1 << 34), times: 4).bytes
 
     /// A PDF of numbered objects given as bytes (a stream's data may be anything).
     static func build(_ objects: [[UInt8]]) -> [UInt8] {
@@ -262,9 +258,9 @@ struct PageCheckTests {
     }
 
     @Test func APictureThatInflatesForSecondsIsRefusedAndOneMuPdfStopsAtItsSizeDraws() throws {
-        // 20,000 x 20,000 RGB is 1.2 GB of samples: MuPDF inflates all of them for every draw, whatever the zoom (9 s a
-        // draw on Windows), and doesn't look at the render's cookie while it does. Refused for its size before MuPDF
-        // reads a sample of it. 1.2 MB of file.
+        // 20,000 x 20,000 RGB is 400 M pixels, 1.2 GB of samples: MuPDF inflates all of them for every draw, whatever
+        // the zoom (9 s a draw on Windows), and doesn't look at the render's cookie while it does. Refused for its size
+        // before MuPDF reads a sample of it. 1.2 MB of file.
         let samples = 20_000 * 20_000 * 3
         let bomb = Self.picture(Self.zlib([], zeros: samples), "/Type /XObject /Subtype /Image /Width 20000 /Height 20000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode")
         #expect(bomb.count < 2 << 20, "\(bomb.count) bytes")
@@ -282,6 +278,237 @@ struct PageCheckTests {
         defer { engine.close() }
         _ = try engine.render(0, scale: 0.25)
         #expect(engine.verdictOf(0) == .fine)
+    }
+
+    @Test func APictureLargerThanWindowsDecodesIsRefused() throws {
+        // 17,000 x 17,000 gray, 289 M pixels: more than Windows' check process decodes (268 M, half its 2 GB at 4 bytes a
+        // pixel), which the Mac's first limit (a billion samples) let MuPDF decode, seconds for every draw.
+        let bomb = Self.picture(Self.zlib([], zeros: 17_000 * 17_000), "/Type /XObject /Subtype /Image /Width 17000 /Height 17000 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode")
+        let engine = try Self.open(bomb, budget: 120)
+        defer { engine.close() }
+        let took = Self.time { #expect(Self.refused { _ = try engine.render(0, scale: 0.25) }?.tooSlow == false) }
+        #expect(took < Self.slack, "\(took) s")
+        #expect(engine.verdictOf(0) == .failed)
+    }
+
+    /// A page of 24 pictures of 6,000 x 6,000 gray (each its own object), which export decodes whole and encodes as PNG
+    /// one after another: seconds in all.
+    static let manyPictures: [UInt8] = {
+        let count = 24
+        let names = (0..<count).map { "/I\($0) \($0 + 5) 0 R" }.joined(separator: " ")
+        let content = (0..<count).map { "q 20 0 0 20 \(50 + ($0 % 6) * 80) \(100 + ($0 / 6) * 80) cm /I\($0) Do Q" }.joined(separator: "\n")
+        let picture = PageCheckTests.stream(PageCheckTests.zlib([], zeros: 6000 * 6000), "/Type /XObject /Subtype /Image /Width 6000 /Height 6000 /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode")
+        let objects: [[UInt8]] = [
+            PageCheckTests.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+            PageCheckTests.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            PageCheckTests.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << \(names) >> >> >>"),
+            PageCheckTests.stream(content),
+        ]
+        return PageCheckTests.build(objects + Array(repeating: picture, count: count))
+    }()
+
+    @Test(arguments: ["Cancel", "closing the document"])
+    func ExportStopsBetweenPicturesOn(_ how: String) throws {
+        let engine = try Self.open(Self.manyPictures, budget: 120)
+        defer { engine.close() }
+        let cancel = CancelToken()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+            if how == "Cancel" { cancel.cancel() } else { engine.close() }
+        }
+        let took = Self.time {
+            do {
+                _ = try engine.exportRead(0, images: true, jpegAbovePixels: 1 << 40, cancel: cancel)
+                Issue.record("\(how): export wasn't stopped")
+            } catch is CancellationError {
+            } catch is PdfEngineClosed {
+            } catch {
+                Issue.record("\(how): threw \(error)")
+            }
+        }
+        #expect(took < 0.5 + 1.5, "\(how): \(took) s")
+        #expect(engine.verdictOf(0) == .unknown)
+    }
+
+    @Test(arguments: ["the page's content", "a form the page draws"])
+    func AStreamInflatedMoreThanTwiceIsRefusedAtOnce(_ place: String) throws {
+        // Four Flates: the document's stream hands MuPDF a byte, and the three inner filters make gigabytes of it without
+        // reading the file again, so no bound on the file's bytes sees them; MuPDF's lexer skips the zeros as white space.
+        // Refused before anything is read, whatever the budget; the rest of the document reads.
+        let filter = "/Filter [/FlateDecode /FlateDecode /FlateDecode /FlateDecode]"
+        let form = place.contains("form")
+        let file = form
+            ? Self.build([
+                Self.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+                Self.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+                Self.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /XObject << /Fm 5 0 R >> >> >>"),
+                Self.stream("q /Fm Do Q"),
+                Self.stream(Self.fourTimesTo16Gb, "/Type /XObject /Subtype /Form /BBox [0 0 612 792] /Resources << /Font << /F1 6 0 R >> >> " + filter),
+                Self.obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+            ])
+            : Self.threePages(Self.fourTimesTo16Gb, filter)
+        #expect(file.count < 4 << 10, "\(file.count) bytes")
+        let engine = try Self.open(file, budget: 120)
+        defer { engine.close() }
+        let page = form ? 0 : 1
+        var refusal: PageRefused?
+        let took = Self.time { refusal = Self.refused { _ = try engine.render(page, scale: 0.5) } }
+        #expect(took < Self.slack, "\(place): \(took) s")
+        #expect(refusal?.tooSlow == false)
+        #expect(engine.verdictOf(page) == .failed)
+        if !form { #expect(try engine.text(0).text.contains("Visit notes")) }
+    }
+
+    @Test func TheHandBuiltBombsInflateToWhatTheySay() throws {
+        // Adler-32 as zlib reckons it ("Wikipedia" is RFC 1950's example), a run counted in one step as byte by byte.
+        #expect(RunBytes(head: Array("Wikipedia".utf8)).adler32 == 0x11E6_0398)
+        #expect(RunBytes(head: Array("Wiki".utf8), byte: 0x70, count: 1, tail: Array("edia".utf8)).adler32 == 0x11E6_0398)
+        let long = RunBytes(head: [1, 2], byte: 7, count: 100_000, tail: [9])
+        #expect(long.adler32 == RunBytes(head: long.bytes).adler32)
+        // MuPDF inflates them, one layer or two, to the run and what follows it.
+        let after = Array(" BT /F1 12 Tf 72 500 Td (After) Tj ET".utf8)
+        for (count, times) in [(0, 1), (1, 1), (258, 1), (259, 1), (100_000, 1), (100_000, 2), (5_000_000, 2)] {
+            let data = RunBytes(head: Self.drawn, byte: 0x20, count: count, tail: after)
+            let content = HandDeflate.zlib(data, times: times).bytes
+            let filter = "/Filter [" + String(repeating: "/FlateDecode ", count: times) + "]"
+            let engine = try Self.open(Self.threePages(content, filter), budget: 0)
+            defer { engine.close() }
+            let text = try engine.text(1).text
+            #expect(text.contains("Hidden") && text.contains("After"), "\(count) x \(times)")
+            // And Apple's own inflater gives back the bytes exactly (one layer: its raw deflate, between zlib's header and sum).
+            if times == 1, count <= 100_000 {
+                let raw = Data(content[2..<(content.count - 4)])
+                let back = try (raw as NSData).decompressed(using: .zlib) as Data
+                #expect([UInt8](back) == data.bytes, "\(count)")
+            }
+        }
+    }
+
+    /// A page filled with a pattern whose 1-point cell repeats every 0.05 point: 194 million tiles, which the draw device
+    /// draws inside one call.
+    static let tinyTiles = build([
+        obj("<< /Type /Catalog /Pages 2 0 R >>"),
+        obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+        obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Pattern << /P1 5 0 R >> >> >>"),
+        stream("/Pattern cs /P1 scn 0 0 612 792 re f"),
+        stream("0 0 1 1 re f", "/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 1 1] /XStep 0.05 /YStep 0.05 /Resources << >>"),
+    ])
+
+    @Test(arguments: ["render", "saveImage", "renderRegionRgba"])
+    func APatternOfMillionsOfTilesIsRefusedWithinTheLimit(_ call: String) throws {
+        let engine = try Self.open(Self.tinyTiles)
+        defer { engine.close() }
+        let path = NSTemporaryDirectory() + "inkvolt-tiles-\(NewIds.hex().prefix(8)).png"
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let scale = 600 / 72.0
+        var refusal: PageRefused?
+        let took = Self.time {
+            refusal = Self.refused {
+                switch call {
+                case "render": _ = try engine.render(0, scale: scale)
+                case "saveImage": try engine.saveImage(0, dpi: 600, path: path, jpeg: false)
+                default: _ = try engine.renderRegionRgba(0, RectD(0, 0, 612, 792), scale: scale, cancel: nil)
+                }
+            }
+        }
+        #expect(took < Self.limit + Self.slack, "\(call): \(took) s")
+        #expect(refusal?.tooSlow == true, "\(call)")
+        #expect(!FileManager.default.fileExists(atPath: path))
+    }
+
+    @Test func ARealPatternStillDrawsInFull() throws {
+        // A hatch in 6-point cells over the page at 600 dpi (17,000 tiles), and a 1-point dot screen (485,000): drawn at
+        // the app's budget as without one.
+        for (step, cell) in [(6, "0 0 m 6 6 l S"), (1, "0.25 0.25 0.5 0.5 re f")] {
+            let file = Self.build([
+                Self.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+                Self.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+                Self.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Pattern << /P1 5 0 R >> >> >>"),
+                Self.stream("/Pattern cs /P1 scn 0 0 612 792 re f"),
+                Self.stream(cell, "/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 \(step) \(step)] /XStep \(step) /YStep \(step) /Resources << >>"),
+            ])
+            let budgeted = try PdfEngine.open(file)
+            defer { budgeted.close() }
+            let plain = try Self.open(file, budget: 0)
+            defer { plain.close() }
+            let scale = 600 / 72.0
+            #expect(try budgeted.render(0, scale: scale).pixels == plain.render(0, scale: scale).pixels, "\(step)")
+            #expect(budgeted.verdictOf(0) == .fine)
+        }
+    }
+
+    @Test func UnregisteringWaitsForAHandlerCancelIsRunning() {
+        // A call's handler aborts its cookie, which the call frees once it has unregistered it; cancel() on another
+        // thread may be running the handler right then. Hammered: the handler looks at its cookie twice, a little apart;
+        // every other time the call ends just as the handler starts, else whenever it happens to.
+        final class Cookie: @unchecked Sendable {
+            private let lock = NSLock()
+            private var freed = false
+            private var touchedFreed = false
+            func touch() { lock.withLock { if freed { touchedFreed = true } } }
+            func free() { lock.withLock { freed = true } }
+            var wasTouchedFreed: Bool { lock.withLock { touchedFreed } }
+        }
+        var touched = 0
+        for i in 0..<2_000 {
+            let token = CancelToken()
+            let cookie = Cookie()
+            let started = DispatchSemaphore(value: 0)
+            let id = token.register {
+                started.signal()
+                cookie.touch()
+                let end = DispatchTime.now().uptimeNanoseconds + 20_000
+                while DispatchTime.now().uptimeNanoseconds < end {}
+                cookie.touch()
+            }
+            let done = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                token.cancel()
+                done.signal()
+            }
+            if i % 2 == 0 { started.wait() }
+            token.unregister(id)
+            cookie.free()
+            done.wait()
+            if cookie.wasTouchedFreed { touched += 1 }
+        }
+        #expect(touched == 0, "\(touched) of 2,000 handlers touched a freed cookie")
+    }
+
+    @Test func SlowReadsDontShrinkTheChunksOrRefuseAPage() throws {
+        // A file on a slow share or iCloud: every read of its bytes waits 5 ms. The page's 200 KB of content is read in
+        // chunks that grow as MuPDF uses them up quickly, as from a fast disk: dozens of reads, not 200,000 of a byte.
+        var content = "0.5 w 0 0 0 RG\n"
+        var rng = SplitMix(seed: 7)
+        while content.utf8.count < 200_000 {
+            let x = rng.next(600), y = rng.next(780)
+            content += "\(x) \(y) m \(x + 5) \(y + 5) l S\n"
+        }
+        let file = Self.build([
+            Self.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+            Self.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            Self.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>"),
+            Self.stream(content),
+        ])
+        let engine = try Self.open(file)
+        defer { engine.close() }
+        engine.slowReadsForTests(0.005)
+        let took = try Self.time { _ = try engine.render(0, scale: 0.25) }
+        #expect(took < 2, "\(took) s")
+        #expect(engine.verdictOf(0) == .fine)
+    }
+
+    @Test func TheBudgetIsThePagesOwnTimeNotTimeSpentWaiting() throws {
+        // Waiting isn't reading: a busy machine (Find's threads, the viewer's) or a slow disk holds a page's reading up
+        // past the budget without it costing the page anything. Every read here waits a quarter of a second, past the
+        // limit in all; the page's own time is milliseconds, so it isn't refused (for good, as a refusal would be).
+        let engine = try Self.open(Self.threePages(Array("BT /F1 12 Tf 72 600 Td (Second) Tj ET".utf8), ""))
+        defer { engine.close() }
+        engine.slowReadsForTests(0.25)
+        var pixels: [UInt8] = []
+        let took = try Self.time { pixels = try engine.render(1, scale: 0.5).pixels }
+        #expect(pixels.contains { $0 < 128 })
+        #expect(took > Self.limit, "\(took) s: the reads didn't wait")
+        #expect(engine.verdictOf(1) == .fine)
     }
 
     @Test(arguments: ["a small picture's soft mask", "a pattern's picture"])
@@ -325,7 +552,7 @@ struct PageCheckTests {
         // A real picture of 2,000 x 2,000 shown at 288 dpi is resampled as before.
         var rng = SplitMix(seed: 5)
         let real = (0..<(2000 * 2000 * 3)).map { _ in UInt8(rng.next(256)) }
-        let photo = Self.picture(Self.zlib(real, zeros: 0), "/Type /XObject /Subtype /Image /Width 2000 /Height 2000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode")
+        let photo = Self.picture(Self.zlib(real),"/Type /XObject /Subtype /Image /Width 2000 /Height 2000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode")
         #expect(try Optimizer.optimize(photo, nil, OptimizeOptions(maxImageDpi: 150)).imagesDownsampled == 1)
     }
 
@@ -343,7 +570,7 @@ struct PageCheckTests {
             Self.obj("<< /Type /Catalog /Pages 2 0 R >>"),
             Self.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
             Self.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 2592 1728] /Contents 4 0 R /Resources << /Font << /F2 5 0 R >> >> >>"),
-            Self.stream(Self.zlib(Array(content.utf8), zeros: 0), "/Filter /FlateDecode"),
+            Self.stream(Self.zlib(Array(content.utf8)), "/Filter /FlateDecode"),
             Self.obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
         ])
         let budgeted = try PdfEngine.open(file)

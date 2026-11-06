@@ -314,10 +314,19 @@ public final class PdfEngine: @unchecked Sendable {
         }
     }
 
-    /// Largest picture MuPDF may decode, width × height × components: a gigabyte of samples (a 600 dpi scan of an E-size
-    /// sheet is 540 M; the 20,000 × 20,000 RGB picture that took 9 s a draw on Windows is 1.2 G). A page with a larger
-    /// one is refused before MuPDF decodes any of it; MuPDF decodes all of a picture for every draw, whatever the zoom.
-    public static let maxPictureSamples = 1_000_000_000.0
+    /// Largest picture MuPDF may decode, width × height: 268 million pixels (16,384 × 16,384), where Windows' page check
+    /// refuses one (half its 2 GB process at 4 bytes a pixel, `PageChecks.OutOfResources`). A 600 dpi scan of a D-size
+    /// sheet (311 M) or the 20,000 × 20,000 picture that took 9 s a draw on Windows is larger. A page with a larger one is
+    /// refused before MuPDF decodes any of it; MuPDF decodes all of a picture for every draw, whatever the zoom, a
+    /// second or more for the largest allowed, and the time is looked at between pictures.
+    public static let maxPicturePixels = 268_435_456.0
+
+    /// Test hook: each read of the file's bytes waits `seconds` while a page is read (a slow share or iCloud).
+    func slowReadsForTests(_ seconds: Double) {
+        gate.lock()
+        defer { gate.unlock() }
+        if let main { inkv_test_slow_reads(main.doc, seconds) }
+    }
 
     /// Runs `body`, a call that reads `page`'s content, with a cookie bounding it (Windows' page check, in process): the
     /// engine's `pageBudget` for the reading and again for the drawing, the largest picture, `cancel` and closing the
@@ -328,7 +337,7 @@ public final class PdfEngine: @unchecked Sendable {
         if known.refuses { throw PageRefused(page: page, tooSlow: known == .tooSlow) }
         guard let cookie = inkv_new_cookie() else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
         defer { inkv_drop_cookie(cookie) }
-        inkv_cookie_limit(cookie, verdicts.budget, Self.maxPictureSamples)
+        inkv_cookie_limit(cookie, verdicts.budget, Self.maxPicturePixels)
         let watched = verdicts.watch(cookie)
         defer { verdicts.unwatch(watched) }
         let handler = cancel?.register { inkv_cookie_abort(cookie) }
@@ -353,7 +362,7 @@ public final class PdfEngine: @unchecked Sendable {
         case 2:
             verdicts.set(page, .tooSlow)
             throw PageRefused(page: page, tooSlow: true)
-        case 3:
+        case 3, 4: // a picture too large; a stream decompressed more than twice
             verdicts.set(page, .failed)
             throw PageRefused(page: page, tooSlow: false)
         default:

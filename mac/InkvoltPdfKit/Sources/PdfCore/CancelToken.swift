@@ -3,10 +3,13 @@ import Foundation
 /// Asks running work to stop (the Windows app's `CancellationToken`): a render stops midway (MuPDF's cookie), text and
 /// link reads don't start. Engine calls throw `CancellationError` once it fires. Cancelling is safe from any thread.
 public final class CancelToken: @unchecked Sendable {
-    private let lock = NSLock()
+    private let lock = NSCondition()
     private var cancelled = false
     private var handlers: [Int: () -> Void] = [:]
     private var nextId = 0
+    /// Handlers `cancel()` took and hasn't finished running, and the thread running them.
+    private var running: Set<Int> = []
+    private var runner: pthread_t?
 
     public init() {}
 
@@ -23,10 +26,22 @@ public final class CancelToken: @unchecked Sendable {
             return
         }
         cancelled = true
-        let run = handlers.values
+        let run = handlers
         handlers = [:]
+        running = Set(run.keys)
+        runner = pthread_self()
         lock.unlock()
-        for h in run { h() }
+        // Outside the lock (a handler may look at the token), each one marked done as it ends, for `unregister`.
+        for (id, handler) in run {
+            handler()
+            lock.lock()
+            running.remove(id)
+            lock.broadcast()
+            lock.unlock()
+        }
+        lock.lock()
+        runner = nil
+        lock.unlock()
     }
 
     /// Throws `CancellationError` once cancelled.
@@ -48,11 +63,15 @@ public final class CancelToken: @unchecked Sendable {
         return nextId
     }
 
+    /// The handler won't run from now on: if `cancel()` is running it on another thread, this waits for it to end, so
+    /// what the handler touches may be freed once this returns.
     func unregister(_ id: Int?) {
         guard let id else { return }
         lock.lock()
+        defer { lock.unlock() }
         handlers[id] = nil
-        lock.unlock()
+        // A handler unregistering itself (on the thread running it) doesn't wait for itself.
+        while running.contains(id), let runner, pthread_equal(runner, pthread_self()) == 0 { lock.wait() }
     }
 }
 

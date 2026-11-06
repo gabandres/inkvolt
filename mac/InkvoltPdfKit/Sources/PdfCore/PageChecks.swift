@@ -3,7 +3,8 @@ import MuPDFShim
 import PrintCore
 
 /// A page that isn't drawn or read (Windows' `PageRefusedException`): reading it took longer than its engine's
-/// `pageBudget`, or a picture on it is larger than `PdfEngine.maxPictureSamples`. The rest of the document goes on.
+/// `pageBudget`, a picture on it is larger than `PdfEngine.maxPicturePixels`, or a stream on it is decompressed more
+/// than twice in a row. The rest of the document goes on.
 public struct PageRefused: Error, Equatable, Sendable, CustomStringConvertible {
     public let page: Int
     /// True: it took too long; false: a picture on it is too large to decode.
@@ -30,12 +31,13 @@ public enum PageVerdict: Sendable, Equatable {
     case unknown
     /// Read within the budget.
     case fine
-    /// Its reading ran past the budget: refused from then on.
+    /// Its reading ran past the budget (the reading thread's own time), or a pattern's tiles would: refused from then on.
     case tooSlow
-    /// A picture on it is larger than MuPDF may decode: refused from then on.
+    /// A picture on it is larger than MuPDF may decode, or a stream on it is decompressed more than twice in a row:
+    /// refused from then on.
     case failed
 
-    var refuses: Bool { self == .tooSlow || self == .failed }
+    public var refuses: Bool { self == .tooSlow || self == .failed }
 }
 
 /// An engine's verdicts on its pages, its budget, and the cookies of the calls reading its pages now (all its
