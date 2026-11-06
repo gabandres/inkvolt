@@ -185,9 +185,12 @@ extension DocumentWindowController {
         let progress: @Sendable (Int, Int) -> Void = { done, total in
             onMain { sheet.update(loc("Searching page {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
         }
+        let skipped = SkippedPages()
         let result = await Task.detached { () -> Result<[RedactionMatch], Error> in
-            Result { try RedactionPatterns.find(engine, options, progress: progress, cancel: token) }
+            Result { try RedactionPatterns.find(engine, options, progress: progress, cancel: token, skipped: skipped) }
         }.value
+        // A page the engine refused wasn't searched: said with whatever was found, so nobody takes it as clean.
+        let unsearched = skipped.note.map { " " + $0 } ?? ""
         guard engine === self.engine else { return nil }
         let matches: [RedactionMatch]
         switch result {
@@ -202,17 +205,18 @@ extension DocumentWindowController {
             return nil
         }
         if matches.isEmpty {
-            notify(loc("Nothing matching was found on the pages searched."))
+            notify(loc("Nothing matching was found on the pages searched.") + unsearched)
             return matches
         }
         pages.addRedactions(matches.flatMap { m in m.rects.map { RedactMark(page: m.page, rect: $0.inflate(0.5)) } })
         pages.tool = .redact
         go(matches[0].page)
         let summary = RedactionPatterns.summary(matches)
-        notify(matches.count == 1
+        let marked = matches.count == 1
             ? loc("Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.", summary)
             : loc("Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.",
-                  CoreLanguage.number(matches.count), summary))
+                  CoreLanguage.number(matches.count), summary)
+        notify(marked + unsearched)
         return matches
     }
 

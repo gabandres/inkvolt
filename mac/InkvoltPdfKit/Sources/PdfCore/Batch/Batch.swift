@@ -857,14 +857,16 @@ public enum BatchRunner {
             let engine = try PdfEngine.open(data, password: password)
             defer { engine.close() }
             var hadText = 0
+            let skipped = SkippedPages()
             for p in 0..<engine.pageCount {
                 try cancel.check()
                 report(loc("Recognizing text: page {0} of {1}…", CoreLanguage.number(p + 1), CoreLanguage.number(engine.pageCount)), Double(p) / Double(engine.pageCount))
-                if try TextLayer.hasText(engine, p, cancel: cancel) {
+                guard let has = try skipped.unlessRefused({ try TextLayer.hasText(engine, p, cancel: cancel) }) else { continue }
+                if has {
                     hadText += 1
                     continue
                 }
-                let found = try host.recognize!(engine, p, cancel)
+                guard let found = try skipped.unlessRefused({ try host.recognize!(engine, p, cancel) }) else { continue }
                 if !found.isEmpty { words[p] = found }
             }
             if words.count == 1 {
@@ -880,6 +882,7 @@ public enum BatchRunner {
             } else if suspect > 1 {
                 notes.append(loc("{0} suspect words to check (Tools › Review Suspect Words)", CoreLanguage.number(suspect)))
             }
+            if let note = skipped.note { notes.append(note) }
             return words
         }
 

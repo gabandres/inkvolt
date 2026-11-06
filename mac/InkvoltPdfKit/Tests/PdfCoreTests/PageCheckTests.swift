@@ -436,6 +436,51 @@ struct PageCheckTests {
         }
     }
 
+    @Test func JobsOverManyPagesSkipARefusedPageAndSayWhich() async throws {
+        // The 7 KB bomb's second page is refused (at the tests' limit) by each job's own engine; each job goes on with
+        // the first and third, as Find does, and says which page it skipped.
+        let file = Self.bomb("7 KB")
+        try await PdfEngine.$budgetForTests.withValue(Self.limit) { try await Self.jobsSkip(file) }
+    }
+
+    /// JobsOverManyPagesSkipARefusedPageAndSayWhich, at the tests' limit (a function of its own: one closure of it all
+    /// took Xcode's type checker 260 ms).
+    static func jobsSkip(_ file: [UInt8]) async throws {
+        let note = "Pages that couldn't be read were skipped: 2."
+        do {
+            let engine = try PdfEngine.open(file)
+            defer { engine.close() }
+
+            // Redact by pattern.
+            let searched = SkippedPages()
+            let matches = try RedactionPatterns.find(engine, RedactionPatternOptions(patterns: [], phrases: ["Visit notes"]), skipped: searched)
+            #expect(Set(matches.map(\.page)) == [0, 2])
+            #expect(searched.note == note)
+
+            // The redaction check, and the values under areas before applying.
+            let report = try RedactionCheck.run(file, nil, RedactionCheckOptions(values: ["Visit notes"]))
+            #expect(report.notes.contains(note), "\(report.notes)")
+            #expect(Set(report.findings.map(\.page)).isSuperset(of: [0, 2]))
+            #expect(try RedactionCheck.valuesUnder(engine, [0: [RectD(60, 60, 200, 60)], 1: [RectD(0, 0, 612, 792)]]) == ["Visit notes"])
+
+            // Prepare Form.
+            let looked = SkippedPages()
+            _ = try FieldDetection.suggest(engine, file, nil, [0, 1, 2], [], skipped: looked)
+            #expect(looked.list == [1])
+
+            // Recognize Text (the first and third pages have text already).
+            let (_, recognized) = try PageOcr.recognizeText(file, nil, pages: nil, { _, _, _ in [OcrWord("x", RectD(10, 10, 10, 10))] })
+            #expect(recognized.skipped == [1])
+            #expect(recognized.hadText == 2)
+
+            // The AI assistant's reading.
+            let read = SkippedPages()
+            let texts = try await AiPageCache().read([0, 1, 2], engine: engine, cancel: CancelToken(), skipped: read)
+            #expect(texts.map(\.text.isEmpty) == [false, true, false])
+            #expect(read.list == [1])
+        }
+    }
+
     @Test func UnregisteringWaitsForAHandlerCancelIsRunning() {
         // A call's handler aborts its cookie, which the call frees once it has unregistered it; cancel() on another
         // thread may be running the handler right then. Hammered: the handler looks at its cookie twice, a little apart;

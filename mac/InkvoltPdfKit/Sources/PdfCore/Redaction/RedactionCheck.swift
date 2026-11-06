@@ -180,12 +180,14 @@ public enum RedactionCheck {
     }
 
     /// The text under areas about to be redacted (read before applying them): each line's characters whose middle is
-    /// inside an area, as one value. These are what `RedactionCheckOptions.values` looks for afterwards.
+    /// inside an area, as one value. These are what `RedactionCheckOptions.values` looks for afterwards. A page the engine
+    /// refuses gives none (the check after applying says it couldn't read it).
     public static func valuesUnder(_ engine: PdfEngine, _ areas: [Int: [RectD]], cancel: CancelToken? = nil) throws -> [String] {
         var values: [String] = []
+        let skipped = SkippedPages()
         for (page, rects) in areas.sorted(by: { $0.key < $1.key }) {
             if page < 0 || page >= engine.pageCount || rects.allSatisfy(\.isEmpty) { continue }
-            let text = try engine.text(page, cache: false, cancel: cancel)
+            guard let text = try skipped.unlessRefused({ try engine.text(page, cache: false, cancel: cancel) }) else { continue }
             for (start, end) in runs(text, { i in
                 let b = text.boxAt(i)
                 return rects.contains { !$0.isEmpty && $0.contains(b.centerX, b.centerY) }
@@ -484,6 +486,8 @@ extension RedactionCheck {
         /// Values found somewhere.
         var hits = Set<Int>()
         var hiddenLayers = 0
+        /// Pages the engine refused: not looked at, which the notes say.
+        let skipped = SkippedPages()
         private var done = 0, total = 0
 
         init(_ data: [UInt8], _ password: String?, _ options: RedactionCheckOptions, _ progress: ((Int, Int) -> Void)?, _ cancel: CancelToken?) {
@@ -517,7 +521,7 @@ extension RedactionCheck {
 
             // The pages' text first (the engine reads text in a context of its own; Windows reads it on another thread
             // while it walks the pages).
-            texts = try (0..<pages).map { try engine.text($0, cache: false, cancel: cancel) }
+            texts = try (0..<pages).map { p in try skipped.unlessRefused { try engine.text(p, cache: false, cancel: cancel) } ?? .empty }
             var scans: [PageScan] = []
             for p in 0..<pages {
                 try cancel.check()
@@ -552,6 +556,7 @@ extension RedactionCheck {
                 if a.element.kind != b.element.kind { return a.element.kind < b.element.kind }
                 return a.offset < b.offset
             }.map(\.element)
+            if let note = skipped.note { notes.append(note) }
             return RedactionCheckReport(findings: order, values: values, notes: notes)
         }
 
@@ -644,7 +649,7 @@ extension RedactionCheck {
             if !candidates.isEmpty {
                 let pixels = max(1, g.width * g.height)
                 let scale = min(RedactionCheck.charScale, (8_000_000 / pixels).squareRoot())
-                let img = try engine.render(p, scale: scale, cancel: cancel)
+                guard let img = try skipped.unlessRefused({ try engine.render(p, scale: scale, cancel: cancel) }) else { return [] }
                 let over = (scan.covers.map(\.box) + scan.lightBoxes + scan.pictures.map(\.box)).filter { $0.width * $0.height < 0.5 * pixels }
                 let maybe = candidates.filter { i in
                     let b = text.boxAt(i)
@@ -652,7 +657,7 @@ extension RedactionCheck {
                 }
                 if !maybe.isEmpty {
                     let big = min(RedactionCheck.confirmScale, (30_000_000 / pixels).squareRoot())
-                    let close = try engine.render(p, scale: big, cancel: cancel)
+                    guard let close = try skipped.unlessRefused({ try engine.render(p, scale: big, cancel: cancel) }) else { return [] }
                     for i in maybe {
                         guard let c = Self.uniformColor(close, text.boxAt(i), big, .zero, inner: true) else { continue }
                         // Text drawn invisibly (an OCR layer over a scan or a redacted page) shows nothing by design: it is
@@ -776,8 +781,9 @@ extension RedactionCheck {
                     let area = cover.box.intersect(RectD(0, 0, g.width, g.height))
                     if area.width < 1 || area.height < 1 || p >= without.pageCount { continue }
                     let scale = min(1.5, (1_500_000 / (area.width * area.height)).squareRoot())
-                    let with = try engine.render(p, scale: scale, region: area, cancel: cancel)
-                    let behind = try without.render(p, scale: scale, region: area, cancel: cancel)
+                    guard let with = try skipped.unlessRefused({ try engine.render(p, scale: scale, region: area, cancel: cancel) }),
+                          let behind = try skipped.unlessRefused({ try without.render(p, scale: scale, region: area, cancel: cancel) })
+                    else { break }
                     if !Self.hidesSomething(with, behind) { continue }
                     let under = RedactionCheck.runs(text) { i in
                         let b = text.boxAt(i)
@@ -934,7 +940,7 @@ extension RedactionCheck {
                     let area = rect.inflate(-1).intersect(RectD(0, 0, g.width, g.height))
                     if area.isEmpty { continue }
                     let scale = min(1, (1_500_000 / (area.width * area.height)).squareRoot())
-                    let img = try engine.render(p, scale: scale, region: area, cancel: cancel)
+                    guard let img = try skipped.unlessRefused({ try engine.render(p, scale: scale, region: area, cancel: cancel) }) else { break }
                     let main = Self.dominant(img)
                     let n = img.width * img.height
                     var off = 0

@@ -189,17 +189,20 @@ public enum RedactionPatterns {
     }
 
     /// The matches on the chosen pages (all of them when none are chosen), page by page; `progress` gets (pages done,
-    /// pages to search).
+    /// pages to search). A page the engine refuses is skipped, and `skipped` says which.
     /// - Throws: as `find(_:_:_:)`; `CancellationError` when `cancel` fires.
     public static func find(_ engine: PdfEngine, _ options: RedactionPatternOptions, progress: ((Int, Int) -> Void)? = nil,
-                            cancel: CancelToken? = nil) throws -> [RedactionMatch] {
+                            cancel: CancelToken? = nil, skipped: SkippedPages? = nil) throws -> [RedactionMatch] {
         let custom = try compile(options)
         let pages = Array(Set((options.pages ?? Array(0..<engine.pageCount)).filter { $0 >= 0 && $0 < engine.pageCount })).sorted()
+        let skipped = skipped ?? SkippedPages()
         var matches: [RedactionMatch] = []
         for (i, p) in pages.enumerated() {
             try cancel.check()
             // Cached only for a few pages: a long document would push the pages the viewer shows out of the engine's text cache.
-            matches += try findOnPage(engine.text(p, cache: pages.count <= 8, cancel: cancel), p, options, custom)
+            if let text = try skipped.unlessRefused({ try engine.text(p, cache: pages.count <= 8, cancel: cancel) }) {
+                matches += try findOnPage(text, p, options, custom)
+            }
             progress?(i + 1, pages.count)
         }
         return matches

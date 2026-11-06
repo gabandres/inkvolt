@@ -25,6 +25,42 @@ public struct PageRefused: Error, Equatable, Sendable, CustomStringConvertible {
     public var description: String { message }
 }
 
+/// The pages a job over many pages (redaction's search and check, Prepare Form, Recognize Text, the AI assistant's
+/// reading) skipped because the engine refused them, to say which, as Find does: one refused page doesn't stop the job.
+public final class SkippedPages: @unchecked Sendable {
+    private let lock = NSLock()
+    private var pages = Set<Int>()
+
+    public init() {}
+
+    /// What `read` gives for a page, or nil when the engine refuses the page (kept, to be said).
+    /// - Throws: whatever else `read` throws.
+    public func unlessRefused<T>(_ read: () throws -> T) throws -> T? {
+        do {
+            return try read()
+        } catch let refused as PageRefused {
+            insert(refused.page)
+            return nil
+        }
+    }
+
+    func insert(_ page: Int) { lock.withLock { _ = pages.insert(page) } }
+
+    public func contains(_ page: Int) -> Bool { lock.withLock { pages.contains(page) } }
+
+    /// The skipped pages (from 0), in order.
+    public var list: [Int] { lock.withLock { pages.sorted() } }
+
+    /// "Pages that couldn't be read were skipped: 2, 5." (as the user counts them); nil when none were.
+    public var note: String? { Self.note(list) }
+
+    /// The same for `pages` (from 0).
+    public static func note(_ pages: [Int]) -> String? {
+        if pages.isEmpty { return nil }
+        return loc("Pages that couldn't be read were skipped: {0}.", pages.sorted().map { CoreLanguage.number($0 + 1) }.joined(separator: ", "))
+    }
+}
+
 /// What reading a page found (Windows' `PageVerdict`, without its check process's own outcomes).
 public enum PageVerdict: Sendable, Equatable {
     /// Not read through yet.

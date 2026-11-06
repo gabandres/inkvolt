@@ -316,12 +316,15 @@ extension DocumentWindowController {
             (outcome, report) = await editor.recognizeText(pages: chosen, ocr: reader, options: options, spelling: dictionary,
                                                            cancel: sheet.token, progress: progress)
         }
+        // Pages the engine refused (too long to read, too large to draw) were left out: said after the rest.
+        let skipped = SkippedPages.note(report?.skipped ?? []).map { " " + $0 } ?? ""
         switch outcome {
         case .done?:
             let words = report?.words ?? 0, hadText = report?.hadText ?? 0, pagesWithWords = report?.pagesWithWords ?? 0
             let suspect = report?.suspect ?? 0, replaced = report?.replaced ?? 0
-            let cleaned = replaced == 0 ? ""
-                : " " + (replaced == 1 ? loc("{0} page was replaced with the cleaned image.", CoreLanguage.number(replaced)) : loc("{0} pages were replaced with the cleaned images.", CoreLanguage.number(replaced)))
+            let cleaned = (replaced == 0 ? ""
+                : " " + (replaced == 1 ? loc("{0} page was replaced with the cleaned image.", CoreLanguage.number(replaced)) : loc("{0} pages were replaced with the cleaned images.", CoreLanguage.number(replaced))))
+                + skipped
             let recognized = words == 1 ? loc("Recognized {0} word on {1} page", CoreLanguage.number(words), CoreLanguage.number(pagesWithWords))
                 : pagesWithWords == 1 ? loc("Recognized {1} words on {0} page", CoreLanguage.number(pagesWithWords), CoreLanguage.number(words))
                 : loc("Recognized {1} words on {0} pages", CoreLanguage.number(pagesWithWords), CoreLanguage.number(words))
@@ -339,9 +342,10 @@ extension DocumentWindowController {
             }
         case .noChange?:
             let had = report?.hadText ?? 0
-            notify(had == chosen.count ? (chosen.count == 1 ? loc("This page already has text: nothing to recognize.")
-                                                             : loc("These pages already have text: nothing to recognize."))
-                                       : loc("No text was recognized on these pages."))
+            let said = had == chosen.count ? (chosen.count == 1 ? loc("This page already has text: nothing to recognize.")
+                                                                 : loc("These pages already have text: nothing to recognize."))
+                                           : loc("No text was recognized on these pages.")
+            notify(said + skipped)
         case .declined?:
             notify(loc("Text recognition cancelled. Nothing was changed."))
         default:

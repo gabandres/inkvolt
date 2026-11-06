@@ -315,9 +315,12 @@ public final class AiPageCache: @unchecked Sendable {
         }
     }
 
-    /// Reads `pages` in the background. A page that can't be read counts as empty. `progress` gets pages done every 25.
+    /// Reads `pages` in the background. A page that can't be read counts as empty; `skipped` says which of them the engine
+    /// refused (read now or before). `progress` gets pages done every 25.
     /// - Throws: `CancellationError`.
-    public func read(_ pages: [Int], engine: PdfEngine, cancel: CancelToken, progress: (@Sendable (Int) -> Void)? = nil) async throws -> [AiPageText] {
+    public func read(_ pages: [Int], engine: PdfEngine, cancel: CancelToken, skipped: SkippedPages? = nil,
+                     progress: (@Sendable (Int) -> Void)? = nil) async throws -> [AiPageText] {
+        defer { for p in pages where engine.verdictOf(p).refuses { skipped?.insert(p) } }
         let missing = missing(pages, engine: engine)
         if !missing.isEmpty {
             let read = try await Task.detached(priority: .userInitiated) { () throws -> [Int: String] in

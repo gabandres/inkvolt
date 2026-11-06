@@ -8295,6 +8295,17 @@
         }
       }
     },
+    "Pages that couldn't be read were skipped: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se omitieron las páginas que no se pudieron leer: {0}."
+          }
+        }
+      }
+    },
     "Pages: {0}": {
       "extractionState": "manual",
       "localizations": {

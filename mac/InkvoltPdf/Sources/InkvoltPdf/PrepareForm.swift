@@ -377,9 +377,10 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         sheet.begin(on: controller.window)
         controller.progressSheet = sheet
         let token = sheet.token
+        let skipped = SkippedPages()
         let result = await Task.detached { () -> Result<[FieldSuggestion], Error> in
             Result {
-                try FieldDetection.suggest(engine, data, password, pageList, existing, cancel: token) { done, total in
+                try FieldDetection.suggest(engine, data, password, pageList, existing, cancel: token, skipped: skipped) { done, total in
                     Task { @MainActor in
                         sheet.update(loc("Looking at page {0} of {1}…", CoreLanguage.number(done + 1), CoreLanguage.number(total)), Double(done) / Double(total))
                     }
@@ -400,16 +401,19 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         suggestionPages = engine.pageCount
         model.setSuggestions(found)
         changed()
+        // Pages the engine refused weren't looked at: said after the rest.
+        let unread = skipped.note.map { " " + $0 } ?? ""
         if found.isEmpty {
-            controller.notify(loc("No fields found. Inkvolt PDF looks for lines to write on, empty boxes, small squares and runs of underscores."))
+            controller.notify(loc("No fields found. Inkvolt PDF looks for lines to write on, empty boxes, small squares and runs of underscores.") + unread)
             return
         }
         // Start on the current page's first suggestion, else the first one.
         selectSuggestion(found.firstIndex { $0.pageIndex >= pages.currentPage } ?? 0, reveal: true)
         controller.window?.makeFirstResponder(pages)
-        controller.notify(found.count == 1
+        let said = found.count == 1
             ? loc("Found 1 possible field (dashed): Return adds it, Delete skips it, or add it from the panel.")
-            : loc("Found {0} possible fields (dashed): Return adds one, Delete skips it, or add them all from the panel.", CoreLanguage.number(found.count)))
+            : loc("Found {0} possible fields (dashed): Return adds one, Delete skips it, or add them all from the panel.", CoreLanguage.number(found.count))
+        controller.notify(said + unread)
     }
 
     func moveInTabOrder(_ step: Int) {
