@@ -454,6 +454,22 @@ struct AiLoopbackTests {
         #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
     }
 
+    /// CI's busy runner (2026-11-06): the server's answer to the TLS greeting waited 110 s and more for a thread of GCD's
+    /// pool, so the https client gave up as "didn't respond". With the pool held, the server still answers at once.
+    @Test func thePlainServerAnswersWhileThePoolIsBusy() async throws {
+        let server = try #require(AiLoopbackServer(answersFirstBytes: true) { _ in .raw("HTTP/1.1 400 Bad Request\r\n\r\nnot tls") })
+        defer { server.stop() }
+        let hold = PoolHold(atMost: 4, qos: .userInitiated) // the server's quality of service
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let secure = parsed("https://127.0.0.1:\(server.port)/v1")
+        let client = AiClient(secure, "m", apiKey: "k", handler: AiClient.createHandler(secure, Self.patient))
+        let started = Date()
+        let message = await aiMessage { _ = try await client.chat([.user("private text")]) }
+        #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
+        #expect(Date().timeIntervalSince(started) < 3, "took \(Date().timeIntervalSince(started)) s")
+    }
+
     @Test func happyEyeballsSkipsAnAddressThatRefuses() async throws {
         // localhost as ::1 (nothing listens there on this port) and 127.0.0.1.
         let server = try #require(AiLoopbackServer { _ in .sse(["ok"]) })
@@ -565,5 +581,23 @@ struct AiHttpReaderTests {
         #expect(AiEndpoint.tryParse("http://host:99999/v1").endpoint == nil)
         #expect(AiEndpoint.tryParse("http://exa mple/v1").endpoint == nil)
         #expect(AiEndpoint.tryParse("mailto:me@example.com").endpoint == nil)
+    }
+}
+
+/// Blocks every thread GCD's global pool will give at `qos`, as a busy machine does, until `release` (or `atMost`
+/// seconds); PrintMacTests' `PoolHold` at a chosen quality of service (held at the default one, work asked at
+/// `.userInitiated` still got a thread).
+final class PoolHold: Sendable {
+    private let gate = DispatchSemaphore(value: 0)
+    private let count = 256
+
+    init(atMost seconds: Double, qos: DispatchQoS.QoSClass = .default) {
+        for _ in 0..<count {
+            DispatchQueue.global(qos: qos).async { [gate] in _ = gate.wait(timeout: .now() + seconds) }
+        }
+    }
+
+    func release() {
+        for _ in 0..<count { gate.signal() }
     }
 }
