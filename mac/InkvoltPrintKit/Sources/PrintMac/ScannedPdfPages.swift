@@ -18,6 +18,7 @@ public struct ScannedPdfPages: PdfPageRenderer {
 
     static func pages(_ pdf: [UInt8], dpi: Int) throws -> [[UInt8]] {
         guard let document = PDFDocument(data: Data(pdf)), !document.isLocked else { throw ScanError(loc("The scanner's PDF couldn't be opened.")) }
+        guard document.pageCount <= ScannerPdf.maxPages else { throw ScannerPdf.tooManyPages }
         var pages: [[UInt8]] = []
         for i in 0..<document.pageCount {
             try Task.checkCancellation()

@@ -43,6 +43,13 @@ public enum ScannerPdf {
     /// its page's bytes live, which Swift's value arrays can't follow, so the Mac bounds the table instead.
     static let rememberedDocuments = 32
 
+    /// A scanner's PDF of more pages than this is refused (no feeder holds as many): pages that share one picture would
+    /// otherwise each hold their own copy of it.
+    public static let maxPages = 1_000
+
+    /// The refusal of a PDF of more than `maxPages` pages (here, and by the renderer).
+    public static var tooManyPages: ScanError { ScanError(loc("The scanner sent a PDF of more than {0} pages.", CoreLanguage.number(maxPages))) }
+
     private struct State {
         var renderer: (any PdfPageRenderer)?
         var origins: [[UInt8]: PdfOrigin] = [:]
@@ -63,7 +70,12 @@ public enum ScannerPdf {
 
     /// The scanner's PDF as JPEG pages (see the type's summary).
     public static func pages(_ pdf: [UInt8], dpi: Int) async throws -> [[UInt8]] {
-        var pages = jpegPages(pdf)
+        var pages: [[UInt8]]?
+        switch takeOut(pdf) {
+        case .jpegs(let jpegs): pages = jpegs
+        case .render: pages = nil
+        case .tooManyPages: throw tooManyPages
+        }
         let rendered = pages == nil
         if pages == nil {
             guard let renderer else { throw ScanError(loc("This scanner sent its pages as a PDF whose pictures Inkvolt Print can't take out here.")) }
@@ -117,27 +129,53 @@ public enum ScannerPdf {
     /// Each page's JPEG, taken out as it is, when every page is one DCT-encoded picture (grey or color, no mask, not turned);
     /// nil when any isn't, or the file can't be read this simply (then it is rendered).
     public static func jpegPages(_ pdf: [UInt8]) -> [[UInt8]]? {
-        guard let doc = MiniPdf(pdf), let pages = doc.pages(), !pages.isEmpty else { return nil }
-        var jpegs: [[UInt8]] = []
-        for (_, resources, rotate) in pages {
-            if rotate % 360 != 0 { return nil }
-            let images = doc.xObjects(resources).map(doc.object)
-            guard images.count == 1, let image = images[0], doc.isImage(image) else { return nil }
-            let dict = doc.text(image.dict)
-            if !matches(dctFilter, dict) || matches(masked, dict) { return nil }
-            guard let jpeg = doc.streamData(image), jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else { return nil }
-            guard let components = jpegComponents(jpeg), components == 1 || components == 3 else { return nil }
-            jpegs.append(jpeg)
-        }
-        return jpegs
+        if case .jpegs(let jpegs) = takeOut(pdf) { jpegs } else { nil }
     }
 
-    // The patterns are fixed and valid; made once, not once per page.
-    private static let dctFilter = try! NSRegularExpression(pattern: #"/Filter\s*(?:/DCTDecode\b|\[\s*/DCTDecode\s*\])"#)
-    private static let masked = try! NSRegularExpression(pattern: #"/(SMask|Mask|Decode|ImageMask)\b"#)
+    private enum TakenOut {
+        case jpegs([[UInt8]])
+        case render
+        case tooManyPages
+    }
 
-    private static func matches(_ pattern: NSRegularExpression, _ text: String) -> Bool {
-        pattern.firstMatch(in: text, range: NSRange(location: 0, length: (text as NSString).length)) != nil
+    /// Each page's JPEG (`jpegPages`), or more pages than `maxPages`. Pages that share resources or a picture (inherited
+    /// resources, the same picture on every page) have them read once: the picture's bytes are one array, shared.
+    private static func takeOut(_ pdf: [UInt8]) -> TakenOut {
+        guard let doc = MiniPdf(pdf), let pages = doc.pages(limit: maxPages), !pages.isEmpty else { return .render }
+        if pages.count > maxPages { return .tooManyPages }
+        var pictureOf: [Range<Int>: Int] = [:] // resources → their one picture's object number
+        var jpegOf: [Int: [UInt8]] = [:] // picture → its JPEG
+        var jpegs: [[UInt8]] = []
+        for (_, resources, rotate) in pages {
+            if rotate % 360 != 0 { return .render }
+            let id: Int
+            if let known = pictureOf[resources] {
+                id = known
+            } else {
+                let images = doc.xObjects(resources)
+                guard images.count == 1 else { return .render }
+                id = images[0]
+                pictureOf[resources] = id
+            }
+            if let jpeg = jpegOf[id] {
+                jpegs.append(jpeg)
+                continue
+            }
+            guard let image = doc.object(id), let jpeg = plainJpeg(doc, image) else { return .render }
+            jpegOf[id] = jpeg
+            jpegs.append(jpeg)
+        }
+        return .jpegs(jpegs)
+    }
+
+    /// The picture's JPEG when it is one as it stands: DCT-encoded alone, 8 bits, no mask, no decode array, grey or color.
+    private static func plainJpeg(_ doc: MiniPdf, _ image: MiniPdf.Obj) -> [UInt8]? {
+        guard doc.isImage(image), doc.names(image, "/Filter") == ["/DCTDecode"] else { return nil }
+        for key in ["/SMask", "/Mask", "/Decode", "/ImageMask"] where doc.value(image, key) != nil { return nil }
+        if let bits = doc.value(image, "/BitsPerComponent"), bits != "8" { return nil }
+        guard let jpeg = doc.streamData(image), jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else { return nil }
+        guard let components = jpegComponents(jpeg), components == 1 || components == 3 else { return nil }
+        return jpeg
     }
 
     /// The JPEG's colour components from its frame header; nil when it has none or no size.
