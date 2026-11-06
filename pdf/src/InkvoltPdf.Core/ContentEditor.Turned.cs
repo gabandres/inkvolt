@@ -70,8 +70,8 @@ public static partial class ContentEditor
     /// sits on its lines). A run of that direction that is mirrored or slanted has no box there and takes no part.
     /// Each run in the frame leads back to the page's. Only the direction's own runs (<paramref name="mine"/>, see
     /// <see cref="Directions"/>) are upright there: a run of a direction next to it, or upright text, is never grouped in
-    /// this frame. Only what is across the direction's text or below it is taken (what else is on the page can't touch
-    /// its paragraphs), so a page with many directions isn't copied whole for each.
+    /// this frame. Only what is from the direction's top line down is taken, however far along its lines (a translated
+    /// line grows toward it); what is above can't touch its paragraphs.
     /// </summary>
     private static (PageContent Framed, Dictionary<TextRun, TextRun> Page) Framed(PageContent content, double angle, HashSet<TextRun> mine)
     {
@@ -79,14 +79,15 @@ public static partial class ContentEditor
         var runs = new List<TextRun>();
         RectD Upright(TextRun r, PointD origin, (double Back, double Along, double Above, double Below) reach) =>
             RectD.FromEdges(origin.X - reach.Back, origin.Y - reach.Above, origin.X + reach.Along, origin.Y + reach.Below);
-        // Where the direction's text is in its frame: what is across it, from a line above its top down, can matter.
-        double left = double.MaxValue, right = double.MinValue, top = double.MaxValue, size = 0;
+        // Where the direction's text is in its frame: what is from a line above its top down can matter, however far
+        // along its lines (a line may grow up to it).
+        double top = double.MaxValue, size = 0;
         foreach (var r in mine)
         {
             var b = Upright(r, ToFrame(r.Origin, angle), r.Reach!.Value);
-            (left, right, top, size) = (Math.Min(left, b.X), Math.Max(right, b.Right), Math.Min(top, b.Y), Math.Max(size, r.FontSize));
+            (top, size) = (Math.Min(top, b.Y), Math.Max(size, r.FontSize));
         }
-        bool Near(RectD b) => b.Right >= left - 2 * size && b.X <= right + 2 * size && b.Bottom >= top - 2 * size;
+        bool Near(RectD b) => b.Bottom >= top - 2 * size;
         foreach (var r in content.Runs)
         {
             var rel = Turn(r.Angle - angle);

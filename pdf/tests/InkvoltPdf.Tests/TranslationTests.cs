@@ -1263,6 +1263,26 @@ public class TranslationCopyTests
         foreach (var figure in new[] { "12", "345", "6,789" }) Assert.Contains(figure, text, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Text_of_another_direction_on_a_paragraphs_lines_is_in_its_way()
+    {
+        // A label set sideways (bottom to top, its baseline at x 300 from y 100 up, PDF space), an upright line across its
+        // path (y 250) and an upright line beside it (y 120, from x 72): each translation grows, and none runs over the
+        // other direction's text.
+        var content = "BT /FA 12 Tf 1 0 0 1 280 250 Tm (Lazy dog) Tj 1 0 0 1 72 120 Tm (Brown dog) Tj ET " +
+            "q 0 1 -1 0 300 0 cm BT /FA 12 Tf 1 0 0 1 100 0 Tm (Quick fox) Tj ET Q";
+        var pdf = Page(content, fontText: Letters);
+        var (_, r) = Translate(pdf, t => $"{t} and the quick brown fox jumps over the lazy dog");
+        var after = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Trim().Length > 0).ToList();
+        var sideways = after.Where(q => Math.Abs(q.Angle) >= 0.5).ToList();
+        var upright = after.Where(q => Math.Abs(q.Angle) < 0.5).ToList();
+        Assert.Contains(sideways, q => q.Text.Contains("Quick fox and", StringComparison.Ordinal));
+        Assert.Contains(upright, q => q.Text.Contains("Brown dog and", StringComparison.Ordinal));
+        foreach (var s in sideways)
+            foreach (var u in upright)
+                Assert.False(s.Box.Intersect(u.Box) is { Width: > 0.5, Height: > 0.5 }, $"\"{s.Text}\" {s.Box} runs over \"{u.Text}\" {u.Box}");
+    }
+
     /// <summary>
     /// A paragraph of three lines whose second has a link drawn in blue (<paramref name="link"/>), underlined by a thin
     /// blue rectangle filled after the text, and a /Link annotation over it. Returns the page and the underline's box (page as shown).

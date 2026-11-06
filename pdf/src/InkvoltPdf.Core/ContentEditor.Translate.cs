@@ -365,10 +365,11 @@ public static partial class ContentEditor
         {
             foreach (var r in content.Runs)
             {
-                if (r.Text.Trim().Length == 0 || Math.Abs(r.Angle) >= 0.5) continue; // a margin's turned stamp isn't where the text column ends
-                if (double.IsNaN(r.Angle))
+                if (r.Text.Trim().Length == 0) continue;
+                if (!(Math.Abs(r.Angle) < 0.5))
                 {
-                    // In a turned frame, the page's other text: in the way where it is, not the frame's text column.
+                    // Text of another direction (a margin's turned stamp; in a turned frame, the page's other text, NaN or
+                    // turned there): in the way where it is drawn, not where the text column ends.
                     Boxes.Add((r.Box, r));
                     continue;
                 }
