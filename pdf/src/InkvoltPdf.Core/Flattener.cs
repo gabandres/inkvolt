@@ -25,13 +25,13 @@ public sealed record FlattenOptions
 /// Flattening: each annotation's normal appearance (/AP /N, the /AS state for check boxes and radios) is drawn into
 /// its page's content as a form XObject, mapped onto the annotation's /Rect the way viewers do (ISO 32000-2 12.5.5:
 /// the /BBox transformed by the /Matrix, fitted to the /Rect), with its opacity (/CA) and layer (/OC); then the
-/// annotation is removed. Hidden annotations (Hidden, NoView flags) are removed without being drawn. Text and choice
+/// annotation is removed. What the screen doesn't show (<see cref="Look"/>: popups, links, the Invisible, Hidden and NoView flags, a widget of no field, a /Rect without area) is removed without being drawn. Text and choice
 /// fields without an appearance (or with /NeedAppearances) get one generated first. Pages change, which no signature
 /// permits, so a signed document needs the caller's consent (<see cref="SignedEdits.Run"/> with the rewrite allowed).
 /// </summary>
 public static class Flattener
 {
-    private const int FlagHidden = 2, FlagPrint = 4, FlagNoView = 32;
+    private const int FlagInvisible = 1, FlagHidden = 2, FlagPrint = 4, FlagNoView = 32;
 
     /// <exception cref="SignaturesWouldBreakException">The document is signed and the rewrite wasn't allowed.</exception>
     public static byte[] Flatten(byte[] data, string? password, FlattenOptions? options = null)
@@ -107,21 +107,38 @@ public static class Flattener
         if (PdfObj.Array(acro.Elements["/Fields"]) is not { Elements.Count: > 0 }) catalog.Elements.Remove("/AcroForm");
     }
 
-    /// <summary>Appends the drawing of <paramref name="annot"/>'s normal appearance to <paramref name="ops"/>, if it shows.</summary>
-    private static void Draw(PdfDocument doc, PdfPage page, PdfDictionary annot, FlattenOptions options, StringBuilder ops)
+    /// <summary>
+    /// The appearance an annotation shows on screen and the scale and offset (ISO 32000-2 12.5.5's matrix A) that fit it
+    /// to its /Rect; null when the screen shows nothing of its own. MuPDF 1.25's drawing rule, as the Mac's
+    /// <c>Flattener.Look</c>, so a flattened page shows what the screen does: nothing for a link or popup, the Invisible,
+    /// Hidden and NoView flags, a widget of no field (no /FT or /T), a /Rect without area, or an appearance that can't be
+    /// fitted (none, an /AS state the appearances lack, a box without area, numbers that aren't finite).
+    /// </summary>
+    internal static (PdfDictionary Form, double Sx, double Sy, double Tx, double Ty)? Look(PdfDictionary annot)
     {
-        var flags = PdfObj.Int(annot.Elements["/F"]) ?? 0;
-        if ((flags & (FlagHidden | FlagNoView)) != 0 || (options.PrintableOnly && (flags & FlagPrint) == 0)) return;
-        if (Appearance(annot) is not { } form || PdfObj.Array(annot.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) return;
-        if (PdfObj.Array(form.Elements["/BBox"]) is not { Elements.Count: >= 4 } bb || form.Reference is null) return;
-
+        var subtype = PdfObj.Name(annot.Elements["/Subtype"]);
+        if (subtype is "Link" or "Popup") return null;
+        if (((PdfObj.Int(annot.Elements["/F"]) ?? 0) & (FlagInvisible | FlagHidden | FlagNoView)) != 0) return null;
+        if (subtype == "Widget" && (FormEditor.Inherited(annot, "/FT") is null || FormEditor.Inherited(annot, "/T") is null)) return null;
+        if (PdfObj.Array(annot.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) return null;
         double rx1 = Math.Min(PdfObj.Num(r, 0), PdfObj.Num(r, 2)), ry1 = Math.Min(PdfObj.Num(r, 1), PdfObj.Num(r, 3));
         double rx2 = Math.Max(PdfObj.Num(r, 0), PdfObj.Num(r, 2)), ry2 = Math.Max(PdfObj.Num(r, 1), PdfObj.Num(r, 3));
+        if (!double.IsFinite(rx1) || !double.IsFinite(ry1) || !double.IsFinite(rx2) || !double.IsFinite(ry2)) return null;
+        if (rx2 - rx1 <= 1e-6 || ry2 - ry1 <= 1e-6) return null;
+        if (Appearance(annot) is not { Reference: not null } form || PdfObj.Array(form.Elements["/BBox"]) is not { Elements.Count: >= 4 } bb) return null;
         var (bx1, by1, bx2, by2) = TransformedBox(form, bb);
-        if (bx2 - bx1 <= 1e-6 || by2 - by1 <= 1e-6 || rx2 - rx1 <= 1e-6 || ry2 - ry1 <= 1e-6) return;
-        // Matrix A of 12.5.5: maps the transformed bounding box onto the rectangle.
+        if (!double.IsFinite(bx1) || !double.IsFinite(by1) || !double.IsFinite(bx2) || !double.IsFinite(by2)) return null;
+        if (bx2 - bx1 <= 1e-6 || by2 - by1 <= 1e-6) return null;
         var sx = (rx2 - rx1) / (bx2 - bx1);
         var sy = (ry2 - ry1) / (by2 - by1);
+        return (form, sx, sy, rx1 - bx1 * sx, ry1 - by1 * sy);
+    }
+
+    /// <summary>Appends the drawing of <paramref name="annot"/>'s normal appearance to <paramref name="ops"/>, if it shows (<see cref="Look"/>).</summary>
+    private static void Draw(PdfDocument doc, PdfPage page, PdfDictionary annot, FlattenOptions options, StringBuilder ops)
+    {
+        if (options.PrintableOnly && ((PdfObj.Int(annot.Elements["/F"]) ?? 0) & FlagPrint) == 0) return;
+        if (Look(annot) is not var (form, sx, sy, tx, ty)) return;
 
         form.Elements["/Type"] = new PdfName("/XObject");
         form.Elements["/Subtype"] = new PdfName("/Form");
@@ -140,7 +157,7 @@ public static class Flattener
             gs.Elements["/ca"] = new PdfReal(Math.Clamp(ca, 0, 1));
             ops.Append($"{Add(doc, resources, "/ExtGState", "FlatGS", gs)} gs\n");
         }
-        ops.Append($"{PdfObj.F(sx)} 0 0 {PdfObj.F(sy)} {PdfObj.F(rx1 - bx1 * sx)} {PdfObj.F(ry1 - by1 * sy)} cm {name} Do\nQ\n");
+        ops.Append($"{PdfObj.F(sx)} 0 0 {PdfObj.F(sy)} {PdfObj.F(tx)} {PdfObj.F(ty)} cm {name} Do\nQ\n");
         if (oc is not null) ops.Append("EMC\n");
     }
 

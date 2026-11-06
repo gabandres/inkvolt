@@ -768,6 +768,63 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_columns_paragraphs_come_out_in_one_size()
+    {
+        // attn-v7 p. 8, resnet p. 6: each paragraph shrank as much as it needed, so one column showed two or three sizes.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(72, 700, 10, 12, "Hello " + line, line) + Lines(72, 670, 10, 12, "World " + line, line) +
+            Lines(72, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        string Longer(int times) => string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", times));
+        var words = Longer(2);
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(3) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(3, sizes.Count);
+        Assert.True(sizes[0] < 10, $"{sizes[0]}");
+        Assert.All(sizes, s => Assert.Equal(sizes[0], s, 2));
+        Assert.Equal(3, r.Report.Shrunk);
+
+        // One that needs far less than the rest keeps its own size; the rest go no smaller than the floor (80%).
+        var (_, r2) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(6) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        var sizes2 = ContentEditor.Read(r2.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.True(sizes2[0] < 8, $"{sizes2[0]}");
+        Assert.Equal(8, sizes2[1], 2);
+        Assert.Equal(8, sizes2[2], 2);
+    }
+
+    [Fact]
+    public void A_paragraph_that_fits_nowhere_doesnt_shrink_its_column()
+    {
+        // One paragraph far too long for its room is written at the smallest size and flagged; the rest of its column
+        // keep the size they need, not the floor it would drag them to.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(72, 700, 10, 12, "Hello " + line, line) + Lines(72, 670, 10, 12, "World " + line, line) +
+            Lines(72, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 2));
+        var tooMuch = string.Join(' ', Enumerable.Repeat("The lazy dog jumps over a quick brown fox.", 40));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? tooMuch : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        Assert.Equal(1, r.Report.DoNotFit);
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(2, sizes.Count);
+        Assert.All(sizes, s => Assert.True(s > 8.4, $"{s}"));
+        Assert.Equal(sizes[0], sizes[1], 2);
+    }
+
+    [Fact]
+    public void A_columns_left_edge_is_the_same_a_fraction_of_a_point_apart()
+    {
+        // 73.4 and 73.6 pt are one column's left edge, though they round to different 3 pt steps.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(73.4, 700, 10, 12, "Hello " + line, line) + Lines(73.6, 670, 10, 12, "World " + line, line) +
+            Lines(73.6, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        string Longer(int times) => string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", times));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(3) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : Longer(2));
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(3, sizes.Count);
+        Assert.True(sizes[0] < 10, $"{sizes[0]}");
+        Assert.All(sizes, s => Assert.Equal(sizes[0], s, 2));
+    }
+
+    [Fact]
     public void A_shorter_room_with_too_much_text_is_written_small_and_flagged()
     {
         var pdf = Page(Lines(72, 700, 10, 12, "Hello World draft, 2024!") + Lines(72, 688, 10, 12, "2024 draft! Hello World draft, 2024! Hello"), fontText: Letters);
@@ -900,6 +957,94 @@ public class TranslationCopyTests
         Assert.DoesNotContain("Hello World", text.Split("THE DOG").Last(), StringComparison.Ordinal);
         var after = ContentEditor.Read(r.Data!, null, 0);
         Assert.Equal(86, after.Runs.First(q => q.Text == "THE FOX").Box.X, 0);
+    }
+
+    [Fact]
+    public void A_line_opening_with_a_bracket_stays_in_its_paragraph_and_a_hyphen_joins_the_next_line()
+    {
+        // resnet p. 10: pdfTeX draws a line's opening "(" as its own operator; it isn't a bullet in front of the line, and
+        // the paragraph's last line, after "(classi-", goes with it.
+        var content = Lines(72, 700, 10, 12, "The quick brown fox jumps over a lazy dog, until the") +
+            "BT /FA 10 Tf 1 0 0 1 72 688 Tm (\\() Tj 1 0 0 1 75.3 688 Tm (quick brown fox jumps over a lazy dog, until the dog) Tj ET " +
+            Lines(72, 676, 10, 12, "the quick brown fox jumps over a lazy dog \\(classi-", "fication and dog.");
+        var pdf = Page(content, fontText: Letters + "()-");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("The quick brown fox jumps over a lazy dog, until the (quick brown fox jumps over a lazy dog, until the dog the quick brown fox jumps over a lazy dog (classification and dog.",
+            Assert.Single(plan.Texts).Text);
+    }
+
+    [Fact]
+    public void A_label_ending_in_a_colon_stays_apart_from_the_row_under_it()
+    {
+        // The census's table without rules: "Income percentile ratios:" heads the rows under it, figures beside them.
+        var content = Lines(72, 700, 8, 11, "Lazy dog and fox ratios:", "90th/10th", "90th/50th") +
+            Lines(200, 689, 8, 11, "12.63", "2.71");
+        var pdf = Page(content, fontText: Letters + ":/");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Lazy dog and fox ratios:", "90th/10th", "90th/50th"], plan.Texts.Select(t => t.Text.Trim()).Where(t => t.Any(char.IsLetter)));
+    }
+
+    [Fact]
+    public void A_sentence_wrapped_after_a_colon_stays_one_paragraph()
+    {
+        // Short lines of a narrow column: a line ending in ":" and the next going on in lowercase are one sentence.
+        var content = Lines(72, 700, 10, 12, "and the quick fox is as so:", "brown dogs jump over lazy");
+        var pdf = Page(content, fontText: Letters + ":");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("and the quick fox is as so: brown dogs jump over lazy", Assert.Single(plan.Texts).Text.Trim());
+    }
+
+    [Fact]
+    public void A_centered_label_with_free_room_on_one_side_keeps_its_size()
+    {
+        // resnet Table 3's "top-1 err." as "error top-1": a rule close on its left, free room on its right, the next row
+        // under it. Centered between the rule and as far again, the longer text shrank; it moves over instead.
+        string Content(double ruleX, double x) => Lines(72, 700, 10, 12, "The quick brown fox") + Lines(470, 700, 10, 12, "lazy dog") +
+            $"0 G 0.4 w {ruleX} 680 m {ruleX} 640 l S " + Lines(x, 660, 10, 12, "THE DOG") + Lines(250, 648, 10, 12, "The quick brown fox jumps over a lazy dog");
+        var width = ContentEditor.Read(Page(Content(100, 290), fontText: Letters), null, 0).Runs.Single(r => r.Text == "THE DOG").Box.Width;
+        var pdf = Page(Content(306 - width / 2 - 6, 306 - width / 2), fontText: Letters); // centered on the page
+        var label = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "THE DOG").Box;
+        var (_, r) = Translate(pdf, t => t == "THE DOG" ? "THE QUICK DOG" : t);
+        var run = ContentEditor.Read(r.Data!, null, 0).Runs.Single(q => q.Text.Contains("QUICK", StringComparison.Ordinal));
+        Assert.Equal("THE QUICK DOG", run.Text.Trim());
+        Assert.Equal(10, run.FontSize, 2);
+        Assert.True(run.Box.X > label.X - 6, $"{run.Box}");
+        Assert.True(run.Box.Bottom < 652, $"{run.Box}");
+    }
+
+    [Fact]
+    public void A_centered_label_moved_into_free_room_stays_above_the_text_under_that_room()
+    {
+        // The room beside the label has text right under it; under the label itself there is room for two lines. Moved
+        // over, two lines would run into that text: it may go only as low as the room it moves into allows.
+        string Content(double ruleX, double x) => Lines(72, 700, 10, 12, "The quick brown fox") + Lines(470, 700, 10, 12, "lazy dog") +
+            $"0 G 0.4 w {ruleX} 680 m {ruleX} 640 l S " + Lines(x, 660, 10, 12, "THE DOG") +
+            Lines(420, 648, 10, 12, "lazy dog jumps") + Lines(250, 630, 10, 12, "The quick brown fox jumps");
+        var width = ContentEditor.Read(Page(Content(100, 290), fontText: Letters), null, 0).Runs.Single(r => r.Text == "THE DOG").Box.Width;
+        var pdf = Page(Content(306 - width / 2 - 6, 306 - width / 2), fontText: Letters);
+        var under = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "lazy dog jumps").Box;
+        var (_, r) = Translate(pdf, t => t == "THE DOG" ? "THE QUICK BROWN DOG JUMPS OVER THE LAZY FOX AND THE QUICK DOG" : t);
+        var after = ContentEditor.Read(r.Data!, null, 0);
+        Assert.Equal(under, after.Runs.Single(q => q.Text == "lazy dog jumps").Box);
+        var moved = after.Runs.Where(q => q.Text.Contains("QUICK", StringComparison.Ordinal) || q.Text.Contains("FOX", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(moved);
+        Assert.All(moved, q => Assert.True(q.Box.Intersect(under).IsEmpty, $"{q.Text} {q.Box} over {under}"));
+    }
+
+    [Fact]
+    public void A_space_the_font_lacks_is_as_wide_as_its_columns_word_spaces_not_the_gap_to_the_next()
+    {
+        // resnet Table 3's head row, one operator of pdfTeX's with no space glyph: its word spaces and the gap between
+        // its columns are adjustments; counting the gap among the spaces made "error top-1" a space of 1.1 ems too wide.
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(top-1) -250 (err.) -3000 (top-5) -250 (err.)] TJ ET", fontText: "top-15err.");
+        // Each column's spaces are its own: 0.25 ems, not the average with the 3 ems to the next column.
+        using var doc = PdfObj.Open(pdf, null, PdfDocumentOpenMode.Modify, "x");
+        var columns = ContentEditor.ReadRaw(doc.Pages[0], 0, default).Runs.Where(q => q.Text.Trim().Length > 0).OrderBy(q => q.Box.X).ToList();
+        Assert.Equal(["top-1 err.", "top-5 err."], columns.Select(q => q.Text.Trim()));
+        Assert.All(columns, q => Assert.Equal(0.25, q.GapEms, 3));
+        var (_, r) = Translate(pdf, t => t == "top-1 err." ? "err. top-1" : t);
+        var run = ContentEditor.Read(r.Data!, null, 0).Runs.First(q => q.Text.StartsWith("err.", StringComparison.Ordinal));
+        Assert.Equal(10, run.FontSize, 2);
     }
 
     [Fact]

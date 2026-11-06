@@ -664,13 +664,19 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Checked again with the real model (Qwen3 4B Q4, llama-server, 8,192 tokens) on attn-v7 p. 8, census-p60 p. 12, NIST p. 14
   and resnet p. 6, in 8-100 seconds a page: every figure of the four tables is in its column, model names and "90th/10th"
   come back unchanged, nothing of the model's own reached a copy.
+  Fixed after that run (2026-11-06), checked by applying its saved answers again and by the corpus's plan texts: a line
+  opening with a bracket or quote pdfTeX draws on its own ("(i.e.", "[32]") is no longer taken for a bullet, so its
+  paragraph keeps its left edge and its last line after a hyphen ("(classi-" / "fication and box regression [7]).", resnet
+  p. 10; 13 such lines in the corpus's first 20 pages of each file); a short label ending in a colon stays apart from the
+  short row under it (the census's second "Income percentile ratios:"); a centered label with free room on one side moves
+  into it before it shrinks, and an operator's column no longer counts the gap to the next column among its word spaces
+  (resnet's "error top-1" and attn-v7's "Transformador (modelo base)" keep their size); a column's body paragraphs take one
+  size, the one its most shrunk paragraph needs, no smaller than 80% (attn-v7 p. 8's body all at 8.47 pt).
   **Still wrong.** Tables turned on the page, like the census's appendix, stay in English (named in the summary). A link's
   underline and area stay where they were while the text moves (NIST p. 14: "complementarios, el Documento Especial" is
-  underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A label that ends in a colon
-  joins the row label under it (the census's second "Income percentile ratios:" goes with "90th/10th", and that row's label
-  moves up), and a short label with little room around it shrinks to the floor (the census's first "Income percentile
-  ratios:", resnet Table 3's "top-1 err." as "error top-1", squeezed by the next column's half-gap). Paragraphs shrink by
-  as much as each needs, so one column can show body text in two or three sizes (attn-v7 p. 8, resnet p. 6). The model's,
+  underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
+  label in a narrow cell with a row right under it still shrinks to the floor (the census's first "Income percentile
+  ratios:" as "Proporciones de percentiles de ingresos:"): its cell has neither the width nor the height. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
