@@ -27,12 +27,14 @@ public enum ErrorWords {
         return t
     }
 
-    /// A description meant for a programmer: a type name in brackets, an error domain, a code, a struct dump.
+    /// A description meant for a programmer: a type name in brackets, an error domain, a code, a struct dump. Foundation's
+    /// generic sentence is in the Mac's language ("No se pudo completar la operación. (InkvoltPdf.FooError error 4.)"),
+    /// so it is known by its "(Domain error N.)" tail, which no language translates.
     public static func isDump(_ text: String) -> Bool {
-        let markers = ["Error Domain=", "error 0.)", "error 1.)", "error 2.)", "(PdfCore.", "UserInfo=", "Swift.", "NSUnderlyingError"]
+        let markers = ["Error Domain=", "(PdfCore.", "UserInfo=", "Swift.", "NSUnderlyingError"]
         if markers.contains(where: text.contains) { return true }
         if text.range(of: #"^[A-Za-z]+Error(\(.*\))?$"#, options: .regularExpression) != nil { return true }
-        return text.range(of: #"couldn.t be completed\. \([^)]*error -?\d+\.\)"#, options: .regularExpression) != nil
+        return text.range(of: #"\([A-Za-z_][\w.]* error -?\d+\.\)"#, options: .regularExpression) != nil
     }
 }
 
