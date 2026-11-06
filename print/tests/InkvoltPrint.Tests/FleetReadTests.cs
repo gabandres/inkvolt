@@ -515,6 +515,7 @@ public sealed class FleetReadTests : IDisposable
     [InlineData(new[] { "--demo", "status", "--all" }, true)]
     [InlineData(new[] { "--demo", "--pro-enforce", "status", "--all" }, true)]
     [InlineData(new[] { "--demo", "--no-printers", "status", "--all" }, true)]
+    [InlineData(new[] { "--demo", "--twain", "status", "--all" }, true)]
     [InlineData(new[] { "status" }, true)]
     [InlineData(new[] { "status.pdf" }, false)]
     [InlineData(new[] { "--snapshot", "status" }, false)]

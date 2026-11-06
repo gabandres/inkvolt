@@ -349,8 +349,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   `Windows/Scanning/WindowsTwain` behind the same `IWiaSystem` as WIA, `Core/Twain`: 64-bit sources through the TWAIN 2
   manager (TWAINDSM.dll), native transfer, the source's own window never shown; Inkvolt PDF's Scan dialog lists them
   (pdf/ROADMAP.md 2.3, `UsbScannerTests`). Inkvolt Print: `Core/Wia/DriverScanners` lists TWAIN sources beside WIA's in the
-  one list the printer list, Scan, Copy, Fleet and `inkvoltprint scanners` read (ids `twain:<name>`; a source WIA already
-  lists left out; a TWAIN list that fails or hangs, 25 s, keeps the sources listed before and never costs WIA's), matched to
+  one list the printer list, Scan, Copy, Fleet, `inkvoltprint scanners` and Inkvolt PDF's Scan dialog read (ids
+  `twain:<name>`; a source any WIA entry already is left out; WIA's shown at once and TWAIN's merged when read, TWAIN read
+  once, again when WIA's list changes or after 10 minutes, never while a TWAIN source is in use; a TWAIN list that fails or
+  hangs, 20 s, keeps the sources listed before and never costs WIA's), matched to
   printers by `WiaMatch`'s rules or listed as a scanner of its own, scanned through the same `WiaScanner` (feeder, duplex,
   color, grey, black and white, resolution from the capabilities, a hung source contained as a hung WIA driver is). The Scan
   tab's Color choice offers black and white wherever the source does (eSCL, WIA, TWAIN; `ScanChoices.Pick`, as presets).
