@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 
 public enum AttachmentSource: Sendable, Equatable {
     case document, annotation
@@ -49,8 +50,8 @@ public enum Attachments {
     /// The attachment's file contents (decoded).
     public static func extract(_ data: [UInt8], _ password: String?, _ key: String) throws -> [UInt8] {
         let doc = try open(data, password)
-        guard let fs = try findSpec(doc, key) else { throw PdfEditError("That attachment no longer exists.") }
-        guard let stream = fileStream(fs), let bytes = stream.streamData else { throw PdfEditError("That attachment has no embedded data.") }
+        guard let fs = try findSpec(doc, key) else { throw PdfEditError(loc("That attachment no longer exists.")) }
+        guard let stream = fileStream(fs), let bytes = stream.streamData else { throw PdfEditError(loc("That attachment has no embedded data.")) }
         try doc.checkFailure()
         return bytes
     }
@@ -100,14 +101,14 @@ public enum Attachments {
         try PageEditor.edit(data, password) { doc in
             if key.hasPrefix(annotPrefix) {
                 if !(try Annotations.deleteIn(doc, String(key.dropFirst(annotPrefix.count)))) {
-                    throw PdfEditError("That attachment no longer exists.")
+                    throw PdfEditError(loc("That attachment no longer exists."))
                 }
             } else {
                 let name = key.hasPrefix(docPrefix) ? String(key.dropFirst(docPrefix.count)) : key
                 var entries = PdfStructure.nameTree(embeddedFilesRoot(doc))
                 let before = entries.count
                 entries.removeAll { $0.key == name }
-                if entries.count == before { throw PdfEditError("That attachment no longer exists.") }
+                if entries.count == before { throw PdfEditError(loc("That attachment no longer exists.")) }
                 writeTree(doc, entries)
                 SignedEdits.noteRemoval()
             }
@@ -118,7 +119,7 @@ public enum Attachments {
         do {
             return try PdfEdit.openToRead(data, password)
         } catch let e as PdfEditError {
-            throw PdfEditError(e.message.replacingOccurrences(of: "This PDF can't be read", with: "This PDF's attachments can't be read"))
+            throw PdfEditError(e.message.replacingOccurrences(of: loc("This PDF can't be read"), with: loc("This PDF's attachments can't be read")))
         }
     }
 

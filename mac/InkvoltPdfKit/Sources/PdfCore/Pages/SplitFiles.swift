@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// One file of a split: its pages (0-based) and a label (a top-level bookmark's title, or "").
 public struct SplitPart: Equatable, Sendable {
@@ -22,14 +23,14 @@ public struct BatchWriteError: Error, Equatable, Sendable, CustomStringConvertib
     public var written: [String]
     public var failedPath: String
     public var reason: String
-    public var description: String { "Couldn't write \((failedPath as NSString).lastPathComponent): \(reason)" }
+    public var description: String { loc("Couldn't write {0}: {1}", (failedPath as NSString).lastPathComponent, reason) }
 
     /// The message with which files were written before it stopped (Windows' `Organize.BatchFailure`).
     public var message: String {
-        if written.isEmpty { return "\(description) No files were written." }
-        let names = written.prefix(5).map { ($0 as NSString).lastPathComponent }
-        let more = written.count > 5 ? " and \(written.count - 5) more" : ""
-        return "\(description) These files were written before it stopped: \(names.joined(separator: ", "))\(more)."
+        if written.isEmpty { return loc("{0} No files were written.", description) }
+        let names = written.prefix(5).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
+        if written.count > 5 { return loc("{0} These files were written before it stopped: {1} and {2} more.", description, names, CoreLanguage.number(written.count - 5)) }
+        return loc("{0} These files were written before it stopped: {1}.", description, names)
     }
 }
 
@@ -49,7 +50,7 @@ public enum SplitFiles {
         switch mode {
         case .pageCount:
             guard let n = Int(pagesPerFile.trimmingCharacters(in: .whitespaces)), n >= 1, n <= pageCount else {
-                return ([], "Enter a page count from 1 to \(pageCount).")
+                return ([], loc("Enter a page count from 1 to {0}.", CoreLanguage.number(pageCount)))
             }
             parts = PageEditor.chunksOf(pageCount, n).map { SplitPart(pages: $0) }
         case .ranges:
@@ -59,7 +60,7 @@ public enum SplitFiles {
                 parts.append(SplitPart(pages: r.pages))
             }
         case .bookmarks:
-            if outline.isEmpty { return ([], "This document has no bookmarks.") }
+            if outline.isEmpty { return ([], loc("This document has no bookmarks.")) }
             let starts = Set(outline.map(\.pageIndex).filter { $0 >= 0 && $0 < pageCount } + [0]).sorted()
             for (i, start) in starts.enumerated() {
                 let end = i + 1 < starts.count ? starts[i + 1] : pageCount
@@ -67,7 +68,7 @@ public enum SplitFiles {
                 parts.append(SplitPart(pages: Array(start..<end), label: title))
             }
         }
-        return parts.isEmpty ? ([], "Nothing to split.") : (parts, nil)
+        return parts.isEmpty ? ([], loc("Nothing to split.")) : (parts, nil)
     }
 
     /// Each part's file in `folder`: `pattern` with {name} (the document's name) and {n} (the part's number), a
@@ -76,10 +77,10 @@ public enum SplitFiles {
                                name: String) -> (paths: [String], error: String?) {
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: folder, isDirectory: &isDir), isDir.boolValue else {
-            return ([], "Choose an existing folder.")
+            return ([], loc("Choose an existing folder."))
         }
         let numbered = pattern.contains("{n}")
-        if !numbered && mode != .bookmarks { return ([], "The file name must include {n} so each part gets its own file.") }
+        if !numbered && mode != .bookmarks { return ([], loc("The file name must include {n} so each part gets its own file.")) }
         var reserved = Set<String>()
         var paths: [String] = []
         for (i, part) in parts.enumerated() {
@@ -101,12 +102,12 @@ public enum SplitFiles {
         let dotExt = ext.isEmpty ? "" : "." + ext
         var stem = ext.isEmpty ? safe : String(safe.dropLast(dotExt.count))
         stem = trimmedEnd(stem.trimmingCharacters(in: .whitespaces))
-        if stem.isEmpty { stem = "Untitled" }
+        if stem.isEmpty { stem = loc("Untitled") }
         // Room for " (999)" and the extension; a stem from a long title is cut on a character's boundary.
         if stem.count > maxStem { stem = String(stem.prefix(maxStem)) }
         while stem.utf8.count + 6 + dotExt.utf8.count > maxNameBytes { stem.removeLast() }
         stem = trimmedEnd(stem)
-        if stem.isEmpty { stem = "Untitled" }
+        if stem.isEmpty { stem = loc("Untitled") }
         var path = (folder as NSString).appendingPathComponent(stem + dotExt)
         var n = 2
         while FileManager.default.fileExists(atPath: path) || reserved.contains(path.lowercased()) {
@@ -137,7 +138,7 @@ public enum SplitFiles {
                 let existed = (error as? CocoaError)?.code == .fileWriteFileExists
                 if !existed { try? FileManager.default.removeItem(atPath: path) }
                 let reason = (error as? PdfEditError)?.message ?? error.localizedDescription
-                throw BatchWriteError(written: written, failedPath: path, reason: existed ? "A file with that name is already there." : reason)
+                throw BatchWriteError(written: written, failedPath: path, reason: existed ? loc("A file with that name is already there.") : reason)
             }
         }
     }

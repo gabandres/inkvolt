@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// Edit Text & Images (the Windows app's PageViewer.EditContent and DocumentTab.EditContent), over D5a's
@@ -141,7 +142,7 @@ final class ContentEditing: NSObject {
     func nudgeSelected(_ dx: Double, _ dy: Double) {
         guard let image = selectedImage, let controller else { return }
         if let why = image.blocked {
-            controller.notify("This picture can't be moved: it is \(why).")
+            controller.notify(loc("This picture can't be moved: {0}.", why))
             return
         }
         let g = controller.engine.page(image.pageIndex)
@@ -198,7 +199,8 @@ final class ContentEditing: NSObject {
         selectedImage = image
         pages?.needsDisplay = true
         if let image, let pages {
-            let what = image.blocked.map { "Picture, can't be changed: it is \($0)" } ?? "Picture selected: drag to move it or its handles to resize it, arrow keys move it, Delete removes it"
+            let what = image.blocked.map { loc("Picture, can't be changed: {0}", $0) }
+                ?? loc("Picture selected: drag to move it or its handles to resize it, arrow keys move it, Delete removes it")
             NSAccessibility.post(element: pages, notification: .announcementRequested, userInfo: [.announcement: what])
         }
     }
@@ -207,11 +209,11 @@ final class ContentEditing: NSObject {
     func editRun(_ run: TextRun) {
         guard let pages, let controller, run.pageIndex < pages.pageRects.count else { return }
         if let why = run.blocked {
-            controller.notify("This text can't be edited: it is \(why).")
+            controller.notify(loc("This text can't be edited: {0}.", why))
             return
         }
         let anchor = pages.viewRect(run.box, pages.pageRects[run.pageIndex])
-        controller.askText("Edit Text", initial: run.text, at: anchor) { [weak self] text in
+        controller.askText(loc("Edit Text"), initial: run.text, at: anchor) { [weak self] text in
             guard let self, let text, text != run.text else { return }
             self.replace(run, text)
         }
@@ -222,17 +224,19 @@ final class ContentEditing: NSObject {
         guard let editor, let controller else { return }
         let check = run.check(text)
         if !check.missing.isEmpty {
-            let list = check.missing.prefix(8).map { $0 == " " ? "space" : "“\($0)”" }.joined(separator: ", ")
-            controller.notify("Not changed: the font “\(run.fontName)” has no \(list) in this PDF.")
+            let list = check.missing.prefix(8).map { $0 == " " ? loc("space") : "“\($0)”" }.joined(separator: ", ")
+            controller.notify(loc("Not changed: the font “{0}” has no {1} in this PDF.", run.fontName, list))
             return
         }
         pendingEdit = Task {
             let ok = await editor.replaceText(run, text)
             if ok && check.width - check.oldWidth > 0.5 {
                 // The widths come from the PDF's font: one too wide to count is said without its number.
-                let wider = Int(exactly: (check.width - check.oldWidth).rounded()).map { "\($0) pt " } ?? ""
-                controller.notify("Text changed. It is \(wider)wider than before and doesn't reflow, "
-                                  + "so it may overlap what follows.", canUndo: true)
+                if let wider = Int(exactly: (check.width - check.oldWidth).rounded()) {
+                    controller.notify(loc("Text changed. It is {0} pt wider than before and doesn't reflow, so it may overlap what follows.", CoreLanguage.number(wider)), canUndo: true)
+                } else {
+                    controller.notify(loc("Text changed. It is wider than before and doesn't reflow, so it may overlap what follows."), canUndo: true)
+                }
             }
             self.pendingEdit = nil
         }
@@ -242,7 +246,7 @@ final class ContentEditing: NSObject {
     func move(_ image: PageImage, to box: RectD) {
         guard let editor else { return }
         if let why = image.blocked {
-            controller?.notify("This picture can't be moved: it is \(why).")
+            controller?.notify(loc("This picture can't be moved: {0}.", why))
             return
         }
         pendingEdit = Task {
@@ -260,7 +264,7 @@ final class ContentEditing: NSObject {
         nudgeTimer = nil
         nudge = PointD(0, 0)
         if let why = image.blocked {
-            controller?.notify("This picture can't be deleted: it is \(why).")
+            controller?.notify(loc("This picture can't be deleted: {0}.", why))
             return
         }
         select(nil)
@@ -275,7 +279,7 @@ final class ContentEditing: NSObject {
         guard let image = selectedImage, let window = pages?.window else { return NSSound.beep() }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.png, .jpeg]
-        panel.message = "Choose the picture that takes its place."
+        panel.message = loc("Choose the picture that takes its place.")
         panel.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .OK, let url = panel.url, let data = try? Data(contentsOf: url) else { return }

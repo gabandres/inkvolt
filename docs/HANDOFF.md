@@ -139,7 +139,8 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
    2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers); 3.3 Compare with Office
    files, scans and formatting; 3.5 indexed folder search; Microsoft Office as E12's converter (on the mini, backlog
    note below); 3.1 Translate (after 2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
-3. Spanish interface (Windows has it), and What's New in Spanish on both platforms. Suspect words: done 2026-11-04.
+3. Done 2026-11-06: the Spanish interface and What's New in Spanish on both Mac apps (mac/docs/PLAN.md 3.7). Left: What's
+   New in Spanish on Windows; the owner's review of the Mac wording. Suspect words: done 2026-11-04.
 4. No Windows test to port: vector printing (pages print as 300 dpi pictures), printer status and Inkvolt Print's
    printer settings when printing, the Snapshot tool. UX: the renames proposed in `mac/docs/UX-REVIEW.md` (owner decides).
 

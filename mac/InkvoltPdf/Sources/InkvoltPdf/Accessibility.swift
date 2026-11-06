@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// Tools › Accessibility Check… (the Windows app's Review › Accessibility Check…): the PDF/UA-1 machine checks
@@ -17,7 +18,7 @@ extension DocumentWindowController {
     func runAccessibilityCheck() async -> Bool {
         guard let session = pdf.session, let window else { return false }
         let data = session.data, password = session.password
-        let sheet = ProgressSheet(title: "Accessibility Check", text: "Reading the tags…")
+        let sheet = ProgressSheet(title: loc("Accessibility Check"), text: loc("Reading the tags…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -26,7 +27,7 @@ extension DocumentWindowController {
         }
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update("Checking page \(done) of \(total)…", Double(done) / Double(max(total, 1))) }
+            onMain { sheet.update(loc("Checking page {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
         }
         let result = await Task.detached { () -> Result<AccessibilityReport, Error> in
             Result { try AccessibilityCheck.run(data, password, progress: progress, cancel: token) }
@@ -39,7 +40,7 @@ extension DocumentWindowController {
         case .failure(is CancellationError):
             return false
         case .failure(let error):
-            pdf.showError("The accessibility check couldn't run.", error)
+            pdf.showError(loc("The accessibility check couldn't run."), error)
             return false
         }
     }
@@ -73,7 +74,7 @@ extension DocumentWindowController {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.html]
         panel.nameFieldStringValue = AccessibilityReportHtml.fileName(for: pdf.session?.displayName ?? pdf.name)
-        panel.message = "The report is saved on this Mac only."
+        panel.message = loc("The report is saved on this Mac only.")
         if let path = pdf.session?.filePath { panel.directoryURL = URL(fileURLWithPath: (path as NSString).deletingLastPathComponent) }
         panel.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
@@ -92,10 +93,10 @@ extension DocumentWindowController {
         do {
             try Data(html.utf8).write(to: url, options: .atomic)
             pane.saved = url
-            notify("Report saved: \(url.lastPathComponent)")
+            notify(loc("Report saved: {0}", url.lastPathComponent))
             return true
         } catch {
-            pdf.showError("The report couldn't be saved.", error)
+            pdf.showError(loc("The report couldn't be saved."), error)
             return false
         }
     }
@@ -107,15 +108,15 @@ extension DocumentWindowController {
 @MainActor
 final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegate {
     private let summaryLabel = NSTextField(wrappingLabelWithString: "")
-    private let tabs = NSSegmentedControl(labels: ["Fails", "Checklist"], trackingMode: .selectOne, target: nil, action: nil)
+    private let tabs = NSSegmentedControl(labels: [loc("Fails"), loc("Checklist")], trackingMode: .selectOne, target: nil, action: nil)
     private let table = NSTableView()
     private let tableScroll = NSScrollView()
-    private let none = NSTextField(wrappingLabelWithString: "Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist.")
+    private let none = NSTextField(wrappingLabelWithString: loc("Nothing fails the machine checks. A document is accessible once a person has also made the checks under Checklist."))
     private let checklistScroll = NSScrollView()
     private let checklist = NSStackView()
-    private let againButton = NSButton(title: "Check Again", target: nil, action: nil)
-    private let saveButton = NSButton(title: "Save Report…", target: nil, action: nil)
-    private let openButton = NSButton(title: "Open Report", target: nil, action: nil)
+    private let againButton = NSButton(title: loc("Check Again"), target: nil, action: nil)
+    private let saveButton = NSButton(title: loc("Save Report…"), target: nil, action: nil)
+    private let openButton = NSButton(title: loc("Open Report"), target: nil, action: nil)
     private var following = false
 
     private(set) var report: AccessibilityReport?
@@ -141,7 +142,9 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         none.textColor = .secondaryLabelColor
         none.isHidden = true
 
-        for (button, tip) in [(againButton, "Check the document as it is now"), (saveButton, "Save the report, with your checklist, as a web page"), (openButton, "Open the report you saved")] {
+        let tips: [(NSButton, String)] = [(againButton, loc("Check the document as it is now")), (saveButton, loc("Save the report, with your checklist, as a web page")),
+                                          (openButton, loc("Open the report you saved"))]
+        for (button, tip) in tips {
             button.controlSize = .small
             button.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             button.bezelStyle = .rounded
@@ -161,7 +164,7 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         tabs.action = #selector(tabChosen)
         tabs.selectedSegment = 0
         tabs.controlSize = .small
-        tabs.setAccessibilityLabel("Accessibility pane shows")
+        tabs.setAccessibilityLabel(loc("Accessibility pane shows"))
 
         let column = NSTableColumn(identifier: .init("finding"))
         column.resizingMask = .autoresizingMask
@@ -172,7 +175,7 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         table.style = .plain
         table.dataSource = self
         table.delegate = self
-        table.setAccessibilityLabel("What fails")
+        table.setAccessibilityLabel(loc("What fails"))
         tableScroll.documentView = table
         tableScroll.hasVerticalScroller = true
         tableScroll.drawsBackground = false
@@ -189,7 +192,8 @@ final class AccessibilityPane: NSView, NSTableViewDataSource, NSTableViewDelegat
         checklistScroll.hasVerticalScroller = true
         checklistScroll.drawsBackground = false
         checklistScroll.isHidden = true
-        let intro = NSTextField(wrappingLabelWithString: "The machine can't judge these. Tick each once you've checked it; the saved report says which are done.")
+        let intro = NSTextField(wrappingLabelWithString: loc("The machine can't judge these. Tick each once you've checked it; the saved report says which are done."))
+
         intro.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         intro.textColor = .secondaryLabelColor
         intro.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

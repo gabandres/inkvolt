@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension AccessibilityCheck {
     /// Most findings listed per condition; the rest are counted in one more finding.
@@ -23,12 +24,12 @@ extension AccessibilityCheck {
             doc = try PdfEdit.openToRead(data, password)
             pages = try doc.pageCount()
         } catch let e as PdfEditError {
-            throw PdfEditError(e.message.replacingOccurrences(of: "This PDF can't be read", with: "This PDF can't be checked"))
+            throw PdfEditError(e.message.replacingOccurrences(of: loc("This PDF can't be read"), with: loc("This PDF can't be checked")))
         } catch let e as PdfEngineError {
-            throw PdfEditError("This PDF can't be checked: \(e.message)")
+            throw PdfEditError(loc("This PDF can't be checked: {0}", e.message))
         }
         // MuPDF rebuilds what it can of a damaged file, so a file that isn't one opens as a document without pages.
-        guard pages > 0 else { throw PdfEditError("This PDF can't be checked: it has no pages.") }
+        guard pages > 0 else { throw PdfEditError(loc("This PDF can't be checked: it has no pages.")) }
         return try AccessibilityChecker(data, doc, pages, progress, cancel, maxDocumentOperators).run()
     }
 
@@ -125,7 +126,7 @@ final class AccessibilityChecker {
         findings.append(f)
     }
 
-    func add(_ condition: String, _ problem: String, page: Int = -1, box: RectD = .zero, element: String = "Document", count: Int = 1, fix: String? = nil) {
+    func add(_ condition: String, _ problem: String, page: Int = -1, box: RectD = .zero, element: String = loc("Document"), count: Int = 1, fix: String? = nil) {
         var f = AccessibilityFinding(condition: condition, problem: problem)
         f.page = page
         f.box = box
@@ -145,15 +146,15 @@ final class AccessibilityChecker {
         root = catalog.dict("StructTreeRoot")
         let lang = Self.text(catalog["Lang"])
         docLang = lang != nil // present, even empty or malformed (that is reported on its own, as UA 7.2-Lang)
-        if let lang, !AccessibilityCheck.isLanguage(lang) { add("UA 7.2-Lang", "The document's language is “\(Self.short(lang))”, which isn't a language code.") }
+        if let lang, !AccessibilityCheck.isLanguage(lang) { add("UA 7.2-Lang", loc("The document's language is “{0}”, which isn't a language code.", Self.short(lang))) }
 
         header()
-        if root == nil { add("UA 7.1", "The document has no tags (no structure tree), so screen readers can't tell its headings, lists, tables or reading order.") }
+        if root == nil { add("UA 7.1", loc("The document has no tags (no structure tree), so screen readers can't tell its headings, lists, tables or reading order.")) }
         let markInfo = catalog.dict("MarkInfo")
         if markInfo == nil || Self.bool(markInfo?["Marked"]) != true {
-            add("UA 6.2", markInfo == nil ? "The document doesn't say it is tagged (no MarkInfo)." : "The document says it isn't tagged (Marked isn't true).")
+            add("UA 6.2", markInfo == nil ? loc("The document doesn't say it is tagged (no MarkInfo).") : loc("The document says it isn't tagged (Marked isn't true)."))
         }
-        if Self.bool(markInfo?["Suspects"]) == true { add("01-007", "The document says its tags may be wrong (Suspects is true).") }
+        if Self.bool(markInfo?["Suspects"]) == true { add("01-007", loc("The document says its tags may be wrong (Suspects is true).")) }
 
         metadata()
         viewerPreferences()
@@ -170,7 +171,7 @@ final class AccessibilityChecker {
 
         for condition in droppedOrder {
             let n = dropped[condition] ?? 0
-            var more = AccessibilityFinding(condition: condition, problem: "… and \(n) more like these (only the first \(AccessibilityCheck.maxPerCondition) are listed).")
+            var more = AccessibilityFinding(condition: condition, problem: loc("… and {0} more like these (only the first {1} are listed).", CoreLanguage.number(n), CoreLanguage.number(AccessibilityCheck.maxPerCondition)))
             more.count = n
             findings.append(more)
         }
@@ -206,11 +207,11 @@ final class AccessibilityChecker {
         let text = latin1String(head)
         let problem: String
         if text.hasPrefix("%PDF-2") {
-            problem = "The file is PDF 2.0; PDF/UA-1 is based on PDF 1.7 (PDF 2.0 files follow PDF/UA-2)."
+            problem = loc("The file is PDF 2.0; PDF/UA-1 is based on PDF 1.7 (PDF 2.0 files follow PDF/UA-2).")
         } else if at != nil {
-            problem = "The file's header is “\(Self.short(text))”, not “%PDF-1.n” (n from 0 to 7)."
+            problem = loc("The file's header is “{0}”, not “%PDF-1.n” (n from 0 to 7).", Self.short(text))
         } else {
-            problem = "The file doesn't start with a PDF header."
+            problem = loc("The file doesn't start with a PDF header.")
         }
         add("UA 6.1", problem)
     }
@@ -219,12 +220,12 @@ final class AccessibilityChecker {
 
     private func metadata() {
         guard let stream = catalog.dict("Metadata"), stream.isStream else {
-            add("06-001", "The document has no XMP metadata, so it can't say it is PDF/UA or give its title there.")
+            add("06-001", loc("The document has no XMP metadata, so it can't say it is PDF/UA or give its title there."))
             return
         }
         // Windows' reader refuses a document type definition (and with it any entity expansion).
         guard let xmp = Xmp.read(doc), xmp.dtd == nil else {
-            add("06-001", "The document's XMP metadata can't be read (it isn't well-formed XML).")
+            add("06-001", loc("The document's XMP metadata can't be read (it isn't well-formed XML)."))
             return
         }
         var all: [XMLElement] = []
@@ -243,15 +244,15 @@ final class AccessibilityChecker {
         if let part {
             let value = part.trimmingCharacters(in: .whitespacesAndNewlines)
             if value != "1" {
-                add("06-002", "The metadata says the document follows PDF/UA part \(Self.short(value)), not part 1.")
+                add("06-002", loc("The metadata says the document follows PDF/UA part {0}, not part 1.", Self.short(value)))
             } else if let prefix = Self.prefix(all, Self.pdfUaId), prefix != "pdfuaid" {
-                add("06-002", "The PDF/UA identifier is written with the prefix “\(prefix)”; PDF/UA asks for “pdfuaid”.")
+                add("06-002", loc("The PDF/UA identifier is written with the prefix “{0}”; PDF/UA asks for “pdfuaid”.", prefix))
             }
         } else {
-            add("06-002", "The metadata doesn't say the document is PDF/UA (it has no pdfuaid:part).")
+            add("06-002", loc("The metadata doesn't say the document is PDF/UA (it has no pdfuaid:part)."))
         }
 
-        if !all.contains(where: { isA($0, Xmp.dc, "title") }) { add("06-003", "The metadata has no title (dc:title).") }
+        if !all.contains(where: { isA($0, Xmp.dc, "title") }) { add("06-003", loc("The metadata has no title (dc:title).")) }
 
         // Metadata text whose only language alternative is x-default: its language comes from the document's.
         if !docLang {
@@ -260,7 +261,7 @@ final class AccessibilityChecker {
                 guard items.count == 1 else { continue }
                 let lang = items[0].attribute(forLocalName: "lang", uri: Xmp.xmlNs) ?? items[0].attribute(forName: "xml:lang")
                 if lang?.stringValue == "x-default" {
-                    add("11-006", "The metadata's \(alt.parent?.localName ?? "text") has no language of its own, and the document has none.")
+                    add("11-006", alt.parent?.localName.map { loc("The metadata's {0} has no language of its own, and the document has none.", $0) } ?? loc("The metadata's text has no language of its own, and the document has none."))
                 }
             }
         }
@@ -276,32 +277,37 @@ final class AccessibilityChecker {
     private func viewerPreferences() {
         let display = Self.bool(catalog.dict("ViewerPreferences")?["DisplayDocTitle"])
         if display == nil {
-            add("07-001", "The document doesn't ask viewers to show its title in the window (DisplayDocTitle is missing): they show the file name.")
+            add("07-001", loc("The document doesn't ask viewers to show its title in the window (DisplayDocTitle is missing): they show the file name."))
         } else if display == false {
-            add("07-002", "The document asks viewers to show the file name in the window instead of its title (DisplayDocTitle is false).")
+            add("07-002", loc("The document asks viewers to show the file name in the window instead of its title (DisplayDocTitle is false)."))
         }
     }
 
     private func security() {
         guard let handler = doc.trailer.dict("Encrypt"), handler.has("Filter") else { return }
         switch AccessibilityCheck.permissionsCondition(handler.int("P")) {
-        case "26-001": add("26-001", "The file is encrypted but doesn't say what readers may do (no P entry).")
-        case "26-002": add("26-002", "The file's protection doesn't allow copying text for accessibility, so screen readers may refuse to read it.")
+        case "26-001": add("26-001", loc("The file is encrypted but doesn't say what readers may do (no P entry)."))
+        case "26-002": add("26-002", loc("The file's protection doesn't allow copying text for accessibility, so screen readers may refuse to read it."))
         default: break
         }
     }
 
     private func optionalContent() {
         guard let oc = catalog.dict("OCProperties") else { return }
-        func config(_ c: PObj?, _ condition: String, _ which: String) {
+        func config(_ c: PObj?, _ condition: String, _ isDefault: Bool) {
             guard let c else { return }
-            if (Self.text(c["Name"]) ?? "").isEmpty { add(condition, "The \(which) layer configuration has no name.") }
-            if c.has("AS") { add("20-003", "The \(which) layer configuration switches layers automatically (it has an AS entry).") }
+            if (Self.text(c["Name"]) ?? "").isEmpty {
+                add(condition, isDefault ? loc("The default layer configuration has no name.") : loc("The other layer configuration has no name."))
+            }
+            if c.has("AS") {
+                add("20-003", isDefault ? loc("The default layer configuration switches layers automatically (it has an AS entry).")
+                    : loc("The other layer configuration switches layers automatically (it has an AS entry)."))
+            }
         }
-        config(oc.dict("D"), "20-002", "default")
+        config(oc.dict("D"), "20-002", true)
         let configs = (oc.array("Configs")?.elements ?? []).filter(\.isDict)
-        for c in configs.prefix(256) { config(c, "20-001", "other") }
-        if (oc.array("Configs")?.count ?? 0) > 256 { noteOnce("The file has very many layer configurations; only the first 256 were checked.") }
+        for c in configs.prefix(256) { config(c, "20-001", false) }
+        if (oc.array("Configs")?.count ?? 0) > 256 { noteOnce(loc("The file has very many layer configurations; only the first 256 were checked.")) }
     }
 
     private func embeddedFiles() {
@@ -309,11 +315,13 @@ final class AccessibilityChecker {
         for (key, value) in PdfStructure.nameTree(catalog.dict("Names")?.dict("EmbeddedFiles")) {
             attached += 1
             if attached > 10_000 {
-                noteOnce("The file has very many attached files; only the first 10,000 were checked.")
+                noteOnce(loc("The file has very many attached files; only the first 10,000 were checked."))
                 break
             }
             guard let spec = value, spec.isDict, spec.has("EF"), !Self.hasBothNames(spec) else { continue }
-            add("21-001", "The attached file “\(Self.short(key))” lacks \(spec.has("UF") ? "its F name" : "its UF (Unicode) name").", element: "Attached file")
+            let name = Self.short(key)
+            let problem = spec.has("UF") ? loc("The attached file “{0}” lacks its F name.", name) : loc("The attached file “{0}” lacks its UF (Unicode) name.", name)
+            add("21-001", problem, element: loc("Attached file"))
         }
     }
 
@@ -324,7 +332,7 @@ final class AccessibilityChecker {
     private func xfa() {
         guard let xfa = catalog.dict("AcroForm")?["XFA"] else { return }
         if Self.requiresDynamicRender(Self.xfaBytes(xfa)) {
-            add("25-001", "The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use.")
+            add("25-001", loc("The file holds a dynamic XFA form (dynamicRender is required), which most readers and screen readers can't use."))
         }
     }
 
@@ -394,7 +402,9 @@ final class AccessibilityChecker {
             if let next = item.dict("Next") { stack.append(next) }
             if let kid = item.dict("First") { stack.append(kid) }
         }
-        add("11-003", "The document has no language, so the language of its \(count) \(count == 1 ? "bookmark" : "bookmarks") can't be told.", element: "Bookmarks", count: count)
+        let problem = count == 1 ? loc("The document has no language, so the language of its {0} bookmark can't be told.", CoreLanguage.number(count))
+            : loc("The document has no language, so the language of its {0} bookmarks can't be told.", CoreLanguage.number(count))
+        add("11-003", problem, element: loc("Bookmarks"), count: count)
     }
 
     // MARK: Reading objects (Windows' `PdfObj`)
@@ -425,8 +435,6 @@ final class AccessibilityChecker {
     }
 
     static func short(_ s: String) -> String { s.count <= 60 ? s : String(s.prefix(57)) + "…" }
-
-    static func count(_ n: Int, _ one: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(one)s" }
 
     func step(_ done: Int) { progress?(done, pageCount) }
 }

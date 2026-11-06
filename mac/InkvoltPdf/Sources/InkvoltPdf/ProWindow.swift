@@ -64,7 +64,7 @@ final class ProWindowController: NSWindowController {
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 420), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Inkvolt Pro"
+        window.title = "Inkvolt Pro" // English: the product's name
         window.isRestorable = false
         super.init(window: window)
 
@@ -73,7 +73,7 @@ final class ProWindowController: NSWindowController {
         keyText.isAutomaticQuoteSubstitutionEnabled = false
         keyText.isAutomaticTextReplacementEnabled = false
         keyText.textContainerInset = NSSize(width: 4, height: 4)
-        keyText.setAccessibilityLabel("Licence key")
+        keyText.setAccessibilityLabel(loc("Licence key"))
         keyScroll.documentView = keyText
         keyScroll.hasVerticalScroller = true
         keyScroll.borderType = .bezelBorder
@@ -88,9 +88,9 @@ final class ProWindowController: NSWindowController {
         body.orientation = .vertical
         body.alignment = .leading
         body.spacing = 8
-        let title = NSTextField(labelWithString: "Inkvolt Pro")
+        let title = NSTextField(labelWithString: "Inkvolt Pro") // English: the product's name
         title.font = .systemFont(ofSize: 20, weight: .semibold)
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let close = NSButton(title: loc("Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = "\u{1b}"
         let footer = NSStackView(views: [NSView(), close])
         let root = NSStackView(views: [title, body, footer])
@@ -142,7 +142,7 @@ final class ProWindowController: NSWindowController {
             box.cornerRadius = 6
             box.contentViewMargins = NSSize(width: 14, height: 10)
             let lockedText = RedactPatternSheet.heading(Pro.locked(feature))
-            let detail = RedactPatternSheet.wrapped("\(Pro.title(feature)): \(Pro.describe(feature))")
+            let detail = RedactPatternSheet.wrapped(loc("{0}: {1}", Pro.title(feature), Pro.describe(feature)))
             let stack = NSStackView(views: [lockedText, detail])
             stack.orientation = .vertical
             stack.alignment = .leading
@@ -152,42 +152,43 @@ final class ProWindowController: NSWindowController {
         }
 
         if let licence {
-            add(heading("Pro licensed to \(licence.name)"))
+            add(heading(loc("Pro licensed to {0}", licence.name)))
             let issued = licence.issuedDate.map { DateFormatter.localizedString(from: $0, dateStyle: .long, timeStyle: .none) } ?? licence.issued
-            let suite = licence.covers(ProKeys.productPrint) ? "; Inkvolt Print on this Mac finds it too" : ""
-            add(caption("Key for \(licence.email), issued \(issued). It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling\(suite). Thank you for supporting Inkvolt PDF."))
+            add(caption(licence.covers(ProKeys.productPrint)
+                ? loc("Key for {0}, issued {1}. It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling; Inkvolt Print on this Mac finds it too. Thank you for supporting Inkvolt PDF.", licence.email, issued)
+                : loc("Key for {0}, issued {1}. It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Thank you for supporting Inkvolt PDF.", licence.email, issued)))
             if !Pro.enforced {
-                add(caption("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line) when they start asking for a key."))
+                add(caption(loc("Everything in Inkvolt PDF is free while it launches; your licence will keep the Pro features (batch presets, watched folders, the command line) when they start asking for a key.")))
             }
-            add(NSButton(title: "Remove Licence", target: self, action: #selector(removeClicked)))
+            add(NSButton(title: loc("Remove Licence"), target: self, action: #selector(removeClicked)))
             return
         }
 
         if Pro.enforced {
-            add(heading("Free"))
-            add(caption("Inkvolt Pro unlocks batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a: a one-time \(Pro.priceText), no account. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free."))
+            add(heading(loc("Free")))
+            add(caption(loc("Inkvolt Pro unlocks batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a: a one-time {0}, no account. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt PDF is free and stays free.", Pro.priceText)))
         } else {
-            add(heading("Everything is free while Inkvolt PDF launches"))
-            add(caption("That includes the Pro features: batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a. Inkvolt Pro (\(Pro.priceText), one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac."))
+            add(heading(loc("Everything is free while Inkvolt PDF launches")))
+            add(caption(loc("That includes the Pro features: batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a. Inkvolt Pro ({0}, one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac.", Pro.priceText)))
         }
         if let problem = Pro.problem {
             let text = RedactPatternSheet.wrapped(problem)
             text.textColor = .systemRed
             add(text)
         }
-        let get = NSButton(title: "Get Inkvolt Pro (\(Pro.priceText))", target: self, action: #selector(getClicked))
+        let get = NSButton(title: loc("Get Inkvolt Pro ({0})", Pro.priceText), target: self, action: #selector(getClicked))
         get.bezelStyle = .rounded
         get.keyEquivalent = ""
         add(get)
 
-        let have = RedactPatternSheet.heading("Have a key? Paste it here")
+        let have = RedactPatternSheet.heading(loc("Have a key? Paste it here"))
         add(have)
         body.setCustomSpacing(16, after: get)
         body.addArrangedSubview(keyScroll)
         // Only once it is in the stack: AppKit throws for anchors without a common ancestor.
         keyScroll.widthAnchor.constraint(equalTo: body.widthAnchor).isActive = true
         body.addArrangedSubview(error)
-        let enter = NSButton(title: "Enter Key", target: self, action: #selector(enterClicked))
+        let enter = NSButton(title: loc("Enter Key"), target: self, action: #selector(enterClicked))
         enter.keyEquivalent = "\r"
         add(enter)
     }
@@ -218,10 +219,11 @@ final class ProWindowController: NSWindowController {
     @objc private func removeClicked() {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Remove the Inkvolt Pro licence from this Mac?"
-        alert.informativeText = "Presets you saved and files the Pro features made stay as they are. You can enter the key again any time."
-        alert.addButton(withTitle: "Remove")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("Remove the Inkvolt Pro licence from this Mac?")
+        alert.informativeText = loc("Presets you saved and files the Pro features made stay as they are. You can enter the key again any time.")
+        alert.addButton(withTitle: loc("Remove"))
+        alert.addButton(withTitle: loc("Cancel"))
+
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }

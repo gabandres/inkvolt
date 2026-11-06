@@ -1,12 +1,13 @@
 import Foundation
 import MuPDFShim
+import PrintCore
 
 /// An edit needs the document's permissions (owner) password: it was opened without it, or the one given is wrong (the
 /// Windows app's `OwnerPasswordRequiredException`).
 public struct OwnerPasswordRequired: Error, Equatable, Sendable, CustomStringConvertible {
     public var wrongPassword: Bool
     public var description: String {
-        wrongPassword ? "Incorrect permissions password." : "Editing this PDF needs its permissions (owner) password."
+        wrongPassword ? loc("Incorrect permissions password.") : loc("Editing this PDF needs its permissions (owner) password.")
     }
 }
 
@@ -42,7 +43,7 @@ final class MuDoc {
     }
 
     static func open(_ data: [UInt8]) throws -> MuDoc {
-        guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") }
+        guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(ctx, $0.baseAddress, $0.count, 8, &err) }) else {
             inkv_drop_context(ctx)
@@ -62,7 +63,7 @@ final class MuDoc {
 
     /// A new, empty PDF (no pages), in a context of its own.
     static func create() throws -> MuDoc {
-        guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") }
+        guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         guard let doc = inkv_new_pdf(ctx, &err) else {
             inkv_drop_context(ctx)
@@ -148,12 +149,12 @@ final class MuDoc {
 /// else is written whole (MuPDF's garbage collection, so what an edit removed is gone), keeping its encryption as it was:
 /// the same method, permissions and both passwords (`encrypt=keep`).
 enum PdfEdit {
-    static func open(_ data: [UInt8], _ password: String?, failure: String = "This PDF can't be edited") throws -> MuDoc {
+    static func open(_ data: [UInt8], _ password: String?, failure: String? = nil) throws -> MuDoc {
         var doc: MuDoc
         do {
             doc = try MuDoc.open(data)
         } catch let e as PdfEngineError {
-            throw PdfEditError("\(failure): \(e.message)")
+            throw PdfEditError("\(failure ?? loc("This PDF can't be edited")): \(e.message)")
         }
         // MuPDF looks for the last startxref only near the end of the file: junk after %%EOF (a mail gateway's padding)
         // makes it repair the file, and a repaired file can't be appended to. A signed one is read again up to its last
@@ -231,8 +232,10 @@ public struct SignaturesWouldBreak: Error, Equatable, Sendable, CustomStringConv
     public var reason: String
 
     public var description: String {
-        "This edit can't be added to the signed file as an update (\(reason)), so saving it would invalidate "
-            + (signatureCount == 1 ? "its signature." : "its \(signatureCount) signatures.")
+        if signatureCount == 1 {
+            return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its signature.", CoreLanguage.number(signatureCount), reason)
+        }
+        return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its {0} signatures.", CoreLanguage.number(signatureCount), reason)
     }
 }
 

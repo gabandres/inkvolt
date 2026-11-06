@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// What a press on the pages does: the reading tools (hand, select text) and the comment tools, each with the single
 /// key that picks it while the pages have the focus (the Windows app's keys where it has one).
@@ -49,6 +50,10 @@ enum Tool: Int, CaseIterable {
         case .snapshot: "Snapshot"
         }
     }
+
+    /// The tool's name in the interface's language (menus, tooltips, VoiceOver); `title` stays the English identity that
+    /// `PlainWords.note(for:)` and the menus look tools up by (its literals are keys: `PdfStringsTests` reads them).
+    var shownTitle: String { loc(title) }
 
     /// The single key that picks the tool ("" for none).
     var key: String {
@@ -124,32 +129,37 @@ enum Tool: Int, CaseIterable {
     /// What VoiceOver and the tooltip say about it.
     var help: String {
         switch self {
-        case .hand: "Hand: scroll the pages, select a comment to move or resize it"
-        case .text: "Select text, or a comment"
-        case .highlight, .underline, .strikeOut: "\(title): drag over text"
-        case .note: "Note: click where it goes"
-        case .textBox: "Text box: click to type a line, drag for a box"
-        case .pen, .highlighter: "\(title): draw freehand"
-        case .rectangle, .ellipse: "\(title): drag; Shift for a square or circle"
-        case .line, .arrow: "\(title): drag; Shift for 45° steps"
-        case .stamp: "Stamp: pick one, then click where it goes"
-        case .image: "Image: pick a picture, then click where it goes"
-        case .link: "Link: drag a box, then choose a web address or a page"
-        case .fillText: "Add text: click where it goes; click Fill & Sign text to change it"
-        case .fillCheck: "Check mark: click where it goes; click one to remove it"
-        case .fillCross: "Cross: click where it goes; click one to remove it"
-        case .fillDate: "Date: click where today's date goes"
-        case .signature: "Signature: draw or type one, then click where it goes"
-        case .editContent: "Edit text and images: click text to change it, or a picture to move, replace or delete it"
-        case .callout: "Callout: press where it points, drag to where the text goes"
-        case .polygon: "Polygon: click each corner; double-click, Return or a click on the first corner closes it"
-        case .polyline: "Polyline: click each point; double-click or Return ends it"
-        case .redact: "Redact: drag over the areas to black out, click a mark to unmark it; nothing is removed until you apply the redactions"
-        case .measureDistance: "Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Tools › Measure › Set Measuring Scale)"
-        case .measurePerimeter, .measureArea: "Click each corner; double-click or Return finishes, Delete takes a corner back, Esc cancels"
-        case .measureCalibrate: "Click both ends of something whose real length you know (a dimension, a scale bar)"
-        case .prepareForm: "Add and edit form fields"
-        case .snapshot: "Snapshot: drag over part of a page to copy it as a picture; Esc cancels"
+        case .hand: loc("Hand: scroll the pages, select a comment to move or resize it")
+        case .text: loc("Select text, or a comment")
+        case .highlight: loc("Highlight: drag over text")
+        case .underline: loc("Underline: drag over text")
+        case .strikeOut: loc("Strike Out: drag over text")
+        case .note: loc("Note: click where it goes")
+        case .textBox: loc("Text box: click to type a line, drag for a box")
+        case .pen: loc("Pen: draw freehand")
+        case .highlighter: loc("Highlighter Pen: draw freehand")
+        case .rectangle: loc("Rectangle: drag; Shift for a square or circle")
+        case .ellipse: loc("Ellipse: drag; Shift for a square or circle")
+        case .line: loc("Line: drag; Shift for 45° steps")
+        case .arrow: loc("Arrow: drag; Shift for 45° steps")
+        case .stamp: loc("Stamp: pick one, then click where it goes")
+        case .image: loc("Image: pick a picture, then click where it goes")
+        case .link: loc("Link: drag a box, then choose a web address or a page")
+        case .fillText: loc("Add text: click where it goes; click Fill & Sign text to change it")
+        case .fillCheck: loc("Check mark: click where it goes; click one to remove it")
+        case .fillCross: loc("Cross: click where it goes; click one to remove it")
+        case .fillDate: loc("Date: click where today's date goes")
+        case .signature: loc("Signature: draw or type one, then click where it goes")
+        case .editContent: loc("Edit text and images: click text to change it, or a picture to move, replace or delete it")
+        case .callout: loc("Callout: press where it points, drag to where the text goes")
+        case .polygon: loc("Polygon: click each corner; double-click, Return or a click on the first corner closes it")
+        case .polyline: loc("Polyline: click each point; double-click or Return ends it")
+        case .redact: loc("Redact: drag over the areas to black out, click a mark to unmark it; nothing is removed until you apply the redactions")
+        case .measureDistance: loc("Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Tools › Measure › Set Measuring Scale)")
+        case .measurePerimeter, .measureArea: loc("Click each corner; double-click or Return finishes, Delete takes a corner back, Esc cancels")
+        case .measureCalibrate: loc("Click both ends of something whose real length you know (a dimension, a scale bar)")
+        case .prepareForm: loc("Add and edit form fields")
+        case .snapshot: loc("Snapshot: drag over part of a page to copy it as a picture; Esc cancels")
         }
     }
 
@@ -203,11 +213,11 @@ enum Tool: Int, CaseIterable {
 
 /// The palette offered for comments: eight swatches (as the Windows style bar), and any other through the color panel.
 enum Palette {
-    static let colors: [(name: String, color: AnnotColor)] = [
-        ("Red", AnnotColor(0.9, 0.1, 0.1)), ("Orange", AnnotColor(1, 0.55, 0)), ("Yellow", AnnotColor(1, 0.85, 0.1)),
-        ("Green", AnnotColor(0.15, 0.65, 0.2)), ("Blue", AnnotColor(0.1, 0.4, 0.9)), ("Purple", AnnotColor(0.55, 0.25, 0.8)),
-        ("Black", AnnotColor(0, 0, 0)), ("White", AnnotColor(1, 1, 1)),
-    ]
+    static var colors: [(name: String, color: AnnotColor)] { [
+        (loc("Red"), AnnotColor(0.9, 0.1, 0.1)), (loc("Orange"), AnnotColor(1, 0.55, 0)), (loc("Yellow"), AnnotColor(1, 0.85, 0.1)),
+        (loc("Green"), AnnotColor(0.15, 0.65, 0.2)), (loc("Blue"), AnnotColor(0.1, 0.4, 0.9)), (loc("Purple"), AnnotColor(0.55, 0.25, 0.8)),
+        (loc("Black"), AnnotColor(0, 0, 0)), (loc("White"), AnnotColor(1, 1, 1)),
+    ] }
 
     static func ns(_ c: AnnotColor) -> NSColor {
         NSColor(srgbRed: CGFloat(c.r), green: CGFloat(c.g), blue: CGFloat(c.b), alpha: 1)
@@ -236,8 +246,8 @@ enum Palette {
     }
 
     static func name(_ c: AnnotColor?) -> String {
-        guard let c else { return "None" }
-        return colors.first { abs($0.color.r - c.r) + abs($0.color.g - c.g) + abs($0.color.b - c.b) < 0.02 }?.name ?? "Custom"
+        guard let c else { return loc("None") }
+        return colors.first { abs($0.color.r - c.r) + abs($0.color.g - c.g) + abs($0.color.b - c.b) < 0.02 }?.name ?? loc("Custom")
     }
 }
 
@@ -284,6 +294,11 @@ final class ToolStrip: NSView {
     var onImageMenu: ((NSView, NSRect) -> Void)?
     var onSignatureMenu: ((NSView, NSRect) -> Void)?
     static let widths: [Double] = [0.5, 1, 2, 3, 5, 8, 14]
+    /// VoiceOver's name for each group of the strip (`Tool.groups`' order).
+    static var groupNames: [String] {
+        [loc("Reading tools"), loc("Text comments"), loc("Drawing tools"), loc("Stamps, images and links"), loc("Fill & Sign"),
+         loc("Edit page content"), loc("Redaction")]
+    }
     /// The titlebar accessory that holds the strip under the toolbar.
     let accessory = NSTitlebarAccessoryViewController()
     private var showing: NSColor?
@@ -292,7 +307,7 @@ final class ToolStrip: NSView {
         super.init(frame: .zero)
         setAccessibilityElement(true)
         setAccessibilityRole(.toolbar)
-        setAccessibilityLabel("Markup")
+        setAccessibilityLabel(loc("Markup"))
         var views: [NSView] = []
         for (g, group) in Tool.groups.enumerated() {
             let control = NSSegmentedControl()
@@ -301,38 +316,37 @@ final class ToolStrip: NSView {
             control.segmentStyle = .automatic
             control.tag = g
             for (i, tool) in group.enumerated() {
-                let image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: tool.title)
+                let image = NSImage(systemSymbolName: tool.symbol, accessibilityDescription: tool.shownTitle)
                 control.setImage(image, forSegment: i)
                 control.setImageScaling(.scaleProportionallyDown, forSegment: i)
                 control.setWidth(28, forSegment: i)
-                control.setToolTip("\(tool.help) (\(tool.shortcut))", forSegment: i)
+                control.setToolTip("\(tool.help) (\(tool.shortcut))", forSegment: i) // English: no words of its own (the help, already in loc, and its key)
                 if tool == .stamp || tool == .image || tool == .signature { control.setShowsMenuIndicator(true, forSegment: i) }
             }
             control.target = self
             control.action = #selector(picked(_:))
-            control.setAccessibilityLabel(["Reading tools", "Text comments", "Drawing tools", "Stamps, images and links", "Fill & Sign",
-                                           "Edit page content", "Redaction"][g])
+            control.setAccessibilityLabel(Self.groupNames[g])
             controls.append(control)
             views.append(control)
         }
 
         colorWell.widthAnchor.constraint(equalToConstant: 40).isActive = true
-        colorWell.setAccessibleName("Color")
-        colorWell.toolTip = "Color for the current tool or the selected comment"
+        colorWell.setAccessibleName(loc("Color"))
+        colorWell.toolTip = loc("Color for the current tool or the selected comment")
         colorWell.supportsAlpha = false
         colorWell.isContinuous = false // one edit per color chosen, not one per drag
         colorWell.target = self
         colorWell.action = #selector(colorChanged(_:))
 
-        widthButton.setAccessibleName("Line width")
-        widthButton.toolTip = "Line width for the current tool or the selected comment"
-        for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? "\(w) pt" : "\(Int(w)) pt") }
+        widthButton.setAccessibleName(loc("Line width"))
+        widthButton.toolTip = loc("Line width for the current tool or the selected comment")
+        for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? loc("{0} pt", w.formatted()) : loc("{0} pt", CoreLanguage.number(Int(w)))) }
         widthButton.target = self
         widthButton.action = #selector(widthPicked)
 
         stampLabel.textColor = .secondaryLabelColor
         stampLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        stampLabel.setAccessibilityLabel("Stamp in use")
+        stampLabel.setAccessibilityLabel(loc("Stamp in use"))
 
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)

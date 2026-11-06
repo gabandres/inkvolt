@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for roadmap 2.4 (`--edit`, first on the synthetic text document, after `PdfATest`; `--only-accessible`
 /// runs it alone): Make Accessible, the Reading Order pane and Save as PDF/A-2a through the app's own paths. The commands in
@@ -60,7 +61,7 @@ struct AccessibleTest {
                                       (#selector(DocumentWindowController.toggleReadingOrder(_:)), "Reading Order and Alt Text", "Accessibility"),
                                       (#selector(DocumentWindowController.saveAsPdfA2a(_:)), "Save as PDF/A-2a (Accessible Archive)…", "Save as PDF/A")] {
             let found = Self.item(action, in: NSApp.mainMenu)
-            check(found?.title == title && found?.menu?.title == menu && found.map { controller.validateMenuItem($0) } == true, "\(menu) › \(title) is in the menu bar and enabled")
+            check(found?.title == loc(title) && found?.menu?.title == loc(menu) && found.map { controller.validateMenuItem($0) } == true, "\(menu) › \(title) is in the menu bar and enabled")
         }
         check(BatchWindowController.offered.contains(.makeAccessible(language: nil)) && BatchWindowController.offered.contains(.saveAsPdfA2a), "Batch offers Make Accessible and Save as PDF/A-2a")
         guard let session = controller.pdf.session else {
@@ -73,7 +74,7 @@ struct AccessibleTest {
         AccessibleState.testTitle = "  "
         AccessibleState.testLanguage = "en"
         var ok = await controller.makeAccessible()
-        check(!ok && AccessibleState.lastProblem?.contains("title") == true && controller.pdf.session?.data == before, "without a title nothing is written")
+        check(!ok && AccessibleState.lastProblem == loc("Type a title: PDF/UA asks for one.") && controller.pdf.session?.data == before, "without a title nothing is written")
 
         // The tags, as one undo step.
         AccessibleState.testTitle = "Self-test document"
@@ -86,9 +87,9 @@ struct AccessibleTest {
         }
         check(AutoTag.isTagged(tagged, session.password), "Make Accessible writes the tags")
         let undoManager = controller.window?.undoManager
-        check(undoManager?.undoMenuItemTitle.contains("Make accessible") == true, "as one undo step named Make accessible")
+        check(undoManager?.undoMenuItemTitle.contains(loc("Make accessible")) == true, "as one undo step named Make accessible")
         check(pane.isShown && pane.written && pane.isCurrent, "the Reading Order pane opens on the plan written")
-        check(pane.state.summary.contains("The document is tagged this way.") && !pane.applyButton.isEnabled, "the pane says the document is tagged this way, nothing to apply")
+        check(pane.state.summary.contains(loc("The document is tagged this way.")) && !pane.applyButton.isEnabled, "the pane says the document is tagged this way, nothing to apply")
         let pieces = pane.state.items.count
         check(pieces > 0 && pane.table.numberOfRows == pieces, "the list shows the page's \(pieces) pieces")
         check(controller.pages.readingBoxes.count == pane.plan?.blocks.count, "the pages show a numbered box for each of the \(controller.pages.readingBoxes.count) pieces")
@@ -108,9 +109,9 @@ struct AccessibleTest {
             press(.pageDown)
             check(pane.page == 1 && pane.table.selectedRow == 0 && pane.selected != nil, "Page Down shows the next page's pieces, the first selected")
             press(.pageUp, .option)
-            check(pane.page == 0 && pane.selectedItemKind.hasSuffix(" · from page 2"), "⌥Page Up reads the piece with the page before")
+            check(pane.page == 0 && pane.selectedItemKind.hasSuffix(loc(" · from page {0}", 2)), "⌥Page Up reads the piece with the page before")
             press(.pageDown, .option)
-            check(pane.page == 1 && !pane.selectedItemKind.contains("from page"), "⌥Page Down brings it back")
+            check(pane.page == 1 && !pane.selectedItemKind.contains(Shown.head(loc(" · from page {0}", Shown.gap))), "⌥Page Down brings it back")
             press(.pageUp)
             check(pane.page == 0, "Page Up shows the page before")
         } else {
@@ -122,7 +123,7 @@ struct AccessibleTest {
         while pane.page != picturePage, pane.page < pageCount { press(picturePage > pane.page ? .pageDown : .pageUp) }
         if let row = pane.state.items.firstIndex(where: { $0.block.kind == .figure }) {
             pane.selectRow(row)
-            check(!pane.figureGroup.isHidden && pane.altLabel.stringValue.hasPrefix("Alternate text for picture"), "a picture shows its alternate text")
+            check(!pane.figureGroup.isHidden && pane.altLabel.stringValue.hasPrefix(Shown.head(loc("Alternate text for picture {0}", Shown.gap))), "a picture shows its alternate text")
             press(.carriageReturn)
             let editing = (controller.window?.firstResponder as? NSTextView)?.delegate as? NSTextField
             check(editing === pane.altField, "Return goes to the alternate text")
@@ -146,7 +147,8 @@ struct AccessibleTest {
                 pane.suggestClicked()
                 for _ in 0..<200 where AiConfirmSheet.current == nil { try? await Task.sleep(for: .milliseconds(20)) }
                 let sheet = AiConfirmSheet.current
-                check(sheet?.whatLabel.stringValue.contains("(as an image) and the text near it") == true && server.received.isEmpty, "it shows what goes, and sends nothing yet")
+                let nearIt = Shown.tail(loc("picture {0} of page {1} (as an image) and the text near it", Shown.gap, Shown.gap))
+                check(sheet?.whatLabel.stringValue.contains(nearIt) == true && server.received.isEmpty, "it shows what goes, and sends nothing yet")
                 sheet?.disclosure.performClick(nil)
                 check(sheet?.preview.string.contains("[a picture: PNG,") == true, "the preview says a picture goes")
                 sheet?.sendClicked()
@@ -174,7 +176,7 @@ struct AccessibleTest {
             }
             if let again = pane.state.items.firstIndex(where: { $0.block.kind == .figure }) { pane.selectRow(again) }
             pane.setDecorative(true)
-            check(pane.plan?.figuresWithoutAlt == 0 && !pane.altField.isEnabled && pane.selectedItemKind == "Picture (decorative)", "Decorative: no text needed, the field greys")
+            check(pane.plan?.figuresWithoutAlt == 0 && !pane.altField.isEnabled && pane.selectedItemKind == loc("Picture (decorative)"), "Decorative: no text needed, the field greys")
             pane.setDecorative(false)
         } else {
             lines.append("note: this document has no picture")
@@ -190,18 +192,19 @@ struct AccessibleTest {
             pane.selectRow(row)
             let titles = pane.kindPopup.itemTitles
             let shown = pane.kindPopup.titleOfSelectedItem ?? ""
-            check(!pane.kindRow.isHidden && !shown.isEmpty && pane.selectedItemKind.hasPrefix(String(shown.prefix(4))) && titles.contains("Heading 6") && titles.contains("Picture"),
+            check(!pane.kindRow.isHidden && !shown.isEmpty && pane.selectedItemKind.hasPrefix(String(shown.prefix(4))) && titles.contains(loc("Heading {0}", 6)) && titles.contains(loc("Picture")),
                   "a piece shows its kind (\(shown)), and the kinds it can be made")
             pane.setKind(.paragraph)
-            check(pane.selectedItemKind == "Paragraph" && pane.kindPopup.titleOfSelectedItem == "Paragraph" && !pane.written, "made a paragraph, it reads as one")
-            pane.kindPopup.selectItem(withTitle: "Heading 2")
+            check(pane.selectedItemKind == loc("Paragraph") && pane.kindPopup.titleOfSelectedItem == loc("Paragraph") && !pane.written, "made a paragraph, it reads as one")
+            pane.kindPopup.selectItem(withTitle: loc("Heading {0}", 2))
             pane.kindChosen()
-            check(pane.selectedItemKind.hasPrefix("Heading") && pane.kindPopup.titleOfSelectedItem?.hasPrefix("Heading") == true,
+            let heading = Shown.head(loc("Heading {0}", Shown.gap))
+            check(pane.selectedItemKind.hasPrefix(heading) && pane.kindPopup.titleOfSelectedItem?.hasPrefix(heading) == true,
                   "chosen in the Kind list, a heading (\(pane.selectedItemKind), levels evened out)")
             pane.setKind(.figure)
-            check(pane.selectedItemKind == "Picture: needs alternate text" && !pane.figureGroup.isHidden, "made a picture, it asks for alternate text")
+            check(pane.selectedItemKind == loc("Picture: needs alternate text") && !pane.figureGroup.isHidden, "made a picture, it asks for alternate text")
             pane.setKind(.paragraph)
-            check(pane.selectedItemKind == "Paragraph" && pane.figureGroup.isHidden, "and back to a paragraph")
+            check(pane.selectedItemKind == loc("Paragraph") && pane.figureGroup.isHidden, "and back to a paragraph")
         } else {
             check(false, "the page has a text piece to change")
         }
@@ -231,7 +234,8 @@ struct AccessibleTest {
         let target = URL(fileURLWithPath: (folder as NSString).appendingPathComponent(PdfA.copyName(session.displayName, conformance: .a)))
         PdfAState.testTarget = target
         var saved = await controller.saveAsPdfA2a()
-        check(saved && PdfAState.lastTitle == "Saved as PDF/A-2a" && PdfAState.lastMessage.contains("tagged for accessibility"), "Save as PDF/A-2a saves the copy")
+        let archival = Shown.parts(loc("{0} is an archival copy ({1}, tagged for accessibility). To get there:\n\n{2}\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF.", Shown.gap, PdfAConformance.a.name, Shown.gap))
+        check(saved && PdfAState.lastTitle == loc("Saved as {0}", PdfAConformance.a.name) && archival.count == 3 && PdfAState.lastMessage.contains(archival[1]), "Save as PDF/A-2a saves the copy")
         if !saved { lines.append("note: \(PdfAState.lastTitle): \(PdfAState.lastMessage.replacingOccurrences(of: "\n", with: " ").prefix(300))") }
         var copy = (try? Data(contentsOf: target)).map { [UInt8]($0) } ?? []
         let problems = PdfA.validate(copy, conformance: .a)
@@ -242,7 +246,7 @@ struct AccessibleTest {
         // Another edit makes the plan stale; undone, the document is as it was.
         undoManager?.undo()
         await Self.settle(controller)
-        check(!pane.isCurrent && pane.state.summary.hasPrefix("The document changed") && !pane.applyButton.isEnabled, "another version of the document makes the plan stale")
+        check(!pane.isCurrent && pane.state.summary.hasPrefix(loc("The document changed since this reading order was made. Choose Make Accessible again to read it anew.")) && !pane.applyButton.isEnabled, "another version of the document makes the plan stale")
         while controller.pdf.session?.data != before, undoManager?.canUndo == true {
             undoManager?.undo()
             await Self.settle(controller)

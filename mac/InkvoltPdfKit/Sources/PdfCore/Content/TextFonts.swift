@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// One glyph of a text-showing string: its code, how many bytes it took, the text it stands for and its advance (ems).
 struct Glyph: Sendable {
@@ -84,11 +85,11 @@ final class TextFont: @unchecked Sendable {
             descriptor = cidFont?.dict("FontDescriptor")
             let encoding = font.name("Encoding")
             if cidFont == nil {
-                blocked = "its font is damaged"
+                blocked = loc("its font is damaged")
             } else if encoding == "Identity-V" {
-                blocked = "it is vertical text"
+                blocked = loc("it is vertical text")
             } else if encoding != "Identity-H" {
-                blocked = "its font uses a character map (CMap) that can't be written to yet"
+                blocked = loc("its font uses a character map (CMap) that can't be written to yet")
                 twoByte = encoding.map { $0.contains("UCS2") || $0.contains("UTF16") } ?? false
             }
             if let cidFont {
@@ -100,10 +101,10 @@ final class TextFont: @unchecked Sendable {
                     cidToGid = (0..<b.count / 2).map { Int(b[2 * $0]) << 8 | Int(b[2 * $0 + 1]) }
                 }
             }
-            if blocked == nil && unicode.isEmpty { blocked = "its font doesn't say which characters its glyphs are" }
+            if blocked == nil && unicode.isEmpty { blocked = loc("its font doesn't say which characters its glyphs are") }
         } else {
             descriptor = font.dict("FontDescriptor")
-            if subtype == "Type3" { blocked = "it is drawn with a Type 3 font (glyphs drawn as pictures)" }
+            if subtype == "Type3" { blocked = loc("it is drawn with a Type 3 font (glyphs drawn as pictures)") }
             // Kept within ±1e9, so first + i below can't overflow; only codes 0-255 are read.
             let first = min(max(font.int("FirstChar") ?? 0, -1_000_000_000), 1_000_000_000)
             if let w = font.array("Widths") {
@@ -113,7 +114,7 @@ final class TextFont: @unchecked Sendable {
             standard14 = descriptor == nil
                 && ["Helvetica", "Arial", "Times", "TimesNewRoman", "Times-Roman", "Courier", "CourierNew"].contains(plain)
             if descriptor == nil && (name.hasPrefix("Symbol") || name.hasPrefix("ZapfDingbats")) && blocked == nil {
-                blocked = "its font is a symbol font"
+                blocked = loc("its font is a symbol font")
             }
         }
 

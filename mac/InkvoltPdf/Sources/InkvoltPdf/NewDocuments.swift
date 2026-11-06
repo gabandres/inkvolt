@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// New PDFs made in the app, each opened as a new, unsaved document (Save asks where, as for a new tab on Windows):
@@ -18,7 +19,7 @@ enum NewDocuments {
             document.showWindows()
             return document
         } catch {
-            present("The new PDF couldn't be opened.", error)
+            present(loc("The new PDF couldn't be opened."), error)
             return nil
         }
     }
@@ -46,8 +47,8 @@ enum NewDocuments {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = true
-        panel.message = "Choose pictures: each becomes a page of a new PDF, in the order shown here."
-        panel.prompt = "Create PDF"
+        panel.message = loc("Choose pictures: each becomes a page of a new PDF, in the order shown here.")
+        panel.prompt = loc("Create PDF")
         guard let urls = StartWindowController.pick(panel) else { return }
         let document = fromImages(urls.sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending })
         done?(document)
@@ -59,9 +60,9 @@ enum NewDocuments {
         do {
             let images = try urls.map { url in (bytes: [UInt8](try Data(contentsOf: url)), name: url.lastPathComponent) }
             let bytes = try ImageImport.imagesToPdf(images)
-            return open(bytes, name: urls.count == 1 ? (urls[0].deletingPathExtension().lastPathComponent + ".pdf") : name("Pictures"))
+            return open(bytes, name: urls.count == 1 ? (urls[0].deletingPathExtension().lastPathComponent + ".pdf") : name(loc("Pictures", context: "file name")))
         } catch {
-            present("Those pictures couldn't be made into a PDF.", error)
+            present(loc("Those pictures couldn't be made into a PDF."), error)
             return nil
         }
     }
@@ -70,13 +71,13 @@ enum NewDocuments {
     @discardableResult
     static func fromClipboard(_ pasteboard: NSPasteboard = .general) -> PdfDocument? {
         guard let png = clipboardPng(pasteboard) else {
-            present("There's no picture on the clipboard.", PdfEditError("Copy a picture (or take a screenshot to the clipboard with ⌃⇧⌘4), then try again."))
+            present(loc("There's no picture on the clipboard."), PdfEditError(loc("Copy a picture (or take a screenshot to the clipboard with ⌃⇧⌘4), then try again.")))
             return nil
         }
         do {
-            return open(try ImageImport.imagesToPdf([(bytes: png, name: "Clipboard.png")]), name: name("Clipboard"))
+            return open(try ImageImport.imagesToPdf([(bytes: png, name: "Clipboard.png")]), name: name(loc("Clipboard", context: "file name")))
         } catch {
-            present("The picture on the clipboard couldn't be made into a PDF.", error)
+            present(loc("The picture on the clipboard couldn't be made into a PDF."), error)
             return nil
         }
     }
@@ -112,7 +113,7 @@ enum NewDocuments {
                 list.append(PdfSource(data, password, url.lastPathComponent))
             }
         } catch {
-            present("Those files couldn't be read.", error)
+            present(loc("Those files couldn't be read."), error)
             return nil
         }
         return list
@@ -123,9 +124,9 @@ enum NewDocuments {
     static func combine(_ urls: [URL], bookmarks: Bool, passwords: [URL: String] = [:]) -> PdfDocument? {
         guard urls.count >= 1, let sources = sources(urls, passwords: passwords) else { return nil }
         do {
-            return open(try PageEditor.merge(sources, bookmarks), name: name("Combined"))
+            return open(try PageEditor.merge(sources, bookmarks), name: name(loc("Combined", context: "file name")))
         } catch {
-            present("Those files couldn't be combined.", error)
+            present(loc("Those files couldn't be combined."), error)
             return nil
         }
     }
@@ -139,8 +140,8 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
 
     private(set) var files: [URL] = []
     let table = NSTableView()
-    let bookmarks = NSButton(checkboxWithTitle: "Add a bookmark for each file", target: nil, action: nil)
-    let combineButton = NSButton(title: "Combine", target: nil, action: nil)
+    let bookmarks = NSButton(checkboxWithTitle: loc("Add a bookmark for each file"), target: nil, action: nil)
+    let combineButton = NSButton(title: loc("Combine"), target: nil, action: nil)
     private let countLabel = NSTextField(labelWithString: "")
     private static let rowType = NSPasteboard.PasteboardType("com.bermudezsystems.InkvoltPdf.combine-row")
     /// The last document Combine opened (the self-test reads it).
@@ -157,29 +158,29 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 380), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "Combine Files"
+        window.title = loc("Combine Files")
         window.isRestorable = false
         window.minSize = NSSize(width: 420, height: 300)
         super.init(window: window)
         window.delegate = self
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("file"))
-        column.title = "Files, in the order they will follow each other"
+        column.title = loc("Files, in the order they will follow each other")
         table.addTableColumn(column)
         table.dataSource = self
         table.delegate = self
         table.allowsMultipleSelection = true
         table.registerForDraggedTypes([Self.rowType, .fileURL])
-        table.setAccessibilityLabel("Files to combine")
+        table.setAccessibilityLabel(loc("Files to combine"))
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
 
-        let add = NSButton(title: "Add Files…", target: self, action: #selector(addClicked))
-        let up = NSButton(title: "Move Up", target: self, action: #selector(moveUpClicked))
-        let down = NSButton(title: "Move Down", target: self, action: #selector(moveDownClicked))
-        let remove = NSButton(title: "Remove", target: self, action: #selector(removeClicked))
+        let add = NSButton(title: loc("Add Files…"), target: self, action: #selector(addClicked))
+        let up = NSButton(title: loc("Move Up"), target: self, action: #selector(moveUpClicked))
+        let down = NSButton(title: loc("Move Down"), target: self, action: #selector(moveDownClicked))
+        let remove = NSButton(title: loc("Remove"), target: self, action: #selector(removeClicked))
         let side = NSStackView(views: [add, up, down, remove])
         side.orientation = .vertical
         side.alignment = .leading
@@ -189,7 +190,7 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
         scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 300).isActive = true
 
         bookmarks.state = .on
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         combineButton.target = self
         combineButton.action = #selector(combineClicked)
@@ -219,7 +220,7 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
 
     private func refresh() {
         table.reloadData()
-        countLabel.stringValue = files.isEmpty ? "Add two or more files." : "\(files.count) file\(files.count == 1 ? "" : "s")"
+        countLabel.stringValue = files.isEmpty ? loc("Add two or more files.") : files.count == 1 ? loc("1 file") : loc("{0} files", CoreLanguage.number(files.count))
         combineButton.isEnabled = files.count >= 2
     }
 
@@ -272,7 +273,8 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf, .image]
         panel.allowsMultipleSelection = true
-        panel.message = "Choose PDFs or pictures to combine."
+        panel.message = loc("Choose PDFs or pictures to combine.")
+
         guard let urls = StartWindowController.pick(panel) else { return }
         add(urls)
     }

@@ -219,7 +219,7 @@ struct PagesTest {
         controller.highlightText(nil)
         await pages.pendingEdit?.value
         let added = editor.comments.count - before
-        let oneStep = session?.undoLabel == "Highlight" && session?.undoStepId != stepBefore
+        let oneStep = session?.undoLabel == loc("Highlight") && session?.undoStepId != stepBefore
         controller.pdf.undo()
         let undone = editor.comments.count == before
         controller.pdf.redo()
@@ -264,7 +264,7 @@ struct PagesTest {
         pages.keyDown(with: key("\r", code: 36))
         await pages.pendingEdit?.value
         let polygon = mine("Polygon").last, polyline = mine("PolyLine").last
-        check(callouts.count == callouts0 + 1 && tipOk && callout.map(DocumentEditor.kindName) == "Callout"
+        check(callouts.count == callouts0 + 1 && tipOk && callout.map(DocumentEditor.kindName) == loc("Callout")
               && mine("Polygon").count == polygons0 + 1 && polygon?.geometry?.paths.first?.count == 3
               && mine("PolyLine").count == polylines0 + 1 && polyline?.geometry?.paths.first?.count == 3,
               "callout (tip where pressed, box where released), polygon (closed on its first corner), polyline (ended with Return)")
@@ -292,7 +292,7 @@ struct PagesTest {
         await press([(0, m0), (0, PointD(m0.x, m0.y + 15)), (0, PointD(m0.x, m0.y + 30))])
         let movedMark = editor.comment(marker.id)?.quadRects.first ?? .zero
         let markPicked = pages.selectedId == marker.id
-        check(abs(movedNote.x - note.rect.x - 40) < 0.6 && abs(movedNote.y - note.rect.y - 20) < 0.6 && noteTitle == "Undo Move"
+        check(abs(movedNote.x - note.rect.x - 40) < 0.6 && abs(movedNote.y - note.rect.y - 20) < 0.6 && noteTitle == Shown.undo(loc("Move"))
               && abs(movedMark.y - marker.quadRects[0].y - 30) < 0.6 && abs(movedMark.x - marker.quadRects[0].x) < 0.6,
               "hand tool moved a note by (\(Int((movedNote.x - note.rect.x).rounded())), \(Int((movedNote.y - note.rect.y).rounded()))) "
               + "(“\(noteTitle)”) and a highlight by (\(Int((movedMark.x - marker.quadRects[0].x).rounded())), "
@@ -301,7 +301,7 @@ struct PagesTest {
         pages.select(note.id)
         let step = mark
         controller.applyColor(blue)
-        _ = await waitEdit("Change Color", since: step)
+        _ = await waitEdit(loc("Change Color"), since: step)
         var inspected = false
         pages.select(marker.id)
         controller.showInspector(marker.id)
@@ -337,35 +337,35 @@ struct PagesTest {
 
         // Rotate right and left (menu commands on the card chosen).
         grid.select([0])
-        let right = await menu(#selector(DocumentWindowController.rotatePagesRight(_:)), expect: "Rotate 1 page")
+        let right = await menu(#selector(DocumentWindowController.rotatePagesRight(_:)), expect: loc("Rotate 1 page"))
         if !right && editor.lastOutcome == .declined {
             controller.showOrganizer(false)
             skip("organize, bookmarks, passwords: the document refuses changes without its permissions password")
             return false
         }
         let turned = controller.engine.page(0)
-        let left = await menu(#selector(DocumentWindowController.rotatePagesLeft(_:)), expect: "Rotate 1 page")
+        let left = await menu(#selector(DocumentWindowController.rotatePagesLeft(_:)), expect: loc("Rotate 1 page"))
         let back = controller.engine.page(0)
         check(right && left && abs(turned.width - g0.height) < 0.5 && abs(back.width - g0.width) < 0.5,
               "rotate right, then left (Pages menu on the chosen card): \(Int(g0.width))×\(Int(g0.height)) → \(Int(turned.width))×\(Int(turned.height)) → back")
 
         // Duplicate, insert blank, insert from a PDF (an extracted page) and from a picture.
         grid.select([0])
-        let dup = await menu(#selector(DocumentWindowController.duplicatePages(_:)), expect: "Duplicate 1 page")
+        let dup = await menu(#selector(DocumentWindowController.duplicatePages(_:)), expect: loc("Duplicate 1 page"))
         grid.select([0])
-        let blank = await menu(#selector(DocumentWindowController.insertBlankPage(_:)), expect: "Insert 1 page")
+        let blank = await menu(#selector(DocumentWindowController.insertBlankPage(_:)), expect: loc("Insert 1 page"))
         let blankEmpty = ((try? controller.engine.text(1))?.isEmpty ?? false) && abs(controller.engine.page(1).width - g0.width) < 0.5
         let extracted = path("extracted.pdf")
         let wrote = controller.extract([0], to: extracted)
         let extractedPages = (try? PdfEngine.open([UInt8](Data(contentsOf: extracted))))?.pageCount ?? -1
         var step = mark
         controller.insertFiles([extracted], at: count)
-        let fromFile = await waitEdit("Insert 1 page from extracted.pdf", since: step)
+        let fromFile = await waitEdit(loc("Insert 1 page from {0}", "extracted.pdf"), since: step)
         let picture = path("picture.png")
         let pictureWritten = Self.writePicture(picture)
         step = mark
         controller.insertFiles([picture], at: count)
-        let fromPicture = await waitEdit("Insert 1 page from picture.png", since: step)
+        let fromPicture = await waitEdit(loc("Insert 1 page from {0}", "picture.png"), since: step)
         let pictureSize = controller.engine.page(count - 1)
         check(dup && blank && blankEmpty && wrote && extractedPages == 1 && fromFile && pictureWritten && fromPicture && count == n0 + 4,
               "duplicate, insert blank (same size, no text), extract (\(extractedPages) page), insert from that PDF and from a picture: "
@@ -375,7 +375,7 @@ struct PagesTest {
         grid.select([count - 1])
         step = mark
         grid.drop(grid.selectedPages, before: 0)
-        let moved = await waitEdit("Move 1 page", since: step)
+        let moved = await waitEdit(loc("Move 1 page"), since: step)
         let front = controller.engine.page(0)
         check(moved && abs(front.width - pictureSize.width) < 0.5 && abs(front.height - pictureSize.height) < 0.5 && grid.selectedPages == [0],
               "dragged the last card to the front: the picture's page is page 1, still chosen")
@@ -395,10 +395,10 @@ struct PagesTest {
         controller.sidebar.show(.pages)
         controller.sidebar.selectPages([1])
         var viaSidebar = false
-        if let item = controller.sidebar.thumbMenu(row: 1)?.items.first(where: { $0.title == "Rotate Right" }), let action = item.action {
+        if let item = controller.sidebar.thumbMenu(row: 1)?.items.first(where: { $0.title == loc("Rotate Right") }), let action = item.action {
             step = mark
             NSApp.sendAction(action, to: item.target, from: item)
-            viaSidebar = await waitEdit("Rotate 1 page", since: step)
+            viaSidebar = await waitEdit(loc("Rotate 1 page"), since: step)
         }
         let sideTurned = controller.engine.page(1)
         controller.pdf.undo()
@@ -409,7 +409,7 @@ struct PagesTest {
         controller.showOrganizer(true)
         let order = texts()
         grid.select([1])
-        let reversed = await menu(#selector(DocumentWindowController.reversePageOrder(_:)), expect: "Reverse page order")
+        let reversed = await menu(#selector(DocumentWindowController.reversePageOrder(_:)), expect: loc("Reverse page order"))
         let mirrored = texts() == Array(order.reversed()) && grid.selectedPages == [count - 2]
         controller.pdf.undo()
         check(reversed && mirrored && texts() == order, "Reverse Page Order (Pages menu): \(count) pages reversed, page 2 chosen at page \(count - 1), undone")
@@ -423,14 +423,14 @@ struct PagesTest {
         grid.grid.keyDown(with: NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: ProcessInfo.processInfo.systemUptime,
                                                  windowNumber: controller.window?.windowNumber ?? 0, context: nil, characters: "\u{7f}",
                                                  charactersIgnoringModifiers: "\u{7f}", isARepeat: false, keyCode: 51)!)
-        let deleted = await waitEdit("Delete 4 pages", since: step)
+        let deleted = await waitEdit(loc("Delete {0} pages", 4), since: step)
         let same = texts() == original
         let undo = controller.window?.undoManager
         let title = undo?.undoMenuItemTitle ?? ""
         undo?.undo()
         let restored = count
         undo?.redo()
-        check(deleted && count == n0 && same && title == "Undo Delete 4 pages" && restored == n0 + 4,
+        check(deleted && count == n0 && same && title == Shown.undo(loc("Delete {0} pages", 4)) && restored == n0 + 4,
               "Delete key on four chosen cards: \(n0 + 4) → \(count) pages, the original pages left in order; “\(title)” brings them back")
 
         // Save As, read back.
@@ -454,10 +454,10 @@ struct PagesTest {
         let last = count - 1
         controller.go(0)
         controller.testText = "Self-test bookmark A"
-        let added = await menu(#selector(DocumentWindowController.addBookmark(_:)), expect: "Add bookmark “Self-test bookmark A”")
+        let added = await menu(#selector(DocumentWindowController.addBookmark(_:)), expect: loc("Add bookmark “{0}”", "Self-test bookmark A"))
         controller.go(last)
         controller.testText = "Self-test bookmark B"
-        let second = await menu(#selector(DocumentWindowController.addBookmark(_:)), expect: "Add bookmark “Self-test bookmark B”")
+        let second = await menu(#selector(DocumentWindowController.addBookmark(_:)), expect: loc("Add bookmark “{0}”", "Self-test bookmark B"))
         var tree = controller.readBookmarks()
         let placed = tree.count == b0 + 2 && tree[b0].title == "Self-test bookmark A" && tree[b0].pageIndex == 0
             && tree[b0 + 1].title == "Self-test bookmark B" && tree[b0 + 1].pageIndex == last
@@ -467,16 +467,16 @@ struct PagesTest {
         controller.testText = "Self-test bookmark C"
         var step = mark
         controller.sidebar.onRenameBookmark?([b0 + 1])
-        let renamed = await waitEdit("Rename bookmark to “Self-test bookmark C”", since: step)
+        let renamed = await waitEdit(loc("Rename bookmark to “{0}”", "Self-test bookmark C"), since: step)
         controller.testText = nil
         step = mark
         controller.sidebar.dropBookmark([b0 + 1], parent: [], index: b0)
-        let reordered = await waitEdit("Move bookmark “Self-test bookmark C”", since: step)
+        let reordered = await waitEdit(loc("Move bookmark “{0}”", "Self-test bookmark C"), since: step)
         tree = controller.readBookmarks()
         let order = tree.count == b0 + 2 && tree[b0].title == "Self-test bookmark C" && tree[b0 + 1].title == "Self-test bookmark A"
         step = mark
         controller.sidebar.dropBookmark([b0 + 1], parent: [b0], index: 0)
-        let nested = await waitEdit("Move bookmark “Self-test bookmark A”", since: step)
+        let nested = await waitEdit(loc("Move bookmark “{0}”", "Self-test bookmark A"), since: step)
         tree = controller.readBookmarks()
         let under = tree.count == b0 + 1 && tree[b0].children.count == 1 && tree[b0].children[0].title == "Self-test bookmark A"
         check(renamed && reordered && order && nested && under,
@@ -490,7 +490,7 @@ struct PagesTest {
             && readBack[b0].children.first?.pageIndex == 0
         step = mark
         controller.sidebar.onDeleteBookmark?([b0])
-        let deleted = await waitEdit("Delete bookmark “Self-test bookmark C” and 1 inside it", since: step)
+        let deleted = await waitEdit(loc("Delete bookmark “{0}” and {1} inside it", "Self-test bookmark C", 1), since: step)
         let after = controller.readBookmarks()
         check(error == nil && kept && deleted && after.count == b0 && countAll(after) == countAll(start) && controller.sidebar.outlineCount == countAll(after),
               "saved and read back (\(countAll(readBack)) bookmarks), then deleted with the one inside it (\(countAll(after)) left)")
@@ -509,7 +509,7 @@ struct PagesTest {
             paths.map { p in (try? PdfEngine.open([UInt8]((try? Data(contentsOf: URL(fileURLWithPath: p))) ?? Data())))?.pageCount ?? -1 }
         }
         let perPage = await controller.extractPerPage([0, 1], to: dir) ?? []
-        let perPageOk = pageCounts(perPage) == [1, 1] && perPage.first?.hasSuffix("(page 1).pdf") == true
+        let perPageOk = pageCounts(perPage) == [1, 1] && perPage.first?.hasSuffix(Shown.tail(loc("{0} (page {1}).pdf", Shown.gap, 1))) == true
         Self.opensDocument = true
         let made = controller.extractToNewDocument([0, 1])
         let newOk = made?.engine?.pageCount == 2 && made?.fileURL == nil
@@ -547,17 +547,17 @@ struct PagesTest {
         guard let s = session, let before = try? PageEditor.readMetadata(s.data, s.password) else {
             return check(false, "Document Properties: the metadata read")
         }
-        let item = NSApp.mainMenu?.items.first { $0.title == "File" }?.submenu?.items.first { $0.title == "Document Properties…" }
+        let item = NSApp.mainMenu?.items.first { $0.title == loc("File") }?.submenu?.items.first { $0.title == loc("Document Properties…") }
         let enabled = item.map { controller.validateMenuItem($0) } == true && item?.keyEquivalent == "i"
         DocumentPropertiesState.testAnswer = nil
         await controller.askDocumentProperties()
         let labels = DocumentPropertiesState.lastRows.map(\.label)
-        let security = DocumentPropertiesState.lastRows.first { $0.label == "Security" }?.value ?? ""
-        let rows = labels.starts(with: ["File", "Location", "File size", "Pages", "Page size", "PDF version", "Security"])
-            && (s.hasEncryption || security == "Not protected")
+        let security = DocumentPropertiesState.lastRows.first { $0.label == loc("Security") }?.value ?? ""
+        let rows = labels.starts(with: [loc("File"), loc("Location"), loc("File size"), loc("Pages"), loc("Page size"), loc("PDF version"), loc("Security")])
+            && (s.hasEncryption || security == loc("Not protected"))
         let signed = s.data.firstRange(of: Array("/ByteRange".utf8)) != nil
         DocumentPropertiesState.testAnswer = ("Self-test title", before.author, "Self-test subject", before.keywords)
-        let edited = await menu(#selector(DocumentWindowController.showDocumentProperties(_:)), expect: "Edit document properties")
+        let edited = await menu(#selector(DocumentWindowController.showDocumentProperties(_:)), expect: loc("Edit document properties"))
         DocumentPropertiesState.testAnswer = nil
         if !edited && signed && editor.lastOutcome == .declined {
             return check(enabled && rows, "Document Properties: \(labels.count) rows; a signed file's rewrite asked first and declined")
@@ -588,12 +588,12 @@ struct PagesTest {
         sheet.openConfirm.stringValue = "selftest-o,pen"
         sheet.openField.stringValue = "selftest-o,pen"
         sheet.protectClicked()
-        let comma = sheet.problem.stringValue.contains("comma") && controller.protectSheet != nil
+        let comma = sheet.problem.stringValue.contains(loc("Inkvolt PDF for Mac can't use a comma in a password. Choose one without a comma.")) && controller.protectSheet != nil
         sheet.openField.stringValue = "selftest-open"
         sheet.openConfirm.stringValue = "selftest-open"
         let step = mark
         sheet.protectClicked()
-        let label = wasEncrypted ? "Change password protection" : "Protect with password"
+        let label = wasEncrypted ? loc("Change password protection") : loc("Protect with password")
         let protected = await waitEdit(label, since: step)
         if !protected && signed && editor.lastOutcome == .declined {
             check(refused && comma, "protect: a signed file's rewrite asked first and declined (it would break the signatures); "
@@ -619,7 +619,7 @@ struct PagesTest {
         let stillLocked = session.map { PdfSecurity.needsOpenPassword($0.data) } ?? false
         let removeStep = session?.undoStepId
         let removed = await controller.removeProtectionNow()
-        let removedLabel = session?.undoLabel == "Remove password protection" && session?.undoStepId != removeStep
+        let removedLabel = session?.undoLabel == loc("Remove password protection") && session?.undoStepId != removeStep
         let plain = path("unprotected.pdf")
         let error2 = await saveAs(plain)
         let free = (try? DocumentSession.open(plain.path)).map { s in
@@ -790,7 +790,7 @@ struct PagesTest {
         _ = accessory.view
         accessory.testPrinterName = "Front Office"
         await accessory.checkPrinter("Front Office")
-        let warned = accessory.printerStatus.stringValue.hasPrefix("⚠︎ Office laser isn't responding")
+        let warned = accessory.printerStatus.stringValue.hasPrefix("⚠︎ " + loc("{0} isn't responding", "Office laser"))
         accessory.testPrinterName = "Someone else's"
         await accessory.checkPrinter("Someone else's")
         let quiet = accessory.printerStatus.stringValue.isEmpty

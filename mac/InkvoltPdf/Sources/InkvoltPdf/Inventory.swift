@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// What's in This PDF (the Windows app's `InventoryActions`): Tools › What's in This PDF… (also See What's in It… in
@@ -38,7 +39,7 @@ extension DocumentWindowController {
     func runInventory(on parent: NSWindow) async -> InventoryReport? {
         guard let session = pdf.session else { return nil }
         let data = session.data, password = session.password
-        let sheet = ProgressSheet(title: "What's in This PDF", text: "Looking through the file…")
+        let sheet = ProgressSheet(title: loc("What's in This PDF"), text: loc("Looking through the file…"))
         progressSheet = sheet
         sheet.begin(on: parent)
         defer {
@@ -47,7 +48,10 @@ extension DocumentWindowController {
         }
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update("Looking at the pages: step \(done) of \(total)…", Double(done) / Double(max(total, 1))) }
+            onMain {
+                sheet.update(loc("Looking at the pages: step {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)),
+                             Double(done) / Double(max(total, 1)))
+            }
         }
         let result = await Task.detached { () -> Result<InventoryReport, Error> in
             Result { try DocumentInventory.run(data, password, progress: progress, cancel: token) }
@@ -60,7 +64,7 @@ extension DocumentWindowController {
         case .failure(is CancellationError):
             return nil
         case .failure(let error):
-            pdf.showError("This document couldn't be looked through.", error)
+            pdf.showError(loc("This document couldn't be looked through."), error)
             return nil
         }
     }
@@ -91,11 +95,11 @@ final class InventorySheet: NSWindowController {
         self.fileName = fileName
         self.folder = folder
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 720, height: 600), styleMask: [.titled, .resizable], backing: .buffered, defer: true)
-        summary = RedactPatternSheet.wrapped(report.summary + " Nothing in the file was opened or contacted to make this report.")
+        summary = RedactPatternSheet.wrapped(loc("{0} Nothing in the file was opened or contacted to make this report.", report.summary))
         summary.preferredMaxLayoutWidth = 680
-        sanitizeButton = offerSanitize ? NSButton(title: "Sanitize…", target: nil, action: nil) : nil
+        sanitizeButton = offerSanitize ? NSButton(title: loc("Sanitize…"), target: nil, action: nil) : nil
         super.init(window: panel)
-        let title = NSTextField(labelWithString: "What's in This PDF")
+        let title = NSTextField(labelWithString: loc("What's in This PDF"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
 
         var views: [NSView] = [title, summary]
@@ -106,18 +110,18 @@ final class InventorySheet: NSWindowController {
         for section in InventorySection.allCases {
             let items = report.items(in: section)
             if items.isEmpty { continue }
-            let heading = "\(DocumentInventory.title(section)) (\(items.count))"
+            let heading = "\(DocumentInventory.title(section)) (\(CoreLanguage.number(items.count)))"
             headings.append(heading)
             let h = NSTextField(labelWithString: heading)
             h.font = .systemFont(ofSize: NSFont.systemFontSize + 2, weight: .semibold)
             h.setAccessibilityRole(.staticText)
-            h.setAccessibilityLabel("Heading: \(heading)")
+            h.setAccessibilityLabel(loc("Heading: {0}", heading))
             if list.arrangedSubviews.last != nil { list.setCustomSpacing(16, after: list.arrangedSubviews[list.arrangedSubviews.count - 1]) }
             list.addArrangedSubview(h)
             for i in items.prefix(Self.maxRows) { list.addArrangedSubview(row(i)) }
             rowCount += min(items.count, Self.maxRows)
             if items.count > Self.maxRows {
-                list.addArrangedSubview(RedactPatternSheet.caption("… and \(items.count - Self.maxRows) more: Save Report… lists them all."))
+                list.addArrangedSubview(RedactPatternSheet.caption(loc("… and {0} more: Save Report… lists them all.", CoreLanguage.number(items.count - Self.maxRows))))
             }
         }
         if !list.arrangedSubviews.isEmpty {
@@ -129,7 +133,7 @@ final class InventorySheet: NSWindowController {
             scroll.hasVerticalScroller = true
             scroll.borderType = .bezelBorder
             scroll.documentView = document
-            scroll.setAccessibilityLabel("What the file carries")
+            scroll.setAccessibilityLabel(loc("What the file carries"))
             NSLayoutConstraint.activate([
                 list.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 8),
                 list.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -8),
@@ -147,9 +151,9 @@ final class InventorySheet: NSWindowController {
             views.append(n)
         }
 
-        let save = NSButton(title: "Save Report…", target: self, action: #selector(saveClicked))
-        let copy = NSButton(title: "Copy Report", target: self, action: #selector(copyClicked))
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let save = NSButton(title: loc("Save Report…"), target: self, action: #selector(saveClicked))
+        let copy = NSButton(title: loc("Copy Report"), target: self, action: #selector(copyClicked))
+        let close = NSButton(title: loc("Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = sanitizeButton == nil ? "\r" : "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -183,14 +187,16 @@ final class InventorySheet: NSWindowController {
         let plain = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         let text = NSMutableAttributedString(string: i.what, attributes: [.font: bold])
         text.append(NSAttributedString(string: " · \(i.place)", attributes: [.font: plain]))
-        if i.withoutClick { text.append(NSAttributedString(string: " · no click needed", attributes: [.font: bold, .foregroundColor: NSColor.systemOrange])) }
+        if i.withoutClick {
+            text.append(NSAttributedString(string: " · " + loc("no click needed"), attributes: [.font: bold, .foregroundColor: NSColor.systemOrange]))
+        }
         let head = NSTextField(labelWithAttributedString: text)
         head.lineBreakMode = .byWordWrapping
         head.maximumNumberOfLines = 0
         head.preferredMaxLayoutWidth = i.page >= 0 ? 540 : 650
         var top: [NSView] = [head]
         if i.page >= 0 {
-            let go = NSButton(title: "Go to page \(i.page + 1)", target: self, action: #selector(goClicked(_:)))
+            let go = NSButton(title: loc("Go to page {0}", CoreLanguage.number(i.page + 1)), target: self, action: #selector(goClicked(_:)))
             go.isBordered = false
             go.contentTintColor = .linkColor
             go.tag = i.page
@@ -215,31 +221,33 @@ final class InventorySheet: NSWindowController {
         row.spacing = 2
         row.setAccessibilityElement(true)
         row.setAccessibilityRole(.group)
-        row.setAccessibilityLabel("\(i.what), \(i.place)\(i.withoutClick ? ", no click needed" : ""): \(i.detail). \(caption)")
+        row.setAccessibilityLabel(i.withoutClick
+            ? loc("{0}, {1}, no click needed: {2}. {3}", i.what, i.place, i.detail, caption)
+            : loc("{0}, {1}: {2}. {3}", i.what, i.place, i.detail, caption))
         return row
     }
 
     static func caption(_ i: InventoryItem) -> String {
         var parts: [String] = []
-        if !i.calls.isEmpty { parts.append("It \(i.calls.joined(separator: ", ")).") }
+        if !i.calls.isEmpty { parts.append(loc("It {0}.", i.calls.joined(separator: ", "))) }
         if i.removedBy != nil || i.section == .earlierVersions {
-            parts.append("Sanitize removes it.")
+            parts.append(loc("Sanitize removes it."))
         } else if i.section == .hidden || i.section == .redaction {
-            parts.append("Redacting its area removes it.")
+            parts.append(loc("Redacting its area removes it."))
         }
         return parts.joined(separator: " ")
     }
 
-    /// The report as text (Copy Report).
+    /// The report as text (Copy Report): its labels English, as Windows' (`InventoryActions.Text`).
     static func text(_ report: InventoryReport, _ fileName: String) -> String {
-        var s = "What's in this PDF: \(fileName)\n\(report.summary)\n"
+        var s = "What's in this PDF: \(fileName)\n\(report.summary)\n" // English: the copied report's labels, as Windows'
         for section in InventorySection.allCases {
             let items = report.items(in: section)
             if items.isEmpty { continue }
             s += "\n\(DocumentInventory.title(section))\n"
             for i in items {
-                s += "- \(i.what) · \(i.place)\(i.withoutClick ? " (no click needed)" : ""): \(i.detail.replacingOccurrences(of: "\n", with: " "))"
-                if !i.calls.isEmpty { s += " [it \(i.calls.joined(separator: ", "))]" }
+                s += "- \(i.what) · \(i.place)\(i.withoutClick ? " (no click needed)" : ""): \(i.detail.replacingOccurrences(of: "\n", with: " "))" // English: as Windows'
+                if !i.calls.isEmpty { s += " [it \(i.calls.joined(separator: ", "))]" } // English: as Windows'
                 s += "\n"
             }
         }
@@ -259,7 +267,7 @@ final class InventorySheet: NSWindowController {
         } catch {
             guard let panel = window else { return false }
             let alert = NSAlert()
-            alert.messageText = "The report couldn't be saved."
+            alert.messageText = loc("The report couldn't be saved.")
             alert.informativeText = NSAlert.plainText(error)
             alert.beginSheetModal(for: panel)
             return false
@@ -269,16 +277,16 @@ final class InventorySheet: NSWindowController {
     @objc func saveClicked() {
         guard let window else { return }
         let panel = NSSavePanel()
-        let base = (fileName as NSString).deletingPathExtension + " contents"
+        let base = loc("{0} contents", (fileName as NSString).deletingPathExtension)
         let format = NSPopUpButton(frame: .zero, pullsDown: false)
-        format.addItems(withTitles: ["Web page (HTML)", "JSON"])
-        let label = NSTextField(labelWithString: "Format:")
+        format.addItems(withTitles: [loc("Web page (HTML)"), "JSON"]) // English: JSON is a format's name
+        let label = NSTextField(labelWithString: loc("Format:"))
         let accessory = NSStackView(views: [label, format])
         accessory.edgeInsets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
         panel.accessoryView = accessory
         panel.allowedContentTypes = [.html]
         panel.nameFieldStringValue = base + ".html"
-        panel.message = "The report is saved on this Mac only; nothing in it is contacted."
+        panel.message = loc("The report is saved on this Mac only; nothing in it is contacted.")
         if let folder { panel.directoryURL = folder }
         let chooser = FormatChooser(panel, base)
         format.target = chooser

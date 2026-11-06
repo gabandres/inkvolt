@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Cuts optional content out of a content stream (the Windows app's `HiddenContent`): marked content (/OC /name BDC …
 /// EMC) of a hidden layer, and XObjects of a hidden layer (Do). Viewers still apply the graphics state a hidden section
@@ -72,16 +73,16 @@ enum HiddenContent {
                 k += 1
             }
             if end < 0 && broken {
-                kept = "hidden content runs into data that can't be read"
+                kept = loc("hidden content runs into data that can't be read")
                 continue
             }
             let last = end < 0 ? ops.count : end
             guard let plan = section(ops, i + 1, last, inText) else {
-                kept = "hidden content can't be cut without moving visible text"
+                kept = loc("hidden content can't be cut without moving visible text")
                 continue
             }
             if inText && plan.showsText && !nextTextRepositions(ops, last + 1) {
-                kept = "hidden text can't be cut without moving the visible text after it"
+                kept = loc("hidden text can't be cut without moving the visible text after it")
                 continue
             }
             copy(to: op.start)

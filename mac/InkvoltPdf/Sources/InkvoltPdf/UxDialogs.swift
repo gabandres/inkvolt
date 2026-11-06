@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Round 2 of the UX review: every sheet, panel and alert the document window puts up, drawn to PNG in light and dark,
 /// then cancelled. Each command is sent as a person would (its menu action); the step waits for the sheet, the modal
@@ -55,7 +56,7 @@ extension UxShots {
     /// cancelled, and a window is closed.
     static func dismiss(_ window: NSWindow) {
         let all = buttons(in: window.contentView).filter(\.isEnabled)
-        let safe = ["Cancel", "Close", "Not Now", "Done", "Don't Save"]
+        let safe = [loc("Cancel"), loc("Close"), loc("Not Now"), loc("Done"), loc("Don't Save")]
         if let b = all.first(where: { safe.contains($0.title) }) ?? all.first(where: { $0.keyEquivalent == "\u{1b}" }) ?? (all.count == 1 ? all.first : nil) {
             b.performClick(nil)
             if !window.isVisible { return }
@@ -145,7 +146,7 @@ extension UxShots {
 
         await dialog([Step("go-to-page-\(look)") { w in
             w.contentView.flatMap(Self.field)?.stringValue = "99"
-            Self.button(w, "Go")?.performClick(nil)
+            Self.button(w, loc("Go"))?.performClick(nil)
         }, Step("go-to-page-error-\(look)")], audits: audits, send(NSSelectorFromString("goToPage:")))
         await one("properties", NSSelectorFromString("showDocumentProperties:"))
         await one("protect", NSSelectorFromString("protectDocument:"))
@@ -177,12 +178,12 @@ extension UxShots {
         await dialog([Step("password-wrong-\(look)")], audits: audits) { _ = PasswordPrompt.ask(file: "Synthetic.pdf", wrong: true) }
         await dialog([Step("password-permissions-\(look)")], audits: audits) { _ = AppPrompts().askOwnerPassword(wrong: false) }
         await dialog([Step("error-save-\(look)")], audits: audits) { [weak c] in
-            c?.pdf.showError("The document couldn't be saved.", CocoaError(.fileWriteNoPermission))
+            c?.pdf.showError("The document couldn't be saved.", CocoaError(.fileWriteNoPermission)) // English: the self-test's sample error
         }
         await dialog([Step("progress-\(look)")], audits: audits) { [weak c] in
             guard let c else { return }
-            let sheet = ProgressSheet(title: "Recognize Text", text: "Reading page 2 of 3…")
-            sheet.update("Reading page 2 of 3…", 0.45)
+            let sheet = ProgressSheet(title: "Recognize Text", text: "Reading page 2 of 3…") // English: the self-test's sample sheet
+            sheet.update("Reading page 2 of 3…", 0.45) // English: the self-test's sample sheet
             UxShots.keep = sheet
             sheet.begin(on: c.window)
         }

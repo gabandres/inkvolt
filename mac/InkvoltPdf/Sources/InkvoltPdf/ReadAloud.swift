@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import PdfCore
+import PrintCore
 
 /// What reads the text out: macOS's voices through `AVSpeechSynthesizer`, or the self-test's silent stand-in.
 @MainActor
@@ -190,7 +191,7 @@ final class ReadAloud {
         if isActive { return stop() }
         guard let controller else { return }
         if voices.isEmpty && !(speaker is RecordingSpeaker) {
-            controller.notify("No voices are installed. Add one in System Settings › Accessibility › Spoken Content.")
+            controller.notify(loc("No voices are installed. Add one in System Settings › Accessibility › Spoken Content."))
             return
         }
         let pages = controller.pages
@@ -331,7 +332,7 @@ final class ReadAloud {
     }
 
     private func updateBar() {
-        bar.update(paused: isPaused, status: isActive ? "Page \(page + 1)" : "")
+        bar.update(paused: isPaused, status: isActive ? loc("Page {0}", CoreLanguage.number(page + 1)) : "")
     }
 }
 
@@ -344,10 +345,10 @@ final class ReadAloudBar: NSView {
     var onStop: (() -> Void)?
     var onVoice: ((Int) -> Void)?
     var onSpeed: ((Int) -> Void)?
-    let previousButton = ReadAloudBar.button("backward.end.fill", "Previous Paragraph")
-    let pauseButton = ReadAloudBar.button("pause.fill", "Pause")
-    let nextButton = ReadAloudBar.button("forward.end.fill", "Next Paragraph")
-    let stopButton = ReadAloudBar.button("stop.fill", "Stop Reading (⇧⌘Y)")
+    let previousButton = ReadAloudBar.button("backward.end.fill", loc("Previous Paragraph"))
+    let pauseButton = ReadAloudBar.button("pause.fill", loc("Pause"))
+    let nextButton = ReadAloudBar.button("forward.end.fill", loc("Next Paragraph"))
+    let stopButton = ReadAloudBar.button("stop.fill", loc("Stop Reading (⇧⌘Y)"))
     let statusLabel = NSTextField(labelWithString: "")
     let voicePopup = NSPopUpButton()
     let speedPopup = NSPopUpButton()
@@ -366,7 +367,7 @@ final class ReadAloudBar: NSView {
         super.init(frame: frame)
         let icon = NSImageView(image: NSImage(systemSymbolName: "speaker.wave.2.fill", accessibilityDescription: nil) ?? NSImage())
         icon.contentTintColor = .controlAccentColor
-        let title = NSTextField(labelWithString: "Read Aloud")
+        let title = NSTextField(labelWithString: loc("Read Aloud"))
         title.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
         statusLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         statusLabel.textColor = .secondaryLabelColor
@@ -378,14 +379,14 @@ final class ReadAloudBar: NSView {
         voicePopup.target = self
         voicePopup.action = #selector(voiceChosen)
         voicePopup.controlSize = .small
-        voicePopup.setAccessibilityLabel("Voice")
-        voicePopup.toolTip = "Voice"
+        voicePopup.setAccessibilityLabel(loc("Voice"))
+        voicePopup.toolTip = loc("Voice")
         voicePopup.widthAnchor.constraint(lessThanOrEqualToConstant: 240).isActive = true
         speedPopup.target = self
         speedPopup.action = #selector(speedChosen)
         speedPopup.controlSize = .small
-        speedPopup.setAccessibilityLabel("Speed")
-        speedPopup.toolTip = "Speed"
+        speedPopup.setAccessibilityLabel(loc("Speed"))
+        speedPopup.toolTip = loc("Speed")
         let stack = NSStackView(views: [icon, title, previousButton, pauseButton, nextButton, stopButton, statusLabel, voicePopup, speedPopup])
         stack.orientation = .horizontal
         stack.spacing = 8
@@ -400,7 +401,7 @@ final class ReadAloudBar: NSView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Read Aloud")
+        setAccessibilityLabel(loc("Read Aloud"))
     }
 
     @available(*, unavailable)
@@ -427,7 +428,8 @@ final class ReadAloudBar: NSView {
     }
 
     func update(paused: Bool, status: String) {
-        let label = paused ? "Resume" : "Pause"
+        let label = paused ? loc("Resume") : loc("Pause")
+
         pauseButton.image = NSImage(systemSymbolName: paused ? "play.fill" : "pause.fill", accessibilityDescription: label)
         pauseButton.toolTip = label
         pauseButton.setAccessibilityLabel(label)

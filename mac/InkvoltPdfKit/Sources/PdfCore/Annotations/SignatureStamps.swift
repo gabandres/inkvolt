@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Decoded image pixels: 8-bit RGB (row-major, no padding) and optional 8-bit alpha (transparency).
 public struct StampImage: Equatable, Sendable {
@@ -15,9 +16,9 @@ public struct StampImage: Equatable, Sendable {
     }
 
     func validate() throws {
-        if width <= 0 || height <= 0 || width > 8192 || height > 8192 { throw PdfEditError("The image size isn't usable.") }
+        if width <= 0 || height <= 0 || width > 8192 || height > 8192 { throw PdfEditError(loc("The image size isn't usable.")) }
         if rgb.count != width * height * 3 || (alpha.map { $0.count != width * height } ?? false) {
-            throw PdfEditError("The image data doesn't match its size.")
+            throw PdfEditError(loc("The image data doesn't match its size."))
         }
     }
 }
@@ -72,19 +73,19 @@ public enum SignatureStamps {
     /// replaced one keeps its own, and its creation date.
     static func place(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ rect: RectD, _ image: StampImage?, _ replaceId: String?,
                       _ label: String, _ idPrefix: String, _ name: String, _ author: String?, subject: String? = nil) throws -> [UInt8] {
-        if rect.isEmpty { throw PdfEditError("The stamp needs a size.") }
+        if rect.isEmpty { throw PdfEditError(loc("The stamp needs a size.")) }
         if let image { try image.validate() }
         return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             var imageRef: PObj?
             var old: (page: Int, annot: PObj)?
             if let replaceId {
-                guard let found = try find(doc, replaceId) else { throw PdfEditError("The stamp is no longer in the document.") }
+                guard let found = try find(doc, replaceId) else { throw PdfEditError(loc("The stamp is no longer in the document.")) }
                 old = found
                 if image == nil { imageRef = found.annot.dict("AP")?.dict("N")?.dict("Resources")?.dict("XObject")?["Im1"] }
             }
             if let image { imageRef = imageXObject(doc, image) }
-            guard let imageRef else { throw PdfEditError("The stamp's image is missing.") }
+            guard let imageRef else { throw PdfEditError(loc("The stamp's image is missing.")) }
 
             let page = doc.page(pageIndex)
             let r = PageBoxes.fromPageSpace(page, rect)

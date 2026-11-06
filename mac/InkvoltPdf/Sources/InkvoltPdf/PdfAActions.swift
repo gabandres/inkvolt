@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// File › Save as PDF/A-2b…, and Save as PDF/A-2a (the accessible archive: the tags kept, Make Accessible first when there
@@ -48,7 +49,7 @@ extension DocumentWindowController {
     /// The PDF/A copy of `data`, with the progress sheet; asks for the permissions password while it is needed. Nil when
     /// refused (the reasons shown), cancelled or failed.
     func makePdfACopy(_ data: [UInt8], _ password: String?, name: String, conformance: PdfAConformance = .b) async -> PdfAResult? {
-        let sheet = ProgressSheet(title: "Save as \(conformance.name)", text: "Making a PDF/A copy…")
+        let sheet = ProgressSheet(title: loc("Save as {0}", conformance.name), text: loc("Making a PDF/A copy…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -76,13 +77,13 @@ extension DocumentWindowController {
             case .failure(let e as PdfAError):
                 Report.progress("PDF/A refused: \(e.blockers.count) reasons")
                 sheet.end()
-                await PdfAState.show(self, "Can't save as \(conformance.name)", PdfA.refusalMessage(e.blockers, conformance: conformance))
+                await PdfAState.show(self, loc("Can't save as {0}", conformance.name), PdfA.refusalMessage(e.blockers, conformance: conformance))
                 return nil
             case .failure(let error):
                 Report.progress("PDF/A failed: \(type(of: error))")
                 let message = NSAlert.plainText(error)
                 sheet.end()
-                await PdfAState.show(self, "Can't save as \(conformance.name)", message, isError: true)
+                await PdfAState.show(self, loc("Can't save as {0}", conformance.name), message, isError: true)
                 return nil
             }
         }
@@ -93,8 +94,8 @@ extension DocumentWindowController {
         if Report.isRunning { return PdfAState.testTarget }
         guard let window else { return nil }
         let panel = NSSavePanel()
-        panel.title = "Save as \(conformance.name)"
-        panel.prompt = "Save Copy"
+        panel.title = loc("Save as {0}", conformance.name)
+        panel.prompt = loc("Save Copy")
         panel.nameFieldStringValue = name
         panel.allowedContentTypes = [.pdf]
         if let folder { panel.directoryURL = URL(fileURLWithPath: folder) }
@@ -106,18 +107,18 @@ extension DocumentWindowController {
     /// Saves the copy at `url` (never over the open document) and says what was changed; true when saved.
     func writePdfACopy(_ result: PdfAResult, to url: URL, conformance: PdfAConformance = .b) async -> Bool {
         if let open = pdf.session?.filePath, URL(fileURLWithPath: open).standardizedFileURL.resolvingSymlinksInPath() == url.standardizedFileURL.resolvingSymlinksInPath() {
-            await PdfAState.show(self, "Choose another name", "The PDF/A copy can't replace the open document. Choose another name or folder.")
+            await PdfAState.show(self, loc("Choose another name"), loc("The PDF/A copy can't replace the open document. Choose another name or folder."))
             return false
         }
         let bytes = Data(result.data)
         let written = await Task.detached { () -> Result<Void, Error> in Result { try bytes.write(to: url, options: .atomic) } }.value
         if case .failure(let error) = written {
-            await PdfAState.show(self, "Can't save the PDF/A copy",
-                           "\(error.localizedDescription)\n\nIf the file is open in another program, close it there or choose another name.", isError: true)
+            await PdfAState.show(self, loc("Can't save the PDF/A copy"),
+                           loc("{0}\n\nIf the file is open in another program, close it there or choose another name.", error.localizedDescription), isError: true)
             return false
         }
         Report.progress("PDF/A saved: \(result.changes.count) changes")
-        let open = await PdfAState.show(self, "Saved as \(conformance.name)", PdfA.savedMessage(url.lastPathComponent, result.changes, conformance: conformance), openButton: true)
+        let open = await PdfAState.show(self, loc("Saved as {0}", conformance.name), PdfA.savedMessage(url.lastPathComponent, result.changes, conformance: conformance), openButton: true)
         if open { NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in } }
         return true
     }
@@ -165,10 +166,10 @@ enum PdfAState {
         text.setAccessibilityLabel(title)
         alert.accessoryView = scroll
         if openButton {
-            alert.addButton(withTitle: "Open the Copy")
-            alert.addButton(withTitle: "Done")
+            alert.addButton(withTitle: loc("Open the Copy"))
+            alert.addButton(withTitle: loc("Done"))
         } else {
-            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: loc("OK"))
         }
         return await run(alert, on: controller.window) && openButton
     }
@@ -183,19 +184,20 @@ enum PdfAState {
 
     /// The permissions password, asked for the copy (nil: cancelled).
     static func askOwnerPassword(_ controller: DocumentWindowController, _ name: String, wrong: Bool) async -> String? {
-        let question = wrong ? "That password is incorrect. Try again." : "Permissions password required"
+        let question = wrong ? loc("That password is incorrect. Try again.") : loc("Permissions password required")
         if Report.skipsDialogs {
             ownerPasswordQuestions.append(question)
             return testOwnerPasswords.isEmpty ? nil : testOwnerPasswords.removeFirst()
         }
         let alert = NSAlert()
         alert.messageText = question
-        alert.informativeText = "A PDF/A copy can't be password protected, so making one of “\(name)” needs its permissions (owner) password."
+        alert.informativeText = loc("A PDF/A copy can't be password protected, so making one of “{0}” needs its permissions (owner) password.", name)
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.setAccessibleName("Password")
+        field.setAccessibleName(loc("Password"))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Continue")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Continue"))
+        alert.addButton(withTitle: loc("Cancel"))
+
         alert.window.initialFirstResponder = field
         return await run(alert, on: controller.window) ? field.stringValue : nil
     }

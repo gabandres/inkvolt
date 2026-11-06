@@ -67,5 +67,26 @@
     "• Fleet, at the top of the sidebar (View › Fleet): every printer on one page, the ones in trouble first, with each one's ink or toner, page count, firmware and when it was last read; a printer that isn't answering shows what it last said. Export… saves the list as a spreadsheet or JSON, and Fix All resumes paused printers and lets them accept jobs again, asking before each one (Inkvolt Pro features, free for now). From Terminal, “Inkvolt Print status --all --json” lists every printer for a script.",
     "• Batch Print (File › Batch Print…): add PDFs and pictures, or a whole folder, put them in order and see how many sheets each one takes before anything prints. Print sends them to the printer one by one, asks first when a batch comes to more than 100 sheets, and Stop stops between files; a file that changed or needs a password is never printed by surprise. Save a list to print again, print a folder as files land in it, save the results as a spreadsheet, and print a list from Terminal with “Inkvolt Print print --list” (Inkvolt Pro features, free for now).",
     "• Open in Inkvolt PDF, when it's installed on this Mac: a scan preset can open its PDFs there, Settings › General's Open scans in Inkvolt PDF opens each saved scan, and the save bar offers it after a PDF is saved."
-  ]
+  ],
+  "localizations": {
+    "es-MX": {
+      "whatsNew": [
+        "Novedades de Inkvolt Print 1.2:",
+        "",
+        "• Limpieza del escaneo (configuración de escaneo › Limpieza, y en cada ajuste): recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar los colores desteñidos. Limpiar… en una página la muestra en grande para probar cada una, Mostrar tal como se escaneó para comparar, y Todas las páginas; Deshacer revierte una limpieza.",
+        "• Los PDF con texto buscable conservan el texto en todos los idiomas que lee tu Mac, incluidos ruso, árabe, chino, japonés y coreano, para que Vista previa y otras aplicaciones de PDF lo encuentren; elige el Idioma del texto en un escaneo o un ajuste.",
+        "• Las impresoras USB que imprimen sin controlador (IPP por USB) muestran sus niveles de tinta o tóner y su estado, leídos de la impresora misma; la tarjeta de estado dice de dónde viene, y una impresora que no informa niveles lo dice.",
+        "• Notificaciones de trabajos (Configuración › Alertas, desactivadas hasta que las actives): cuando un trabajo tuyo falla o deja de avanzar, una notificación nombra el documento y la impresora, con Abrir la cola y Pausar alertas. Los trabajos ajenos nunca generan una.",
+        "• Historial de tinta y tóner: Inkvolt Print guarda una lectura al día en tu Mac y muestra un gráfico de los niveles del último año, cuántos días le quedan más o menos a cada cartucho y cuántas páginas imprimiste desde que lo pusiste. Las alertas de tinta baja también dicen cuántos días quedan. Exportar historial… lo guarda todo en una hoja de cálculo (una función de Inkvolt Pro, gratis por ahora).",
+        "• Vigilancia del firmware: cuando cambia el firmware de una impresora, su tarjeta de estado lo dice. Impresoras HP: Mantener mis cartuchos funcionando, en la pestaña Configuración, desactiva las actualizaciones automáticas, para que una que bloquee los cartuchos que no son de HP no se instale sola.",
+        "• Los escáneres que solo envían PDF funcionan, y un escaneo guardado sin cambios se conserva tal como lo envió el escáner.",
+        "• Ayuda › Inkvolt Pro…: escribe una clave de Inkvolt Pro; Inkvolt PDF en este Mac también la encuentra.",
+        "• Inkvolt PDF en este Mac muestra al imprimir el estado y el tóner de tus impresoras, y avisa si la elegida está apagada o atascada.",
+        "• Ayuda › Informar un problema…: los detalles que necesita un informe de error, con las direcciones, los números de serie y tus nombres ocultos, para copiarlos en una incidencia de GitHub. Grabar esta impresora guarda lo que responde la impresora que se muestra, solo leyendo y sin lo que la identifica, como un .zip para adjuntar. No se envía nada.",
+        "• Flota, arriba en la barra lateral (Ver › Flota): todas las impresoras en una página, primero las que tienen problemas, con la tinta o el tóner de cada una, el contador de páginas, el firmware y su última lectura; una impresora que no responde muestra lo último que dijo. Exportar… guarda la lista como hoja de cálculo o JSON, y Resolver todo reanuda las impresoras en pausa y hace que vuelvan a aceptar trabajos, preguntando antes de cada una (funciones de Inkvolt Pro, gratis por ahora). Desde Terminal, “Inkvolt Print status --all --json” lista todas las impresoras para un script.",
+        "• Imprimir en lote (Archivo › Imprimir en lote…): agrega PDF e imágenes, o una carpeta entera, ponlos en orden y mira cuántas hojas lleva cada uno antes de imprimir nada. Imprimir los envía uno por uno, pregunta primero cuando un lote pasa de 100 hojas, y Detener para entre archivos; un archivo que cambió o pide contraseña nunca se imprime por sorpresa. Guarda una lista para volver a imprimirla, imprime una carpeta según llegan archivos, guarda los resultados como hoja de cálculo e imprime una lista desde Terminal con “Inkvolt Print print --list” (funciones de Inkvolt Pro, gratis por ahora).",
+        "• Abrir en Inkvolt PDF, cuando está instalado en este Mac: un ajuste de escaneo puede abrir sus PDF allí, Abrir los escaneos en Inkvolt PDF, en Configuración › General, abre cada escaneo guardado, y la barra de guardado lo ofrece al guardar un PDF."
+      ]
+    }
+  }
 }

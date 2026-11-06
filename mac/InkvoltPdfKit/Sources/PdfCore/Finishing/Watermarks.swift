@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Where a watermark goes: once in the middle of the page, or repeated across it.
 public enum WatermarkLayout: Sendable, CaseIterable { case center, tiled }
@@ -88,15 +89,15 @@ public enum Watermarks {
             .trimmingCharacters(in: CharacterSet(charactersIn: "\n "))
         let blank = (text ?? "").trimmingCharacters(in: .whitespaces).isEmpty
         if blank == (options.image == nil) {
-            throw PdfEditError(options.image == nil ? "Type the watermark's text or choose an image." : "A watermark is a text or an image, not both.")
+            throw PdfEditError(options.image == nil ? loc("Type the watermark's text or choose an image.") : loc("A watermark is a text or an image, not both."))
         }
         if options.image == nil && (!options.fontSize.isFinite || options.fontSize < 4 || options.fontSize > 500) {
-            throw PdfEditError("The font size must be from 4 to 500 points.")
+            throw PdfEditError(loc("The font size must be from 4 to 500 points."))
         }
         if options.image != nil && (!options.imageScale.isFinite || options.imageScale <= 0 || options.imageScale > 4) {
-            throw PdfEditError("The image size must be from 1% to 400% of the page width.")
+            throw PdfEditError(loc("The image size must be from 1% to 400% of the page width."))
         }
-        if !options.rotation.isFinite || !options.opacity.isFinite { throw PdfEditError("The angle and opacity must be numbers.") }
+        if !options.rotation.isFinite || !options.opacity.isFinite { throw PdfEditError(loc("The angle and opacity must be numbers.")) }
         try options.image?.validate()
 
         let doc = try PdfEdit.open(data, password)

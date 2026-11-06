@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E7 (`--edit`, on the synthetic text document, after `FeatureTest`'s Fill & Sign marks;
 /// `--only-pdfa` runs it alone): File › Save as PDF/A-2b… found in the menu bar and enabled, then the command's own path (settling the edits,
@@ -37,7 +38,7 @@ struct PdfATest {
     mutating func run() async {
         lines.append("== \(name): Save as PDF/A-2b")
         let menuItem = Self.item(#selector(DocumentWindowController.saveAsPdfA(_:)), in: NSApp.mainMenu)
-        check(menuItem?.title == "Save as PDF/A-2b…" && menuItem?.menu?.title == "Save as PDF/A" && menuItem.map { controller.validateMenuItem($0) } == true,
+        check(menuItem?.title == loc("Save as PDF/A-2b…") && menuItem?.menu?.title == loc("Save as PDF/A") && menuItem.map { controller.validateMenuItem($0) } == true,
               "File › Save as PDF/A-2b… is in the menu bar and enabled")
         guard let session = controller.pdf.session else {
             check(false, "the document is open")
@@ -51,8 +52,11 @@ struct PdfATest {
 
         PdfAState.testTarget = target
         let saved = await controller.saveAsPdfA()
-        check(saved && PdfAState.lastTitle == "Saved as PDF/A-2b" && PdfAState.lastMessage.hasPrefix(target.lastPathComponent)
-              && PdfAState.lastMessage.contains("• sRGB output intent and PDF/A metadata added"),
+        // The change as the message lists it: PdfA.savedMessage's bullet, the first letter capitalized unless the second is.
+        let change = loc("sRGB output intent and PDF/A metadata added")
+        let listed = change.count > 1 && Array(change)[1].isUppercase ? change : change.prefix(1).uppercased() + change.dropFirst()
+        check(saved && PdfAState.lastTitle == loc("Saved as {0}", PdfAConformance.b.name) && PdfAState.lastMessage.hasPrefix(target.lastPathComponent)
+              && PdfAState.lastMessage.contains("• " + listed),
               "the command saves the copy and says what changed (\(PdfAState.lastMessage.components(separatedBy: "\n• ").count - 1) changes\(PdfAState.lastMessage.contains("ZapfDingbats") ? ", the Fill & Sign marks' font embedded" : ""))")
         if !saved { lines.append("note: \(PdfAState.lastTitle): \(PdfAState.lastMessage.replacingOccurrences(of: "\n", with: " ").prefix(400))") }
         let copy = (try? Data(contentsOf: target)).map { [UInt8]($0) } ?? []
@@ -73,14 +77,15 @@ struct PdfATest {
             let onDisk = try? Data(contentsOf: URL(fileURLWithPath: own))
             PdfAState.testTarget = URL(fileURLWithPath: own)
             let over = await controller.saveAsPdfA()
-            check(!over && PdfAState.lastTitle == "Choose another name" && (try? Data(contentsOf: URL(fileURLWithPath: own))) == onDisk,
+            check(!over && PdfAState.lastTitle == loc("Choose another name") && (try? Data(contentsOf: URL(fileURLWithPath: own))) == onDisk,
                   "the copy isn't saved over the open document")
         }
         PdfAState.testTarget = nil
 
         let cmyk = Self.cmykPdf()
         let refused = await controller.makePdfACopy(cmyk, nil, name: "CMYK.pdf")
-        check(refused == nil && PdfAState.lastTitle == "Can't save as PDF/A-2b" && PdfAState.lastMessage.hasPrefix("Nothing was saved.")
+        let nothing = Shown.head(loc("Nothing was saved. This document has what {0} doesn't allow, and changing it would change how the document looks:\n\n{1}", Shown.gap, Shown.gap))
+        check(refused == nil && PdfAState.lastTitle == loc("Can't save as {0}", PdfAConformance.b.name) && PdfAState.lastMessage.hasPrefix(nothing)
               && PdfAState.lastMessage.contains("CMYK"), "a CMYK document is refused, saying why")
 
         if let locked = try? PdfSecurity.protect(before, session.password, userPassword: "open", ownerPassword: "owner") {
@@ -89,8 +94,8 @@ struct PdfATest {
             let result = await controller.makePdfACopy(locked, "open", name: "Locked.pdf")
             let asked = Array(PdfAState.ownerPasswordQuestions.dropFirst(questions))
             PdfAState.testOwnerPasswords = []
-            check(result.map { PdfA.validate($0.data).isEmpty && $0.changes.contains { $0.contains("password protection removed") } } == true
-                  && asked == ["Permissions password required", "That password is incorrect. Try again."],
+            check(result.map { PdfA.validate($0.data).isEmpty && $0.changes.contains { $0.contains(loc("password protection removed (PDF/A files can't be encrypted)")) } } == true
+                  && asked == [loc("Permissions password required"), loc("That password is incorrect. Try again.")],
                   "a restricted document asks for its permissions password until it is right (\(asked.count) questions)")
         } else {
             check(false, "a protected copy is made")

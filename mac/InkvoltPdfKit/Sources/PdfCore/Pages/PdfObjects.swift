@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import MuPDFShim
 
 /// One PDF object of a document opened for editing (the role PDFsharp's `PdfItem`s have on Windows), over MuPDF's
@@ -231,7 +232,7 @@ extension MuDoc {
 
     /// Throws the first change that failed.
     func checkFailure() throws {
-        if let failure { throw PdfEditError("This PDF can't be edited: \(failure)") }
+        if let failure { throw PdfEditError(loc("This PDF can't be edited: {0}", failure)) }
     }
 }
 

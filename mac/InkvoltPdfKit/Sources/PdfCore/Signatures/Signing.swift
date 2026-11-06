@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Security
 
 /// The CMS flavour written into /SubFilter.
@@ -72,23 +73,23 @@ public enum Signing {
 
     public static func sign(_ data: [UInt8], _ password: String?, _ req: SignRequest) async throws -> [UInt8] {
         if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
-            throw SigningError("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign.")
+            throw SigningError(loc("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign."))
         }
         let existing = Signatures.verify(data, password)
         let signedBefore = existing.contains { $0.status != .unsigned }
         if req.certify != .none && signedBefore {
-            throw SigningError("A certifying signature must be the document's first signature: this document is already signed.")
+            throw SigningError(loc("A certifying signature must be the document's first signature: this document is already signed."))
         }
         let certification = certification(data, password)
         if certification == .noChanges {
-            throw SigningError("This document is certified with no changes allowed: another signature would invalidate the certification.")
+            throw SigningError(loc("This document is certified with no changes allowed: another signature would invalidate the certification."))
         }
         // Form filling and signing (P=2) covers signing the signature fields the certifier put there, not adding new ones.
         if certification == .formFilling && req.fieldName == nil {
-            throw SigningError("This document is certified to allow only filling in forms and signing its existing signature fields: sign one of its empty signature fields instead.")
+            throw SigningError(loc("This document is certified to allow only filling in forms and signing its existing signature fields: sign one of its empty signature fields instead."))
         }
         if let broken = existing.first(where: { $0.status == .disallowedChanges && $0.certificationLevel != nil }) {
-            throw SigningError("The changes made to this document since it was certified aren't allowed by the certification (\(broken.detail ?? "")). Undo them, then sign.")
+            throw SigningError(loc("The changes made to this document since it was certified aren't allowed by the certification ({0}). Undo them, then sign.", broken.detail ?? ""))
         }
 
         var reserve = req.timestamp == nil ? 16384 : 32768
@@ -104,7 +105,7 @@ public enum Signing {
             }
             reserve = der.count + 8192
         }
-        throw SigningError("The signature doesn't fit the space reserved for it.")
+        throw SigningError(loc("The signature doesn't fit the space reserved for it."))
     }
 
     /// The certification level of a document's certifying signature (catalog /Perms /DocMDP), else `.none`.
@@ -122,14 +123,14 @@ public enum Signing {
     private static func prepare(_ data: [UInt8], _ password: String?, _ req: SignRequest, _ reserve: Int,
                                 _ signedBefore: Bool) throws -> (pdf: [UInt8], gapStart: Int, gapEnd: Int) {
         var source = data
-        var doc = try PdfEdit.open(source, password, failure: "This PDF can't be signed")
+        var doc = try PdfEdit.open(source, password, failure: loc("This PDF can't be signed"))
         if !doc.canAppend {
             // The file's structure can't be appended to (no usable last xref): normalize it first, which is only safe
             // when nothing is signed yet.
-            if signedBefore { throw SigningError("This signed document's file structure can't be extended, so a new signature would break the existing ones.") }
+            if signedBefore { throw SigningError(loc("This signed document's file structure can't be extended, so a new signature would break the existing ones.")) }
             source = try PdfEdit.writeWhole(doc, password: password)
-            doc = try PdfEdit.open(source, password, failure: "This PDF can't be signed")
-            if !doc.canAppend { throw SigningError("This PDF's structure can't be signed incrementally.") }
+            doc = try PdfEdit.open(source, password, failure: loc("This PDF can't be signed"))
+            if !doc.canAppend { throw SigningError(loc("This PDF's structure can't be signed incrementally.")) }
         }
         let time = req.time ?? Date()
         let catalog = doc.catalog
@@ -151,9 +152,9 @@ public enum Signing {
 
         let widget: PObj, fieldDict: PObj, page: PObj, rect: RectD
         if let name = req.fieldName {
-            guard let f = try FormEditor.collect(doc, acro).first(where: { $0.name == name }) else { throw SigningError("There is no field named \"\(name)\".") }
-            if f.type != "Sig" { throw SigningError("\"\(name)\" isn't a signature field.") }
-            if let v = FormEditor.inherited(f.dict, "V"), v.kind != .null { throw SigningError("\"\(name)\" is already signed.") }
+            guard let f = try FormEditor.collect(doc, acro).first(where: { $0.name == name }) else { throw SigningError(loc("There is no field named \"{0}\".", name)) }
+            if f.type != "Sig" { throw SigningError(loc("\"{0}\" isn't a signature field.", name)) }
+            if let v = FormEditor.inherited(f.dict, "V"), v.kind != .null { throw SigningError(loc("\"{0}\" is already signed.", name)) }
             fieldDict = f.dict
             widget = f.widgets.first ?? f.dict
             let onPage = try pageOfAnnot(doc, widget)
@@ -163,7 +164,7 @@ public enum Signing {
             if pi == nil && widget.isRef { doc.annots(page).append(widget) }
         } else {
             let count = try doc.pageCount()
-            guard req.pageIndex >= 0 && req.pageIndex < count else { throw SigningError("The signature's page doesn't exist.") }
+            guard req.pageIndex >= 0 && req.pageIndex < count else { throw SigningError(loc("The signature's page doesn't exist.")) }
             page = doc.page(req.pageIndex)
             rect = req.rect ?? .zero
             let made = doc.dict([("Type", doc.name("Annot")), ("Subtype", doc.name("Widget")), ("FT", doc.name("Sig")),
@@ -217,13 +218,13 @@ public enum Signing {
         do {
             pdf = try doc.append(original: source)
         } catch {
-            throw SigningError("The signature can't be appended to this PDF: \(error)")
+            throw SigningError(loc("The signature can't be appended to this PDF: {0}", error))
         }
         let from = source.count
         let zeros = [60] + [UInt8](repeating: 48, count: reserve * 2) + [62]
         guard let gap = pdf[from...].lastRange(of: zeros),
               let rangeAt = pdf[from...].lastRange(of: Array(rangePlaceholder.utf8)) else {
-            throw SigningError("The signature placeholder wasn't written.")
+            throw SigningError(loc("The signature placeholder wasn't written."))
         }
         let gapStart = gap.lowerBound, gapEnd = gap.upperBound
         var range = "[0 \(gapStart) \(gapEnd) \(pdf.count - gapEnd)"
@@ -265,8 +266,9 @@ public enum Signing {
         let cert = req.id.certificate
         let name = look.name ?? cert.commonName ?? ""
         var lines: [String] = []
+        // English: a visible signature's lines, as Windows writes them (the signed page says them in every language).
         func labeled(_ label: String, _ value: String) -> String { look.showLabels ? "\(label): \(value)" : value }
-        if look.showName { lines.append(look.showLabels ? "Digitally signed by \(name)" : name) }
+        if look.showName { lines.append(look.showLabels ? "Digitally signed by \(name)" : name) } // English: a visible signature's line
         if look.showDistinguishedName { lines.append(labeled("DN", cert.subject)) }
         if look.showReason, let r = req.reason, !r.trimmingCharacters(in: .whitespaces).isEmpty { lines.append(labeled("Reason", r)) }
         if look.showLocation, let l = req.location, !l.trimmingCharacters(in: .whitespaces).isEmpty { lines.append(labeled("Location", l)) }
@@ -342,15 +344,15 @@ public enum Signing {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw SigningError("The timestamp server couldn't be reached: \(error)")
+            throw SigningError(loc("The timestamp server couldn't be reached: {0}", error))
         }
         let token: [UInt8]
         do {
             token = try Rfc3161.token(fromReply: reply, stamping: cms.signature, nonce: nonce).der
         } catch let e as SigningError {
-            throw SigningError("The timestamp server's reply isn't usable: \(e.message)")
+            throw SigningError(loc("The timestamp server's reply isn't usable: {0}", e.message))
         } catch {
-            throw SigningError("The timestamp server's reply isn't usable: it isn't a timestamp response.")
+            throw SigningError(loc("The timestamp server's reply isn't usable: {0}", loc("it isn't a timestamp response.")))
         }
         return cms.encode(unsigned: [CmsBuilder.attribute(Oids.timestampToken, token)])
     }

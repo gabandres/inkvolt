@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A page's text as sent to the model (`page` is 0-based).
 public struct AiPageText: Sendable, Equatable {
@@ -21,8 +22,11 @@ public struct AiChunk: Sendable, Equatable {
         self.text = text
     }
 
-    /// "page 3" or "pages 3–7" (1-based).
+    /// "page 3" or "pages 3–7" (1-based), in the interface's language.
     public var pagesText: String { AiText.pagesText(firstPage, lastPage) }
+
+    /// "page 3" or "pages 3–7" in English, for a prompt.
+    var pagesTextEnglish: String { AiText.pagesText(firstPage, lastPage, english: true) }
 }
 
 /// A "[p. N]" citation in an answer: where it is (UTF-16 offsets) and the page it names (0-based).
@@ -92,15 +96,18 @@ public enum AiText {
     /// "[Page 3]": the marker before each page's text, which the model cites as [p. 3].
     public static func pageMarker(_ page: Int) -> String { "[Page \(page + 1)]" }
 
-    /// "page 3" or "pages 3–7" (1-based).
-    public static func pagesText(_ first: Int, _ last: Int) -> String {
-        first == last ? "page \(first + 1)" : "pages \(first + 1)–\(last + 1)"
+    /// "page 3" or "pages 3–7" (1-based), in English (a prompt) or the interface's language.
+    public static func pagesText(_ first: Int, _ last: Int, english: Bool = false) -> String {
+        if english { return first == last ? "page \(first + 1)" : "pages \(first + 1)–\(last + 1)" } // English: the prompt
+        return first == last ? loc("page {0}", CoreLanguage.number(first + 1)) : loc("pages {0}–{1}", CoreLanguage.number(first + 1), CoreLanguage.number(last + 1))
     }
 
-    /// "pages 1–3, 5" for a set of 0-based pages.
-    public static func pagesText(_ pages: [Int]) -> String {
+    /// "pages 1–3, 5" for a set of 0-based pages, in English (a prompt) or the interface's language.
+    public static func pagesText(_ pages: [Int], english: Bool = false) -> String {
         let list = Array(Set(pages)).sorted()
-        return list.count == 1 ? "page \(list[0] + 1)" : "pages \(PageRange.format(list).replacingOccurrences(of: "-", with: "–"))"
+        if list.count == 1 { return english ? "page \(list[0] + 1)" : loc("page {0}", CoreLanguage.number(list[0] + 1)) }
+        let ranges = PageRange.format(list).replacingOccurrences(of: "-", with: "–")
+        return english ? "pages \(ranges)" : loc("pages {0}", ranges)
     }
 
     /// 12,345 (.NET's "N0").

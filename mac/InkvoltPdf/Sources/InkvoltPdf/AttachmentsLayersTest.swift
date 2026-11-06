@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E9 (`--edit`, on the synthetic text document; `--only-attachments-layers` runs it alone):
 /// the Attachments pane through View › Show Attachments and its own buttons (a text file and a PDF attached as edits, the
@@ -71,7 +72,7 @@ struct AttachmentsLayersTest {
 
     private mutating func attachments() async {
         let pane = controller.sidebar.attachments
-        let shown = choose("Show Attachments", on: controller)
+        let shown = choose(loc("Show Attachments"), on: controller)
         check(shown && controller.sidebar.shownPane == .attachments && !pane.isHidden && pane.items.isEmpty && !pane.saveButton.isEnabled,
               "View › Show Attachments (⌥⌘5) shows the empty pane, Save and Remove off")
 
@@ -225,14 +226,14 @@ struct AttachmentsLayersTest {
     }
 
     private mutating func layers() async {
-        check(!controller.sidebar.showsLayers && menuItem("Show Layers") != nil, "a document without layers: the Layers segment is off")
+        check(!controller.sidebar.showsLayers && menuItem(loc("Show Layers")) != nil, "a document without layers: the Layers segment is off")
         guard let doc = NewDocuments.open(Self.layeredPdf(), name: "Layered"),
               let window = doc.windowControllers.first as? DocumentWindowController else {
             return check(false, "the layered document opens")
         }
         defer { doc.close() }
         let pane = window.sidebar.layers
-        let shown = choose("Show Layers", on: window)
+        let shown = choose(loc("Show Layers"), on: window)
         let rows = pane.roots
         check(shown && window.sidebar.showsLayers && window.sidebar.shownPane == .layers && rows.count == 3 && rows[0].label == "Group"
               && rows[0].children.first?.layer?.name == "Blue" && !pane.resetButton.isEnabled,

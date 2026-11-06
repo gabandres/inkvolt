@@ -1,4 +1,5 @@
 import AppKit
+import PrintCore
 
 /// Tools › Command Palette… (⇧⌘K; the Windows app's Ctrl+K, which on the Mac is Link Selected Text, and its Ctrl+Shift+P,
 /// which is Page Setup): every menu command that can run now, searched as you type (every word, in any order, in the
@@ -11,13 +12,16 @@ import AppKit
 final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableViewDataSource, NSTableViewDelegate, NSWindowDelegate {
     static var shared: CommandPalette?
 
-    /// A command: its title, the menus it's in, its shortcut, the menu item, and what handles it.
+    /// A command: its title, the menus it's in, its shortcut, the menu item, and what handles it. `english` is its title
+    /// and menus in English when the interface is in another language (empty in English), so a search in English words
+    /// still finds it.
     struct Entry {
         let title: String
         let path: String
         let shortcut: String
         let item: NSMenuItem
         let handler: AnyObject
+        var english = ""
     }
 
     let field = NSSearchField()
@@ -55,13 +59,13 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         panel.isMovableByWindowBackground = true
         panel.isRestorable = false
         panel.hidesOnDeactivate = true
-        panel.title = "Command Palette"
+        panel.title = loc("Command Palette")
         super.init(window: panel)
         panel.delegate = self
-        field.placeholderString = "Search all commands"
+        field.placeholderString = loc("Search all commands")
         field.delegate = self
         field.font = .systemFont(ofSize: 16)
-        field.setAccessibleName("Search all commands")
+        field.setAccessibleName(loc("Search all commands"))
         // No close, minimize or zoom buttons: Escape closes it, as Spotlight.
         for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] { panel.standardWindowButton(kind)?.isHidden = true }
         // The title column takes what the shortcuts leave (they were cut off at the right edge).
@@ -80,7 +84,7 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         table.delegate = self
         table.target = self
         table.doubleAction = #selector(runSelected)
-        table.setAccessibilityLabel("Commands")
+        table.setAccessibilityLabel(loc("Commands"))
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
@@ -104,14 +108,21 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
     static func collect(for window: NSWindow?) -> [Entry] {
         var entries: [Entry] = []
         let chain = responders(window)
-        func walk(_ menu: NSMenu, _ path: [String]) {
+        // Each item's own English title, as the menu bar was built from it (`MainMenu.englishTitle`): never a reverse
+        // lookup of the shown words, which several English titles can share ("Imagen" is Image and Picture).
+        let translated = CoreLanguage.table != nil
+        func walk(_ menu: NSMenu, _ path: [String], _ englishPath: [String]) {
             for item in menu.items where !item.isSeparatorItem && !item.isHidden {
                 if let sub = item.submenu {
                     if sub === NSApp.servicesMenu { continue }
-                    walk(sub, path + [item.title])
+                    walk(sub, path + [item.title], englishPath + [MainMenu.englishTitle(of: item)].compactMap { $0 })
                 } else if let action = item.action, action != #selector(NSWindow.makeKeyAndOrderFront(_:)), !skipped.contains(action),
                           action != #selector(AppDelegate.showCommandPalette(_:)), let handler = handler(item, action, chain) {
-                    entries.append(Entry(title: item.title, path: path.joined(separator: " › "), shortcut: shortcut(item), item: item, handler: handler))
+                    var entry = Entry(title: item.title, path: path.joined(separator: " › "), shortcut: shortcut(item), item: item, handler: handler)
+                    if translated {
+                        entry.english = ([MainMenu.englishTitle(of: item)].compactMap { $0 } + englishPath).joined(separator: " ")
+                    }
+                    entries.append(entry)
                 }
             }
         }
@@ -119,7 +130,7 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         // The document's menus first, the app menu last (its About and Check for Updates opened the list).
         for top in Array(main.items.dropFirst()) + Array(main.items.prefix(1)) {
             guard let menu = top.submenu else { continue }
-            walk(menu, [top.title])
+            walk(menu, [top.title], [MainMenu.englishTitle(of: top)].compactMap { $0 })
         }
         return entries
     }
@@ -172,22 +183,38 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         return text + key.uppercased()
     }
 
-    /// The commands whose title or menus hold every word of `query` (titles starting with it first).
+    /// The commands whose title or menus hold every word of `query`, each at the start of one of their words, in the
+    /// interface's language or in English (titles starting with it first): "zoom in" finds Zoom In, not Zoom to Page
+    /// through the "in" inside "página".
     func filter(_ query: String) {
         let words = query.split(separator: " ").map(String.init).filter { !$0.isEmpty }
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
         let matching = all.filter { e in
-            let text = e.title + " " + e.path
-            return words.allSatisfy { text.range(of: $0, options: options) != nil }
+            let shown = e.title + " " + e.path
+            let text = e.english.isEmpty ? shown : shown + " " + e.english
+            return words.allSatisfy { Self.startsAWord($0, in: text, options) }
         }
         if let first = words.first {
-            let starts = matching.filter { $0.title.range(of: first, options: options.union(.anchored)) != nil }
+            let anchored = options.union(.anchored)
+            let starts = matching.filter { $0.title.range(of: first, options: anchored) != nil || $0.english.range(of: first, options: anchored) != nil }
             shown = starts + matching.filter { e in !starts.contains { $0.item === e.item } }
         } else {
             shown = matching
         }
         table.reloadData()
         if !shown.isEmpty { table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false) }
+    }
+
+    /// Whether `word` is found in `text` where a word starts (after a space, a bracket, a slash or the like).
+    static func startsAWord(_ word: String, in text: String, _ options: String.CompareOptions) -> Bool {
+        var from = text.startIndex
+        while let r = text.range(of: word, options: options, range: from..<text.endIndex) {
+            if r.lowerBound == text.startIndex { return true }
+            let before = text[text.index(before: r.lowerBound)]
+            if !before.isLetter && !before.isNumber { return true }
+            from = text.index(after: r.lowerBound)
+        }
+        return false
     }
 
     func controlTextDidChange(_ obj: Notification) { filter(field.stringValue) }
@@ -229,7 +256,7 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         stack.alignment = .leading
         stack.spacing = 0
         stack.setAccessibilityElement(true)
-        stack.setAccessibilityLabel("\(e.title), \(e.path)\(e.shortcut.isEmpty ? "" : ", " + e.shortcut)")
+        stack.setAccessibilityLabel(e.shortcut.isEmpty ? "\(e.title), \(e.path)" : "\(e.title), \(e.path), \(e.shortcut)") // English: no words of its own
         return stack
     }
 

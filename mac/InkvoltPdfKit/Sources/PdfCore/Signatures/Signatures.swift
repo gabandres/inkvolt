@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Security
 
 public enum SignatureStatus: Sendable, Equatable {
@@ -92,7 +93,7 @@ public enum Signatures {
             let value = FormEditor.inherited(f.dict, "V")
             if let value, value.isRef, !value.isDict {
                 // A signature dictionary that can't be read (damaged, or something slipped into it) is no signature.
-                results.append(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .invalid, detail: "The signature can't be read."))
+                results.append(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .invalid, detail: loc("The signature can't be read.")))
                 continue
             }
             guard let v = value, v.isDict, let br = v.array("ByteRange"), br.count >= 4 else {
@@ -162,15 +163,15 @@ public enum Signatures {
         }
         // Each entry is checked against the file length first, so the sums below can't overflow.
         if br.contains(where: { $0 < 0 || $0 > data.count }) || br[2] < br[0] + br[1] || br[2] + br[3] > data.count {
-            return result(.invalid, "The signature's byte range doesn't fit the file.")
+            return result(.invalid, loc("The signature's byte range doesn't fit the file."))
         }
         let covers = br[0] == 0 && isTrailingWhitespace(data, br[2] + br[3])
         let signed = Array(data[br[0]..<br[0] + br[1]]) + Array(data[br[2]..<br[2] + br[3]])
         let gap = Array(data[(br[0] + br[1])..<br[2]])
         // The unsigned gap must hold nothing but the hex signature value: anything else there (objects slipped in where
         // the zero padding was) would be unsigned content shown as signed.
-        if !isHexStringOnly(gap) { return result(.invalid, "The signature's unsigned gap holds more than the signature value.") }
-        guard let contents = hexContents(gap), !contents.isEmpty else { return result(.invalid, "The signature value is missing.") }
+        if !isHexStringOnly(gap) { return result(.invalid, loc("The signature's unsigned gap holds more than the signature value.")) }
+        guard let contents = hexContents(gap), !contents.isEmpty else { return result(.invalid, loc("The signature value is missing.")) }
 
         var cert: Certificate?
         var extra: [Certificate] = []
@@ -181,11 +182,11 @@ public enum Signatures {
         var ok: Bool
         switch subFilter {
         case "adbe.pkcs7.detached", "ETSI.CAdES.detached", "adbe.pkcs7.sha1":
-            guard let cms = try? CmsSignedData(der: contents) else { return result(.invalid, "The signature can't be read: it isn't a CMS signature.", covers: covers) }
+            guard let cms = try? CmsSignedData(der: contents) else { return result(.invalid, loc("The signature can't be read: {0}", loc("it isn't a CMS signature.")), covers: covers) }
             extra = cms.certificates
             guard let si = cms.signers.first else {
                 ok = false
-                detail = "The signature has no signer."
+                detail = loc("The signature has no signer.")
                 break
             }
             signer = si
@@ -195,25 +196,25 @@ public enum Signatures {
             let (problem, c) = si.check(content, contentType: cms.contentType, certificates: cms.certificates)
             cert = c ?? si.certificate(in: cms.certificates)
             ok = problem == nil
-            if let problem { detail = "The signature doesn't match the document: \(problem)" }
+            if let problem { detail = loc("The signature doesn't match the document: {0}", problem) }
             if ok && sha1 {
                 let digest = content.count == 22 && content[0] == 0x04 && content[1] == 20 ? Array(content[2...]) : content
                 if digest != DigestAlgorithm.sha1.hash(signed) {
                     ok = false
-                    detail = "The document digest doesn't match."
+                    detail = loc("The document digest doesn't match.")
                 }
             }
         case "ETSI.RFC3161":
-            guard let token = try? Rfc3161.Token(der: contents) else { return result(.invalid, "The timestamp token can't be read.", covers: covers) }
+            guard let token = try? Rfc3161.Token(der: contents) else { return result(.invalid, loc("The timestamp token can't be read."), covers: covers) }
             docTimestamp = true
             claimed = token.time
             trustTime = token.time
             extra = token.cms.certificates
             cert = token.verify(stamping: signed, candidates: extra)
             ok = cert != nil
-            if !ok { detail = "The timestamp doesn't match the document." }
+            if !ok { detail = loc("The timestamp doesn't match the document.") }
         default:
-            return result(.unsupported, "Signature format \(subFilter ?? "(none)") isn't supported.", covers: covers)
+            return result(.unsupported, loc("Signature format {0} isn't supported.", subFilter ?? loc("(none)")), covers: covers)
         }
 
         // The certificate is judged at a time someone other than the signer vouches for (a verified timestamp), else
@@ -228,14 +229,14 @@ public enum Signatures {
             if let note = t.problem { detail = detail.map { "\($0) \(note)" } ?? note }
         }
         let time = stamped ?? claimed ?? mDate
-        let judged = cert.map { trust($0, extra, at: trustTime, online: online, eku: docTimestamp ? timestampingEku : nil) } ?? (false, "No certificate")
+        let judged = cert.map { trust($0, extra, at: trustTime, online: online, eku: docTimestamp ? timestampingEku : nil) } ?? (false, loc("No certificate"))
         let trusted = judged.0
         var chainStatus = judged.1
         if !trusted && trustTime == nil && chainStatus.contains("NotTimeValid") {
-            chainStatus += ": the certificate has expired (or isn't valid yet), and no trusted timestamp proves it was valid when the document was signed"
+            chainStatus = loc("{0}: the certificate has expired (or isn't valid yet), and no trusted timestamp proves it was valid when the document was signed", chainStatus)
         }
         let status: SignatureStatus = !ok ? .invalid : covers ? .valid : .modifiedAfterSigning
-        if status == .modifiedAfterSigning && detail == nil { detail = "The document was changed after it was signed." }
+        if status == .modifiedAfterSigning && detail == nil { detail = loc("The document was changed after it was signed.") }
         info.status = status
         if let name = cert?.commonName, !name.isEmpty { info.signerName = name }
         info.signingTime = time
@@ -255,14 +256,14 @@ public enum Signatures {
     /// may vouch for the signing time.
     private static func verifiedTimestamp(_ si: CmsSignerInfo, _ extra: [Certificate], _ online: Bool) -> (time: Date?, trusted: Bool, problem: String?) {
         guard let attr = si.unsignedAttributes.first(where: { $0.oid == Oids.timestampToken && !$0.values.isEmpty }) else { return (nil, false, nil) }
-        guard let token = try? Rfc3161.Token(der: attr.values[0].raw) else { return (nil, false, "The embedded timestamp can't be read, so it was ignored.") }
+        guard let token = try? Rfc3161.Token(der: attr.values[0].raw) else { return (nil, false, loc("The embedded timestamp can't be read, so it was ignored.")) }
         let candidates = extra + token.cms.certificates
         guard let tsa = token.verify(stamping: si.signature, candidates: candidates) else {
-            return (nil, false, "The embedded timestamp doesn't belong to this signature, so it was ignored.")
+            return (nil, false, loc("The embedded timestamp doesn't belong to this signature, so it was ignored."))
         }
         let (trusted, status) = trust(tsa, candidates, at: token.time, online: online, eku: timestampingEku)
         return (token.time, trusted,
-                trusted ? nil : "The timestamp authority isn't trusted (\(status)), so the certificate was checked at the current time.")
+                trusted ? nil : loc("The timestamp authority isn't trusted ({0}), so the certificate was checked at the current time.", status))
     }
 
     static let timestampingEku = "1.3.6.1.5.5.7.3.8"
@@ -283,7 +284,7 @@ public enum Signatures {
     static func trust(_ cert: Certificate, _ extra: [Certificate], at time: Date?, online: Bool, eku: String? = nil) -> (Bool, String) {
         if let unfit = unfit(cert, eku) { return (false, unfit) }
         let at = time ?? Date()
-        guard let first = evaluate(cert, extra, at, online) else { return (false, "Chain can't be built: the certificate can't be read") }
+        guard let first = evaluate(cert, extra, at, online) else { return (false, loc("Chain can't be built: {0}", loc("the certificate can't be read"))) }
         if first.ok { return (true, "OK") }
         var problems: [String] = []
         let expired = first.chain.contains { at < $0.notBefore || at > $0.notAfter }
@@ -296,13 +297,13 @@ public enum Signatures {
         }
         if let chainCode {
             switch chainCode {
-            case errSecCertificateRevoked: problems.append("Revoked")
+            case errSecCertificateRevoked: problems.append("Revoked") // English: .NET's chain status name, as Windows shows it
             case errSecCertificateExpired, errSecCertificateNotValidYet: break
-            case incompleteRevocationCheck: problems.append("RevocationStatusUnknown")
-            default: problems.append((first.chain.last ?? cert).isSelfIssued ? "UntrustedRoot" : "PartialChain")
+            case incompleteRevocationCheck: problems.append("RevocationStatusUnknown") // English: .NET's chain status name
+            default: problems.append((first.chain.last ?? cert).isSelfIssued ? "UntrustedRoot" : "PartialChain") // English: .NET's chain status names
             }
         }
-        if expired { problems.append("NotTimeValid") }
+        if expired { problems.append("NotTimeValid") } // English: .NET's chain status name (looked for above)
         if problems == ["RevocationStatusUnknown"] { return (true, "OK (revocation couldn't be checked)") }
         return (false, problems.isEmpty ? "NotTrusted" : problems.joined(separator: ", "))
     }
@@ -328,12 +329,12 @@ public enum Signatures {
 
     /// Why the certificate's key usage or extended key usage rules out this use, else nil.
     static func unfit(_ cert: Certificate, _ eku: String?) -> String? {
-        if eku == nil && !cert.allowsSignatures { return "The certificate's key usage doesn't allow signatures" }
+        if eku == nil && !cert.allowsSignatures { return loc("The certificate's key usage doesn't allow signatures") }
         if let oids = cert.extendedKeyUsages {
             if let eku {
-                if !oids.contains(eku) && !oids.contains("2.5.29.37.0") { return "The certificate isn't meant for timestamps" }
+                if !oids.contains(eku) && !oids.contains("2.5.29.37.0") { return loc("The certificate isn't meant for timestamps") }
             } else if !oids.contains(where: signingEkus.contains) {
-                return "The certificate isn't meant for signing documents (e.g. a website certificate)"
+                return loc("The certificate isn't meant for signing documents (e.g. a website certificate)")
             }
         }
         return nil

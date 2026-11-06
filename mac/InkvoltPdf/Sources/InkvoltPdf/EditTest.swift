@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's editing scenario for one open document (`--edit`): every comment tool driven through the page view's
 /// own mouse and key handling (synthesized events), the menu commands, the inspector's functions, the comments list,
@@ -292,13 +293,14 @@ struct EditTest {
         let topLevel = editor.comments.filter { c in c.replyTo.map { id in !editor.comments.contains { $0.id == id } } ?? true }.count
         let allShown = list.topCount
         // A kind the document has (the filter menu lists only those).
-        let kind = count("Highlight") > 0 ? "Highlight" : "Rectangle"
+        let hasHighlight = count("Highlight") > 0
+        let kind = hasHighlight ? loc("Highlight", context: "comment kind") : loc("Rectangle")
         list.filter(kind: kind, author: nil)
         let highlights = list.topCount
         list.filter(kind: nil, author: editor.author)
         let mine = list.topCount
         list.filter(kind: nil, author: nil)
-        check(allShown == topLevel && highlights == count(kind == "Highlight" ? "Highlight" : "Square") && mine >= addedCount - 2,
+        check(allShown == topLevel && highlights == count(hasHighlight ? "Highlight" : "Square") && mine >= addedCount - 2,
               "comments list: \(allShown) comments (\(list.rowCount) rows with replies), \(highlights) of kind \(kind), \(mine) by the author")
         pages.select(rect.id, reveal: true)
         await waitDrawn()
@@ -321,7 +323,7 @@ struct EditTest {
             let afterRedo = editor.comments.count
             undo?.undo()
             check(afterDelete == before - 1 && afterUndo == before && afterRedo == before - 1 && editor.comments.count == before
-                  && title == "Undo Delete Comment" && redoTitle == "Redo Delete Comment",
+                  && title == undo?.undoMenuTitle(forUndoActionName: loc("Delete Comment")) && redoTitle == undo?.redoMenuTitle(forUndoActionName: loc("Delete Comment")),
                   "Delete key, then “\(title)” and “\(redoTitle)”: \(before) → \(afterDelete) → \(afterUndo) → \(afterRedo)")
         }
 
@@ -337,7 +339,7 @@ struct EditTest {
         let menuTookR = NSApp.mainMenu?.performKeyEquivalent(with: key("r", code: 15)) ?? true
         let afterTyping = pages.tool
         controller.findBar.onDone?()
-        let tools = NSApp.mainMenu?.items.first { $0.title == "Tools" }?.submenu
+        let tools = NSApp.mainMenu?.items.first { $0.title == loc("Tools") }?.submenu
         let menuTookCmd = (tools?.items ?? []).contains { top in
             (top.submenu?.items ?? [top]).contains { $0.keyEquivalent == "h" && $0.keyEquivalentModifierMask == [.command, .control] }
         }

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import WebKit
 
 /// Web pages to PDF with the WebKit macOS provides (Windows: WebView2): the page loads in a WKWebView in a window that is
@@ -68,9 +69,10 @@ final class WebCapture: NSObject, WKNavigationDelegate, WKUIDelegate {
     private func run(_ status: ((String) -> Void)?) async throws -> [UInt8] {
         status?(rules.loadingText)
         try await load()
-        status?("Waiting for the page to settle…")
+        status?(loc("Waiting for the page to settle…"))
         try await settle()
-        status?("Making the PDF…")
+        status?(loc("Making the PDF…"))
+
         let folder: URL
         do {
             folder = try ConversionTemp.make(ConversionTemp.webPrefix)

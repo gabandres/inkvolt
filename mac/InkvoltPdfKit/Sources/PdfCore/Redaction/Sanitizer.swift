@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What `Sanitizer` finds and removes.
 public enum SanitizeItem: Int, CaseIterable, Comparable, Hashable, Sendable {
@@ -85,7 +86,7 @@ public enum Sanitizer {
     ///   `OwnerPasswordRequired`; `PdfEditError`.
     public static func sanitize(_ data: [UInt8], _ password: String?, _ items: Set<SanitizeItem>) throws -> SanitizeResult {
         let doc = try PdfEdit.open(data, password)
-        try SignedEdits.requireRewrite(data, reason: "sanitizing rewrites the whole file")
+        try SignedEdits.requireRewrite(data, reason: loc("sanitizing rewrites the whole file"))
         let pages = try doc.pageCount()
         let originalIds = (doc.trailer.array("ID")?.elements ?? []).compactMap(\.bytes).filter { !$0.isEmpty }
         let xmp = Xmp.read(doc)
@@ -102,7 +103,7 @@ public enum Sanitizer {
             switch try newFileIdentifier(doc, password) {
             case .done: ownId = true
             case .reencrypt(let options): reencrypt = options
-            case .kept: notes.append("The file identifier was kept: the document's encryption is made from it, and its open password isn't known here.")
+            case .kept: notes.append(loc("The file identifier was kept: the document's encryption is made from it, and its open password isn't known here."))
             }
         } else {
             InfoDict.setDate(doc, "ModDate", Date())
@@ -131,12 +132,13 @@ public enum Sanitizer {
             let check = try PdfEngine.open(saved, password: password)
             defer { check.close() }
             if check.pageCount != pages {
-                throw PdfEditError("The sanitized file couldn't be read back, so nothing was changed: it has \(check.pageCount) pages instead of \(pages).")
+                let why = loc("it has {0} pages instead of {1}.", CoreLanguage.number(check.pageCount), CoreLanguage.number(pages))
+                throw PdfEditError(loc("The sanitized file couldn't be read back, so nothing was changed: {0}", why))
             }
         } catch is PasswordRequired {
             // Saved without the password it was opened with: nothing to check with.
         } catch let e as PdfEngineError {
-            throw PdfEditError("The sanitized file couldn't be read back, so nothing was changed: " + e.message)
+            throw PdfEditError(loc("The sanitized file couldn't be read back, so nothing was changed: {0}", e.message))
         }
 
         let remaining = try? scan(saved, password, originalIds: items.contains(.metadata) ? originalIds : nil)
@@ -506,7 +508,7 @@ public enum Sanitizer {
                 if fields.isEmpty {
                     // XFA-only: the pages are a placeholder, the form is all there is.
                     if apply == nil || removing(.activeContent) {
-                        notes.append("The XFA form (with its scripts and data) was kept: the document has no other form, so removing it would leave only a placeholder page.")
+                        notes.append(loc("The XFA form (with its scripts and data) was kept: the document has no other form, so removing it would leave only a placeholder page."))
                     }
                 } else if hit(.activeContent) {
                     acro.remove("XFA")
@@ -772,7 +774,7 @@ public enum Sanitizer {
                 if let res { resources[res.identity] = res }
                 let bytes = d.streamData ?? []
                 if bytes.isEmpty && !(d.rawStreamData ?? []).isEmpty {
-                    if mentionsHidden(res) { keepLayerContent("A drawing that uses a hidden layer couldn't be decoded") }
+                    if mentionsHidden(res) { keepLayerContent(loc("A drawing that uses a hidden layer couldn't be decoded")) }
                     continue
                 }
                 let (stripped, why) = strip(bytes, res)
@@ -797,7 +799,7 @@ public enum Sanitizer {
         }
 
         private func keepLayerContent(_ why: String) {
-            let note = why + ": hidden layers were kept (still hidden) so it stays hidden."
+            let note = loc("{0}: hidden layers were kept (still hidden) so it stays hidden.", why)
             if !notes.contains(note) { notes.append(note) }
             layerContentKept = true
         }
@@ -817,14 +819,14 @@ public enum Sanitizer {
             for s in parts {
                 let bytes = s.streamData ?? []
                 if bytes.isEmpty && !(s.rawStreamData ?? []).isEmpty {
-                    if mentionsHidden(res) { keepLayerContent("Page \(index + 1) has content that couldn't be decoded") }
+                    if mentionsHidden(res) { keepLayerContent(loc("Page {0} has content that couldn't be decoded", CoreLanguage.number(index + 1))) }
                     return
                 }
                 all += bytes
                 all.append(10)
             }
             let (stripped, why) = strip(all, res)
-            if let why { keepLayerContent("Page \(index + 1): \(why)") }
+            if let why { keepLayerContent(loc("Page {0}: {1}", CoreLanguage.number(index + 1), why)) }
             guard let stripped else { return }
             page.set("Contents", doc.addStream(stripped, deflate: true))
         }
@@ -865,7 +867,7 @@ public enum Sanitizer {
                 var seen = Set<UInt>()
                 Self.collectVe(m.array("VE"), &used, &seen, 0)
                 if !used.isDisjoint(with: gone) {
-                    notes.append("A layer visibility expression uses a hidden layer, so that layer was kept (still hidden; its content was removed).")
+                    notes.append(loc("A layer visibility expression uses a hidden layer, so that layer was kept (still hidden; its content was removed)."))
                 }
                 gone.subtract(used)
             }

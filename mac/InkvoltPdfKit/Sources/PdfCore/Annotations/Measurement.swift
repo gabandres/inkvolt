@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What a measurement measures: a straight distance, the length of a path, or the area a path encloses.
 public enum MeasureKind: Sendable, Equatable { case distance, perimeter, area }
@@ -91,10 +92,10 @@ public struct MeasureScale: Equatable, Sendable {
     public static func from(_ docValue: Double, _ docUnit: String, _ realValue: Double, _ realUnit: String,
                             decimals: Int = 2) throws -> MeasureScale {
         if !(docValue > 0) || !(realValue > 0) || !docValue.isFinite || !realValue.isFinite {
-            throw PdfEditError("Both lengths of a scale must be more than 0.")
+            throw PdfEditError(loc("Both lengths of a scale must be more than 0."))
         }
         guard let per = pointsPer[docUnit], pointsPer[realUnit] != nil else {
-            throw PdfEditError("Units are \(units.joined(separator: ", ")).")
+            throw PdfEditError(loc("Units are {0}.", units.joined(separator: ", ")))
         }
         return MeasureScale(realValue / (docValue * per), realUnit, "\(n(docValue)) \(docUnit) = \(n(realValue)) \(realUnit)",
                             decimals: clampDecimals(decimals))
@@ -102,8 +103,8 @@ public struct MeasureScale: Equatable, Sendable {
 
     /// The scale that makes a line `measuredPoints` long on the page `realLength` long.
     public static func calibrate(_ measuredPoints: Double, _ realLength: Double, _ unit: String, decimals: Int = 2) throws -> MeasureScale {
-        if !(measuredPoints > 0) || !(realLength > 0) { throw PdfEditError("Both lengths must be more than 0.") }
-        if pointsPer[unit] == nil { throw PdfEditError("Units are \(units.joined(separator: ", ")).") }
+        if !(measuredPoints > 0) || !(realLength > 0) { throw PdfEditError(loc("Both lengths must be more than 0.")) }
+        if pointsPer[unit] == nil { throw PdfEditError(loc("Units are {0}.", units.joined(separator: ", "))) }
         let perPoint = realLength / measuredPoints
         return MeasureScale(perPoint, unit, "1 in = \(n(72 * perPoint)) \(unit)", decimals: clampDecimals(decimals))
     }

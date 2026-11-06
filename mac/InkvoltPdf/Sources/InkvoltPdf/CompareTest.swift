@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E3 (`--edit`, after `SignTest`, once): two versions of a small contract made here (a
 /// changed amount, a drawing that moved, an inserted page) compared in the Compare window: the summary and the list,
@@ -64,7 +65,7 @@ struct CompareTest {
         await c.finished()
         let r = c.result
         check(r?.changed == 1 && r?.pagesInserted == 1 && r?.rows.count == 4, "compared: \(c.summary.stringValue)")
-        check(c.items.contains { $0.kind == "Changed" && $0.text == "100 → 150" } && c.visuallyDifferent.count == 1,
+        check(c.items.contains { $0.kind == loc("Changed", context: "a change") && $0.text == "100 → 150" } && c.visuallyDifferent.count == 1,
               "the list: the changed amount, the inserted page, the drawing that looks different (\(c.items.count) items)")
         c.window?.layoutIfNeeded()
         c.rowsView.layoutRows(width: Double(c.rowsView.enclosingScrollView?.contentView.bounds.width ?? 900))
@@ -90,12 +91,13 @@ struct CompareTest {
         c.zoomOut.performClick(nil)
         let out = abs(c.rowsView.zoom - 1.6) < 0.001
         c.zoomFit.performClick(nil)
-        let fits = c.rowsView.zoom == 0 && abs(Double(c.rowsView.frame.width) - viewWidth) < 1 && c.zoomFit.title == "Fit"
+        let fits = c.rowsView.zoom == 0 && abs(Double(c.rowsView.frame.width) - viewWidth) < 1 && c.zoomFit.title == loc("Fit")
         check(zoomed && wide && out && fits && c.zoomIn.keyEquivalent == "=" && c.zoomFit.keyEquivalent == "0",
               "zoom: + from Fit (×1.25), 200 % wider than the window, − (160 %), Fit (⌘0) back to the window's width")
         let copy = c.makeAnnotatedCopy()
         let notes = (copy?.session?.data).flatMap { try? Annotations.read($0, nil) } ?? []
-        check(notes.contains { $0.kind == .highlight && $0.contents.contains("“100”") } && notes.contains { $0.kind == .text },
+        let had = Shown.tail(loc("Changed. {0} has: “{1}”", Shown.gap, "100"))
+        check(notes.contains { $0.kind == .highlight && $0.contents.contains(had) } && notes.contains { $0.kind == .text },
               "Annotated Copy: a new document with the change highlighted and the summary note (\(notes.count) comments)")
         copy?.close()
         c.close()

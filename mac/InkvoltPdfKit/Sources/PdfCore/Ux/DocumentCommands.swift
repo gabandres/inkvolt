@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 // The document command table (Mac only; the Windows app's commands are its ribbon's XAML and RelayCommands): every
 // menu bar command once, with its title, key, place in the menus, when it can run and its plain-words note. The app
@@ -127,6 +128,10 @@ public struct DocumentCommand: Sendable, Hashable {
         self.needs = needs
     }
 
+    /// The title the menu shows, in the interface's language (`loc`); `title` stays the English name the palette, the
+    /// notes and the tests know it by. Every title in this table is a key of the catalog (`PdfStringsTests`).
+    public var shownTitle: String { loc(title) }
+
     /// The plain words shown as its tooltip (the commands named in jargon only).
     public var note: String? { PlainWords.note(for: title) }
 
@@ -169,6 +174,9 @@ public struct CommandMenu: Sendable {
     }
 
     public init(_ title: String, _ entries: [MenuEntry]) { self.init(title, .plain, entries) }
+
+    /// The menu's title in the interface's language (macOS's own words in Spanish: Archivo, Edición, Visualización…).
+    public var shownTitle: String { loc(title) }
 
     /// A menu's role passes to its submenus that keep the plain one (the Tools menu's submenus are tools menus too).
     func inherit(_ parent: MenuRole) -> CommandMenu {

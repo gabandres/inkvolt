@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A terminal form field: its dictionary, full name, type (Tx, Btn, Ch, Sig), flags and widgets.
 final class FormField: Hashable {
@@ -65,11 +66,11 @@ public enum FormEditor {
     /// scripts take go through it, which asks the user first. When every value was rejected and nothing else changed,
     /// `data` is the input itself.
     public static func fill(_ data: [UInt8], _ password: String?, _ values: [String: String], host: FormActionHost? = nil) throws -> FormFillResult {
-        let doc = try PdfEdit.open(data, password, failure: "This PDF's form can't be read")
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
         let xmp = Xmp.read(doc)
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
-        if fields.isEmpty { throw PdfEditError("This PDF has no fillable form.") }
+        if fields.isEmpty { throw PdfEditError(loc("This PDF has no fillable form.")) }
         let runner = FormActionRunner(doc, acro, fields, host, data, password: password, xmp: xmp)
         let js: JsFormHost = runner.js
         var rejected: [FieldRejection] = []
@@ -137,7 +138,7 @@ public enum FormEditor {
             ran = true
             if !r.rc {
                 // A message the user already saw in a dialog isn't repeated (empty reason).
-                let why = !r.alerts.isEmpty ? r.alerts.joined(separator: "\n") : r.shown > 0 ? "" : "The value entered for \(f.name) isn't valid."
+                let why = !r.alerts.isEmpty ? r.alerts.joined(separator: "\n") : r.shown > 0 ? "" : loc("The value entered for {0} isn't valid.", f.name)
                 return (value, why)
             }
             alerts += r.alerts

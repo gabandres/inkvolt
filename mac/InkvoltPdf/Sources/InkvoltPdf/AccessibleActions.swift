@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Tools › Make Accessible (Tag)… (the Windows app's `AccessibleActions`): reads the pages into a tag plan (`AutoTag.plan`,
 /// off the main thread with a progress sheet and Cancel), asks for the title and language (proposed: the document's, its
@@ -39,7 +40,7 @@ extension DocumentWindowController {
     func readTagPlan() async -> TagPlan? {
         guard let session = pdf.session else { return nil }
         let data = session.data, password = session.password
-        let sheet = ProgressSheet(title: "Make Accessible", text: "Reading the pages…")
+        let sheet = ProgressSheet(title: loc("Make Accessible"), text: loc("Reading the pages…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -53,7 +54,7 @@ extension DocumentWindowController {
                 let engine = try PdfEngine.open(data, password: password)
                 defer { engine.close() }
                 return try AutoTag.plan(engine, data, password, progress: { done, total in
-                    Task { @MainActor in sheet.update("Reading page \(done + 1) of \(total)…", Double(done) / Double(max(1, total))) }
+                    Task { @MainActor in sheet.update(loc("Reading page {0} of {1}…", CoreLanguage.number(done + 1), CoreLanguage.number(total)), Double(done) / Double(max(1, total))) }
                 }, cancel: token)
             }
         }.value
@@ -62,7 +63,7 @@ extension DocumentWindowController {
             guard pdf.session?.data == data else { return nil }
             return plan
         case .failure(let error):
-            if !(error is CancellationError) { pdf.showError("This document can't be tagged", error) }
+            if !(error is CancellationError) { pdf.showError(loc("This document can't be tagged"), error) }
             return nil
         }
     }
@@ -78,7 +79,7 @@ extension DocumentWindowController {
         guard await settleForTags() else { return false }
         let options = AccessibleOptions(title: plan.title, language: plan.language)
         let written = plan
-        let ok = await editor.run("Make accessible") { d, pw in try AutoTag.write(d, pw, written, options) }
+        let ok = await editor.run(loc("Make accessible")) { d, pw in try AutoTag.write(d, pw, written, options) }
         guard ok else { return false }
         Report.progress("Make Accessible: \(plan.blocks.count) pieces, \(plan.figuresWithoutAlt) pictures without alternate text")
         readingOrder.showWritten(plan)
@@ -100,13 +101,13 @@ extension DocumentWindowController {
         }
         guard let window else { return nil }
         let title = NSTextField(string: plan.title ?? "")
-        title.setAccessibilityLabel("Title")
+        title.setAccessibilityLabel(loc("Title"))
         title.widthAnchor.constraint(equalToConstant: 420).isActive = true
         let language = NSComboBox()
         language.addItems(withObjectValues: ReadingOrder.languages)
         language.stringValue = plan.language ?? ""
         language.completes = true
-        language.setAccessibilityLabel("Language code")
+        language.setAccessibilityLabel(loc("Language code"))
         language.widthAnchor.constraint(equalToConstant: 200).isActive = true
         func note(_ text: String, error: Bool = false) -> NSTextField {
             let label = NSTextField(wrappingLabelWithString: text)
@@ -124,7 +125,7 @@ extension DocumentWindowController {
         problem.isHidden = true
         var views: [NSView] = [note(ReadingOrder.introduction)]
         if plan.wasTagged { views.append(note(ReadingOrder.replaces)) }
-        views += [heading("Title"), title, note(ReadingOrder.titleNote(plan)), heading("Language"), language, note(ReadingOrder.languageNote(plan)),
+        views += [heading(loc("Title")), title, note(ReadingOrder.titleNote(plan)), heading(loc("Language")), language, note(ReadingOrder.languageNote(plan)),
                   note(ReadingOrder.found(plan)), problem]
         let stack = NSStackView(views: views)
         stack.orientation = .vertical
@@ -132,9 +133,9 @@ extension DocumentWindowController {
         stack.spacing = 6
         while true {
             let alert = NSAlert()
-            alert.messageText = "Tag the Document"
-            alert.addButton(withTitle: "Make Accessible")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Tag the Document")
+            alert.addButton(withTitle: loc("Make Accessible"))
+            alert.addButton(withTitle: loc("Cancel"))
             stack.layoutSubtreeIfNeeded()
             stack.frame.size = stack.fittingSize
             alert.accessoryView = stack
@@ -172,10 +173,11 @@ enum AccessibleState {
             return testTagFirst
         }
         let alert = NSAlert()
-        alert.messageText = "Tag the document first?"
-        alert.informativeText = "PDF/A-2a keeps a document's structure (its tags), and this one has none. Make Accessible tags it from its layout (headings, paragraphs, lists, tables, pictures); you can check the reading order and add alternate text, then save the PDF/A-2a copy again."
-        alert.addButton(withTitle: "Make Accessible")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("Tag the document first?")
+        alert.informativeText = loc("PDF/A-2a keeps a document's structure (its tags), and this one has none. Make Accessible tags it from its layout (headings, paragraphs, lists, tables, pictures); you can check the reading order and add alternate text, then save the PDF/A-2a copy again.")
+        alert.addButton(withTitle: loc("Make Accessible"))
+        alert.addButton(withTitle: loc("Cancel"))
+
         guard let window else { return alert.runModal() == .alertFirstButtonReturn }
         return await alert.beginSheetModal(for: window) == .alertFirstButtonReturn
     }

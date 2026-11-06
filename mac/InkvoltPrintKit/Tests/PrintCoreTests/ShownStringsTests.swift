@@ -50,6 +50,23 @@ struct ShownStringsTests {
     static let shownLists: Set<String> = ["notes", "problems", "warnings"]
     static let shownNameEndings = ["Note", "Message", "Title", "Detail", "Headline", "Question"]
 
+    /// What counts as reaching the interface: Inkvolt Print's (`printRules`, above) or Inkvolt PDF's AppKit and PdfCore calls
+    /// (`PdfStringsTests.pdfRules`).
+    struct Rules {
+        var viewCalls: Set<String>
+        var shownCalls: Set<String>
+        var shownCallLabels: Set<String>
+        var shownLabels: Set<String>
+        var shownProperties: Set<String>
+        var shownLists: Set<String>
+        var shownNameEndings: [String]
+        /// A literal in an array literal counts for the call around the array (`addItems(withTitles: ["A", "B"])`).
+        var looksThroughArrays = false
+    }
+
+    static let printRules = Rules(viewCalls: viewCalls, shownCalls: shownCalls, shownCallLabels: shownCallLabels, shownLabels: shownLabels,
+                                  shownProperties: shownProperties, shownLists: shownLists, shownNameEndings: shownNameEndings)
+
     /// A literal given to the interface unwrapped: where, why, and its text (`{…}` for an interpolation).
     struct Finding: CustomStringConvertible, Equatable {
         let file: String, line: Int, why: String, text: String
@@ -116,7 +133,7 @@ struct ShownStringsTests {
         let start: Int, end: Int, value: String, frames: [Frame]
     }
 
-    static func findings(in text: String, file: String) -> [Finding] {
+    static func findings(in text: String, file: String, rules: Rules = printRules) -> [Finding] {
         let src = Array(text.utf8)
         var out: [Finding] = []
         for literal in literals(src) where isWords(literal.value) {
@@ -125,29 +142,31 @@ struct ShownStringsTests {
             let lineStart = src[..<literal.start].lastIndex(of: 10).map { $0 + 1 } ?? 0
             let lineEnd = src[literal.start...].firstIndex(of: 10) ?? src.count
             if String(decoding: src[lineStart..<lineEnd], as: UTF8.self).contains("// English:") { continue }
-            if let why = why(literal, src) { out.append(Finding(file: file, line: line, why: why, text: literal.value)) }
+            if let why = why(literal, src, rules) { out.append(Finding(file: file, line: line, why: why, text: literal.value)) }
         }
         return out
     }
 
     /// Why `literal` reaches the interface unwrapped, or nil.
-    private static func why(_ literal: Literal, _ src: [UInt8]) -> String? {
+    private static func why(_ literal: Literal, _ src: [UInt8], _ rules: Rules) -> String? {
         let wrappers: Set<String> = ["loc", "LocKey", "NSLocalizedString", "LocalizedStringKey", "LocalizedStringResource"]
         if literal.frames.contains(where: { wrappers.contains($0.callee) }) { return nil }
-        if let top = literal.frames.last {
+        var frames = literal.frames[...]
+        if rules.looksThroughArrays { while frames.count > 1, frames.last?.callee == "[" { frames = frames.dropLast() } }
+        if let top = frames.last {
             let argument = currentArgument(src, from: top.start, to: literal.start)
             let label = argumentLabel(argument)
             if label == "verbatim" || (top.callee == "String" && label == "localized") { return nil }
-            if viewCalls.contains(top.callee) {
+            if rules.viewCalls.contains(top.callee) {
                 let alone = argument.allSatisfy { $0 == " " || $0 == "\n" } || (label != nil && afterLabel(argument).isEmpty)
                 let next = src[literal.end...].first { $0 != 32 && $0 != 10 }
                 return alone && (next == UInt8(ascii: ",") || next == UInt8(ascii: ")")) ? nil : "\(top.callee)(…) given a String"
             }
-            if shownCalls.contains(top.callee), label == nil || shownCallLabels.contains(label!) {
+            if rules.shownCalls.contains(top.callee), label == nil || rules.shownCallLabels.contains(label!) {
                 return "\(top.callee)(\(label ?? "_"):)"
             }
-            if let label, shownLabels.contains(label) { return "\(label):" }
-            if top.callee == "append", shownLists.contains(where: { top.receiver.hasSuffix("\($0).") }) { return "\(top.receiver)append" }
+            if let label, rules.shownLabels.contains(label) { return "\(label):" }
+            if top.callee == "append", rules.shownLists.contains(where: { top.receiver.hasSuffix("\($0).") }) { return "\(top.receiver)append" }
         }
         // `.messageText = "…"`
         let before = String(decoding: src[max(0, literal.start - 60)..<literal.start], as: UTF8.self)
@@ -155,11 +174,11 @@ struct ShownStringsTests {
             let lhs = before[..<eq].reversed().drop { $0 == " " }
             let name = String(lhs.prefix { $0.isLetter || $0.isNumber }.reversed())
             let dot = lhs.dropFirst(name.count).first
-            if dot == ".", shownProperties.contains(name) { return ".\(name) =" }
+            if dot == ".", rules.shownProperties.contains(name) { return ".\(name) =" }
             // `static let scannersNote = "…"`: a constant named as shown text.
             let declared = lhs.dropFirst(name.count).drop { $0 == " " }
             if declared.starts(with: "tel ") || declared.starts(with: "rav "),
-               shownNameEndings.contains(where: { name.hasSuffix($0) || name == $0.lowercased() }) {
+               rules.shownNameEndings.contains(where: { name.hasSuffix($0) || name == $0.lowercased() }) {
                 return "\(name) ="
             }
         }

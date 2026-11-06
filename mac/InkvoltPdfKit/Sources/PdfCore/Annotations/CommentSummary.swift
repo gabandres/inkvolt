@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Summarize Comments (Tools › Annotate › Summarize Comments…, Batch; the Windows app's `CommentSummary`): a new PDF with
 /// each page that has comments beside its comments, on landscape Letter sheets. The page sits at the left, scaled to fit,
@@ -64,7 +65,7 @@ public enum CommentSummary {
     /// no comments.
     public static func make(_ data: [UInt8], _ password: String?, title: String, locale: Locale = .current) throws -> [UInt8] {
         let plan = plan(try Annotations.read(data, password))
-        if plan.isEmpty { throw PdfEditError("This document has no comments to summarize.") }
+        if plan.isEmpty { throw PdfEditError(loc("This document has no comments to summarize.")) }
 
         // The pages as they print, comments included (drawn into them), so the summary shows what the reviewers marked.
         let flat = try SignedEdits.run({ try Flattener.flatten(data, password, FlattenOptions(annotations: true, formFields: true)) },
@@ -72,7 +73,7 @@ public enum CommentSummary {
         let doc = try MuDoc.create()
         let src = try PageEditor.openSource(PdfSource(flat, password, title), in: doc)
         let graft = try Graft(into: doc)
-        let docTitle = "Comments on \(title)"
+        let docTitle = loc("Comments on {0}", title)
         InfoDict.set(doc, "Title", docTitle)
         InfoDict.set(doc, "Creator", "Inkvolt PDF")
 
@@ -111,7 +112,7 @@ public enum CommentSummary {
                 var ops = "q \(f(scale)) 0 0 \(f(scale)) \(f(ox)) \(f(oy)) cm /Pg Do Q\n"
                 ops += "q 0.6 G 0.5 w \(f(ox)) \(f(oy)) \(f(w * scale)) \(f(h * scale)) re S Q\n"
                 var bytes = Array(ops.utf8)
-                bold.draw(continued ? "Page \(pageIndex + 1) (continued)" : "Page \(pageIndex + 1)", margin, sheetH - margin - 12, 12)
+                bold.draw(continued ? loc("Page {0} (continued)", CoreLanguage.number(pageIndex + 1)) : loc("Page {0}", CoreLanguage.number(pageIndex + 1)), margin, sheetH - margin - 12, 12)
                 bytes += bold.ops("/F2", black)
                 regular.draw(docTitle, listX, sheetH - margin - 12, metaSize + 1)
                 bytes += regular.ops("/F1", gray)
@@ -194,7 +195,7 @@ public enum CommentSummary {
     private static func meta(_ e: Entry, _ locale: Locale) -> String {
         let c = e.comment
         let kind = CommentFiles.kindName(c.subtype)
-        var parts = [e.depth > 0 ? "Reply" : kind.prefix(1).uppercased() + kind.dropFirst()]
+        var parts = [e.depth > 0 ? loc("Reply", context: "comment kind") : kind.prefix(1).uppercased() + kind.dropFirst()]
         if let author = c.author?.trimmingCharacters(in: .whitespaces), !author.isEmpty { parts.append(author) }
         if let m = c.modified {
             let f = DateFormatter()

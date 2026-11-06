@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// How the document view is split (View › Split View), as on Windows.
 enum SplitMode: Equatable {
@@ -152,7 +153,7 @@ extension DocumentWindowController {
         second.readingOnly = true
         second.host = self
         second.tool = .text
-        second.setAccessibilityLabel("Pages, second pane")
+        second.setAccessibilityLabel(loc("Pages, second pane"))
         second.onActivate = { [weak self] in self?.activatePane(second: true) }
         second.onWritingTool = { [weak self] tool in self?.pickTool(tool) }
         if let layerEngine { second.draw(with: layerEngine) }
@@ -180,11 +181,11 @@ extension DocumentWindowController {
         let box = NSView()
         scroll.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(scroll)
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close the split") ?? NSImage(),
+        let close = NSButton(image: NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: loc("Close the split")) ?? NSImage(),
                              target: self, action: #selector(removeSplit(_:)))
         close.isBordered = false
-        close.toolTip = "Close the split (View › Split View › Remove Split)"
-        close.setAccessibilityLabel("Close the split")
+        close.toolTip = loc("Close the split (View › Split View › Remove Split)")
+        close.setAccessibilityLabel(loc("Close the split"))
         close.translatesAutoresizingMaskIntoConstraints = false
         box.addSubview(close)
         NSLayoutConstraint.activate([

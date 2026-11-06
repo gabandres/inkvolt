@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// File › Document Properties… (⇧⌘I; Windows' `FileActions.ShowProperties`, Ctrl+D): the file, where it is, its size,
 /// pages, the current page's size, the PDF version, how it is protected, the app that made it and its dates, read only;
@@ -16,19 +17,19 @@ extension DocumentWindowController {
         let page = max(0, min(activePages.currentPage, engine.pageCount - 1))
         let meta = try? PageEditor.readMetadata(session.data, session.password)
         var rows: [(String, String?)] = [
-            ("File", session.displayName),
-            ("Location", session.filePath.map { ($0 as NSString).deletingLastPathComponent } ?? "Not saved yet"),
-            ("File size", Self.formatSize(session.data.count)),
-            ("Pages", String(engine.pageCount)),
+            (loc("File"), session.displayName),
+            (loc("Location"), session.filePath.map { ($0 as NSString).deletingLastPathComponent } ?? loc("Not saved yet")),
+            (loc("File size"), Self.formatSize(session.data.count)),
+            (loc("Pages"), String(engine.pageCount)),
         ]
         if engine.pageCount > 0 {
             let g = engine.page(page)
             let mm = String(format: "%.0f × %.0f mm", g.width * 25.4 / 72, g.height * 25.4 / 72)
-            rows.append(("Page size", "\(Self.inches(g.width)) × \(Self.inches(g.height)) in  (\(mm))  — page \(page + 1)"))
+            rows.append((loc("Page size"), loc("{0} × {1} in  ({2})  — page {3}", Self.inches(g.width), Self.inches(g.height), mm, CoreLanguage.number(page + 1))))
         }
-        let security = currentSecurity?.summary ?? (session.hasEncryption ? "Encrypted" : nil)
-        rows += [("PDF version", meta?.version), ("Security", security), ("Created by", meta?.creator), ("Producer", meta?.producer),
-                 ("Created", meta?.created.map(Self.date)), ("Modified", meta?.modified.map(Self.date))]
+        let security = currentSecurity?.summary ?? (session.hasEncryption ? loc("Encrypted") : nil)
+        rows += [(loc("PDF version"), meta?.version), (loc("Security"), security), (loc("Created by"), meta?.creator), (loc("Producer"), meta?.producer)]
+        rows += [(loc("Created"), meta?.created.map(Self.date)), (loc("Modified"), meta?.modified.map(Self.date))]
         return rows.compactMap { label, value in
             guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return (label, PropertyText.shown(value)) // a hostile file's 2 MB Producer made the sheet taller than the screen
@@ -39,7 +40,7 @@ extension DocumentWindowController {
         guard let window, let session = pdf.session else { return }
         let rows = documentPropertyRows()
         guard let meta = try? PageEditor.readMetadata(session.data, session.password) else {
-            return problemNote("Couldn't read the document's properties", "Its information dictionary is damaged or missing.")
+            return problemNote(loc("Couldn't read the document's properties"), loc("Its information dictionary is damaged or missing."))
         }
         var answer: (title: String, author: String, subject: String, keywords: String)
         if Report.skipsDialogs {
@@ -48,7 +49,7 @@ extension DocumentWindowController {
             answer = test
         } else {
             let fields = [meta.title, meta.author, meta.subject, meta.keywords].map { NSTextField(string: $0) }
-            let names = ["Title", "Author", "Subject", "Keywords"]
+            let names = [loc("Title"), loc("Author"), loc("Subject"), loc("Keywords")]
             for (f, name) in zip(fields, names) {
                 f.setAccessibilityLabel(name)
                 f.widthAnchor.constraint(equalToConstant: 340).isActive = true
@@ -56,7 +57,7 @@ extension DocumentWindowController {
             var grid: [[NSView]] = rows.map { r in
                 let value = NSTextField(wrappingLabelWithString: r.value)
                 value.isSelectable = true
-                if r.label == "Location" {
+                if r.label == loc("Location") {
                     // One line, the folder's end in sight; the whole path in the tooltip.
                     value.maximumNumberOfLines = 1
                     value.lineBreakMode = .byTruncatingHead
@@ -69,7 +70,7 @@ extension DocumentWindowController {
             }
             grid += zip(names, fields).map { [Self.caption($0), $1] }
             // A third alert button stacks all three in a column; What's in This PDF… sits with the details instead.
-            let contents = NSButton(title: "What's in This PDF…", target: nil, action: nil)
+            let contents = NSButton(title: loc("What's in This PDF…"), target: nil, action: nil)
             contents.bezelStyle = .push
             grid.append([NSGridCell.emptyContentView, contents])
             let view = NSGridView(views: grid)
@@ -78,10 +79,10 @@ extension DocumentWindowController {
             view.layoutSubtreeIfNeeded()
             view.frame.size = view.fittingSize
             let alert = NSAlert()
-            alert.messageText = "Document Properties"
-            alert.informativeText = "The title, author, subject and keywords can be changed; the rest comes from the file."
-            alert.addButton(withTitle: "Save Changes")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Document Properties")
+            alert.informativeText = loc("The title, author, subject and keywords can be changed; the rest comes from the file.")
+            alert.addButton(withTitle: loc("Save Changes"))
+            alert.addButton(withTitle: loc("Cancel"))
             _ = ControlAction(contents) { [weak alert] in
                 guard let sheet = alert?.window else { return }
                 window.endSheet(sheet, returnCode: .alertThirdButtonReturn)
@@ -101,8 +102,8 @@ extension DocumentWindowController {
             return
         }
         let (t, a, s, k) = answer
-        if await editor.run("Edit document properties", { d, pw in try PageEditor.writeMetadata(d, pw, t, a, s, k) }) {
-            notify("Document properties changed. Save to keep them.", canUndo: true)
+        if await editor.run(loc("Edit document properties"), { d, pw in try PageEditor.writeMetadata(d, pw, t, a, s, k) }) {
+            notify(loc("Document properties changed. Save to keep them."), canUndo: true)
         }
     }
 
@@ -122,7 +123,7 @@ extension DocumentWindowController {
 
     /// Windows' `FileActions.FormatSize`: bytes, KB with one decimal, MB with two.
     static func formatSize(_ bytes: Int) -> String {
-        if bytes < 1024 { return "\(bytes) bytes" }
+        if bytes < 1024 { return loc("{0} bytes", CoreLanguage.number(bytes)) }
         if bytes < 1024 * 1024 { return "\(trimmed(Double(bytes) / 1024, 1)) KB" }
         return "\(trimmed(Double(bytes) / 1024 / 1024, 2)) MB"
     }

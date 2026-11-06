@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E6 (`--edit`, on the synthetic text document before `SignTest` signs it; `--only-measure`
 /// runs it alone): the
@@ -101,7 +102,7 @@ struct MeasureTest {
         let pending = pages.measureInProgress ?? ""
         await click(PointD(216, 500))
         var found = measurements()
-        check(pending.hasPrefix("1 point(s)") && found.count == before + 1 && found.last?.text == "2.00 in" && found.last?.kind == .distance
+        check(pending.hasPrefix(Shown.head(loc("{0} point(s), {1}", 1, Shown.gap))) && found.count == before + 1 && found.last?.text == "2.00 in" && found.last?.kind == .distance
               && editor.comments.contains { $0.subtype == "Line" && $0.contents == "2.00 in" },
               "two clicks measure a distance at real size: \(found.last?.text ?? "none")")
 
@@ -113,7 +114,7 @@ struct MeasureTest {
         let shown = pages.measuring?.hover == PointD(300, 372)
         await key("\r", code: 36)
         found = measurements()
-        check(live.hasPrefix("3 point(s)") && shown && found.last?.kind == .area && found.last?.text == "0.50 sq in",
+        check(live.hasPrefix(Shown.head(loc("{0} point(s), {1}", 3, Shown.gap))) && shown && found.last?.kind == .area && found.last?.text == "0.50 sq in",
               "corners, the pointer's move and Return measure an area: \(found.last?.text ?? "none")")
 
         // Perimeter: a double-click ends it.
@@ -134,7 +135,7 @@ struct MeasureTest {
         await key("\u{7f}", code: 51)
         let afterDelete = pages.measureInProgress ?? ""
         await key("\u{1b}", code: 53)
-        check(afterDelete.hasPrefix("1 point(s)") && pages.measureInProgress == nil && measurements().count == count && pages.tool == .measureArea,
+        check(afterDelete.hasPrefix(Shown.head(loc("{0} point(s), {1}", 1, Shown.gap))) && pages.measureInProgress == nil && measurements().count == count && pages.tool == .measureArea,
               "Delete takes a corner back, Esc drops it (the tool stays)")
 
         // Set Measuring Scale through its sheet, for all pages.
@@ -179,7 +180,7 @@ struct MeasureTest {
         let undo = controller.window?.undoManager
         let title = undo?.undoMenuItemTitle ?? ""
         undo?.undo()
-        check(controller.scaleAt(0, PointD(1, 1)).ratio == "1 in = 10 ft" && title == "Undo Set measuring scale", "“\(title)” takes it back")
+        check(controller.scaleAt(0, PointD(1, 1)).ratio == "1 in = 10 ft" && title == Shown.undo(loc("Set measuring scale")), "“\(title)” takes it back")
 
         // The saved bytes: the area's label is drawn in red at its centroid, and the scale is a viewport another app reads.
         if let s = controller.pdf.session, let engine = try? PdfEngine.open(s.data) {

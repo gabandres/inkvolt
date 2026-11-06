@@ -71,12 +71,12 @@ public enum Pro {
     /// The feature's name as the window shows it.
     public static func title(_ feature: ProFeature) -> String {
         switch feature {
-        case .batchPresets: "Batch presets"
-        case .watchedFolders: "Watched folders"
-        case .commandLine: "Command line"
-        case .autoTagging: "Make Accessible"
-        case .readingOrder: "Reading order"
-        case .accessibleOutput: "Accessible PDF/A-2a"
+        case .batchPresets: loc("Batch presets")
+        case .watchedFolders: loc("Watched folders")
+        case .commandLine: loc("Command line")
+        case .autoTagging: loc("Make Accessible")
+        case .readingOrder: loc("Reading order")
+        case .accessibleOutput: loc("Accessible PDF/A-2a")
         }
     }
 
@@ -84,34 +84,34 @@ public enum Pro {
     public static func describe(_ feature: ProFeature) -> String {
         switch feature {
         case .batchPresets:
-            "Save the list of Batch actions with their settings under a name and pick it next time; export a preset to share it or for the command line, import one from someone else."
+            loc("Save the list of Batch actions with their settings under a name and pick it next time; export a preset to share it or for the command line, import one from someone else.")
         case .watchedFolders:
-            "Drop PDFs or images into a folder and Inkvolt PDF runs a preset on each one once it has finished copying, moves the original to \"done\" or \"failed\" and logs a line for it."
+            loc("Drop PDFs or images into a folder and Inkvolt PDF runs a preset on each one once it has finished copying, moves the original to \"done\" or \"failed\" and logs a line for it.")
         case .commandLine:
-            "inkvoltpdf --batch runs a preset on files or folders without a window; inkvoltpdf --watch watches a folder from a terminal or a scheduled task."
+            loc("inkvoltpdf --batch runs a preset on files or folders without a window; inkvoltpdf --watch watches a folder from a terminal or a scheduled task.")
         case .autoTagging:
-            "Tag a PDF for screen readers on this Mac, nothing sent anywhere: headings, paragraphs, lists, tables and pictures read from the pages, running headers and page numbers set aside, the title and language set; in Batch over many files too."
+            loc("Tag a PDF for screen readers on this Mac, nothing sent anywhere: headings, paragraphs, lists, tables and pictures read from the pages, running headers and page numbers set aside, the title and language set; in Batch over many files too.")
         case .readingOrder:
-            "See the order a screen reader follows as numbered boxes on the page, move pieces up, down or to another page, and write the tags again."
+            loc("See the order a screen reader follows as numbered boxes on the page, move pieces up, down or to another page, and write the tags again.")
         case .accessibleOutput:
-            "Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too."
+            loc("Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too.")
         }
     }
 
     /// What a person is told when a feature isn't unlocked.
     public static func locked(_ feature: ProFeature) -> String {
         switch feature {
-        case .batchPresets: "Saved batch presets are part of Inkvolt Pro."
-        case .watchedFolders: "Watched folders are part of Inkvolt Pro."
-        case .commandLine: "The command line is part of Inkvolt Pro."
-        case .autoTagging: "Make Accessible is part of Inkvolt Pro."
-        case .readingOrder: "Fixing the reading order is part of Inkvolt Pro."
-        case .accessibleOutput: "Saving accessible PDF/A-2a files is part of Inkvolt Pro."
+        case .batchPresets: loc("Saved batch presets are part of Inkvolt Pro.")
+        case .watchedFolders: loc("Watched folders are part of Inkvolt Pro.")
+        case .commandLine: loc("The command line is part of Inkvolt Pro.")
+        case .autoTagging: loc("Make Accessible is part of Inkvolt Pro.")
+        case .readingOrder: loc("Fixing the reading order is part of Inkvolt Pro.")
+        case .accessibleOutput: loc("Saving accessible PDF/A-2a files is part of Inkvolt Pro.")
         }
     }
 
     /// Where to get a key and where to enter it (after `locked` on the command line).
     public static var howToGet: String {
-        "Inkvolt Pro is a one-time purchase (\(priceText)) at \(buyUrl); Help › Inkvolt Pro… in Inkvolt PDF enters the key."
+        loc("Inkvolt Pro is a one-time purchase ({0}) at {1}; Help › Inkvolt Pro… in Inkvolt PDF enters the key.", priceText, buyUrl)
     }
 }

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Why the document's content changed.
 public enum ContentChange: Equatable, Sendable {
@@ -222,12 +223,12 @@ public final class DocumentSession: @unchecked Sendable {
         let target = URL(fileURLWithPath: path)
         let name = target.lastPathComponent
         if fm.fileExists(atPath: path) && !fm.isWritableFile(atPath: path) {
-            throw PdfEditError("\"\(name)\" is read-only. Save a copy under another name, or make it writable in its Get Info window.")
+            throw PdfEditError(loc("\"{0}\" is read-only. Save a copy under another name, or make it writable in its Get Info window.", name))
         }
         let temp = target.deletingLastPathComponent().appendingPathComponent(".\(name).\(UUID().uuidString).tmp")
         defer { try? fm.removeItem(at: temp) }
         guard fm.createFile(atPath: temp.path, contents: nil) else {
-            throw PdfEditError("\"\(name)\" can't be saved in that folder.")
+            throw PdfEditError(loc("\"{0}\" can't be saved in that folder.", name))
         }
         let handle = try FileHandle(forWritingTo: temp)
         do {
@@ -283,7 +284,7 @@ public final class DocumentSession: @unchecked Sendable {
     }
 
     private static func readDiskCopy(_ path: String?, _ password: String?) throws -> DiskCopy {
-        guard let path else { throw PdfEditError("This document has not been saved to a file.") }
+        guard let path else { throw PdfEditError(loc("This document has not been saved to a file.")) }
         let stamp = DiskStamp.of(path)
         let data = try PdfEngine.readFile(path)
         let engine = try PdfEngine.open(data, password: password)

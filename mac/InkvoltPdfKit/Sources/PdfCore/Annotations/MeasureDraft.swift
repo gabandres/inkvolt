@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What a measuring tool measures: a distance, a perimeter, an area, or a distance whose real length sets the scale.
 public enum MeasureTool: Sendable, Equatable {
@@ -91,14 +92,14 @@ public struct MeasureDraft: Sendable, Equatable {
         if !isActive || pts.isEmpty { return "" }
         if tool.kind == .area && pts.count >= 3 {
             let perimeter = scale.formatValue(.perimeter, MeasureGeometry.length(pts, closed: true) * scale.perUnit)
-            return "\(scale.format(.area, pts)) · perimeter \(perimeter)"
+            return loc("{0} · perimeter {1}", scale.format(.area, pts), perimeter)
         }
         return scale.format(.distance, pts)
     }
 
     /// For the self-test and VoiceOver: how many points and the value without the pointer (nil while nothing is under way).
     public func described(_ scale: MeasureScale) -> String? {
-        isActive ? "\(points.count) point(s), \(value(scale, includeHover: false))" : nil
+        isActive ? loc("{0} point(s), {1}", CoreLanguage.number(points.count), value(scale, includeHover: false)) : nil
     }
 }
 
@@ -129,10 +130,14 @@ extension MeasureScale {
     /// The text a finished measurement is announced with: "Distance: 20.00 ft (scale 1 in = 10 ft)."; an area adds its
     /// perimeter (the Windows tab's notice).
     public func announcement(_ kind: MeasureKind, _ points: [PointD]) -> String {
-        let name = kind == .distance ? "Distance" : kind == .perimeter ? "Perimeter" : "Area"
-        var extra = ""
-        if kind == .area { extra = ", perimeter \(formatValue(.perimeter, MeasureGeometry.length(points, closed: true) * perUnit))" }
-        return "\(name): \(format(kind, points))\(extra) (scale \(ratio))."
+        let measured = format(kind, points)
+        switch kind {
+        case .distance: return loc("Distance: {0} (scale {1}).", measured, ratio)
+        case .perimeter: return loc("Perimeter: {0} (scale {1}).", measured, ratio)
+        case .area:
+            let perimeter = formatValue(.perimeter, MeasureGeometry.length(points, closed: true) * perUnit)
+            return loc("Area: {0}, perimeter {1} (scale {2}).", measured, perimeter, ratio)
+        }
     }
 
     /// A number typed in a dialog, in the Mac's own format or with a point, within `low`...`high` (Windows'

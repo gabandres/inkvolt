@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The parts of `DocumentInventory`'s report, in the order it shows them.
 public enum InventorySection: Int, CaseIterable, Comparable, Hashable, Sendable {
@@ -107,15 +108,18 @@ public struct InventoryReport: Sendable {
     /// "Scripts (2), web addresses (3), …", or that the document carries nothing but its pages.
     public var summary: String {
         if isEmpty {
-            return "Nothing but its pages: no scripts, actions, addresses, attachments, metadata, earlier versions, hidden content or form values."
+            return loc("Nothing but its pages: no scripts, actions, addresses, attachments, metadata, earlier versions, hidden content or form values.")
         }
         var perSection: [InventorySection: Int] = [:]
         for i in items { perSection[i.section, default: 0] += 1 }
-        let parts = perSection.keys.sorted().map { "\(DocumentInventory.lower(DocumentInventory.title($0))) (\(DocumentInventory.n0(perSection[$0] ?? 0)))" }
+        let parts = perSection.keys.sorted().map { loc("{0} ({1})", DocumentInventory.lower(DocumentInventory.title($0)), DocumentInventory.n0(perSection[$0] ?? 0)) }
         let outward = items.filter { $0.section == .addresses && $0.withoutClick }.count
         let text = parts.joined(separator: ", ")
         var s = text.prefix(1).uppercased() + text.dropFirst() + "."
-        if outward > 0 { s += " \(outward == 1 ? "1 address is" : "\(DocumentInventory.n0(outward)) addresses are") reached without a click." }
+        if outward > 0 {
+            s += outward == 1 ? loc(" {0} address is reached without a click.", DocumentInventory.n0(outward))
+                : loc(" {0} addresses are reached without a click.", DocumentInventory.n0(outward))
+        }
         return s
     }
 }
@@ -135,24 +139,24 @@ public enum DocumentInventory {
 
     public static func title(_ s: InventorySection) -> String {
         switch s {
-        case .scripts: "Scripts"
-        case .actions: "Actions that run by themselves"
-        case .addresses: "Web addresses, files and programs"
-        case .attachments: "Attached files"
-        case .metadata: "Metadata and authors"
-        case .signatures: "Digital signatures"
-        case .earlierVersions: "Earlier versions"
-        case .hidden: "Hidden content"
-        case .formValues: "Form values"
-        case .redaction: "Text and pictures under covers"
+        case .scripts: loc("Scripts")
+        case .actions: loc("Actions that run by themselves")
+        case .addresses: loc("Web addresses, files and programs")
+        case .attachments: loc("Attached files")
+        case .metadata: loc("Metadata and authors")
+        case .signatures: loc("Digital signatures")
+        case .earlierVersions: loc("Earlier versions")
+        case .hidden: loc("Hidden content")
+        case .formValues: loc("Form values")
+        case .redaction: loc("Text and pictures under covers")
         }
     }
 
     public static func name(_ t: InventoryTrigger) -> String {
         switch t {
-        case .automatic: "By itself"
-        case .pointer: "When the pointer passes over"
-        case .use: "On a click or other use"
+        case .automatic: loc("By itself")
+        case .pointer: loc("When the pointer passes over")
+        case .use: loc("On a click or other use")
         case .none: ""
         }
     }
@@ -171,15 +175,16 @@ public enum DocumentInventory {
         var items = walk.items
 
         for a in attachments(doc, pages) {
-            let place = a.page >= 0 ? "Page \(a.page + 1), an attachment comment" : "The document's attachments"
+            let place = a.page >= 0 ? loc("Page {0}, an attachment comment", CoreLanguage.number(a.page + 1)) : loc("The document's attachments")
             let description = (a.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : ", " + (a.description ?? "")
-            items.append(InventoryItem(.attachments, "Attached file", place, "\(a.name) (\(size(a.size))\(description))", page: a.page, removedBy: .embeddedFiles))
+            items.append(InventoryItem(.attachments, loc("Attached file"), place, "\(a.name) (\(size(a.size))\(description))", page: a.page, removedBy: .embeddedFiles))
         }
 
         if counts.earlierRevisions > 0 {
-            items.append(InventoryItem(.earlierVersions, "Earlier versions", "Kept by incremental saves",
-                                       (counts.earlierRevisions == 1 ? "1 earlier version" : "\(n0(counts.earlierRevisions)) earlier versions")
-                                           + " of the file can be opened from it, with everything they held."))
+            let versions = counts.earlierRevisions == 1
+                ? loc("{0} earlier version of the file can be opened from it, with everything they held.", n0(1))
+                : loc("{0} earlier versions of the file can be opened from it, with everything they held.", n0(counts.earlierRevisions))
+            items.append(InventoryItem(.earlierVersions, loc("Earlier versions"), loc("Kept by incremental saves"), versions))
         }
 
         // The redaction check's own findings: what the pages hold that doesn't show, covers, earlier versions' text. (Its
@@ -203,7 +208,7 @@ public enum DocumentInventory {
         for s in InventorySection.allCases {
             let list = items.filter { $0.section == s }
             kept += list.prefix(maxPerSection)
-            if list.count > maxPerSection { notes.append("\(title(s)): only the first \(n0(maxPerSection)) of \(n0(list.count)) are listed.") }
+            if list.count > maxPerSection { notes.append(loc("{0}: only the first {1} of {2} are listed.", title(s), n0(maxPerSection), n0(list.count))) }
         }
         var distinct: [String] = []
         for n in notes where !distinct.contains(n) { distinct.append(n) }
@@ -279,24 +284,24 @@ public enum DocumentInventory {
         /// An action in words, its target (an address, a file, a page) and what Sanitize removes it as.
         private func describe(_ a: PObj, _ s: String) -> (what: String, target: String?, removedBy: SanitizeItem?) {
             switch s {
-            case "URI": return ("Opens a web address", Self.clean(a.text("URI")), .externalLinks)
-            case "SubmitForm": return ("Sends the form's data", Self.fileName(a["F"]), .activeContent)
-            case "ImportData": return ("Reads form data from a file", Self.fileName(a["F"]), .activeContent)
-            case "Launch": return ("Starts a program or opens a file", Self.fileName(a["F"]) ?? Self.fileName(a.dict("Win")?["F"]), .activeContent)
-            case "GoToR": return ("Opens another PDF", Self.fileName(a["F"]), .externalLinks)
-            case "GoToE": return ("Opens an embedded or other PDF", Self.fileName(a["F"]) ?? "an attached PDF", .externalLinks)
-            case "Thread" where a.has("F"): return ("Opens an article in another file", Self.fileName(a["F"]), .externalLinks)
-            case "Rendition", "Movie", "Sound", "RichMediaExecute", "GoTo3DView": return ("Plays media", nil, .activeContent)
-            case "GoTo": return ("Goes to a page", DocumentFeatures.resolveDestination(doc, a["D"]).map { "page \($0.pageIndex + 1)" }, nil)
-            case "Named": return ("Runs a viewer command", a.name("N"), nil)
-            case "Hide": return ("Shows or hides fields", nil, nil)
-            case "ResetForm": return ("Clears the form", nil, nil)
-            case "SetOCGState": return ("Shows or hides layers", nil, nil)
-            default: return ("Action", s, nil)
+            case "URI": return (loc("Opens a web address"), Self.clean(a.text("URI")), .externalLinks)
+            case "SubmitForm": return (loc("Sends the form's data"), Self.fileName(a["F"]), .activeContent)
+            case "ImportData": return (loc("Reads form data from a file"), Self.fileName(a["F"]), .activeContent)
+            case "Launch": return (loc("Starts a program or opens a file"), Self.fileName(a["F"]) ?? Self.fileName(a.dict("Win")?["F"]), .activeContent)
+            case "GoToR": return (loc("Opens another PDF"), Self.fileName(a["F"]), .externalLinks)
+            case "GoToE": return (loc("Opens an embedded or other PDF"), Self.fileName(a["F"]) ?? loc("an attached PDF"), .externalLinks)
+            case "Thread" where a.has("F"): return (loc("Opens an article in another file"), Self.fileName(a["F"]), .externalLinks)
+            case "Rendition", "Movie", "Sound", "RichMediaExecute", "GoTo3DView": return (loc("Plays media"), nil, .activeContent)
+            case "GoTo": return (loc("Goes to a page"), DocumentFeatures.resolveDestination(doc, a["D"]).map { loc("page {0}", CoreLanguage.number($0.pageIndex + 1)) }, nil)
+            case "Named": return (loc("Runs a viewer command"), a.name("N"), nil)
+            case "Hide": return (loc("Shows or hides fields"), nil, nil)
+            case "ResetForm": return (loc("Clears the form"), nil, nil)
+            case "SetOCGState": return (loc("Shows or hides layers"), nil, nil)
+            default: return (loc("Action"), s, nil)
             }
         }
 
-        private static func words(_ s: String) -> String { s.isEmpty ? "(no type)" : s }
+        private static func words(_ s: String) -> String { s.isEmpty ? loc("(no type)") : s }
 
         static func fileName(_ f: PObj?) -> String? {
             guard let f else { return nil }
@@ -317,13 +322,13 @@ public enum DocumentInventory {
         }
 
         private func script(_ source: String, _ place: String, _ trigger: InventoryTrigger, _ page: Int) {
-            items.append(InventoryItem(.scripts, "Script", place, clip(source.trimmingCharacters(in: .whitespacesAndNewlines)), page: page,
+            items.append(InventoryItem(.scripts, loc("Script"), place, clip(source.trimmingCharacters(in: .whitespacesAndNewlines)), page: page,
                                        trigger: trigger, calls: scriptCalls(source), removedBy: .activeContent))
             let ns = source as NSString
             for m in urlPattern.matches(in: source, range: NSRange(location: 0, length: ns.length)) {
                 var url = ns.substring(with: m.range)
                 while let last = url.last, ".,;".contains(last) { url.removeLast() }
-                address(url, "Web address in a script", place, trigger, page, .activeContent)
+                address(url, loc("Web address in a script"), place, trigger, page, .activeContent)
             }
         }
 
@@ -338,30 +343,30 @@ public enum DocumentInventory {
         // ---- Document, pages ----
 
         private func document(_ catalog: PObj) {
-            if catalog.dict("OpenAction") != nil { action(catalog["OpenAction"], "When the document opens", .automatic, -1) }
+            if catalog.dict("OpenAction") != nil { action(catalog["OpenAction"], loc("When the document opens"), .automatic, -1) }
             additionalActions(catalog, -1) { key in
                 switch key {
-                case "WC": ("Before the document closes", .automatic)
-                case "WS": ("Before the document is saved", .automatic)
-                case "DS": ("After the document is saved", .automatic)
-                case "WP": ("Before the document is printed", .automatic)
-                case "DP": ("After the document is printed", .automatic)
-                default: ("Document event \(key)", .automatic)
+                case "WC": (loc("Before the document closes"), .automatic)
+                case "WS": (loc("Before the document is saved"), .automatic)
+                case "DS": (loc("After the document is saved"), .automatic)
+                case "WP": (loc("Before the document is printed"), .automatic)
+                case "DP": (loc("After the document is printed"), .automatic)
+                default: (loc("Document event {0}", key), .automatic)
                 }
             }
             for (key, value) in PdfStructure.nameTree(catalog.dict("Names")?.dict("JavaScript")) {
-                action(value, "When the document opens (document script \u{201C}\(key)\u{201D})", .automatic, -1)
+                action(value, loc("When the document opens (document script \u{201C}{0}\u{201D})", key), .automatic, -1)
             }
             if let base = catalog.dict("URI")?.text("Base"), !base.isEmpty {
-                address(base, "Base of relative web addresses", "The document", .none, -1, .externalLinks)
+                address(base, loc("Base of relative web addresses"), loc("The document"), .none, -1, .externalLinks)
             }
         }
 
         private func page(_ page: PObj, _ p: Int) {
             additionalActions(page, p) { key in
                 switch key {
-                case "O": ("When page \(p + 1) opens", .automatic)
-                case "C": ("When page \(p + 1) closes", .automatic)
+                case "O": (loc("When page {0} opens", CoreLanguage.number(p + 1)), .automatic)
+                case "C": (loc("When page {0} closes", CoreLanguage.number(p + 1)), .automatic)
                 default: nil
                 }
             }
@@ -371,22 +376,22 @@ public enum DocumentInventory {
                 if subtype == "Popup" { continue }
                 let kind: String
                 switch subtype {
-                case "Link": kind = "a link"
-                case "Widget": kind = Self.fieldName(of: a).map { "field \u{201C}\($0)\u{201D}" } ?? "a form field"
-                default: kind = "a comment"
+                case "Link": kind = loc("a link")
+                case "Widget": kind = Self.fieldName(of: a).map { loc("field \u{201C}{0}\u{201D}", $0) } ?? loc("a form field")
+                default: kind = loc("a comment")
                 }
-                let at = "Page \(p + 1), \(kind)"
+                let at = loc("Page {0}, {1}", CoreLanguage.number(p + 1), kind)
                 if subtype != "Widget" { // a widget's actions go with its field (form)
-                    action(a["A"], "When \(kind) on page \(p + 1) is clicked", .use, p)
+                    action(a["A"], loc("When {0} on page {1} is clicked", kind, CoreLanguage.number(p + 1)), .use, p)
                     additionalActions(a, p) { Self.event($0, at, p, nil) }
                 }
                 if ["RichMedia", "3D", "Sound", "Movie", "Screen"].contains(subtype) {
-                    items.append(InventoryItem(.scripts, "Multimedia or 3D", at, subtype, page: p, trigger: .use, removedBy: .activeContent))
+                    items.append(InventoryItem(.scripts, loc("Multimedia or 3D"), at, subtype, page: p, trigger: .use, removedBy: .activeContent))
                 }
                 let flags = a.int("F") ?? 0
                 if flags & (Self.annotHidden | Self.annotNoView) != 0 {
                     let detail = FormEditor.scriptText(a["Contents"]) ?? FormEditor.inherited(a, "V")?.text ?? subtype
-                    items.append(InventoryItem(.hidden, subtype == "Widget" ? "Hidden form field" : "Hidden comment", at, clip(detail),
+                    items.append(InventoryItem(.hidden, subtype == "Widget" ? loc("Hidden form field") : loc("Hidden comment"), at, clip(detail),
                                                page: p, removedBy: .hiddenAnnotations))
                 }
             }
@@ -395,24 +400,24 @@ public enum DocumentInventory {
         /// An annotation or field event (/AA key) in words.
         private static func event(_ key: String, _ at: String, _ p: Int, _ field: String?) -> (place: String, trigger: InventoryTrigger)? {
             switch key {
-            case "E": return ("\(at): when the pointer enters it", .pointer)
-            case "X": return ("\(at): when the pointer leaves it", .pointer)
-            case "D": return ("\(at): when the mouse button is pressed on it", .use)
-            case "U": return ("\(at): when it is clicked", .use)
-            case "Fo": return ("\(at): when it gets the focus", .use)
-            case "Bl": return ("\(at): when it loses the focus", .use)
-            case "PO": return ("\(at): when page \(p + 1) opens", .automatic)
-            case "PC": return ("\(at): when page \(p + 1) closes", .automatic)
-            case "PV": return ("\(at): when page \(p + 1) comes into view", .automatic)
-            case "PI": return ("\(at): when page \(p + 1) goes out of view", .automatic)
+            case "E": return (loc("{0}: when the pointer enters it", at), .pointer)
+            case "X": return (loc("{0}: when the pointer leaves it", at), .pointer)
+            case "D": return (loc("{0}: when the mouse button is pressed on it", at), .use)
+            case "U": return (loc("{0}: when it is clicked", at), .use)
+            case "Fo": return (loc("{0}: when it gets the focus", at), .use)
+            case "Bl": return (loc("{0}: when it loses the focus", at), .use)
+            case "PO": return (loc("{0}: when page {1} opens", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PC": return (loc("{0}: when page {1} closes", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PV": return (loc("{0}: when page {1} comes into view", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PI": return (loc("{0}: when page {1} goes out of view", at, CoreLanguage.number(p + 1)), .automatic)
             default: break
             }
             guard let field else { return nil }
             switch key {
-            case "K": return ("Field \u{201C}\(field)\u{201D}: as it is typed in", .use)
-            case "V": return ("Field \u{201C}\(field)\u{201D}: when its value changes", .use)
-            case "C": return ("Field \u{201C}\(field)\u{201D}: when the form recalculates", .use)
-            case "F": return ("Field \u{201C}\(field)\u{201D}: whenever it is shown", .automatic)
+            case "K": return (loc("Field \u{201C}{0}\u{201D}: as it is typed in", field), .use)
+            case "V": return (loc("Field \u{201C}{0}\u{201D}: when its value changes", field), .use)
+            case "C": return (loc("Field \u{201C}{0}\u{201D}: when the form recalculates", field), .use)
+            case "F": return (loc("Field \u{201C}{0}\u{201D}: whenever it is shown", field), .automatic)
             default: return nil
             }
         }
@@ -448,7 +453,7 @@ public enum DocumentInventory {
                 while let cur = item, seen.insert(cur.identity).inserted, n < 200_000 {
                     n += 1
                     let title = clip(cur.text("Title") ?? "", 80)
-                    action(cur["A"], "When the bookmark \u{201C}\(title)\u{201D} is chosen", .use, -1)
+                    action(cur["A"], loc("When the bookmark \u{201C}{0}\u{201D} is chosen", title), .use, -1)
                     if let child = cur.dict("First") { stack.append(child) }
                     item = cur.dict("Next")
                 }
@@ -461,12 +466,12 @@ public enum DocumentInventory {
             for f in fields {
                 let widgets = f.widgets.isEmpty ? [f.dict] : f.widgets
                 let page = widgets.lazy.map(pageOf).first { $0 >= 0 } ?? -1
-                let at = "Field \u{201C}\(f.name)\u{201D}" + (page >= 0 ? ", page \(page + 1)" : "")
+                let at = page >= 0 ? loc("Field \u{201C}{0}\u{201D}, page {1}", f.name, CoreLanguage.number(page + 1)) : loc("Field \u{201C}{0}\u{201D}", f.name)
                 // The field's own actions and each widget's (a widget may be the field itself).
                 var nodes: [PObj] = []
                 for n in [f.dict] + widgets where !nodes.contains(where: { $0.identity == n.identity }) { nodes.append(n) }
                 for node in nodes {
-                    action(node["A"], "When field \u{201C}\(f.name)\u{201D} is clicked", .use, page)
+                    action(node["A"], loc("When field \u{201C}{0}\u{201D} is clicked", f.name), .use, page)
                     additionalActions(node, page) { Self.event($0, at, max(page, 0), f.name) }
                 }
                 if f.type == "Sig" {
@@ -474,11 +479,11 @@ public enum DocumentInventory {
                     continue
                 }
                 if let value = Self.value(f) {
-                    items.append(InventoryItem(.formValues, "Value", at, clip(value), page: page, removedBy: .formValues))
+                    items.append(InventoryItem(.formValues, loc("Value"), at, clip(value), page: page, removedBy: .formValues))
                 }
             }
             if acro.has("XFA") {
-                items.append(InventoryItem(.scripts, "XFA form", "The document's form", "An XFA form: it can hold scripts and its own copy of the form's data.",
+                items.append(InventoryItem(.scripts, loc("XFA form"), loc("The document's form"), loc("An XFA form: it can hold scripts and its own copy of the form's data."),
                                            removedBy: fields.isEmpty ? nil : .activeContent))
             }
         }
@@ -487,11 +492,11 @@ public enum DocumentInventory {
             var parts: [String] = []
             if let name = sig.text("Name"), !name.isEmpty { parts.append(name) }
             if let m = sig.text("M"), let when = PdfDates.parse(m) { parts.append(DocumentInventory.date(when, written: m)) }
-            if let reason = sig.text("Reason"), !reason.isEmpty { parts.append("reason: " + reason) }
-            if let location = sig.text("Location"), !location.isEmpty { parts.append("at " + location) }
-            if let contact = sig.text("ContactInfo"), !contact.isEmpty { parts.append("contact: " + contact) }
-            if parts.isEmpty { parts.append("a signature (with the signer's certificate)") }
-            items.append(InventoryItem(.signatures, "Signed", at, clip(parts.joined(separator: ", ")), page: page, removedBy: .signatures))
+            if let reason = sig.text("Reason"), !reason.isEmpty { parts.append(loc("reason: {0}", reason)) }
+            if let location = sig.text("Location"), !location.isEmpty { parts.append(loc("at {0}", location)) }
+            if let contact = sig.text("ContactInfo"), !contact.isEmpty { parts.append(loc("contact: {0}", contact)) }
+            if parts.isEmpty { parts.append(loc("a signature (with the signer's certificate)")) }
+            items.append(InventoryItem(.signatures, loc("Signed"), at, clip(parts.joined(separator: ", ")), page: page, removedBy: .signatures))
         }
 
         /// A field's value in words (as Sanitize counts values: text, choices, a box that is on, a default).
@@ -505,7 +510,7 @@ public enum DocumentInventory {
             switch f.type {
             case "Tx", "Ch":
                 if let v = text(FormEditor.inherited(f.dict, "V")), !v.isEmpty { return v }
-                if let dv = text(f.dict["DV"]), !dv.isEmpty { return "\(dv) (its default)" }
+                if let dv = text(f.dict["DV"]), !dv.isEmpty { return loc("{0} (its default)", dv) }
                 return nil
             case "Btn" where f.flags & ffPushButton == 0:
                 var on: String?
@@ -514,7 +519,7 @@ public enum DocumentInventory {
                 } else {
                     on = f.widgets.lazy.compactMap { $0.name("AS") }.first { $0 != "Off" }
                 }
-                return on.map { "on (\($0))" }
+                return on.map { loc("on ({0})", $0) }
             default:
                 return nil
             }
@@ -527,8 +532,8 @@ public enum DocumentInventory {
             let off = Set(Self.members(d?["OFF"]).map(\.identity))
             let baseOff = d?.name("BaseState") == "OFF"
             for ocg in Self.members(list) where off.contains(ocg.identity) || (baseOff && !on.contains(ocg.identity)) {
-                items.append(InventoryItem(.hidden, "Hidden layer", "The document's layers",
-                                           "\u{201C}\(clip(ocg.text("Name") ?? "(no name)", 120))\u{201D}, off when the document opens, with what it draws",
+                items.append(InventoryItem(.hidden, loc("Hidden layer"), loc("The document's layers"),
+                                           loc("\u{201C}{0}\u{201D}, off when the document opens, with what it draws", clip(ocg.text("Name") ?? loc("(no name)"), 120)),
                                            removedBy: .hiddenLayers))
             }
         }
@@ -552,7 +557,7 @@ public enum DocumentInventory {
                     var value = v.text ?? v.name.map { "/" + $0 } ?? v.number.map { PdfNum.f2($0) } ?? ""
                     if (key == "Producer" || key == "Creator") && value.hasPrefix("PDFsharp") { continue } // what a save writes itself
                     if key == "CreationDate" || key == "ModDate", let t = PdfDates.parse(value) { value = DocumentInventory.date(t, written: value, zone: true) }
-                    items.append(InventoryItem(.metadata, Self.infoName(key), "Document properties", clip(value), removedBy: .metadata))
+                    items.append(InventoryItem(.metadata, Self.infoName(key), loc("Document properties"), clip(value), removedBy: .metadata))
                 }
             }
 
@@ -563,7 +568,7 @@ public enum DocumentInventory {
             var stack: [(item: PObj, depth: Int, page: Int)] = [(catalog, 0, -1)]
             for p in stride(from: pageCount - 1, through: 0, by: -1) { stack.append((doc.page(p), 0, p)) }
             while let (item, depth, page) = stack.popLast() {
-                let place = page >= 0 ? "Page \(page + 1)" : "The document"
+                let place = page >= 0 ? loc("Page {0}", CoreLanguage.number(page + 1)) : loc("The document")
                 if depth > 64 { continue }
                 if item.isArray {
                     for e in item.elements where e.isDict || e.isArray { stack.append((e, depth + 1, page)) }
@@ -585,24 +590,24 @@ public enum DocumentInventory {
                     authors[author] = entry
                 }
                 if let piece = item.dict("PieceInfo") {
-                    items.append(InventoryItem(.metadata, "Private data of other apps", owner, piece.keys.joined(separator: ", "), removedBy: .metadata))
+                    items.append(InventoryItem(.metadata, loc("Private data of other apps"), owner, piece.keys.joined(separator: ", "), removedBy: .metadata))
                 }
                 if let xmp = item.dict("Metadata"), xmp.isStream {
                     if let props = Sanitizer.xmpProperties(xmp) {
                         if !props.isEmpty {
                             for (name, value) in props {
-                                items.append(InventoryItem(.metadata, Self.xmpName(name), "\(owner), XMP metadata", clip(value), removedBy: .metadata))
+                                items.append(InventoryItem(.metadata, Self.xmpName(name), loc("{0}, XMP metadata", owner), clip(value), removedBy: .metadata))
                             }
                         } else if !isCatalog {
-                            items.append(InventoryItem(.metadata, "XMP metadata", owner, "a packet (empty)", removedBy: .metadata))
+                            items.append(InventoryItem(.metadata, loc("XMP metadata"), owner, loc("a packet (empty)"), removedBy: .metadata))
                         }
                     } else {
-                        items.append(InventoryItem(.metadata, "XMP metadata", owner, "a packet that can't be read", removedBy: .metadata))
+                        items.append(InventoryItem(.metadata, loc("XMP metadata"), owner, loc("a packet that can't be read"), removedBy: .metadata))
                     }
                 }
                 if let af = item.array("AF"), af.count > 0 {
-                    items.append(InventoryItem(.attachments, "Associated file", owner,
-                                               af.elements.map { Self.fileName($0) ?? "(no name)" }.joined(separator: ", "), removedBy: .embeddedFiles))
+                    items.append(InventoryItem(.attachments, loc("Associated file"), owner,
+                                               af.elements.map { Self.fileName($0) ?? loc("(no name)") }.joined(separator: ", "), removedBy: .embeddedFiles))
                 }
 
                 for key in item.keys where !["Parent", "P", "Metadata", "Prev", "Last", "Dest", "D"].contains(key) {
@@ -619,9 +624,10 @@ public enum DocumentInventory {
                 let pages = pageSet.sorted()
                 var detail = author
                 if !pages.isEmpty {
-                    detail += " (page\(pages.count == 1 ? "" : "s") \(pages.prefix(20).map(String.init).joined(separator: ", "))\(pages.count > 20 ? ", …" : ""))"
+                    let list = pages.prefix(20).map(String.init).joined(separator: ", ") + (pages.count > 20 ? ", …" : "")
+                    detail = pages.count == 1 ? loc("{0} (page {1})", author, list) : loc("{0} (pages {1})", author, list)
                 }
-                items.append(InventoryItem(.metadata, "Comment author", count == 1 ? "1 comment" : "\(n0(count)) comments", detail, removedBy: .metadata))
+                items.append(InventoryItem(.metadata, loc("Comment author"), count == 1 ? loc("{0} comment", n0(1)) : loc("{0} comments", n0(count)), detail, removedBy: .metadata))
             }
 
             for t in catalog.array("Threads")?.elements ?? [] where t.isDict {
@@ -629,56 +635,56 @@ public enum DocumentInventory {
                 for key in ti.keys {
                     let v = ti[key]
                     let value = v?.text ?? v?.name.map { "/" + $0 } ?? v?.number.map { PdfNum.f2($0) } ?? ""
-                    items.append(InventoryItem(.metadata, Self.infoName(key), "An article's properties", clip(value), removedBy: .metadata))
+                    items.append(InventoryItem(.metadata, Self.infoName(key), loc("An article's properties"), clip(value), removedBy: .metadata))
                 }
             }
         }
 
         private static func owner(_ d: PObj, _ subtype: String, _ place: String, isCatalog: Bool, isPage: Bool) -> String {
-            if isCatalog { return "The document" }
+            if isCatalog { return loc("The document") }
             if isPage { return place }
             switch subtype {
-            case "Image": return "\(place), a picture"
-            case "Form": return "\(place), a drawing"
-            case "Widget": return "\(place), a form field"
-            case "Type1", "TrueType", "Type0", "Type3", "CIDFontType0", "CIDFontType2": return "\(place), a font"
+            case "Image": return loc("{0}, a picture", place)
+            case "Form": return loc("{0}, a drawing", place)
+            case "Widget": return loc("{0}, a form field", place)
+            case "Type1", "TrueType", "Type0", "Type3", "CIDFontType0", "CIDFontType2": return loc("{0}, a font", place)
             default:
-                if d.has("Rect") { return "\(place), a comment" }
-                if d.name("Type") == "FontDescriptor" { return "\(place), a font" }
-                return "\(place), an object"
+                if d.has("Rect") { return loc("{0}, a comment", place) }
+                if d.name("Type") == "FontDescriptor" { return loc("{0}, a font", place) }
+                return loc("{0}, an object", place)
             }
         }
 
         private static func infoName(_ key: String) -> String {
             switch key {
-            case "Title": "Title"
-            case "Author": "Author"
-            case "Subject": "Subject"
-            case "Keywords": "Keywords"
-            case "Creator": "Made with"
-            case "Producer": "Written by"
-            case "CreationDate": "Created"
-            case "ModDate": "Modified"
-            case "Trapped": "Trapped"
+            case "Title": loc("Title")
+            case "Author": loc("Author")
+            case "Subject": loc("Subject")
+            case "Keywords": loc("Keywords")
+            case "Creator": loc("Made with")
+            case "Producer": loc("Written by")
+            case "CreationDate": loc("Created")
+            case "ModDate": loc("Modified")
+            case "Trapped": loc("Trapped")
             default: key
             }
         }
 
         private static func xmpName(_ name: String) -> String {
             switch name {
-            case "creator": "Author (XMP)"
-            case "title": "Title (XMP)"
-            case "description": "Subject (XMP)"
-            case "subject": "Keywords (XMP)"
-            case "rights": "Rights (XMP)"
-            case "CreateDate": "Created (XMP)"
-            case "ModifyDate": "Modified (XMP)"
-            case "MetadataDate": "Metadata changed (XMP)"
-            case "DocumentID": "Document ID (XMP)"
-            case "InstanceID": "Version ID (XMP)"
-            case "OriginalDocumentID": "Original document ID (XMP)"
-            case "History": "Editing history (XMP)"
-            case "DerivedFrom": "Made from (XMP)"
+            case "creator": loc("Author (XMP)")
+            case "title": loc("Title (XMP)")
+            case "description": loc("Subject (XMP)")
+            case "subject": loc("Keywords (XMP)")
+            case "rights": loc("Rights (XMP)")
+            case "CreateDate": loc("Created (XMP)")
+            case "ModifyDate": loc("Modified (XMP)")
+            case "MetadataDate": loc("Metadata changed (XMP)")
+            case "DocumentID": loc("Document ID (XMP)")
+            case "InstanceID": loc("Version ID (XMP)")
+            case "OriginalDocumentID": loc("Original document ID (XMP)")
+            case "History": loc("Editing history (XMP)")
+            case "DerivedFrom": loc("Made from (XMP)")
             default: "\(name) (XMP)"
             }
         }
@@ -687,7 +693,7 @@ public enum DocumentInventory {
         private func externalStreams() {
             for o in doc.allObjects() where o.isStream && o.has("F") {
                 if let target = Self.fileName(o["F"]) {
-                    address(target, "Data read from outside the file", "When the page using it is drawn", .automatic, -1, nil)
+                    address(target, loc("Data read from outside the file"), loc("When the page using it is drawn"), .automatic, -1, nil)
                 }
             }
         }
@@ -726,7 +732,7 @@ public enum DocumentInventory {
     static func scriptCalls(_ source: String) -> [String] {
         var out: [String] = []
         let range = NSRange(location: 0, length: (source as NSString).length)
-        for (pattern, words) in calls where pattern.firstMatch(in: source, range: range) != nil && !out.contains(words) { out.append(words) }
+        for (pattern, key) in calls where pattern.firstMatch(in: source, range: range) != nil && !out.contains(key.text) { out.append(key.text) }
         return out
     }
 
@@ -735,22 +741,22 @@ public enum DocumentInventory {
         try! NSRegularExpression(pattern: pattern, options: options)
     }
 
-    private static let calls: [(NSRegularExpression, String)] = [
-        (regex(#"\b(launchURL|getURL)\s*\("#), "opens a web address"),
-        (regex(#"\bsubmitForm\s*\("#), "sends the form's data"),
-        (regex(#"\b(mailDoc|mailForm|mailMsg|mailGetAddrs)\s*\("#), "sends email"),
-        (regex(#"\b(Net\.HTTP|SOAP\.|Net\.SOAP|Net\.Discovery|Collab\.)"#), "connects to the internet"),
-        (regex(#"\bopenDoc\s*\("#), "opens another file"),
-        (regex(#"\b(exportDataObject|exportAsFDF|exportAsXFDF|exportAsText|exportXFAData|saveAs|extractPages)\s*\("#), "writes a file"),
-        (regex(#"\b(importDataObject|importAnFDF|importAnXFDF|importTextData|importXFAData|importIcon|importSound|readFileIntoStream|browseForDoc)\s*\("#), "reads a file"),
-        (regex(#"\b(launch|openDataObject)\s*\("#), "opens an attached file"),
-        (regex(#"\b(print|printWithParams)\s*\("#), "prints"),
-        (regex(#"\bexecMenuItem\s*\("#), "runs a menu command"),
-        (regex(#"\b(setTimeOut|setInterval)\s*\("#), "runs on a timer"),
-        (regex(#"\b(eval|Function)\s*\("#), "runs code it builds as it goes"),
-        (regex(#"\b(addScript|setAction|setPageAction)\s*\("#), "adds scripts"),
-        (regex(#"\b(alert|response)\s*\("#), "shows a message or asks a question"),
-        (regex(#"\b(identity|app\.platform|app\.viewerVersion)\b"#), "reads who you are or what your computer runs"),
+    private static let calls: [(NSRegularExpression, LocKey)] = [
+        (regex(#"\b(launchURL|getURL)\s*\("#), LocKey("opens a web address")),
+        (regex(#"\bsubmitForm\s*\("#), LocKey("sends the form's data")),
+        (regex(#"\b(mailDoc|mailForm|mailMsg|mailGetAddrs)\s*\("#), LocKey("sends email")),
+        (regex(#"\b(Net\.HTTP|SOAP\.|Net\.SOAP|Net\.Discovery|Collab\.)"#), LocKey("connects to the internet")),
+        (regex(#"\bopenDoc\s*\("#), LocKey("opens another file")),
+        (regex(#"\b(exportDataObject|exportAsFDF|exportAsXFDF|exportAsText|exportXFAData|saveAs|extractPages)\s*\("#), LocKey("writes a file")),
+        (regex(#"\b(importDataObject|importAnFDF|importAnXFDF|importTextData|importXFAData|importIcon|importSound|readFileIntoStream|browseForDoc)\s*\("#), LocKey("reads a file")),
+        (regex(#"\b(launch|openDataObject)\s*\("#), LocKey("opens an attached file")),
+        (regex(#"\b(print|printWithParams)\s*\("#), LocKey("prints")),
+        (regex(#"\bexecMenuItem\s*\("#), LocKey("runs a menu command")),
+        (regex(#"\b(setTimeOut|setInterval)\s*\("#), LocKey("runs on a timer")),
+        (regex(#"\b(eval|Function)\s*\("#), LocKey("runs code it builds as it goes")),
+        (regex(#"\b(addScript|setAction|setPageAction)\s*\("#), LocKey("adds scripts")),
+        (regex(#"\b(alert|response)\s*\("#), LocKey("shows a message or asks a question")),
+        (regex(#"\b(identity|app\.platform|app\.viewerVersion)\b"#), LocKey("reads who you are or what your computer runs")),
     ]
 
     private static let urlPattern =
@@ -768,16 +774,8 @@ public enum DocumentInventory {
 
     static func lower(_ s: String) -> String { s.isEmpty ? s : s.prefix(1).lowercased() + s.dropFirst() }
 
-    /// A count with thousands separators ("12,345"), as .NET's N0 in the invariant culture.
-    static func n0(_ n: Int) -> String {
-        let digits = String(abs(n))
-        var out = ""
-        for (i, c) in digits.enumerated() {
-            if i > 0 && (digits.count - i) % 3 == 0 { out.append(",") }
-            out.append(c)
-        }
-        return (n < 0 ? "-" : "") + out
-    }
+    /// A count with thousands separators, as .NET's N0 in the interface's language ("12,345" in English).
+    static func n0(_ n: Int) -> String { CoreLanguage.number(n) }
 
     private static func size(_ bytes: Int) -> String {
         func one(_ v: Double) -> String {
@@ -792,9 +790,10 @@ public enum DocumentInventory {
     /// A PDF date in words, at the clock time it was written with ("1 March 2026, 12:00"; with `zone`, its offset too).
     static func date(_ date: Date, written: String, zone: Bool = false) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
+        // The interface's month names (Windows' PdfLanguage.Culture); English keeps POSIX so a 12-hour Mac can't change HH.
+        f.locale = CoreLanguage.language == "en" ? Locale(identifier: "en_US_POSIX") : CoreLanguage.locale
         f.timeZone = writtenZone(written)
-        f.dateFormat = zone ? "d MMMM yyyy, HH:mm xxx" : "d MMMM yyyy, HH:mm"
+        f.dateFormat = zone ? loc("d MMMM yyyy, HH:mm xxx") : loc("d MMMM yyyy, HH:mm")
         return f.string(from: date)
     }
 

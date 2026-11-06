@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import PrintCore
 
 /// Folders for a conversion's work files, in the user's own temp folder and for the user only. Each is removed when its
 /// conversion ends; what a crash leaves goes at the next launch (`sweepLeftovers`), since it can hold a copy of a document.
@@ -77,12 +78,10 @@ public struct OfficeInstalls: Equatable, Sendable {
 
     /// The honest message when no converter can take a file of this kind.
     public func missing(_ app: OfficeApp?) -> String {
-        let get = "LibreOffice is free, from libreoffice.org."
         if let app, microsoft.contains(app) {
-            return "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use \(OfficeFiles.appName(app)) yet. "
-                + "Open the file in \(OfficeFiles.appName(app)) and save it as PDF there, or install LibreOffice. \(get)"
+            return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use {0} yet. Open the file in {0} and save it as PDF there, or install LibreOffice. LibreOffice is free, from libreoffice.org.", OfficeFiles.appName(app))
         }
-        return "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. \(get)"
+        return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.")
     }
 }
 
@@ -95,11 +94,11 @@ public enum OfficeConversion {
     public static func precheck(_ path: String, _ installs: OfficeInstalls) -> String? {
         let app = OfficeFiles.appFor(path)
         guard installs.route(path) != nil else { return installs.missing(app) }
-        guard let file = FileHandle(forReadingAtPath: path) else { return "That file couldn't be read." }
+        guard let file = FileHandle(forReadingAtPath: path) else { return loc("That file couldn't be read.") }
         defer { try? file.close() }
         let head = (try? file.read(upToCount: 8)).flatMap { $0 }.map { [UInt8]($0) } ?? []
         if OfficeFiles.isEncryptedOpenXml(head, path) {
-            return "This file is protected with a password. Open it in the app that made it, then save it as PDF there (or save a copy without the password)."
+            return loc("This file is protected with a password. Open it in the app that made it, then save it as PDF there (or save a copy without the password).")
         }
         return nil
     }
@@ -110,7 +109,7 @@ public enum OfficeConversion {
     public static func convert(_ path: String, installs: OfficeInstalls, fromInternetConfirmed: Bool, timeout: TimeInterval = OfficeConversion.timeout, cancel: CancelToken) throws -> [UInt8] {
         if let problem = precheck(path, installs) { throw PdfEditError(problem) }
         if OfficeFiles.isFromInternet(path) && !fromInternetConfirmed {
-            throw PdfEditError("This file came from the internet: confirm before it is opened in the converter.")
+            throw PdfEditError(loc("This file came from the internet: confirm before it is opened in the converter."))
         }
         guard let converter = installs.route(path) else { throw PdfEditError(installs.missing(OfficeFiles.appFor(path))) }
         return try converter.toPdf(path, timeout: timeout, cancel: cancel)
@@ -159,13 +158,13 @@ public struct LibreOfficeConverter: OfficeConverter {
 
     public func toPdf(_ path: String, timeout: TimeInterval, cancel: CancelToken) throws -> [UInt8] {
         try cancel.check()
-        guard path.hasPrefix("/") else { throw PdfEditError("That file couldn't be read.") } // never taken for an option
+        guard path.hasPrefix("/") else { throw PdfEditError(loc("That file couldn't be read.")) } // never taken for an option
         let fm = FileManager.default
         let work: URL
         do {
             work = try ConversionTemp.make(ConversionTemp.officePrefix, root: tempRoot)
         } catch {
-            throw PdfEditError("\(appName) couldn't be started: no temporary folder could be made.")
+            throw PdfEditError(loc("{0} couldn't be started: no temporary folder could be made.", appName))
         }
         defer { ConversionTemp.remove(work) }
         let profile = work.appendingPathComponent("profile", isDirectory: true)
@@ -179,7 +178,7 @@ public struct LibreOfficeConverter: OfficeConverter {
             try Data(Self.profileSettings.utf8).write(to: profile.appendingPathComponent("user/registrymodifications.xcu"))
             guard fm.createFile(atPath: errors.path, contents: nil) else { throw CocoaError(.fileWriteUnknown) }
         } catch {
-            throw PdfEditError("\(appName) couldn't be started: its temporary files couldn't be written.")
+            throw PdfEditError(loc("{0} couldn't be started: its temporary files couldn't be written.", appName))
         }
         var profileUrl = profile.absoluteString
         if profileUrl.hasSuffix("/") { profileUrl.removeLast() }
@@ -196,11 +195,11 @@ public struct LibreOfficeConverter: OfficeConverter {
         case .cancelled:
             throw CancellationError()
         case .timedOut:
-            let limit = timeout >= 60 ? "\(Int(timeout / 60)) minutes" : "\(Int(timeout)) seconds"
-            throw PdfEditError("\(appName) didn't finish within \(limit) (the file may be damaged). It was closed.\(reason)")
+            let limit = timeout >= 60 ? loc("{0} minutes", CoreLanguage.number(Int(timeout / 60))) : loc("{0} seconds", CoreLanguage.number(Int(timeout)))
+            throw PdfEditError(loc("{0} didn't finish within {1} (the file may be damaged). It was closed.", appName, limit) + reason)
         case .exited(let code):
             guard code == 0, let pdf = Self.readPdf(in: out) else {
-                throw PdfEditError("\(appName) couldn't save this file as PDF. A file protected with a password can't be converted here.\(reason)")
+                throw PdfEditError(loc("{0} couldn't save this file as PDF. A file protected with a password can't be converted here.", appName) + reason)
             }
             return pdf
         }
@@ -246,7 +245,7 @@ enum ConverterProcess {
         do {
             try process.run()
         } catch {
-            throw PdfEditError("\(appName) couldn't be started.")
+            throw PdfEditError(loc("{0} couldn't be started.", appName))
         }
         let pid = process.processIdentifier
         // Foundation starts a program as the leader of a new group; only then is the group ours to signal.

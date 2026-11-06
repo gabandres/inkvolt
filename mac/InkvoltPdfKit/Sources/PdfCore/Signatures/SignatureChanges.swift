@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 
 /// What a signature's later incremental updates changed, and whether the signature permits it (the Windows app's
 /// `SignatureChanges`). The signed revision (the file up to the end of the signature's byte range) is compared with the
@@ -66,15 +67,15 @@ enum SignatureChanges {
             if problems.isEmpty { return Analysis(permitted: true, problem: nil, signed: entries) }
             var distinct: [String] = []
             for p in problems where !distinct.contains(p) { distinct.append(p) }
-            let what = distinct.prefix(3).joined(separator: "; ") + (distinct.count > 3 ? "; and more" : "")
+            let what = distinct.prefix(3).joined(separator: "; ") + (distinct.count > 3 ? loc("; and more") : "")
             let problem = switch level {
-            case 1: "The document is certified with no changes allowed, but it was changed after certification: \(what)."
-            case 2, 3: "The document was changed after certification in ways the certification doesn't allow: \(what)."
-            default: "The document was changed after signing in ways a signature doesn't allow: \(what)."
+            case 1: loc("The document is certified with no changes allowed, but it was changed after certification: {0}.", what)
+            case 2, 3: loc("The document was changed after certification in ways the certification doesn't allow: {0}.", what)
+            default: loc("The document was changed after signing in ways a signature doesn't allow: {0}.", what)
             }
             return Analysis(permitted: false, problem: problem, signed: entries)
         } catch {
-            return Analysis(permitted: true, problem: "Inkvolt PDF couldn't work out what was changed after signing.", signed: nil)
+            return Analysis(permitted: true, problem: loc("Inkvolt PDF couldn't work out what was changed after signing."), signed: nil)
         }
     }
 
@@ -151,7 +152,7 @@ enum SignatureChanges {
                 changed(n, objA, objB, ra, rb)
             }
             for (n, an) in ra.annots.sorted(by: { $0.key < $1.key }) where rb.annots[n] == nil {
-                if an.widget { problem("form fields removed") } else if level < 3 { problem("comments removed") }
+                if an.widget { problem(loc("form fields removed")) } else if level < 3 { problem(loc("comments removed")) }
             }
             compareDirectAnnots(ra, rb)
             return problems
@@ -165,7 +166,7 @@ enum SignatureChanges {
                     had.remove(at: i)
                     continue
                 }
-                if annot.widget ? level < SignatureChanges.approval : level < 3 { problem(annot.widget ? "form fields added" : "comments added") }
+                if annot.widget ? level < SignatureChanges.approval : level < 3 { problem(annot.widget ? loc("form fields added") : loc("comments added")) }
             }
             var has = rb.directAnnots.map { ser($0.dict, top: true) }
             for annot in ra.directAnnots {
@@ -173,7 +174,7 @@ enum SignatureChanges {
                     has.remove(at: i)
                     continue
                 }
-                if annot.widget { problem("form fields removed") } else if level < 3 { problem("comments removed") }
+                if annot.widget { problem(loc("form fields removed")) } else if level < 3 { problem(loc("comments removed")) }
             }
         }
 
@@ -181,16 +182,16 @@ enum SignatureChanges {
 
         private func changed(_ n: Int, _ objA: PObj, _ objB: PObj, _ ra: Roles, _ rb: Roles) {
             if let page = ra.content[n] {
-                problem("the content of page \(page + 1)")
+                problem(loc("the content of page {0}", CoreLanguage.number(page + 1)))
             } else if n == ra.catalog {
                 compareCatalog(objA, objB)
             } else if let page = ra.pages[n] {
-                if !same(objA, objB, skip: ["Annots"]) { problem("page \(page + 1) (its size, rotation or resources)") }
+                if !same(objA, objB, skip: ["Annots"]) { problem(loc("page {0} (its size, rotation or resources)", CoreLanguage.number(page + 1))) }
             } else if ra.pageNodes.contains(n) {
-                problem("pages added, removed or moved")
+                problem(loc("pages added, removed or moved"))
             } else if let an = ra.annots[n] {
                 if rb.annots[n] == nil { return } // reported as removed
-                if an.widget { changedField(ra.fieldOf[n], objA, objB, Comparison.widgetKeys) } else if level < 3 { problem("comments changed") }
+                if an.widget { changedField(ra.fieldOf[n], objA, objB, Comparison.widgetKeys) } else if level < 3 { problem(loc("comments changed")) }
             } else if ra.fieldNodes.contains(n) {
                 changedField(ra.fieldOf[n], objA, objB, Comparison.fieldKeys)
             } else if n == ra.acroForm {
@@ -198,23 +199,23 @@ enum SignatureChanges {
             } else if n == ra.names {
                 compareNames(objA, objB)
             } else if ra.sigValues.contains(n) {
-                problem("an earlier signature's details")
+                problem(loc("an earlier signature's details"))
             } else if n == ra.info || ra.arrays.contains(n) || rb.arrays.contains(n) || ra.meta.contains(n) {
                 // permitted
             } else if ra.widgets.contains(n) || rb.widgets.contains(n) {
-                if level < 2 { problem("form field appearances") }
+                if level < 2 { problem(loc("form field appearances")) }
             } else if ra.comments.contains(n) || rb.comments.contains(n) {
-                if level < 3 { problem("comments changed") }
+                if level < 3 { problem(loc("comments changed")) }
             } else if level == SignatureChanges.approval && (ra.harmless.contains(n) || rb.harmless.contains(n)) {
                 // permitted
             } else {
-                problem("other document data")
+                problem(loc("other document data"))
             }
         }
 
         private func added(_ n: Int, _ rb: Roles) {
             if let an = rb.annots[n] {
-                if an.widget { addedField(rb.fieldOf[n]) } else if level < 3 { problem("comments added") }
+                if an.widget { addedField(rb.fieldOf[n]) } else if level < 3 { problem(loc("comments added")) }
             } else if let f = rb.fieldOf[n] {
                 addedField(f)
             }
@@ -226,9 +227,9 @@ enum SignatureChanges {
                 // nothing and is one, not any field that says so, which could lay anything over the page.
                 if let f, let v = FormEditor.inherited(f.dict, "V"), v.isDict, v.name("SubFilter") == "ETSI.RFC3161",
                    Comparison.drawsNothing(f), Signatures.holdsTimestamp(data, v) { return }
-                if level < 3 { problem("signature fields added") }
+                if level < 3 { problem(loc("signature fields added")) }
             } else if level < SignatureChanges.approval {
-                problem("form fields added")
+                problem(loc("form fields added"))
             }
         }
 
@@ -248,13 +249,13 @@ enum SignatureChanges {
             if keys.remove("Ff") != nil && (objB.int("Ff") ?? 0) != ((objA.int("Ff") ?? 0) | 1) { keys.insert("Ff") }
             let name = f?.name ?? "?"
             if keys.contains(where: { !allowed.contains($0) }) {
-                problem("form field \"\(name)\" (its properties)")
+                problem(loc("form field \"{0}\" (its properties)", name))
             } else if keys.isEmpty {
                 return
             } else if level < 2 {
-                problem("form fields filled in")
+                problem(loc("form fields filled in"))
             } else if keys.contains("V") || keys.contains("AS"), let f, f.type != "Sig", locked(f.name) {
-                problem("locked field \"\(name)\"")
+                problem(loc("locked field \"{0}\"", name))
             }
         }
 
@@ -268,10 +269,10 @@ enum SignatureChanges {
                     continue
                 } else {
                     let what = switch key {
-                    case "OCProperties": "which layers are shown"
-                    case "OpenAction", "AA": "what happens when the document opens"
-                    case "Pages": "pages added, removed or moved"
-                    default: "document settings (\(key))"
+                    case "OCProperties": loc("which layers are shown")
+                    case "OpenAction", "AA": loc("what happens when the document opens")
+                    case "Pages": loc("pages added, removed or moved")
+                    default: loc("document settings ({0})", key)
                     }
                     problem(what)
                 }
@@ -280,13 +281,13 @@ enum SignatureChanges {
 
         private func compareAcroForm(_ x: PObj, _ y: PObj) {
             guard x.isDict, y.isDict else { return }
-            if diffKeys(x, y).contains(where: { !Comparison.acroFormKeys.contains($0) }) { problem("form settings (e.g. XFA data)") }
+            if diffKeys(x, y).contains(where: { !Comparison.acroFormKeys.contains($0) }) { problem(loc("form settings (e.g. XFA data)")) }
         }
 
         private func compareNames(_ x: PObj, _ y: PObj) {
             guard x.isDict, y.isDict else { return }
             if level < SignatureChanges.approval || diffKeys(x, y).contains(where: { !Comparison.namesKeys.contains($0) }) {
-                problem("document scripts or named items")
+                problem(loc("document scripts or named items"))
             }
         }
 

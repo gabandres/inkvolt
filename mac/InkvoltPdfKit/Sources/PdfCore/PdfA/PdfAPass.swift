@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension PdfA {
     /// The conversion's walk over the document (Windows' `PdfA.Pass`): fixes what can be fixed in place and collects the
@@ -47,19 +48,29 @@ extension PdfA {
             outputIntent(catalog)
 
             if removedAnnots > 0 {
-                changes.append("\(count(removedAnnots, "comment or field", "comments and fields")) that PDF/A doesn't allow, or without an appearance, removed")
+                changes.append(removedAnnots == 1 ? loc("{0} comment or field that PDF/A doesn't allow, or without an appearance, removed", CoreLanguage.number(removedAnnots))
+                    : loc("{0} comments and fields that PDF/A doesn't allow, or without an appearance, removed", CoreLanguage.number(removedAnnots)))
             }
-            if hiddenAnnots > 0 { changes.append("\(count(hiddenAnnots, "hidden comment", "hidden comments")) removed") }
-            if actions + aa > 0 { changes.append("\(count(actions + aa, "action", "actions")) PDF/A doesn't allow removed") }
-            if images > 0 { changes.append("smoothing and alternate versions PDF/A doesn't allow taken off \(count(images, "picture", "pictures"))") }
-            if lzw > 0 { changes.append("\(count(lzw, "LZW stream", "LZW streams")) re-compressed") }
-            if tr > 0 { changes.append("transfer and halftone functions removed") }
-            if embedded > 0 { changes.append("\(count(embedded, "standard font", "standard fonts")) embedded") }
-            if dingbats > 0 { changes.append("check marks and other ZapfDingbats symbols embedded") }
-            if ocNames > 0 { changes.append("layer configurations named") }
-            if ownMetadata > 0 { changes.append("\(count(ownMetadata, "picture's or page's own metadata packet", "pictures' and pages' own metadata packets")) removed") }
-            if longNames > 0 { changes.append("\(count(longNames, "name", "names")) longer than PDF/A allows shortened") }
-            changes.append("sRGB output intent and PDF/A metadata added")
+            if hiddenAnnots > 0 { changes.append(hiddenAnnots == 1 ? loc("{0} hidden comment removed", CoreLanguage.number(hiddenAnnots)) : loc("{0} hidden comments removed", CoreLanguage.number(hiddenAnnots))) }
+            let removedActions = actions + aa
+            if removedActions > 0 {
+                changes.append(removedActions == 1 ? loc("{0} action PDF/A doesn't allow removed", CoreLanguage.number(removedActions)) : loc("{0} actions PDF/A doesn't allow removed", CoreLanguage.number(removedActions)))
+            }
+            if images > 0 {
+                changes.append(images == 1 ? loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} picture", CoreLanguage.number(images))
+                    : loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} pictures", CoreLanguage.number(images)))
+            }
+            if lzw > 0 { changes.append(lzw == 1 ? loc("{0} LZW stream re-compressed", CoreLanguage.number(lzw)) : loc("{0} LZW streams re-compressed", CoreLanguage.number(lzw))) }
+            if tr > 0 { changes.append(loc("transfer and halftone functions removed")) }
+            if embedded > 0 { changes.append(embedded == 1 ? loc("{0} standard font embedded", CoreLanguage.number(embedded)) : loc("{0} standard fonts embedded", CoreLanguage.number(embedded))) }
+            if dingbats > 0 { changes.append(loc("check marks and other ZapfDingbats symbols embedded")) }
+            if ocNames > 0 { changes.append(loc("layer configurations named")) }
+            if ownMetadata > 0 {
+                changes.append(ownMetadata == 1 ? loc("{0} picture's or page's own metadata packet removed", CoreLanguage.number(ownMetadata))
+                    : loc("{0} pictures' and pages' own metadata packets removed", CoreLanguage.number(ownMetadata)))
+            }
+            if longNames > 0 { changes.append(longNames == 1 ? loc("{0} name longer than PDF/A allows shortened", CoreLanguage.number(longNames)) : loc("{0} names longer than PDF/A allows shortened", CoreLanguage.number(longNames))) }
+            changes.append(loc("sRGB output intent and PDF/A metadata added"))
         }
 
         /// Annotations PDF/A forbids or that wouldn't show are removed; the rest print, and keep only their normal appearance.
@@ -89,7 +100,7 @@ extension PdfA {
                 let hasNormal = ap?["N"] != nil
                 if !hasNormal && subtype != "Popup" && subtype != "Link" && !zero {
                     if subtype == "Widget" {
-                        blockers.append("A form field has no appearance of its own, so it can't be shown the same everywhere.")
+                        blockers.append(loc("A form field has no appearance of its own, so it can't be shown the same everywhere."))
                         continue
                     }
                     annots.remove(at: i)
@@ -136,7 +147,7 @@ extension PdfA {
             let type = d.name("Type")
             if d.isStream {
                 if d.has("F") && (d.has("FFilter") || type == nil && subtype == nil && !d.has("Length")) {
-                    blockers.append("It refers to content in another file (an external stream).")
+                    blockers.append(loc("It refers to content in another file (an external stream)."))
                 }
                 reencodeLzw(d)
             }
@@ -157,11 +168,11 @@ extension PdfA {
                 }
                 if changed { images += 1 }
             case "PS":
-                blockers.append("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow.")
+                blockers.append(loc("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow."))
             case "Form":
                 d.remove("OPI")
                 d.remove("Ref")
-                if d.name("Subtype2") == "PS" { blockers.append("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow.") }
+                if d.name("Subtype2") == "PS" { blockers.append(loc("It holds PostScript code (a PostScript XObject), which PDF/A doesn't allow.")) }
             default:
                 break
             }
@@ -222,7 +233,7 @@ extension PdfA {
             func names(_ op: COp, _ wanted: Set<String>) -> Bool { op.operands.contains { $0.kind == .name && wanted.contains($0.name) } }
             for op in ops {
                 if op.operands.contains(where: { Self.holdsLongName($0) }) {
-                    blockers.append("Its page content uses a name longer than the 127 bytes PDF/A allows.")
+                    blockers.append(loc("Its page content uses a name longer than the 127 bytes PDF/A allows."))
                     return
                 }
                 let setsCmyk = op.name == "k" || op.name == "K"
@@ -233,7 +244,7 @@ extension PdfA {
                     return
                 }
                 if op.name == "BI" && names(op, ["LZW", "LZWDecode"]) {
-                    blockers.append("An inline picture is LZW-compressed, which PDF/A doesn't allow.")
+                    blockers.append(loc("An inline picture is LZW-compressed, which PDF/A doesn't allow."))
                     return
                 }
             }
@@ -256,7 +267,7 @@ extension PdfA {
         func noteDingbats() { dingbats += 1 }
 
         private func cmykBlocker() {
-            blockers.append("It uses CMYK color without a color profile; a PDF/A-2b copy here gets an RGB (sRGB) output intent, so that color can't be kept as it is.")
+            blockers.append(loc("It uses CMYK color without a color profile; a PDF/A-2b copy here gets an RGB (sRGB) output intent, so that color can't be kept as it is."))
         }
 
         static func usesCmyk(_ cs: PObj?, depth: Int = 0) -> Bool {

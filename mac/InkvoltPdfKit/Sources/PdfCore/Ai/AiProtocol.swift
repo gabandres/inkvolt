@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// One chat message: role "system", "user" or "assistant".
 public struct AiMessage: Sendable, Equatable {
@@ -123,10 +124,10 @@ public enum AiProtocol {
     /// - Throws: `AiError` when the answer isn't a model list.
     public static func parseModels(_ json: String) throws -> [String] {
         guard let value = parse(json) else {
-            throw AiError("The endpoint's model list isn't JSON. Is the address right (it usually ends in /v1)?")
+            throw AiError(loc("The endpoint's model list isn't JSON. Is the address right (it usually ends in /v1)?"))
         }
         guard let root = value as? [String: Any], let data = root["data"] as? [Any] else {
-            throw AiError("The endpoint's model list isn't in the OpenAI format. Type the model's name instead.")
+            throw AiError(loc("The endpoint's model list isn't in the OpenAI format. Type the model's name instead."))
         }
         var seen = Set<String>()
         var ids: [String] = []
@@ -199,28 +200,30 @@ public enum AiProtocol {
     /// What an HTTP error status means for the user, with the server's own message when it gives one.
     public static func describeError(_ status: Int, _ serverMessage: String?, _ model: String, _ endpoint: AiEndpoint) -> String {
         let trimmed = AiText.trim(serverMessage ?? "")
-        let said = trimmed.isEmpty ? "" : " The server said: \"\(trimmed)\""
+        let said = trimmed.isEmpty ? "" : " " + loc("The server said: \"{0}\"", trimmed)
         let lower = serverMessage?.lowercased() ?? ""
         let mentionsModel = lower.contains("model")
         let mentionsContext = lower.contains("context") || lower.contains("too long") || lower.contains("tokens")
         switch status {
         case 401, 403:
-            return "\(endpoint.host) refused the request (\(status)): check the API key in Settings › AI assistant.\(said)"
+            return loc("{0} refused the request ({1}): check the API key in Settings › AI assistant.{2}", endpoint.host, status, said)
         case 404 where mentionsModel:
-            let how = endpoint.serverName == "Ollama" ? ", or download it with: ollama pull \(model)." : "."
-            return "The model \"\(model)\" isn't available at \(endpoint.host) (404). Pick another one in Settings › AI assistant\(how)\(said)"
+            if endpoint.serverName == "Ollama" {
+                return loc("The model \"{0}\" isn't available at {1} (404). Pick another one in Settings › AI assistant, or download it with: ollama pull {0}.", model, endpoint.host) + said
+            }
+            return loc("The model \"{0}\" isn't available at {1} (404). Pick another one in Settings › AI assistant.", model, endpoint.host) + said
         case 404:
-            return "Nothing answers at \(endpoint.chatUrl) (404). Check the endpoint address in Settings › AI assistant (it usually ends in /v1).\(said)"
+            return loc("Nothing answers at {0} (404). Check the endpoint address in Settings › AI assistant (it usually ends in /v1).{1}", endpoint.chatUrl, said)
         case 400 where mentionsContext, 413 where mentionsContext:
-            return "The text is too long for the model.\(said) Choose fewer pages, or a smaller context size in Settings › AI assistant."
+            return loc("The text is too long for the model.{0} Choose fewer pages, or a smaller context size in Settings › AI assistant.", said)
         case 400 where mentionsModel:
-            return "\(endpoint.host) doesn't accept the model \"\(model)\".\(said)"
+            return loc("{0} doesn't accept the model \"{1}\".{2}", endpoint.host, model, said)
         case 429:
-            return "\(endpoint.host) is limiting requests (429): wait a moment, or check your plan's quota.\(said)"
+            return loc("{0} is limiting requests (429): wait a moment, or check your plan's quota.{1}", endpoint.host, said)
         case 500...:
-            return "\(endpoint.host) had a problem answering (\(status)).\(said)"
+            return loc("{0} had a problem answering ({1}).{2}", endpoint.host, status, said)
         default:
-            return "\(endpoint.host) refused the request (\(status)).\(said)"
+            return loc("{0} refused the request ({1}).{2}", endpoint.host, status, said)
         }
     }
 
@@ -284,7 +287,7 @@ public final class AiStreamParser {
             data = ""
             dataLength = 0
             dataLines = 0
-            throw AiError("The endpoint sent a streamed chunk too large to be part of an answer.")
+            throw AiError(loc("The endpoint sent a streamed chunk too large to be part of an answer."))
         }
         if !data.isEmpty {
             data += "\n"
@@ -306,7 +309,7 @@ public final class AiStreamParser {
             data = ""
             dataLength = 0
             dataLines = 0
-            throw AiError("The endpoint sent an answer Inkvolt PDF can't read (not OpenAI-compatible streaming).")
+            throw AiError(loc("The endpoint sent an answer Inkvolt PDF can't read (not OpenAI-compatible streaming)."))
         }
         data = ""
         dataLength = 0
@@ -318,7 +321,7 @@ public final class AiStreamParser {
     private func chunk(_ value: Any) throws -> String {
         guard let root = value as? [String: Any] else { return "" }
         if root["error"] != nil, let error = AiProtocol.errorMessageOf(json: root) {
-            throw AiError("The model stopped with an error: \"\(error)\"")
+            throw AiError(loc("The model stopped with an error: \"{0}\"", error))
         }
         guard let choices = root["choices"] as? [Any] else { return "" }
         var text = ""
@@ -340,12 +343,12 @@ public final class AiStreamParser {
     /// - Throws: `AiError` when it isn't a chat completion.
     public static func parseWhole(_ json: String) throws -> (text: String, finishReason: String?) {
         guard let value = AiProtocol.parse(json) else {
-            throw AiError("The endpoint sent an answer Inkvolt PDF can't read (not JSON).")
+            throw AiError(loc("The endpoint sent an answer Inkvolt PDF can't read (not JSON)."))
         }
         let p = AiStreamParser()
         let text = try p.chunk(value)
         guard let root = value as? [String: Any], root["choices"] != nil else {
-            throw AiError("The endpoint's answer isn't an OpenAI-compatible chat completion.")
+            throw AiError(loc("The endpoint's answer isn't an OpenAI-compatible chat completion."))
         }
         return (text, p.finishReason)
     }

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The kinds of form field the form designer places.
 public enum DesignFieldKind: String, CaseIterable, Sendable { case text, checkBox, radio, comboBox, listBox, signature, button }
@@ -76,13 +77,13 @@ public struct DesignField: Equatable, Sendable {
 
     public static func kindName(_ kind: DesignFieldKind) -> String {
         switch kind {
-        case .text: "Text field"
-        case .checkBox: "Check box"
-        case .radio: "Radio button"
-        case .comboBox: "Dropdown"
-        case .listBox: "List box"
-        case .signature: "Signature field"
-        case .button: "Button"
+        case .text: loc("Text field")
+        case .checkBox: loc("Check box")
+        case .radio: loc("Radio button")
+        case .comboBox: loc("Dropdown")
+        case .listBox: loc("List box")
+        case .signature: loc("Signature field")
+        case .button: loc("Button")
         }
     }
 }
@@ -238,25 +239,25 @@ public enum FormDesign {
 
     /// Why `name` can't be a field name, or nil when it can.
     public static func nameProblem(_ name: String) -> String? {
-        if name.allSatisfy(\.isWhitespace) { return "Type a name for the field." }
-        if name.utf16.count > maxNameLength { return "Use at most \(maxNameLength) characters." }
-        if name.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) { return "A field name can't contain tabs or line breaks." }
+        if name.allSatisfy(\.isWhitespace) { return loc("Type a name for the field.") }
+        if name.utf16.count > maxNameLength { return loc("Use at most {0} characters.", CoreLanguage.number(maxNameLength)) }
+        if name.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) { return loc("A field name can't contain tabs or line breaks.") }
         let badPart = name.components(separatedBy: ".").contains { part in
             let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty || trimmed != part
         }
-        if badPart { return "Dots separate the parts of a name (\"address.city\"): a name can't start or end with one, have two in a row, or spaces around one." }
+        if badPart { return loc("Dots separate the parts of a name (\"address.city\"): a name can't start or end with one, have two in a row, or spaces around one.") }
         return nil
     }
 
     /// Why a check box or radio button can't have `value` as its export value, or nil.
     public static func exportValueProblem(_ value: String) -> String? {
-        if value.isEmpty { return "Type the value the button stands for when it's on." }
-        if value == "Off" { return "\"Off\" means not selected; choose another value." }
+        if value.isEmpty { return loc("Type the value the button stands for when it's on.") }
+        if value == "Off" { return loc("\"Off\" means not selected; choose another value.") }
         let allowed = value.unicodeScalars.allSatisfy { s in
             (48...57).contains(s.value) || (65...90).contains(s.value) || (97...122).contains(s.value) || s == "-" || s == "_" || s == "."
         }
-        if value.utf16.count > 60 || !allowed { return "Use letters, digits, '-', '_' and '.' only (at most 60)." }
+        if value.utf16.count > 60 || !allowed { return loc("Use letters, digits, '-', '_' and '.' only (at most 60).") }
         return nil
     }
 
@@ -267,10 +268,10 @@ public enum FormDesign {
         for (other, otherKind) in existing {
             if other == name {
                 if kind == .radio && otherKind == .radio { continue }
-                return "Another field is already named \"\(name)\"."
+                return loc("Another field is already named \"{0}\".", name)
             }
-            if other.hasPrefix(name + ".") { return "\"\(name)\" already groups other fields (such as \"\(other)\")." }
-            if name.hasPrefix(other + ".") { return "\"\(other)\" is a field, so it can't hold \"\(name)\"." }
+            if other.hasPrefix(name + ".") { return loc("\"{0}\" already groups other fields (such as \"{1}\").", name, other) }
+            if name.hasPrefix(other + ".") { return loc("\"{0}\" is a field, so it can't hold \"{1}\".", other, name) }
         }
         return nil
     }
@@ -442,18 +443,18 @@ public enum FormDesign {
             let acro = ensureAcroForm(doc)
             // Find every widget first: positional ids ("p0:3") refer to the document as it was read.
             let targets = try changes.map { change -> (spec: DesignField, page: Int, w: PObj) in
-                guard let found = try Annotations.find(doc, change.id) else { throw PdfEditError("That field is no longer in the document.") }
+                guard let found = try Annotations.find(doc, change.id) else { throw PdfEditError(loc("That field is no longer in the document.")) }
                 return (change, found.page, found.annot)
             }
             for (change, page, w) in targets {
                 var spec = change
                 spec.pageIndex = page
                 let all = try FormEditor.collect(doc, acro)
-                guard let f = all.first(where: { $0.widgets.contains { $0.identity == w.identity } }) else { throw PdfEditError("That isn't a form field.") }
-                guard let kind = kindOf(f) else { throw PdfEditError("That kind of field can't be edited.") }
-                if kind == .signature && FormEditor.inherited(f.dict, "V")?.isDict == true { throw PdfEditError("A signed signature field can't be changed.") }
+                guard let f = all.first(where: { $0.widgets.contains { $0.identity == w.identity } }) else { throw PdfEditError(loc("That isn't a form field.")) }
+                guard let kind = kindOf(f) else { throw PdfEditError(loc("That kind of field can't be edited.")) }
+                if kind == .signature && FormEditor.inherited(f.dict, "V")?.isDict == true { throw PdfEditError(loc("A signed signature field can't be changed.")) }
                 let choices: [DesignFieldKind] = [.comboBox, .listBox]
-                if kind != spec.kind && !(choices.contains(kind) && choices.contains(spec.kind)) { throw PdfEditError("A field can't change its kind.") }
+                if kind != spec.kind && !(choices.contains(kind) && choices.contains(spec.kind)) { throw PdfEditError(loc("A field can't change its kind.")) }
                 let pageObj = doc.page(page)
                 let index = pageObj.array("Annots")?.elements.firstIndex { $0.identity == w.identity } ?? -1
                 try validate(doc, spec, old: describe(doc, pageObj, acro, f, w, page, index))
@@ -507,12 +508,12 @@ public enum FormDesign {
         return try PageEditor.edit(data, password) { doc in
             let acro = ensureAcroForm(doc)
             let targets = try ids.map { id -> (page: Int, annot: PObj) in
-                guard let found = try Annotations.find(doc, id) else { throw PdfEditError("That field is no longer in the document.") }
+                guard let found = try Annotations.find(doc, id) else { throw PdfEditError(loc("That field is no longer in the document.")) }
                 return found
             }
             for (page, w) in targets {
                 let f = try FormEditor.collect(doc, acro).first { $0.widgets.contains { $0.identity == w.identity } }
-                if let f, f.type == "Sig", FormEditor.inherited(f.dict, "V")?.isDict == true { throw PdfEditError("A signed signature field can't be deleted.") }
+                if let f, f.type == "Sig", FormEditor.inherited(f.dict, "V")?.isDict == true { throw PdfEditError(loc("A signed signature field can't be deleted.")) }
                 let annots = doc.annots(doc.page(page))
                 for i in stride(from: annots.count - 1, through: 0, by: -1) where annots[i]?.identity == w.identity { annots.remove(at: i) }
                 guard let f else { continue }
@@ -573,13 +574,13 @@ public enum FormDesign {
     /// keep a name, value or size Inkvolt PDF wouldn't make, and still be moved.
     private static func validate(_ doc: MuDoc, _ spec: DesignField, old: DesignField? = nil) throws {
         let pageCount = try doc.pageCount()
-        if spec.pageIndex < 0 || spec.pageIndex >= pageCount { throw PdfEditError("That page isn't in the document.") }
+        if spec.pageIndex < 0 || spec.pageIndex >= pageCount { throw PdfEditError(loc("That page isn't in the document.")) }
         let resized = old.map { abs($0.rect.width - spec.rect.width) > 0.01 || abs($0.rect.height - spec.rect.height) > 0.01 } ?? true
-        if resized && (spec.rect.width < 4 || spec.rect.height < 4) { throw PdfEditError("A field needs to be at least 4 points wide and high.") }
+        if resized && (spec.rect.width < 4 || spec.rect.height < 4) { throw PdfEditError(loc("A field needs to be at least 4 points wide and high.")) }
         if old == nil, let problem = nameProblem(spec.name) { throw PdfEditError(problem) }
         if spec.kind == .checkBox || spec.kind == .radio, spec.exportValue != old?.exportValue, let bad = exportValueProblem(spec.exportValue) { throw PdfEditError(bad) }
-        if spec.kind == .comboBox || spec.kind == .listBox, spec.options != old?.options ?? [], spec.options.contains("") { throw PdfEditError("A choice can't be empty.") }
-        if !spec.optionLabels.isEmpty && spec.optionLabels.count != spec.options.count { throw PdfEditError("Each choice needs its own text.") }
+        if spec.kind == .comboBox || spec.kind == .listBox, spec.options != old?.options ?? [], spec.options.contains("") { throw PdfEditError(loc("A choice can't be empty.")) }
+        if !spec.optionLabels.isEmpty && spec.optionLabels.count != spec.options.count { throw PdfEditError(loc("Each choice needs its own text.")) }
     }
 
     /// The catalog's /AcroForm (made if missing) with /Fields, /DR fonts and /DA; a hybrid form's XFA goes, since XFA
@@ -681,7 +682,7 @@ public enum FormDesign {
     private static func requireFreeValue(_ group: PObj, _ w: PObj, _ spec: DesignField) throws {
         guard group.identity != w.identity, let kids = group.array("Kids") else { return }
         if kids.elements.contains(where: { $0.isDict && $0.identity != w.identity && FormEditor.onStateOf($0) == spec.exportValue }) {
-            throw PdfEditError("Another button of \"\(spec.name)\" already stands for \"\(spec.exportValue)\": give this one a value of its own.")
+            throw PdfEditError(loc("Another button of \"{0}\" already stands for \"{1}\": give this one a value of its own.", spec.name, spec.exportValue))
         }
     }
 

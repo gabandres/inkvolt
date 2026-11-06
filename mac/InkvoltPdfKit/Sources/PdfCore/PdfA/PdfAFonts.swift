@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension PdfA.Pass {
     func fonts() {
@@ -21,7 +22,7 @@ extension PdfA.Pass {
             if subtype == "Type3" { continue }
             if subtype == "Type0" {
                 if !Self.isEmbedded(font.array("DescendantFonts")?[0]?.dict("FontDescriptor")) {
-                    block("The font \(Self.fontName(font)) isn't embedded, and only the standard fonts can be embedded here.")
+                    block(loc("The font {0} isn't embedded, and only the standard fonts can be embedded here.", Self.fontName(font)))
                 }
                 continue
             }
@@ -68,9 +69,9 @@ extension PdfA.Pass {
         let subtype = font.name("Subtype")
         let name = font.name("BaseFont") ?? ""
         if Self.isDingbats(name) { return embedDingbats(font) }
-        let notEmbedded = "The font \(Self.fontName(font)) isn't embedded, and only the standard Helvetica, Times, Courier and ZapfDingbats faces can be embedded here."
+        let notEmbedded = loc("The font {0} isn't embedded, and only the standard Helvetica, Times, Courier and ZapfDingbats faces can be embedded here.", Self.fontName(font))
         guard subtype == "Type1" || subtype == "TrueType" || subtype == "MMType1", let std = PdfA.standardFace(name) else { return notEmbedded }
-        guard let ttf = std.metrics, let fileData = ttf.fileData else { return "The font \(Self.fontName(font)) isn't embedded, and the Mac's matching font isn't installed." }
+        guard let ttf = std.metrics, let fileData = ttf.fileData else { return loc("The font {0} isn't embedded, and the Mac's matching font isn't installed.", Self.fontName(font)) }
 
         // The original code → glyph name map (its encoding, else StandardEncoding as the standard fonts have).
         let names = Self.glyphNames(font)
@@ -94,7 +95,7 @@ extension PdfA.Pass {
                 let w = own.num(i)
                 if code < 0 || code > 255 || unicodes[code] == 0 || w <= 0 { continue }
                 if abs(w - ttf.advance(unicodes[code]) * 1000) > 20 {
-                    return "The font \(Self.fontName(font)) isn't embedded, and its letter widths differ from \(Self.faceName(std)), so the text would move."
+                    return loc("The font {0} isn't embedded, and its letter widths differ from {1}, so the text would move.", Self.fontName(font), Self.faceName(std))
                 }
             }
         }
@@ -184,13 +185,13 @@ extension PdfA.Pass {
         let name = Self.fontName(font)
         let subtype = font.name("Subtype")
         if subtype != "Type1" && subtype != "TrueType" && subtype != "MMType1" || font.has("Encoding") {
-            return "The font \(name) isn't embedded, and it has an encoding of its own, so its symbols can't be matched."
+            return loc("The font {0} isn't embedded, and it has an encoding of its own, so its symbols can't be matched.", name)
         }
         guard let ttf = SystemFonts.get("ZapfDingbats.ttf"), let fileData = ttf.fileData else {
-            return "The font \(name) isn't embedded, and macOS's ZapfDingbats, which has its symbols, isn't installed."
+            return loc("The font {0} isn't embedded, and macOS's ZapfDingbats, which has its symbols, isn't installed.", name)
         }
         guard TrueTypeSubset.allowsEmbedding(fileData) else {
-            return "The font \(name) isn't embedded, and macOS's ZapfDingbats doesn't allow embedding."
+            return loc("The font {0} isn't embedded, and macOS's ZapfDingbats doesn't allow embedding.", name)
         }
         var unicodes = (0..<256).map { c -> UInt32 in
             let u = Self.dingbatUnicode(c)
@@ -204,14 +205,14 @@ extension PdfA.Pass {
                 let w = own.num(i)
                 if code < 0 || code > 255 || unicodes[code] == 0 || w <= 0 { continue }
                 if abs(w - ttf.advance(unicodes[code]) * 1000) > 20 {
-                    return "The font \(name) isn't embedded, and its symbols' widths differ from macOS's ZapfDingbats, so they would move."
+                    return loc("The font {0} isn't embedded, and its symbols' widths differ from macOS's ZapfDingbats, so they would move.", name)
                 }
             }
         }
         let codes = (0..<256).filter { unicodes[$0] > 0 }
         guard let program = TrueTypeSubset.subset(fileData, codes.map { (UInt32(0xF000 + $0), ttf.glyphOf(unicodes[$0])) }, symbolic: true),
               let first = codes.first, let last = codes.last else {
-            return "The font \(name) isn't embedded, and macOS's ZapfDingbats couldn't be cut down to its symbols."
+            return loc("The font {0} isn't embedded, and macOS's ZapfDingbats couldn't be cut down to its symbols.", name)
         }
         let file = doc.addStream(program, dict: doc.dict([("Length1", doc.int(program.count))]), deflate: true)
         let baseFont = "\(Self.tag(name + codes.map(String.init).joined(separator: ",")))+ZapfDingbatsITC"

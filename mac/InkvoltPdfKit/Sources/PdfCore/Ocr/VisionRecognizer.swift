@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import PrintCore
 import Vision
 
 /// Text recognition with Apple's Vision, on this Mac (nothing leaves it), as Inkvolt Print's searchable scans
@@ -22,7 +23,7 @@ public struct VisionRecognizer: TextRecognizer {
 
     public func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
         try cancel.check()
-        guard let cg = Self.cgImage(image) else { throw PdfEngineError(message: "The page image can't be read for text recognition.") }
+        guard let cg = Self.cgImage(image) else { throw PdfEngineError(message: loc("The page image can't be read for text recognition.")) }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
@@ -38,7 +39,7 @@ public struct VisionRecognizer: TextRecognizer {
             try handler.perform([request])
         } catch {
             try cancel.check()
-            throw PdfEngineError(message: "Text recognition failed: \(error.localizedDescription)")
+            throw PdfEngineError(message: loc("Text recognition failed: {0}", error.localizedDescription))
         }
         try cancel.check()
 

@@ -24,6 +24,14 @@ struct UxWordsTests {
         #expect(ErrorWords.plain(description: "  ") == ErrorWords.fallback)
     }
 
+    /// Foundation's generic sentence is in the Mac's language; its "(Module.Type error N.)" tail is not.
+    @Test func A_debug_description_in_any_language_becomes_the_fallback() {
+        #expect(ErrorWords.plain(description: "No se pudo completar la operación. (InkvoltPdf.FooError error 4.)") == ErrorWords.fallback)
+        #expect(ErrorWords.plain(description: "L’opération n’a pas pu s’achever. (NSCocoaErrorDomain error 513.)") == ErrorWords.fallback)
+        #expect(ErrorWords.plain(description: "The operation couldn’t be completed. (Foo error -12.)") == ErrorWords.fallback)
+        #expect(ErrorWords.plain(description: "Page 3 has an error (see the note).") == "Page 3 has an error (see the note).")
+    }
+
     @Test func A_dump_keeps_a_plain_reason_when_there_is_one() {
         #expect(ErrorWords.plain(description: "The operation couldn’t be completed. (Foo error 2.)", reason: "The disk is full.") == "The disk is full.")
     }
@@ -46,9 +54,9 @@ struct UxWordsTests {
         #expect(PlainWords.entries.count == 6)
         for e in PlainWords.entries {
             for word in PlainWords.jargon {
-                #expect(!e.note.localizedCaseInsensitiveContains(word), "\(e.name): \(word)")
+                #expect(!e.note.english.localizedCaseInsensitiveContains(word), "\(e.name): \(word)")
             }
-            #expect(e.note.hasSuffix("."))
+            #expect(e.note.english.hasSuffix("."))
             #expect(e.proposed != e.name)
         }
         #expect(PlainWords.note(for: "Flatten…") != nil)

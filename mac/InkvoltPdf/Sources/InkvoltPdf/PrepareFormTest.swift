@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E5 (`--edit`, on the synthetic text document before `SignTest` signs it;
 /// `--only-prepare-form` runs it alone): Prepare Form from its menu command, each field kind placed through the page view's
@@ -123,7 +124,7 @@ struct PrepareFormTest {
         pick(1)
         await drag(PointD(72, 72), PointD(272, 94))
         check(design.toolControl.selectedSegment == 0 && field("Text1")?.rect.width.rounded() == 200 && design.model.selectedField?.name == "Text1"
-                && design.titleLabel.stringValue == "Text field · page 1" && !design.fieldGroup.isHidden,
+                && design.titleLabel.stringValue == loc("{0} · page {1}", loc("Text field"), 1) && !design.fieldGroup.isHidden,
               "a drag places a text field, selects it and fills the panel")
         pick(2)
         await click(PointD(72, 110))
@@ -214,7 +215,7 @@ struct PrepareFormTest {
 
         // A check box and a radio button.
         await click(PointD(78, 116))
-        check(!design.exportGroup.isHidden && design.defaultCheck.title == "Checked by default", "a check box shows its value")
+        check(!design.exportGroup.isHidden && design.defaultCheck.title == loc("Checked by default"), "a check box shows its value")
         await type(design.exportField, "Agreed")
         await toggle(design.defaultCheck)
         f = field("Check Box1")
@@ -300,12 +301,12 @@ struct PrepareFormTest {
             FieldSuggestion(pageIndex: 0, rect: RectD(72, y, 150, 20), kind: kind, name: name, multiline: false, source: "line")
         }
         design.showSuggestions([suggestion("Alpha", 330), suggestion("Beta", 360), suggestion("Gamma", 390), suggestion("Delta", 420)])
-        check(!design.allGroup.isHidden && design.suggestionCount.stringValue.hasPrefix("4 suggested"), "suggestions show in the panel")
+        check(!design.allGroup.isHidden && design.suggestionCount.stringValue == loc("{0} suggested fields (dashed on the page).", CoreLanguage.number(4)), "suggestions show in the panel")
         design.selectSuggestion(0)
         snapshot("prepare-form-suggestions.png")
         design.selectSuggestion(-1)
         await click(PointD(100, 340))
-        check(design.model.selectedSuggestion?.name == "Alpha" && !design.suggestionGroup.isHidden && design.suggestionSource.stringValue == "Found from a line to write on.", "a click selects one")
+        check(design.model.selectedSuggestion?.name == "Alpha" && !design.suggestionGroup.isHidden && design.suggestionSource.stringValue == loc("Found from a line to write on."), "a click selects one")
         await type(design.suggestionName, "Alpha two")
         await choose(design.suggestionKind, 1)
         check(design.model.selectedSuggestion?.name == "Alpha two" && design.model.selectedSuggestion?.multiline == true, "its name and kind can change")

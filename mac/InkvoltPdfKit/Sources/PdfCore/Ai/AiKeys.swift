@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Security
 
 /// The API key being edited in Settings › AI assistant, tied to one endpoint. A typed key, or "remove the saved key",
@@ -111,7 +112,7 @@ public struct AiKeychainStore: AiKeyStore, @unchecked Sendable {
 
     /// The status number only, never the key.
     private static func notSaved(_ status: OSStatus) -> AiError {
-        AiError("The API key couldn't be saved in your keychain (error \(status)).")
+        AiError(loc("The API key couldn't be saved in your keychain (error {0}).", status))
     }
 }
 

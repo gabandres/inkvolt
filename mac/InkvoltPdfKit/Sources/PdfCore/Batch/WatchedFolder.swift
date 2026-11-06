@@ -60,7 +60,7 @@ public struct WatchSummary: Equatable, Sendable {
 /// The folder is watched already (by the app or a command line): two watchers would race for its files.
 public struct FolderWatched: Error, Equatable, Sendable, CustomStringConvertible {
     public var folder: String
-    public var description: String { "\(folder) is already watched by another Inkvolt PDF (the app or a command line). Stop that one first." }
+    public var description: String { loc("{0} is already watched by another Inkvolt PDF (the app or a command line). Stop that one first.", folder) }
 }
 
 /// A watched folder (the Windows app's `WatchedFolder`): each PDF or image that lands in the folder (not its subfolders)
@@ -82,11 +82,11 @@ public enum WatchedFolder {
 
     /// What is wrong with watching `folder` into `outputFolder`, or nil.
     public static func validate(_ folder: String, _ outputFolder: String) -> String? {
-        if folder.trimmingCharacters(in: .whitespaces).isEmpty || !folder.hasPrefix("/") { return "Choose the folder to watch." }
+        if folder.trimmingCharacters(in: .whitespaces).isEmpty || !folder.hasPrefix("/") { return loc("Choose the folder to watch.") }
         var isDir: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: folder, isDirectory: &isDir) || !isDir.boolValue { return "There is no folder \(folder)." }
+        if !FileManager.default.fileExists(atPath: folder, isDirectory: &isDir) || !isDir.boolValue { return loc("There is no folder {0}.", folder) }
         if trimmed(folder).lowercased() == trimmed(outputFolder).lowercased() {
-            return "The results can't go into the watched folder itself (they would be picked up again): use a subfolder such as \"results\", or another folder."
+            return loc("The results can't go into the watched folder itself (they would be picked up again): use a subfolder such as \"results\", or another folder.")
         }
         return nil
     }
@@ -123,7 +123,7 @@ public enum WatchedFolder {
         // A run that never finished: its files go to "failed", not through again.
         for left in ((try? fm.contentsOfDirectory(atPath: working)) ?? []).filter({ !$0.hasPrefix(".") }).sorted(by: { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }) {
             let entry = finish(folder, (working as NSString).appendingPathComponent(left), left, .failed,
-                               "Interrupted: Inkvolt PDF closed while working on it. Put it back in the folder to run it again.", [])
+                               loc("Interrupted: Inkvolt PDF closed while working on it. Put it back in the folder to run it again."), [])
             failed += 1
             progress?(WatchProgress(working: 0, finished: entry))
         }
@@ -228,10 +228,10 @@ public enum WatchedFolder {
             var message = r.notes.isEmpty ? r.message : "\(r.message) (\(r.notes.joined(separator: "; ")))"
             let entry: WatchEntry
             if r.state == .cancelled && r.outputs.isEmpty {
-                entry = finish(folder, path, name, r.state, "Stopped before it was done: left in the folder for next time", [], back: true)
+                entry = finish(folder, path, name, r.state, loc("Stopped before it was done: left in the folder for next time"), [], back: true)
             } else {
                 let state: BatchItemState = r.state == .cancelled ? .failed : r.state
-                if r.state == .cancelled { message = "Stopped part-way (some results were written)" }
+                if r.state == .cancelled { message = loc("Stopped part-way (some results were written)") }
                 entry = finish(folder, path, name, state, message, r.outputs)
                 if state == .done { done += 1 } else { failed += 1 }
             }
@@ -258,7 +258,7 @@ public enum WatchedFolder {
                 Thread.sleep(forTimeInterval: 0.1) // briefly held (a virus scanner reading it): try again
             }
         }
-        if moved == nil && FileManager.default.fileExists(atPath: path) { message += " (the original stays in \(workingFolder): it couldn't be moved)" }
+        if moved == nil && FileManager.default.fileExists(atPath: path) { message += " " + loc("(the original stays in {0}: it couldn't be moved)", workingFolder) }
         let entry = WatchEntry(time: Date(), fileName: name, state: state, message: message, outputs: outputs, movedTo: moved)
         appendLog(folder, entry.logLine)
         return entry
@@ -299,7 +299,7 @@ public enum WatchedFolder {
             guard let held = try FileLock.hold(path, create: true, deleteOnRelease: true) else { throw FolderWatched(folder: folder) }
             return held
         } catch let e as POSIXError {
-            throw PdfEditError("The folder can't be watched: \(String(cString: strerror(e.code.rawValue))).")
+            throw PdfEditError(loc("The folder can't be watched: {0}.", String(cString: strerror(e.code.rawValue))))
         }
     }
 }

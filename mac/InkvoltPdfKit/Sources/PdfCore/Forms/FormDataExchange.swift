@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The form data formats the app's Export and Import Form Data commands read and write (`FormDataFiles`; a submit and
 /// Batch write XFDF and FDF only).
@@ -9,10 +10,10 @@ extension FormEditor {
     /// empty or off), as the ResetForm action does; then the calculations run and the changed fields are drawn again.
     /// The data comes back unchanged when nothing was reset.
     public static func resetForm(_ data: [UInt8], _ password: String?, fields names: [String]? = nil) throws -> [UInt8] {
-        let doc = try PdfEdit.open(data, password, failure: "This PDF's form can't be read")
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
-        if fields.isEmpty { throw PdfEditError("This PDF has no fillable form.") }
+        if fields.isEmpty { throw PdfEditError(loc("This PDF has no fillable form.")) }
         let runner = FormActionRunner(doc, acro, fields, nil, data, password: password, xmp: Xmp.read(doc))
         runner.reset(names, exclude: false)
         return try runner.finish().data ?? data
@@ -25,7 +26,7 @@ extension FormEditor {
         let doc = try PdfEdit.openToRead(data, password)
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
-        if fields.isEmpty { throw PdfEditError("This PDF has no fillable form.") }
+        if fields.isEmpty { throw PdfEditError(loc("This PDF has no fillable form.")) }
         let runner = FormActionRunner(doc, acro, fields, nil, data, password: password, xmp: nil, readOnly: true)
         let entries = runner.entries(nil, exclude: false, includeEmpty: false)
         return format == .xfdf ? FormData.xfdf(entries, file) : FormData.fdf(entries, file)
@@ -41,10 +42,10 @@ extension FormEditor {
         case .csv, .json:
             values = try FormDataFiles.readValues(file)
         case .fdf, .xfdf:
-            guard let parsed = FormData.parse(file) else { throw PdfEditError("That file isn't FDF or XFDF form data.") }
+            guard let parsed = FormData.parse(file) else { throw PdfEditError(loc("That file isn't FDF or XFDF form data.")) }
             for (name, list) in parsed where !list.isEmpty { values[name] = list.count == 1 ? list[0] : list.joined(separator: "\n") }
         }
-        if values.isEmpty { throw PdfEditError("That file has no field values.") }
+        if values.isEmpty { throw PdfEditError(loc("That file has no field values.")) }
         return try fill(data, password, values, host: host)
     }
 }

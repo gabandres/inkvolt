@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The controls of a dialog (an alert's accessory view), laid out as the HIG's sheets are: one column of labels, right
 /// aligned with a colon, then the controls; the settings most people change in sight, the rest behind a "More Options"
@@ -10,7 +11,7 @@ final class SheetForm: NSObject {
     private let grid = NSGridView(numberOfColumns: 2, rows: 0)
     private var advanced: [NSGridRow] = []
     private let toggle = NSButton()
-    private let toggleLabel = NSTextField(labelWithString: "More Options")
+    private let toggleLabel = NSTextField(labelWithString: loc("More Options"))
     private weak var alert: NSAlert?
     /// The UserDefaults key that keeps the triangle open or closed (each dialog its own).
     private let key: String
@@ -74,7 +75,7 @@ final class SheetForm: NSObject {
             toggle.state = isOpen ? .on : .off
             toggle.target = self
             toggle.action = #selector(toggled)
-            toggle.setAccessibilityLabel("More Options")
+            toggle.setAccessibilityLabel(loc("More Options"))
             toggleLabel.textColor = .secondaryLabelColor
             let click = NSClickGestureRecognizer(target: self, action: #selector(labelClicked))
             toggleLabel.addGestureRecognizer(click)

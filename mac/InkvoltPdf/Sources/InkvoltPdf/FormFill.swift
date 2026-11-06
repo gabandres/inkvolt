@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// Filling a document's form on the pages (the Windows app's PageViewer.Forms and FormActions.Tab): the fields are
@@ -106,7 +107,7 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         switch w.kind {
         case .checkBox:
             guard let on = w.onState else {
-                controller?.notify("This check box can't be changed: the form doesn't define its checked look.")
+                controller?.notify(loc("This check box can't be changed: the form doesn't define its checked look."))
                 return
             }
             write(w.fieldName, w.value == on ? "Off" : on)
@@ -179,12 +180,12 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
     static func spoken(_ w: FormWidget) -> String {
         let kind: String
         switch w.kind {
-        case .text: kind = "text field"
-        case .checkBox: kind = w.value == w.onState ? "check box, checked" : "check box, not checked"
-        case .radio: kind = w.value == w.onState ? "radio button, selected" : "radio button"
-        case .choice: kind = "choice"
-        case .pushButton: kind = "button"
-        case .signature: kind = "signature field"
+        case .text: kind = loc("text field")
+        case .checkBox: kind = w.value == w.onState ? loc("check box, checked") : loc("check box, not checked")
+        case .radio: kind = w.value == w.onState ? loc("radio button, selected") : loc("radio button")
+        case .choice: kind = loc("choice")
+        case .pushButton: kind = loc("button")
+        case .signature: kind = loc("signature field")
         }
         return "\(w.fieldName), \(kind)"
     }
@@ -459,7 +460,9 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
             guard let self, let editor = self.editor else { return }
             guard let r = await editor.formAction(w, trigger, host: self.host) else { return }
             for a in Array(Set(r.alerts)).prefix(3) { self.controller?.notify(a) }
-            if r.needsPermission { self.controller?.notify("This form is protected: its buttons can't change fields until the permissions password is entered.") }
+            if r.needsPermission {
+                self.controller?.notify(loc("This form is protected: its buttons can't change fields until the permissions password is entered."))
+            }
             if let name = r.focusField, let target = self.fillable.first(where: { $0.fieldName == name }) { self.focus(target, open: true) }
         }
     }
@@ -477,16 +480,16 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         guard hasFields || !widgets.isEmpty else { return NSSound.beep() }
         if !Report.isRunning {
             let alert = NSAlert()
-            alert.messageText = "Reset the form?"
-            alert.informativeText = "Every field goes back to its default value. You can undo this."
-            alert.addButton(withTitle: "Reset")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Reset the form?")
+            alert.informativeText = loc("Every field goes back to its default value. You can undo this.")
+            alert.addButton(withTitle: loc("Reset"))
+            alert.addButton(withTitle: loc("Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         commitEditor()
         pendingWrite = Task { [weak self] in
             guard let self, let editor = self.editor else { return }
-            if await editor.resetForm() { self.controller?.notify("The form was reset.") }
+            if await editor.resetForm() { self.controller?.notify(loc("The form was reset.")) }
             self.pendingWrite = nil
         }
     }
@@ -497,10 +500,10 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         do {
             let bytes = try FormDataFiles.export(session.data, session.password, format, pdfFileName: session.displayName)
             try Data(bytes).write(to: url, options: .atomic)
-            controller?.notify("Form data exported to \(url.lastPathComponent).")
+            controller?.notify(loc("Form data exported to {0}.", url.lastPathComponent))
             return true
         } catch {
-            controller?.pdf.showError("The form data couldn't be exported.", error)
+            controller?.pdf.showError(loc("The form data couldn't be exported."), error)
             return false
         }
     }
@@ -515,16 +518,17 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         let (_, result) = await editor.importFormData(bytes, host: host)
         guard let result else { return nil }
         if !result.rejected.isEmpty { reload() }
-        let summary = "\(DocumentWindowController.commentCount(result.filled, "value was", "values were")) filled in."
+        let summary = result.filled == 1 ? loc("{0} value was filled in.", 1) : loc("{0} values were filled in.", CoreLanguage.number(result.filled))
         if result.rejected.isEmpty && result.unknown.isEmpty && result.notes.isEmpty {
             controller?.notify(summary, canUndo: result.filled > 0)
         } else {
-            var lines = result.rejected.map { $0.message.isEmpty ? "\($0.fieldName): refused by the form" : $0.message }
+            var lines = result.rejected.map { $0.message.isEmpty ? loc("{0}: refused by the form", $0.fieldName) : $0.message }
             if !result.unknown.isEmpty {
-                lines.append("Not fields of this form: " + result.unknown.prefix(30).joined(separator: ", ") + (result.unknown.count > 30 ? ", …" : ""))
+                let names = result.unknown.prefix(30).joined(separator: ", ") + (result.unknown.count > 30 ? ", …" : "")
+                lines.append(loc("Not fields of this form: {0}", names))
             }
-            controller?.infoSheet("Form Data Imported", ([summary] + result.notes).joined(separator: "\n\n"),
-                                  list: lines.isEmpty ? nil : lines.joined(separator: "\n"), listName: "Values not filled in")
+            controller?.infoSheet(loc("Form Data Imported"), ([summary] + result.notes).joined(separator: "\n\n"),
+                                  list: lines.isEmpty ? nil : lines.joined(separator: "\n"), listName: loc("Values not filled in"))
         }
         return result
     }
@@ -557,7 +561,7 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
             alert.messageText = message
             alert.informativeText = detail
             alert.addButton(withTitle: button)
-            alert.addButton(withTitle: "Don't Allow")
+            alert.addButton(withTitle: loc("Don't Allow"))
             return alert.runModal() == .alertFirstButtonReturn
         }
     }
@@ -574,14 +578,15 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
 
     func openUrl(_ url: String) -> Bool {
         guard let u = URL(string: url), ["http", "https", "mailto"].contains(u.scheme?.lowercased() ?? "") else { return false }
-        guard confirm("This form wants to open a web address.", url, "Open") else { return false }
+        guard confirm(loc("This form wants to open a web address."), url, loc("Open")) else { return false }
         return onMainSync { NSWorkspace.shared.open(u) }
     }
 
     func submit(_ submission: FormSubmission) -> Bool {
         guard let u = URL(string: submission.url), ["http", "https"].contains(u.scheme?.lowercased() ?? "") else { return false }
-        let what = submission.fieldCount == 1 ? "1 field" : "\(submission.fieldCount) fields"
-        guard confirm("This form wants to send its data (\(what)).", "To \(submission.url)", "Send") else { return false }
+        let question = submission.fieldCount == 1 ? loc("This form wants to send its data (1 field).")
+            : loc("This form wants to send its data ({0} fields).", CoreLanguage.number(submission.fieldCount))
+        guard confirm(question, loc("To {0}", context: "email recipient", submission.url), loc("Send")) else { return false }
         var request = URLRequest(url: u)
         request.httpMethod = submission.method
         request.setValue(submission.contentType, forHTTPHeaderField: "Content-Type")
@@ -591,7 +596,9 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
     }
 
     func mail(_ mail: FormMail) -> Bool {
-        guard confirm("This form wants to start an email.", "To \(mail.to.isEmpty ? "(nobody yet)" : mail.to)", "Write Email") else { return false }
+        guard confirm(loc("This form wants to start an email."), loc("To {0}", context: "email recipient", mail.to.isEmpty ? loc("(nobody yet)") : mail.to), loc("Write Email")) else {
+            return false
+        }
         var parts = URLComponents()
         parts.scheme = "mailto"
         parts.path = mail.to
@@ -621,22 +628,22 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
         return onMainSync {
             if Report.isRunning { return 1 }
             let a = NSAlert()
-            a.messageText = alert.title.isEmpty ? "The form says:" : alert.title
+            a.messageText = alert.title.isEmpty ? loc("The form says:") : alert.title
             a.informativeText = alert.message
             a.alertStyle = alert.icon == 0 ? .critical : alert.icon == 1 ? .warning : .informational
             switch alert.buttons {
             case 1:
-                a.addButton(withTitle: "OK")
-                a.addButton(withTitle: "Cancel")
+                a.addButton(withTitle: loc("OK"))
+                a.addButton(withTitle: loc("Cancel"))
                 return a.runModal() == .alertFirstButtonReturn ? 1 : 2
             case 2, 3:
-                a.addButton(withTitle: "Yes")
-                a.addButton(withTitle: "No")
-                if alert.buttons == 3 { a.addButton(withTitle: "Cancel") }
+                a.addButton(withTitle: loc("Yes"))
+                a.addButton(withTitle: loc("No"))
+                if alert.buttons == 3 { a.addButton(withTitle: loc("Cancel")) }
                 let r = a.runModal()
                 return r == .alertFirstButtonReturn ? 4 : r == .alertSecondButtonReturn ? 3 : 2
             default:
-                a.addButton(withTitle: "OK")
+                a.addButton(withTitle: loc("OK"))
                 a.runModal()
                 return 1
             }
@@ -648,14 +655,14 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
         return onMainSync {
             if Report.isRunning { return nil }
             let a = NSAlert()
-            a.messageText = prompt.title.isEmpty ? "The form asks:" : prompt.title
+            a.messageText = prompt.title.isEmpty ? loc("The form asks:") : prompt.title
             a.informativeText = prompt.question
             let field: NSTextField = prompt.password ? NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
                 : NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
             field.stringValue = prompt.defaultText
             a.accessoryView = field
-            a.addButton(withTitle: "OK")
-            a.addButton(withTitle: "Cancel")
+            a.addButton(withTitle: loc("OK"))
+            a.addButton(withTitle: loc("Cancel"))
             a.window.initialFirstResponder = field
             return a.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
         }
@@ -663,7 +670,7 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
 
     func openRemote(_ path: String, _ page: Int) -> Bool {
         guard let url = resolve(path), url.pathExtension.lowercased() == "pdf" else { return false }
-        guard confirm("This form wants to open another PDF.", url.lastPathComponent, "Open") else { return false }
+        guard confirm(loc("This form wants to open another PDF."), url.lastPathComponent, loc("Open")) else { return false }
         return onMainSync {
             NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { _, _, _ in }
             return true
@@ -675,7 +682,7 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
         // Never a program: only documents, opened in their own app.
         let refused = ["app", "command", "sh", "tool", "pkg", "dmg", "terminal", "scpt", "workflow"]
         if refused.contains(url.pathExtension.lowercased()) || FileManager.default.isExecutableFile(atPath: url.path) { return false }
-        guard confirm("This form wants to open a file.", url.lastPathComponent, "Open") else { return false }
+        guard confirm(loc("This form wants to open a file."), url.lastPathComponent, loc("Open")) else { return false }
         return onMainSync { NSWorkspace.shared.open(url) }
     }
 
@@ -685,7 +692,7 @@ final class AppFormHost: FormActionHost, @unchecked Sendable {
     }
 
     func importData(_ suggestedPath: String?) -> [UInt8]? {
-        guard confirm("This form wants to import form data from a file.", "You choose the file.", "Choose File") else { return nil }
+        guard confirm(loc("This form wants to import form data from a file."), loc("You choose the file."), loc("Choose File")) else { return nil }
         return onMainSync {
             let panel = NSOpenPanel()
             panel.allowedContentTypes = FormDataPanel.types

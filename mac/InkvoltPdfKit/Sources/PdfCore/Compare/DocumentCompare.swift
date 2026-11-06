@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A word (or a punctuation mark) of a page: UTF-16 units [start, end) of its `PageText.text`, and the key it is
 /// compared by.
@@ -196,19 +197,28 @@ public struct CompareResult: Sendable {
     /// "3 text changes (1 inserted, 2 changed); 1 page removed; 2 pages without text": one line for the toolbar and the
     /// report.
     public func summary() -> String {
-        if identical { return "No differences in the text" }
-        func count(_ n: Int, _ what: String) -> String { n == 1 ? "1 \(what)" : "\(n) \(what)s" }
+        if identical { return loc("No differences in the text") }
         var parts: [String] = []
         let text = inserted + deleted + changed
         if text > 0 {
-            let kinds = [(inserted, "inserted"), (deleted, "removed"), (changed, "changed")].filter { $0.0 > 0 }.map { "\($0.0) \($0.1)" }
-            parts.append("\(count(text, "text change")) (\(kinds.joined(separator: ", ")))")
+            var kinds: [String] = []
+            if inserted > 0 { kinds.append(loc("{0} inserted", CoreLanguage.number(inserted))) }
+            if deleted > 0 { kinds.append(loc("{0} removed", CoreLanguage.number(deleted))) }
+            if changed > 0 { kinds.append(loc("{0} changed", CoreLanguage.number(changed))) }
+            let list = kinds.joined(separator: ", ")
+            parts.append(text == 1 ? loc("{0} text change ({1})", 1, list) : loc("{0} text changes ({1})", CoreLanguage.number(text), list))
         } else {
-            parts.append("No text changes")
+            parts.append(loc("No text changes"))
         }
-        if pagesInserted > 0 { parts.append("\(count(pagesInserted, "page")) inserted") }
-        if pagesRemoved > 0 { parts.append("\(count(pagesRemoved, "page")) removed") }
-        if pairsWithoutText > 0 { parts.append("\(count(pairsWithoutText, "page")) without text to compare") }
+        if pagesInserted > 0 {
+            parts.append(pagesInserted == 1 ? loc("{0} page inserted", 1) : loc("{0} pages inserted", CoreLanguage.number(pagesInserted)))
+        }
+        if pagesRemoved > 0 {
+            parts.append(pagesRemoved == 1 ? loc("{0} page removed", 1) : loc("{0} pages removed", CoreLanguage.number(pagesRemoved)))
+        }
+        if pairsWithoutText > 0 {
+            parts.append(pairsWithoutText == 1 ? loc("{0} page without text to compare", 1) : loc("{0} pages without text to compare", CoreLanguage.number(pairsWithoutText)))
+        }
         return parts.joined(separator: "; ")
     }
 }

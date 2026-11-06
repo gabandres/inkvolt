@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A saved batch: its actions, in order, and how the results are saved (the Windows app's `BatchPreset`).
 public struct BatchPreset: Sendable {
@@ -75,15 +76,15 @@ public enum BatchPresets {
     public static func load(_ path: String) throws -> BatchPreset {
         let fm = FileManager.default
         let name = (path as NSString).lastPathComponent
-        guard fm.fileExists(atPath: path) else { throw BatchPresetError("There is no preset file at \(path).") }
-        if let size = (try? fm.attributesOfItem(atPath: path)[.size] as? Int), size > maxBytes { throw BatchPresetError("\(name) is too large to be a batch preset.") }
+        guard fm.fileExists(atPath: path) else { throw BatchPresetError(loc("There is no preset file at {0}.", path)) }
+        if let size = (try? fm.attributesOfItem(atPath: path)[.size] as? Int), size > maxBytes { throw BatchPresetError(loc("{0} is too large to be a batch preset.", name)) }
         let data: Data
         do {
             data = try Data(contentsOf: URL(fileURLWithPath: path))
         } catch {
-            throw BatchPresetError("The preset \(name) can't be read: \(error.localizedDescription)")
+            throw BatchPresetError(loc("The preset {0} can't be read: {1}", name, error.localizedDescription))
         }
-        guard let json = String(data: data, encoding: .utf8) else { throw BatchPresetError("This isn't a batch preset: it isn't valid JSON (it isn't UTF-8 text).") }
+        guard let json = String(data: data, encoding: .utf8) else { throw BatchPresetError(loc("This isn't a batch preset: it isn't valid JSON (it isn't UTF-8 text).")) }
         return try read(json, fallbackName: (name as NSString).deletingPathExtension)
     }
 
@@ -384,40 +385,40 @@ public enum BatchPresets {
     /// - Throws: `BatchPresetError` when it isn't JSON, isn't a preset, comes from a newer version, or a setting is wrong.
     public static func read(_ json: String, fallbackName: String? = nil) throws -> BatchPreset {
         let parsed: Any
-        guard JsonNesting.isSafe(Data(json.utf8)) else { throw BatchPresetError("This isn't a batch preset: it isn't valid JSON (it nests too deep).") }
+        guard JsonNesting.isSafe(Data(json.utf8)) else { throw BatchPresetError(loc("This isn't a batch preset: it isn't valid JSON (it nests too deep).")) }
         do {
             parsed = try JSONSerialization.jsonObject(with: Data(json.utf8), options: [.json5Allowed, .fragmentsAllowed])
         } catch {
             let ns = error as NSError
             let where_ = (ns.userInfo["NSDebugDescription"] as? String).map { " (\($0))" } ?? ""
-            throw BatchPresetError("This isn't a batch preset: it isn't valid JSON\(where_).")
+            throw BatchPresetError(loc("This isn't a batch preset: it isn't valid JSON{0}.", where_))
         }
-        guard let root = parsed as? [String: Any] else { throw BatchPresetError("This isn't a batch preset: it should be a JSON object { … }.") }
+        guard let root = parsed as? [String: Any] else { throw BatchPresetError(loc("This isn't a batch preset: it should be a JSON object { … }.")) }
         if let format = root["format"], !(format is NSNull), (format as? String) != Self.format {
-            throw BatchPresetError("This JSON file isn't an Inkvolt PDF batch preset (its \"format\" should be \"\(Self.format)\").")
+            throw BatchPresetError(loc("This JSON file isn't an Inkvolt PDF batch preset (its \"format\" should be \"{0}\").", Self.format))
         }
-        guard let version = root["version"], !(version is NSNull) else { throw BatchPresetError("This JSON file isn't an Inkvolt PDF batch preset: it has no \"version\".") }
+        guard let version = root["version"], !(version is NSNull) else { throw BatchPresetError(loc("This JSON file isn't an Inkvolt PDF batch preset: it has no \"version\".")) }
         guard let n = version as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(), Double(truncating: n) == Double(truncating: n).rounded(), n.intValue >= 1 else {
-            throw BatchPresetError("The preset's \"version\" (\(Fields.raw(version))) isn't one Inkvolt PDF knows: it should be \(Self.version).")
+            throw BatchPresetError(loc("The preset's \"version\" ({0}) isn't one Inkvolt PDF knows: it should be {1}.", Fields.raw(version), Self.version))
         }
         let v = n.intValue
         if v > Self.version {
-            throw BatchPresetError("This preset was saved by a newer Inkvolt PDF (preset version \(v); this one reads version \(Self.version) and earlier). Update Inkvolt PDF to use it.")
+            throw BatchPresetError(loc("This preset was saved by a newer Inkvolt PDF (preset version {0}; this one reads version {1} and earlier). Update Inkvolt PDF to use it.", v, Self.version))
         }
 
-        let top = try Fields(root, "The preset")
+        let top = try Fields(root, loc("The preset"))
         _ = try top.text("format", Self.format)
         _ = try top.int("version", Self.version, 1, Self.version)
         var name = try top.text("name", nil) ?? ""
-        if name.trimmingCharacters(in: .whitespaces).isEmpty { name = (fallbackName ?? "").trimmingCharacters(in: .whitespaces).isEmpty ? "Preset" : fallbackName! }
+        if name.trimmingCharacters(in: .whitespaces).isEmpty { name = (fallbackName ?? "").trimmingCharacters(in: .whitespaces).isEmpty ? loc("Preset") : fallbackName! }
         var preset = BatchPreset(name: name.trimmingCharacters(in: .whitespaces), steps: [])
         if let output = try top.object("output") {
             let folder = try output.text("folder", nil)
             if let folder, !folder.isEmpty, !folder.hasPrefix("/"), !(folder.count > 2 && folder.dropFirst(1).hasPrefix(":\\")) {
-                throw BatchPresetError("The preset's output \"folder\" should be a full path, such as /Users/me/Results (it is \"\(folder)\").")
+                throw BatchPresetError(loc("The preset's output \"folder\" should be a full path, such as /Users/me/Results (it is \"{0}\").", folder))
             }
             let names = try output.text("names", BatchNames.defaultTemplate)!
-            if let nameError = BatchNames.validate(names) { throw BatchPresetError("The preset's output \"names\": \(nameError)") }
+            if let nameError = BatchNames.validate(names) { throw BatchPresetError(loc("The preset's output \"names\": {0}", nameError)) }
             preset.outputFolder = (folder ?? "").trimmingCharacters(in: .whitespaces).isEmpty ? nil : folder
             preset.nameTemplate = names
             preset.neverOverwrite = try output.bool("neverOverwrite", true)
@@ -428,25 +429,25 @@ public enum BatchPresets {
             try output.done()
         }
         guard let actions = try top.array("actions") else {
-            throw BatchPresetError("The preset has no \"actions\": add at least one, such as { \"action\": \"optimize\" }.")
+            throw BatchPresetError(loc("The preset has no \"actions\": add at least one, such as { \"action\": \"optimize\" }."))
         }
         var steps: [BatchStep] = []
         for (i, item) in actions.enumerated() { steps.append(try readStep(item, i + 1)) }
-        if steps.isEmpty { throw BatchPresetError("The preset's \"actions\" list is empty: add at least one.") }
+        if steps.isEmpty { throw BatchPresetError(loc("The preset's \"actions\" list is empty: add at least one.")) }
         try top.done()
         preset.steps = steps
         return preset
     }
 
     private static func readStep(_ item: Any, _ n: Int) throws -> BatchStep {
-        guard let dict = item as? [String: Any] else { throw BatchPresetError("Action \(n) should be an object such as { \"action\": \"ocr\" }.") }
+        guard let dict = item as? [String: Any] else { throw BatchPresetError(loc("Action {0} should be an object such as { \"action\": \"ocr\" }.", CoreLanguage.number(n))) }
         guard let name = dict["action"] as? String else {
-            throw BatchPresetError("Action \(n) has no \"action\" saying what it does (one of \(actionNames.joined(separator: ", "))).")
+            throw BatchPresetError(loc("Action {0} has no \"action\" saying what it does (one of {1}).", CoreLanguage.number(n), actionNames.joined(separator: ", ")))
         }
         if !actionNames.contains(name) {
-            throw BatchPresetError("Action \(n): \"\(name)\" isn't an action Inkvolt PDF knows (it knows \(actionNames.joined(separator: ", "))).")
+            throw BatchPresetError(loc("Action {0}: \"{1}\" isn't an action Inkvolt PDF knows (it knows {2}).", CoreLanguage.number(n), name, actionNames.joined(separator: ", ")))
         }
-        let f = try Fields(dict, "Action \(n) (\(name))")
+        let f = try Fields(dict, loc("Action {0} ({1})", CoreLanguage.number(n), name))
         _ = try f.text("action", nil)
         let step: BatchStep
         switch name {
@@ -485,7 +486,7 @@ public enum BatchPresets {
             step = try readHeaderFooter(f)
         case "rotate":
             let d = try f.int("degrees", 90, -270, 270)
-            guard d % 90 == 0 && d != 0 else { throw BatchPresetError("Action \(n) (rotate): \"degrees\" should be 90, -90 or 180.") }
+            guard d % 90 == 0 && d != 0 else { throw BatchPresetError(loc("Action {0} (rotate): \"degrees\" should be 90, -90 or 180.", CoreLanguage.number(n))) }
             step = .rotate(d)
         case "flatten":
             step = .flatten(FlattenOptions(annotations: try f.bool("annotations", true), formFields: try f.bool("formFields", true),
@@ -508,7 +509,7 @@ public enum BatchPresets {
         let open = try f.bool("openPassword", false, passwordHint: true)
         let permissions = try f.bool("permissionsPassword", false, passwordHint: true)
         if !open && !permissions {
-            throw BatchPresetError("\(f.where_): set \"openPassword\", \"permissionsPassword\" or both to true (the passwords themselves are given when it runs).")
+            throw BatchPresetError(loc("{0}: set \"openPassword\", \"permissionsPassword\" or both to true (the passwords themselves are given when it runs).", f.where_))
         }
         let method = try f.choice("encryption", EncryptionMethod.aes256, [EncryptionMethod.aes256, .aes128])
         let perms = PdfPermissions(print: try f.choice("print", PrintPermission.highResolution, [PrintPermission.none, .lowResolution, .highResolution]),
@@ -524,12 +525,12 @@ public enum BatchPresets {
         var image: StampImage?
         if let png, !png.isEmpty {
             guard let bytes = Data(base64Encoded: png, options: [.ignoreUnknownCharacters]), let decoded = PngDecoder.decode(Array(bytes)) else {
-                throw BatchPresetError("\(f.where_): \"imagePng\" isn't a PNG picture in base64")
+                throw BatchPresetError(loc("{0}: \"imagePng\" isn't a PNG picture in base64", f.where_))
             }
             image = decoded
         }
         if image == nil && (text ?? "").trimmingCharacters(in: .whitespaces).isEmpty {
-            throw BatchPresetError("\(f.where_): give a \"text\" (or an \"imagePng\" picture).")
+            throw BatchPresetError(loc("{0}: give a \"text\" (or an \"imagePng\" picture).", f.where_))
         }
         return .watermark(WatermarkOptions(
             text: image == nil ? text : nil,
@@ -561,7 +562,7 @@ public enum BatchPresets {
         options.marginBottom = try f.number("marginBottom", 36, 0, 1000)
         options.marginLeft = try f.number("marginLeft", 72, 0, 1000)
         options.marginRight = try f.number("marginRight", 72, 0, 1000)
-        if options.isEmpty { throw BatchPresetError("\(f.where_): every text is empty; give at least one, such as \"footerCenter\": \"Page <<page>> of <<pages>>\".") }
+        if options.isEmpty { throw BatchPresetError(loc("{0}: every text is empty; give at least one, such as \"footerCenter\": \"Page <<page>> of <<pages>>\".", f.where_)) }
         return .headerFooter(options, continueBates: try f.bool("continueBates", false))
     }
 
@@ -572,7 +573,7 @@ public enum BatchPresets {
         let where_: String
 
         init(_ e: Any, _ where_: String) throws {
-            guard let dict = e as? [String: Any] else { throw BatchPresetError("\(where_) should be an object { … }.") }
+            guard let dict = e as? [String: Any] else { throw BatchPresetError(loc("{0} should be an object { … }.", where_)) }
             self.e = dict
             self.where_ = where_
         }
@@ -589,7 +590,7 @@ public enum BatchPresets {
             return v
         }
 
-        private func wrong(_ name: String, _ should: String) -> BatchPresetError { BatchPresetError("\(where_): \"\(name)\" should be \(should).") }
+        private func wrong(_ name: String, _ should: String) -> BatchPresetError { BatchPresetError(loc("{0}: \"{1}\" should be {2}.", where_, name, should)) }
 
         private static func isBool(_ v: Any) -> Bool { v is Bool && (v as? NSNumber).map { CFGetTypeID($0) == CFBooleanGetTypeID() } ?? true }
 
@@ -599,15 +600,15 @@ public enum BatchPresets {
             guard let v = get(name) else { return fallback }
             if Self.isBool(v), let b = v as? Bool { return b }
             if passwordHint && v is String {
-                throw BatchPresetError("\(where_): passwords aren't kept in presets; \"\(name)\" is true or false, and the password is given when the batch runs.")
+                throw BatchPresetError(loc("{0}: passwords aren't kept in presets; \"{1}\" is true or false, and the password is given when the batch runs.", where_, name))
             }
-            throw wrong(name, "true or false")
+            throw wrong(name, loc("true or false"))
         }
 
         func number(_ name: String, _ fallback: Double, _ min: Double, _ max: Double) throws -> Double {
             guard let v = get(name) else { return fallback }
-            guard Self.isNumber(v), let d = (v as? NSNumber)?.doubleValue, d.isFinite else { throw wrong(name, "a number") }
-            guard d >= min && d <= max else { throw wrong(name, "between \(Self.plain(min)) and \(Self.plain(max))") }
+            guard Self.isNumber(v), let d = (v as? NSNumber)?.doubleValue, d.isFinite else { throw wrong(name, loc("a number")) }
+            guard d >= min && d <= max else { throw wrong(name, loc("between {0} and {1}", Self.plain(min), Self.plain(max))) }
             return d
         }
 
@@ -621,23 +622,23 @@ public enum BatchPresets {
 
         func long(_ name: String, _ fallback: Int64, _ min: Int64, _ max: Int64) throws -> Int64 {
             guard let v = get(name) else { return fallback }
-            guard Self.isNumber(v), let n = v as? NSNumber, n.doubleValue == n.doubleValue.rounded() else { throw wrong(name, "a whole number") }
+            guard Self.isNumber(v), let n = v as? NSNumber, n.doubleValue == n.doubleValue.rounded() else { throw wrong(name, loc("a whole number")) }
             let i = n.int64Value
-            guard i >= min && i <= max else { throw wrong(name, "between \(min) and \(max)") }
+            guard i >= min && i <= max else { throw wrong(name, loc("between {0} and {1}", min, max)) }
             return i
         }
 
         func text(_ name: String, _ fallback: String?) throws -> String? {
             guard let v = get(name) else { return fallback }
-            guard let s = v as? String else { throw wrong(name, "a text in quotes") }
+            guard let s = v as? String else { throw wrong(name, loc("a text in quotes")) }
             return s
         }
 
         func texts(_ name: String) throws -> [String] {
             guard let v = get(name) else { return [] }
-            guard let list = v as? [Any] else { throw wrong(name, "a list of texts [\"…\", \"…\"]") }
+            guard let list = v as? [Any] else { throw wrong(name, loc("a list of texts [\"…\", \"…\"]")) }
             return try list.map { e in
-                guard let s = e as? String else { throw wrong(name, "a list of texts [\"…\", \"…\"]") }
+                guard let s = e as? String else { throw wrong(name, loc("a list of texts [\"…\", \"…\"]")) }
                 return s
             }
         }
@@ -646,21 +647,21 @@ public enum BatchPresets {
         func choice<T>(_ name: String, _ fallback: T, _ choices: [T]) throws -> T {
             guard let v = get(name) else { return fallback }
             let words = choices.map { "\"\(BatchPresets.word($0))\"" }.joined(separator: ", ")
-            guard let given = v as? String else { throw wrong(name, "one of \(words)") }
+            guard let given = v as? String else { throw wrong(name, loc("one of {0}", words)) }
             for c in choices where BatchPresets.word(c) == given { return c }
-            throw wrong(name, "one of \(words) (it is \"\(given)\")")
+            throw wrong(name, loc("one of {0} (it is \"{1}\")", words, given))
         }
 
         /// A list of enum words; missing: `fallback`.
         func words<T>(_ name: String, _ fallback: [T], _ choices: [T]) throws -> [T] {
             guard let v = get(name) else { return fallback }
             let words = choices.map { "\"\(BatchPresets.word($0))\"" }.joined(separator: ", ")
-            guard let list = v as? [Any] else { throw wrong(name, "a list of \(words)") }
+            guard let list = v as? [Any] else { throw wrong(name, loc("a list of {0}", words)) }
             var result: [T] = []
             for e in list {
                 let given = e as? String
                 guard let given, let match = choices.first(where: { BatchPresets.word($0) == given }) else {
-                    throw wrong(name, "a list of \(words) (\"\(given ?? Self.raw(e))\" isn't one)")
+                    throw wrong(name, loc("a list of {0} (\"{1}\" isn't one)", words, given ?? Self.raw(e)))
                 }
                 result.append(match)
             }
@@ -670,10 +671,10 @@ public enum BatchPresets {
         /// Page numbers from 1 (stored from 0); null or missing: every page.
         func pages(_ name: String) throws -> [Int]? {
             guard let v = get(name) else { return nil }
-            guard let list = v as? [Any] else { throw wrong(name, "null (every page) or a list of page numbers [1, 2]") }
+            guard let list = v as? [Any] else { throw wrong(name, loc("null (every page) or a list of page numbers [1, 2]")) }
             return try list.map { e in
                 guard Self.isNumber(e), let n = e as? NSNumber, n.doubleValue == n.doubleValue.rounded(), n.intValue >= 1 else {
-                    throw wrong(name, "null (every page) or a list of page numbers from 1")
+                    throw wrong(name, loc("null (every page) or a list of page numbers from 1"))
                 }
                 return n.intValue - 1
             }
@@ -681,26 +682,26 @@ public enum BatchPresets {
 
         func color(_ name: String, _ fallback: AnnotColor) throws -> AnnotColor {
             guard let text = try text(name, nil) else { return fallback }
-            guard text.count == 7, text.hasPrefix("#"), let rgb = Int(text.dropFirst(), radix: 16) else { throw wrong(name, "a color such as \"#808080\"") }
+            guard text.count == 7, text.hasPrefix("#"), let rgb = Int(text.dropFirst(), radix: 16) else { throw wrong(name, loc("a color such as \"#808080\"")) }
             return AnnotColor(Double(rgb >> 16 & 0xFF) / 255, Double(rgb >> 8 & 0xFF) / 255, Double(rgb & 0xFF) / 255)
         }
 
         func object(_ name: String) throws -> Fields? {
             guard let v = get(name) else { return nil }
-            return try Fields(v, "\(where_)'s \"\(name)\"")
+            return try Fields(v, loc("{0}'s \"{1}\"", where_, name))
         }
 
         func array(_ name: String) throws -> [Any]? {
             guard let v = get(name) else { return nil }
-            guard let list = v as? [Any] else { throw wrong(name, "a list [ … ]") }
+            guard let list = v as? [Any] else { throw wrong(name, loc("a list [ … ]")) }
             return list
         }
 
         func done() throws {
             for p in e.keys.sorted() where !asked.contains(p) {
                 throw BatchPresetError(p.lowercased().contains("password")
-                    ? "\(where_): \"\(p)\" isn't a setting, and passwords are never kept in presets."
-                    : "\(where_): \"\(p)\" isn't a setting Inkvolt PDF knows here.")
+                    ? loc("{0}: \"{1}\" isn't a setting, and passwords are never kept in presets.", where_, p)
+                    : loc("{0}: \"{1}\" isn't a setting Inkvolt PDF knows here.", where_, p))
             }
         }
 

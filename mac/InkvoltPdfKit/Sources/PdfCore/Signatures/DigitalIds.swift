@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Security
 
 /// A certificate with its private key, able to sign (.NET's `X509Certificate2` with a private key). On the Mac the key
@@ -71,13 +72,13 @@ public enum DigitalIds {
     /// for the next signature (and Keychain Access can export it as a .p12 backup); else both stay in memory.
     public static func createPersonal(name: String, email: String?, organization: String?, years: Int = 5, inKeychain: Bool) throws -> DigitalId {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { throw SigningError("A name is required.") }
+        if trimmed.isEmpty { throw SigningError(loc("A name is required.")) }
         let key: SecKey
         if inKeychain {
             let attrs: [CFString: Any] = [kSecAttrKeyType: kSecAttrKeyTypeRSA, kSecAttrKeySizeInBits: 3072,
                                           kSecPrivateKeyAttrs: [kSecAttrIsPermanent: true, kSecAttrLabel: "\(trimmed) (Inkvolt PDF)"] as CFDictionary]
             var error: Unmanaged<CFError>?
-            guard let k = SecKeyCreateRandomKey(attrs as CFDictionary, &error) else { throw SigningError(KeyEncoding.failure(error, "The key can't be made").description) }
+            guard let k = SecKeyCreateRandomKey(attrs as CFDictionary, &error) else { throw SigningError(KeyEncoding.failure(error, loc("The key can't be made")).description) }
             key = k
         } else {
             do { key = try KeyEncoding.ephemeral(rsaBits: 3072) } catch { throw SigningError("\(error)") }
@@ -93,10 +94,10 @@ public enum DigitalIds {
                                          extendedKeyUsages: [documentSigningEku, emailProtectionEku], endEntity: true, subjectKeyId: true,
                                          email: mail.isEmpty ? nil : mail)
         let cert: Certificate
-        do { cert = try builder.selfSigned(key) } catch { throw SigningError("The personal ID can't be made: \(error)") }
+        do { cert = try builder.selfSigned(key) } catch { throw SigningError(loc("The personal ID can't be made: {0}", error)) }
         if inKeychain, let sec = cert.secCertificate {
             let status = SecItemAdd([kSecClass: kSecClassCertificate, kSecValueRef: sec] as CFDictionary, nil)
-            if status != errSecSuccess && status != errSecDuplicateItem { throw SigningError("The personal ID can't be saved in the keychain (error \(status)).") }
+            if status != errSecSuccess && status != errSecDuplicateItem { throw SigningError(loc("The personal ID can't be saved in the keychain (error {0}).", status)) }
         }
         return DigitalId(certificate: cert, key: key)
     }
@@ -106,9 +107,9 @@ public enum DigitalIds {
     public static func importP12(_ data: [UInt8], password: String?) throws -> DigitalId {
         var items: CFArray?
         let status = SecPKCS12Import(Data(data) as CFData, [kSecImportExportPassphrase: password ?? ""] as CFDictionary, &items)
-        if status == errSecAuthFailed || status == errSecPkcs12VerifyFailure { throw SigningError("The password for this digital ID file is incorrect.") }
+        if status == errSecAuthFailed || status == errSecPkcs12VerifyFailure { throw SigningError(loc("The password for this digital ID file is incorrect.")) }
         guard status == errSecSuccess, let list = items as? [[CFString: Any]] else {
-            throw SigningError("This file isn't a usable digital ID (error \(status)).")
+            throw SigningError(loc("This file isn't a usable digital ID (error {0}).", status))
         }
         for item in list {
             guard let any = item[kSecImportItemIdentity] else { continue }
@@ -121,7 +122,7 @@ public enum DigitalIds {
                 .compactMap { try? Certificate(der: Array(SecCertificateCopyData($0) as Data)) }.filter { $0 != cert }
             return DigitalId(certificate: cert, chain: chain, key: keyRef)
         }
-        throw SigningError("This digital ID file holds no private key.")
+        throw SigningError(loc("This digital ID file holds no private key."))
     }
 
     /// A one-line description for pickers: "Name (issuer, expires 2031-10-22)".
@@ -129,6 +130,7 @@ public enum DigitalIds {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
-        return "\(c.commonName ?? "") (\(c.isSelfIssued ? "self-signed" : c.issuerCommonName ?? ""), expires \(f.string(from: c.notAfter)))"
+        let name = c.commonName ?? "", expires = f.string(from: c.notAfter)
+        return c.isSelfIssued ? loc("{0} (self-signed, expires {1})", name, expires) : loc("{0} ({1}, expires {2})", name, c.issuerCommonName ?? "", expires)
     }
 }

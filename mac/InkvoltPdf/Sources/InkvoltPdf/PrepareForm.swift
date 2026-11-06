@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Tools › Prepare Form (the Windows app's `DocumentTab.FormDesign` and `PageViewer.FormDesign`): the field tools bar over the
 /// pages, the properties panel on the right and field suggestions, around the page view's `Tool.prepareForm`. The rules of
@@ -24,36 +25,40 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     // The bar.
     let bar = PrepareFormBar()
     let toolControl = NSSegmentedControl()
-    let detectButton = NSButton(title: "Detect Fields", target: nil, action: nil)
-    let tabOrderButton = NSButton(title: "Tab Order", target: nil, action: nil)
-    let doneButton = NSButton(title: "Done", target: nil, action: nil)
-    private static let tools: [(kind: DesignFieldKind?, label: String, symbol: String)] = [
-        (nil, "Select", "cursorarrow"), (.text, "Text field", "character.textbox"), (.checkBox, "Check box", "checkmark.square"),
-        (.radio, "Radio button", "smallcircle.filled.circle"), (.comboBox, "Dropdown", "chevron.down.square"), (.listBox, "List box", "list.bullet.rectangle"),
-        (.signature, "Signature field", "signature"), (.button, "Button", "button.programmable"),
-    ]
+    let detectButton = NSButton(title: loc("Detect Fields"), target: nil, action: nil)
+    let tabOrderButton = NSButton(title: loc("Tab Order"), target: nil, action: nil)
+    let doneButton = NSButton(title: loc("Done"), target: nil, action: nil)
+    /// The bar's tools, in order (the segment index is the tool); labels in the interface's language.
+    private static var tools: [(kind: DesignFieldKind?, label: String, symbol: String)] {
+        [
+            (nil, loc("Select"), "cursorarrow"), (.text, loc("Text field"), "character.textbox"), (.checkBox, loc("Check box"), "checkmark.square"),
+            (.radio, loc("Radio button"), "smallcircle.filled.circle"), (.comboBox, loc("Dropdown", context: "tool button"), "chevron.down.square"),
+            (.listBox, loc("List box"), "list.bullet.rectangle"), (.signature, loc("Signature field"), "signature"),
+            (.button, loc("Button"), "button.programmable"),
+        ]
+    }
 
     // The panel.
     let panelController = NSViewController()
     private(set) var panelItem: NSSplitViewItem!
     private var panelStack: NSStackView?
     private var widthPins: [NSLayoutConstraint] = []
-    let titleLabel = NSTextField(labelWithString: "Prepare Form")
-    let hintLabel = NSTextField(wrappingLabelWithString: "Pick a field kind above, then drag on the page or click for the usual size. Click a field to select it: drag to move it, drag a handle to resize it, arrow keys nudge it (Shift: 10 pt), Tab goes from field to field, Delete removes it, ⌘D duplicates it, Return opens its properties, Esc lets go.")
+    let titleLabel = NSTextField(labelWithString: loc("Prepare Form"))
+    let hintLabel = NSTextField(wrappingLabelWithString: loc("Pick a field kind above, then drag on the page or click for the usual size. Click a field to select it: drag to move it, drag a handle to resize it, arrow keys nudge it (Shift: 10 pt), Tab goes from field to field, Delete removes it, ⌘D duplicates it, Return opens its properties, Esc lets go."))
     let errorLabel = NSTextField(wrappingLabelWithString: "")
     let fieldGroup = NSStackView()
     let nameField = NSTextField()
     let tooltipField = NSTextField()
-    let requiredBox = NSButton(checkboxWithTitle: "Required", target: nil, action: nil)
-    let readOnlyBox = NSButton(checkboxWithTitle: "Read-only", target: nil, action: nil)
+    let requiredBox = NSButton(checkboxWithTitle: loc("Required"), target: nil, action: nil)
+    let readOnlyBox = NSButton(checkboxWithTitle: loc("Read-only"), target: nil, action: nil)
     let textGroup = NSStackView()
-    let multilineBox = NSButton(checkboxWithTitle: "Multi-line", target: nil, action: nil)
+    let multilineBox = NSButton(checkboxWithTitle: loc("Multi-line"), target: nil, action: nil)
     let maxLengthField = NSTextField()
     let formatPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let choicesGroup = NSStackView()
     let choicesView = NSTextView()
-    let editableBox = NSButton(checkboxWithTitle: "Typing a value of your own is allowed", target: nil, action: nil)
-    let multiSelectBox = NSButton(checkboxWithTitle: "Several can be selected", target: nil, action: nil)
+    let editableBox = NSButton(checkboxWithTitle: loc("Typing a value of your own is allowed"), target: nil, action: nil)
+    let multiSelectBox = NSButton(checkboxWithTitle: loc("Several can be selected"), target: nil, action: nil)
     let exportGroup = NSStackView()
     let exportField = NSTextField()
     let buttonGroup = NSStackView()
@@ -63,25 +68,25 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     let defaultField = NSTextField()
     let defaultChoiceRow = NSStackView()
     let defaultChoice = NSPopUpButton(frame: .zero, pullsDown: false)
-    let defaultCheck = NSButton(checkboxWithTitle: "Checked by default", target: nil, action: nil)
+    let defaultCheck = NSButton(checkboxWithTitle: loc("Checked by default"), target: nil, action: nil)
     let sizeCombo = NSComboBox()
     let alignPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let borderPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let fillPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let earlierButton = NSButton(title: "Tab Earlier", target: nil, action: nil)
-    let laterButton = NSButton(title: "Tab Later", target: nil, action: nil)
-    let duplicateButton = NSButton(title: "Duplicate", target: nil, action: nil)
-    let deleteButton = NSButton(title: "Delete", target: nil, action: nil)
+    let earlierButton = NSButton(title: loc("Tab Earlier"), target: nil, action: nil)
+    let laterButton = NSButton(title: loc("Tab Later"), target: nil, action: nil)
+    let duplicateButton = NSButton(title: loc("Duplicate"), target: nil, action: nil)
+    let deleteButton = NSButton(title: loc("Delete"), target: nil, action: nil)
     let suggestionGroup = NSStackView()
     let suggestionName = NSTextField()
     let suggestionKind = NSPopUpButton(frame: .zero, pullsDown: false)
     let suggestionSource = NSTextField(wrappingLabelWithString: "")
-    let acceptButton = NSButton(title: "Add Field", target: nil, action: nil)
-    let rejectButton = NSButton(title: "Skip", target: nil, action: nil)
+    let acceptButton = NSButton(title: loc("Add Field"), target: nil, action: nil)
+    let rejectButton = NSButton(title: loc("Skip"), target: nil, action: nil)
     let allGroup = NSStackView()
     let suggestionCount = NSTextField(wrappingLabelWithString: "")
-    let acceptAllButton = NSButton(title: "Add All", target: nil, action: nil)
-    let rejectAllButton = NSButton(title: "Skip All", target: nil, action: nil)
+    let acceptAllButton = NSButton(title: loc("Add All"), target: nil, action: nil)
+    let rejectAllButton = NSButton(title: loc("Skip All"), target: nil, action: nil)
 
     init(controller: DocumentWindowController) {
         self.controller = controller
@@ -118,15 +123,15 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         let data = session.data, password = session.password
         let (hasXfa, xfaOnly) = await Task.detached { (try? FormEditor.hasXfa(data, password)) ?? (false, false) }.value
         if xfaOnly {
-            controller.pdf.showError("This form uses XFA: its fields are an XFA form, which Inkvolt PDF can't edit. Adobe Acrobat (Pro) can convert or edit it.", nil)
+            controller.pdf.showError(loc("This form uses XFA: its fields are an XFA form, which Inkvolt PDF can't edit. Adobe Acrobat (Pro) can convert or edit it."), nil)
             return false
         }
         if hasXfa {
             let question = NSAlert()
-            question.messageText = "Edit this form's fields?"
-            question.informativeText = "This form also carries an XFA version, which Adobe Acrobat shows instead of the fields. Changing the fields here removes the XFA version, so every viewer shows the fields as you prepare them."
-            question.addButton(withTitle: "Edit Fields")
-            question.addButton(withTitle: "Cancel")
+            question.messageText = loc("Edit this form's fields?")
+            question.informativeText = loc("This form also carries an XFA version, which Adobe Acrobat shows instead of the fields. Changing the fields here removes the XFA version, so every viewer shows the fields as you prepare them.")
+            question.addButton(withTitle: loc("Edit Fields"))
+            question.addButton(withTitle: loc("Cancel"))
             guard let window = controller.window, await question.beginSheetModal(for: window) == .alertFirstButtonReturn else { return false }
         }
         pages.tool = .prepareForm
@@ -189,7 +194,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     private func isCurrent() -> Bool {
         guard let session = controller?.pdf.session else { return false }
         if readFrom == ObjectIdentifier(session.engine) { return true }
-        controller?.notify("The fields are still being refreshed after the last change. Try again in a moment.")
+        controller?.notify(loc("The fields are still being refreshed after the last change. Try again in a moment."))
         reload()
         return false
     }
@@ -275,7 +280,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         nudgeTimer = nil
         guard let moved = model.flushNudge() else { return }
         pages.needsDisplay = true
-        track { [weak self] in await self?.update("Move field", [moved]) }
+        track { [weak self] in await self?.update(loc("Move field"), [moved]) }
     }
 
     func deleteSelected() {
@@ -285,7 +290,9 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         selectAfter = next
         track { [weak self] in
             guard let self else { return }
-            let ok = await self.editor.run("Delete \(DesignField.kindName(f.kind).lowercased())", contentOnly: true) { d, pw in try FormDesign.delete(d, pw, [f.id]) }
+            // "Delete {0}": Windows' FormDesign_UndoDelete, the kind's name lowercased (Eliminar casilla, Eliminar lista desplegable).
+            let label = loc("Delete {0}", DesignField.kindName(f.kind).lowercased())
+            let ok = await self.editor.run(label, contentOnly: true) { d, pw in try FormDesign.delete(d, pw, [f.id]) }
             if !ok { self.selectAfter = nil }
         }
     }
@@ -297,7 +304,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         guard let f = model.selectedField, !f.signed, isCurrent() else { return false }
         let g = pages.engine.page(f.pageIndex)
         let copy = FormDesignRules.duplicated(f, fields: model.fields, pageWidth: g.width, pageHeight: g.height)
-        track { [weak self] in _ = await self?.add("Duplicate \(DesignField.kindName(f.kind).lowercased())", [copy], select: copy.id) }
+        let label = loc("Duplicate {0}", DesignField.kindName(f.kind).lowercased())
+        track { [weak self] in _ = await self?.add(label, [copy], select: copy.id) }
         return true
     }
 
@@ -305,7 +313,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         guard !picked.isEmpty, isCurrent() else { return }
         let fields = FormDesignRules.acceptedFields(picked, fields: model.fields)
         let index = model.selectedSuggestionIndex
-        let label = fields.count == 1 ? "Add \(DesignField.kindName(fields[0].kind).lowercased())" : "Add \(fields.count) fields"
+        let label = fields.count == 1 ? loc("Add {0}", DesignField.kindName(fields[0].kind).lowercased())
+            : loc("Add {0} fields", CoreLanguage.number(fields.count))
         track { [weak self] in
             guard let self, await self.editor.run(label, contentOnly: true, { d, pw in try FormDesign.add(d, pw, fields) }) else { return }
             let rest = self.model.suggestions.filter { !picked.contains($0) }
@@ -364,14 +373,16 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         let engine = session.engine, data = session.data, password = session.password
         let existing = model.fields
         let pageList = Array(0..<engine.pageCount)
-        let sheet = ProgressSheet(title: "Detect Fields", text: "Looking for fields…")
+        let sheet = ProgressSheet(title: loc("Detect Fields"), text: loc("Looking for fields…"))
         sheet.begin(on: controller.window)
         controller.progressSheet = sheet
         let token = sheet.token
         let result = await Task.detached { () -> Result<[FieldSuggestion], Error> in
             Result {
                 try FieldDetection.suggest(engine, data, password, pageList, existing, cancel: token) { done, total in
-                    Task { @MainActor in sheet.update("Looking at page \(done + 1) of \(total)…", Double(done) / Double(total)) }
+                    Task { @MainActor in
+                        sheet.update(loc("Looking at page {0} of {1}…", CoreLanguage.number(done + 1), CoreLanguage.number(total)), Double(done) / Double(total))
+                    }
                 }
             }
         }.value
@@ -383,20 +394,22 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         case .success(let list):
             found = list
         case .failure(let error):
-            if !(error is CancellationError) { controller.notify("Couldn't look for fields: the document changed meanwhile. Try again.") }
+            if !(error is CancellationError) { controller.notify(loc("Couldn't look for fields: the document changed meanwhile. Try again.")) }
             return
         }
         suggestionPages = engine.pageCount
         model.setSuggestions(found)
         changed()
         if found.isEmpty {
-            controller.notify("No fields found. Inkvolt PDF looks for lines to write on, empty boxes, small squares and runs of underscores.")
+            controller.notify(loc("No fields found. Inkvolt PDF looks for lines to write on, empty boxes, small squares and runs of underscores."))
             return
         }
         // Start on the current page's first suggestion, else the first one.
         selectSuggestion(found.firstIndex { $0.pageIndex >= pages.currentPage } ?? 0, reveal: true)
         controller.window?.makeFirstResponder(pages)
-        controller.notify("Found \(found.count) possible field\(found.count == 1 ? "" : "s") (dashed): Return adds one, Delete skips it, or add them all from the panel.")
+        controller.notify(found.count == 1
+            ? loc("Found 1 possible field (dashed): Return adds it, Delete skips it, or add it from the panel.")
+            : loc("Found {0} possible fields (dashed): Return adds one, Delete skips it, or add them all from the panel.", CoreLanguage.number(found.count)))
     }
 
     func moveInTabOrder(_ step: Int) {
@@ -413,7 +426,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         selectAfter = f.id
         track { [weak self] in
             guard let self else { return }
-            let ok = await self.editor.run("Change tab order", contentOnly: true) { d, pw in
+            let ok = await self.editor.run(loc("Change tab order"), contentOnly: true) { d, pw in
                 var fresh: [String: String] = [:]
                 let result = try FormDesign.setTabOrder(d, pw, page, ids, newIds: &fresh)
                 made.ids = fresh
@@ -463,9 +476,10 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             let field = FormDesignRules.placedField(placement, fields: model.fields, selected: model.selectedField)
             model.kind = nil // back to selecting: the new field's properties show
             toolChanged()
-            track { [weak self] in _ = await self?.add("Add \(DesignField.kindName(placement.kind).lowercased())", [field], select: field.id) }
+            let label = loc("Add {0}", DesignField.kindName(placement.kind).lowercased())
+            track { [weak self] in _ = await self?.add(label, [field], select: field.id) }
         case .moved(let field):
-            track { [weak self] in await self?.update("Move field", [field]) }
+            track { [weak self] in await self?.update(loc("Move field"), [field]) }
         case nil:
             break
         }
@@ -649,25 +663,27 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             } else {
                 toolControl.setLabel(tool.label, forSegment: i)
             }
-            toolControl.setToolTip(tool.kind == nil ? "Select and move fields" : "Add a \(tool.label.lowercased()): drag on the page, or click for the usual size", forSegment: i)
+            let tip = tool.kind == nil ? loc("Select and move fields")
+                : loc("Add a {0}: drag on the page, or click for the usual size", tool.label.lowercased())
+            toolControl.setToolTip(tip, forSegment: i)
         }
         toolControl.selectedSegment = 0
-        toolControl.setAccessibilityLabel("Prepare form tools")
+        toolControl.setAccessibilityLabel(loc("Prepare form tools"))
         toolControl.target = self
         toolControl.action = #selector(toolPicked(_:))
-        detectButton.toolTip = "Look at every page for lines to write on, empty boxes, small squares and runs of underscores"
+        detectButton.toolTip = loc("Look at every page for lines to write on, empty boxes, small squares and runs of underscores")
         detectButton.target = self
         detectButton.action = #selector(detectClicked(_:))
         tabOrderButton.setButtonType(.pushOnPushOff)
-        tabOrderButton.toolTip = "Number each field with its place in the order Tab fills them"
+        tabOrderButton.toolTip = loc("Number each field with its place in the order Tab fills them")
         tabOrderButton.target = self
         tabOrderButton.action = #selector(tabOrderClicked(_:))
-        doneButton.toolTip = "Leave Prepare Form"
+        doneButton.toolTip = loc("Leave Prepare Form")
         doneButton.keyEquivalent = ""
         doneButton.target = self
         doneButton.action = #selector(doneClicked(_:))
         for b in [detectButton, tabOrderButton, doneButton] { b.bezelStyle = .rounded }
-        let title = NSTextField(labelWithString: "Prepare Form")
+        let title = NSTextField(labelWithString: loc("Prepare Form"))
         title.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -777,7 +793,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         sizeCombo.target = self
         sizeCombo.action = #selector(sizeChanged)
         sizeCombo.cell?.sendsActionOnEndEditing = true
-        alignPopup.addItems(withTitles: ["Left", "Center", "Right"])
+        alignPopup.addItems(withTitles: [loc("Left"), loc("Center"), loc("Right")])
         suggestionKind.addItems(withTitles: FormDesignRules.suggestionKinds.map(\.label))
 
         choicesView.isRichText = false
@@ -796,25 +812,25 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         choicesScroll.heightAnchor.constraint(equalToConstant: 90).isActive = true
 
         _ = column([
-            row("Choices: one per line, \"Shown text = value\" when they differ", choicesScroll), editableBox, multiSelectBox,
+            row(loc("Choices: one per line, \"Shown text = value\" when they differ"), choicesScroll), editableBox, multiSelectBox,
         ], in: choicesGroup)
         _ = column([
-            multilineBox, row("Most characters (0: no limit)", maxLengthField), row("Format", formatPopup),
+            multilineBox, row(loc("Most characters (0: no limit)"), maxLengthField), row(loc("Format"), formatPopup),
         ], in: textGroup)
-        _ = row("Value when on", exportField, in: exportGroup)
-        _ = column([row("Label", captionField), row("When clicked", actionPopup)], in: buttonGroup)
-        _ = row("Default value", defaultField, in: defaultTextRow)
-        _ = row("Selected by default", defaultChoice, in: defaultChoiceRow)
+        _ = row(loc("Value when on"), exportField, in: exportGroup)
+        _ = column([row(loc("Label"), captionField), row(loc("When clicked"), actionPopup)], in: buttonGroup)
+        _ = row(loc("Default value"), defaultField, in: defaultTextRow)
+        _ = row(loc("Selected by default"), defaultChoice, in: defaultChoiceRow)
         let tabRow = Self.buttons([earlierButton, laterButton])
         let commandRow = Self.buttons([duplicateButton, deleteButton])
         _ = column([
-            row("Name (dots group fields: address.city)", nameField), row("Tooltip", tooltipField), requiredBox, readOnlyBox,
+            row(loc("Name (dots group fields: address.city)"), nameField), row(loc("Tooltip"), tooltipField), requiredBox, readOnlyBox,
             textGroup, choicesGroup, exportGroup, buttonGroup, defaultTextRow, defaultChoiceRow, defaultCheck,
-            row("Text size", sizeCombo), row("Alignment", alignPopup), row("Border", borderPopup), row("Fill", fillPopup),
+            row(loc("Text size"), sizeCombo), row(loc("Alignment"), alignPopup), row(loc("Border"), borderPopup), row(loc("Fill", context: "field colour"), fillPopup),
             tabRow, commandRow,
         ], in: fieldGroup)
         let suggestionRow = Self.buttons([acceptButton, rejectButton])
-        _ = column([row("Name", suggestionName), row("Kind", suggestionKind), suggestionSource, suggestionRow], in: suggestionGroup)
+        _ = column([row(loc("Name"), suggestionName), row(loc("Kind"), suggestionKind), suggestionSource, suggestionRow], in: suggestionGroup)
         let allRow = Self.buttons([acceptAllButton, rejectAllButton])
         _ = column([suggestionCount, allRow], in: allGroup)
 
@@ -839,7 +855,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             document.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
         ])
         panelController.view = scroll
-        scroll.setAccessibilityLabel("Field properties")
+        scroll.setAccessibilityLabel(loc("Field properties"))
         for group in [fieldGroup, suggestionGroup, allGroup] { group.isHidden = true }
     }
 
@@ -906,32 +922,32 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     @objc func nameChanged() {
         let typed = nameField.stringValue, fields = model.fields
-        change("Rename field") { try FormDesignRules.renamed($0, to: typed, fields: fields) }
+        change(loc("Rename field")) { try FormDesignRules.renamed($0, to: typed, fields: fields) }
     }
 
     @objc func tooltipChanged() {
         let typed = tooltipField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        change("Change tooltip") { $0.with { $0.tooltip = typed } }
+        change(loc("Change tooltip")) { $0.with { $0.tooltip = typed } }
     }
 
     @objc func maxLengthChanged() {
         let typed = maxLengthField.stringValue
-        change("Change length limit") { try FormDesignRules.withMaxLength($0, typed) }
+        change(loc("Change length limit")) { try FormDesignRules.withMaxLength($0, typed) }
     }
 
     @objc func exportChanged() {
         let typed = exportField.stringValue, fields = model.fields
-        change("Change value") { try FormDesignRules.withExportValue($0, typed, fields: fields) }
+        change(loc("Change value")) { try FormDesignRules.withExportValue($0, typed, fields: fields) }
     }
 
     @objc func captionChanged() {
         let typed = captionField.stringValue
-        change("Change label") { $0.with { $0.caption = typed } }
+        change(loc("Change label")) { $0.with { $0.caption = typed } }
     }
 
     @objc func defaultChanged() {
         let typed = defaultField.stringValue
-        change("Change default") { $0.with { $0.defaultValue = typed } }
+        change(loc("Change default")) { $0.with { $0.defaultValue = typed } }
     }
 
     func textDidEndEditing(_ notification: Notification) {
@@ -942,76 +958,76 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     /// The choices editor applies when focus leaves it (Return makes a new line).
     func choicesCommitted() {
         let typed = choicesView.string
-        change("Change choices") { try FormDesignRules.withChoices($0, typed) }
+        change(loc("Change choices")) { try FormDesignRules.withChoices($0, typed) }
     }
 
     @objc func requiredChanged() {
         let on = requiredBox.state == .on
-        change("Change required") { $0.with { $0.required = on } }
+        change(loc("Change required")) { $0.with { $0.required = on } }
     }
 
     @objc func readOnlyChanged() {
         let on = readOnlyBox.state == .on
-        change("Change read-only") { $0.with { $0.readOnly = on } }
+        change(loc("Change read-only")) { $0.with { $0.readOnly = on } }
     }
 
     @objc func multilineChanged() {
         let on = multilineBox.state == .on
-        change("Change multi-line") { $0.with { $0.multiline = on } }
+        change(loc("Change multi-line")) { $0.with { $0.multiline = on } }
     }
 
     @objc func editableChanged() {
         let on = editableBox.state == .on
-        change("Change dropdown") { $0.with { $0.editable = on } }
+        change(loc("Change dropdown")) { $0.with { $0.editable = on } }
     }
 
     @objc func multiSelectChanged() {
         let on = multiSelectBox.state == .on
-        change("Change list box") { $0.with { $0.multiSelect = on } }
+        change(loc("Change list box")) { $0.with { $0.multiSelect = on } }
     }
 
     @objc func defaultCheckChanged() {
         let on = defaultCheck.state == .on
-        change("Change default") { FormDesignRules.withDefaultOn($0, on) }
+        change(loc("Change default")) { FormDesignRules.withDefaultOn($0, on) }
     }
 
     @objc func formatChanged() {
         let i = formatPopup.indexOfSelectedItem
         guard FormDesignRules.formats.indices.contains(i) else { return }
-        change("Change format") { $0.with { $0.format = FormDesignRules.formats[i].format } }
+        change(loc("Change format")) { $0.with { $0.format = FormDesignRules.formats[i].format } }
     }
 
     @objc func actionChanged() {
         let i = actionPopup.indexOfSelectedItem
         guard i >= 0 && i < 3 else { return }
-        change("Change button action") { $0.with { $0.action = i == 1 ? .resetForm : i == 2 ? .print : .none } }
+        change(loc("Change button action")) { $0.with { $0.action = i == 1 ? .resetForm : i == 2 ? .print : .none } }
     }
 
     @objc func defaultChoiceChanged() {
         let i = defaultChoice.indexOfSelectedItem
-        change("Change default") { f in f.with { $0.defaultValue = i > 0 && i <= f.options.count ? f.options[i - 1] : "" } }
+        change(loc("Change default")) { f in f.with { $0.defaultValue = i > 0 && i <= f.options.count ? f.options[i - 1] : "" } }
     }
 
     @objc func alignChanged() {
         let i = alignPopup.indexOfSelectedItem
-        change("Change alignment") { $0.with { $0.alignment = max(i, 0) } }
+        change(loc("Change alignment")) { $0.with { $0.alignment = max(i, 0) } }
     }
 
     @objc func borderChanged() {
         let i = borderPopup.indexOfSelectedItem
         guard FormDesignRules.borderColors.indices.contains(i) else { return }
-        change("Change border") { $0.with { $0.borderColor = FormDesignRules.borderColors[i].color } }
+        change(loc("Change border")) { $0.with { $0.borderColor = FormDesignRules.borderColors[i].color } }
     }
 
     @objc func fillChanged() {
         let i = fillPopup.indexOfSelectedItem
         guard FormDesignRules.fillColors.indices.contains(i) else { return }
-        change("Change fill") { $0.with { $0.fillColor = FormDesignRules.fillColors[i].color } }
+        change(loc("Change fill")) { $0.with { $0.fillColor = FormDesignRules.fillColors[i].color } }
     }
 
     @objc func sizeChanged() {
         guard let size = FormDesignRules.parseSize(sizeCombo.stringValue) else { return }
-        change("Change text size") { $0.with { $0.fontSize = size } }
+        change(loc("Change text size")) { $0.with { $0.fontSize = size } }
     }
 
     @objc func suggestionNameChanged() {
@@ -1063,7 +1079,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     private func selectColor(_ popup: NSPopUpButton, _ choices: [(label: String, color: AnnotColor?)], _ color: AnnotColor?) {
         var titles = choices.map(\.label)
         let at = FormDesignRules.colorIndex(choices, color)
-        if at == nil { titles.append("Custom (kept)") }
+        if at == nil { titles.append(loc("Custom (kept)")) }
         fill(popup, titles, selected: at ?? titles.count - 1)
     }
 
@@ -1077,7 +1093,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         allGroup.isHidden = count == 0
         hintLabel.isHidden = f != nil || s != nil
         errorLabel.isHidden = true
-        suggestionCount.stringValue = "\(count) suggested field\(count == 1 ? "" : "s") (dashed on the page)."
+        suggestionCount.stringValue = count == 1 ? loc("{0} suggested field (dashed on the page).", 1)
+            : loc("{0} suggested fields (dashed on the page).", CoreLanguage.number(count))
         let title = FormDesignRules.panelTitle(f, s)
         let titleChanged = titleLabel.stringValue != title
         titleLabel.stringValue = title
@@ -1088,8 +1105,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             suggestionSource.stringValue = FormDesignRules.sourceText(s.source)
         }
         if titleChanged || f != nil || s != nil {
-            announce(f.map { "\($0.describe()) selected, page \($0.pageIndex + 1)" }
-                ?? s.map { "Suggested \(DesignField.kindName($0.kind).lowercased()) \($0.name), page \($0.pageIndex + 1)" } ?? title)
+            announce(f.map { loc("{0} selected, page {1}", $0.describe(), CoreLanguage.number($0.pageIndex + 1)) }
+                ?? s.map { loc("Suggested {0} {1}, page {2}", DesignField.kindName($0.kind).lowercased(), $0.name, CoreLanguage.number($0.pageIndex + 1)) } ?? title)
         }
         pinRowWidths()
     }
@@ -1124,17 +1141,17 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         buttonGroup.isHidden = !button
         if button {
             setText(captionField, f.caption)
-            let actions = ["Nothing", "Reset the form", "Print"] + (f.action == .other ? ["The form's own action (kept)"] : [])
+            let actions = [loc("Nothing"), loc("Reset the form"), loc("Print")] + (f.action == .other ? [loc("The form's own action (kept)")] : [])
             fill(actionPopup, actions, selected: f.action == .resetForm ? 1 : f.action == .print ? 2 : f.action == .other ? 3 : 0)
         }
 
         defaultTextRow.isHidden = !text
         defaultChoiceRow.isHidden = !choice
         if text { setText(defaultField, f.defaultValue) }
-        if choice { fill(defaultChoice, ["(none)"] + f.shownOptions, selected: (f.options.firstIndex(of: f.defaultValue) ?? -1) + 1) }
+        if choice { fill(defaultChoice, [loc("(none)")] + f.shownOptions, selected: (f.options.firstIndex(of: f.defaultValue) ?? -1) + 1) }
         defaultCheck.isHidden = !onOff
         defaultCheck.state = onOff && !f.defaultValue.isEmpty && f.defaultValue == f.exportValue ? .on : .off
-        defaultCheck.title = f.kind == .radio ? "Selected by default" : "Checked by default"
+        defaultCheck.title = f.kind == .radio ? loc("Selected by default") : loc("Checked by default")
 
         let hasText = !onOff && f.kind != .signature
         sizeCombo.isEnabled = hasText

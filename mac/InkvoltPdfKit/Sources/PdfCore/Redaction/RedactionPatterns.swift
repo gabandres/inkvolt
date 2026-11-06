@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import PrintCore
 
 /// What redaction by pattern looks for: the built-in kinds, then the user's own phrases and expression.
 public enum RedactionPattern: Int, CaseIterable, Hashable, Sendable {
@@ -98,16 +99,16 @@ public enum RedactionPatterns {
 
     public static func name(_ pattern: RedactionPattern) -> String {
         switch pattern {
-        case .socialSecurity: "US Social Security numbers"
-        case .phone: "Phone numbers"
-        case .email: "Email addresses"
-        case .paymentCard: "Payment card numbers"
-        case .date: "Dates"
-        case .zipCode: "US ZIP codes"
-        case .iban: "Bank account numbers (IBAN)"
-        case .ipAddress: "IP addresses"
-        case .phrase: "Your words and phrases"
-        case .expression: "Your pattern"
+        case .socialSecurity: loc("US Social Security numbers")
+        case .phone: loc("Phone numbers")
+        case .email: loc("Email addresses")
+        case .paymentCard: loc("Payment card numbers")
+        case .date: loc("Dates")
+        case .zipCode: loc("US ZIP codes")
+        case .iban: loc("Bank account numbers (IBAN)")
+        case .ipAddress: loc("IP addresses")
+        case .phrase: loc("Your words and phrases")
+        case .expression: loc("Your pattern")
         }
     }
 
@@ -117,10 +118,10 @@ public enum RedactionPatterns {
         case .socialSecurity: "123-45-6789 or 123456789"
         case .phone: "(555) 201-3434, +1 555 201 3434, +44 20 7946 0958"
         case .email: "name@example.com"
-        case .paymentCard: "4111 1111 1111 1111; only numbers whose check digit is right"
+        case .paymentCard: loc("4111 1111 1111 1111; only numbers whose check digit is right")
         case .date: "2026-10-27, 10/27/2026, 27.10.2026, October 27, 2026, 27 Oct 2026"
-        case .zipCode: "90210 or 90210-1234; any five-digit number matches, so check the marks"
-        case .iban: "DE89 3704 0044 0532 0130 00; only numbers whose check digits are right"
+        case .zipCode: loc("90210 or 90210-1234; any five-digit number matches, so check the marks")
+        case .iban: loc("DE89 3704 0044 0532 0130 00; only numbers whose check digits are right")
         case .ipAddress: "192.168.1.10, 2001:db8::1"
         default: ""
         }
@@ -132,16 +133,15 @@ public enum RedactionPatterns {
         guard let regex = try? NSRegularExpression(pattern: expression) else {
             // NSRegularExpression says only that the pattern can't be read, not where: the usual mistake, a parenthesis
             // or bracket without its partner, is looked for here and pointed at.
-            if let (at, why) = unpaired(expression) { return "The pattern has a mistake near character \(at): \(why)." }
-            return "The pattern has a mistake: it can't be read as a regular expression (perhaps a repeat with nothing to repeat, "
-                + "a \\ before something it can't escape, or a {…} repeat written wrong)."
+            if let (at, why) = unpaired(expression) { return loc("The pattern has a mistake near character {0}: {1}.", CoreLanguage.number(at), why) }
+            return loc("The pattern has a mistake: it can't be read as a regular expression (perhaps a repeat with nothing to repeat, a \\ before something it can't escape, or a {…} repeat written wrong).")
         }
         do {
             if try !TimedRegex.matches(regex, in: "", seconds: expressionTimeout).isEmpty {
-                return "This pattern matches empty text, so it would mark nothing useful. Make at least one part required."
+                return loc("This pattern matches empty text, so it would mark nothing useful. Make at least one part required.")
             }
         } catch {
-            return "This pattern takes too long even on empty text. Make it simpler."
+            return loc("This pattern takes too long even on empty text. Make it simpler.")
         }
         return nil
     }
@@ -155,7 +155,7 @@ public enum RedactionPatterns {
         var i = 0
         while i < c.count {
             if c[i] == "\\" {
-                guard i + 1 < c.count else { return (i + 1, "a \\ at the end has nothing to escape") }
+                guard i + 1 < c.count else { return (i + 1, loc("a \\ at the end has nothing to escape")) }
                 if c[i + 1] == "Q" {
                     var j = i + 2
                     while j + 1 < c.count && !(c[j] == "\\" && c[j + 1] == "E") { j += 1 }
@@ -172,12 +172,12 @@ public enum RedactionPatterns {
             } else if c[i] == "(" {
                 groups.append(i)
             } else if c[i] == ")" {
-                if groups.popLast() == nil { return (i + 1, "a ) has no ( before it") }
+                if groups.popLast() == nil { return (i + 1, loc("a ) has no ( before it")) }
             }
             i += 1
         }
-        if let open = sets.first { return (open + 1, "a [ has no closing ]") }
-        if let open = groups.last { return (open + 1, "a ( has no closing )") }
+        if let open = sets.first { return (open + 1, loc("a [ has no closing ]")) }
+        if let open = groups.last { return (open + 1, loc("a ( has no closing )")) }
         return nil
     }
 
@@ -239,7 +239,7 @@ public enum RedactionPatterns {
 
     /// "Email addresses: 3, Dates: 2".
     public static func summary(_ matches: [RedactionMatch]) -> String {
-        counts(matches).map { "\(name($0.pattern)): \($0.count)" }.joined(separator: ", ")
+        counts(matches).map { loc("{0}: {1}", name($0.pattern), CoreLanguage.number($0.count)) }.joined(separator: ", ")
     }
 
     // ---- Finding ----
@@ -250,7 +250,7 @@ public enum RedactionPatterns {
         do {
             return try NSRegularExpression(pattern: expression, options: options.matchCase ? [] : [.caseInsensitive])
         } catch {
-            throw PdfEditError("The pattern isn't valid.")
+            throw PdfEditError(loc("The pattern isn't valid."))
         }
     }
 
@@ -276,7 +276,7 @@ public enum RedactionPatterns {
             do {
                 all = try TimedRegex.matches(rule.regex, in: view, seconds: 2)
             } catch {
-                throw RedactionSearchTimeout(message: "Looking for \(name(rule.pattern).lowercased()) took too long on page \(page + 1).",
+                throw RedactionSearchTimeout(message: loc("Looking for {0} took too long on page {1}.", name(rule.pattern).lowercased(), CoreLanguage.number(page + 1)),
                                              userExpression: false)
             }
             for m in all {
@@ -308,8 +308,7 @@ public enum RedactionPatterns {
             do {
                 all = try TimedRegex.matches(custom, in: view, seconds: expressionTimeout)
             } catch {
-                throw RedactionSearchTimeout(message: "Your pattern took too long on page \(page + 1), so the search stopped. Make it simpler: "
-                                                 + "a repeat inside a repeat, such as (a+)+, can take very long on some text.", userExpression: true)
+                throw RedactionSearchTimeout(message: loc("Your pattern took too long on page {0}, so the search stopped. Make it simpler: a repeat inside a repeat, such as (a+)+, can take very long on some text.", CoreLanguage.number(page + 1)), userExpression: true)
             }
             for m in all where m.range.length > 0 { add(.expression, m.range.location, m.range.location + m.range.length, inView: true) }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What printing a protected document allows.
 public enum PrintPermission: Equatable, Sendable { case none, lowResolution, highResolution }
@@ -51,24 +52,24 @@ extension SecurityInfo {
     /// One line for Document Properties (Windows' `SecurityActions.Describe`): "AES-256 · needs a password to open · no
     /// copying", or "Not protected".
     public var summary: String {
-        if !isEncrypted { return "Not protected" }
+        if !isEncrypted { return loc("Not protected") }
         var parts: [String] = []
         switch method {
         case .aes256: parts.append("AES-256")
         case .aes128: parts.append("AES-128")
-        case .rc4With128Bits: parts.append("RC4 128-bit (outdated)")
-        case .rc4With40Bits: parts.append("RC4 40-bit (outdated)")
-        case .none, .unknown: parts.append("Encrypted")
+        case .rc4With128Bits: parts.append(loc("RC4 128-bit (outdated)"))
+        case .rc4With40Bits: parts.append(loc("RC4 40-bit (outdated)"))
+        case .none, .unknown: parts.append(loc("Encrypted"))
         }
-        parts.append(requiresOpenPassword ? "needs a password to open" : "opens without a password")
+        parts.append(requiresOpenPassword ? loc("needs a password to open") : loc("opens without a password"))
         let p = permissions
-        if p.isUnrestricted { parts.append("no restrictions") } else {
-            if p.print == .none { parts.append("no printing") } else if p.print == .lowResolution { parts.append("low-resolution printing") }
-            if !p.copy { parts.append("no copying") }
-            if !p.modify { parts.append("no editing") }
-            if !p.annotate { parts.append("no comments") }
-            if !p.fillForms { parts.append("no form filling") }
-            if !p.assemble { parts.append("no page changes") }
+        if p.isUnrestricted { parts.append(loc("no restrictions")) } else {
+            if p.print == .none { parts.append(loc("no printing")) } else if p.print == .lowResolution { parts.append(loc("low-resolution printing")) }
+            if !p.copy { parts.append(loc("no copying")) }
+            if !p.modify { parts.append(loc("no editing")) }
+            if !p.annotate { parts.append(loc("no comments")) }
+            if !p.fillForms { parts.append(loc("no form filling")) }
+            if !p.assemble { parts.append(loc("no page changes")) }
         }
         return parts.joined(separator: " · ")
     }
@@ -91,15 +92,15 @@ public enum PdfSecurity {
     public static func protect(_ data: [UInt8], _ password: String?, userPassword: String?, ownerPassword: String?,
                                permissions: PdfPermissions = .all, method: EncryptionMethod = .aes256) throws -> [UInt8] {
         if (userPassword ?? "").isEmpty && (ownerPassword ?? "").isEmpty {
-            throw PdfEditError("Protecting a PDF needs an open password or a permissions password.")
+            throw PdfEditError(loc("Protecting a PDF needs an open password or a permissions password."))
         }
-        guard method == .aes256 || method == .aes128 else { throw PdfEditError("Inkvolt PDF encrypts with AES-256 or AES-128.") }
+        guard method == .aes256 || method == .aes128 else { throw PdfEditError(loc("Inkvolt PDF encrypts with AES-256 or AES-128.")) }
         var owner = ownerPassword ?? ""
         if owner.isEmpty {
             owner = permissions.isUnrestricted ? userPassword ?? "" : randomPassword()
         }
         let doc = try PdfEdit.open(data, password)
-        try SignedEdits.requireRewrite(data, reason: "encrypting rewrites the whole file")
+        try SignedEdits.requireRewrite(data, reason: loc("encrypting rewrites the whole file"))
         return try doc.write("garbage=compact," + encryptOptions(method, user: userPassword ?? "", owner: owner, p: pValue(permissions)))
     }
 
@@ -108,7 +109,7 @@ public enum PdfSecurity {
     public static func unprotect(_ data: [UInt8], _ password: String?) throws -> [UInt8] {
         let doc = try PdfEdit.open(data, password)
         if !doc.hasEncrypt { return data }
-        try SignedEdits.requireRewrite(data, reason: "removing the encryption rewrites the whole file")
+        try SignedEdits.requireRewrite(data, reason: loc("removing the encryption rewrites the whole file"))
         return try doc.write("garbage=compact,encrypt=none")
     }
 
@@ -120,7 +121,7 @@ public enum PdfSecurity {
         do {
             doc = try MuDoc.open(data)
         } catch let e as PdfEngineError {
-            throw PdfEditError("This PDF can't be read: \(e.message)")
+            throw PdfEditError(loc("This PDF can't be read: {0}", e.message))
         }
         let needsPassword = doc.needsPassword
         if needsPassword {
@@ -219,7 +220,7 @@ public enum PasswordStrength {
         if password.isEmpty { return (0, "") }
         let lower = password.lowercased()
         let units = Array(password.utf16)
-        if units.count < 6 || common.contains(lower) || Set(units).count <= 2 { return (1, "Weak") }
+        if units.count < 6 || common.contains(lower) || Set(units).count <= 2 { return (1, loc("Weak", context: "password strength")) }
 
         var classes = 0
         let scalars = password.unicodeScalars
@@ -235,7 +236,9 @@ public enum PasswordStrength {
         if classes == 1 && n < 16 { score -= 1 }
         if common.contains(where: { $0.count >= 5 && lower.contains($0) }) || isRun(Array(lower.utf16)) { score -= 1 }
         score = min(max(score, 1), 4)
-        return (score, ["Weak", "Fair", "Good", "Strong"][score - 1])
+        let labels = [loc("Weak", context: "password strength"), loc("Fair", context: "password strength"),
+                      loc("Good", context: "password strength"), loc("Strong", context: "password strength")]
+        return (score, labels[score - 1])
     }
 
     /// The whole password is one ascending or descending run ("abcdefgh", "98765432").

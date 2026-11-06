@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// One step of a multi-request job: which request it is, of how many known so far, and whether it is the last.
 public struct AiStep: Sendable, Equatable {
@@ -102,10 +103,10 @@ public enum AiPrompts {
     /// The first requests of a summary: one for the whole text when it fits, else one per chunk (the map step).
     public static func summaryRequests(_ chunks: [AiChunk]) -> [[AiMessage]] {
         if chunks.count == 1 {
-            return [[.system(summarySystem), .user("Summarize this document text (\(chunks[0].pagesText)): a short overview, then the key points.\n\n\(chunks[0].text)")]]
+            return [[.system(summarySystem), .user("Summarize this document text (\(chunks[0].pagesTextEnglish)): a short overview, then the key points.\n\n\(chunks[0].text)")]]
         }
         return chunks.enumerated().map { i, c in
-            [.system(summarySystem), .user("This is part \(i + 1) of \(chunks.count) of one document (\(c.pagesText)). Summarize this part in a few bullet points.\n\n\(c.text)")]
+            [.system(summarySystem), .user("This is part \(i + 1) of \(chunks.count) of one document (\(c.pagesTextEnglish)). Summarize this part in a few bullet points.\n\n\(c.text)")]
         }
     }
 
@@ -114,7 +115,7 @@ public enum AiPrompts {
         var text = final
             ? "These are summaries of consecutive parts of one document. Combine them into one summary: a short overview, then the key points. Keep the [p. N] citations.\n"
             : "These are summaries of consecutive parts of one document. Combine them into one shorter summary of these parts, as bullet points. Keep the [p. N] citations.\n"
-        for (part, summary) in parts { text += "\n### \(capital(part.pagesText))\n\(AiText.trim(summary))\n" }
+        for (part, summary) in parts { text += "\n### \(capital(part.pagesTextEnglish))\n\(AiText.trim(summary))\n" }
         return [.system(summarySystem), .user(text)]
     }
 
@@ -127,9 +128,9 @@ public enum AiPrompts {
                                  ask: @Sendable ([AiMessage], AiStep, CancelToken?) async throws -> String,
                                  cancel: CancelToken? = nil,
                                  confirmCombine: (@Sendable ([[AiMessage]], CancelToken?) async throws -> Bool)? = nil) async throws -> String {
-        if chunks.isEmpty { throw AiError("These pages have no text to summarize. Scanned pages need Recognize Text (OCR) first.") }
+        if chunks.isEmpty { throw AiError(loc("These pages have no text to summarize. Scanned pages need Recognize Text (OCR) first.")) }
         let first = summaryRequests(chunks)
-        if first.count == 1 { return try await ask(first[0], AiStep(1, 1, true, "Summarizing \(chunks[0].pagesText)"), cancel) }
+        if first.count == 1 { return try await ask(first[0], AiStep(1, 1, true, loc("Summarizing {0}", chunks[0].pagesText)), cancel) }
 
         var done = 0
         var total = chunks.count + 1 // grows if the summaries need more than one combining round
@@ -137,7 +138,7 @@ public enum AiPrompts {
         for i in chunks.indices {
             try cancel.check()
             done += 1
-            let summary = try await ask(first[i], AiStep(done, total, false, "Summarizing part \(i + 1) of \(chunks.count) (\(chunks[i].pagesText))"), cancel)
+            let summary = try await ask(first[i], AiStep(done, total, false, loc("Summarizing part {0} of {1} ({2})", CoreLanguage.number(i + 1), CoreLanguage.number(chunks.count), chunks[i].pagesText)), cancel)
             parts.append((chunks[i], summary))
         }
 
@@ -151,7 +152,7 @@ public enum AiPrompts {
             if !round.isEmpty, let confirmCombine, !(try await confirmCombine(round, cancel)) { return partsAsAnswer(parts) }
             if groups.count == 1 {
                 done += 1
-                return try await ask(round[0], AiStep(done, total, true, "Combining the parts into one summary"), cancel)
+                return try await ask(round[0], AiStep(done, total, true, loc("Combining the parts into one summary")), cancel)
             }
             total += round.count // the requests this round really makes (the final combine is already counted)
             var next: [(part: AiChunk, summary: String)] = []
@@ -161,7 +162,7 @@ public enum AiPrompts {
                 var summary = g[0].summary
                 if g.count > 1 {
                     done += 1
-                    summary = try await ask(round[r], AiStep(done, total, false, "Combining the summaries of \(span.pagesText)"), cancel)
+                    summary = try await ask(round[r], AiStep(done, total, false, loc("Combining the summaries of {0}", span.pagesText)), cancel)
                     r += 1
                 }
                 next.append((span, summary))
@@ -237,8 +238,8 @@ public enum AiPrompts {
 
         let included = Array(Set(chosen.flatMap { Array($0.firstPage...$0.lastPage) })).sorted()
         let scope = included.isEmpty ? "(the chosen pages have no text)"
-            : trimmed ? "Excerpts from \(AiText.pagesText(included)) (the parts most related to the question):"
-            : "Text of \(AiText.pagesText(included)):"
+            : trimmed ? "Excerpts from \(AiText.pagesText(included, english: true)) (the parts most related to the question):"
+            : "Text of \(AiText.pagesText(included, english: true)):"
         var messages: [AiMessage] = [.system("\(askSystem)\n\n\(scope)\n\n\(chosen.map(\.text).joined(separator: "\n\n"))")]
         for t in turns {
             messages.append(.user(t.question))
@@ -252,11 +253,10 @@ public enum AiPrompts {
     /// - Throws: `AiError` when the selection is empty or longer than one request can carry.
     public static func explain(_ selection: String, page: Int, inputTokens: Int) throws -> [AiMessage] {
         let text = AiText.clean(selection)
-        if text.isEmpty { throw AiError("The selection has no text to explain.") }
+        if text.isEmpty { throw AiError(loc("The selection has no text to explain.")) }
         let tokens = AiText.estimateTokens(text)
         if tokens > inputTokens {
-            throw AiError("The selection is too long to explain at once (about \(AiText.n0(tokens)) tokens; the model's context leaves room for about \(AiText.n0(inputTokens))). "
-                + "Select less, or use Summarize for whole pages.")
+            throw AiError(loc("The selection is too long to explain at once (about {0} tokens; the model's context leaves room for about {1}). Select less, or use Summarize for whole pages.", CoreLanguage.number(tokens), CoreLanguage.number(inputTokens)))
         }
         return [.system(explainSystem), .user("Explain this passage from page \(page + 1):\n\n\"\"\"\n\(text)\n\"\"\"")]
     }

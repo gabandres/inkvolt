@@ -1,0 +1,57 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleName": {
+      "comment": "Bundle name",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF" } }
+      }
+    },
+    "Excel Workbook": {
+      "comment": "A document type the app opens (CFBundleTypeName)",
+      "localizations": {
+        "es": { "stringUnit": { "state": "translated", "value": "Libro de Excel" } }
+      }
+    },
+    "NSHumanReadableCopyright": {
+      "comment": "Copyright (human-readable)",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software." } },
+        "es": { "stringUnit": { "state": "translated", "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; usa MuPDF © Artifex Software." } }
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "comment": "Privacy - Local Network Usage Description",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF looks for scanners on your network for File › Scan, asks the printer you print to for its status when Inkvolt Print knows it, and connects to an AI server on your network only if you set one up." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF busca escáneres en tu red para Archivo › Escanear, pide su estado a la impresora a la que imprimes cuando Inkvolt Print la conoce y se conecta a un servidor de IA de tu red solo si configuras uno." } }
+      }
+    },
+    "PDF Document": {
+      "comment": "A document type the app opens (CFBundleTypeName)",
+      "localizations": {
+        "es": { "stringUnit": { "state": "translated", "value": "Documento PDF" } }
+      }
+    },
+    "PowerPoint Presentation": {
+      "comment": "A document type the app opens (CFBundleTypeName)",
+      "localizations": {
+        "es": { "stringUnit": { "state": "translated", "value": "Presentación de PowerPoint" } }
+      }
+    },
+    "Web Page": {
+      "comment": "A document type the app opens (CFBundleTypeName)",
+      "localizations": {
+        "es": { "stringUnit": { "state": "translated", "value": "Página web" } }
+      }
+    },
+    "Word Document": {
+      "comment": "A document type the app opens (CFBundleTypeName)",
+      "localizations": {
+        "es": { "stringUnit": { "state": "translated", "value": "Documento de Word" } }
+      }
+    }
+  },
+  "version": "1.0"
+}

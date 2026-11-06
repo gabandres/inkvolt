@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A finished answer: its text and why the model stopped ("length" = cut off by the model's limit).
 public struct AiReply: Sendable, Equatable {
@@ -168,11 +169,11 @@ public final class AiClient: Sendable {
         var context: Int?
         var source = ""
         if let loaded {
-            (context, source) = (loaded, "as Ollama loaded it")
+            (context, source) = (loaded, loc("as Ollama loaded it"))
         } else if let numCtx {
-            (context, source) = (numCtx, "the model's num_ctx in Ollama")
+            (context, source) = (numCtx, loc("the model's num_ctx in Ollama"))
         }
-        if let c = context, let trained, trained < c { (context, source) = (trained, "the model's own limit") }
+        if let c = context, let trained, trained < c { (context, source) = (trained, loc("the model's own limit")) }
         return (context, source)
     }
 
@@ -241,7 +242,7 @@ public final class AiClient: Sendable {
                 if piece.isEmpty { continue }
                 let pieceLength = piece.utf16.count
                 if length + pieceLength > Self.maxAnswerChars {
-                    throw AiError("The answer from \(endpoint.host) grew far longer than an answer should; it was stopped.")
+                    throw AiError(loc("The answer from {0} grew far longer than an answer should; it was stopped.", endpoint.host))
                 }
                 text += piece
                 length += pieceLength
@@ -254,12 +255,12 @@ public final class AiClient: Sendable {
             }
         } catch is CancellationError {
             if cancel?.isCancelled == true { throw CancellationError() }
-            throw AiError("\(endpoint.host) stopped answering (nothing for \(Int(timeouts.idle.rounded())) seconds).") // bounded: the app's own timeouts (AiTimeouts.standard)
+            throw AiError(loc("{0} stopped answering (nothing for {1} seconds).", endpoint.host, CoreLanguage.number(Int(timeouts.idle.rounded())))) // bounded: the app's own timeouts (AiTimeouts.standard)
         } catch is AiNetError {
             if cancel?.isCancelled == true { throw CancellationError() }
             throw AiError(Self.closedEarly(endpoint))
         }
-        if !parser.sawData { throw AiError("\(endpoint.host) answered with an empty stream. Is the model name right?") }
+        if !parser.sawData { throw AiError(loc("{0} answered with an empty stream. Is the model name right?", endpoint.host)) }
         return AiReply(text, parser.finishReason)
     }
 
@@ -268,7 +269,7 @@ public final class AiClient: Sendable {
     private func authorization() throws -> [(name: String, value: String)] {
         guard let apiKey else { return [] }
         if apiKey.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) {
-            throw AiError("The API key has a line break or another character a key can't have. Enter it again in Settings › AI assistant.")
+            throw AiError(loc("The API key has a line break or another character a key can't have. Enter it again in Settings › AI assistant."))
         }
         return [("Authorization", "Bearer \(apiKey)")]
     }
@@ -279,8 +280,8 @@ public final class AiClient: Sendable {
             response = try await transport.send(request, deadline.token)
         } catch is CancellationError {
             if cancel?.isCancelled == true { throw CancellationError() }
-            throw AiError("\(endpoint.host) didn't answer within \(Self.describe(wait))."
-                + (endpoint.reach == .thisMac ? " A large model may still be loading: try again in a moment." : ""))
+            let loading = endpoint.reach == .thisMac ? " " + loc("A large model may still be loading: try again in a moment.") : ""
+            throw AiError(loc("{0} didn't answer within {1}.", endpoint.host, Self.describe(wait)) + loading)
         } catch let error as AiAddressError {
             throw AiError(error.message)
         } catch let error as AiNetError {
@@ -290,13 +291,16 @@ public final class AiClient: Sendable {
         if (300..<400).contains(response.status) {
             response.body.close()
             let to = response.location.flatMap { URL(string: $0, relativeTo: URL(string: endpoint.key + "/")) }?.absoluteURL
-            var shown = "another address"
+            var shown: String?
             if let to, var parts = URLComponents(url: to, resolvingAgainstBaseURL: false) {
                 parts.query = nil
                 parts.fragment = nil
-                shown = parts.string ?? shown
+                shown = parts.string
             }
-            throw AiError("\(endpoint.host) redirects to \(shown). Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.")
+            if let shown {
+                throw AiError(loc("{0} redirects to {1}. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host, shown))
+            }
+            throw AiError(loc("{0} redirects to another address. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host))
         }
         return response
     }
@@ -308,7 +312,7 @@ public final class AiClient: Sendable {
         do {
             while let piece = try await response.body.read(deadline.token) {
                 if bytes.count + piece.count > Self.maxBodyBytes {
-                    if !truncate { throw AiError("\(endpoint.host) sent more than \(Self.maxBodyBytes >> 20) MB in one answer; it was stopped.") }
+                    if !truncate { throw AiError(loc("{0} sent more than {1} MB in one answer; it was stopped.", endpoint.host, CoreLanguage.number(Self.maxBodyBytes >> 20))) }
                     bytes += piece.prefix(Self.maxBodyBytes - bytes.count)
                     break
                 }
@@ -316,7 +320,7 @@ public final class AiClient: Sendable {
             }
         } catch is CancellationError {
             if cancel?.isCancelled == true { throw CancellationError() }
-            throw AiError("The endpoint took too long to send its answer.")
+            throw AiError(loc("The endpoint took too long to send its answer."))
         } catch is AiNetError {
             if cancel?.isCancelled == true { throw CancellationError() }
             throw AiError(Self.closedEarly(endpoint))
@@ -328,38 +332,43 @@ public final class AiClient: Sendable {
     public static func describeConnectionFailure(_ endpoint: AiEndpoint, _ error: AiNetError) -> String {
         switch error {
         case .timedOut:
-            return "\(endpoint.host) didn't respond. Check the address, the network and any firewall."
+            return loc("{0} didn't respond. Check the address, the network and any firewall.", endpoint.host)
         case .hostNotFound:
-            return "Couldn't find \(endpoint.hostName). Check the address, and that this Mac is online."
+            return loc("Couldn't find {0}. Check the address, and that this Mac is online.", endpoint.hostName)
         case .secureConnection:
-            return "Couldn't make a secure connection to \(endpoint.host): its certificate isn't trusted by this Mac, or it doesn't speak https."
+            return loc("Couldn't make a secure connection to {0}: its certificate isn't trusted by this Mac, or it doesn't speak https.", endpoint.host)
         case .closedEarly:
             return closedEarly(endpoint)
         case .unreachable:
-            return "Couldn't reach \(endpoint.host). If it is on your network, allow Inkvolt PDF in System Settings › Privacy & Security › Local Network, and check that the computer is on."
+            return loc("Couldn't reach {0}. If it is on your network, allow Inkvolt PDF in System Settings › Privacy & Security › Local Network, and check that the computer is on.", endpoint.host)
         case .refused:
-            let hint = switch endpoint.serverName {
-            case "Ollama": "Is Ollama running? Start it (or run: ollama serve) and try again."
-            case "LM Studio": "Is LM Studio's local server running? Start it in LM Studio (Developer › Start server) and try again."
-            default: "Is the server running, and is the port right?"
+            switch endpoint.serverName {
+            case "Ollama":
+                return loc("Couldn't connect to {0}: nothing is listening there. Is Ollama running? Start it (or run: ollama serve) and try again.", endpoint.host)
+            case "LM Studio":
+                return loc("Couldn't connect to {0}: nothing is listening there. Is LM Studio's local server running? Start it in LM Studio (Developer › Start server) and try again.", endpoint.host)
+            default:
+                return loc("Couldn't connect to {0}: nothing is listening there. Is the server running, and is the port right?", endpoint.host)
             }
-            return "Couldn't connect to \(endpoint.host): nothing is listening there. \(hint)"
         case .other(let what):
-            return "The request to \(endpoint.host) failed (\(what))."
+            return loc("The request to {0} failed ({1}).", endpoint.host, what)
         }
     }
 
     /// The server was reached but the connection ended before the answer did (the server stopped or crashed).
     public static func closedEarly(_ endpoint: AiEndpoint) -> String {
-        "The connection to \(endpoint.host) closed before the answer finished" + (endpoint.serverName.map { ": did \($0) stop or crash?" } ?? ".")
+        if let name = endpoint.serverName {
+            return loc("The connection to {0} closed before the answer finished: did {1} stop or crash?", endpoint.host, name)
+        }
+        return loc("The connection to {0} closed before the answer finished.", endpoint.host)
     }
 
     private static func describe(_ t: Double) -> String {
         if t >= 60 {
             let minutes = Int((t / 60).rounded()) // bounded: t is one of the app's own timeouts
-            return "\(minutes) minute\(t >= 120 ? "s" : "")"
+            return t >= 120 ? loc("{0} minutes", CoreLanguage.number(minutes)) : loc("{0} minute", CoreLanguage.number(minutes))
         }
-        return "\(Int(t.rounded())) seconds" // bounded: t is one of the app's own timeouts
+        return loc("{0} seconds", CoreLanguage.number(Int(t.rounded()))) // bounded: t is one of the app's own timeouts
     }
 }
 
@@ -382,7 +391,7 @@ final class AiLineReader {
                 if b == 10 { return take() }
                 // UTF-16 units, as Windows counts: continuation bytes add none, a four-byte letter adds two.
                 if b & 0xC0 != 0x80 { lineChars += b >= 0xF0 ? 2 : 1 }
-                if lineChars > AiClient.maxLineChars { throw AiError("The endpoint sent a line too long to be part of a streamed answer.") }
+                if lineChars > AiClient.maxLineChars { throw AiError(loc("The endpoint sent a line too long to be part of a streamed answer.")) }
                 line.append(b)
             }
             if ended { return line.isEmpty ? nil : take() }

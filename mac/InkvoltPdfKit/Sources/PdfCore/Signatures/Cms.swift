@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Security
 
 /// A CMS SignedData (RFC 5652) read from a ContentInfo (.NET's `SignedCms` on Windows).
@@ -104,18 +105,18 @@ struct CmsSignerInfo {
     /// Checks the signature over `content` (the detached data or the encapsulated content) with the signer's
     /// certificate; nil when it holds, else why not.
     func check(_ content: [UInt8], contentType: String, certificates: [Certificate]) -> (problem: String?, certificate: Certificate?) {
-        guard let cert = certificate(in: certificates) else { return ("The signer's certificate isn't in the signature.", nil) }
-        guard let digest else { return ("The signature's hash algorithm (\(digestOid)) isn't supported.", cert) }
+        guard let cert = certificate(in: certificates) else { return (loc("The signer's certificate isn't in the signature."), nil) }
+        guard let digest else { return (loc("The signature's hash algorithm ({0}) isn't supported.", digestOid), cert) }
         var message = content
         if let attrs = signedAttributes {
-            guard let md = signed(Oids.messageDigest)?.first, md.tag == 0x04 else { return ("The signature has no message digest.", cert) }
-            if md.content != digest.hash(content) { return ("The hash value is not correct.", cert) }
-            if let ct = signed(Oids.contentType)?.first, (try? ct.oid()) != contentType { return ("The content type doesn't match.", cert) }
+            guard let md = signed(Oids.messageDigest)?.first, md.tag == 0x04 else { return (loc("The signature has no message digest."), cert) }
+            if md.content != digest.hash(content) { return (loc("The hash value is not correct."), cert) }
+            if let ct = signed(Oids.contentType)?.first, (try? ct.oid()) != contentType { return (loc("The content type doesn't match."), cert) }
             message = DerWriter.tlv(0x31, attrs.content)
         }
-        guard let key = cert.publicKey else { return ("The certificate's key can't be read.", cert) }
+        guard let key = cert.publicKey else { return (loc("The certificate's key can't be read."), cert) }
         let algorithm: SecKeyAlgorithm = cert.isEc ? digest.ecdsa : signatureAlgorithm == Oids.rsaPss ? digest.rsaPss : digest.rsa
-        return KeyEncoding.verify(key, algorithm, message, signature) ? (nil, cert) : ("The signature is not valid.", cert)
+        return KeyEncoding.verify(key, algorithm, message, signature) ? (nil, cert) : (loc("The signature is not valid."), cert)
     }
 }
 
@@ -209,12 +210,12 @@ enum Rfc3161 {
     /// The token in a TimeStampResp, checked against the request (granted, the same hash and nonce).
     static func token(fromReply reply: [UInt8], stamping data: [UInt8], nonce: [UInt8]) throws -> (der: [UInt8], token: Token) {
         let resp = try Der.parse(reply).children()
-        guard resp.count >= 2 else { throw SigningError("The timestamp server refused the request.") }
+        guard resp.count >= 2 else { throw SigningError(loc("The timestamp server refused the request.")) }
         let status = try resp[0].child(0).int()
-        guard status == 0 || status == 1 else { throw SigningError("The timestamp server refused the request (status \(status)).") }
+        guard status == 0 || status == 1 else { throw SigningError(loc("The timestamp server refused the request (status {0}).", status)) }
         let token = try Token(der: resp[1].raw)
-        guard token.imprintDigest?.hash(data) == token.imprint else { throw SigningError("The timestamp is for something else.") }
-        if let n = token.nonce, Array(n.drop { $0 == 0 }) != Array(nonce.drop { $0 == 0 }) { throw SigningError("The timestamp's nonce doesn't match.") }
+        guard token.imprintDigest?.hash(data) == token.imprint else { throw SigningError(loc("The timestamp is for something else.")) }
+        if let n = token.nonce, Array(n.drop { $0 == 0 }) != Array(nonce.drop { $0 == 0 }) { throw SigningError(loc("The timestamp's nonce doesn't match.")) }
         return (resp[1].raw, token)
     }
 }

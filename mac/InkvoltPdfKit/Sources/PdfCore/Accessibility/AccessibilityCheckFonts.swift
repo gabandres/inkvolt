@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension AccessibilityCheck {
     /// The CMaps a PDF reader knows without the file embedding them (ISO 32000-1, 9.7.5.2, Table 118).
@@ -79,7 +80,8 @@ extension AccessibilityChecker {
     private func font(_ use: AccessibilityFontUse) {
         let font = use.font
         let name = Self.fontName(font)
-        func fail(_ condition: String, _ problem: String) { add(condition, problem, page: use.page, box: use.box, element: "Font \(name)") }
+        let element = loc("Font {0}", name)
+        func fail(_ condition: String, _ problem: String) { add(condition, problem, page: use.page, box: use.box, element: element) }
 
         let subtype = font.name("Subtype") ?? ""
         let cid = subtype == "Type0" ? font.array("DescendantFonts")?[0].flatMap { $0.isDict ? $0 : nil } : nil
@@ -90,7 +92,7 @@ extension AccessibilityChecker {
         let symbolic = flags & 4 != 0
 
         if subtype != "Type3" && !use.shown.isEmpty && !embedded {
-            fail("31-009", "The font \(name) isn't embedded, so the text may show in another font, or not at all, on other computers.")
+            fail("31-009", loc("The font {0} isn't embedded, so the text may show in another font, or not at all, on other computers.", name))
         }
 
         // Glyph by glyph.
@@ -155,14 +157,30 @@ extension AccessibilityChecker {
             }
             if shown, let dw = tf.dictionaryWidth(code), let pw = tf.programWidth(code), abs(dw - pw) > 1 { widths += 1 }
         }
-        if missing > 0 { fail("31-011", "The embedded font \(name) lacks \(Self.count(missing, "glyph")) the text uses, so \(missing == 1 ? "that character" : "those characters") can't be drawn as meant.") }
-        if notdef > 0 { fail("31-030", "Text in the font \(name) draws the .notdef glyph (an empty box) \(Self.count(notdef, "time")): those characters aren't in the font.") }
-        if unmapped > 0 {
-            fail("31-027", "\(Self.count(unmapped, "character")) in the font \(name) can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read \(unmapped == 1 ? "it" : "them").")
+        if missing > 0 {
+            fail("31-011", missing == 1 ? loc("The embedded font {1} lacks {0} glyph the text uses, so that character can't be drawn as meant.", CoreLanguage.number(missing), name)
+                : loc("The embedded font {1} lacks {0} glyphs the text uses, so those characters can't be drawn as meant.", CoreLanguage.number(missing), name))
         }
-        if zero > 0 { fail("31-028", "The font \(name)'s ToUnicode map gives \(Self.count(zero, "character")) the value 0.") }
-        if bom > 0 { fail("31-029", "The font \(name)'s ToUnicode map gives \(Self.count(bom, "character")) the value U+FEFF or U+FFFE.") }
-        if widths > 0 { fail("31-016", "\(Self.count(widths, "glyph")) of the font \(name) \(widths == 1 ? "has" : "have") a different width in the PDF than in the font itself.") }
+        if notdef > 0 {
+            fail("31-030", notdef == 1 ? loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} time: those characters aren't in the font.", CoreLanguage.number(notdef), name)
+                : loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} times: those characters aren't in the font.", CoreLanguage.number(notdef), name))
+        }
+        if unmapped > 0 {
+            fail("31-027", unmapped == 1 ? loc("{0} character in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read it.", CoreLanguage.number(unmapped), name)
+                : loc("{0} characters in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read them.", CoreLanguage.number(unmapped), name))
+        }
+        if zero > 0 {
+            fail("31-028", zero == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value 0.", CoreLanguage.number(zero), name)
+                : loc("The font {1}'s ToUnicode map gives {0} characters the value 0.", CoreLanguage.number(zero), name))
+        }
+        if bom > 0 {
+            fail("31-029", bom == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value U+FEFF or U+FFFE.", CoreLanguage.number(bom), name)
+                : loc("The font {1}'s ToUnicode map gives {0} characters the value U+FEFF or U+FFFE.", CoreLanguage.number(bom), name))
+        }
+        if widths > 0 {
+            fail("31-016", widths == 1 ? loc("{0} glyph of the font {1} has a different width in the PDF than in the font itself.", CoreLanguage.number(widths), name)
+                : loc("{0} glyphs of the font {1} have a different width in the PDF than in the font itself.", CoreLanguage.number(widths), name))
+        }
 
         if subtype == "TrueType" {
             trueType(font, tf, symbolic, embedded, name, fail)
@@ -179,8 +197,8 @@ extension AccessibilityChecker {
             if let held {
                 let absent = held.filter { $0 != ".notdef" && !listed.contains($0) }.prefix(3)
                 let extra = listed.filter { $0 != ".notdef" && !held.contains($0) }.prefix(3)
-                if !absent.isEmpty { fail("31-012", "The font \(name)'s CharSet doesn't list every glyph in it (such as \(absent.joined(separator: ", "))).") }
-                if !extra.isEmpty { fail("31-013", "The font \(name)'s CharSet lists glyphs it doesn't have (such as \(extra.joined(separator: ", "))).") }
+                if !absent.isEmpty { fail("31-012", loc("The font {0}'s CharSet doesn't list every glyph in it (such as {1}).", name, absent.joined(separator: ", "))) }
+                if !extra.isEmpty { fail("31-013", loc("The font {0}'s CharSet lists glyphs it doesn't have (such as {1}).", name, extra.joined(separator: ", "))) }
             }
         }
     }
@@ -192,32 +210,32 @@ extension AccessibilityChecker {
         let has30 = tt?.hasCmap(3, 0) == true
         if !symbolic {
             if tt != nil && !(has30 ? cmaps > 1 : cmaps > 0) {
-                fail("31-017", "The TrueType font \(name) has no Unicode (3,1) or Mac (1,0) character map, so its glyphs can't be looked up.")
+                fail("31-017", loc("The TrueType font {0} has no Unicode (3,1) or Mac (1,0) character map, so its glyphs can't be looked up.", name))
             }
             guard let encoding, encoding.kind != .null else {
-                fail("31-019", "The TrueType font \(name) has no Encoding.")
+                fail("31-019", loc("The TrueType font {0} has no Encoding.", name))
                 return
             }
             if encoding.kind == .name {
                 let n = encoding.name ?? ""
-                if n != "WinAnsiEncoding" && n != "MacRomanEncoding" { fail("31-021", "The TrueType font \(name)'s encoding is \(n), not WinAnsi or MacRoman.") }
+                if n != "WinAnsiEncoding" && n != "MacRomanEncoding" { fail("31-021", loc("The TrueType font {0}'s encoding is {1}, not WinAnsi or MacRoman.", name, n)) }
             } else if encoding.isDict {
                 if let base = encoding.name("BaseEncoding") {
-                    if base != "WinAnsiEncoding" && base != "MacRomanEncoding" { fail("31-021", "The TrueType font \(name)'s base encoding is \(base), not WinAnsi or MacRoman.") }
+                    if base != "WinAnsiEncoding" && base != "MacRomanEncoding" { fail("31-021", loc("The TrueType font {0}'s base encoding is {1}, not WinAnsi or MacRoman.", name, base)) }
                 } else {
-                    fail("31-020", "The TrueType font \(name)'s Encoding has no base encoding (WinAnsi or MacRoman).")
+                    fail("31-020", loc("The TrueType font {0}'s Encoding has no base encoding (WinAnsi or MacRoman).", name))
                 }
                 if let diffs = encoding.array("Differences") {
                     let odd = diffs.elements.lazy.compactMap(\.name).filter { $0 != ".notdef" && GlyphNames.toUnicode($0) == nil }.prefix(3)
-                    if !odd.isEmpty { fail("31-022", "The TrueType font \(name)'s Differences name glyphs outside the Adobe Glyph List (such as \(odd.joined(separator: ", "))).") }
+                    if !odd.isEmpty { fail("31-022", loc("The TrueType font {0}'s Differences name glyphs outside the Adobe Glyph List (such as {1}).", name, odd.joined(separator: ", "))) }
                 }
             }
         } else {
-            if encoding != nil && encoding?.kind != .null { fail("31-024", "The symbolic TrueType font \(name) has an Encoding, which symbolic TrueType fonts mustn't have.") }
+            if encoding != nil && encoding?.kind != .null { fail("31-024", loc("The symbolic TrueType font {0} has an Encoding, which symbolic TrueType fonts mustn't have.", name)) }
             if tt != nil && cmaps != 1 && !has30 {
                 fail(cmaps == 0 ? "31-025" : "31-026", cmaps == 0
-                    ? "The symbolic TrueType font \(name) has no character map (cmap)."
-                    : "The symbolic TrueType font \(name) has several character maps but no Windows Symbol (3,0) one.")
+                    ? loc("The symbolic TrueType font {0} has no character map (cmap).", name)
+                    : loc("The symbolic TrueType font {0} has several character maps but no Windows Symbol (3,0) one.", name))
             }
         }
     }
@@ -231,7 +249,7 @@ extension AccessibilityChecker {
                 let cmap = encoding.name ?? ""
                 identity = cmap == "Identity-H" || cmap == "Identity-V"
                 if !AccessibilityCheck.predefinedCMaps.contains(cmap) {
-                    fail("31-006", "The font \(name) uses the CMap \(cmap), which is neither a standard one nor embedded.") // its collection is unknown too
+                    fail("31-006", loc("The font {0} uses the CMap {1}, which is neither a standard one nor embedded.", name, cmap)) // its collection is unknown too
                 } else if !identity {
                     cmapRegistry = "Adobe"
                     cmapOrdering = AccessibilityCheck.orderingOf(cmap)
@@ -243,10 +261,10 @@ extension AccessibilityChecker {
                 cmapSupplement = info?.int("Supplement")
                 let dictMode = encoding.int("WMode") ?? 0
                 if (AccessibilityCheck.wMode(encoding.streamData ?? []) ?? 0) != dictMode {
-                    fail("31-007", "The font \(name)'s embedded CMap gives two different writing modes (WMode).")
+                    fail("31-007", loc("The font {0}'s embedded CMap gives two different writing modes (WMode).", name))
                 }
                 if let used = encoding["UseCMap"], used.kind == .name, let n = used.name, !AccessibilityCheck.predefinedCMaps.contains(n) {
-                    fail("31-008", "The font \(name)'s CMap uses the CMap \(n), which isn't a standard one.")
+                    fail("31-008", loc("The font {0}'s CMap uses the CMap {1}, which isn't a standard one.", name, n))
                 }
             }
         }
@@ -254,17 +272,21 @@ extension AccessibilityChecker {
         if !identity {
             let info = cid.dict("CIDSystemInfo")
             let registry = Self.text(info?["Registry"]), ordering = Self.text(info?["Ordering"])
-            if registry != cmapRegistry { fail("31-001", "The font \(name)'s character collection registry (\(registry ?? "none")) differs from its CMap's (\(cmapRegistry ?? "none")).") }
-            if ordering != cmapOrdering { fail("31-002", "The font \(name)'s character collection ordering (\(ordering ?? "none")) differs from its CMap's (\(cmapOrdering ?? "none")).") }
-            if let s = info?.int("Supplement"), let cs = cmapSupplement, s > cs { fail("31-003", "The font \(name)'s character collection supplement (\(s)) is higher than its CMap's (\(cs)).") }
+            if registry != cmapRegistry {
+                fail("31-001", loc("The font {0}'s character collection registry ({1}) differs from its CMap's ({2}).", name, registry ?? loc("none"), cmapRegistry ?? loc("none")))
+            }
+            if ordering != cmapOrdering {
+                fail("31-002", loc("The font {0}'s character collection ordering ({1}) differs from its CMap's ({2}).", name, ordering ?? loc("none"), cmapOrdering ?? loc("none")))
+            }
+            if let s = info?.int("Supplement"), let cs = cmapSupplement, s > cs { fail("31-003", loc("The font {0}'s character collection supplement ({1}) is higher than its CMap's ({2}).", name, s, cs)) }
         }
         let cidType = cid.name("Subtype")
         let map = cid["CIDToGIDMap"]
         if cidType == "CIDFontType2" && embedded {
             if map == nil || map?.kind == .null {
-                fail("31-005", "The TrueType CID font \(name) has no glyph map (CIDToGIDMap).")
+                fail("31-005", loc("The TrueType CID font {0} has no glyph map (CIDToGIDMap).", name))
             } else if map?.isStream != true && map?.name != "Identity" {
-                fail("31-004", "The TrueType CID font \(name)'s glyph map (CIDToGIDMap) is neither a stream nor Identity.")
+                fail("31-004", loc("The TrueType CID font {0}'s glyph map (CIDToGIDMap) is neither a stream nor Identity.", name))
             }
         }
 
@@ -313,7 +335,13 @@ extension AccessibilityChecker {
                 c += 1
             }
         }
-        if unlisted > 0 { fail("31-014", "The font \(name)'s CIDSet doesn't list \(Self.count(unlisted, "glyph")) that the font holds.") }
-        if extra > 0 { fail("31-015", "The font \(name)'s CIDSet lists \(Self.count(extra, "glyph")) that the font doesn't hold.") }
+        if unlisted > 0 {
+            fail("31-014", unlisted == 1 ? loc("The font {1}'s CIDSet doesn't list {0} glyph that the font holds.", CoreLanguage.number(unlisted), name)
+                : loc("The font {1}'s CIDSet doesn't list {0} glyphs that the font holds.", CoreLanguage.number(unlisted), name))
+        }
+        if extra > 0 {
+            fail("31-015", extra == 1 ? loc("The font {1}'s CIDSet lists {0} glyph that the font doesn't hold.", CoreLanguage.number(extra), name)
+                : loc("The font {1}'s CIDSet lists {0} glyphs that the font doesn't hold.", CoreLanguage.number(extra), name))
+        }
     }
 }

@@ -1,6 +1,7 @@
 import AppKit
 import CoreText
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for D7 part c (`--edit`, after `EditTest`): forms filled through the page view's own
 /// clicks, editor, keystroke checks and Tab; Reset, Export and Import Form Data; Fill & Sign's text, marks, date,
@@ -214,7 +215,7 @@ struct FeatureTest {
         form.commitEditor()
         await settle()
         let undoTitle = controller.window?.undoManager?.undoMenuItemTitle ?? ""
-        check(opened && form.value("name") == "Ada Lovelace" && undoTitle == "Undo Fill form field",
+        check(opened && form.value("name") == "Ada Lovelace" && undoTitle == Shown.undo(loc("Fill form field")),
               "text field: clicked (editor opened: \(opened)), typed, written as “\(undoTitle)”")
 
         // The keystroke script refuses a letter in a number field; the calculation and format run on commit.
@@ -272,7 +273,7 @@ struct FeatureTest {
             let r = await controller.importFormData(from: url)
             await settle()
             // A calculated read-only field (the total) is refused while it differs: the calculation brings it back.
-            let refused = r?.rejected.filter { !$0.message.contains("read-only") }.map(\.message) ?? ["nothing imported"]
+            let refused = r?.rejected.filter { !$0.message.contains(loc("it is read-only")) }.map(\.message) ?? ["nothing imported"]
             if refused.isEmpty && form.value("name") == "Ada Lovelace" && form.value("size") == "L" && widget("total")?.value == "42.5" {
                 formats.append(name)
             } else {
@@ -375,7 +376,7 @@ struct FeatureTest {
         typedSheet?.useClicked()
         _ = controller.showSignatureSheet(initials: false, typing: true).map { $0.typed.stringValue = "A. L."; $0.useClicked() }
         let full = library.isFull && controller.showSignatureSheet(initials: false, typing: false) == nil
-        let addItem = controller.signatureMenu().items.first { $0.title == "Draw Signature…" }
+        let addItem = controller.signatureMenu().items.first { $0.title == loc("Draw Signature…") }
         check(full && addItem?.isEnabled == false, "three signatures saved: no room for a fourth, Draw Signature… disabled")
         if let second = library.saved.first(where: { $0.name == "Signature 2" }) { controller.deleteSaved(second, ask: false) }
         let after = controller.signatureMenu().items.filter { $0.action == #selector(DocumentWindowController.placeSavedSignature(_:)) }.map(\.title)
@@ -388,7 +389,7 @@ struct FeatureTest {
             await press(page, [c, PointD(c.x + 10, c.y + 5), PointD(c.x + 20, c.y + 10)])
             let moved = stamps(.signature).first { abs($0.rect.x - s.rect.x - 20) < 1 && abs($0.rect.y - s.rect.y - 10) < 1 }
             let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
-            check(moved != nil && title == "Undo Move", "hand tool moved the initials by (20, 10): “\(title)”")
+            check(moved != nil && title == Shown.undo(loc("Move")), "hand tool moved the initials by (20, 10): “\(title)”")
         }
         await waitDrawn()
         snapshot(controller.window?.contentView, "9-fill-and-sign.png")
@@ -454,7 +455,7 @@ struct FeatureTest {
                   let replacement = Self.replacement(run) else { continue }
             overPicture = Self.onPicture(run, c)
             let (found, title) = await rewrite(page, run, replacement)
-            check(found && title == "Undo Edit text",
+            check(found && title == Shown.undo(loc("Edit text")),
                   "Edit Text & Images: a \(run.text.count)-character run on page \(page + 1)\(overPicture ? " over a picture" : "") rewritten (“\(title)”)")
             edited = true
             break
@@ -469,7 +470,7 @@ struct FeatureTest {
                 guard let run = c.runs.first(where: { Self.onPicture($0, c) && Self.replacement($0) != nil }),
                       let replacement = Self.replacement(run) else { continue }
                 let (found, title) = await rewrite(page, run, replacement)
-                check(found && title == "Undo Edit text" && content.selectedImage == nil,
+                check(found && title == Shown.undo(loc("Edit text")) && content.selectedImage == nil,
                       "Edit Text & Images: a run over a picture on page \(page + 1) rewritten, the picture not selected (“\(title)”)")
                 tried = true
                 break
@@ -544,7 +545,7 @@ struct FeatureTest {
             return (0..<e.pageCount).map { (try? e.text($0).text) ?? "" }.joined(separator: " ")
         } ?? ""
         let offered = BatchWindowController.offered.filter(\.isReviewExport).count
-        check(summarized && summaryText.contains("Self-test note") && summaryText.contains("Comments on") && offered == 8,
+        check(summarized && summaryText.contains("Self-test note") && summaryText.contains(Shown.head(loc("Comments on {0}", Shown.gap))) && offered == 8,
               "Summarize Comments: the sheet lists the note (\(summaryText.count) characters); Batch offers \(offered) comment and form data actions")
         let undo = controller.window?.undoManager
         undo?.undo()
@@ -556,7 +557,7 @@ struct FeatureTest {
         let undoTitle = undo?.undoMenuItemTitle ?? ""
         let again = await controller.importComments(from: csv)
         check(added && exported != nil && exportedCsv?.count == exported?.count && gone && imported?.added == 1 && back
-              && undoTitle == "Undo Import comments" && again?.added == 0 && again?.skipped.count == exported?.count,
+              && undoTitle == Shown.undo(loc("Import comments")) && again?.added == 0 && again?.skipped.count == exported?.count,
               "Export Comments (XFDF \(exported?.count ?? -1), CSV), the note undone, Import Comments (1 added, one undo step), "
                 + "the CSV again adds nothing (\(again?.skipped.count ?? -1) skipped)")
     }
@@ -634,7 +635,7 @@ struct FeatureTest {
         if synthetic {
             let text = (try? controller.engine.text(2))?.text ?? ""
             let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
-            check(result.outcome == .done && r?.pagesWithWords == 1 && r?.hadText == 2 && text.contains("Inkvolt") && title == "Undo Recognize text",
+            check(result.outcome == .done && r?.pagesWithWords == 1 && r?.hadText == 2 && text.contains("Inkvolt") && title == Shown.undo(loc("Recognize text")),
                   "Recognize Text: \(summary); the scan's words found on its page; “\(title)”")
         } else {
             let fine = result.outcome == .done || result.outcome == .noChange

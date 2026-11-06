@@ -90,26 +90,36 @@ enum MainMenu {
         let main = NSMenu()
         for spec in DocumentCommands.menuBar {
             let menu = build(spec, updates)
-            main.addItem(holder(spec.title, menu))
+            main.addItem(holder(spec, menu))
             if spec.role == .windows { NSApp.windowsMenu = menu }
             if spec.role == .help { NSApp.helpMenu = menu }
         }
         return main
     }
 
-    private static func holder(_ title: String, _ menu: NSMenu) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+    private static func holder(_ spec: CommandMenu, _ menu: NSMenu) -> NSMenuItem {
+        let item = NSMenuItem(title: spec.shownTitle, action: nil, keyEquivalent: "")
         item.submenu = menu
+        english.setObject(spec.title as NSString, forKey: item)
         return item
+    }
+
+    /// Each item's English title (the command's, the menu's or the tool's identity), kept as the menu bar is built so the
+    /// command palette finds a command by its own English words (`CommandPalette.collect`).
+    private static let english = NSMapTable<NSMenuItem, NSString>.weakToStrongObjects()
+
+    /// `item`'s English title, if the menu bar was built with it.
+    static func englishTitle(of item: NSMenuItem) -> String? {
+        english.object(forKey: item) as String?
     }
 
     private static func build(_ spec: CommandMenu, _ updates: Updates) -> NSMenu {
         let menu: NSMenu
         switch spec.role {
         // Leaves bare keys to the focused view (the tools' single keys).
-        case .tools: menu = ToolsMenu(title: spec.title)
+        case .tools: menu = ToolsMenu(title: spec.shownTitle)
         case .savedSignatures: menu = SavedSignaturesMenu.make()
-        default: menu = NSMenu(title: spec.title)
+        default: menu = NSMenu(title: spec.shownTitle)
         }
         if spec.role == .services { NSApp.servicesMenu = menu }
         if spec.role == .recentDocuments {
@@ -121,19 +131,23 @@ enum MainMenu {
             switch entry {
             case .separator: menu.addItem(.separator())
             case .command(let command): menu.addItem(item(command))
-            case .submenu(let sub): menu.addItem(holder(sub.title, build(sub, updates)))
+            case .submenu(let sub): menu.addItem(holder(sub, build(sub, updates)))
             case .tools(let slot): for item in tools(slot) { menu.addItem(item) }
-            case .checkForUpdates: menu.addItem(updates.menuItem())
+            case .checkForUpdates:
+                let item = updates.menuItem()
+                english.setObject("Check for Updates…", forKey: item)
+                menu.addItem(item)
             }
         }
         return menu
     }
 
     private static func item(_ command: DocumentCommand) -> NSMenuItem {
-        let item = NSMenuItem(title: command.title, action: NSSelectorFromString(command.action), keyEquivalent: command.key)
+        let item = NSMenuItem(title: command.shownTitle, action: NSSelectorFromString(command.action), keyEquivalent: command.key)
         item.keyEquivalentModifierMask = flags(command.modifiers)
         // The jargon the Windows names keep, said plainly on the item (UX review, round 2; renames are proposed).
         item.toolTip = command.note
+        english.setObject(command.title as NSString, forKey: item)
         return item
     }
 
@@ -163,10 +177,11 @@ enum MainMenu {
         }
         let keyed = slot != .measuring
         return chosen.map { t in
-            let item = NSMenuItem(title: t.title, action: #selector(DocumentWindowController.chooseTool(_:)), keyEquivalent: keyed ? t.key : "")
+            let item = NSMenuItem(title: t.shownTitle, action: #selector(DocumentWindowController.chooseTool(_:)), keyEquivalent: keyed ? t.key : "")
             item.keyEquivalentModifierMask = keyed ? [] : .command
             item.toolTip = PlainWords.note(for: t.title)
             item.tag = t.rawValue
+            english.setObject(t.title as NSString, forKey: item)
             if keyed { item.image = NSImage(systemSymbolName: t.symbol, accessibilityDescription: nil) }
             return item
         }

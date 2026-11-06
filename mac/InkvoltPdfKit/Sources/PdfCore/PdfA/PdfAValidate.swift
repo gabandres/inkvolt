@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension PdfA {
     /// The PDF/A-2b (or 2a) rules `convert` handles, checked on a finished file (empty: none broken). Not a full validator:
@@ -6,49 +7,49 @@ extension PdfA {
     public static func validate(_ pdf: [UInt8], conformance: PdfAConformance = .b) -> [String] {
         let level = conformance.rawValue
         var problems: [String] = []
-        if !hasPdfAHeader(pdf) { problems.append("The file header isn't a PDF 1.x header followed by a binary comment.") }
+        if !hasPdfAHeader(pdf) { problems.append(loc("The file header isn't a PDF 1.x header followed by a binary comment.")) }
         let doc: MuDoc
         do {
             doc = try MuDoc.open(pdf)
         } catch let e as PdfEngineError {
-            return problems + ["The file can't be read: \(e.message)"]
+            return problems + [loc("The file can't be read: {0}", e.message)]
         } catch {
-            return problems + ["The file can't be read: \(error)"]
+            return problems + [loc("The file can't be read: {0}", String(describing: error))]
         }
-        if doc.hasEncrypt { problems.append("It is encrypted.") }
-        if LongNames.present(doc, pdf) { problems.append("A name is longer than the 127 bytes PDF/A allows.") }
-        if (doc.trailer.array("ID")?[0]?.bytes ?? []).isEmpty { problems.append("The trailer has no file identifier (/ID).") }
+        if doc.hasEncrypt { problems.append(loc("It is encrypted.")) }
+        if LongNames.present(doc, pdf) { problems.append(loc("A name is longer than the 127 bytes PDF/A allows.")) }
+        if (doc.trailer.array("ID")?[0]?.bytes ?? []).isEmpty { problems.append(loc("The trailer has no file identifier (/ID).")) }
         let catalog = doc.catalog
         if conformance == .a {
-            if !catalog.has("StructTreeRoot") { problems.append("It isn't tagged (no structure tree).") }
-            if catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true { problems.append("It doesn't say it is tagged (MarkInfo).") }
-            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { problems.append("It doesn't say its language.") }
+            if !catalog.has("StructTreeRoot") { problems.append(loc("It isn't tagged (no structure tree).")) }
+            if catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true { problems.append(loc("It doesn't say it is tagged (MarkInfo).")) }
+            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { problems.append(loc("It doesn't say its language.")) }
         }
         let pdfa = catalog.array("OutputIntents")?.elements.first { $0.isDict && $0.name("S") == "GTS_PDFA1" }
         let profile = pdfa?.dict("DestOutputProfile")
         let icc = profile?.isStream == true && profile?.int("N") == 3 ? profile?.streamData ?? [] : []
         if icc.count <= 128 || Array(icc[36..<40]) != Array("acsp".utf8) {
-            problems.append("There is no RGB PDF/A output intent with an ICC profile.")
+            problems.append(loc("There is no RGB PDF/A output intent with an ICC profile."))
         }
         if let meta = catalog.dict("Metadata"), meta.isStream, let raw = meta.rawStreamData {
-            if meta.has("Filter") { problems.append("The XMP metadata is compressed.") }
+            if meta.has("Filter") { problems.append(loc("The XMP metadata is compressed.")) }
             let xmp = String(decoding: raw, as: UTF8.self)
-            if !xmp.contains("pdfaid:part=\"2\"") && !xmp.contains("<pdfaid:part>2</pdfaid:part>") { problems.append("The XMP metadata doesn't say PDF/A-2.") }
+            if !xmp.contains("pdfaid:part=\"2\"") && !xmp.contains("<pdfaid:part>2</pdfaid:part>") { problems.append(loc("The XMP metadata doesn't say PDF/A-2.")) }
             if !xmp.contains("pdfaid:conformance=\"\(level)\"") && !xmp.contains("<pdfaid:conformance>\(level)</pdfaid:conformance>") {
-                problems.append("The XMP metadata doesn't say conformance \(level).")
+                problems.append(loc("The XMP metadata doesn't say conformance {0}.", level))
             }
             if conformance == .a && xmp.contains("pdfuaid") && !xmp.contains("pdfaSchema:prefix>pdfuaid<") {
-                problems.append("The XMP metadata says PDF/UA without the extension schema PDF/A requires.")
+                problems.append(loc("The XMP metadata says PDF/UA without the extension schema PDF/A requires."))
             }
         } else {
-            problems.append("There is no XMP metadata.")
+            problems.append(loc("There is no XMP metadata."))
         }
-        if catalog.has("AA") { problems.append("The document has additional actions.") }
+        if catalog.has("AA") { problems.append(loc("The document has additional actions.")) }
         if let names = catalog.dict("Names"), names.has("JavaScript") || names.has("EmbeddedFiles") {
-            problems.append("The document has scripts or attached files.")
+            problems.append(loc("The document has scripts or attached files."))
         }
         if let acro = catalog.dict("AcroForm"), acro.has("XFA") || acro["NeedAppearances"].map({ $0.kind == .bool && $0.bool }) == true {
-            problems.append("The form is an XFA form or needs the viewer to draw its fields.")
+            problems.append(loc("The form is an XFA form or needs the viewer to draw its fields."))
         }
 
         var seen = Set<UInt>()
@@ -63,21 +64,21 @@ extension PdfA {
             for key in d.keys where key != "Parent" && key != "P" {
                 if let v = d[key], v.isDict || v.isArray { stack.append(v) }
             }
-            if d.identity != catalog.identity && d.has("Metadata") { problems.append("Something other than the document has metadata of its own.") }
+            if d.identity != catalog.identity && d.has("Metadata") { problems.append(loc("Something other than the document has metadata of its own.")) }
             problems += objectProblems(d)
         }
         for page in (try? doc.pages()) ?? [] {
             for a in page.array("Annots")?.elements ?? [] where a.isDict {
                 let subtype = a.name("Subtype") ?? ""
                 let flags = a.int("F") ?? 0
-                if removedAnnotations.contains(subtype) { problems.append("It has a \(subtype) annotation.") }
+                if removedAnnotations.contains(subtype) { problems.append(loc("It has a {0} annotation.", subtype)) }
                 if flags & flagPrint == 0 || flags & (flagInvisible | flagHidden | flagNoView | flagToggleNoView) != 0 {
-                    problems.append("An annotation doesn't print or is hidden.")
+                    problems.append(loc("An annotation doesn't print or is hidden."))
                 }
                 let ap = a.dict("AP")
-                if let ap, ap.has("R") || ap.has("D") { problems.append("An annotation has rollover or down appearances.") }
+                if let ap, ap.has("R") || ap.has("D") { problems.append(loc("An annotation has rollover or down appearances.")) }
                 if ap?["N"] == nil && subtype != "Popup" && subtype != "Link" && !zeroRect(a.array("Rect")) {
-                    problems.append("An annotation has no appearance.")
+                    problems.append(loc("An annotation has no appearance."))
                 }
             }
         }
@@ -87,24 +88,24 @@ extension PdfA {
     /// What one dictionary of a finished file breaks.
     private static func objectProblems(_ d: PObj) -> [String] {
         var problems: [String] = []
-        if d.has("AA") { problems.append("Something has additional actions.") }
+        if d.has("AA") { problems.append(loc("Something has additional actions.")) }
         let type = d.name("Type")
         let subtype = d.name("Subtype")
         if let s = d.name("S"), !d.has("K"), type == "Action" || forbiddenActions.contains(s),
            forbiddenActions.contains(s) || s == "Named" && !allowedNamed.contains(d.name("N") ?? "") {
-            problems.append("It has a \(s) action.")
+            problems.append(loc("It has a {0} action.", s))
         }
         if d.isStream, let filter = d["Filter"], filter.name == "LZWDecode" || filter.elements.contains(where: { $0.name == "LZWDecode" }) {
-            problems.append("A stream is LZW-compressed.")
+            problems.append(loc("A stream is LZW-compressed."))
         }
         if subtype == "Image" && (d["Interpolate"].map { $0.kind == .bool && $0.bool } == true || d.has("Alternates") || d.has("OPI")) {
-            problems.append("A picture has interpolation, alternates or OPI.")
+            problems.append(loc("A picture has interpolation, alternates or OPI."))
         }
-        if subtype == "PS" { problems.append("It has a PostScript XObject.") }
-        if d.has("TR") || d.has("HTP") { problems.append("A graphics state has a transfer function or halftone origin.") }
+        if subtype == "PS" { problems.append(loc("It has a PostScript XObject.")) }
+        if d.has("TR") || d.has("HTP") { problems.append(loc("A graphics state has a transfer function or halftone origin.")) }
         let simple = type == "Font" && (subtype == "Type1" || subtype == "TrueType" || subtype == "MMType1")
         if (simple || subtype == "CIDFontType0" || subtype == "CIDFontType2") && !Pass.isEmbedded(d.dict("FontDescriptor")) {
-            problems.append("The font \(d.name("BaseFont") ?? "") isn't embedded.")
+            problems.append(loc("The font {0} isn't embedded.", d.name("BaseFont") ?? ""))
         }
         return problems
     }

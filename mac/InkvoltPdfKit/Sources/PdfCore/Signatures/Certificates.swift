@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 import Security
 
 /// The hash algorithms signatures use, with their identifiers and Security.framework's signature algorithms.
@@ -262,14 +263,14 @@ enum KeyEncoding {
             kSecAttrIsPermanent: false,
         ]
         var error: Unmanaged<CFError>?
-        guard let key = SecKeyCreateRandomKey(attrs as CFDictionary, &error) else { throw failure(error, "The key can't be made") }
+        guard let key = SecKeyCreateRandomKey(attrs as CFDictionary, &error) else { throw failure(error, loc("The key can't be made")) }
         return key
     }
 
     static func subjectPublicKeyInfo(_ key: SecKey) throws -> [UInt8] {
         var error: Unmanaged<CFError>?
         let pub = SecKeyCopyPublicKey(key) ?? key
-        guard let data = SecKeyCopyExternalRepresentation(pub, &error) as Data? else { throw failure(error, "The key can't be read") }
+        guard let data = SecKeyCopyExternalRepresentation(pub, &error) as Data? else { throw failure(error, loc("The key can't be read")) }
         if isEc(key) {
             let curve = switch bits(key) {
             case 384: Oids.p384
@@ -285,7 +286,7 @@ enum KeyEncoding {
     static func sign(_ key: SecKey, _ message: [UInt8], _ digest: DigestAlgorithm) throws -> [UInt8] {
         var error: Unmanaged<CFError>?
         guard let sig = SecKeyCreateSignature(key, isEc(key) ? digest.ecdsa : digest.rsa, Data(message) as CFData, &error) as Data? else {
-            throw failure(error, "The digital ID couldn't sign")
+            throw failure(error, loc("The digital ID couldn't sign"))
         }
         return Array(sig)
     }
@@ -298,7 +299,7 @@ enum KeyEncoding {
     static func failure(_ error: Unmanaged<CFError>?, _ what: String) -> Failure {
         let e = error?.takeRetainedValue()
         let code = e.map { CFErrorGetCode($0) } ?? 0
-        let text = e.map { CFErrorCopyDescription($0) as String } ?? "unknown error"
-        return Failure(description: "\(what): \(text)", cancelled: code == Int(errSecUserCanceled))
+        let text = e.map { CFErrorCopyDescription($0) as String } ?? loc("unknown error")
+        return Failure(description: loc("{0}: {1}", what, text), cancelled: code == Int(errSecUserCanceled))
     }
 }

@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import PdfCore
+import PrintCore
 
 /// A tagged PDF built by hand for the accessibility check (the Windows tests' `A11yDoc`): one page, a Document tag holding
 /// the `elems`, a Type 3 font (no font program to embed), XMP with a title and the PDF/UA identifier. As it is, it passes
@@ -593,6 +594,11 @@ struct AccessibilityCheckTests {
         #expect(html.contains("(not done yet)"))
         #expect(html.contains("1 of 15 done"))
         #expect(html.contains("prefers-color-scheme: dark"))
+        // In Spanish the page says so, whatever the table holds, as What's in This PDF's web report does.
+        let spanish = CoreLanguage.Table(language: "es", sentences: ["Accessibility report": "Informe de accesibilidad"])
+        CoreLanguage.withTable(spanish) {
+            #expect(AccessibilityReportHtml.write(report, "a.pdf", checkedAt: Date()).contains("<html lang=\"es\">"))
+        }
         // Headings in order: one h1, then h2s, h3s only under h2s.
         let pattern = try NSRegularExpression(pattern: "<h([1-6])[ >]")
         let levels = pattern.matches(in: html, range: NSRange(html.startIndex..., in: html)).map { Int((html as NSString).substring(with: $0.range(at: 1)))! }

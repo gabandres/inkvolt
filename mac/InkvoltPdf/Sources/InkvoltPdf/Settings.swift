@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// User preferences, in the app's UserDefaults under the Windows app's `AppSettings` names (Theme, RestorePosition,
 /// KeepRecoveryCopies, AuthorName, ZoomMode, LastVersionSeen, the Scan… and Export… choices). The self-test points
@@ -104,7 +105,7 @@ enum AppSettings {
         set { defaults.set(newValue, forKey: Key.zoomMode) }
     }
 
-    static let zoomModes = [("FitWidth", "Fit width"), ("FitPage", "Fit page"), ("ActualSize", "Actual size")]
+    static var zoomModes: [(String, String)] { [("FitWidth", loc("Fit width")), ("FitPage", loc("Fit page")), ("ActualSize", loc("Actual size"))] }
 
     /// Recognize Text's language (a BCP-47 tag; empty: Vision finds out for itself), and its two checks (on by default).
     static var ocrLanguage: String {
@@ -196,11 +197,13 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
 
     let theme = NSPopUpButton(frame: .zero, pullsDown: false)
     let zoom = NSPopUpButton(frame: .zero, pullsDown: false)
-    let restore = NSButton(checkboxWithTitle: "Reopen each file at the page where I left off", target: nil, action: nil)
-    let recovery = NSButton(checkboxWithTitle: "Keep recovery copies of unsaved changes", target: nil, action: nil)
-    let dark = NSButton(checkboxWithTitle: "Dark pages (inverted colors for night reading)", target: nil, action: nil)
-    let updates = NSButton(checkboxWithTitle: "Check for updates automatically", target: nil, action: nil)
+    let restore = NSButton(checkboxWithTitle: loc("Reopen each file at the page where I left off"), target: nil, action: nil)
+    let recovery = NSButton(checkboxWithTitle: loc("Keep recovery copies of unsaved changes"), target: nil, action: nil)
+    let dark = NSButton(checkboxWithTitle: loc("Dark pages (inverted colors for night reading)"), target: nil, action: nil)
+    let updates = NSButton(checkboxWithTitle: loc("Check for updates automatically"), target: nil, action: nil)
     let author = NSTextField(string: "")
+    /// Settings › Language (shown while `AppLanguage.spanishReady`): Same as macOS, English, Español, from the next launch.
+    let language = NSPopUpButton(frame: .zero, pullsDown: false)
     let aiState = NSTextField(wrappingLabelWithString: "")
     private let updater: Updates?
     /// Called after Save (the self-test waits on it).
@@ -217,53 +220,66 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     init(updater: Updates?) {
         self.updater = updater
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        window.title = "Inkvolt PDF Settings"
+        window.title = loc("Inkvolt PDF Settings")
         window.isRestorable = false
         super.init(window: window)
         window.delegate = self
-        theme.addItems(withTitles: ["Use my Mac's setting", "Light", "Dark"])
+        theme.addItems(withTitles: [loc("Use my Mac's setting"), loc("Light"), loc("Dark")])
         zoom.addItems(withTitles: AppSettings.zoomModes.map(\.1))
-        recovery.toolTip = "Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)"
-        updates.toolTip = "Asks Inkvolt PDF's update feed on GitHub whether a newer version is ready. Nothing about you or this Mac is sent."
+        recovery.toolTip = loc("Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)")
+        updates.toolTip = loc("Asks Inkvolt PDF's update feed on GitHub whether a newer version is ready. Nothing about you or this Mac is sent.")
         author.placeholderString = AppSettings.userName
-        author.setAccessibleName("Author name on comments")
+        author.setAccessibleName(loc("Author name on comments"))
 
         aiState.preferredMaxLayoutWidth = 300
         aiState.isSelectable = false
-        let aiSetUp = NSButton(title: "AI Assistant Settings…", target: self, action: #selector(aiSettingsClicked))
+        let aiSetUp = NSButton(title: loc("AI Assistant Settings…"), target: self, action: #selector(aiSettingsClicked))
         let aiRow = NSStackView(views: [aiState, aiSetUp])
         aiRow.orientation = .vertical
         aiRow.alignment = .leading
         aiRow.spacing = 6
         // Each pop-up named by its label (VoiceOver read them as nameless; the audit found them).
-        theme.setAccessibleName("App theme")
-        zoom.setAccessibleName("Open documents at")
-        let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "App theme:"), theme],
-            [NSTextField(labelWithString: "Open documents at:"), zoom],
+        theme.setAccessibleName(loc("App theme"))
+        zoom.setAccessibleName(loc("Open documents at"))
+        language.addItems(withTitles: AppLanguage.Choice.allCases.map(\.title))
+        language.setAccessibleName(loc("Language"))
+        let languageNote = NSTextField(wrappingLabelWithString: loc("Takes effect the next time Inkvolt PDF starts."))
+        languageNote.textColor = .secondaryLabelColor
+        languageNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        let languageRow = NSStackView(views: [language, languageNote])
+        languageRow.orientation = .vertical
+        languageRow.alignment = .leading
+        languageRow.spacing = 4
+        var rows: [[NSView]] = [
+            [NSTextField(labelWithString: loc("App theme:")), theme],
+            [NSTextField(labelWithString: loc("Open documents at:")), zoom],
+        ]
+        if AppLanguage.spanishReady { rows.append([NSTextField(labelWithString: loc("Language:")), languageRow]) }
+        rows += [
             [NSGridCell.emptyContentView, restore],
             [NSGridCell.emptyContentView, dark],
             [NSGridCell.emptyContentView, recovery],
             [NSGridCell.emptyContentView, updates],
-            [NSTextField(labelWithString: "Author name on comments:"), author],
-            [NSTextField(labelWithString: "AI assistant:"), aiRow],
-        ])
+            [NSTextField(labelWithString: loc("Author name on comments:")), author],
+            [NSTextField(labelWithString: loc("AI assistant:")), aiRow],
+        ]
+        let grid = NSGridView(views: rows)
         grid.column(at: 0).xPlacement = .trailing
         grid.rowSpacing = 10
         grid.columnSpacing = 8
         author.widthAnchor.constraint(equalToConstant: 260).isActive = true
-        let note = NSTextField(wrappingLabelWithString: "To make Inkvolt PDF your default PDF app: select a PDF in the Finder, choose File › Get Info, "
-            + "pick Inkvolt PDF under Open with, then click Change All.")
+        let note = NSTextField(wrappingLabelWithString:
+            loc("To make Inkvolt PDF your default PDF app: select a PDF in the Finder, choose File › Get Info, pick Inkvolt PDF under Open with, then click Change All."))
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         note.preferredMaxLayoutWidth = 460
         // A change applies at once, as in every Mac app's settings (no Save or Cancel; UX review, 2026-11-03).
-        let reset = NSButton(title: "Reset to Defaults", target: self, action: #selector(resetClicked))
-        reset.toolTip = "These settings back to how Inkvolt PDF starts. Recent files are kept."
+        let reset = NSButton(title: loc("Reset to Defaults"), target: self, action: #selector(resetClicked))
+        reset.toolTip = loc("These settings back to how Inkvolt PDF starts; the language follows macOS from the next launch. Recent files are kept.")
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [reset, spacer])
-        for control in [theme, zoom, restore, recovery, dark, updates] as [NSControl] {
+        for control in [theme, zoom, language, restore, recovery, dark, updates] as [NSControl] {
             control.target = self
             control.action = #selector(changed(_:))
         }
@@ -289,6 +305,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     func load() {
         theme.selectItem(at: ["System", "Light", "Dark"].firstIndex(of: AppSettings.theme) ?? 0)
         zoom.selectItem(at: AppSettings.zoomModes.firstIndex { $0.0 == AppSettings.zoomMode } ?? 0)
+        language.selectItem(at: AppLanguage.Choice.allCases.firstIndex(of: AppLanguage.choice) ?? 0)
         restore.state = AppSettings.restorePosition ? .on : .off
         recovery.state = AppSettings.keepRecoveryCopies ? .on : .off
         dark.state = AppSettings.darkPages ? .on : .off
@@ -308,9 +325,12 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         }
     }
 
+    /// Every control back to Inkvolt PDF's defaults; the language back to Same as macOS (macOS's own setting for the app,
+    /// read at the next launch, as picking one is).
     @objc func resetClicked() {
         theme.selectItem(at: 0)
         zoom.selectItem(at: 0)
+        language.selectItem(at: AppLanguage.Choice.allCases.firstIndex(of: .system) ?? 0)
         restore.state = .on
         recovery.state = .on
         dark.state = .off
@@ -328,6 +348,9 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     @objc func saveClicked() {
         AppSettings.theme = ["System", "Light", "Dark"][max(theme.indexOfSelectedItem, 0)]
         AppSettings.zoomMode = AppSettings.zoomModes[max(zoom.indexOfSelectedItem, 0)].0
+        // The language is macOS's own setting for the app (the next launch's), never the self-test's to change.
+        let chosen = AppLanguage.Choice.allCases[max(language.indexOfSelectedItem, 0)]
+        if chosen != AppLanguage.choice && !Report.isRunning { AppLanguage.save(chosen) }
         AppSettings.restorePosition = restore.state == .on
         AppSettings.keepRecoveryCopies = recovery.state == .on
         AppSettings.setDarkPages(dark.state == .on)

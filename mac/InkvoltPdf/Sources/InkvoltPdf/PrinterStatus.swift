@@ -62,20 +62,20 @@ enum InkvoltPrintApp {
         if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
             NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
                 guard error != nil else { return }
-                Task { @MainActor in say("Inkvolt Print couldn't be started. Is it still installed?", store: false, NSApp.keyWindow) }
+                Task { @MainActor in say(loc("Inkvolt Print couldn't be started. Is it still installed?"), store: false, NSApp.keyWindow) }
             }
             return
         }
-        say("Inkvolt Print isn't on this Mac.", store: true, window)
+        say(loc("Inkvolt Print isn't on this Mac."), store: true, window)
     }
 
     private static func say(_ text: String, store: Bool, _ window: NSWindow?) {
         let alert = NSAlert()
         alert.messageText = text
         if store {
-            alert.informativeText = "Inkvolt Print shows your printers' status, ink and toner, and keeps their settings. It's in the Mac App Store."
-            alert.addButton(withTitle: "Open App Store")
-            alert.addButton(withTitle: "Cancel")
+            alert.informativeText = loc("Inkvolt Print shows your printers' status, ink and toner, and keeps their settings. It's in the Mac App Store.")
+            alert.addButton(withTitle: loc("Open App Store"))
+            alert.addButton(withTitle: loc("Cancel"))
         }
         let done: (NSApplication.ModalResponse) -> Void = { response in
             if store && response == .alertFirstButtonReturn { NSWorkspace.shared.open(storePage) }

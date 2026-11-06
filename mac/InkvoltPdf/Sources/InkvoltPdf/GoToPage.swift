@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Go › Go to Page… (⌥⌘G; Windows: Go to Page…, Ctrl+G, which focuses the page box): a page number or the page's label
 /// as the file names it ("iv", "A-3"), a matching label first, as Windows' `DocumentTab.FindPage`. Asked again, saying
@@ -18,7 +19,7 @@ extension DocumentWindowController {
     func askGoToPage() async {
         guard let window, engine.pageCount > 0 else { return }
         if organizerShown { showOrganizer(false) }
-        let range = "Enter a page from 1 to \(engine.pageCount)."
+        let range = loc("Enter a page from 1 to {0}.", CoreLanguage.number(engine.pageCount))
         if Report.skipsDialogs {
             guard let answer = GoToPageState.testAnswer else { return }
             if let page = findPage(answer) {
@@ -31,15 +32,15 @@ extension DocumentWindowController {
         }
         let field = NSTextField(string: "")
         field.placeholderString = "1–\(engine.pageCount)"
-        field.setAccessibilityLabel("Page number or label")
+        field.setAccessibilityLabel(loc("Page number or label"))
         field.frame = NSRect(x: 0, y: 0, width: 220, height: 24)
         var problem: String?
         while true {
             let alert = NSAlert()
-            alert.messageText = "Go to Page"
+            alert.messageText = loc("Go to Page")
             alert.informativeText = problem ?? GoToPageWords.prompt
-            alert.addButton(withTitle: "Go")
-            alert.addButton(withTitle: "Cancel")
+            alert.addButton(withTitle: loc("Go"))
+            alert.addButton(withTitle: loc("Cancel"))
             alert.accessoryView = field
             alert.window.initialFirstResponder = field
             guard await alert.beginSheetModal(for: window) == .alertFirstButtonReturn else { return }

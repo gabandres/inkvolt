@@ -26,7 +26,8 @@ import PdfCore
 /// PNGs of the window there (for the synthetic documents only: never a real file's pages). `--recovery-root <dir>` keeps
 /// recovery copies away from the user's;
 /// `--crash-after-recovery` kills the app once a copy is written, and `--restore-recovery` restores what it left without
-/// asking. Put the flags without a value last: AppKit reads "-name value" pairs from the arguments, and a path left
+/// asking. `--lang en|es` runs the app in that language; `--strings` (with `--quit`) checks the Spanish catalogs as the run
+/// starts and lists, as it ends, every sentence asked for without Spanish (`ReportStrings`). Put the flags without a value last: AppKit reads "-name value" pairs from the arguments, and a path left
 /// unpaired is opened as a document.
 @MainActor
 enum Report {
@@ -85,6 +86,8 @@ enum Report {
     private(set) static var syntheticFormPath: String?
     static let recoveryInterval = 0.5
     private static var quit = false
+    /// `--strings`: the catalogs' sentences without Spanish, counted as the run starts (nil: not asked).
+    private static var stringsMissing: Int?
     private static var started = 0
     private static var finished = 0
 
@@ -109,6 +112,11 @@ enum Report {
         restoresRecovery = args.contains("--restore-recovery")
         crashAfterRecovery = args.contains("--crash-after-recovery")
         write("# Inkvolt PDF self-test, \(Date())")
+        if args.contains("--strings") {
+            let catalogs = ReportStrings.catalogLines()
+            stringsMissing = catalogs.missing
+            for line in catalogs.lines { write(line) }
+        }
         // Settings go to a suite of the self-test's own, never the user's.
         AppSettings.clearTestSuite(AppTest.settingsSuite)
         AppSettings.defaults = UserDefaults(suiteName: AppTest.settingsSuite) ?? .standard
@@ -293,6 +301,7 @@ enum Report {
 
     /// Quits without the save questions: the test's edits are let go (their recovery copies with them).
     private static func quitNow() {
+        if let stringsMissing { for line in ReportStrings.endLines(catalogMissing: stringsMissing) { write(line) } }
         write("QUIT: \(finished) of \(started) documents finished")
         AppSettings.clearTestSuite(AppTest.settingsSuite)
         for document in NSDocumentController.shared.documents { document.close() }

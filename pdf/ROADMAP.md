@@ -1027,8 +1027,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   panes and dialogs, light and at Text size 150 %; the shots in `docs/ux-review/spanish-pdf/`. The command line stays
   English. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in
   `LocalizationTests`), every dialog by eye (about 30 of them were).
-- **Next:** the owner reviews the wording (`pdf/docs/SPANISH-REVIEW.md`); the Store listing loses "La aplicación está en
-  inglés." and "What's in This PDF" becomes "Qué hay en este PDF" when it ships; What's New in Spanish; the Mac app's.
+- **Built (Inkvolt PDF for Mac, 2026-11-06):** every sentence of the app and of PdfCore through PrintCore's `loc`
+  (`mac/InkvoltPdf/Resources`: `Localizable.xcstrings`, 1,738; `PdfStrings.xcstrings`, 1,912; Windows' Spanish word for
+  word where the sentence is the same, about 2,800), the menus in macOS's own Spanish names, the language following
+  macOS's per-app choice or Settings › Language (next launch), the command line English. What's New in Spanish on the
+  Mac (`WHATS-NEW.es.md`, the appcast's `xml:lang="es"` notes). Checked: `PdfStringsTests` on the PC, `--self-test
+  --strings` complete and the self-test passing in both languages on `ignia-mac` (but Vision's known flake) (mac/docs/PLAN.md, 3.7). The Mac-only
+  wording: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
+- **Next:** the owner reviews the wording (`pdf/docs/SPANISH-REVIEW.md`, the Mac's section too); the Store listing loses
+  "La aplicación está en inglés." and "What's in This PDF" becomes "Qué hay en este PDF" when it ships; What's New in
+  Spanish on Windows.
 
 ## Where we already win
 

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// File › New PDF from Office File… / from Web Page…, and File › Open for .docx, .xlsx, .pptx (and the other Office
@@ -36,15 +37,14 @@ enum Converting {
         let name = url.lastPathComponent
         guard OfficeFiles.appFor(url.path) != nil else {
             let options = savedWebOptions()
-            let paper = options.paper == .a4 ? "A4" : options.paper.rawValue.capitalized
-            return await run(title: "Opening \(name)", text: "Opening the page…", pdfName: OfficeFiles.pdfName(url.path),
-                             done: "Made from \(name) (\(paper)\(options.landscape ? " landscape" : ""), \(options.margins.rawValue) margins). File › New PDF from Web Page… has the page options. Save it to keep it.") { token, status in
+            let done = loc("Made from {0} ({1}). File › New PDF from Web Page… has the page options. Save it to keep it.", name, describe(options))
+            return await run(title: loc("Opening {0}", name), text: loc("Opening the page…"), pdfName: OfficeFiles.pdfName(url.path), done: done) { token, status in
                 try await WebCapture.print(url, options: options, status: status, cancel: token)
             }
         }
         let installs = installs()
         if let problem = OfficeConversion.precheck(url.path, installs) {
-            tell("Can't open \(name)", problem)
+            tell(loc("Can't open {0}", name), problem)
             return nil
         }
         // The converter's macros and links are off, but a file from the internet could still ask for things from elsewhere.
@@ -52,21 +52,36 @@ enum Converting {
         if internet && !confirmInternet(name) { return nil }
         let converterName = installs.route(url.path)?.appName ?? "LibreOffice"
         let path = url.path
-        return await run(title: "Opening \(name)", text: "Converting with \(converterName)…", pdfName: OfficeFiles.pdfName(path),
-                         done: "Made from \(name) with \(converterName). Save it to keep it.") { token, _ in
+        return await run(title: loc("Opening {0}", name), text: loc("Converting with {0}…", converterName), pdfName: OfficeFiles.pdfName(path),
+                         done: loc("Made from {0} with {1}. Save it to keep it.", name, converterName)) { token, _ in
             try await Task.detached { try OfficeConversion.convert(path, installs: installs, fromInternetConfirmed: internet, cancel: token) }.value
         }
+    }
+
+    /// How a web page was laid out, for the notice: "Letter landscape, narrow margins", as Windows says it.
+    private static func describe(_ options: WebPdfOptions) -> String {
+        let paper = switch options.paper {
+        case .letter: loc("Letter")
+        case .a4: "A4" // English: a paper size's name in every language
+        case .legal: loc("Legal")
+        }
+        let margins = switch options.margins {
+        case .none: loc("none margins")
+        case .narrow: loc("narrow margins")
+        case .normal: loc("normal margins")
+        case .wide: loc("wide margins")
+        }
+        return options.landscape ? loc("{0} landscape, {1}", paper, margins) : loc("{0}, {1}", paper, margins)
     }
 
     private static func confirmInternet(_ name: String) -> Bool {
         if Report.skipsDialogs { return testConfirmsInternet ?? false }
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "\(name) came from the internet"
-        alert.informativeText = "macOS marks this file as downloaded from the internet. LibreOffice opens it here with its macros and link updates off, "
-            + "but it is still read by another program, and a damaged or crafted file could try to fetch content from elsewhere. Convert it only if you trust where it came from."
-        alert.addButton(withTitle: "Convert Anyway")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("{0} came from the internet", name)
+        alert.informativeText = loc("macOS marks this file as downloaded from the internet. LibreOffice opens it here with its macros and link updates off, but it is still read by another program, and a damaged or crafted file could try to fetch content from elsewhere. Convert it only if you trust where it came from.")
+        alert.addButton(withTitle: loc("Convert Anyway"))
+        alert.addButton(withTitle: loc("Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -84,12 +99,12 @@ enum Converting {
     static func fromOfficeFile() {
         let installs = installs()
         guard installs.soffice != nil else {
-            tell("LibreOffice isn't installed", installs.missing(nil))
+            tell(loc("LibreOffice isn't installed"), installs.missing(nil))
             return
         }
         let panel = NSOpenPanel()
-        panel.title = "New PDF from Office File"
-        panel.prompt = "Create PDF"
+        panel.title = loc("New PDF from Office File")
+        panel.prompt = loc("Create PDF")
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = types(OfficeFiles.panelExtensions(OfficeApp.allCases))
         guard let urls = StartWindowController.pick(panel) else { return }
@@ -109,7 +124,8 @@ enum Converting {
         Task {
             let name = source.isFileURL ? OfficeFiles.pdfName(source.path) : WebFiles.pdfName(source)
             let label = source.isFileURL ? source.lastPathComponent : (source.host ?? source.absoluteString)
-            await run(title: "New PDF from Web Page", text: WebCaptureRules(source: source).loadingText, pdfName: name, done: "Made from \(label). Save it to keep it.") { token, status in
+            await run(title: loc("New PDF from Web Page"), text: WebCaptureRules(source: source).loadingText, pdfName: name,
+                      done: loc("Made from {0}. Save it to keep it.", label)) { token, status in
                 try await WebCapture.print(source, options: options, status: status, cancel: token)
             }
         }
@@ -118,16 +134,15 @@ enum Converting {
     private static func askWebPage() -> (URL, WebPdfOptions)? {
         let saved = savedWebOptions()
         let alert = NSAlert()
-        alert.messageText = "New PDF from Web Page"
-        alert.informativeText = "The page loads on this Mac with WebKit, from the internet as a browser would, in a private session that keeps no cookies or history. "
-            + "Scripts on a web page run; a saved page runs none. Pop-ups, downloads and permission requests are blocked."
-        alert.addButton(withTitle: "Create PDF")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("New PDF from Web Page")
+        alert.informativeText = loc("The page loads on this Mac with WebKit, from the internet as a browser would, in a private session that keeps no cookies or history. Scripts on a web page run; a saved page runs none. Pop-ups, downloads and permission requests are blocked.")
+        alert.addButton(withTitle: loc("Create PDF"))
+        alert.addButton(withTitle: loc("Cancel"))
         let address = NSTextField(string: "")
-        address.placeholderString = "example.com, or a saved page (.html, .mht)"
-        address.setAccessibilityLabel("Web address or file")
+        address.placeholderString = loc("example.com, or a saved page (.html, .mht)")
+        address.setAccessibilityLabel(loc("Web address or file"))
         address.widthAnchor.constraint(equalToConstant: 300).isActive = true
-        let browse = BrowseButton(title: "Browse…", target: nil, action: nil)
+        let browse = BrowseButton(title: loc("Browse…"), target: nil, action: nil)
         browse.field = address
         browse.target = browse
         browse.action = #selector(BrowseButton.browse)
@@ -138,21 +153,22 @@ enum Converting {
             button.setAccessibilityLabel(label)
             return button
         }
-        let paper = popup("Paper", ["Letter", "A4", "Legal"], WebPaper.allCases.firstIndex(of: saved.paper) ?? 0)
-        let orientation = popup("Orientation", ["Portrait", "Landscape"], saved.landscape ? 1 : 0)
-        let margins = popup("Margins", ["None", "Narrow (0.25 in)", "Normal (0.4 in)", "Wide (1 in)"], WebMargins.allCases.firstIndex(of: saved.margins) ?? 2)
-        let backgrounds = NSButton(checkboxWithTitle: "Background colors and pictures", target: nil, action: nil)
+        let paper = popup(loc("Paper"), [loc("Letter"), "A4", loc("Legal")], WebPaper.allCases.firstIndex(of: saved.paper) ?? 0)
+        let orientation = popup(loc("Orientation"), [loc("Portrait"), loc("Landscape")], saved.landscape ? 1 : 0)
+        let marginTitles = [loc("None", context: "margins"), loc("Narrow (0.25 in)"), loc("Normal (0.4 in)"), loc("Wide (1 in)")]
+        let margins = popup(loc("Margins"), marginTitles, WebMargins.allCases.firstIndex(of: saved.margins) ?? 2)
+        let backgrounds = NSButton(checkboxWithTitle: loc("Background colors and pictures"), target: nil, action: nil)
         backgrounds.state = saved.backgrounds ? .on : .off
-        let headers = NSButton(checkboxWithTitle: "Header and footer (title, address, date, page numbers)", target: nil, action: nil)
+        let headers = NSButton(checkboxWithTitle: loc("Header and footer (title, address, date, page numbers)"), target: nil, action: nil)
         headers.state = saved.headerAndFooter ? .on : .off
         let problem = NSTextField(labelWithString: "")
         problem.textColor = .systemRed
         problem.lineBreakMode = .byWordWrapping
         problem.maximumNumberOfLines = 2
         problem.preferredMaxLayoutWidth = 400
-        let grid = NSGridView(views: [[NSTextField(labelWithString: "Address:"), NSStackView(views: [address, browse])],
-                                      [NSTextField(labelWithString: "Paper:"), NSStackView(views: [paper, orientation])],
-                                      [NSTextField(labelWithString: "Margins:"), margins],
+        let grid = NSGridView(views: [[NSTextField(labelWithString: loc("Address:")), NSStackView(views: [address, browse])],
+                                      [NSTextField(labelWithString: loc("Paper:")), NSStackView(views: [paper, orientation])],
+                                      [NSTextField(labelWithString: loc("Margins:")), margins],
                                       [NSGridCell.emptyContentView, backgrounds], [NSGridCell.emptyContentView, headers], [NSGridCell.emptyContentView, problem]])
         grid.column(at: 0).xPlacement = .trailing
         grid.rowSpacing = 8
@@ -162,7 +178,7 @@ enum Converting {
         while alert.runModal() == .alertFirstButtonReturn {
             let parsed = WebFiles.parseSource(address.stringValue)
             guard let url = parsed.url else {
-                problem.stringValue = parsed.error ?? "That isn't a web address."
+                problem.stringValue = parsed.error ?? loc("That isn't a web address.")
                 grid.frame.size = grid.fittingSize
                 alert.layout()
                 continue
@@ -218,12 +234,12 @@ enum Converting {
             return document
         } catch is CancellationError {
             sheet.end()
-            lastNotice = "Cancelled. Nothing was opened."
+            lastNotice = loc("Cancelled. Nothing was opened.")
             (NSDocumentController.shared.currentDocument?.windowControllers.first as? DocumentWindowController)?.notify(lastNotice)
             return nil
         } catch {
             sheet.end()
-            tell("Couldn't make the PDF", (error as? PdfEditError)?.message ?? error.localizedDescription)
+            tell(loc("Couldn't make the PDF"), (error as? PdfEditError)?.message ?? error.localizedDescription)
             return nil
         }
     }
@@ -245,7 +261,8 @@ private final class BrowseButton: NSButton {
 
     @objc func browse() {
         let panel = NSOpenPanel()
-        panel.title = "Saved web page"
+        panel.title = loc("Saved web page")
+
         panel.allowedContentTypes = Converting.types(WebFiles.extensions.map { String($0.dropFirst()) })
         if panel.runModal() == .OK, let url = panel.url { field?.stringValue = url.path }
     }

@@ -3,13 +3,15 @@ import PrintCore
 import PdfCore
 
 /// Help › What's New: the bundled WHATS-NEW.md (Inkvolt Print's `ReleaseNotes` reads it), shown once after an update
-/// with what came since the version last run (nothing on a new install), as the Windows app's ReleaseNotes.
+/// with what came since the version last run (nothing on a new install), as the Windows app's ReleaseNotes. In Spanish,
+/// its Spanish twin, WHATS-NEW.es.md (the same versions, line for line: `PdfStringsTests`).
 @MainActor
 enum WhatsNew {
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0" }
 
     /// Where the notes are read from (the self-test may point elsewhere).
-    static var notesURL: URL? = Bundle.main.url(forResource: "WHATS-NEW", withExtension: "md")
+    static var notesURL: URL? = (AppLanguage.current == "es" ? Bundle.main.url(forResource: "WHATS-NEW.es", withExtension: "md") : nil)
+        ?? Bundle.main.url(forResource: "WHATS-NEW", withExtension: "md")
 
     /// Every versioned entry of this build's notes, newest first (none when the file is missing).
     static func notes() -> [ReleaseNote] {
@@ -44,17 +46,17 @@ final class WhatsNewWindowController: NSWindowController {
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 460), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "What's New in Inkvolt PDF"
+        window.title = loc("What's New in Inkvolt PDF")
         window.isRestorable = false
         super.init(window: window)
         textView.isEditable = false
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.autoresizingMask = [.width]
-        textView.setAccessibilityLabel("What's new")
+        textView.setAccessibilityLabel(loc("What's new"))
         let scroll = NSScrollView()
         scroll.documentView = textView
         scroll.hasVerticalScroller = true
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let close = NSButton(title: loc("Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = "\r"
         let stack = NSStackView(views: [scroll, close])
         stack.orientation = .vertical
@@ -71,10 +73,10 @@ final class WhatsNewWindowController: NSWindowController {
     func show(_ notes: [ReleaseNote]) {
         let text = NSMutableAttributedString()
         let body: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13), .foregroundColor: NSColor.labelColor, .paragraphStyle: Self.bullet]
-        if notes.isEmpty { text.append(NSAttributedString(string: "No release notes in this build.", attributes: body)) }
+        if notes.isEmpty { text.append(NSAttributedString(string: loc("No release notes in this build."), attributes: body)) }
         for (i, note) in notes.enumerated() {
             let heading: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 15, weight: .semibold), .foregroundColor: NSColor.labelColor]
-            text.append(NSAttributedString(string: (i == 0 ? "" : "\n") + "Version \(note.version)\n", attributes: heading))
+            text.append(NSAttributedString(string: (i == 0 ? "" : "\n") + loc("Version {0}", note.version) + "\n", attributes: heading))
             for item in note.items { text.append(NSAttributedString(string: "•\t\(item)\n", attributes: body)) }
         }
         textView.textStorage?.setAttributedString(text)
@@ -113,7 +115,7 @@ final class AboutWindowController: NSWindowController {
     static var versionText: String {
         let short = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        return short == build ? "Version \(short)" : "Version \(short) (\(build))"
+        return short == build ? loc("Version {0}", short) : loc("Version {0} ({1})", short, build)
     }
 
     /// The notices shown: Inkvolt PDF's list, then Sparkle's license as it ships.
@@ -121,15 +123,15 @@ final class AboutWindowController: NSWindowController {
         var parts: [String] = []
         for (name, ext) in [("THIRD-PARTY-NOTICES", "md"), ("Sparkle-LICENSE", "txt")] {
             if let url = Bundle.main.url(forResource: name, withExtension: ext), let text = try? String(contentsOf: url, encoding: .utf8) {
-                parts.append(name == "Sparkle-LICENSE" ? "Sparkle's license\n\n" + text : text)
+                parts.append(name == "Sparkle-LICENSE" ? loc("Sparkle's license") + "\n\n" + text : text)
             }
         }
-        return parts.isEmpty ? "The notices aren't in this build; they are at \(source.absoluteString)." : parts.joined(separator: "\n\n")
+        return parts.isEmpty ? loc("The notices aren't in this build; they are at {0}.", source.absoluteString) : parts.joined(separator: "\n\n")
     }
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 560, height: 600), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "About Inkvolt PDF"
+        window.title = loc("About Inkvolt PDF")
         window.isRestorable = false
         window.minSize = NSSize(width: 460, height: 420)
         super.init(window: window)
@@ -137,11 +139,11 @@ final class AboutWindowController: NSWindowController {
         let icon = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
         icon.widthAnchor.constraint(equalToConstant: 64).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 64).isActive = true
-        let name = NSTextField(labelWithString: "Inkvolt PDF")
+        let name = NSTextField(labelWithString: "Inkvolt PDF") // English: the app's name
         name.font = .systemFont(ofSize: 22, weight: .semibold)
         versionLabel.stringValue = Self.versionText
         versionLabel.textColor = .secondaryLabelColor
-        let copyright = NSTextField(labelWithString: "© 2026 Bermudez Systems LLC")
+        let copyright = NSTextField(labelWithString: "© 2026 Bermudez Systems LLC") // English: a company's name
         let titles = NSStackView(views: [name, versionLabel, copyright])
         titles.orientation = .vertical
         titles.alignment = .leading
@@ -149,23 +151,22 @@ final class AboutWindowController: NSWindowController {
         let header = NSStackView(views: [icon, titles])
         header.spacing = 16
 
-        let privacy = NSTextField(wrappingLabelWithString: "Nothing you open leaves this Mac unless you send text to an AI you set up. No account, no tracking, no analytics: documents, "
-            + "text recognition and exports are all done here. Update checks ask Inkvolt PDF's feed on GitHub and send nothing about you.")
-        let license = NSTextField(wrappingLabelWithString: "Inkvolt PDF is free software: you can share and change it under the GNU Affero General "
-            + "Public License, version 3 (AGPL-3.0), which MuPDF, the engine it is built on, requires. It comes with no warranty. "
-            + "The complete source code is on GitHub.")
+        let privacy = NSTextField(wrappingLabelWithString:
+            loc("Nothing you open leaves this Mac unless you send text to an AI you set up. No account, no tracking, no analytics: documents, text recognition and exports are all done here. Update checks ask Inkvolt PDF's feed on GitHub and send nothing about you."))
+        let license = NSTextField(wrappingLabelWithString:
+            loc("Inkvolt PDF is free software: you can share and change it under the GNU Affero General Public License, version 3 (AGPL-3.0), which MuPDF, the engine it is built on, requires. It comes with no warranty. The complete source code is on GitHub."))
         for label in [privacy, license] { label.preferredMaxLayoutWidth = 500 }
-        let sourceButton = NSButton(title: "Source Code on GitHub", target: self, action: #selector(openSource))
-        let licenseButton = NSButton(title: "License (AGPL-3.0)…", target: self, action: #selector(showLicense))
+        let sourceButton = NSButton(title: loc("Source Code on GitHub"), target: self, action: #selector(openSource))
+        let licenseButton = NSButton(title: loc("License (AGPL-3.0)…"), target: self, action: #selector(showLicense))
         let links = NSStackView(views: [sourceButton, licenseButton])
-        let noticesTitle = NSTextField(labelWithString: "Third-party notices")
+        let noticesTitle = NSTextField(labelWithString: loc("Third-party notices"))
         noticesTitle.font = .systemFont(ofSize: 13, weight: .semibold)
         notices.isEditable = false
         notices.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         notices.string = Self.noticesText()
         notices.textContainerInset = NSSize(width: 8, height: 8)
         notices.autoresizingMask = [.width]
-        notices.setAccessibilityLabel("Third-party notices")
+        notices.setAccessibilityLabel(loc("Third-party notices"))
         let scroll = NSScrollView()
         scroll.documentView = notices
         scroll.hasVerticalScroller = true
@@ -252,18 +253,17 @@ final class ReportProblemWindowController: NSWindowController {
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 520), styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Report a Problem"
+        window.title = loc("Report a Problem")
         window.isRestorable = false
         window.minSize = NSSize(width: 480, height: 380)
         super.init(window: window)
-        let note = NSTextField(wrappingLabelWithString: "These details help find the problem: the version, macOS and a few settings. "
-            + "IP addresses, file paths and your names are masked; document contents are never in them. Nothing is sent: copy them, "
-            + "then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share.")
+        let note = NSTextField(wrappingLabelWithString:
+            loc("These details help find the problem: the version, macOS and a few settings. IP addresses, file paths and your names are masked; document contents are never in them. Nothing is sent: copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share."))
         note.preferredMaxLayoutWidth = 600
         details.isEditable = true // the user may delete what they'd rather not share before copying
         details.isRichText = false
         details.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-        details.setAccessibilityLabel("Details to report")
+        details.setAccessibilityLabel(loc("Details to report"))
         details.isVerticallyResizable = true
         details.autoresizingMask = [.width]
         let scroll = NSScrollView()
@@ -272,10 +272,10 @@ final class ReportProblemWindowController: NSWindowController {
         scroll.borderType = .bezelBorder
         scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
         status.textColor = .secondaryLabelColor
-        let issue = NSButton(title: "Copy and Open a GitHub Issue", target: self, action: #selector(issueClicked))
-        issue.toolTip = "Copies the details, then opens a new issue on GitHub in your browser to paste them in"
-        let copy = NSButton(title: "Copy", target: self, action: #selector(copyClicked))
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let issue = NSButton(title: loc("Copy and Open a GitHub Issue"), target: self, action: #selector(issueClicked))
+        issue.toolTip = loc("Copies the details, then opens a new issue on GitHub in your browser to paste them in")
+        let copy = NSButton(title: loc("Copy"), target: self, action: #selector(copyClicked))
+        let close = NSButton(title: loc("Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -298,7 +298,7 @@ final class ReportProblemWindowController: NSWindowController {
     func copy(to pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         let ok = pasteboard.setString(details.string, forType: .string)
-        status.stringValue = ok ? "Copied." : "Couldn't copy: select the text and press ⌘C."
+        status.stringValue = ok ? loc("Copied.") : loc("Couldn't copy: select the text and press ⌘C.")
         return ok
     }
 
@@ -311,7 +311,7 @@ final class ReportProblemWindowController: NSWindowController {
         guard let url = URL(string: address) else { return }
         openedIssue = url
         if !Report.isRunning { NSWorkspace.shared.open(url) }
-        status.stringValue = "Copied. Paste the details into the issue under Details, then submit it."
+        status.stringValue = loc("Copied. Paste the details into the issue under Details, then submit it.")
     }
 
     @objc func closeClicked() { window?.orderOut(nil) }

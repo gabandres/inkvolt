@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E1 (`--edit`, after `PagesTest`, and after `FeatureTest` for the synthetic form): the
 /// Redact tool from its menu item, an area dragged and clicked away through the page view's own mouse handling, the
@@ -155,14 +156,15 @@ struct RedactTest {
         let item = NSMenuItem()
         item.tag = Tool.redact.rawValue
         controller.chooseTool(item)
-        check(pages.tool == .redact && !bar.isHidden && bar.label.stringValue.hasPrefix("Drag over") && !bar.apply.isEnabled,
+        check(pages.tool == .redact && !bar.isHidden && bar.label.stringValue.hasPrefix(loc("Drag over the areas to black out. Nothing is removed until you apply the redactions.")) && !bar.apply.isEnabled,
               "Redact tool from its menu item: the redaction bar shows, Apply disabled with nothing marked")
 
         let g = controller.engine.page(0)
         let a = PointD(g.width * 0.1, g.height * 0.1), b = PointD(g.width * 0.35, g.height * 0.16)
         let mid = PointD((a.x + b.x) / 2, (a.y + b.y) / 2)
         await press(0, [a, mid, b])
-        let one = pages.redactions.count == 1 && bar.label.stringValue.hasPrefix("1 area on 1 page") && bar.apply.isEnabled
+        let oneArea = loc("{0} on {1} marked for redaction. Click a mark with the Redact tool to unmark it.", loc("{0} area", 1), loc("{0} page", 1))
+        let one = pages.redactions.count == 1 && bar.label.stringValue == oneArea && bar.apply.isEnabled
         await press(0, [mid])
         let none = pages.redactions.isEmpty
         await press(0, [a, mid, b])
@@ -205,10 +207,10 @@ struct RedactTest {
         sheet.phrases.string = ""
         sheet.expression.stringValue = "CASE-("
         sheet.findClicked()
-        let refused = !sheet.problem.isHidden && sheet.problem.stringValue.contains("near character 6") && controller.redaction.patternSheet != nil
+        let refused = !sheet.problem.isHidden && sheet.problem.stringValue.contains(Shown.head(loc("The pattern has a mistake near character {0}: {1}.", 6, Shown.gap))) && controller.redaction.patternSheet != nil
         sheet.expression.stringValue = ""
         sheet.findClicked()
-        let empty = sheet.problem.stringValue.hasPrefix("Choose something") && controller.redaction.patternSheet != nil
+        let empty = sheet.problem.stringValue == loc("Choose something to look for: a kind of text, a word or phrase, or your own pattern.") && controller.redaction.patternSheet != nil
         guard let t = target else {
             sheet.cancelClicked()
             return check(refused && empty && controller.redaction.patternSheet == nil, "Redact by Pattern: a bad pattern and nothing chosen refused, Cancel")
@@ -219,7 +221,10 @@ struct RedactTest {
         await waitTasks()
         let expected = (try? RedactionPatterns.find(controller.engine, RedactionPatternOptions(patterns: [], phrases: [t.word])))?.reduce(0) { $0 + $1.rects.count } ?? -1
         let marked = pages.redactions.count
-        let notice = controller.noticeBar.message.hasPrefix("Marked")
+        let said = controller.noticeBar.message
+        // Redact by Pattern's own notice (the kinds found in brackets), one match or several.
+        let notice = said.hasPrefix(Shown.head(loc("Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.", Shown.gap)))
+            || said.hasPrefix(Shown.head(loc("Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.", Shown.gap, Shown.gap)))
         if marked != expected || marked == 0 {
             let p = RedactionState.lastPatterns
             lines.append("  (patterns \(p.patterns.count), phrases \(p.phrases.map(\.count)), whole \(p.wholeWord), case \(p.matchCase), "
@@ -239,7 +244,7 @@ struct RedactTest {
         let marks = pages.redactions
         guard !marks.isEmpty else { return check(false, "areas to apply") }
         let marked = Array(Set(marks.map(\.page))).sorted()
-        let label = marks.count == 1 ? "Redact 1 area" : "Redact \(marks.count) areas"
+        let label = marks.count == 1 ? loc("Redact 1 area") : loc("Redact {0} areas", CoreLanguage.number(marks.count))
         let before = controller.editor.finishedEdits
         bar.apply.performClick(nil)
         await waitTasks()
@@ -251,7 +256,7 @@ struct RedactTest {
         let gone = target.map { t in marked.allSatisfy { p in Self.under(t.word, try? controller.engine.text(p), markRects[p] ?? []) == 0 } } ?? true
         let report = controller.redaction.lastReport
         let reportShown = controller.redaction.reportSheet != nil
-        let checked = report.map { $0.isClean ? controller.noticeBar.history.contains { $0.hasPrefix("Redaction checked") } : reportShown } ?? false
+        let checked = report.map { $0.isClean ? controller.noticeBar.history.contains { $0.hasPrefix(loc("Redaction checked: nothing of what was redacted is left in the file.")) } : reportShown } ?? false
         let kinds = Set(report?.findings.map(\.kind) ?? []).map { RedactionCheck.name($0) }.sorted().joined(separator: ", ")
         if !(applied && gone && checked) {
             for f in report?.findings ?? [] { lines.append("  (found: \(RedactionCheck.name(f.kind)) · \(f.place), \(f.text.count) characters, fix \(f.fix))") }
@@ -302,11 +307,11 @@ struct RedactTest {
         let report = controller.redaction.lastReport
         let covered = report?.findings.contains { $0.kind == .coveredText && $0.text == "quick" && $0.fix == .redact } ?? false
         guard let sheet = controller.redaction.reportSheet else { return check(false, "Check Redaction's report shown for a box over a word") }
-        let fixTitle = sheet.fixButton.title.hasPrefix("Fix")
-        let copied = RedactionReportSheet.text(sheet.report).contains("Text under a cover")
+        let fixTitle = sheet.fixButton.title.hasPrefix(Shown.head(loc("Fix {0} Things", Shown.gap)))
+        let copied = RedactionReportSheet.text(sheet.report).contains(loc("Text under a cover"))
         sheet.fixClicked()
         await waitTasks()
-        let fixedNotice = controller.noticeBar.history.last?.hasPrefix("Fixed") ?? false
+        let fixedNotice = controller.noticeBar.history.last?.hasPrefix(loc("Fixed: nothing of what was redacted is left in the file. Save to keep it.")) ?? false
         let after = controller.redaction.lastReport
         let wordGone = wholeWordHits("quick", 0) == 0
         if !(drawn && covered && fixTitle && copied && wordGone && fixedNotice) {
@@ -320,10 +325,12 @@ struct RedactTest {
         if let open = controller.redaction.reportSheet { open.closeClicked() }
         // Back to before the box: the fix's steps, then the box.
         var undone = 0
-        while undone < 4, let label = session?.undoLabel, label.hasPrefix("Redact") || label == "Remove redaction leftovers" || label == "Rectangle" {
+        let areas = Shown.parts(loc("Redact {0} areas", Shown.gap))
+        func redacted(_ label: String) -> Bool { label == loc("Redact 1 area") || label.hasPrefix(areas[0]) && label.hasSuffix(areas[areas.count - 1]) }
+        while undone < 4, let label = session?.undoLabel, redacted(label) || label == loc("Remove redaction leftovers") || label == loc("Rectangle") {
             controller.pdf.undo()
             undone += 1
-            if label == "Rectangle" { break }
+            if label == loc("Rectangle") { break }
         }
         check(wholeWordHits("quick", 0) > 0, "undo takes the fix and the box away (\(undone) steps)")
     }
@@ -436,7 +443,7 @@ struct RedactTest {
         }
         await waitTasks()
         let result = controller.redaction.lastSanitize
-        let done = session?.undoLabel == "Sanitize document" && result != nil
+        let done = session?.undoLabel == loc("Sanitize document") && result != nil
         var clean = false
         if let saved = await saveAs("sanitized.pdf"), let rescan = try? Sanitizer.scan(saved, session?.password) {
             clean = chosen.allSatisfy { rescan[$0] == 0 } && rescan.earlierRevisions == 0
@@ -452,6 +459,6 @@ struct RedactTest {
         check(boxes && done && clean, "Sanitize Document (its sheet: \(chosen.count) kinds found and ticked, \(removed) items): removed, "
               + "the saved file scanned again holds none of them and no earlier version")
         if done { await inventoryAfterSanitize(chosen) }
-        check(undo("Sanitize document"), "undo Sanitize")
+        check(undo(loc("Sanitize document")), "undo Sanitize")
     }
 }

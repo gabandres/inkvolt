@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// A table of pieces whose keys move them: ⌥↑/⌥↓ within the page, ⌥Page Up/⌥Page Down to the page before or after, Page
 /// Up/Page Down shows the page before or after, Return or F2 goes to the selected piece's alternate text.
@@ -55,15 +56,15 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     private(set) var panelItem: NSSplitViewItem!
     let summaryLabel = NSTextField(wrappingLabelWithString: "")
     let table = ReadingOrderTable()
-    let upButton = NSButton(title: "Up", target: nil, action: nil)
-    let downButton = NSButton(title: "Down", target: nil, action: nil)
-    let pageBeforeButton = NSButton(title: "Page Before", target: nil, action: nil)
-    let pageAfterButton = NSButton(title: "Page After", target: nil, action: nil)
+    let upButton = NSButton(title: loc("Up"), target: nil, action: nil)
+    let downButton = NSButton(title: loc("Down"), target: nil, action: nil)
+    let pageBeforeButton = NSButton(title: loc("Page Before"), target: nil, action: nil)
+    let pageAfterButton = NSButton(title: loc("Page After"), target: nil, action: nil)
     let figureGroup = NSStackView()
     let altLabel = NSTextField(labelWithString: "")
     let altField = NSTextField()
-    let decorativeBox = NSButton(checkboxWithTitle: "Decorative: nothing a reader needs", target: nil, action: nil)
-    let suggestButton = NSButton(title: "Suggest with AI…", target: nil, action: nil)
+    let decorativeBox = NSButton(checkboxWithTitle: loc("Decorative: nothing a reader needs"), target: nil, action: nil)
+    let suggestButton = NSButton(title: loc("Suggest with AI…"), target: nil, action: nil)
     /// The selected piece's kind, to change it (heading and level, paragraph, caption, footnote, formula, picture).
     let kindRow = NSStackView()
     let kindPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -71,8 +72,8 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     /// The suggestion being asked for (the self-test awaits it).
     private(set) var suggestion: Task<Void, Never>?
     private var suggesting: CancelToken?
-    let applyButton = NSButton(title: "Apply Changes", target: nil, action: nil)
-    let doneButton = NSButton(title: "Done", target: nil, action: nil)
+    let applyButton = NSButton(title: loc("Apply Changes"), target: nil, action: nil)
+    let doneButton = NSButton(title: loc("Done"), target: nil, action: nil)
 
     init(controller: DocumentWindowController) {
         self.controller = controller
@@ -193,7 +194,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         decorativeBox.state = item.block.decorative ? .on : .off
         decorativeBox.isHidden = formula
         suggestButton.isHidden = formula
-        let name = formula ? "How formula \(item.number) is read" : "Alternate text for picture \(item.number)"
+        let name = formula ? loc("How formula {0} is read", CoreLanguage.number(item.number)) : loc("Alternate text for picture {0}", CoreLanguage.number(item.number))
         altLabel.stringValue = name
         altField.setAccessibilityLabel(name)
     }
@@ -247,7 +248,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         if moved == plan { return }
         setPlan(moved, select: item.index + (by < 0 ? -1 : 1))
         focusList()
-        announce("Moved to place \(selectedItem?.number ?? 0)")
+        announce(loc("Moved to place {0}", CoreLanguage.number(selectedItem?.number ?? 0)))
     }
 
     /// Reads the selected piece with the page before (-1: after its last piece) or after (1: before its first), and shows that page.
@@ -262,7 +263,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         page = moved.page
         fill()
         focusList()
-        announce("Read with page \(moved.page + 1), place \(selectedItem?.number ?? 0)")
+        announce(loc("Read with page {0}, place {1}", CoreLanguage.number(moved.page + 1), CoreLanguage.number(selectedItem?.number ?? 0)))
     }
 
     /// Shows another page's pieces (Page Up/Page Down in the list), the first one selected.
@@ -276,7 +277,8 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         page = target
         fill()
         focusList()
-        announce("Page \(target + 1): \(state.items.count) \(state.items.count == 1 ? "piece" : "pieces")")
+        let pieces = state.items.count
+        announce(pieces == 1 ? loc("Page {1}: {0} piece", CoreLanguage.number(pieces), CoreLanguage.number(target + 1)) : loc("Page {1}: {0} pieces", CoreLanguage.number(pieces), CoreLanguage.number(target + 1)))
     }
 
     /// Selects a piece of the list, by its row (the self-test too).
@@ -314,7 +316,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         do {
             png = try await Task.detached(priority: .userInitiated) { try AutoTag.figurePng(engine, block.page, block.box) }.value
         } catch {
-            controller.notify("The picture couldn't be rendered to send.")
+            controller.notify(loc("The picture couldn't be rendered to send."))
             return
         }
         let token = CancelToken()
@@ -325,7 +327,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
                                                   number: item.number, cancel: token, onAsking: { [weak self] in
             guard let self else { return }
             self.updating = true
-            self.altField.stringValue = "Asking your AI model…"
+            self.altField.stringValue = loc("Asking your AI model…")
             self.altField.isEditable = false
             self.updating = false
         })
@@ -337,7 +339,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         suggestButton.isEnabled = altField.isEnabled
         guard let alt, let now = self.plan, selected == item.index else { return }
         setPlan(AutoTag.with(now, item.index) { $0.alt = alt }, select: item.index)
-        announce("Suggested alternate text: \(alt)")
+        announce(loc("Suggested alternate text: {0}", alt))
         controller.window?.makeFirstResponder(altField)
     }
 
@@ -427,11 +429,11 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
     // MARK: Building
 
     private func build() {
-        let title = NSTextField(labelWithString: "Reading Order")
+        let title = NSTextField(labelWithString: loc("Reading Order"))
         title.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         summaryLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         summaryLabel.textColor = .secondaryLabelColor
-        summaryLabel.setAccessibilityLabel("Summary")
+        summaryLabel.setAccessibilityLabel(loc("Summary"))
 
         let column = NSTableColumn(identifier: .init("piece"))
         table.addTableColumn(column)
@@ -444,7 +446,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         table.delegate = self
         table.registerForDraggedTypes([Self.pieceType])
         table.setDraggingSourceOperationMask(.move, forLocal: true)
-        table.setAccessibilityLabel("Pieces in reading order")
+        table.setAccessibilityLabel(loc("Pieces in reading order"))
         table.onMove = { [weak self] in self?.moveSelected($0) }
         table.onMoveToPage = { [weak self] in self?.moveSelectedToPage($0) }
         table.onShowPage = { [weak self] in self?.showPage($0) }
@@ -457,10 +459,10 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         scroll.setContentHuggingPriority(.defaultLow, for: .vertical)
 
         let moves: [(NSButton, String, String, Selector)] = [
-            (upButton, "arrow.up", "Move up in the order (⌥↑)", #selector(upClicked)),
-            (downButton, "arrow.down", "Move down in the order (⌥↓)", #selector(downClicked)),
-            (pageBeforeButton, "arrow.up.to.line", "Read with the page before (⌥Page Up)", #selector(pageBeforeClicked)),
-            (pageAfterButton, "arrow.down.to.line", "Read with the page after (⌥Page Down)", #selector(pageAfterClicked)),
+            (upButton, "arrow.up", loc("Move up in the order (⌥↑)"), #selector(upClicked)),
+            (downButton, "arrow.down", loc("Move down in the order (⌥↓)"), #selector(downClicked)),
+            (pageBeforeButton, "arrow.up.to.line", loc("Read with the page before (⌥Page Up)"), #selector(pageBeforeClicked)),
+            (pageAfterButton, "arrow.down.to.line", loc("Read with the page after (⌥Page Down)"), #selector(pageAfterClicked)),
         ]
         for (button, symbol, help, action) in moves {
             button.target = self
@@ -481,13 +483,13 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         altField.cell?.wraps = true
         altField.cell?.isScrollable = false
         altField.lineBreakMode = .byWordWrapping
-        altField.placeholderString = "Say what the picture shows"
+        altField.placeholderString = loc("Say what the picture shows")
         altField.heightAnchor.constraint(equalToConstant: 64).isActive = true
         decorativeBox.target = self
         decorativeBox.action = #selector(decorativeClicked)
         suggestButton.target = self
         suggestButton.action = #selector(suggestClicked)
-        suggestButton.toolTip = "Ask your own AI model (AI Assistant Settings) to describe the picture; you see what is sent, and where, first"
+        suggestButton.toolTip = loc("Ask your own AI model (AI Assistant Settings) to describe the picture; you see what is sent, and where, first")
         figureGroup.orientation = .vertical
         figureGroup.alignment = .leading
         figureGroup.spacing = 4
@@ -495,12 +497,12 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         altField.widthAnchor.constraint(equalTo: figureGroup.widthAnchor).isActive = true
         figureGroup.isHidden = true
 
-        let kindLabel = NSTextField(labelWithString: "Kind")
+        let kindLabel = NSTextField(labelWithString: loc("Kind"))
         kindLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
         kindPopup.target = self
         kindPopup.action = #selector(kindChosen)
         kindPopup.toolTip = ReadingOrder.kindHelp
-        kindPopup.setAccessibilityLabel("Kind of the selected piece")
+        kindPopup.setAccessibilityLabel(loc("Kind of the selected piece"))
         kindPopup.setAccessibilityHelp(ReadingOrder.kindHelp)
         kindRow.orientation = .horizontal
         kindRow.spacing = 8
@@ -523,7 +525,8 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         for v in [summaryLabel, scroll, figureGroup, endRow] as [NSView] {
             v.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
         }
-        stack.setAccessibilityLabel("Reading order")
+        stack.setAccessibilityLabel(loc("Reading order"))
+
         stack.translatesAutoresizingMaskIntoConstraints = false
         let solid = SolidPanelView()
         solid.addSubview(stack)

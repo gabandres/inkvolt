@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Tools › Snapshot (⌥⌘C; the reading tools' third segment): a rectangle dragged on a page goes to the clipboard as a
 /// picture, PNG and TIFF, at the resolution `Snapshot` picks (PdfCore), sized in points so an app pastes it at the size
@@ -30,9 +31,9 @@ extension DocumentWindowController {
             switch made {
             case .success(let picture):
                 if let picture, SnapshotBoard.write(picture, to: SnapshotBoard.board) {
-                    notify("Snapshot copied (\(picture.width) × \(picture.height) px)")
+                    notify(loc("Snapshot copied ({0} × {1} px)", CoreLanguage.number(picture.width), CoreLanguage.number(picture.height)))
                 } else {
-                    notify("Couldn't copy the snapshot: the clipboard didn't take it.")
+                    notify(loc("Couldn't copy the snapshot: the clipboard didn't take it."))
                 }
             case .failure(let error):
                 notify(SnapshotBoard.failure(error))
@@ -71,8 +72,8 @@ enum SnapshotBoard {
 
     /// What the notice says when the picture couldn't be made (Windows' words).
     nonisolated static func failure(_ error: any Error) -> String {
-        if error is PdfEngineClosed { return "Couldn't copy the snapshot: the document changed meanwhile. Try again." }
-        if error is CancellationError { return "Couldn't copy the snapshot: it was cancelled." }
-        return "Couldn't copy the snapshot: \(error)"
+        if error is PdfEngineClosed { return loc("Couldn't copy the snapshot: the document changed meanwhile. Try again.") }
+        if error is CancellationError { return loc("Couldn't copy the snapshot: it was cancelled.") }
+        return loc("Couldn't copy the snapshot: {0}", error)
     }
 }

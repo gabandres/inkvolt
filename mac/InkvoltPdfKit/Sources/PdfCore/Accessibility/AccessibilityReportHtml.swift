@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The accessibility report (`AccessibilityReport`) as one self-contained web page: no scripts, no files beside it,
 /// accessible itself (language set, headings in order, tables with header cells and captions, a skip link, colors with
@@ -6,9 +7,10 @@ import Foundation
 public enum AccessibilityReportHtml {
     /// The report's file name beside `displayName` ("Annual report accessibility.html").
     public static func fileName(for displayName: String) -> String {
-        (displayName as NSString).deletingPathExtension + " accessibility.html"
+        (displayName as NSString).deletingPathExtension + loc(" accessibility.html")
     }
 
+    /// The page's words are in the interface's language (English on the command line), its date's month names too.
     /// - Parameters:
     ///   - fileName: the checked file's name, for the title.
     ///   - done: the person's checks ticked as done (`HumanCheck.id`).
@@ -16,25 +18,32 @@ public enum AccessibilityReportHtml {
         func e(_ s: String) -> String { InventoryReportFiles.encode(s) }
         var counts: [String: Int] = [:]
         for f in report.failures { counts[f.condition, default: 0] += 1 }
+        let page = CoreLanguage.page
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "d MMMM yyyy, HH:mm"
+        f.locale = page.locale
+        f.dateFormat = loc("d MMMM yyyy, HH:mm")
         let date = f.string(from: checkedAt)
         let checks = report.humanChecks
 
-        var sb = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+        var sb = "<!DOCTYPE html>\n<html lang=\"" + page.language + "\">\n<head>\n<meta charset=\"utf-8\">\n"
         sb += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         sb += "<meta name=\"generator\" content=\"Inkvolt PDF\">\n"
-        sb += "<title>Accessibility report: " + e(fileName) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"
-        sb += "<a class=\"skip\" href=\"#main\">Skip to the result</a>\n"
-        sb += "<header>\n<h1>Accessibility report</h1>\n<p class=\"file\">" + e(fileName) + "</p>\n"
-        sb += "<p>Checked on " + e(date) + " by Inkvolt PDF against the machine-checkable conditions of the Matterhorn Protocol 1.1, "
-        sb += "which spells out PDF/UA-1 (ISO 14289-1). "
-        sb += (report.pages == 1 ? "1 page" : "\(report.pages) pages") + (report.tagged ? ", tagged." : ", not tagged.") + "</p>\n</header>\n"
-        sb += "<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#result\">Result</a></li>\n"
-        sb += report.failures.isEmpty ? "" : "<li><a href=\"#failures\">What fails</a></li>\n"
-        sb += "<li><a href=\"#person\">Checks for a person</a></li>\n<li><a href=\"#conditions\">Every condition</a></li>\n"
-        sb += report.notes.isEmpty ? "" : "<li><a href=\"#notes\">Not checked</a></li>\n"
+        sb += "<title>" + loc("Accessibility report: {0}", e(fileName)) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"
+        sb += "<a class=\"skip\" href=\"#main\">" + loc("Skip to the result") + "</a>\n"
+        sb += "<header>\n<h1>" + loc("Accessibility report") + "</h1>\n<p class=\"file\">" + e(fileName) + "</p>\n"
+        sb += "<p>" + loc("Checked on {0} by Inkvolt PDF against the machine-checkable conditions of the Matterhorn Protocol 1.1, which spells out PDF/UA-1 (ISO 14289-1).", e(date)) + " "
+        let pages: String
+        if report.tagged {
+            pages = report.pages == 1 ? loc("{0} page, tagged.", CoreLanguage.number(report.pages)) : loc("{0} pages, tagged.", CoreLanguage.number(report.pages))
+        } else {
+            pages = report.pages == 1 ? loc("{0} page, not tagged.", CoreLanguage.number(report.pages)) : loc("{0} pages, not tagged.", CoreLanguage.number(report.pages))
+        }
+        sb += pages + "</p>\n</header>\n"
+        sb += "<nav aria-label=\"" + loc("Sections") + "\">\n<ul>\n<li><a href=\"#result\">" + loc("Result") + "</a></li>\n"
+        sb += report.failures.isEmpty ? "" : "<li><a href=\"#failures\">" + loc("What fails") + "</a></li>\n"
+        sb += "<li><a href=\"#person\">" + loc("Checks for a person") + "</a></li>\n"
+        sb += "<li><a href=\"#conditions\">" + loc("Every condition") + "</a></li>\n"
+        sb += report.notes.isEmpty ? "" : "<li><a href=\"#notes\">" + loc("Not checked") + "</a></li>\n"
         sb += "</ul>\n</nav>\n<main id=\"main\">\n"
 
         // Result
@@ -43,15 +52,15 @@ public enum AccessibilityReportHtml {
         case .notFullyChecked: "partly"
         case .fails: "fail"
         }
-        sb += "<section aria-labelledby=\"result\">\n<h2 id=\"result\">Result</h2>\n<p class=\"verdict " + verdict + "\"><strong>"
+        sb += "<section aria-labelledby=\"result\">\n<h2 id=\"result\">" + loc("Result") + "</h2>\n<p class=\"verdict " + verdict + "\"><strong>"
         sb += report.verdict + "</strong> " + e(report.summary) + "</p>\n"
         let ticked = checks.filter { done.contains($0.id) }.count
-        sb += "<p>Checks for a person: \(ticked) of \(checks.count) done. "
-        sb += "A document is accessible only when it passes the machine checks and a person has made these checks.</p>\n</section>\n"
+        sb += "<p>" + loc("Checks for a person: {0} of {1} done. A document is accessible only when it passes the machine checks and a person has made these checks.", CoreLanguage.number(ticked), CoreLanguage.number(checks.count))
+        sb += "</p>\n</section>\n"
 
         // What fails, by checkpoint
         if !report.failures.isEmpty {
-            sb += "<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">What fails (\(report.failures.count))</h2>\n"
+            sb += "<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">" + loc("What fails ({0})", CoreLanguage.number(report.failures.count)) + "</h2>\n"
             var groups: [(key: String, findings: [AccessibilityFinding])] = []
             for f in report.failures {
                 let key = AccessibilityCheck.condition(f.condition)?.checkpoint ?? "00"
@@ -63,10 +72,11 @@ public enum AccessibilityReportHtml {
             }
             for group in groups {
                 let title = AccessibilityCheck.checkpoints[group.key] ?? ""
-                let heading = group.key == "00" ? title : "Checkpoint \(group.key): \(title)"
+                let heading = group.key == "00" ? title : loc("Checkpoint {0}: {1}", group.key, title)
                 let id = "cp" + group.key
                 sb += "<h3 id=\"" + id + "\">" + e(heading) + "</h3>\n<table aria-labelledby=\"" + id + "\">\n<thead><tr>"
-                sb += "<th scope=\"col\">Condition</th><th scope=\"col\">Where</th><th scope=\"col\">What</th><th scope=\"col\">What's wrong</th><th scope=\"col\">How to fix it</th>"
+                sb += "<th scope=\"col\">" + loc("Condition") + "</th><th scope=\"col\">" + loc("Where", context: "report column") + "</th><th scope=\"col\">" + loc("What") + "</th>"
+                sb += "<th scope=\"col\">" + loc("What's wrong") + "</th><th scope=\"col\">" + loc("How to fix it") + "</th>"
                 sb += "</tr></thead>\n<tbody>\n"
                 for f in group.findings {
                     sb += "<tr><th scope=\"row\">" + e(f.condition) + "</th><td>" + e(f.place) + "</td><td>" + e(f.element)
@@ -78,35 +88,36 @@ public enum AccessibilityReportHtml {
         }
 
         // The person's checklist
-        sb += "<section aria-labelledby=\"person\">\n<h2 id=\"person\">Checks for a person (\(checks.count))</h2>\n"
-        sb += "<p>The machine can't tell whether these make sense. Each was "
-        sb += "marked done or not done in Inkvolt PDF when this report was saved.</p>\n<ul class=\"checklist\">\n"
+        sb += "<section aria-labelledby=\"person\">\n<h2 id=\"person\">" + loc("Checks for a person ({0})", CoreLanguage.number(checks.count)) + "</h2>\n"
+        sb += "<p>" + loc("The machine can't tell whether these make sense. Each was marked done or not done in Inkvolt PDF when this report was saved.")
+        sb += "</p>\n<ul class=\"checklist\">\n"
         for h in checks {
             let ok = done.contains(h.id)
             sb += "<li class=\"" + (ok ? "done" : "todo") + "\"><span class=\"mark\" aria-hidden=\"true\">" + (ok ? "&#x2611;" : "&#x2610;")
-            sb += "</span> <strong>" + e(h.question) + "</strong> <span class=\"state\">(" + (ok ? "done" : "not done yet") + ")</span>"
+            sb += "</span> <strong>" + e(h.question) + "</strong> <span class=\"state\">(" + (ok ? loc("done", context: "person's check") : loc("not done yet")) + ")</span>"
             sb += "<br>" + e(h.how) + " <span class=\"ids\">Matterhorn " + e(h.conditions.joined(separator: ", ")) + "</span></li>\n"
         }
         sb += "</ul>\n</section>\n"
 
         // Every condition
-        sb += "<section aria-labelledby=\"conditions\">\n<h2 id=\"conditions\">Every condition</h2>\n"
-        sb += "<p>The Matterhorn Protocol's 137 failure conditions, and PDF/UA's basic rules (marked UA), with what this check found for each.</p>\n"
-        sb += "<table aria-labelledby=\"conditions\">\n<thead><tr><th scope=\"col\">Condition</th><th scope=\"col\">Checkpoint</th><th scope=\"col\">Fails when</th><th scope=\"col\">Result</th></tr></thead>\n<tbody>\n"
+        sb += "<section aria-labelledby=\"conditions\">\n<h2 id=\"conditions\">" + loc("Every condition") + "</h2>\n"
+        sb += "<p>" + loc("The Matterhorn Protocol's 137 failure conditions, and PDF/UA's basic rules (marked UA), with what this check found for each.") + "</p>\n"
+        sb += "<table aria-labelledby=\"conditions\">\n<thead><tr><th scope=\"col\">" + loc("Condition") + "</th><th scope=\"col\">" + loc("Checkpoint") + "</th>"
+        sb += "<th scope=\"col\">" + loc("Fails when") + "</th><th scope=\"col\">" + loc("Result") + "</th></tr></thead>\n<tbody>\n"
         for c in AccessibilityCheck.conditions {
             let css: String, result: String
             switch c.how {
             case .machine:
                 if let n = counts[c.id] {
-                    (css, result) = ("fail", n == 1 ? "Fails (1 problem)" : "Fails (\(n) problems)")
+                    (css, result) = ("fail", n == 1 ? loc("Fails ({0} problem)", CoreLanguage.number(n)) : loc("Fails ({0} problems)", CoreLanguage.number(n)))
                 } else if !report.notes.isEmpty {
-                    (css, result) = ("none", "Nothing found in what was checked")
+                    (css, result) = ("none", loc("Nothing found in what was checked"))
                 } else {
-                    (css, result) = ("pass", "Passes")
+                    (css, result) = ("pass", loc("Passes"))
                 }
-            case .human: (css, result) = ("human", "For a person to check")
-            case .notChecked: (css, result) = ("none", c.note ?? "Not checked")
-            case .noTest: (css, result) = ("none", "No test of its own")
+            case .human: (css, result) = ("human", loc("For a person to check"))
+            case .notChecked: (css, result) = ("none", c.note ?? loc("Not checked"))
+            case .noTest: (css, result) = ("none", loc("No test of its own"))
             }
             sb += "<tr class=\"" + css + "\"><th scope=\"row\">" + e(c.id) + "</th><td>"
             sb += e(AccessibilityCheck.checkpoints[c.checkpoint] ?? c.checkpoint) + "</td><td>" + e(c.text)
@@ -115,12 +126,13 @@ public enum AccessibilityReportHtml {
         sb += "</tbody>\n</table>\n</section>\n"
 
         if !report.notes.isEmpty {
-            sb += "<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">Not checked in this file</h2>\n<ul>\n"
+            sb += "<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">" + loc("Not checked in this file") + "</h2>\n<ul>\n"
             for n in report.notes { sb += "<li>" + e(n) + "</li>\n" }
             sb += "</ul>\n</section>\n"
         }
-        sb += "</main>\n<footer>\n<p>Made by Inkvolt PDF. The checks run on this computer; nothing was sent anywhere. "
-        sb += "Condition numbers are the Matterhorn Protocol 1.1's (PDF Association).</p>\n</footer>\n</body>\n</html>\n"
+        sb += "</main>\n<footer>\n<p>"
+        sb += loc("Made by Inkvolt PDF. The checks run on this computer; nothing was sent anywhere. Condition numbers are the Matterhorn Protocol 1.1's (PDF Association).")
+        sb += "</p>\n</footer>\n</body>\n</html>\n"
         return sb
     }
 
