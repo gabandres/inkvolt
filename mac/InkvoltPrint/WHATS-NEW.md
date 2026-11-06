@@ -9,6 +9,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Inkvolt Print speaks Spanish: the whole app, its alerts and messages follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
 - SNMP access: a printer that answers only SNMP and whose administrator changed its read community can be added with that community (Add a Printer › Know its address? › SNMP access) and changed later (SNMP Access… in the printer's menu in the sidebar). It's kept in your keychain and used only to read the printer.
 - SNMPv3: the same SNMP access fields take a printer's SNMPv3 user and its two passphrases (SHA-256 authentication, AES-128 privacy). Every request is signed and encrypted, only reads, and a wrong user name or passphrase is named (an Inkvolt Pro feature, free for now).
+- A damaged PDF from a scanner no longer stops or freezes Inkvolt Print, and a very long ink and toner history opens quickly.
 
 ## 1.2
 - Scan clean up (Scan settings › Clean up, and in each preset): crop to the paper, whiten the background, descreen printed pictures, restore faded colors. Clean Up… on a page shows it large to try each one, Show as scanned to compare, and All Pages; Undo puts a clean up back.

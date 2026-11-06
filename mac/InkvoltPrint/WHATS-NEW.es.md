@@ -9,6 +9,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Inkvolt Print habla español: toda la app, sus alertas y sus mensajes siguen el idioma que elijas para ella en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.
 - Acceso SNMP: una impresora que solo responde por SNMP y cuyo administrador cambió su comunidad de lectura se puede agregar con esa comunidad (Agregar una impresora › ¿Sabes su dirección? › Acceso SNMP) y cambiarla después (Acceso SNMP… en el menú de la impresora en la barra lateral). Se guarda en tu llavero y solo se usa para leer la impresora.
 - SNMPv3: los mismos campos de Acceso SNMP aceptan el usuario SNMPv3 de una impresora y sus dos frases de contraseña (autenticación SHA-256, privacidad AES-128). Cada solicitud va firmada y cifrada y solo lee, y si el nombre de usuario o una frase de contraseña no es correcto, se indica cuál (una función de Inkvolt Pro, gratis por ahora).
+- Un PDF dañado que envía un escáner ya no detiene ni congela Inkvolt Print, y un historial de tinta y tóner muy largo se abre rápido.
 
 ## 1.2
 - Limpieza del escaneo (configuración de escaneo › Limpieza, y en cada ajuste de escaneo): recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar los colores desteñidos. Limpiar… en una página la muestra en grande para probar cada opción, Mostrar tal como se escaneó para comparar, y Todas las páginas; Deshacer revierte una limpieza.
