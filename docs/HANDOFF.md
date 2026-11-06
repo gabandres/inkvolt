@@ -23,7 +23,8 @@ Print 1.4.0.0). Mac CI: AiLoopbackServer's stop() cut another test's connection 
 /Length, quadratic `stream` search and MiniPdf.value, SupplyHistoryStore's per-line Set) being fixed on the PC. Left for the
 Mac after the Flate-bomb agent: (5) PrintMac/ScanImaging.swift decodes and straightens a 65500×65500 eSCL page at full
 size (17 GB): refuse what `PageCleanup.tooLarge` flags before any full-size decode, save it unedited; (6)
-PrintMac/ScannedPdfPages.swift has no page cap on a scanner's PDF: cap at `BatchPrintLimits.maxPages` before drawing.
+PrintMac/ScannedPdfPages.swift has no page cap on a scanner's PDF: done with the PrintCore fixes (1,000 pages,
+merged `f34205be`). Left for the Mac: only (5).
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
