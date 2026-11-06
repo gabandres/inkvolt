@@ -91,8 +91,10 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     /// Shows `comments` (keeping the filters, the selection and what is expanded where they still apply).
     func show(_ comments: [AnnotationInfo], selected: String?) {
         all = comments
-        let kinds = [loc("All Kinds")] + Array(Set(comments.filter { $0.replyTo == nil }.map(DocumentEditor.kindName))).sorted()
-        let authors = [loc("All Authors")] + Array(Set(comments.compactMap { $0.author }.filter { !$0.isEmpty })).sorted()
+        // In the person's language's order ("Línea" before "Nota", "émile" beside "emma"), as Finder sorts names.
+        let byName = { (a: String, b: String) in a.localizedStandardCompare(b) == .orderedAscending }
+        let kinds = [loc("All Kinds")] + Set(comments.filter { $0.replyTo == nil }.map(DocumentEditor.kindName)).sorted(by: byName)
+        let authors = [loc("All Authors")] + Set(comments.compactMap { $0.author }.filter { !$0.isEmpty }).sorted(by: byName)
         refill(kindFilter, kinds)
         refill(authorFilter, authors)
         rebuild()
