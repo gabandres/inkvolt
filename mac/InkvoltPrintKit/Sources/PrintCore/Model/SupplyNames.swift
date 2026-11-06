@@ -67,18 +67,22 @@ public enum SupplyNames {
         }
     }
 
+    /// Every colour in both genders, so each agrees with the kind before it ("tóner negro", "tinta negra", "tinta
+    /// negra fotográfica"); a language whose word doesn't change writes it the same twice ("cian").
+    private static let colors: [String: (masculine: LocKey, feminine: LocKey)] = [
+        "black": (LocKey("Black", context: "supply color"), LocKey("Black", context: "supply color, feminine")),
+        "cyan": (LocKey("Cyan", context: "supply color"), LocKey("Cyan", context: "supply color, feminine")),
+        "magenta": (LocKey("Magenta", context: "supply color"), LocKey("Magenta", context: "supply color, feminine")),
+        "yellow": (LocKey("Yellow", context: "supply color"), LocKey("Yellow", context: "supply color, feminine")),
+        "tri-color": (LocKey("Tri-color", context: "supply color"), LocKey("Tri-color", context: "supply color, feminine")),
+        "photo black": (LocKey("Photo black", context: "supply color"), LocKey("Photo black", context: "supply color, feminine")),
+        "matte black": (LocKey("Matte black", context: "supply color"), LocKey("Matte black", context: "supply color, feminine")),
+        "gray": (LocKey("Gray", context: "supply color"), LocKey("Gray", context: "supply color, feminine")),
+    ]
+
     private static func colorWord(_ english: String, feminine: Bool) -> String? {
-        switch english.lowercased() {
-        case "black": feminine ? loc("Black", context: "supply color, feminine") : loc("Black", context: "supply color")
-        case "cyan": loc("Cyan", context: "supply color")
-        case "magenta": loc("Magenta", context: "supply color")
-        case "yellow": feminine ? loc("Yellow", context: "supply color, feminine") : loc("Yellow", context: "supply color")
-        case "tri-color": loc("Tri-color", context: "supply color")
-        case "photo black": loc("Photo black", context: "supply color")
-        case "matte black": loc("Matte black", context: "supply color")
-        case "gray": loc("Gray", context: "supply color")
-        default: nil
-        }
+        guard let word = colors[english.lowercased()] else { return nil }
+        return feminine ? word.feminine.text : word.masculine.text
     }
 
     /// Kinds whose word takes the feminine form of a colour in Spanish ("tinta negra").

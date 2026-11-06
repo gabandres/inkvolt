@@ -1386,6 +1386,24 @@
         }
       }
     },
+    "Cyan [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cyan"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cian"
+          }
+        }
+      }
+    },
     "Cyan [supply color]": {
       "comment": "supply color",
       "extractionState": "manual",
@@ -2216,6 +2234,24 @@
         }
       }
     },
+    "Gray [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gray"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gris"
+          }
+        }
+      }
+    },
     "Gray [supply color]": {
       "comment": "supply color",
       "extractionState": "manual",
@@ -2842,6 +2878,24 @@
         }
       }
     },
+    "Magenta [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Magenta"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "magenta"
+          }
+        }
+      }
+    },
     "Magenta [supply color]": {
       "comment": "supply color",
       "extractionState": "manual",
@@ -2929,6 +2983,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alimentación manual"
+          }
+        }
+      }
+    },
+    "Matte black [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Matte black"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "negra mate"
           }
         }
       }
@@ -3921,6 +3993,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Foto (la mejor)"
+          }
+        }
+      }
+    },
+    "Photo black [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo black"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "negra fotográfica"
           }
         }
       }
@@ -7401,6 +7491,24 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tipo de papel de la bandeja"
+          }
+        }
+      }
+    },
+    "Tri-color [supply color, feminine]": {
+      "comment": "supply color, feminine",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tri-color"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tricolor"
           }
         }
       }

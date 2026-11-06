@@ -203,6 +203,22 @@ struct CoreStringsTests {
         #expect(table.untranslated.isEmpty)
     }
 
+    /// Every colour agrees with the kind before it: feminine after "tinta", masculine after "tóner", "cartucho de tinta"…
+    @Test(arguments: [
+        ("Black ink", "Tinta negra"), ("Yellow ink", "Tinta amarilla"), ("Photo black ink", "Tinta negra fotográfica"),
+        ("Matte black ink", "Tinta negra mate"), ("Cyan ink", "Tinta cian"), ("Gray ink", "Tinta gris"),
+        ("Tri-color ink", "Tinta tricolor"), ("Magenta ink", "Tinta magenta"),
+        ("Black toner", "Tóner negro"), ("Yellow toner", "Tóner amarillo"), ("Photo black toner", "Tóner negro fotográfico"),
+        ("Matte black toner", "Tóner negro mate"), ("Black ink cartridge", "Cartucho de tinta negro"),
+        ("Photo black ink cartridge", "Cartucho de tinta negro fotográfico"), ("Yellow ink tank", "Depósito de tinta amarillo"),
+        ("Black drum", "Tambor negro"),
+    ])
+    func Supply_colours_agree_with_their_kind(_ english: String, _ spanish: String) {
+        let table = Self.spanishTable
+        CoreLanguage.withTable(table) { #expect(SupplyNames.display(english) == spanish) }
+        #expect(table.untranslated.isEmpty)
+    }
+
     @Test func A_sentence_the_table_lacks_shows_in_English_and_is_listed() {
         let table = CoreLanguage.Table(language: "es", sentences: ["Paper jam": "Atasco de papel"])
         CoreLanguage.withTable(table) {
