@@ -144,7 +144,10 @@ public struct SocketNetworkScanner: NetworkScanner {
         }
     }
 
-    private static let queue = DispatchQueue(label: "inkvolt.network-search", attributes: .concurrent)
+    /// Serial, so GCD gives it a thread of its own when the pool is busy: a concurrent queue waits for the pool, and its
+    /// `.ready` came after the timeout on Swift's clock (CI's busy runner, 2026-11-06: a listening port read as closed).
+    /// The handlers only finish a `OnceResult`, so one queue serves every check of a search.
+    private static let queue = DispatchQueue(label: "inkvolt.network-search")
 
     private static func ipv4(_ pointer: UnsafeMutablePointer<sockaddr>?) -> String? {
         guard let pointer, pointer.pointee.sa_family == sa_family_t(AF_INET) else { return nil }

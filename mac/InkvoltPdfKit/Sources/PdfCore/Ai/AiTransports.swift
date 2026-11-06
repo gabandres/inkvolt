@@ -796,7 +796,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
         }
         port = Int(UInt16(bigEndian: address.sin_port))
         listener = fd
-        DispatchQueue.global(qos: .userInitiated).async { [self] in acceptLoop() }
+        Self.onThread { [self] in acceptLoop() }
     }
 
     public var received: [Received] { lock.withLock { requests } }
@@ -828,10 +828,20 @@ public final class AiLoopbackServer: @unchecked Sendable {
                 Darwin.close(client)
                 continue
             }
-            DispatchQueue.global(qos: .userInitiated).async { [self] in serve(client) }
+            Self.onThread { [self] in serve(client) }
         }
         Darwin.close(listener)
         listenerClosed.signal()
+    }
+
+    /// Runs blocking socket work on a thread of its own, never on GCD's pool: a busy machine (CI's runner, a full test run)
+    /// gives the pool's threads to other work, and a connection accepted but not served for 110 s (25 s with a pool
+    /// barely busy) passed a client's patience: an https client to this plain server then read "didn't respond", not
+    /// "couldn't make a secure connection".
+    private static func onThread(_ work: @escaping @Sendable () -> Void) {
+        let thread = Thread(block: work)
+        thread.qualityOfService = .userInitiated
+        thread.start()
     }
 
     private func finish(_ client: Int32) {
