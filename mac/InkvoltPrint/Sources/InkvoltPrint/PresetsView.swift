@@ -10,30 +10,44 @@ struct PresetStrip: View {
 
     var body: some View {
         Section("One-click scans") {
-            ForEach(Array(app.presets.enumerated()), id: \.element.id) { i, p in
-                Button {
-                    Task { await scan.scan(with: p) }
-                } label: {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(p.name)
-                        Text(ScanPresetText.summary(p)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.borderless)
-                .keyboardShortcut(Self.shortcut(i))
-                .accessibilityLabel("Scan with \(p.name)")
-                .disabled(scan.isScanning || scan.caps == nil)
-            }
+            ForEach(Array(app.presets.enumerated()), id: \.element.id) { (i: Int, p: ScanPreset) in button(i, p) }
             Button("Manage Presets…") { managing = true }
         }
         .sheet(isPresented: $managing) { PresetsManager().environment(app) }
     }
 
+    /// One preset's button (on its own: inline, Xcode's type checker took 181 ms on the list).
+    private func button(_ i: Int, _ p: ScanPreset) -> some View {
+        // One modifier a statement: chained, the type checker took up to 196 ms on a busy Mac.
+        let button = Button(action: { start(p) }, label: { PresetLabel(preset: p) })
+        let styled = button.buttonStyle(.borderless)
+        let shortcut: KeyboardShortcut? = Self.shortcut(i)
+        let keyed = styled.keyboardShortcut(shortcut)
+        let name: String = "Scan with " + p.name
+        let named = keyed.accessibilityLabel(Text(name))
+        let off: Bool = scan.isScanning || scan.caps == nil
+        return named.disabled(off)
+    }
+
+    private func start(_ p: ScanPreset) { Task { await scan.scan(with: p) } }
+
     /// ⌘1 to ⌘9 for the first nine presets (on its own: Xcode's type checker took 151 ms on it inline).
     private static func shortcut(_ i: Int) -> KeyboardShortcut? {
         guard i < 9 else { return nil }
         return KeyboardShortcut(KeyEquivalent(Character(String(i + 1))), modifiers: .command)
+    }
+}
+
+/// A one-click scan's button: the preset's name and what it does.
+private struct PresetLabel: View {
+    let preset: ScanPreset
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(preset.name)
+            Text(ScanPresetText.summary(preset)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -134,12 +148,14 @@ private struct PresetEditor: View {
                 }
                 if preset.source != .feeder { Toggle("Several photos on the glass", isOn: $preset.findPhotos) }
             }
+            Section("Clean up") { CleanupToggles(filters: $preset.cleanup) }
             Section("Save") {
                 Picker("As", selection: $preset.fileType) {
                     Text("PDF").tag(PresetFileType.pdf)
                     Text("Searchable PDF").tag(PresetFileType.searchablePdf)
                     Text("JPEG images").tag(PresetFileType.jpeg)
                 }
+                if preset.fileType == .searchablePdf { TextLanguagePicker(language: $preset.ocrLanguage) }
                 HStack {
                     Text("Folder")
                     Spacer()

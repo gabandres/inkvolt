@@ -209,6 +209,20 @@ public struct ScanPages: Equatable, Sendable {
     /// Sets the crop from a box drawn on the page as shown (turned); nil or the whole page: no crop.
     public mutating func crop(_ id: String, shown: CropBox?) { update(id) { $0.edits = $0.edits.withShownCrop(shown) } }
 
+    /// The page's edits as the review's Clean up view chose them (`PageEdits.withFilters`).
+    public mutating func setEdits(_ id: String, _ edits: PageEdits) { update(id) { $0.edits = edits } }
+
+    /// One step of Undo of a clean up: each page's crop and filters as `before` has them, its turns and straightening as they
+    /// are now. A page that isn't there any more is passed over.
+    public mutating func restoreCleanup(_ before: [String: PageEdits]) {
+        for (id, edits) in before {
+            update(id) { p in
+                p.edits.crop = edits.crop
+                p.edits.filters = edits.filters
+            }
+        }
+    }
+
     /// Undoes every edit, the straightening too.
     public mutating func reset(_ id: String) { update(id) { $0.edits = .none } }
 

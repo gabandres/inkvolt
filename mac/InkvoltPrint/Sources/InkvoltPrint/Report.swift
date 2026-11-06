@@ -412,6 +412,7 @@ enum Report {
         lines.append("scan saved: \(scan.status) \(scan.problem ?? ""); for Open in Inkvolt PDF: \(scan.savedPdfs.map(\.lastPathComponent)), installed: \(InkvoltPdfApp.url != nil)")
         lines.append("PDF pages \(pdf?.pageCount ?? 0), text \(text.count) characters, finds 'demo scanner': \(text.contains("demo scanner"))")
         lines += await asSentCheck(scan)
+        lines += await cleanupCheck(scan)
         // A one-click preset into a remembered folder (made here: no one picks it over SSH).
         if let p = model.presets.first {
             let folder = AppModel.dataFolder.appendingPathComponent("preset-check", isDirectory: true)
@@ -452,6 +453,72 @@ enum Report {
             lines.append("as sent\(turn ? " (a page turned)" : ""): \(scan.status) \(scan.problem ?? ""); pages \(PDFDocument(url: url)?.pageCount ?? 0), the scanner's own bytes: \(own)")
         }
         return lines
+    }
+
+    /// Clean up and the text layer (roadmap 2.3), on demo mode's sheet of yellowed paper on the lid (the glass's page when the
+    /// scan crops to the paper), its text language Russian: the scan's clean up and its summary, the page's level before and
+    /// after and its size, Undo, the Clean up view's preview and Done, All Pages, then a searchable PDF whose Russian words
+    /// PDFKit (Preview's engine) finds. The tab's settings are put back.
+    private static func cleanupCheck(_ scan: ScanModel) async -> [String] {
+        let kept = (scan.cleanup, scan.ocrLanguage, scan.format, scan.skipBlank, scan.straighten)
+        let (source, photos) = (scan.source, scan.findPhotos)
+        defer {
+            (scan.cleanup, scan.ocrLanguage, scan.format, scan.skipBlank, scan.straighten) = kept
+            scan.source = source
+            scan.findPhotos = photos
+        }
+        scan.clear()
+        scan.source = .platen
+        scan.format = .searchablePdf
+        scan.skipBlank = true
+        scan.straighten = true
+        scan.findPhotos = false
+        scan.cleanup = [.cropToPaper, .whiten]
+        scan.ocrLanguage = "ru-RU"
+        await scanAndWait(scan)
+        guard let page = scan.pages.pages.first else { return ["cleanup: no page came"] }
+        var lines = ["cleanup: \(scan.pages.summary); note: \(page.note.isEmpty ? "-" : page.note); undo: \(scan.undoName ?? "none")",
+                     "cleanup status: \(scan.status)"]
+        lines.append("cleanup page: " + (await pageLevels(scan, page.id)))
+        scan.undo()
+        lines.append("after Undo: note \(scan.pages.page(page.id)?.note.isEmpty == false ? scan.pages.page(page.id)!.note : "-"); \(scan.status); "
+            + (await pageLevels(scan, page.id)))
+        // The Clean up view: a preview (and a newer choice stopping the one before), as scanned, then Done.
+        let stale = BatchStop()
+        stale.stop()
+        let stopped = await scan.cleanPreview(page.id, .all, stop: stale)
+        let preview = await scan.cleanPreview(page.id, [.cropToPaper, .whiten, .descreen], stop: BatchStop())
+        let asScanned = await scan.cleanPreview(page.id, [], stop: BatchStop())
+        lines.append("clean up view: a stopped preview gives \(stopped == nil ? "nothing" : "an image"); preview "
+            + "\(preview?.image.map { "\(Int($0.size.width)) × \(Int($0.size.height))" } ?? "none"): \(preview?.note ?? "-"); as scanned: \(asScanned?.note ?? "-")")
+        await scan.applyClean(page.id, [.cropToPaper, .whiten])
+        lines.append("clean up view Done: note \(scan.pages.page(page.id)?.note ?? "-"); undo: \(scan.undoName ?? "none")")
+        await scan.applyCleanToAll([.cropToPaper, .whiten, .restoreColors])
+        lines.append("All Pages: \(scan.status) note \(scan.pages.page(page.id)?.note ?? "-"); undo: \(scan.undoName ?? "none")")
+        let url = AppModel.dataFolder.appendingPathComponent("scan-cleanup.pdf")
+        await scan.save(to: url, reveal: false)
+        let pdf = PDFDocument(url: url)
+        let text = pdf?.string ?? ""
+        let size = pdf?.page(at: 0)?.bounds(for: .mediaBox).size ?? .zero
+        lines.append("cleanup saved: \(scan.status) \(scan.problem ?? ""); page \(Int(size.width)) × \(Int(size.height)) pt (the glass: 612 × 792)")
+        let russian = ["Привет", "демо-сканера", "поиском"].map { "\($0): \(!(pdf?.findString($0, withOptions: []) ?? []).isEmpty)" }
+        lines.append("PDF text \(text.count) characters; PDFKit finds " + russian.joined(separator: ", ")
+            + ", 'Crop to the paper': \(!(pdf?.findString("Crop to the paper", withOptions: []) ?? []).isEmpty)")
+        lines.append("PDF text read: " + String(text.split(separator: "\n").prefix(4).joined(separator: " / ").prefix(300)))
+        lines.append("text languages (Vision, this Mac): " + ScanPdf.textLanguages().map(\.tag).joined(separator: ", "))
+        return lines
+    }
+
+    /// A page's paper level (the middle of the sheet's top margin, grey) and size, as scanned and as it would be saved.
+    private static func pageLevels(_ scan: ScanModel, _ id: String) async -> String {
+        guard let scanned = scan.scannedJpeg(id), let saved = await scan.savedJpeg(id) else { return "-" }
+        func describe(_ jpeg: [UInt8]) -> String {
+            guard let gray = try? ScanImaging.analysis(jpeg), let size = ScanImaging.size(jpeg) else { return "-" }
+            let (x, y) = (gray.width / 2, gray.height * 8 / 100) // above the heading, on the paper
+            let corner = Int(gray.pixels[2 * gray.width + 2])
+            return "\(size.width) × \(size.height) px, paper \(gray.pixels[y * gray.width + x]), corner \(corner)"
+        }
+        return "scanned \(describe(scanned)); saved \(describe(saved))"
     }
 
     /// Demo mode's laser had an older firmware until this connection (roadmap 1.5): the status card's notice, the Settings
@@ -874,6 +941,10 @@ enum Snapshot {
                     model.paneRequest = .scan
                     try? await Task.sleep(for: .seconds(1))
                     model.paneRequest = .photosSheet
+                case "clean":
+                    model.paneRequest = .scan
+                    try? await Task.sleep(for: .seconds(1))
+                    model.paneRequest = .cleanSheet
                 case "print-photos": model.paneRequest = .printPhotos(photoFiles ?? [])
                 default: model.paneRequest = .status
                 }

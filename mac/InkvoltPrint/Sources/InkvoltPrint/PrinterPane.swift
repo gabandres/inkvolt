@@ -37,7 +37,7 @@ struct PrinterPane: View {
             case .status, .printQueue:
                 tab = .status
                 printingPhotos = false
-            case .scan, .photosSheet: tab = .scan
+            case .scan, .photosSheet, .cleanSheet: tab = .scan
             case .printPhotos: printingPhotos = true
             case nil: break
             }

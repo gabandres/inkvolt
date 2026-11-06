@@ -126,6 +126,117 @@ struct MacImagingTests {
         #expect(PhotoSheets.preview(sheets[0], photos: [photo], names: ["photo.jpg"], paper: paper, width: 200)?.width == 200)
     }
 
+    // MARK: Clean up (roadmap 2.3): ScanImaging decodes, PrintCore's PageCleanup cleans, ScanImaging encodes
+
+    /// A page drawn for the clean up: `paper` grey (0 to 1) with dark lines of "text", on a lid of `lid` grey around it
+    /// (`margin` inches; 0: none), at 150 dpi, letter. `grey`: a one-channel JPEG, as a grey scan comes.
+    static func cleanupPage(paper: CGFloat, lid: CGFloat = 0, margin: CGFloat = 0, grey: Bool = false) throws -> [UInt8] {
+        let (w, h) = (1275, 1650)
+        let space = grey ? CGColorSpaceCreateDeviceGray() : CGColorSpaceCreateDeviceRGB()
+        let info = grey ? CGImageAlphaInfo.none.rawValue : CGImageAlphaInfo.noneSkipLast.rawValue
+        let context = try #require(CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: space, bitmapInfo: info))
+        context.setFillColor(CGColor(gray: lid, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        let sheet = CGRect(x: 0, y: 0, width: w, height: h).insetBy(dx: margin * 150, dy: margin * 150)
+        context.setFillColor(CGColor(gray: paper, alpha: 1))
+        context.fill(sheet)
+        context.setFillColor(CGColor(gray: 0.1, alpha: 1))
+        for i in 0..<20 { context.fill(CGRect(x: sheet.minX + 150, y: sheet.maxY - 200 - CGFloat(i) * 50, width: sheet.width - 300, height: 12)) }
+        return try ScanImaging.jpeg(try #require(context.makeImage()))
+    }
+
+    /// The level of the pixel at (x, y) from the top left of a decoded page, as grey.
+    static func level(_ jpeg: [UInt8], x: Int, y: Int) throws -> Int {
+        let gray = try ScanImaging.analysis(jpeg) // at most 1100 px: positions as fractions of the full page
+        let full = try #require(ScanImaging.size(jpeg))
+        let gx = min(gray.width - 1, x * gray.width / full.width), gy = min(gray.height - 1, y * gray.height / full.height)
+        return Int(gray.pixels[gy * gray.width + gx])
+    }
+
+    @Test func aWhitenedPageIsDecodedCleanedAndEncodedOnce() async throws {
+        let (before, after, same, done) = try await offPool { () -> Result<(Int, Int, Bool, Bool), any Error> in
+            Result {
+                let page = try Self.cleanupPage(paper: 0.86)
+                let cleaned = try ScanImaging.jpeg(page, PageEdits(filters: [.whiten]), dpi: 150)
+                return (try Self.level(page, x: 60, y: 60), try Self.level(cleaned, x: 60, y: 60), cleaned == page,
+                        try ScanImaging.jpeg(page, PageEdits(filters: [.cropToPaper]), dpi: 150) == page)
+            }
+        }.get()
+        #expect(before < 230, "\(before)")
+        #expect(after >= 250, "grey paper evened out to white: \(after)")
+        #expect(!same)
+        #expect(done) // the crop to the paper's flag alone changes no pixel: the scanner's own JPEG
+    }
+
+    @Test func aGreyScanIsCleanedAndSavedAsGrey() async throws {
+        let (components, after) = try await offPool { () -> Result<(Int, Int), any Error> in
+            Result {
+                let page = try Self.cleanupPage(paper: 0.86, grey: true)
+                let cleaned = try ScanImaging.jpeg(page, PageEdits(filters: [.whiten, .restoreColors]), dpi: 150)
+                return (try PdfWriter.jpegInfo(cleaned).components, try Self.level(cleaned, x: 60, y: 60))
+            }
+        }.get()
+        #expect(components == 1)
+        #expect(after >= 250, "\(after)")
+    }
+
+    @Test func thePapersEdgeIsFoundOnTheAnalysisCopy() async throws {
+        let (onLid, whole) = await offPool { () -> (CropBox?, CropBox?) in
+            let onLid = (try? Self.cleanupPage(paper: 0.98, lid: 0.55, margin: 0.6)).flatMap { ScanImaging.paperEdge($0, dpi: 150) }
+            let whole = (try? Self.cleanupPage(paper: 0.98)).flatMap { ScanImaging.paperEdge($0, dpi: 150) }
+            return (onLid, whole)
+        }
+        let crop = try #require(onLid)
+        // The sheet is 0.6 in in from each side of 8.5 × 11 in.
+        #expect(abs(crop.x - 0.6 / 8.5) < 0.02 && abs(crop.y - 0.6 / 11) < 0.02, "\(crop)")
+        #expect(abs(crop.width - 7.3 / 8.5) < 0.03 && abs(crop.height - 9.8 / 11) < 0.03, "\(crop)")
+        #expect(whole == nil) // a page with no lid around it: no edge to be sure of
+    }
+
+    @Test func aStoppedCleanUpStopsAndAPageOfPhotosGetsWhatSuitsAPrint() async throws {
+        let (stopped, photoDone) = try await offPool { () -> Result<(Bool, Bool), any Error> in
+            Result {
+                let page = try Self.cleanupPage(paper: 0.86)
+                let stop = BatchStop()
+                stop.stop()
+                var stopped = false
+                do { _ = try ScanImaging.render(page, PageEdits(filters: [.whiten]), dpi: 150, stop: stop) } catch is CancellationError { stopped = true }
+                // Whiten isn't for a photo: asked for on one, the photo is cut out as it is, byte for byte.
+                let box = PhotoBox(centerX: 0.5, centerY: 0.5, width: 0.4, height: 0.3, angle: 0, quarterTurns: 0)
+                let plain = try ScanImaging.photo(page, box)
+                return (stopped, try ScanImaging.photo(page, box, filters: [.whiten, .cropToPaper], dpi: 150) == plain)
+            }
+        }.get()
+        #expect(stopped)
+        #expect(photoDone)
+    }
+
+    @Test func visionsBoxesBecomeThePagesPixelsFromTheTop() throws {
+        // Vision: fractions of the image from its bottom left. PdfWriter: pixels from the top left.
+        let words = ScanPdf.pixelWords([OcrWord(text: "Καλημέρα", box: CGRect(x: 0.25, y: 0.75, width: 0.5, height: 0.05))], width: 1000, height: 2000)
+        let w = try #require(words.first)
+        #expect(words.count == 1 && w.text == "Καλημέρα")
+        #expect(abs(w.x - 250) < 1e-9 && abs(w.y - 400) < 1e-9 && abs(w.width - 500) < 1e-9 && abs(w.height - 100) < 1e-9, "\(w)")
+        #expect(ScanPdf.pixelWords([OcrWord(text: "x", box: CGRect(x: CGFloat.nan, y: 0, width: 1, height: 1))], width: 10, height: 10).isEmpty)
+    }
+
+    /// A line Vision reads is cut into words at its spaces, keeping what's between them whole (as Windows' recognizer gives
+    /// words: "демо-сканера:" with its hyphen and colon), so a hyphenated word is found as typed; a line with no spaces
+    /// (Japanese) is one word.
+    @Test func aRecognisedLineIsCutIntoWordsAtItsSpacesOnly() {
+        func words(_ line: String) -> [String] { ScanPdf.wordRanges(line).map { (r: Range<String.Index>) -> String in String(line[r]) } }
+        let expected: [String] = ["Привет", "из", "демо-сканера:", "тест.", "ok"]
+        #expect(words("Привет из демо-сканера:  тест.\tok") == expected)
+        #expect(words("東京都庁です") == ["東京都庁です"])
+        #expect(words("   ").isEmpty)
+    }
+
+    @Test func theTextLanguagesAreVisionsOwn() {
+        let languages = ScanPdf.textLanguages()
+        #expect(languages.contains { $0.tag == "en-US" })
+        #expect(languages.allSatisfy { !$0.name.isEmpty })
+    }
+
     @Test func aPhotoSheetPreviewOfAPaperNoIntCanMeasureIsNone() {
         // The paper comes from the printer's queue: a size that isn't a number (or a width of 0) draws no preview.
         for paper in [SheetPaper(8.5, 1e300, 0, 0, 0, 0), SheetPaper(0, 11, 0, 0, 0, 0), SheetPaper(8.5, .nan, 0, 0, 0, 0)] {

@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.4, 2.6 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
 key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -311,7 +311,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
   shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
   space); MuPDF finds a word mixing right-to-left letters and digits only in parts; Inkvolt PDF's Scan dialog ignores a
-  preset's clean up. Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Left for the Mac: `ScanImaging`'s half, `ScanPdf` writing through PrintCore's `PdfWriter` with Vision's words, the Scan settings and preset editor's Clean up and Text language, the review's Clean up view.
+  preset's clean up. Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Mac done 2026-11-06 (`mac/docs/PLAN.md` P12): `ScanImaging` decodes, cleans through PrintCore and encodes once; `ScanPdf` writes through `PdfWriter` with Vision's words in the Text language chosen per scan and preset; Scan settings › Clean up, the preset editor's, the review's Clean up view with Undo and the scan's summary; PDFKit finds all 19 planted words (a right-to-left phrase across two words not, as pdf.js).
 - **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
   whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
   review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found

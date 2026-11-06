@@ -35,7 +35,9 @@ public enum Demo {
         var area: (@Sendable (Int, Int) -> [UInt8])?
         var feeder: (@Sendable () -> [[UInt8]]?)?
         if let scanPage {
-            area = { w, h in scanPage(scanSetup.photosOnGlass ? DemoScan.photos : DemoScan.letter, w, h) }
+            area = { w, h in
+                scanPage(scanSetup.photosOnGlass ? DemoScan.photos : scanSetup.paperOnLid ? DemoScan.onLid : DemoScan.letter, w, h)
+            }
             feeder = { (scanSetup.feederBatch ? DemoScan.batch : DemoScan.feeder).map { scanPage($0, 2550, 3300) } }
         }
         let http = HostRouter([
@@ -157,6 +159,9 @@ public enum Demo {
 /// The demo scanners' pages, by number (`Demo.network`'s `scanPage`).
 public enum DemoScan {
     public static let letter = 0, crooked = 1, blank = 2, separatorSheet = 3, crookedLeft = 4, photos = 5
+    /// The letter on yellowed paper lying on the lid, a line in Russian on it: the glass's page when the scan crops to the
+    /// paper (roadmap 2.3's clean up, and a searchable PDF's text in another script).
+    public static let onLid = 6
     /// The feeder's three pages.
     public static let feeder = [letter, crooked, blank]
     /// The feeder's batch (the Windows demo's): two pages, a Patch T sheet, then three more (one blank, one crooked).
@@ -164,16 +169,20 @@ public enum DemoScan {
 }
 
 /// What the demo scanners hold next, set by the Scan tab (the Windows demo's `FeederBatch`, `PhotosOnGlass`): a batch in the
-/// feeder when the scan splits into files, photos on the glass when it looks for them.
+/// feeder when the scan splits into files, photos on the glass when it looks for them, a sheet on the lid (`DemoScan.onLid`)
+/// when it crops to the paper.
 public final class DemoScanSetup: Sendable {
-    private let state = Shared((batch: false, photos: false))
+    private let state = Shared((batch: false, photos: false, lid: false))
 
     public init() {}
 
     public var feederBatch: Bool { state.withLock { $0.batch } }
     public var photosOnGlass: Bool { state.withLock { $0.photos } }
+    public var paperOnLid: Bool { state.withLock { $0.lid } }
 
-    public func prepare(feederBatch: Bool, photosOnGlass: Bool) { state.withLock { $0 = (feederBatch, photosOnGlass) } }
+    public func prepare(feederBatch: Bool, photosOnGlass: Bool, paperOnLid: Bool = false) {
+        state.withLock { $0 = (feederBatch, photosOnGlass, paperOnLid) }
+    }
 }
 
 extension Demo {

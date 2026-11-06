@@ -18,6 +18,8 @@ public enum DemoScanPage {
             separatorSheet(context, w, h)
         } else if page == DemoScan.photos {
             photos(context, w, h)
+        } else if page == DemoScan.onLid {
+            onLid(context, w, h)
         } else if page != DemoScan.blank {
             if page == DemoScan.crooked || page == DemoScan.crookedLeft { // crooked by 2.5° (or 1.5° the other way) about the centre
                 let degrees: CGFloat = page == DemoScan.crooked ? -2.5 : 1.5
@@ -59,6 +61,31 @@ public enum DemoScanPage {
             draw(line.text, size: CGFloat(line.size) * scale, bold: false, at: CGPoint(x: x, y: CGFloat(line.baseline) * scale), context)
         }
     }
+
+    /// A sheet of yellowed paper on the lid, half an inch in from the glass's edges: a heading, lines of text and one in
+    /// Russian, so Crop to the paper, Whiten the background and a searchable PDF in another script can be tried.
+    private static func onLid(_ context: CGContext, _ w: Int, _ h: Int) {
+        let inch: CGFloat = 150
+        context.setFillColor(CGColor(gray: lidLevel, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        let sheet = CGRect(x: 0, y: 0, width: w, height: h).insetBy(dx: inch / 2, dy: inch / 2)
+        context.setFillColor(CGColor(red: 0.93, green: 0.91, blue: 0.84, alpha: 1))
+        context.fill(sheet)
+        var y = sheet.maxY - inch
+        draw("Inkvolt Print demo", size: 28, bold: true, at: CGPoint(x: sheet.minX + inch, y: y), context)
+        y -= 50
+        let lines = [
+            "This sheet lay on the scanner's lid: Crop to the paper takes the lid off around it.",
+            "Whiten the background evens the yellowed paper out to white; the writing stays.",
+            "Привет из демо-сканера: этот текст тоже находится поиском.",
+        ]
+        for (i, text) in (0..<12).map({ lines[$0 % lines.count] }).enumerated() {
+            draw(text, size: 13, bold: false, at: CGPoint(x: sheet.minX + inch, y: y - CGFloat(i) * 24), context)
+        }
+    }
+
+    /// The demo lid's grey.
+    static let lidLevel: CGFloat = 0.72
 
     /// Three prints on the lid, each a little crooked: a landscape, a portrait and a wide one.
     private static func photos(_ context: CGContext, _ w: Int, _ h: Int) {

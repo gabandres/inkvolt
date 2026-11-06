@@ -661,6 +661,8 @@ enum PaneRequest: Equatable {
     case status
     case scan
     case photosSheet
+    /// The review's Clean up view on the first page (`--snapshot …:clean`).
+    case cleanSheet
     case printPhotos([URL])
     /// The status tab scrolled to the print queue card (a job's notification, roadmap 3.4).
     case printQueue

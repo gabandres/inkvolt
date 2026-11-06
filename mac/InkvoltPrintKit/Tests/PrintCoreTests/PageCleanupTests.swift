@@ -692,6 +692,22 @@ struct PageCleanupStepsTests {
         #expect(pages.cleanupSummary(["a", "b"], .whiten) == "1 page was cleaned up (Undo puts it back).")
     }
 
+    /// The Mac's own: Undo of a clean up (the scan's, or the review's Clean up view) puts back each page's crop and filters as
+    /// they were, keeping a turn made since (the Windows app's `RecordCleanup` restores only those two); a page deleted
+    /// since is passed over.
+    @Test func undoingACleanUpPutsBackTheCropAndFiltersOnly() {
+        var pages = ScanPages([ScannedPage(id: "a", dpi: 300), ScannedPage(id: "b", dpi: 300)])
+        let before = pages.analysed("a", looksBlank: false, skew: 1, skipBlank: true, straighten: true, cleanup: .all, paperEdge: Self.edge)
+        #expect(before == PageEdits(deskew: 1))
+        #expect(pages.page("a")?.edits == PageEdits(deskew: 1, crop: Self.edge, filters: .all))
+        pages.turn("a", 1)
+        pages.setEdits("b", PageEdits(filters: .whiten))
+        pages.delete("b")
+        pages.restoreCleanup(["a": before!, "b": .none])
+        #expect(pages.page("a")?.edits == PageEdits(quarterTurns: 1, deskew: 1))
+        #expect(pages.pages.count == 1)
+    }
+
     @Test func aPagesFiltersAndLanguageSurviveARestart() {
         var pages = ScanPages([ScannedPage(id: "a", dpi: 300, ocrLanguage: "ar")])
         pages.analysed("a", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: [.whiten, .cropToPaper], paperEdge: Self.edge)
