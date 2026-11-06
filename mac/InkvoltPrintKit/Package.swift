@@ -7,14 +7,16 @@ import PackageDescription
 var products: [Product] = [.library(name: "PrintCore", targets: ["PrintCore"])]
 var targets: [Target] = [
     .target(name: "PrintCore"),
-    .testTarget(name: "PrintCoreTests", dependencies: ["PrintCore"]),
+    // Time limits in the tests (CI's runner gets more), shared by both test targets.
+    .target(name: "TestTiming", path: "Tests/TestTiming"),
+    .testTarget(name: "PrintCoreTests", dependencies: ["PrintCore", "TestTiming"]),
 ]
 #if os(macOS)
 products.append(.library(name: "PrintMac", targets: ["PrintMac"]))
 targets += [
     .systemLibrary(name: "CCups", path: "Sources/CCups"), // libcups, macOS's own (the print queues)
     .target(name: "PrintMac", dependencies: ["PrintCore", "CCups"]),
-    .testTarget(name: "PrintMacTests", dependencies: ["PrintMac", "PrintCore"]),
+    .testTarget(name: "PrintMacTests", dependencies: ["PrintMac", "PrintCore", "TestTiming"]),
 ]
 #endif
 

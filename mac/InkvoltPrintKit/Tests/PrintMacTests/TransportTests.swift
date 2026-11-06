@@ -2,6 +2,7 @@ import Foundation
 import Network
 import PrintCore
 import Synchronization
+import TestTiming
 import Testing
 @testable import PrintMac
 
@@ -24,7 +25,19 @@ struct TransportTests {
         let started = ContinuousClock.now
         let reply = try await PortSnmp(port: 9).send([0x30, 0x00], to: "127.0.0.1", timeout: .milliseconds(300))
         #expect(reply == nil)
-        #expect(ContinuousClock.now - started < .seconds(2))
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)), "took \(ContinuousClock.now - started)")
+    }
+
+    /// 21.9 s once on CI's busy runner for a 300 ms timeout (2026-11-06, the test above): the exchange waited for a thread
+    /// of GCD's pool before its clock started. With the pool held, no reply still ends at the timeout.
+    @Test func snmpsNoReplyTimeoutDoesntWaitForABusyPool() async throws {
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let started = ContinuousClock.now
+        let reply = try await PortSnmp(port: 9).send([0x30, 0x00], to: "127.0.0.1", timeout: .milliseconds(300))
+        #expect(reply == nil)
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)), "took \(ContinuousClock.now - started)")
     }
 
     @Test func snmpStopsWaitingWhenCancelled() async throws {
@@ -37,9 +50,8 @@ struct TransportTests {
         await #expect(throws: CancellationError.self) { try await task.value }
         // CI once took 28 s here (passed on a rerun; 0.1 s on the Mac, also under a full run and 12 busy loops): the wait
         // now ends on the cancel itself, not when the receive loop's thread gets to look. CI's runner can still starve this
-        // task for seconds, as in ConnectionTests, so it gets 10 s there: a cancel that didn't work would take the 30 s.
-        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
-        #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
+        // task for seconds, as in ConnectionTests, so it gets Timing's slack: a cancel that didn't work would take the 30 s.
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)))
     }
 
     @Test func snmpCancelledBeforeItSendsEndsAtOnce() async throws {
@@ -51,8 +63,7 @@ struct TransportTests {
             return try await PortSnmp(port: server.port).send([0x30, 0x00], to: "127.0.0.1", timeout: .seconds(30))
         }
         await #expect(throws: CancellationError.self) { try await task.value }
-        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
-        #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)))
     }
 
     // MARK: HTTP
@@ -98,6 +109,20 @@ struct TransportTests {
         }
     }
 
+    /// A printer's answer is read while GCD's pool is busy: the session's delegate callbacks (the reply's bytes, its end)
+    /// don't wait for a pool thread past `DeviceHttp`'s timeout, on Swift's clock.
+    @Test func anAnswerIsReadWhileThePoolIsBusy() async throws {
+        let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhello" }
+        defer { server.stop() }
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let device = DeviceHttp(host: "127.0.0.1", transport: URLSessionTransport.factory(localNetwork: nil))
+        let url = URL(string: "http://127.0.0.1:\(server.port)/")!
+        let reply = try await device.send(HttpRequest("GET", url, timeout: .seconds(2)))
+        #expect(reply.text == "hello")
+    }
+
     @Test func anAnswerFromTheNetworkCountsAsLocalNetworkAllowed() async throws {
         let server = try HttpServer { _ in "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n" }
         defer { server.stop() }
@@ -126,15 +151,14 @@ struct TransportTests {
         let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n" }
         defer { server.stop() }
         let scanner = SocketNetworkScanner()
-        // The listening port within 2 s here; CI's busy runner missed it once (2026-11-06), so it gets 10 s there.
-        let openTimeout: Duration = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil ? .seconds(10) : .seconds(2)
+        // The listening port within 2 s here; CI's busy runner missed it once (2026-11-06), so it gets Timing's slack.
+        let openTimeout = Timing.limit(.seconds(2))
         #expect(try await scanner.isOpen("127.0.0.1", port: Int(server.port), timeout: openTimeout))
         let started = ContinuousClock.now
         #expect(try await !scanner.isOpen("127.0.0.1", port: 9, timeout: .milliseconds(600)))
         // 7.5 s once on CI's busy runner (2026-11-06): the timeout waited for a GCD thread, as SNMP's cancel did (63622f8);
-        // it no longer does (aClosedPortsTimeoutDoesntWaitForABusyPool), and the SNMP tests' slack stays for the runner.
-        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
-        #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
+        // it no longer does (aClosedPortsTimeoutDoesntWaitForABusyPool), and Timing's slack stays for the runner.
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)))
     }
 
     /// CI's busy runner once took 7.5 s over the 600 ms wait above: with GCD's pool held (every thread it will give
@@ -157,6 +181,28 @@ struct TransportTests {
         defer { hold.release() }
         try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
         #expect(try await SocketNetworkScanner().isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
+    }
+
+    /// The SNMP question to every network (Search my network): its answer window starts when asked, not when GCD's pool
+    /// gives the receive loop a thread. Asked of loopback, where nothing answers on 161.
+    @Test func theSnmpWindowEndsOnTimeWhileThePoolIsBusy() async throws {
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let started = ContinuousClock.now
+        try await SocketNetworkScanner().broadcastSnmp(["127.0.0.1"], requests: [[0x30, 0x00]], window: .milliseconds(300)) { _ in }
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)), "took \(ContinuousClock.now - started)")
+    }
+
+    @Test func theSnmpWindowEndsWhenCancelled() async throws {
+        let started = ContinuousClock.now
+        let task = Task {
+            try await SocketNetworkScanner().broadcastSnmp(["127.0.0.1"], requests: [[0x30, 0x00]], window: .seconds(30)) { _ in }
+        }
+        try await Task.sleep(for: .milliseconds(100))
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(ContinuousClock.now - started < Timing.limit(.seconds(2)), "took \(ContinuousClock.now - started)")
     }
 
     @Test func theScannerSearchesNoLoopbackOrTunnel() {

@@ -1,4 +1,5 @@
 import Foundation
+import TestTiming
 import Testing
 @testable import PrintCore
 
@@ -211,6 +212,6 @@ struct SuiteTests {
         #expect(h?.state == .offline)
     }
 
-    /// 5 s here; CI's busy runner starves the timers (5.9 s seen), so 15 s there, as ConnectionTests' slack.
-    private static let bound: Duration = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil ? .seconds(15) : .seconds(5)
+    /// 5 s here; CI's busy runner starves the timers (5.9 s seen), so it gets Timing's slack.
+    private static let bound = Timing.limit(.seconds(5))
 }
