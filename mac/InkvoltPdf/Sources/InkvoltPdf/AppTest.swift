@@ -444,19 +444,28 @@ struct AppTest {
 
     private mutating func scan() async {
         ScanWindowController.useDemoScanners()
+        // A printer Inkvolt Print remembers (its hand-off), listed before discovery; the demo laser stays the one chosen.
+        let office = SuitePrinter(id: "12345678-1234-4abc-8def-123456789abc", name: "Office MFP", host: "192.0.2.77",
+                                  esclRoot: "http://192.0.2.77/eSCL/")
+        ScanWindowController.testRemembered = SuitePrinters([office, SuitePrinter(id: "b", name: "Label printer", host: "192.0.2.78")])
+        AppSettings.defaults.set("icc:" + DemoScanDevice.laserScanner.id, forKey: AppSettings.Key.scanDevice)
         // Read as Recognize Text reads (its choices: cleaned, suspect words listed), by a stand-in: "recognlzed" on each page.
         ScanWindowController.testReader = OcrTest.StandInReader()
         ScanWindowController.testSpelling = OcrTest.StandInDictionary()
         defer {
             ScanWindowController.testScanners = nil
+            ScanWindowController.testRemembered = nil
             ScanWindowController.testReader = nil
             ScanWindowController.testSpelling = nil
         }
         ScanWindowController.show()
         guard let s = ScanWindowController.shared else { return check(false, "Scan: not shown") }
         let connected = await wait(5) { s.caps != nil }
-        check(connected && s.scanners.count == 2 && s.scanButton.isEnabled,
-              "Scan: \(s.scanners.count) scanners listed, the first one's capabilities read (\(s.sourcePopup.numberOfItems) sources)")
+        let titles = s.scannerPopup.itemTitles
+        let laser = s.scannerPopup.titleOfSelectedItem == DemoScanDevice.laserScanner.name
+        check(connected && s.scanners.count == 3 && titles.first == "Office MFP  (192.0.2.77)" && laser && s.scanButton.isEnabled,
+              "Scan: \(s.scanners.count) scanners listed (\(titles.joined(separator: ", "))): the one Inkvolt Print remembers first "
+              + "(a printer without eSCL left out), the demo laser chosen and its capabilities read (\(s.sourcePopup.numberOfItems) sources)")
         // The feeder: three pages, the third blank and left out; then one from the glass, removed, and one more.
         if let feeder = (0..<s.sourcePopup.numberOfItems).first(where: { s.sourcePopup.item(at: $0)?.title.contains("feeder") == true }) {
             s.sourcePopup.selectItem(at: feeder)

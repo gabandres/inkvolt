@@ -3,9 +3,11 @@ import Testing
 @testable import PrintCore
 
 /// Roadmap 2.3 on the Mac, what Inkvolt PDF's Scan dialog shares with Windows' (ported from UsbScannerTests.cs): blank pages
-/// left out of a scan (`ScanRun`) and presets from the dialog's choices (`ScanPresets.fromChoices`, matched by `PresetPlan`). The WIA and TWAIN tests stay with Windows (the Mac's scanners come through ImageCaptureCore,
-/// already tested in PrintMac), and making the PDF is PdfCore's `ImageImport` (its own tests), so the page-assembly tests
-/// count the pages kept instead of opening a PDF. Nothing here touches a real scanner.
+/// left out of a scan (`ScanRun`), presets from the dialog's choices (`ScanPresets.fromChoices`, matched by `PresetPlan`),
+/// and the list's network scanners, Inkvolt Print's remembered ones first (`ScannerList`). The WIA and TWAIN tests stay with
+/// Windows (the Mac's scanners come through ImageCaptureCore, already tested in PrintMac), and making the PDF is PdfCore's
+/// `ImageImport` (its own tests), so the page-assembly tests count the pages kept instead of opening a PDF. Nothing here
+/// touches a real scanner.
 struct UsbScannerTests {
     /// A real JPEG header with the page number in a comment segment, so each page differs and the test can tell which it is.
     static func page(_ number: Int) -> [UInt8] {
@@ -149,6 +151,58 @@ struct UsbScannerTests {
         #expect(p.resolution == 1200 && p.pageSize == nil && p.source == .feeder && !p.twoSided)
         #expect(ScanPresets.isValidId(p.id))
         #expect(ScanPresets.fromChoices([], name: "a", source: .platen, color: .color, dpi: -5, pageSize: nil, ocr: false, skipBlank: true).resolution == 75)
+    }
+
+    // ---- The list ---------------------------------------------------------------------------------------------------------------
+
+    static let office = "12345678-1234-4abc-8def-123456789abc"
+
+    static func found(_ uuid: String, _ name: String, _ host: String, scanner: Bool = true) -> DiscoveredPrinter {
+        DiscoveredPrinter(uuid: uuid, name: name, model: nil, host: host, hostName: nil, esclRoot: URL(string: "http://\(host)/eSCL/"),
+                          hasScanner: scanner, ippUri: nil, txt: [:], addresses: [host])
+    }
+
+    /// The Mac's list has no driver scanners to double (ImageCaptureCore lists USB ones only); its network part, as Windows'.
+    @Test func Driver_scanners_are_listed_beside_network_ones_without_doubles() {
+        let root = URL(string: "http://192.0.2.5/eSCL/")!
+        let found = EsclScanner(key: ScannerList.key(Self.office), name: "Office MFP", host: "192.0.2.5", esclRoot: root, remembered: false)
+        #expect(ScannerList.label(found) == "Office MFP  (192.0.2.5) · found on the network")
+        var known = found
+        known.remembered = true
+        #expect(ScannerList.label(known) == "Office MFP  (192.0.2.5)")
+        #expect(ScannerList.usbLabel("Example DocScan 10") == "Example DocScan 10  (USB)")
+        #expect(ScannerList.key("{12345678-1234-4ABC-8DEF-123456789ABC}") == "escl:" + Self.office)
+
+        // A printer found on the network twice (its UUID written two ways) is listed once.
+        let list = ScannerList.network(remembered: .empty, found: [Self.found(Self.office, "Office MFP", "192.0.2.5"),
+                                                                    Self.found("{" + Self.office.uppercased() + "}", "Office MFP", "192.0.2.5")])
+        #expect(list.count == 1)
+    }
+
+    /// Inkvolt Print's remembered scanners (its hand-off, `printers.json`) are listed before Bonjour answers; one found again
+    /// takes its new address and keeps its name; a printer without eSCL, or with a root that isn't http(s), isn't a scanner.
+    @Test func The_scanners_Inkvolt_Print_remembers_are_listed_first_and_found_ones_refresh_them() {
+        let json = """
+            { "version": 1, "printers": [
+                { "id": "\(Self.office)", "name": "Office MFP", "host": "192.0.2.10", "esclRoot": "http://192.0.2.10:8080/eSCL/" },
+                { "id": "b", "name": "Label printer", "host": "192.0.2.20" },
+                { "id": "c", "name": "Odd", "host": "192.0.2.30", "esclRoot": "file:///etc/passwd" },
+                { "id": "\(Self.office.uppercased())", "name": "Office MFP again", "host": "192.0.2.10", "esclRoot": "http://192.0.2.10/eSCL/" } ] }
+            """
+        let handed = SuitePrinters.parse(Data(json.utf8))
+        let before = ScannerList.network(remembered: handed, found: [])
+        #expect(before.map(\.name) == ["Office MFP"])
+        #expect(before.map(\.remembered) == [true])
+        #expect(before.first?.esclRoot.absoluteString == "http://192.0.2.10:8080/eSCL/")
+
+        let found = [Self.found(Self.office, "HP Color LaserJet MFP", "192.0.2.11"),
+                     Self.found("aaaaaaaa-1111-4222-8333-444444444444", "Hall MFP", "192.0.2.40"),
+                     Self.found("bbbbbbbb-1111-4222-8333-444444444444", "Printer only", "192.0.2.50", scanner: false)]
+        let after = ScannerList.network(remembered: handed, found: found)
+        #expect(after.map(\.name) == ["Office MFP", "Hall MFP"])
+        #expect(after.map(\.host) == ["192.0.2.11", "192.0.2.40"])
+        #expect(after.map(ScannerList.label) == ["Office MFP  (192.0.2.11)", "Hall MFP  (192.0.2.40) · found on the network"])
+        #expect(after.first?.esclRoot.absoluteString == "http://192.0.2.11/eSCL/")
     }
 
     // ---- What goes wrong ----------------------------------------------------------------------------------------------------------

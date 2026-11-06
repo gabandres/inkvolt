@@ -19,7 +19,7 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 2.3's leftovers, 3.1, 3.3, 3.4 and 3.5,
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 3.1, 3.3, 3.4 and 3.5,
 in the order of the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
@@ -466,12 +466,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   has been scanned through a real WIA or TWAIN driver (no USB scanner, no TWAIN manager here), so the acceptance test (a WIA
   flatbed and a WIA feeder scanner, 10 pages each) is still to run. Scans are straightened and cleaned (2.2) before OCR
   reads them; the scan itself is kept as scanned (only Recognize Text writes the cleaned page back). Mac: File › Scan uses
-  ImageCaptureCore with the feeder, both sides and OCR, leaves out blank pages (2026-11-06, PrintCore's `ScanRun`) and saves
-  scan presets (`ScanPresets.fromChoices`, `PresetPlan`); the scanners Inkvolt Print remembers are still to do there.
+  ImageCaptureCore with the feeder, both sides and OCR, leaves out blank pages (2026-11-06, PrintCore's `ScanRun`), saves
+  scan presets (`ScanPresets.fromChoices`, `PresetPlan`) and lists the scanners Inkvolt Print remembers first (its hand-off,
+  `ScannerList`).
 - **Beat it when:** WIA 2 scanners (and 64-bit TWAIN sources) are listed beside eSCL ones in the same dialog with feeder,
   duplex, color and dpi; blank pages are dropped on request; every scan goes through 2.2's cleanup and OCR; scan presets
   are saved. Test: a WIA flatbed and a WIA feeder scanner each scan a 10-page stack into one PDF, OCR included.
-- **Effort** M. Windows; Mac: scanning through ImageCaptureCore is in, the rest is still to do (above).
+- **Effort** M. Windows; Mac: done 2026-11-06 (scanning through ImageCaptureCore, blank pages, presets, Inkvolt Print's scanners).
 
 ### 2.4 Tags, reading order, alt text, PDF/UA
 - **Leader.** Acrobat Pro: Autotag in Adobe's cloud (headings, borderless tables, nested lists, multi-column reading

@@ -4,8 +4,10 @@ import PrintCore
 import PrintMac
 
 /// File › Scan… (the Windows app's Scan dialog): scans over eSCL with Inkvolt Print's client (`EsclClient`) from the
-/// scanners Bonjour finds on the network (`BonjourDiscovery`, `_uscan` and `_uscans`), or from a USB scanner macOS has a
-/// driver for (ImageCaptureCore, `SystemScanners`); source (glass, feeder, both sides), color, resolution and page size
+/// scanners Inkvolt Print remembers (its hand-off in the app group, `SuitePrinters`: listed at once, before Bonjour answers)
+/// and those Bonjour finds on the network (`BonjourDiscovery`, `_uscan` and `_uscans`; `ScannerList` joins them, a
+/// remembered one found again taking its new address), or from a USB scanner macOS has a driver for (ImageCaptureCore,
+/// `SystemScanners`); source (glass, feeder, both sides), color, resolution and page size
 /// from the scanner's capabilities (`ScanChoices`). Pages arrive as JPEGs and become PDF pages as they are (PdfCore's
 /// `ImageImport`, at the scan's resolution); Create PDF opens them as a new, unsaved document, and with "Make the text
 /// searchable" runs Recognize Text on it (one undo step) with its choices: suspect words marked and kept in the text
@@ -24,13 +26,17 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     static var testReader: (any TextRecognizer)?
     static var testSpelling: (any Spelling)?
 
+    /// The self-test's hand-off from Inkvolt Print (nil: the app group's file).
+    static var testRemembered: SuitePrinters?
+
     /// The self-test scans from Inkvolt Print's demo scanners (a laser with glass and feeder, a photo flatbed).
     static func useDemoScanners() { testScanners = DemoScanDevice.all }
 
-    /// A scanner in the list: its id (what's remembered), its name and how to reach it.
+    /// A scanner in the list: its id (what's remembered), its label, its address (a network one's) and how to reach it.
     struct Scanner {
         let id: String
         let name: String
+        var host: String?
         let device: @MainActor () -> (any ScanDevice)?
     }
 
@@ -91,6 +97,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private var systemScanners: SystemScanners?
     private let localNetwork = LocalNetworkSignal()
     private var network: [DiscoveredPrinter] = []
+    /// The printers Inkvolt Print remembers, read once (off the main thread) when Scan first looks for scanners.
+    private var remembered: SuitePrinters = .empty
     private var usb: [SystemScanner] = []
     private var sources: [ScanSource] = []
     private var colors: [ScanColor] = []
@@ -223,11 +231,19 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     func startLooking() {
         if let test = Self.testScanners {
             usb = test
+            remembered = Self.testRemembered ?? .empty
             rebuildList()
             return
         }
         guard discovery == nil else { return }
         scannerState.stringValue = "Looking for scanners…"
+        let root = ProKeyRoot.url?.path
+        Task { [weak self] in
+            let handed = await Task.detached { root.map { SuitePrinters.load(root: $0) } ?? .empty }.value
+            guard let self, !handed.printers.isEmpty else { return }
+            self.remembered = handed
+            self.rebuildList()
+        }
         localNetwork.onChange { [weak self] access in
             Task { @MainActor in self?.localNetworkChanged(access) }
         }
@@ -270,18 +286,18 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     /// The list from what was found, the remembered (or current) scanner chosen.
     private func rebuildList() {
         let transport = URLSessionTransport.factory(localNetwork: localNetwork)
-        var list: [Scanner] = network.compactMap { printer in
-            guard let root = printer.esclRoot, let host = printer.host else { return nil }
-            return Scanner(id: "escl:" + printer.uuid, name: printer.name) { EsclClient(DeviceHttp(host: host, transport: transport), root: root) }
+        var list: [Scanner] = ScannerList.network(remembered: remembered, found: network).map { s in
+            Scanner(id: s.key, name: ScannerList.label(s), host: s.host) { EsclClient(DeviceHttp(host: s.host, transport: transport), root: s.esclRoot) }
         }
         let system = systemScanners
         for s in usb {
             let demo = Self.testScanners != nil
-            list.append(Scanner(id: "icc:" + s.id, name: s.name + (demo ? "" : " (USB)")) {
+            list.append(Scanner(id: "icc:" + s.id, name: demo ? s.name : ScannerList.usbLabel(s.name)) {
                 demo ? DemoScanDevice(s) : system?.device(s.id)
             })
         }
-        let current = scanners.indices.contains(scannerPopup.indexOfSelectedItem) ? scanners[scannerPopup.indexOfSelectedItem].id : nil
+        let selected = scanners.indices.contains(scannerPopup.indexOfSelectedItem) ? scanners[scannerPopup.indexOfSelectedItem] : nil
+        let current = selected?.id
         scanners = list
         scannerPopup.removeAllItems()
         scannerPopup.addItems(withTitles: list.map(\.name))
@@ -290,7 +306,9 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let wanted = current ?? AppSettings.defaults.string(forKey: AppSettings.Key.scanDevice)
         let index = list.firstIndex { $0.id == wanted } ?? 0
         scannerPopup.selectItem(at: index)
-        if list[index].id != current { connect() }
+        // Another scanner, or the same one at a new address while the old one hasn't answered (DHCP may have moved it).
+        let moved = list[index].id == current && list[index].host != selected?.host && caps == nil && !isScanning
+        if list[index].id != current || moved { connect() }
         refresh()
     }
 

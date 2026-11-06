@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Scan lists the scanners Inkvolt Print knows straight away, with their addresses, before the network search finds the rest; one that moved to a new address is found there.
 - Scan presets: Save as Preset… keeps the source, color, resolution, page size, text recognition and blank page choices under a name. Choosing one sets them for whichever scanner is chosen, and says what that scanner can't do.
 - Scan leaves out blank pages (on by default): the empty back of a one-sided sheet isn't added, and the message says how many were left out. A page with as little as a short word is kept.
 - Snapshot (Tools › Snapshot, ⌥⌘C, or the camera in the markup toolbar): drag over part of a page to copy it as a picture, sharp enough to paste into a document or an email. Esc cancels.
