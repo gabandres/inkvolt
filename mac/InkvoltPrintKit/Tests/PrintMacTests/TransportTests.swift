@@ -129,10 +129,21 @@ struct TransportTests {
         #expect(try await scanner.isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
         let started = ContinuousClock.now
         #expect(try await !scanner.isOpen("127.0.0.1", port: 9, timeout: .milliseconds(600)))
-        // 7.5 s once on CI's busy runner (2026-11-06): the same slack as the SNMP tests above. Whether the timeout waits on a
-        // starved thread pool, as SNMP's cancel did (63622f8), is to check on the Mac.
+        // 7.5 s once on CI's busy runner (2026-11-06): the timeout waited for a GCD thread, as SNMP's cancel did (63622f8);
+        // it no longer does (aClosedPortsTimeoutDoesntWaitForABusyPool), and the SNMP tests' slack stays for the runner.
         let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
         #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
+    }
+
+    /// CI's busy runner once took 7.5 s over the 600 ms wait above: with GCD's pool held (every thread it will give
+    /// blocked), a closed port's answer, or its timeout, still comes on time (16 s before the fix, 0.6 s after).
+    @Test func aClosedPortsTimeoutDoesntWaitForABusyPool() async throws {
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let started = ContinuousClock.now
+        #expect(try await !SocketNetworkScanner().isOpen("127.0.0.1", port: 9, timeout: .milliseconds(600)))
+        #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
     }
 
     @Test func theScannerSearchesNoLoopbackOrTunnel() {
@@ -201,6 +212,22 @@ struct TransportTests {
 }
 
 /// `UdpSnmpTransport`'s exchange on another port than 161 (a test agent can't bind a privileged port).
+/// Blocks every thread GCD's global pool will give, as a busy machine does, until `release` (or `atMost` seconds).
+final class PoolHold: Sendable {
+    private let gate = DispatchSemaphore(value: 0)
+    private let count = 256
+
+    init(atMost seconds: Double) {
+        for _ in 0..<count {
+            DispatchQueue.global().async { [gate] in _ = gate.wait(timeout: .now() + seconds) }
+        }
+    }
+
+    func release() {
+        for _ in 0..<count { gate.signal() }
+    }
+}
+
 struct PortSnmp: SnmpTransport {
     let port: UInt16
 

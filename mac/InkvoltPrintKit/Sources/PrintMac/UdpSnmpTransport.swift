@@ -25,7 +25,7 @@ public struct UdpSnmpTransport: SnmpTransport {
     public func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
         let stop = StopFlag()
         let port = port
-        let once = OnceExchange()
+        let once = OnceResult<Exchange>()
         // Cancelled, the wait ends at once: not when the blocking loop next looks at `stop`, which on a busy machine may be
         // long after (the block can wait for a thread; CI once took 28 s to end a cancelled 30 s wait).
         let result = await withTaskCancellationHandler {
@@ -91,13 +91,14 @@ public struct UdpSnmpTransport: SnmpTransport {
     }
 }
 
-/// The exchange's continuation, resumed once: by the exchange's end or by cancellation, whichever comes first. Cancelled
-/// before the continuation is there, it resumes as soon as it is.
-final class OnceExchange: Sendable {
-    private let state = Mutex<(continuation: CheckedContinuation<UdpSnmpTransport.Exchange, Never>?, ended: UdpSnmpTransport.Exchange?)>((nil, nil))
+/// A continuation resumed once: by the work's end, a timeout or a cancel, whichever comes first. Finished before the
+/// continuation is there, it resumes as soon as it is. Lets a wait end on the cancel or timeout itself, not when a GCD
+/// thread a busy machine may not give for seconds gets to look (SNMP's exchange, Search my network's port check).
+final class OnceResult<Value: Sendable>: Sendable {
+    private let state = Mutex<(continuation: CheckedContinuation<Value, Never>?, ended: Value?)>((nil, nil))
 
-    func start(_ continuation: CheckedContinuation<UdpSnmpTransport.Exchange, Never>) {
-        let ended: UdpSnmpTransport.Exchange? = state.withLock { s in
+    func start(_ continuation: CheckedContinuation<Value, Never>) {
+        let ended: Value? = state.withLock { s in
             if let ended = s.ended { return ended }
             s.continuation = continuation
             return nil
@@ -105,8 +106,8 @@ final class OnceExchange: Sendable {
         if let ended { continuation.resume(returning: ended) }
     }
 
-    func finish(_ result: UdpSnmpTransport.Exchange) {
-        let waiting: CheckedContinuation<UdpSnmpTransport.Exchange, Never>? = state.withLock { s in
+    func finish(_ result: Value) {
+        let waiting: CheckedContinuation<Value, Never>? = state.withLock { s in
             if s.ended != nil { return nil }
             s.ended = result
             let c = s.continuation
