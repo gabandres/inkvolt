@@ -978,13 +978,18 @@ public static partial class ContentEditor
             WriteLine(sb, info.Hex, plain, parts, run, writer);
         }
         if (Math.Abs(tw) > 1e-9) sb.Append(ContentLexer.Number(tw)).Append(" Tw ");
-        // Back where the operator left things: the line matrix after it, the text position moved along its baseline.
+        return sb.Append(BackAfter(run)).ToString();
+    }
+
+    /// <summary>Back where a run's operator left things: the line matrix after it, the text position moved along its baseline.</summary>
+    private static string BackAfter(TextRun run)
+    {
+        var info = run.Info!;
         var tlm = info.TlmAfter;
         double along = 0;
         if (Math.Abs(tlm.A) >= Math.Abs(tlm.B) && Math.Abs(tlm.A) > 1e-12) along = (info.Tm.E - tlm.E) / tlm.A;
         else if (Math.Abs(tlm.B) > 1e-12) along = (info.Tm.F - tlm.F) / tlm.B;
-        sb.Append(tlm.Write()).Append(" Tm ").Append(Move(run, along + info.Advance));
-        return sb.ToString();
+        return tlm.Write() + " Tm " + Move(run, along + info.Advance);
     }
 
     /// <summary>

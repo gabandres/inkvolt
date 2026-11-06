@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Translate with AI keeps a table row's figures in their columns when the row's label and its figures were drawn as one piece of text (as many papers and reports draw them): only the label is translated, and the figures stay where they were.
 
 ## 1.8.0
 - A page built to take minutes to read (a few kilobytes that unpack to gigabytes) is given up on after 10 seconds: it says "This page took too long to read", and the rest of the document still shows, searches, prints and exports. A picture like that on a page, or in Reduce File Size, too.

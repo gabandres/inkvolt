@@ -26,6 +26,9 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
 
     internal ContentEditor.RunInfo? Info { get; init; }
 
+    /// <summary>For a translated copy: one column of an operator that draws several (see <see cref="ContentEditor.InColumns"/>); else null.</summary>
+    internal ContentEditor.RunPiece? Piece { get; init; }
+
     /// <summary>The name its font has in the resources (no slash).</summary>
     internal string FontKey { get; init; } = "";
 

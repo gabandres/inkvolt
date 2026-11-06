@@ -1273,6 +1273,24 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Figures_drawn_by_the_labels_own_operator_stay_in_their_columns()
+    {
+        // A table row as attn-v7 and the census draw it: the label and its figures in one TJ, columns made by adjustments.
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(Hello World) -2000 (2024) -1500 (1999)] TJ ET", fontText: Letters);
+        var font = ContentEditor.Read(pdf, null, 0).Runs[0].Font!;
+        double Width(string s) => font.Encode(s).Codes.Sum(c => font.WidthOf(c)) / 1000 * 10;
+        var first = 72 + Width("Hello World") + 20;
+        var second = first + Width("2024") + 15;
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Hello World"], plan.Texts.Select(t => t.Text));
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs;
+        Assert.Contains(runs, q => q.Text.Contains("THE DOG", StringComparison.Ordinal));
+        Assert.DoesNotContain(runs, q => q.Text.Contains("Hello", StringComparison.Ordinal));
+        Assert.Equal(first, runs.Single(q => q.Text.Trim() == "2024").Box.X, 2);
+        Assert.Equal(second, runs.Single(q => q.Text.Trim() == "1999").Box.X, 2);
+    }
+
+    [Fact]
     public void Short_labels_one_under_the_other_go_one_by_one()
     {
         // All about as wide, so no next word would fit on the line above: but they aren't one sentence.

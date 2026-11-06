@@ -47,6 +47,7 @@ public static partial class ContentEditor
     /// </summary>
     internal static List<TranslationSlot> TranslationSlots(PageContent content, IReadOnlyList<RectD> cells, CancellationToken cancel)
     {
+        content = InColumns(content);
         var groups = new Dictionary<int, List<TextRun>>();
         foreach (var r in content.Runs)
         {
@@ -112,6 +113,170 @@ public static partial class ContentEditor
             }
         }
         return result;
+    }
+
+    /// <summary>One column of an operator that draws several; <see cref="All"/> are the operator's columns in order (filled once they are all made).</summary>
+    internal sealed record RunPiece(TextRun Whole, List<TextRun> All);
+
+    /// <summary>The most columns one operator is taken apart into: more is a crafted operator, kept whole.</summary>
+    private const int MaxColumnsInRun = 64;
+
+    /// <summary>
+    /// A run whose one operator draws columns (a table row's label and its figures, set apart by TJ adjustments, as pdfTeX
+    /// and the census's tables write them) as a run for each, so that each is translated or kept on its own, where
+    /// <see cref="SplitAtColumns"/> would split runs apart: a gap over 1.5 ems, or over 0.6 ems with figures on one side.
+    /// </summary>
+    internal static PageContent InColumns(PageContent content)
+    {
+        List<TextRun>? runs = null;
+        for (var i = 0; i < content.Runs.Count; i++)
+        {
+            var r = content.Runs[i];
+            var pieces = r.Piece is null && (runs?.Count ?? i) < MaxRunsToTranslate ? Columns(r) : null;
+            if (pieces is null)
+            {
+                runs?.Add(r);
+                continue;
+            }
+            runs ??= [.. content.Runs.Take(i)];
+            runs.AddRange(pieces);
+        }
+        return runs is null ? content : content with { Runs = runs };
+    }
+
+    /// <summary>A run's columns as runs of their own; null when it has one.</summary>
+    private static List<TextRun>? Columns(TextRun r)
+    {
+        if (r.Info is not { } info || r.Font is not { } font || r.Blocked is not null || r.Reach is not { } reach || Math.Abs(r.Angle) >= 0.5) return null;
+        var items = info.Items;
+        var em = Math.Abs(r.Size * r.HScale);
+        if (items.Count < 3 || !(em > 1e-9) || !double.IsFinite(em)) return null;
+        // Where each item starts, and where each glyph's ink ends (text space), as the operator moves.
+        var starts = new double[items.Count + 1];
+        var ends = new double[items.Count];
+        double adv = 0;
+        for (var i = 0; i < items.Count; i++)
+        {
+            starts[i] = adv;
+            var item = items[i];
+            if (item.IsNumber)
+            {
+                adv -= item.Number / 1000 * r.Size * r.HScale;
+                continue;
+            }
+            var w = font.WidthOf(item.Code) / 1000;
+            ends[i] = adv + w * r.Size * r.HScale;
+            adv += (w * r.Size + r.CharSpacing + (!font.TwoByte && item.Code == 32 ? r.WordSpacing : 0)) * r.HScale;
+        }
+        starts[items.Count] = adv;
+        if (!double.IsFinite(adv)) return null;
+
+        bool Ink(int i) => !items[i].IsNumber && items[i].Text.Trim().Length > 0;
+        string TextOf(int from, int to) => string.Concat(items.Skip(from).Take(to - from).Select(x => x.Text));
+        // Figures: digits and no letters ("27.3", "-0.5%"); a sentence's last "]." before a stretched space isn't, nor is a dash standing for none.
+        bool Figures(string s) => s.Any(char.IsDigit) && !s.Any(char.IsLetter);
+        // Cut at each gap wide enough for either rule; then joined back where it is under 1.5 ems and neither side is figures.
+        var cuts = new List<(int Start, int End)>(); // a column's items, [Start, End): from its first glyph to its last
+        int start = 0, lastInk = -1;
+        for (var i = 0; i < items.Count; i++)
+        {
+            if (!Ink(i)) continue;
+            if (lastInk >= 0 && starts[i] - ends[lastInk] > 0.6 * em)
+            {
+                cuts.Add((start, lastInk + 1));
+                start = i;
+                if (cuts.Count > MaxColumnsInRun) return null;
+            }
+            lastInk = i;
+        }
+        if (cuts.Count == 0) return null;
+        cuts.Add((start, items.Count));
+        var columns = new List<(int Start, int End)> { cuts[0] };
+        for (var k = 1; k < cuts.Count; k++)
+        {
+            var (prev, next) = (columns[^1], cuts[k]);
+            var gap = starts[next.Start] - ends[cuts[k - 1].End - 1];
+            if (gap <= 1.5 * em && !Figures(TextOf(prev.Start, prev.End)) && !Figures(TextOf(next.Start, next.End))) columns[^1] = (prev.Start, next.End);
+            else columns.Add((next.Start, next.End));
+        }
+        if (columns.Count < 2) return null;
+
+        var rad = r.Angle * Math.PI / 180;
+        var (dx, dy) = (Math.Cos(rad), Math.Sin(rad));
+        var all = new List<TextRun>(columns.Count);
+        var piece = new RunPiece(r, all);
+        foreach (var (from, to) in columns)
+        {
+            var at = starts[from];
+            double low = 0, high = 0, end = 0, gaps = 0;
+            var gapCount = 0;
+            for (var k = from; k < to; k++)
+            {
+                if (!items[k].IsNumber)
+                {
+                    low = Math.Min(low, starts[k] - at);
+                    end = ends[k] - at;
+                    high = Math.Max(high, end);
+                }
+                else if (items[k].Text == " ")
+                {
+                    gaps += -items[k].Number / 1000;
+                    gapCount++;
+                }
+            }
+            var origin = new PointD(r.Origin.X + dx * at * r.Scale, r.Origin.Y + dy * at * r.Scale);
+            var box = new RectD(origin.X + low * r.Scale, r.Box.Y + (origin.Y - r.Origin.Y), (Math.Max(end, high) - low) * r.Scale, r.Box.Height);
+            all.Add(r with
+            {
+                Text = TextOf(from, to),
+                Box = box,
+                Origin = origin,
+                Reach = (-low * r.Scale, Math.Max(end, high) * r.Scale, reach.Above, reach.Below),
+                OldWidth = end * r.Scale,
+                GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
+                Info = info with { Items = items.GetRange(from, to - from), Tm = new Mat(1, 0, 0, 1, at, 0).Times(info.Tm), Advance = starts[to] - at },
+                Piece = piece,
+            });
+        }
+        return all;
+    }
+
+    /// <summary>A column of an operator kept as it was, drawn on its own where it was.</summary>
+    private static string KeptColumn(TextRun column)
+    {
+        var info = column.Info!;
+        var sb = new StringBuilder(info.Tm.Write()).Append(" Tm [");
+        var codes = new List<int>();
+        void Flush()
+        {
+            if (codes.Count == 0) return;
+            var bytes = column.Font!.ToBytes(codes);
+            sb.Append(info.Hex ? ContentLexer.HexString(bytes) : ContentLexer.Literal(bytes)).Append(' ');
+            codes.Clear();
+        }
+        foreach (var item in info.Items)
+        {
+            if (!item.IsNumber) codes.Add(item.Code);
+            else
+            {
+                Flush();
+                sb.Append(ContentLexer.Number(item.Number)).Append(' ');
+            }
+        }
+        Flush();
+        return sb.Append("] TJ ").ToString();
+    }
+
+    /// <summary>
+    /// An operator whose columns were written apart: each column translated as <paramref name="written"/> has it (its new
+    /// lines, or nothing), the others drawn as they were, then everything left where the operator left it.
+    /// </summary>
+    private static string WriteColumns(COp op, RunPiece piece, IReadOnlyDictionary<TextRun, string> written)
+    {
+        var sb = new StringBuilder();
+        if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc ");
+        foreach (var column in piece.All) sb.Append(written.TryGetValue(column, out var text) ? text : KeptColumn(column)).Append(' ');
+        return sb.Append(BackAfter(piece.Whole)).ToString();
     }
 
     /// <summary>A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its place from left to right.</summary>
@@ -679,7 +844,7 @@ public static partial class ContentEditor
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes, cancel);
         var walk = Walk(page, pageIndex, ops, cancel);
-        var content = walk.Content;
+        var content = InColumns(walk.Content);
         var slots = TranslationSlots(content, cells, cancel);
         var (pageWidth, pageHeight) = PdfObj.DisplaySize(page);
         var written = new List<TranslationWritten>();
@@ -692,6 +857,8 @@ public static partial class ContentEditor
         var owners = new List<PdfDictionary>();
         var taken = new HashSet<(Target, int)>();
         var things = new PageThings(content, obstacles);
+        // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
+        var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, RunPiece Piece, Dictionary<TextRun, string> Written)>();
 
         for (var i = 0; i < slots.Count; i++)
         {
@@ -768,8 +935,15 @@ public static partial class ContentEditor
             foreach (var run in p.Runs)
             {
                 var op = target.OpOf(run);
-                edits.Add((op.Start, op.End, newLines.TryGetValue(run, out var lines) ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines }, writer.Fonts) : Removed(op, run)));
+                var hasLines = newLines.TryGetValue(run, out var lines);
                 taken.Add((target, op.Start));
+                if (run.Piece is { } piece)
+                {
+                    if (!columned.TryGetValue((target, op.Start), out var known)) columned[(target, op.Start)] = known = (edits, op, piece, new(ReferenceEqualityComparer.Instance));
+                    known.Written[run] = hasLines ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines! }, writer.Fonts) : "";
+                    continue;
+                }
+                edits.Add((op.Start, op.End, hasLines ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines! }, writer.Fonts) : Removed(op, run)));
             }
             // Spaces drawn on their own go too; one on the lines of two paragraphs only once.
             foreach (var run in p.Spaces)
@@ -785,6 +959,7 @@ public static partial class ContentEditor
             written.Add(new TranslationWritten(i, fit, fits, dropped));
         }
 
+        foreach (var (edits, op, piece, done) in columned.Values) edits.Add((op.Start, op.End, WriteColumns(op, piece, done)));
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);
