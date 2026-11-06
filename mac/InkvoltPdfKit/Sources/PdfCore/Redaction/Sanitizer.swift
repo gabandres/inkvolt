@@ -132,7 +132,7 @@ public enum Sanitizer {
             let check = try PdfEngine.open(saved, password: password)
             defer { check.close() }
             if check.pageCount != pages {
-                let why = loc("it has {0} pages instead of {1}.", check.pageCount, pages)
+                let why = loc("it has {0} pages instead of {1}.", CoreLanguage.number(check.pageCount), CoreLanguage.number(pages))
                 throw PdfEditError(loc("The sanitized file couldn't be read back, so nothing was changed: {0}", why))
             }
         } catch is PasswordRequired {
@@ -819,14 +819,14 @@ public enum Sanitizer {
             for s in parts {
                 let bytes = s.streamData ?? []
                 if bytes.isEmpty && !(s.rawStreamData ?? []).isEmpty {
-                    if mentionsHidden(res) { keepLayerContent(loc("Page {0} has content that couldn't be decoded", index + 1)) }
+                    if mentionsHidden(res) { keepLayerContent(loc("Page {0} has content that couldn't be decoded", CoreLanguage.number(index + 1))) }
                     return
                 }
                 all += bytes
                 all.append(10)
             }
             let (stripped, why) = strip(all, res)
-            if let why { keepLayerContent(loc("Page {0}: {1}", index + 1, why)) }
+            if let why { keepLayerContent(loc("Page {0}: {1}", CoreLanguage.number(index + 1), why)) }
             guard let stripped else { return }
             page.set("Contents", doc.addStream(stripped, deflate: true))
         }

@@ -311,7 +311,7 @@ final class CommentCell: NSTableCellView {
         icon.contentTintColor = c.color.map(Palette.ns) ?? .secondaryLabelColor
         var parts = [DocumentEditor.kindName(c)]
         if let a = c.author, !a.isEmpty { parts.append(a) }
-        parts.append(loc("p. {0}", c.pageIndex + 1))
+        parts.append(loc("p. {0}", CoreLanguage.number(c.pageIndex + 1)))
         title.stringValue = parts.joined(separator: " · ")
         let text = c.contents.trimmingCharacters(in: .whitespacesAndNewlines)
         detail.stringValue = text

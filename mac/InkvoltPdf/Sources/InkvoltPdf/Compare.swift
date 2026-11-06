@@ -243,7 +243,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             }.value) ?? false
             if differs {
                 visuallyDifferent.append(r)
-                let text = loc("Page {0} and page {1} have no text to compare; their pictures differ (see Visual)", o + 1, n + 1)
+                let text = loc("Page {0} and page {1} have no text to compare; their pictures differ (see Visual)", CoreLanguage.number(o + 1), CoreLanguage.number(n + 1))
                 items.append(Item(change: nil, row: r, kind: loc("Looks different"), text: text, color: .systemPurple))
             }
         }
@@ -251,8 +251,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         table.reloadData()
         if !visuallyDifferent.isEmpty {
             let n = visuallyDifferent.count
-            summary.stringValue = n == 1 ? loc("{0}; {1} page without text looks different", result.summary(), n)
-                : loc("{0}; {1} pages without text look different", result.summary(), n)
+            summary.stringValue = n == 1 ? loc("{0}; {1} page without text looks different", result.summary(), CoreLanguage.number(n))
+                : loc("{0}; {1} pages without text look different", result.summary(), CoreLanguage.number(n))
         }
         updateButtons()
     }
@@ -336,7 +336,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private func updateButtons() {
         previous.isEnabled = !items.isEmpty
         next.isEnabled = !items.isEmpty
-        position.stringValue = items.isEmpty ? "" : loc("{0} of {1}", selected.map { $0 + 1 } ?? 0, items.count)
+        position.stringValue = items.isEmpty ? "" : loc("{0} of {1}", CoreLanguage.number(selected.map { $0 + 1 } ?? 0), CoreLanguage.number(items.count))
     }
 
     // MARK: The list
@@ -348,8 +348,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let where_ = result.map { r -> String in
             let x = r.rows[item.row]
             let o = x.oldPage.map { $0 + 1 }, n = x.newPage.map { $0 + 1 }
-            if let o, let n, o != n { return loc("Page {0} → page {1}", o, n) }
-            return (o ?? n).map { loc("Page {0}", $0) } ?? ""
+            if let o, let n, o != n { return loc("Page {0} → page {1}", CoreLanguage.number(o), CoreLanguage.number(n)) }
+            return (o ?? n).map { loc("Page {0}", CoreLanguage.number($0)) } ?? ""
         } ?? ""
         let chip = NSView()
         chip.wantsLayer = true
@@ -759,7 +759,7 @@ final class CompareRowsView: NSView {
     private func drawHeader(_ r: Int, _ row: CompareRow, _ l: RowLayout) {
         let what: String
         switch row.text {
-        case .compared: what = row.changes == 0 ? loc("no changes") : row.changes == 1 ? loc("1 change") : loc("{0} changes", row.changes)
+        case .compared: what = row.changes == 0 ? loc("no changes") : row.changes == 1 ? loc("1 change") : loc("{0} changes", CoreLanguage.number(row.changes))
         case .noTextOld, .noTextNew, .noTextBoth: what = loc("no text to compare: see Visual")
         case .onlyOld: what = loc("removed page")
         case .onlyNew: what = loc("inserted page")
@@ -767,11 +767,11 @@ final class CompareRowsView: NSView {
         let o = row.oldPage.map { $0 + 1 }, n = row.newPage.map { $0 + 1 }
         let label: String
         if let o, let n {
-            label = loc("Original page {0}, changed page {1}", o, n)
+            label = loc("Original page {0}, changed page {1}", CoreLanguage.number(o), CoreLanguage.number(n))
         } else if let o {
-            label = loc("Original page {0}", o)
+            label = loc("Original page {0}", CoreLanguage.number(o))
         } else {
-            label = loc("Changed page {0}", n ?? 0)
+            label = loc("Changed page {0}", CoreLanguage.number(n ?? 0))
         }
         let text = loc("{0}: {1}", label, what) as NSString
 

@@ -56,7 +56,7 @@ public enum TextLayer {
             let count = try doc.pageCount()
             var descendant: PObj?
             for (index, words) in pages {
-                guard index >= 0 && index < count else { throw PdfEditError(loc("There is no page {0}.", index + 1)) }
+                guard index >= 0 && index < count else { throw PdfEditError(loc("There is no page {0}.", CoreLanguage.number(index + 1))) }
                 setLayer(doc, doc.page(index), words, language, &descendant)
             }
         }

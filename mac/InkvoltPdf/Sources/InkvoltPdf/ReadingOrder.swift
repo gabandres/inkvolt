@@ -194,7 +194,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         decorativeBox.state = item.block.decorative ? .on : .off
         decorativeBox.isHidden = formula
         suggestButton.isHidden = formula
-        let name = formula ? loc("How formula {0} is read", item.number) : loc("Alternate text for picture {0}", item.number)
+        let name = formula ? loc("How formula {0} is read", CoreLanguage.number(item.number)) : loc("Alternate text for picture {0}", CoreLanguage.number(item.number))
         altLabel.stringValue = name
         altField.setAccessibilityLabel(name)
     }
@@ -248,7 +248,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         if moved == plan { return }
         setPlan(moved, select: item.index + (by < 0 ? -1 : 1))
         focusList()
-        announce(loc("Moved to place {0}", selectedItem?.number ?? 0))
+        announce(loc("Moved to place {0}", CoreLanguage.number(selectedItem?.number ?? 0)))
     }
 
     /// Reads the selected piece with the page before (-1: after its last piece) or after (1: before its first), and shows that page.
@@ -263,7 +263,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         page = moved.page
         fill()
         focusList()
-        announce(loc("Read with page {0}, place {1}", moved.page + 1, selectedItem?.number ?? 0))
+        announce(loc("Read with page {0}, place {1}", CoreLanguage.number(moved.page + 1), CoreLanguage.number(selectedItem?.number ?? 0)))
     }
 
     /// Shows another page's pieces (Page Up/Page Down in the list), the first one selected.
@@ -278,7 +278,7 @@ final class ReadingOrderPane: NSObject, NSTableViewDataSource, NSTableViewDelega
         fill()
         focusList()
         let pieces = state.items.count
-        announce(pieces == 1 ? loc("Page {1}: {0} piece", pieces, target + 1) : loc("Page {1}: {0} pieces", pieces, target + 1))
+        announce(pieces == 1 ? loc("Page {1}: {0} piece", CoreLanguage.number(pieces), CoreLanguage.number(target + 1)) : loc("Page {1}: {0} pieces", CoreLanguage.number(pieces), CoreLanguage.number(target + 1)))
     }
 
     /// Selects a piece of the list, by its row (the self-test too).

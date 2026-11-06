@@ -201,7 +201,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
             var attributes: [NSAttributedString.Key: Any] = [.font: run.bold ? bold : plain, .foregroundColor: NSColor.labelColor]
             if let page = run.page, let url = URL(string: "\(Self.pageScheme)://\(page)") {
                 attributes[.link] = url
-                attributes[.toolTip] = loc("Go to page {0}", page + 1)
+                attributes[.toolTip] = loc("Go to page {0}", CoreLanguage.number(page + 1))
             }
             out.append(NSAttributedString(string: run.text, attributes: attributes))
         }

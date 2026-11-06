@@ -99,13 +99,13 @@ public enum AiText {
     /// "page 3" or "pages 3–7" (1-based), in English (a prompt) or the interface's language.
     public static func pagesText(_ first: Int, _ last: Int, english: Bool = false) -> String {
         if english { return first == last ? "page \(first + 1)" : "pages \(first + 1)–\(last + 1)" } // English: the prompt
-        return first == last ? loc("page {0}", first + 1) : loc("pages {0}–{1}", first + 1, last + 1)
+        return first == last ? loc("page {0}", CoreLanguage.number(first + 1)) : loc("pages {0}–{1}", CoreLanguage.number(first + 1), CoreLanguage.number(last + 1))
     }
 
     /// "pages 1–3, 5" for a set of 0-based pages, in English (a prompt) or the interface's language.
     public static func pagesText(_ pages: [Int], english: Bool = false) -> String {
         let list = Array(Set(pages)).sorted()
-        if list.count == 1 { return english ? "page \(list[0] + 1)" : loc("page {0}", list[0] + 1) }
+        if list.count == 1 { return english ? "page \(list[0] + 1)" : loc("page {0}", CoreLanguage.number(list[0] + 1)) }
         let ranges = PageRange.format(list).replacingOccurrences(of: "-", with: "–")
         return english ? "pages \(ranges)" : loc("pages {0}", ranges)
     }

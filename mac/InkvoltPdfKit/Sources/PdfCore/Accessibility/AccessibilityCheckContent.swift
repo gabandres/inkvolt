@@ -66,7 +66,7 @@ extension AccessibilityChecker {
         for p in 0..<pageCount {
             try cancel.check()
             if totalOps > maxDocumentOperators {
-                notes.append(loc("The document's content is very long: pages {0} to {1} weren't checked.", p + 1, pageCount))
+                notes.append(loc("The document's content is very long: pages {0} to {1} weren't checked.", CoreLanguage.number(p + 1), CoreLanguage.number(pageCount)))
                 break
             }
             let page = pageObjects[p]
@@ -76,14 +76,14 @@ extension AccessibilityChecker {
             let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
             var marks: [AccessibilityWalk.Mc] = []
             try walk.run(ops, PageBoxes.inherited(page, "Resources"), .identity, page.int("StructParents"), &marks, 0, false)
-            if walk.stopped { notes.append(loc("Page {0}: its content is very long; only the first part of it was checked.", p + 1)) }
+            if walk.stopped { notes.append(loc("Page {0}: its content is very long; only the first part of it was checked.", CoreLanguage.number(p + 1))) }
             report(walk, p)
             try annotations(p, page)
             step(p + 1)
         }
         for id in formOrder {
             guard let use = forms[id], use.tagged, use.uses > 1 else { continue }
-            add("30-002", loc("A form XObject with tagged content is drawn {0} times, so its tags would stand for several places at once.", use.uses), page: use.page, element: loc("Form XObject"))
+            add("30-002", loc("A form XObject with tagged content is drawn {0} times, so its tags would stand for several places at once.", CoreLanguage.number(use.uses)), page: use.page, element: loc("Form XObject"))
         }
         for _ in refForms { add("30-001", loc("The document draws content taken from another file (a reference XObject)."), element: loc("Form XObject")) }
         formFields()
@@ -93,30 +93,30 @@ extension AccessibilityChecker {
         let content = loc("Page content")
         if walk.untagged > 0 {
             let n = walk.untagged
-            let problem = n == 1 ? loc("{0} content item on this page is neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", n)
-                : loc("{0} content items on this page are neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", n)
+            let problem = n == 1 ? loc("{0} content item on this page is neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", CoreLanguage.number(n))
+                : loc("{0} content items on this page are neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", CoreLanguage.number(n))
             add("01-005", problem, page: p, box: walk.untaggedBox, element: content, count: n)
         }
         if walk.artifactInTagged > 0 {
             let n = walk.artifactInTagged
-            let problem = n == 1 ? loc("{0} artifact on this page is inside tagged content.", n) : loc("{0} artifacts on this page are inside tagged content.", n)
+            let problem = n == 1 ? loc("{0} artifact on this page is inside tagged content.", CoreLanguage.number(n)) : loc("{0} artifacts on this page are inside tagged content.", CoreLanguage.number(n))
             add("01-003", problem, page: p, element: content, count: n)
         }
         if walk.taggedInArtifact > 0 {
             let n = walk.taggedInArtifact
-            let problem = n == 1 ? loc("{0} piece of tagged content on this page is inside an artifact.", n) : loc("{0} pieces of tagged content on this page are inside an artifact.", n)
+            let problem = n == 1 ? loc("{0} piece of tagged content on this page is inside an artifact.", CoreLanguage.number(n)) : loc("{0} pieces of tagged content on this page are inside an artifact.", CoreLanguage.number(n))
             add("01-004", problem, page: p, element: content, count: n)
         }
         if walk.noLang > 0 {
             let n = walk.noLang
-            let problem = n == 1 ? loc("The language of {0} piece of text on this page can't be told: the document, its tags and its marked content give none.", n)
-                : loc("The language of {0} pieces of text on this page can't be told: the document, its tags and its marked content give none.", n)
+            let problem = n == 1 ? loc("The language of {0} piece of text on this page can't be told: the document, its tags and its marked content give none.", CoreLanguage.number(n))
+                : loc("The language of {0} pieces of text on this page can't be told: the document, its tags and its marked content give none.", CoreLanguage.number(n))
             add("11-001", problem, page: p, box: walk.noLangBox, element: loc("Page text"), count: n)
         }
         if walk.spanNoLang > 0 {
             let n = walk.spanNoLang
-            let problem = n == 1 ? loc("{0} span of marked content on this page has alternate, actual or expansion text without a language.", n)
-                : loc("{0} spans of marked content on this page have alternate, actual or expansion text without a language.", n)
+            let problem = n == 1 ? loc("{0} span of marked content on this page has alternate, actual or expansion text without a language.", CoreLanguage.number(n))
+                : loc("{0} spans of marked content on this page have alternate, actual or expansion text without a language.", CoreLanguage.number(n))
             add("11-002", problem, page: p, element: content, count: n)
         }
         for lang in walk.badLangs.sorted() {
@@ -186,7 +186,7 @@ extension AccessibilityChecker {
         }
         let clip = PageBoxes.visibleBox(page)
         totalOps += min(annots.count, 20_000) * Self.operatorsPerAnnotation
-        if annots.count > 20_000 { notes.append(loc("Page {0}: it has very many annotations; only the first 20,000 were checked.", p + 1)) }
+        if annots.count > 20_000 { notes.append(loc("Page {0}: it has very many annotations; only the first 20,000 were checked.", CoreLanguage.number(p + 1))) }
         for (i, a) in annots.elements.lazy.filter(\.isDict).prefix(20_000).enumerated() {
             if i & 255 == 255 { try cancel.check() }
             let subtype = a.name("Subtype") ?? ""
@@ -365,7 +365,7 @@ extension AccessibilityChecker {
                 noteOnce(loc("An annotation's appearance couldn't be read, so its fonts weren't checked."))
                 continue
             }
-            if walk.stopped { notes.append(loc("Page {0}: an annotation's appearance is very long; only the first part of it was checked.", p + 1)) }
+            if walk.stopped { notes.append(loc("Page {0}: an annotation's appearance is very long; only the first part of it was checked.", CoreLanguage.number(p + 1))) }
         }
     }
 
@@ -398,8 +398,8 @@ extension AccessibilityChecker {
         }
         if !stack.isEmpty { noteOnce(loc("The file has very many form fields; only the first 50,000 were checked.")) }
         if count > 0 {
-            let problem = count == 1 ? loc("The tooltips of {0} form field have no language, and the document has none.", count)
-                : loc("The tooltips of {0} form fields have no language, and the document has none.", count)
+            let problem = count == 1 ? loc("The tooltips of {0} form field have no language, and the document has none.", CoreLanguage.number(count))
+                : loc("The tooltips of {0} form fields have no language, and the document has none.", CoreLanguage.number(count))
             add("11-005", problem, element: loc("Form fields"), count: count)
         }
     }
@@ -585,7 +585,7 @@ final class AccessibilityWalk {
                         }
                     }
                     if depth >= AccessibilityChecker.maxFormDepth {
-                        c.noteOnce(loc("Forms nested more than {0} deep weren't checked.", AccessibilityChecker.maxFormDepth))
+                        c.noteOnce(loc("Forms nested more than {0} deep weren't checked.", CoreLanguage.number(AccessibilityChecker.maxFormDepth)))
                         break
                     }
                     if !active.insert(x.identity).inserted { break }

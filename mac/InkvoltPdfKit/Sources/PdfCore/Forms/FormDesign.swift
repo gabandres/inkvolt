@@ -240,7 +240,7 @@ public enum FormDesign {
     /// Why `name` can't be a field name, or nil when it can.
     public static func nameProblem(_ name: String) -> String? {
         if name.allSatisfy(\.isWhitespace) { return loc("Type a name for the field.") }
-        if name.utf16.count > maxNameLength { return loc("Use at most {0} characters.", maxNameLength) }
+        if name.utf16.count > maxNameLength { return loc("Use at most {0} characters.", CoreLanguage.number(maxNameLength)) }
         if name.unicodeScalars.contains(where: { $0.properties.generalCategory == .control }) { return loc("A field name can't contain tabs or line breaks.") }
         let badPart = name.components(separatedBy: ".").contains { part in
             let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)

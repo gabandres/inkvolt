@@ -122,7 +122,7 @@ extension DocumentWindowController {
         panel.allowsMultipleSelection = true
         panel.message = loc("Choose a PDF, or pictures (each becomes a page).")
         let place = NSPopUpButton(frame: .zero, pullsDown: false)
-        place.addItems(withTitles: [loc("After page {0}", last + 1), loc("Before page {0}", first + 1), loc("At the start"), loc("At the end")])
+        place.addItems(withTitles: [loc("After page {0}", CoreLanguage.number(last + 1)), loc("Before page {0}", CoreLanguage.number(first + 1)), loc("At the start"), loc("At the end")])
         let label = NSTextField(labelWithString: loc("Insert:"))
         let row = NSStackView(views: [label, place])
         row.edgeInsets = NSEdgeInsets(top: 8, left: 8, bottom: 8, right: 8)
@@ -151,7 +151,7 @@ extension DocumentWindowController {
             if pdfs.isEmpty {
                 let images = try urls.map { url in ([UInt8](try Data(contentsOf: url)), url.lastPathComponent) }
                 let made = try ImageImport.imagesToPdf(images.map { (bytes: $0.0, name: $0.1) })
-                return PdfSource(made, nil, images.count == 1 ? images[0].1 : loc("{0} pictures", images.count))
+                return PdfSource(made, nil, images.count == 1 ? images[0].1 : loc("{0} pictures", CoreLanguage.number(images.count)))
             }
             let url = pdfs[0]
             let data = [UInt8](try Data(contentsOf: url))
@@ -175,9 +175,9 @@ extension DocumentWindowController {
         let chosen = selectedPages
         guard !chosen.isEmpty else { return NSSound.beep() }
         let alert = NSAlert()
-        alert.messageText = chosen.count == 1 ? loc("Crop 1 page") : loc("Crop {0} pages", chosen.count)
+        alert.messageText = chosen.count == 1 ? loc("Crop 1 page") : loc("Crop {0} pages", CoreLanguage.number(chosen.count))
         alert.informativeText = chosen.count == 1
-            ? loc("Trims the visible area of page {0}. Nothing is deleted; Remove Crop shows the whole page again.", chosen[0] + 1)
+            ? loc("Trims the visible area of page {0}. Nothing is deleted; Remove Crop shows the whole page again.", CoreLanguage.number(chosen[0] + 1))
             : loc("Trims the visible area of pages {0}. Nothing is deleted; Remove Crop shows the whole page again.", PageRange.format(chosen))
         let units = NSPopUpButton(frame: .zero, pullsDown: false)
         units.addItems(withTitles: [loc("Inches"), loc("Millimeters"), loc("Points")])
@@ -228,7 +228,7 @@ extension DocumentWindowController {
 
     @discardableResult
     func rotatePages(_ chosen: [Int], degrees: Int) async -> Bool {
-        let ok = await editor.run(chosen.count == 1 ? loc("Rotate 1 page") : loc("Rotate {0} pages", chosen.count)) { d, pw in try PageEditor.rotate(d, pw, chosen, degrees) }
+        let ok = await editor.run(chosen.count == 1 ? loc("Rotate 1 page") : loc("Rotate {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.rotate(d, pw, chosen, degrees) }
         if ok { reselect(chosen) }
         return ok
     }
@@ -236,14 +236,14 @@ extension DocumentWindowController {
     @discardableResult
     func removePages(_ chosen: [Int]) async -> Bool {
         guard !chosen.isEmpty, chosen.count < engine.pageCount else { return false }
-        let ok = await editor.run(chosen.count == 1 ? loc("Delete 1 page") : loc("Delete {0} pages", chosen.count)) { d, pw in try PageEditor.delete(d, pw, chosen) }
+        let ok = await editor.run(chosen.count == 1 ? loc("Delete 1 page") : loc("Delete {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.delete(d, pw, chosen) }
         if ok { reselect([min(chosen.min() ?? 0, engine.pageCount - 1)]) }
         return ok
     }
 
     @discardableResult
     func duplicate(_ chosen: [Int]) async -> Bool {
-        let ok = await editor.run(chosen.count == 1 ? loc("Duplicate 1 page") : loc("Duplicate {0} pages", chosen.count)) { d, pw in try PageEditor.duplicate(d, pw, chosen) }
+        let ok = await editor.run(chosen.count == 1 ? loc("Duplicate 1 page") : loc("Duplicate {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.duplicate(d, pw, chosen) }
         // The copy of the last chosen page lands after every earlier copy.
         if ok, let last = chosen.last { reselect([last + chosen.count]) }
         return ok
@@ -266,7 +266,7 @@ extension DocumentWindowController {
         let count = engine.pageCount
         let order = PageEditor.moveOrder(count, chosen, before)
         guard order != Array(0..<count), let firstMoved = chosen.first, let first = order.firstIndex(of: firstMoved) else { return false }
-        let ok = await editor.run(chosen.count == 1 ? loc("Move 1 page") : loc("Move {0} pages", chosen.count)) { d, pw in try PageEditor.reorder(d, pw, order) }
+        let ok = await editor.run(chosen.count == 1 ? loc("Move 1 page") : loc("Move {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.reorder(d, pw, order) }
         if ok { reselect(Array(first..<(first + chosen.count))) }
         return ok
     }
@@ -294,12 +294,12 @@ extension DocumentWindowController {
 
     /// The undo step's name for pages copied from another open document.
     private static func copyLabel(_ n: Int, _ from: String) -> String {
-        n == 1 ? loc("Copy 1 page from {0}", from) : loc("Copy {0} pages from {1}", n, from)
+        n == 1 ? loc("Copy 1 page from {0}", from) : loc("Copy {0} pages from {1}", CoreLanguage.number(n), from)
     }
 
     /// The undo step's name for pages inserted from a file.
     private static func insertLabel(_ n: Int, _ from: String) -> String {
-        n == 1 ? loc("Insert 1 page from {0}", from) : loc("Insert {0} pages from {1}", n, from)
+        n == 1 ? loc("Insert 1 page from {0}", from) : loc("Insert {0} pages from {1}", CoreLanguage.number(n), from)
     }
 
     @discardableResult
@@ -314,7 +314,7 @@ extension DocumentWindowController {
 
     @discardableResult
     func insertBlank(at: Int, count: Int, size: (width: Double, height: Double)) async -> Bool {
-        let ok = await editor.run(count == 1 ? loc("Insert 1 page") : loc("Insert {0} pages", count)) { d, pw in try PageEditor.insertBlank(d, pw, at, count, size.width, size.height) }
+        let ok = await editor.run(count == 1 ? loc("Insert 1 page") : loc("Insert {0} pages", CoreLanguage.number(count))) { d, pw in try PageEditor.insertBlank(d, pw, at, count, size.width, size.height) }
         if ok { reselect(Array(at..<(at + count))) }
         return ok
     }
@@ -324,9 +324,9 @@ extension DocumentWindowController {
     func cropPages(_ chosen: [Int], margins: Margins?) async -> Bool {
         let ok: Bool
         if let margins {
-            ok = await editor.run(chosen.count == 1 ? loc("Crop 1 page") : loc("Crop {0} pages", chosen.count)) { d, pw in try PageEditor.crop(d, pw, chosen, margins) }
+            ok = await editor.run(chosen.count == 1 ? loc("Crop 1 page") : loc("Crop {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.crop(d, pw, chosen, margins) }
         } else {
-            ok = await editor.run(chosen.count == 1 ? loc("Remove crop from 1 page") : loc("Remove crop from {0} pages", chosen.count)) { d, pw in try PageEditor.uncrop(d, pw, chosen) }
+            ok = await editor.run(chosen.count == 1 ? loc("Remove crop from 1 page") : loc("Remove crop from {0} pages", CoreLanguage.number(chosen.count))) { d, pw in try PageEditor.uncrop(d, pw, chosen) }
         }
         if ok { reselect(chosen) }
         return ok
@@ -340,7 +340,7 @@ extension DocumentWindowController {
             let bytes = try PageEditor.extract(session.data, session.password, chosen)
             try Data(bytes).write(to: url, options: .atomic)
             notify(chosen.count == 1 ? loc("Extracted 1 page to “{0}”.", url.lastPathComponent)
-                   : loc("Extracted {0} pages to “{1}”.", chosen.count, url.lastPathComponent))
+                   : loc("Extracted {0} pages to “{1}”.", CoreLanguage.number(chosen.count), url.lastPathComponent))
             return true
         } catch {
             pdf.showError(loc("The pages couldn't be extracted."), error)
@@ -458,7 +458,7 @@ final class OrganizerView: NSScrollView, NSCollectionViewDataSource, NSCollectio
         let card = collectionView.makeItem(withIdentifier: PageCard.id, for: indexPath) as! PageCard
         let page = indexPath.item
         card.number.stringValue = "\(page + 1)"
-        card.view.setAccessibilityLabel(loc("Page {0}", page + 1))
+        card.view.setAccessibilityLabel(loc("Page {0}", CoreLanguage.number(page + 1)))
         card.show(picture(page))
         if thumbs.image(page)?.scale ?? -1 < 0 { thumbs.request(page, scale: scale(page)) }
         return card

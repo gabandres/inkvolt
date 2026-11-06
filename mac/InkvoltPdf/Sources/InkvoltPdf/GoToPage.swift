@@ -19,7 +19,7 @@ extension DocumentWindowController {
     func askGoToPage() async {
         guard let window, engine.pageCount > 0 else { return }
         if organizerShown { showOrganizer(false) }
-        let range = loc("Enter a page from 1 to {0}.", engine.pageCount)
+        let range = loc("Enter a page from 1 to {0}.", CoreLanguage.number(engine.pageCount))
         if Report.skipsDialogs {
             guard let answer = GoToPageState.testAnswer else { return }
             if let page = findPage(answer) {

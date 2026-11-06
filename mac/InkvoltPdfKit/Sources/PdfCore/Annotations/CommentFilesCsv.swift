@@ -117,7 +117,7 @@ extension CommentFiles {
             let pg = !pageText.isEmpty && pageText.allSatisfy({ $0.isASCII && $0.isNumber }) ? (Int(pageText).map { $0 - 1 } ?? -1) : -1
             let subtype = cell("Type").trimmingCharacters(in: .whitespaces)
             if xfdfElements[subtype] == nil {
-                skipped.append(loc("Row {0}: \"{1}\" isn't a kind of comment Inkvolt PDF imports", line, subtype))
+                skipped.append(loc("Row {0}: \"{1}\" isn't a kind of comment Inkvolt PDF imports", CoreLanguage.number(line), subtype))
                 continue
             }
             var d: [String: FdfValue] = ["Subtype": .name(subtype)]

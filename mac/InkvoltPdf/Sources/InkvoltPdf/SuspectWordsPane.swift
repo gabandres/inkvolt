@@ -63,7 +63,7 @@ struct SuspectWordItem {
         return why.joined(separator: ", ")
     }
 
-    var caption: String { loc("Page {0} · {1}", page + 1, why) }
+    var caption: String { loc("Page {0} · {1}", CoreLanguage.number(page + 1), why) }
 }
 
 /// The Suspect Words pane (the Windows app's): the words Recognize Text marked as suspect (`SuspectWords`), each beside
@@ -149,10 +149,10 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
             summary.stringValue = hasLayers ? loc("No suspect words left: every recognized word has been checked or looked right.")
                 : loc("No recognized text to check here. Use Recognize Text (OCR) on scanned pages first.")
         } else if pages > 1 {
-            summary.stringValue = loc("{0} suspect words on {1} pages. Correct a word or keep it as read.", count, pages)
+            summary.stringValue = loc("{0} suspect words on {1} pages. Correct a word or keep it as read.", CoreLanguage.number(count), CoreLanguage.number(pages))
         } else {
-            summary.stringValue = count == 1 ? loc("{0} suspect word on 1 page. Correct a word or keep it as read.", count)
-                : loc("{0} suspect words on 1 page. Correct a word or keep it as read.", count)
+            summary.stringValue = count == 1 ? loc("{0} suspect word on 1 page. Correct a word or keep it as read.", CoreLanguage.number(count))
+                : loc("{0} suspect words on 1 page. Correct a word or keep it as read.", CoreLanguage.number(count))
         }
         table.reloadData()
         if !items.isEmpty {
@@ -201,7 +201,7 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
         let row = NSStackView(views: [picture, text])
         row.spacing = 6
         row.setAccessibilityElement(true)
-        row.setAccessibilityLabel(loc("{0}. Page {1}. {2}", item.word.text, item.page + 1, item.why))
+        row.setAccessibilityLabel(loc("{0}. Page {1}. {2}", item.word.text, CoreLanguage.number(item.page + 1), item.why))
         return row
     }
 
@@ -345,7 +345,7 @@ extension DocumentWindowController {
         let (page, index) = (item.page, item.index)
         Task { @MainActor in
             if await self.editor.run(loc("Correct recognized word"), { d, pw in try TextLayer.correct(d, pw, page, index, text) }) {
-                self.notify(loc("“{0}” is now “{1}” on page {2}; search finds it.", item.word.text, text, page + 1), canUndo: true)
+                self.notify(loc("“{0}” is now “{1}” on page {2}; search finds it.", item.word.text, text, CoreLanguage.number(page + 1)), canUndo: true)
             }
         }
     }

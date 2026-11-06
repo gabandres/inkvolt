@@ -158,28 +158,28 @@ extension AccessibilityChecker {
             if shown, let dw = tf.dictionaryWidth(code), let pw = tf.programWidth(code), abs(dw - pw) > 1 { widths += 1 }
         }
         if missing > 0 {
-            fail("31-011", missing == 1 ? loc("The embedded font {1} lacks {0} glyph the text uses, so that character can't be drawn as meant.", missing, name)
-                : loc("The embedded font {1} lacks {0} glyphs the text uses, so those characters can't be drawn as meant.", missing, name))
+            fail("31-011", missing == 1 ? loc("The embedded font {1} lacks {0} glyph the text uses, so that character can't be drawn as meant.", CoreLanguage.number(missing), name)
+                : loc("The embedded font {1} lacks {0} glyphs the text uses, so those characters can't be drawn as meant.", CoreLanguage.number(missing), name))
         }
         if notdef > 0 {
-            fail("31-030", notdef == 1 ? loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} time: those characters aren't in the font.", notdef, name)
-                : loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} times: those characters aren't in the font.", notdef, name))
+            fail("31-030", notdef == 1 ? loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} time: those characters aren't in the font.", CoreLanguage.number(notdef), name)
+                : loc("Text in the font {1} draws the .notdef glyph (an empty box) {0} times: those characters aren't in the font.", CoreLanguage.number(notdef), name))
         }
         if unmapped > 0 {
-            fail("31-027", unmapped == 1 ? loc("{0} character in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read it.", unmapped, name)
-                : loc("{0} characters in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read them.", unmapped, name))
+            fail("31-027", unmapped == 1 ? loc("{0} character in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read it.", CoreLanguage.number(unmapped), name)
+                : loc("{0} characters in the font {1} can't be turned into text (no ToUnicode entry or known glyph name), so screen readers can't read them.", CoreLanguage.number(unmapped), name))
         }
         if zero > 0 {
-            fail("31-028", zero == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value 0.", zero, name)
-                : loc("The font {1}'s ToUnicode map gives {0} characters the value 0.", zero, name))
+            fail("31-028", zero == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value 0.", CoreLanguage.number(zero), name)
+                : loc("The font {1}'s ToUnicode map gives {0} characters the value 0.", CoreLanguage.number(zero), name))
         }
         if bom > 0 {
-            fail("31-029", bom == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value U+FEFF or U+FFFE.", bom, name)
-                : loc("The font {1}'s ToUnicode map gives {0} characters the value U+FEFF or U+FFFE.", bom, name))
+            fail("31-029", bom == 1 ? loc("The font {1}'s ToUnicode map gives {0} character the value U+FEFF or U+FFFE.", CoreLanguage.number(bom), name)
+                : loc("The font {1}'s ToUnicode map gives {0} characters the value U+FEFF or U+FFFE.", CoreLanguage.number(bom), name))
         }
         if widths > 0 {
-            fail("31-016", widths == 1 ? loc("{0} glyph of the font {1} has a different width in the PDF than in the font itself.", widths, name)
-                : loc("{0} glyphs of the font {1} have a different width in the PDF than in the font itself.", widths, name))
+            fail("31-016", widths == 1 ? loc("{0} glyph of the font {1} has a different width in the PDF than in the font itself.", CoreLanguage.number(widths), name)
+                : loc("{0} glyphs of the font {1} have a different width in the PDF than in the font itself.", CoreLanguage.number(widths), name))
         }
 
         if subtype == "TrueType" {
@@ -336,12 +336,12 @@ extension AccessibilityChecker {
             }
         }
         if unlisted > 0 {
-            fail("31-014", unlisted == 1 ? loc("The font {1}'s CIDSet doesn't list {0} glyph that the font holds.", unlisted, name)
-                : loc("The font {1}'s CIDSet doesn't list {0} glyphs that the font holds.", unlisted, name))
+            fail("31-014", unlisted == 1 ? loc("The font {1}'s CIDSet doesn't list {0} glyph that the font holds.", CoreLanguage.number(unlisted), name)
+                : loc("The font {1}'s CIDSet doesn't list {0} glyphs that the font holds.", CoreLanguage.number(unlisted), name))
         }
         if extra > 0 {
-            fail("31-015", extra == 1 ? loc("The font {1}'s CIDSet lists {0} glyph that the font doesn't hold.", extra, name)
-                : loc("The font {1}'s CIDSet lists {0} glyphs that the font doesn't hold.", extra, name))
+            fail("31-015", extra == 1 ? loc("The font {1}'s CIDSet lists {0} glyph that the font doesn't hold.", CoreLanguage.number(extra), name)
+                : loc("The font {1}'s CIDSet lists {0} glyphs that the font doesn't hold.", CoreLanguage.number(extra), name))
         }
     }
 }

@@ -31,7 +31,7 @@ extension DocumentWindowController {
             switch made {
             case .success(let picture):
                 if let picture, SnapshotBoard.write(picture, to: SnapshotBoard.board) {
-                    notify(loc("Snapshot copied ({0} × {1} px)", picture.width, picture.height))
+                    notify(loc("Snapshot copied ({0} × {1} px)", CoreLanguage.number(picture.width), CoreLanguage.number(picture.height)))
                 } else {
                     notify(loc("Couldn't copy the snapshot: the clipboard didn't take it."))
                 }

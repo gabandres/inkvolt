@@ -175,7 +175,7 @@ public enum DocumentInventory {
         var items = walk.items
 
         for a in attachments(doc, pages) {
-            let place = a.page >= 0 ? loc("Page {0}, an attachment comment", a.page + 1) : loc("The document's attachments")
+            let place = a.page >= 0 ? loc("Page {0}, an attachment comment", CoreLanguage.number(a.page + 1)) : loc("The document's attachments")
             let description = (a.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : ", " + (a.description ?? "")
             items.append(InventoryItem(.attachments, loc("Attached file"), place, "\(a.name) (\(size(a.size))\(description))", page: a.page, removedBy: .embeddedFiles))
         }
@@ -292,7 +292,7 @@ public enum DocumentInventory {
             case "GoToE": return (loc("Opens an embedded or other PDF"), Self.fileName(a["F"]) ?? loc("an attached PDF"), .externalLinks)
             case "Thread" where a.has("F"): return (loc("Opens an article in another file"), Self.fileName(a["F"]), .externalLinks)
             case "Rendition", "Movie", "Sound", "RichMediaExecute", "GoTo3DView": return (loc("Plays media"), nil, .activeContent)
-            case "GoTo": return (loc("Goes to a page"), DocumentFeatures.resolveDestination(doc, a["D"]).map { loc("page {0}", $0.pageIndex + 1) }, nil)
+            case "GoTo": return (loc("Goes to a page"), DocumentFeatures.resolveDestination(doc, a["D"]).map { loc("page {0}", CoreLanguage.number($0.pageIndex + 1)) }, nil)
             case "Named": return (loc("Runs a viewer command"), a.name("N"), nil)
             case "Hide": return (loc("Shows or hides fields"), nil, nil)
             case "ResetForm": return (loc("Clears the form"), nil, nil)
@@ -365,8 +365,8 @@ public enum DocumentInventory {
         private func page(_ page: PObj, _ p: Int) {
             additionalActions(page, p) { key in
                 switch key {
-                case "O": (loc("When page {0} opens", p + 1), .automatic)
-                case "C": (loc("When page {0} closes", p + 1), .automatic)
+                case "O": (loc("When page {0} opens", CoreLanguage.number(p + 1)), .automatic)
+                case "C": (loc("When page {0} closes", CoreLanguage.number(p + 1)), .automatic)
                 default: nil
                 }
             }
@@ -380,9 +380,9 @@ public enum DocumentInventory {
                 case "Widget": kind = Self.fieldName(of: a).map { loc("field \u{201C}{0}\u{201D}", $0) } ?? loc("a form field")
                 default: kind = loc("a comment")
                 }
-                let at = loc("Page {0}, {1}", p + 1, kind)
+                let at = loc("Page {0}, {1}", CoreLanguage.number(p + 1), kind)
                 if subtype != "Widget" { // a widget's actions go with its field (form)
-                    action(a["A"], loc("When {0} on page {1} is clicked", kind, p + 1), .use, p)
+                    action(a["A"], loc("When {0} on page {1} is clicked", kind, CoreLanguage.number(p + 1)), .use, p)
                     additionalActions(a, p) { Self.event($0, at, p, nil) }
                 }
                 if ["RichMedia", "3D", "Sound", "Movie", "Screen"].contains(subtype) {
@@ -406,10 +406,10 @@ public enum DocumentInventory {
             case "U": return (loc("{0}: when it is clicked", at), .use)
             case "Fo": return (loc("{0}: when it gets the focus", at), .use)
             case "Bl": return (loc("{0}: when it loses the focus", at), .use)
-            case "PO": return (loc("{0}: when page {1} opens", at, p + 1), .automatic)
-            case "PC": return (loc("{0}: when page {1} closes", at, p + 1), .automatic)
-            case "PV": return (loc("{0}: when page {1} comes into view", at, p + 1), .automatic)
-            case "PI": return (loc("{0}: when page {1} goes out of view", at, p + 1), .automatic)
+            case "PO": return (loc("{0}: when page {1} opens", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PC": return (loc("{0}: when page {1} closes", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PV": return (loc("{0}: when page {1} comes into view", at, CoreLanguage.number(p + 1)), .automatic)
+            case "PI": return (loc("{0}: when page {1} goes out of view", at, CoreLanguage.number(p + 1)), .automatic)
             default: break
             }
             guard let field else { return nil }
@@ -466,7 +466,7 @@ public enum DocumentInventory {
             for f in fields {
                 let widgets = f.widgets.isEmpty ? [f.dict] : f.widgets
                 let page = widgets.lazy.map(pageOf).first { $0 >= 0 } ?? -1
-                let at = page >= 0 ? loc("Field \u{201C}{0}\u{201D}, page {1}", f.name, page + 1) : loc("Field \u{201C}{0}\u{201D}", f.name)
+                let at = page >= 0 ? loc("Field \u{201C}{0}\u{201D}, page {1}", f.name, CoreLanguage.number(page + 1)) : loc("Field \u{201C}{0}\u{201D}", f.name)
                 // The field's own actions and each widget's (a widget may be the field itself).
                 var nodes: [PObj] = []
                 for n in [f.dict] + widgets where !nodes.contains(where: { $0.identity == n.identity }) { nodes.append(n) }
@@ -568,7 +568,7 @@ public enum DocumentInventory {
             var stack: [(item: PObj, depth: Int, page: Int)] = [(catalog, 0, -1)]
             for p in stride(from: pageCount - 1, through: 0, by: -1) { stack.append((doc.page(p), 0, p)) }
             while let (item, depth, page) = stack.popLast() {
-                let place = page >= 0 ? loc("Page {0}", page + 1) : loc("The document")
+                let place = page >= 0 ? loc("Page {0}", CoreLanguage.number(page + 1)) : loc("The document")
                 if depth > 64 { continue }
                 if item.isArray {
                     for e in item.elements where e.isDict || e.isArray { stack.append((e, depth + 1, page)) }

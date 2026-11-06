@@ -225,7 +225,7 @@ public enum ImageImport {
             // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.
             let scale = header.width > 0 ? Double(header.width) / bw : 1
             if (bw * scale) * (bh * scale) > PdfEngine.maxPixels {
-                throw PdfEditError(loc("\"{0}\" is too large ({1} x {2} pixels).", name, Int(bw * scale), Int(bh * scale)))
+                throw PdfEditError(loc("\"{0}\" is too large ({1} x {2} pixels).", name, CoreLanguage.number(Int(bw * scale)), CoreLanguage.number(Int(bh * scale))))
             }
             var px: UnsafeMutablePointer<UInt8>?
             var w: Int32 = 0, h: Int32 = 0

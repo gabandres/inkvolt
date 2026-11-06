@@ -55,7 +55,7 @@ public enum Bookmarks {
             var list: [PdfStructure.OutlineItem] = []
             for node in nodes {
                 if node.pageIndex >= pageCount || node.pageIndex < -1 {
-                    throw PdfEditError(loc("Bookmark \"{0}\" leads to page {1}, which the document doesn't have.", node.title, node.pageIndex + 1))
+                    throw PdfEditError(loc("Bookmark \"{0}\" leads to page {1}, which the document doesn't have.", node.title, CoreLanguage.number(node.pageIndex + 1)))
                 }
                 let reuse = node.sourceId > 0 && node.sourceId <= existing.count && used.insert(node.sourceId).inserted
                 let d = reuse ? existing[node.sourceId - 1] : doc.add(doc.dict())

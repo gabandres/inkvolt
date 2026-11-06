@@ -195,7 +195,7 @@ public struct LibreOfficeConverter: OfficeConverter {
         case .cancelled:
             throw CancellationError()
         case .timedOut:
-            let limit = timeout >= 60 ? loc("{0} minutes", Int(timeout / 60)) : loc("{0} seconds", Int(timeout))
+            let limit = timeout >= 60 ? loc("{0} minutes", CoreLanguage.number(Int(timeout / 60))) : loc("{0} seconds", CoreLanguage.number(Int(timeout)))
             throw PdfEditError(loc("{0} didn't finish within {1} (the file may be damaged). It was closed.", appName, limit) + reason)
         case .exited(let code):
             guard code == 0, let pdf = Self.readPdf(in: out) else {

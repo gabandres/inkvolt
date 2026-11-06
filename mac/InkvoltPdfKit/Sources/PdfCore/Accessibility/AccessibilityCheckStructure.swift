@@ -335,14 +335,14 @@ extension AccessibilityChecker {
                             addAt(e, "14-002", loc("The first numbered heading is {0}, not H1.", h))
                         } else {
                             let skipped = (lastLevel + 1..<level).map { "H\($0)" }.joined(separator: ", ")
-                            addAt(e, "14-003", loc("This {0} heading follows an H{1}: heading level {2} is skipped.", h, lastLevel, skipped))
+                            addAt(e, "14-003", loc("This {0} heading follows an H{1}: heading level {2} is skipped.", h, CoreLanguage.number(lastLevel), skipped))
                         }
                     }
                     lastLevel = level
                 }
             }
             let headings = kids.filter { $0 == "H" }.count
-            if headings > 1 { addAt(e, "14-006", loc("This tag holds {0} H headings; a tag may hold one.", headings)) }
+            if headings > 1 { addAt(e, "14-006", loc("This tag holds {0} H headings; a tag may hold one.", CoreLanguage.number(headings))) }
         }
         if let firstH, firstHn != nil { addAt(firstH, "14-007", loc("The document uses H headings and numbered headings (H1-H6) both.")) }
     }
@@ -452,13 +452,13 @@ extension AccessibilityChecker {
         if unlinked + unknown == 0 { return }
         let cells: String
         if unlinked > 0 {
-            cells = unlinked == 1 ? loc("{0} data cell don't name their header cells (Headers)", unlinked) : loc("{0} data cells don't name their header cells (Headers)", unlinked)
+            cells = unlinked == 1 ? loc("{0} data cell don't name their header cells (Headers)", CoreLanguage.number(unlinked)) : loc("{0} data cells don't name their header cells (Headers)", CoreLanguage.number(unlinked))
         } else {
-            cells = unknown == 1 ? loc("{0} data cell name header cells the table doesn't have", unknown) : loc("{0} data cells name header cells the table doesn't have", unknown)
+            cells = unknown == 1 ? loc("{0} data cell name header cells the table doesn't have", CoreLanguage.number(unknown)) : loc("{0} data cells name header cells the table doesn't have", CoreLanguage.number(unknown))
         }
         let problem = unscoped == 1
-            ? loc("{0} header cell of this table has no scope, and {1}, so a screen reader can't tell which header goes with which cell.", unscoped, cells)
-            : loc("{0} header cells of this table have no scope, and {1}, so a screen reader can't tell which header goes with which cell.", unscoped, cells)
+            ? loc("{0} header cell of this table has no scope, and {1}, so a screen reader can't tell which header goes with which cell.", CoreLanguage.number(unscoped), cells)
+            : loc("{0} header cells of this table have no scope, and {1}, so a screen reader can't tell which header goes with which cell.", CoreLanguage.number(unscoped), cells)
         addAt(table, "15-003", problem)
     }
 }

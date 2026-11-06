@@ -54,8 +54,8 @@ public enum CompareReport {
                     // On the next page the new document has, else its last one.
                     let next = result.rows.dropFirst(c.row + 1).first { $0.newPage != nil }?.newPage ?? pageCount - 1
                     if next >= 0 {
-                        let note = c.oldText.isEmpty ? loc("Removed page: page {0} of {1} was here (it has no text).", span.page + 1, oldName)
-                            : loc("Removed page: page {0} of {1} was here: “{2}”", span.page + 1, oldName, quote(c.oldText))
+                        let note = c.oldText.isEmpty ? loc("Removed page: page {0} of {1} was here (it has no text).", CoreLanguage.number(span.page + 1), oldName)
+                            : loc("Removed page: page {0} of {1} was here: “{2}”", CoreLanguage.number(span.page + 1), oldName, quote(c.oldText))
                         marginNote(next, note, removedColor)
                     }
                 }

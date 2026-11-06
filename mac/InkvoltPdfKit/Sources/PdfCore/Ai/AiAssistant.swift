@@ -154,10 +154,10 @@ public enum AiService {
         let n = models.count
         if models.isEmpty { return loc("Connected to {0}, but it doesn't list its models: type the model's name.", host) }
         if !typed.isEmpty && !models.contains(where: { $0.lowercased() == typed.lowercased() }) {
-            if n == 1 { return loc("Connected: {0} model, but not \"{1}\". Pick one from the list.", n, typed) }
+            if n == 1 { return loc("Connected: {0} model, but not \"{1}\". Pick one from the list.", CoreLanguage.number(n), typed) }
             return loc("Connected: {0} models, but not \"{1}\". Pick one from the list.", CoreLanguage.number(n), typed)
         }
-        if n == 1 { return loc("Connected to {1}: {0} model available.", n, host) }
+        if n == 1 { return loc("Connected to {1}: {0} model available.", CoreLanguage.number(n), host) }
         return loc("Connected to {1}: {0} models available.", CoreLanguage.number(n), host)
     }
 
@@ -210,7 +210,7 @@ public struct AiOutgoing: Sendable, Equatable {
             if n == 1 { return loc("{1}: {2} characters (about {3} tokens) in {0} request, then {4}.", n, what, chars, toks, followUp) }
             return loc("{1}: {2} characters (about {3} tokens) in {0} requests, then {4}.", CoreLanguage.number(n), what, chars, toks, followUp)
         }
-        if n == 1 { return loc("{1}: {2} characters (about {3} tokens) in {0} request.", n, what, chars, toks) }
+        if n == 1 { return loc("{1}: {2} characters (about {3} tokens) in {0} request.", CoreLanguage.number(n), what, chars, toks) }
         return loc("{1}: {2} characters (about {3} tokens) in {0} requests.", CoreLanguage.number(n), what, chars, toks)
     }
 }
@@ -384,7 +384,7 @@ public enum AiJobs {
         let named = AiText.pagesText(pages)
         if chunks.isEmpty {
             if pages.count == 1 { return (nil, loc("Not sent: {1} has no text. Scanned pages need Recognize Text (OCR) first.", 1, named)) }
-            return (nil, loc("Not sent: {1} have no text. Scanned pages need Recognize Text (OCR) first.", pages.count, named))
+            return (nil, loc("Not sent: {1} have no text. Scanned pages need Recognize Text (OCR) first.", CoreLanguage.number(pages.count), named))
         }
         let first = AiPrompts.summaryRequests(chunks)
         let showCombine = config.endpoint.reach == .internet || !AiService.skipsPreview(settings, config.endpoint)
@@ -445,7 +445,7 @@ public enum AiJobs {
         let all = AiText.pagesText(pages)
         if request.pages.isEmpty {
             if pages.count == 1 { return (nil, loc("Not sent: {1} has no text to ask about.", 1, all)) }
-            return (nil, loc("Not sent: {1} have no text to ask about.", pages.count, all))
+            return (nil, loc("Not sent: {1} have no text to ask about.", CoreLanguage.number(pages.count), all))
         }
         let asked = AiText.pagesText(request.pages)
         let n = turns.count
@@ -454,16 +454,16 @@ public enum AiJobs {
             if n == 0 {
                 what = loc("Your question, the parts of {0} most related to it (all of {1} doesn't fit the model's context)", asked, all)
             } else if n == 1 {
-                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answer)", n, asked, all)
+                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answer)", CoreLanguage.number(n), asked, all)
             } else {
-                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answers)", n, asked, all)
+                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answers)", CoreLanguage.number(n), asked, all)
             }
         } else if n == 0 {
             what = loc("Your question and the text of {0}", asked)
         } else if n == 1 {
-            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answer)", n, asked)
+            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answer)", CoreLanguage.number(n), asked)
         } else {
-            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answers)", n, asked)
+            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answers)", CoreLanguage.number(n), asked)
         }
         return (Question(request: request, outgoing: AiOutgoing([request.messages], what: what)), nil)
     }
@@ -490,7 +490,7 @@ public enum AiJobs {
     /// `SuggestAltAsync`): the request with the picture, as the window describes it.
     public static func altText(png: [UInt8], nearby: String, language: String?, page: Int, number: Int) -> (messages: [AiMessage], outgoing: AiOutgoing) {
         let messages = AiPrompts.altText(png, nearby: nearby, language: language, page: page)
-        return (messages, AiOutgoing([messages], what: loc("picture {0} of page {1} (as an image) and the text near it", number, page + 1)))
+        return (messages, AiOutgoing([messages], what: loc("picture {0} of page {1} (as an image) and the text near it", CoreLanguage.number(number), CoreLanguage.number(page + 1))))
     }
 
     public static var altTextTitle: String { loc("Suggest alternate text?") }
@@ -507,7 +507,7 @@ public enum AiJobs {
 
     /// The progress line of a step.
     public static func stepText(_ step: AiStep) -> String {
-        step.total > 1 ? loc("{0} ({1} of {2})…", step.what, step.index, step.total) : "\(step.what)…"
+        step.total > 1 ? loc("{0} ({1} of {2})…", step.what, CoreLanguage.number(step.index), CoreLanguage.number(step.total)) : "\(step.what)…"
     }
 
     public static var emptyPane: String {

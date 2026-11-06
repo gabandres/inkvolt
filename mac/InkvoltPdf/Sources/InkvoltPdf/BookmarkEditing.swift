@@ -35,7 +35,7 @@ extension DocumentWindowController {
         let shownTop = pages.viewRotation == 0 ? Double(scrollView.contentView.bounds.minY - pages.pageRects[page].minY) : 0
         let top: Double? = shownTop > 1 ? min(shownTop, engine.page(page).height) : nil
         let after = sidebar.selectedBookmark
-        askTitle(loc("Add Bookmark"), initial: loc("Page {0}", page + 1), button: loc("Add")) { [weak self] title in
+        askTitle(loc("Add Bookmark"), initial: loc("Page {0}", CoreLanguage.number(page + 1)), button: loc("Add")) { [weak self] title in
             guard let self else { return }
             Task { await self.addBookmark(title: title, page: page, top: top, after: after) }
         }
@@ -113,7 +113,7 @@ extension DocumentWindowController {
     func deleteBookmark(_ path: [Int]) async -> Bool {
         guard let b = try? BookmarkTree.at(readBookmarks(), path) else { return false }
         let inside = b.children.reduce(0) { $0 + 1 + Self.descendants($1) }
-        let label = inside == 0 ? loc("Delete bookmark “{0}”", Self.short(b.title)) : loc("Delete bookmark “{0}” and {1} inside it", Self.short(b.title), inside)
+        let label = inside == 0 ? loc("Delete bookmark “{0}”", Self.short(b.title)) : loc("Delete bookmark “{0}” and {1} inside it", Self.short(b.title), CoreLanguage.number(inside))
         return await editBookmarks(label, select: nil) { tree in try BookmarkTree.remove(tree, path) }
     }
 

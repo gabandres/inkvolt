@@ -54,7 +54,7 @@ final class RecoveryCopies {
         let alert = NSAlert()
         alert.messageText = left.count == 1
             ? loc("Inkvolt PDF closed before “{0}” was saved.", left[0].info.displayName)
-            : loc("Inkvolt PDF closed before {0} documents were saved.", left.count)
+            : loc("Inkvolt PDF closed before {0} documents were saved.", CoreLanguage.number(left.count))
         alert.informativeText = loc("Restore opens them with their changes. Discard deletes the copies; Not Now asks again next time.")
         alert.addButton(withTitle: loc("Restore"))
         alert.addButton(withTitle: loc("Discard"))

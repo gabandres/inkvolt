@@ -12,7 +12,7 @@ public enum ScanPage {
         return try PageEditor.edit(data, password) { doc in
             let count = try doc.pageCount()
             for (index, img) in pages.sorted(by: { $0.key < $1.key }) {
-                guard index >= 0 && index < count else { throw PdfEditError(loc("There is no page {0}.", index + 1)) }
+                guard index >= 0 && index < count else { throw PdfEditError(loc("There is no page {0}.", CoreLanguage.number(index + 1))) }
                 replace(doc, doc.page(index), img)
             }
         }

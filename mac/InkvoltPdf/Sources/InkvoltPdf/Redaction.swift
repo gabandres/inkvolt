@@ -183,7 +183,7 @@ extension DocumentWindowController {
         let engine = engine
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update(loc("Searching page {0} of {1}…", done, total), Double(done) / Double(max(total, 1))) }
+            onMain { sheet.update(loc("Searching page {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
         }
         let result = await Task.detached { () -> Result<[RedactionMatch], Error> in
             Result { try RedactionPatterns.find(engine, options, progress: progress, cancel: token) }
@@ -272,7 +272,7 @@ extension DocumentWindowController {
             onMain { sheet.update(loc("Recognizing the text left on the redacted pages…"), nil) }
             do {
                 var (words, _) = try PageOcr.recognizePages(redacted, pw, pageList, recognizer, exclude: areasNow, cancel: token) { done, total in
-                    onMain { sheet.update(loc("Recognizing the text left on the redacted pages: page {0} of {1}…", min(done + 1, total), total),
+                    onMain { sheet.update(loc("Recognizing the text left on the redacted pages: page {0} of {1}…", CoreLanguage.number(min(done + 1, total)), CoreLanguage.number(total)),
                                           Double(done) / Double(max(total, 1))) }
                 }
                 // A word that reaches into a blacked-out area at all goes too (Windows drops only those mostly inside one):
@@ -556,7 +556,7 @@ final class RedactPatternSheet: NSWindowController {
         range.setAccessibilityLabel(loc("Pages to search"))
         range.widthAnchor.constraint(equalToConstant: 120).isActive = true
         NotificationCenter.default.addObserver(self, selector: #selector(rangeTyped), name: NSControl.textDidChangeNotification, object: range)
-        let pagesRow = NSStackView(views: [allPages, somePages, range, Self.caption(loc("of {0}", pageCount))])
+        let pagesRow = NSStackView(views: [allPages, somePages, range, Self.caption(loc("of {0}", CoreLanguage.number(pageCount)))])
         pagesRow.spacing = 8
 
         problem.textColor = .systemRed

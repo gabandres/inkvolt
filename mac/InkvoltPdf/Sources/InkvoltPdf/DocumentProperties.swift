@@ -25,7 +25,7 @@ extension DocumentWindowController {
         if engine.pageCount > 0 {
             let g = engine.page(page)
             let mm = String(format: "%.0f × %.0f mm", g.width * 25.4 / 72, g.height * 25.4 / 72)
-            rows.append((loc("Page size"), loc("{0} × {1} in  ({2})  — page {3}", Self.inches(g.width), Self.inches(g.height), mm, page + 1)))
+            rows.append((loc("Page size"), loc("{0} × {1} in  ({2})  — page {3}", Self.inches(g.width), Self.inches(g.height), mm, CoreLanguage.number(page + 1))))
         }
         let security = currentSecurity?.summary ?? (session.hasEncryption ? loc("Encrypted") : nil)
         rows += [(loc("PDF version"), meta?.version), (loc("Security"), security), (loc("Created by"), meta?.creator), (loc("Producer"), meta?.producer)]
@@ -123,7 +123,7 @@ extension DocumentWindowController {
 
     /// Windows' `FileActions.FormatSize`: bytes, KB with one decimal, MB with two.
     static func formatSize(_ bytes: Int) -> String {
-        if bytes < 1024 { return loc("{0} bytes", bytes) }
+        if bytes < 1024 { return loc("{0} bytes", CoreLanguage.number(bytes)) }
         if bytes < 1024 * 1024 { return "\(trimmed(Double(bytes) / 1024, 1)) KB" }
         return "\(trimmed(Double(bytes) / 1024 / 1024, 2)) MB"
     }

@@ -45,7 +45,7 @@ public enum GoToPageWords {
     /// Why `typed` went nowhere, and what to type instead.
     public static func problem(typed: String, pageCount: Int) -> String {
         let t = typed.trimmingCharacters(in: .whitespacesAndNewlines)
-        let range = pageCount == 1 ? loc("This document has 1 page.") : loc("Type a page from 1 to {0}.", pageCount)
+        let range = pageCount == 1 ? loc("This document has 1 page.") : loc("Type a page from 1 to {0}.", CoreLanguage.number(pageCount))
         return t.isEmpty ? range : loc("There's no page “{0}”.", String(t.prefix(20))) + " " + range
     }
 }
@@ -55,7 +55,7 @@ public enum WindowStatus {
     /// default), and "Fit Width" or "Fit Page" when the zoom follows the window.
     public static func subtitle(page: Int, pageCount: Int, zoom: Double, fit: String? = nil) -> String {
         guard pageCount > 0 else { return loc("No pages") }
-        let where_ = loc("Page {0} of {1}", min(max(page, 1), pageCount), pageCount)
+        let where_ = loc("Page {0} of {1}", CoreLanguage.number(min(max(page, 1), pageCount)), CoreLanguage.number(pageCount))
         if let fit { return "\(where_) · \(fit)" }
         let percent = Int((zoom * 100).rounded()) // bounded: the view's zoom, kept within the app's zoom range
         return percent == 100 ? where_ : "\(where_) · \(percent)%"

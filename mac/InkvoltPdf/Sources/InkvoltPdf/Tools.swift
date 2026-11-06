@@ -340,7 +340,7 @@ final class ToolStrip: NSView {
 
         widthButton.setAccessibleName(loc("Line width"))
         widthButton.toolTip = loc("Line width for the current tool or the selected comment")
-        for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? loc("{0} pt", w.formatted()) : loc("{0} pt", Int(w))) }
+        for w in Self.widths { widthButton.addItem(withTitle: w < 1 ? loc("{0} pt", w.formatted()) : loc("{0} pt", CoreLanguage.number(Int(w)))) }
         widthButton.target = self
         widthButton.action = #selector(widthPicked)
 

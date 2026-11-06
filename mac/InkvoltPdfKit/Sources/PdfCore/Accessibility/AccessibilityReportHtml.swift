@@ -34,9 +34,9 @@ public enum AccessibilityReportHtml {
         sb += "<p>" + loc("Checked on {0} by Inkvolt PDF against the machine-checkable conditions of the Matterhorn Protocol 1.1, which spells out PDF/UA-1 (ISO 14289-1).", e(date)) + " "
         let pages: String
         if report.tagged {
-            pages = report.pages == 1 ? loc("{0} page, tagged.", report.pages) : loc("{0} pages, tagged.", report.pages)
+            pages = report.pages == 1 ? loc("{0} page, tagged.", CoreLanguage.number(report.pages)) : loc("{0} pages, tagged.", CoreLanguage.number(report.pages))
         } else {
-            pages = report.pages == 1 ? loc("{0} page, not tagged.", report.pages) : loc("{0} pages, not tagged.", report.pages)
+            pages = report.pages == 1 ? loc("{0} page, not tagged.", CoreLanguage.number(report.pages)) : loc("{0} pages, not tagged.", CoreLanguage.number(report.pages))
         }
         sb += pages + "</p>\n</header>\n"
         sb += "<nav aria-label=\"" + loc("Sections") + "\">\n<ul>\n<li><a href=\"#result\">" + loc("Result") + "</a></li>\n"
@@ -55,12 +55,12 @@ public enum AccessibilityReportHtml {
         sb += "<section aria-labelledby=\"result\">\n<h2 id=\"result\">" + loc("Result") + "</h2>\n<p class=\"verdict " + verdict + "\"><strong>"
         sb += report.verdict + "</strong> " + e(report.summary) + "</p>\n"
         let ticked = checks.filter { done.contains($0.id) }.count
-        sb += "<p>" + loc("Checks for a person: {0} of {1} done. A document is accessible only when it passes the machine checks and a person has made these checks.", ticked, checks.count)
+        sb += "<p>" + loc("Checks for a person: {0} of {1} done. A document is accessible only when it passes the machine checks and a person has made these checks.", CoreLanguage.number(ticked), CoreLanguage.number(checks.count))
         sb += "</p>\n</section>\n"
 
         // What fails, by checkpoint
         if !report.failures.isEmpty {
-            sb += "<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">" + loc("What fails ({0})", report.failures.count) + "</h2>\n"
+            sb += "<section aria-labelledby=\"failures\">\n<h2 id=\"failures\">" + loc("What fails ({0})", CoreLanguage.number(report.failures.count)) + "</h2>\n"
             var groups: [(key: String, findings: [AccessibilityFinding])] = []
             for f in report.failures {
                 let key = AccessibilityCheck.condition(f.condition)?.checkpoint ?? "00"
@@ -88,7 +88,7 @@ public enum AccessibilityReportHtml {
         }
 
         // The person's checklist
-        sb += "<section aria-labelledby=\"person\">\n<h2 id=\"person\">" + loc("Checks for a person ({0})", checks.count) + "</h2>\n"
+        sb += "<section aria-labelledby=\"person\">\n<h2 id=\"person\">" + loc("Checks for a person ({0})", CoreLanguage.number(checks.count)) + "</h2>\n"
         sb += "<p>" + loc("The machine can't tell whether these make sense. Each was marked done or not done in Inkvolt PDF when this report was saved.")
         sb += "</p>\n<ul class=\"checklist\">\n"
         for h in checks {
@@ -109,7 +109,7 @@ public enum AccessibilityReportHtml {
             switch c.how {
             case .machine:
                 if let n = counts[c.id] {
-                    (css, result) = ("fail", n == 1 ? loc("Fails ({0} problem)", n) : loc("Fails ({0} problems)", n))
+                    (css, result) = ("fail", n == 1 ? loc("Fails ({0} problem)", CoreLanguage.number(n)) : loc("Fails ({0} problems)", CoreLanguage.number(n)))
                 } else if !report.notes.isEmpty {
                     (css, result) = ("none", loc("Nothing found in what was checked"))
                 } else {

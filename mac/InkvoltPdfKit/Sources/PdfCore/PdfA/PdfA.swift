@@ -105,10 +105,10 @@ public enum PdfA {
         guard let sanitized = cleaned else { throw PdfAError([loc("It couldn't be cleaned of scripts and attached files.")]) }
         let scripts = sanitized.removed[.activeContent], attached = sanitized.removed[.embeddedFiles]
         if scripts > 0 {
-            changes.append(scripts == 1 ? loc("{0} script or active item removed", scripts) : loc("{0} scripts and active items removed", scripts))
+            changes.append(scripts == 1 ? loc("{0} script or active item removed", CoreLanguage.number(scripts)) : loc("{0} scripts and active items removed", CoreLanguage.number(scripts)))
         }
         if attached > 0 {
-            changes.append(attached == 1 ? loc("{0} attached file removed", attached) : loc("{0} attached files removed", attached))
+            changes.append(attached == 1 ? loc("{0} attached file removed", CoreLanguage.number(attached)) : loc("{0} attached files removed", CoreLanguage.number(attached)))
         }
         data = sanitized.data
 
@@ -125,7 +125,7 @@ public enum PdfA {
             pdfUa = Xmp.saysPdfUa(Xmp.read(doc))
             // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.
             let fonts = try FontUnicode.complete(doc)
-            if fonts > 0 { changes.append(fonts == 1 ? loc("{0} font given the Unicode values of their characters", fonts) : loc("{0} fonts given the Unicode values of their characters", fonts)) }
+            if fonts > 0 { changes.append(fonts == 1 ? loc("{0} font given the Unicode values of their characters", CoreLanguage.number(fonts)) : loc("{0} fonts given the Unicode values of their characters", CoreLanguage.number(fonts))) }
         }
         let pass = try Pass(doc, changes)
         pass.longNames = longNames

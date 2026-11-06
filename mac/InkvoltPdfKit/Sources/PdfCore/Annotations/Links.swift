@@ -13,7 +13,7 @@ public struct LinkInfo: Equatable, Sendable {
     public var targetPage: Int
 
     /// What it leads to, for lists and tooltips.
-    public func describe() -> String { uri ?? (targetPage >= 0 ? loc("Page {0}", targetPage + 1) : loc("Another action")) }
+    public func describe() -> String { uri ?? (targetPage >= 0 ? loc("Page {0}", CoreLanguage.number(targetPage + 1)) : loc("Another action")) }
 }
 
 /// Link annotations made and edited with the Link tool (the Windows app's `Links`): a rectangle on a page leading to a web
@@ -80,7 +80,7 @@ public enum Links {
         return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             let count = try doc.pageCount()
-            if address == nil && (targetPage < 0 || targetPage >= count) { throw PdfEditError(loc("Choose a page from 1 to {0}.", count)) }
+            if address == nil && (targetPage < 0 || targetPage >= count) { throw PdfEditError(loc("Choose a page from 1 to {0}.", CoreLanguage.number(count))) }
 
             let page = doc.page(pageIndex)
             let annot: PObj

@@ -35,7 +35,7 @@ final class ScaleSheet {
         decimals.addItems(withTitles: ["0", "1", "2", "3", "4"])
         decimals.selectItem(at: min(max(current, 0), 4))
         decimals.setAccessibilityLabel(loc("Decimals"))
-        pages.addItems(withTitles: [loc("This page ({0})", page + 1), loc("All pages")])
+        pages.addItems(withTitles: [loc("This page ({0})", CoreLanguage.number(page + 1)), loc("All pages")])
         pages.setAccessibilityLabel(loc("Use it for"))
     }
 
@@ -181,7 +181,7 @@ extension DocumentWindowController {
         let ok = await editor.run(loc("Set measuring scale")) { d, pw in try Measurements.setPageScale(d, pw, chosen, scale) }
         if ok {
             if let page {
-                notify(loc("Scale {0} set for page {1}. Measure with Tools › Measure.", scale.ratio, page + 1), canUndo: true)
+                notify(loc("Scale {0} set for page {1}. Measure with Tools › Measure.", scale.ratio, CoreLanguage.number(page + 1)), canUndo: true)
             } else {
                 notify(loc("Scale {0} set for all pages. Measure with Tools › Measure.", scale.ratio), canUndo: true)
             }

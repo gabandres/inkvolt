@@ -220,7 +220,7 @@ final class CombineWindowController: NSWindowController, NSTableViewDataSource, 
 
     private func refresh() {
         table.reloadData()
-        countLabel.stringValue = files.isEmpty ? loc("Add two or more files.") : files.count == 1 ? loc("1 file") : loc("{0} files", files.count)
+        countLabel.stringValue = files.isEmpty ? loc("Add two or more files.") : files.count == 1 ? loc("1 file") : loc("{0} files", CoreLanguage.number(files.count))
         combineButton.isEnabled = files.count >= 2
     }
 

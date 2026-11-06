@@ -255,7 +255,7 @@ public final class AiClient: Sendable {
             }
         } catch is CancellationError {
             if cancel?.isCancelled == true { throw CancellationError() }
-            throw AiError(loc("{0} stopped answering (nothing for {1} seconds).", endpoint.host, Int(timeouts.idle.rounded()))) // bounded: the app's own timeouts (AiTimeouts.standard)
+            throw AiError(loc("{0} stopped answering (nothing for {1} seconds).", endpoint.host, CoreLanguage.number(Int(timeouts.idle.rounded())))) // bounded: the app's own timeouts (AiTimeouts.standard)
         } catch is AiNetError {
             if cancel?.isCancelled == true { throw CancellationError() }
             throw AiError(Self.closedEarly(endpoint))
@@ -312,7 +312,7 @@ public final class AiClient: Sendable {
         do {
             while let piece = try await response.body.read(deadline.token) {
                 if bytes.count + piece.count > Self.maxBodyBytes {
-                    if !truncate { throw AiError(loc("{0} sent more than {1} MB in one answer; it was stopped.", endpoint.host, Self.maxBodyBytes >> 20)) }
+                    if !truncate { throw AiError(loc("{0} sent more than {1} MB in one answer; it was stopped.", endpoint.host, CoreLanguage.number(Self.maxBodyBytes >> 20))) }
                     bytes += piece.prefix(Self.maxBodyBytes - bytes.count)
                     break
                 }
@@ -366,9 +366,9 @@ public final class AiClient: Sendable {
     private static func describe(_ t: Double) -> String {
         if t >= 60 {
             let minutes = Int((t / 60).rounded()) // bounded: t is one of the app's own timeouts
-            return t >= 120 ? loc("{0} minutes", minutes) : loc("{0} minute", minutes)
+            return t >= 120 ? loc("{0} minutes", CoreLanguage.number(minutes)) : loc("{0} minute", CoreLanguage.number(minutes))
         }
-        return loc("{0} seconds", Int(t.rounded())) // bounded: t is one of the app's own timeouts
+        return loc("{0} seconds", CoreLanguage.number(Int(t.rounded()))) // bounded: t is one of the app's own timeouts
     }
 }
 

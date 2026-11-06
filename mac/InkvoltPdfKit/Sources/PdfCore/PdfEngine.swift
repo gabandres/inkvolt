@@ -247,7 +247,7 @@ public final class PdfEngine: @unchecked Sendable {
 
     /// The page's geometry, or `PdfEngineError` when there is no such page (a caller's stale index must not crash).
     private func geometry(_ page: Int) throws -> PageGeometry {
-        guard pages.indices.contains(page) else { throw PdfEngineError(message: loc("There is no page {0}.", page + 1)) }
+        guard pages.indices.contains(page) else { throw PdfEngineError(message: loc("There is no page {0}.", CoreLanguage.number(page + 1))) }
         return pages[page]
     }
 
@@ -303,7 +303,7 @@ public final class PdfEngine: @unchecked Sendable {
         // Not a number is too large too (a page or a zoom of infinity), and is shown without its size.
         if !(width * height <= maxPixels) {
             if let w = Int(exactly: width.rounded()), let h = Int(exactly: height.rounded()) {
-                throw PdfEngineError(message: loc("The image would be too large ({0} x {1} pixels). Use a lower zoom or resolution.", w, h))
+                throw PdfEngineError(message: loc("The image would be too large ({0} x {1} pixels). Use a lower zoom or resolution.", CoreLanguage.number(w), CoreLanguage.number(h)))
             }
             throw PdfEngineError(message: loc("The image would be too large. Use a lower zoom or resolution."))
         }

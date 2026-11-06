@@ -374,7 +374,7 @@ extension AutoTag {
                 .map { ($0, PageBoxes.rectToPage(page, $0.array("Rect"))) }
 
             if ContentEditor.hasUnreadableContent(page) {
-                throw PdfEditError(loc("Part of page {0}'s content can't be read (it is damaged), so it can't be tagged without losing it.", index + 1))
+                throw PdfEditError(loc("Part of page {0}'s content can't be read (it is damaged), so it can't be tagged without losing it.", CoreLanguage.number(index + 1)))
             }
             let content = ContentEditor.contentBytes(page)
             let walk = PageWalk(PageBoxes.frame(page), AutoTag.resources(page), shared)

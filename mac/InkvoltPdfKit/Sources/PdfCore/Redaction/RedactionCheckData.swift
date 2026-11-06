@@ -169,8 +169,8 @@ extension RedactionCheck {
         for p in 0..<(try doc.pageCount()) {
             try cancel.check()
             let page = doc.page(p)
-            tryAdd(page, Owner(part: .page, page: p, place: loc("Page {0}'s own data", p + 1), fix: .metadata))
-            content(page["Contents"], Owner(part: .content, page: p, place: loc("Page {0}", p + 1), fix: nil,
+            tryAdd(page, Owner(part: .page, page: p, place: loc("Page {0}'s own data", CoreLanguage.number(p + 1)), fix: .metadata))
+            content(page["Contents"], Owner(part: .content, page: p, place: loc("Page {0}", CoreLanguage.number(p + 1)), fix: nil,
                                             resources: PageBoxes.inherited(page, "Resources")))
             for a in page.array("Annots")?.elements ?? [] where a.isDict {
                 let owner = annotOwner(a, p)
@@ -243,7 +243,7 @@ extension RedactionCheck {
         let subtype = a.name("Subtype") ?? ""
         let flags = a.int("F") ?? 0
         if subtype == "Widget" || a.has("FT") {
-            return Owner(part: .annotation, page: p, place: loc("Form field '{0}' on page {1}", fieldName(a), p + 1),
+            return Owner(part: .annotation, page: p, place: loc("Form field '{0}' on page {1}", fieldName(a), CoreLanguage.number(p + 1)),
                          fix: flags & (2 | 32) != 0 ? .hiddenAnnotations : .formValues)
         }
         let what: String
@@ -259,12 +259,12 @@ extension RedactionCheck {
         default: what = subtype
         }
         if flags & (2 | 32) != 0 {
-            return Owner(part: .annotation, page: p, place: loc("Hidden {0} on page {1}", what.lowercased(), p + 1), fix: .hiddenAnnotations)
+            return Owner(part: .annotation, page: p, place: loc("Hidden {0} on page {1}", what.lowercased(), CoreLanguage.number(p + 1)), fix: .hiddenAnnotations)
         }
         switch subtype {
-        case "Link": return Owner(part: .annotation, page: p, place: loc("Link on page {0}", p + 1), fix: .externalLinks)
-        case "FileAttachment": return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, p + 1), fix: .embeddedFiles)
-        default: return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, p + 1), fix: .comments)
+        case "Link": return Owner(part: .annotation, page: p, place: loc("Link on page {0}", CoreLanguage.number(p + 1)), fix: .externalLinks)
+        case "FileAttachment": return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, CoreLanguage.number(p + 1)), fix: .embeddedFiles)
+        default: return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, CoreLanguage.number(p + 1)), fix: .comments)
         }
     }
 
@@ -518,7 +518,7 @@ extension RedactionCheck.Check {
             for m in matcher.matches(texts[p].text) { shown[m.value, default: 0] += 1 }
             for (v, count) in drawn.sorted(by: { $0.key < $1.key }) where count > (shown[v] ?? 0) {
                 hits.insert(v)
-                add(RedactionFinding(.hiddenText, loc("Page {0}, in its content but not shown", p + 1), matcher.values[v], page: p,
+                add(RedactionFinding(.hiddenText, loc("Page {0}, in its content but not shown", CoreLanguage.number(p + 1)), matcher.values[v], page: p,
                                      box: RedactionCheck.offPage, sanitize: hiddenLayers > 0 ? .hiddenLayers : nil))
             }
         }
@@ -565,13 +565,13 @@ extension RedactionCheck.Check {
     func earlierVersions(_ engine: PdfEngine, _ matcher: RedactionCheck.ValueMatcher?, _ inFile: Set<Int>, _ ends: [Int]) throws {
         if ends.isEmpty { return }
         let maxRevisions = RedactionCheck.maxRevisions
-        if ends.count > maxRevisions { notes.append(loc("Only the last {0} of the file's {1} earlier versions were checked.", maxRevisions, ends.count)) }
+        if ends.count > maxRevisions { notes.append(loc("Only the last {0} of the file's {1} earlier versions were checked.", CoreLanguage.number(maxRevisions), CoreLanguage.number(ends.count))) }
         let current = Set(texts.flatMap { RedactionCheck.words($0.text) })
         var reportedValues = Set<Int>()
         for k in max(0, ends.count - maxRevisions)..<ends.count {
             try cancel.check()
             let prefix = Array(data[0..<ends[k]])
-            let place = loc("Earlier version {0} of the file", k + 1)
+            let place = loc("Earlier version {0} of the file", CoreLanguage.number(k + 1))
             do {
                 if let matcher {
                     let old = try PdfEdit.openToRead(prefix, password)
@@ -593,7 +593,7 @@ extension RedactionCheck.Check {
                         gone.append(w)
                     }
                     if gone.isEmpty { continue }
-                    add(RedactionFinding(.earlierRevision, loc("{0}, page {1}", place, p + 1),
+                    add(RedactionFinding(.earlierRevision, loc("{0}, page {1}", place, CoreLanguage.number(p + 1)),
                                          loc("Text no longer on the pages: ") + gone.prefix(12).joined(separator: " ") + (gone.count > 12 ? " …" : ""), rewrite: true))
                 }
             } catch is CancellationError {

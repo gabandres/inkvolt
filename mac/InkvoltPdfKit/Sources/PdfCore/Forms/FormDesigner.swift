@@ -439,9 +439,9 @@ public enum FormDesignRules {
     public static func panelTitle(_ f: DesignField?, _ s: FieldSuggestion?) -> String {
         if let f {
             let kind = DesignField.kindName(f.kind)
-            return f.signed ? loc("{0} · page {1} · signed", kind, f.pageIndex + 1) : loc("{0} · page {1}", kind, f.pageIndex + 1)
+            return f.signed ? loc("{0} · page {1} · signed", kind, CoreLanguage.number(f.pageIndex + 1)) : loc("{0} · page {1}", kind, CoreLanguage.number(f.pageIndex + 1))
         }
-        if let s { return loc("Suggested {0} · page {1}", DesignField.kindName(s.kind).lowercased(), s.pageIndex + 1) }
+        if let s { return loc("Suggested {0} · page {1}", DesignField.kindName(s.kind).lowercased(), CoreLanguage.number(s.pageIndex + 1)) }
         return loc("Prepare Form")
     }
 

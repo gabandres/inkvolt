@@ -297,7 +297,7 @@ public enum Annotations {
 
     static func checkPage(_ doc: MuDoc, _ pageIndex: Int) throws {
         let count = try doc.pageCount()
-        if pageIndex < 0 || pageIndex >= count { throw PdfEditError(loc("There is no page {0}.", pageIndex + 1)) }
+        if pageIndex < 0 || pageIndex >= count { throw PdfEditError(loc("There is no page {0}.", CoreLanguage.number(pageIndex + 1))) }
     }
 
     @discardableResult

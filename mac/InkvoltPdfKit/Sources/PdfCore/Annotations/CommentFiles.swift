@@ -252,10 +252,10 @@ public enum CommentFiles {
             let subtype = r.subtype
             let author = r.dict["T"]?.stringValue ?? ""
             let whereText = author.isEmpty
-                ? loc("Page {0}, {1}", r.page + 1, kindName(subtype))
-                : loc("Page {0}, {1} by {2}", r.page + 1, kindName(subtype), author)
+                ? loc("Page {0}, {1}", CoreLanguage.number(r.page + 1), kindName(subtype))
+                : loc("Page {0}, {1} by {2}", CoreLanguage.number(r.page + 1), kindName(subtype), author)
             if r.page < 0 || r.page >= pageCount {
-                skipped.append(loc("{0}: the document has no page {1}", whereText, r.page + 1))
+                skipped.append(loc("{0}: the document has no page {1}", whereText, CoreLanguage.number(r.page + 1)))
                 continue
             }
             if notComments.contains(subtype) || notCarried.contains(subtype) {
@@ -323,7 +323,7 @@ public enum CommentFiles {
     /// The comments in an XFDF, FDF or CSV file, and lines for those that can't be read.
     static func parse(_ file: [UInt8]) throws -> (records: [Record], skipped: [String]) {
         if file.isEmpty { throw PdfEditError(loc("The file is empty.")) }
-        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF imports.", maxFileBytes >> 20)) }
+        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF imports.", CoreLanguage.number(maxFileBytes >> 20))) }
         var skipped: [String] = []
         var start = file.count >= 3 && file[0] == 0xEF && file[1] == 0xBB && file[2] == 0xBF ? 3 : 0
         while start < file.count && [32, 9, 13, 10].contains(file[start]) { start += 1 }

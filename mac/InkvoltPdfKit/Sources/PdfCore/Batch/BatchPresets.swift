@@ -440,14 +440,14 @@ public enum BatchPresets {
     }
 
     private static func readStep(_ item: Any, _ n: Int) throws -> BatchStep {
-        guard let dict = item as? [String: Any] else { throw BatchPresetError(loc("Action {0} should be an object such as { \"action\": \"ocr\" }.", n)) }
+        guard let dict = item as? [String: Any] else { throw BatchPresetError(loc("Action {0} should be an object such as { \"action\": \"ocr\" }.", CoreLanguage.number(n))) }
         guard let name = dict["action"] as? String else {
-            throw BatchPresetError(loc("Action {0} has no \"action\" saying what it does (one of {1}).", n, actionNames.joined(separator: ", ")))
+            throw BatchPresetError(loc("Action {0} has no \"action\" saying what it does (one of {1}).", CoreLanguage.number(n), actionNames.joined(separator: ", ")))
         }
         if !actionNames.contains(name) {
-            throw BatchPresetError(loc("Action {0}: \"{1}\" isn't an action Inkvolt PDF knows (it knows {2}).", n, name, actionNames.joined(separator: ", ")))
+            throw BatchPresetError(loc("Action {0}: \"{1}\" isn't an action Inkvolt PDF knows (it knows {2}).", CoreLanguage.number(n), name, actionNames.joined(separator: ", ")))
         }
-        let f = try Fields(dict, loc("Action {0} ({1})", n, name))
+        let f = try Fields(dict, loc("Action {0} ({1})", CoreLanguage.number(n), name))
         _ = try f.text("action", nil)
         let step: BatchStep
         switch name {
@@ -486,7 +486,7 @@ public enum BatchPresets {
             step = try readHeaderFooter(f)
         case "rotate":
             let d = try f.int("degrees", 90, -270, 270)
-            guard d % 90 == 0 && d != 0 else { throw BatchPresetError(loc("Action {0} (rotate): \"degrees\" should be 90, -90 or 180.", n)) }
+            guard d % 90 == 0 && d != 0 else { throw BatchPresetError(loc("Action {0} (rotate): \"degrees\" should be 90, -90 or 180.", CoreLanguage.number(n))) }
             step = .rotate(d)
         case "flatten":
             step = .flatten(FlattenOptions(annotations: try f.bool("annotations", true), formFields: try f.bool("formFields", true),

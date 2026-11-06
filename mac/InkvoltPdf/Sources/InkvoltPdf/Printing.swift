@@ -451,7 +451,7 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
 
     override func loadView() {
         range.stringValue = options.range
-        range.placeholderString = loc("All {0} pages (or e.g. 1-3, 5)", options.pageCount)
+        range.placeholderString = loc("All {0} pages (or e.g. 1-3, 5)", CoreLanguage.number(options.pageCount))
         range.setAccessibilityLabel(loc("Pages to print"))
         range.target = self
         range.action = #selector(changed)
@@ -460,7 +460,7 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
         rangeNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         handling.addItems(withTitles: [loc("One page per sheet"), loc("Several pages per sheet"), loc("Booklet"), loc("Poster")])
         sizing.addItems(withTitles: [loc("Actual size (only larger pages shrink)"), loc("Fit to paper (small pages grow too)")])
-        perSheet.addItems(withTitles: PrintSetup.pagesPerSheetChoices.map { loc("{0} pages", $0) })
+        perSheet.addItems(withTitles: PrintSetup.pagesPerSheetChoices.map { loc("{0} pages", CoreLanguage.number($0)) })
         order.addItems(withTitles: [loc("Across, then down"), loc("Down, then across")])
         binding.addItems(withTitles: [loc("Bound on the left"), loc("Bound on the right")])
         posterScale.addItems(withTitles: Self.scales.map { "\(Int($0 * 100)) %" })

@@ -68,7 +68,7 @@ struct AccessibilityTest {
         }
         check(controller.sidebar.panes.last == .accessibility && controller.sidebar.segmentCount == controller.sidebar.panes.count && controller.sidebar.shownPane == .accessibility, "the check opens the pane in its own sidebar segment")
         check(!report.passed && report.failedConditions.contains("UA 7.1"), "the untagged synthetic document fails: \(report.failedConditions.joined(separator: " "))")
-        check(pane.summary.hasPrefix(loc("Fails") + " ") && pane.failuresTitle == loc("Fails ({0})", report.failures.count), "the pane says what fails (\(pane.failuresTitle))")
+        check(pane.summary.hasPrefix(loc("Fails") + " ") && pane.failuresTitle == loc("Fails ({0})", CoreLanguage.number(report.failures.count)), "the pane says what fails (\(pane.failuresTitle))")
         check(pane.shownFailures == report.failures.count && !pane.showsChecklist, "the list has a row per failure")
         snapshot("accessibility-fails.png")
 

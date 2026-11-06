@@ -27,7 +27,7 @@ extension DocumentWindowController {
         }
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update(loc("Checking page {0} of {1}…", done, total), Double(done) / Double(max(total, 1))) }
+            onMain { sheet.update(loc("Checking page {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
         }
         let result = await Task.detached { () -> Result<AccessibilityReport, Error> in
             Result { try AccessibilityCheck.run(data, password, progress: progress, cancel: token) }

@@ -392,7 +392,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
             item.target = self
             item.isEnabled = entry.2
-            if !entry.2 { item.toolTip = loc("Up to {0} signatures: delete one first.", SavedSignatures.maxSignatures) }
+            if !entry.2 { item.toolTip = loc("Up to {0} signatures: delete one first.", CoreLanguage.number(SavedSignatures.maxSignatures)) }
             menu.addItem(item)
         }
         if !saved.isEmpty {
@@ -465,7 +465,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func showSignatureSheet(initials: Bool, typing: Bool) -> SignatureSheet? {
         guard let window, signatureSheet == nil else { return nil }
         if !initials && SignatureLibrary.shared.isFull {
-            problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", SavedSignatures.maxSignatures))
+            problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", CoreLanguage.number(SavedSignatures.maxSignatures)))
             return nil
         }
         let sheet = SignatureSheet(initials: initials, typing: typing)
@@ -478,7 +478,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 if let saved = try SignatureLibrary.shared.save(image, initials: initials) {
                     self.armSignature(saved, image: image)
                 } else {
-                    self.problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", SavedSignatures.maxSignatures))
+                    self.problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", CoreLanguage.number(SavedSignatures.maxSignatures)))
                 }
             } catch {
                 self.problemAlert(loc("Couldn't save the signature"), error.localizedDescription)
@@ -1154,7 +1154,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         foundIndex = ((foundIndex + by) % found.count + found.count) % found.count
         let m = found[foundIndex]
         for view in allPanes { view.currentMatch = m }
-        findBar.status = loc("{0} of {1}", foundIndex + 1, found.count)
+        findBar.status = loc("{0} of {1}", CoreLanguage.number(foundIndex + 1), CoreLanguage.number(found.count))
         let pages = activePages
         pages.prepareToShow(m.page)
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {

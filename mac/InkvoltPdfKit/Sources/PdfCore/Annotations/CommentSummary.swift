@@ -112,7 +112,7 @@ public enum CommentSummary {
                 var ops = "q \(f(scale)) 0 0 \(f(scale)) \(f(ox)) \(f(oy)) cm /Pg Do Q\n"
                 ops += "q 0.6 G 0.5 w \(f(ox)) \(f(oy)) \(f(w * scale)) \(f(h * scale)) re S Q\n"
                 var bytes = Array(ops.utf8)
-                bold.draw(continued ? loc("Page {0} (continued)", pageIndex + 1) : loc("Page {0}", pageIndex + 1), margin, sheetH - margin - 12, 12)
+                bold.draw(continued ? loc("Page {0} (continued)", CoreLanguage.number(pageIndex + 1)) : loc("Page {0}", CoreLanguage.number(pageIndex + 1)), margin, sheetH - margin - 12, 12)
                 bytes += bold.ops("/F2", black)
                 regular.draw(docTitle, listX, sheetH - margin - 12, metaSize + 1)
                 bytes += regular.ops("/F1", gray)

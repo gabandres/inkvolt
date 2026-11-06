@@ -200,7 +200,7 @@ public enum PageEditor {
                 let b = PageBoxes.visibleBox(page)
                 let (l, bottom, r, t) = toPdfSpace(m, PageBoxes.rotate(page))
                 let x1 = b.x1 + l, y1 = b.y1 + bottom, x2 = b.x2 - r, y2 = b.y2 - t
-                if x2 - x1 < 1 || y2 - y1 < 1 { throw PdfEditError(loc("The margins are larger than page {0}.", i + 1)) }
+                if x2 - x1 < 1 || y2 - y1 < 1 { throw PdfEditError(loc("The margins are larger than page {0}.", CoreLanguage.number(i + 1))) }
                 page.set("CropBox", doc.reals(x1, y1, x2, y2))
             }
         }

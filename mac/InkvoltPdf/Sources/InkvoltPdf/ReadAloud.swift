@@ -332,7 +332,7 @@ final class ReadAloud {
     }
 
     private func updateBar() {
-        bar.update(paused: isPaused, status: isActive ? loc("Page {0}", page + 1) : "")
+        bar.update(paused: isPaused, status: isActive ? loc("Page {0}", CoreLanguage.number(page + 1)) : "")
     }
 }
 

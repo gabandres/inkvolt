@@ -331,8 +331,8 @@ final class DocumentEditor {
 
     /// One line for VoiceOver: kind, page, author, text.
     static func spoken(_ c: AnnotationInfo) -> String {
-        var s = loc("{0}, page {1}", kindName(c), c.pageIndex + 1)
-        if let a = c.author, !a.isEmpty { s = loc("{0}, page {1}, by {2}", kindName(c), c.pageIndex + 1, a) }
+        var s = loc("{0}, page {1}", kindName(c), CoreLanguage.number(c.pageIndex + 1))
+        if let a = c.author, !a.isEmpty { s = loc("{0}, page {1}, by {2}", kindName(c), CoreLanguage.number(c.pageIndex + 1), a) }
         let text = c.contents.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { s += ": \(text.prefix(200))" } // English: no words of its own (the comment's text after a colon)
         return s
@@ -367,7 +367,7 @@ extension DocumentEditor {
     /// Writes field values (one undo step: "Fill form field"), running the form's keystroke, validate, calculate and
     /// format scripts; what the scripts said comes back (nil when nothing was committed and nothing ran).
     func fillForm(_ values: [String: String], host: FormActionHost?) async -> (committed: Bool, result: FormFillResult?) {
-        let label = values.count == 1 ? loc("Fill form field") : loc("Fill {0} form fields", values.count)
+        let label = values.count == 1 ? loc("Fill form field") : loc("Fill {0} form fields", CoreLanguage.number(values.count))
         let box = EditBox<FormFillResult>()
         let host = host.map(SendableHost.init)
         let ok = await run(label, contentOnly: true) { data, pw in
@@ -541,7 +541,7 @@ struct AppPrompts: EditPrompts {
         ask {
             if Report.skipsDialogs { return false }
             let alert = NSAlert()
-            alert.messageText = signatures == 1 ? loc("“{0}” would invalidate the signature.", label) : loc("“{0}” would invalidate {1} signatures.", label, signatures)
+            alert.messageText = signatures == 1 ? loc("“{0}” would invalidate the signature.", label) : loc("“{0}” would invalidate {1} signatures.", label, CoreLanguage.number(signatures))
             alert.informativeText = loc("This change can't be added to the signed file without rewriting it, so its digital signatures would no longer verify.")
             alert.addButton(withTitle: loc("Change Anyway"))
             alert.addButton(withTitle: loc("Cancel"))
@@ -556,7 +556,7 @@ struct AppPrompts: EditPrompts {
             let alert = NSAlert()
             alert.messageText = broken.count == 1
                 ? loc("{0} invalidates the signature of {1}.", label, broken[0].signerName ?? broken[0].fieldName)
-                : loc("{0} invalidates {1} signatures.", label, broken.count)
+                : loc("{0} invalidates {1} signatures.", label, CoreLanguage.number(broken.count))
             alert.informativeText = loc("A signature allows filling in forms, comments and more signatures afterwards, but not this change: it alters what was signed, or it can't be added without rewriting the file. Afterwards the signature shows as invalid.\n\nTo keep the signed original, undo the change, or save your changes as a copy (Save As).")
             alert.addButton(withTitle: loc("{0} Anyway", label))
             alert.addButton(withTitle: loc("Cancel"))

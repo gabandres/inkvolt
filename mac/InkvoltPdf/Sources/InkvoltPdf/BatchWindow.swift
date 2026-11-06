@@ -344,9 +344,9 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         case .watermark(let o): "\(step.title): \(o.text ?? loc("a picture"))"
         case .headerFooter(let o, let c): "\(step.title): \(headerFooterTexts(o, continues: c))"
         case .rotate(let d): step.title + ": \(d)°"
-        case .export(let f, let dpi): f == .png || f == .jpeg ? loc("{0} at {1} dpi", step.title, dpi) : step.title
+        case .export(let f, let dpi): f == .png || f == .jpeg ? loc("{0} at {1} dpi", step.title, CoreLanguage.number(dpi)) : step.title
         case .protect(let p): "\(step.title): \(passwordsNamed(p))"
-        case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", items.count))"
+        case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", CoreLanguage.number(items.count)))"
         case .redactPatterns(let r): step.title + ": " + (r.patterns.map { RedactionPatterns.name($0) } + r.phrases).joined(separator: ", ")
         default: step.title
         }
@@ -889,7 +889,7 @@ enum ActionSheet {
             read = { .flatten(FlattenOptions(annotations: annotations.state == .on, formFields: fields.state == .on, links: links.state == .on, printableOnly: printable.state == .on)) }
         case .export(let format, let dpi):
             if format == .png || format == .jpeg {
-                let resolution = popup([72, 150, 300, 600].map { loc("{0} dpi", $0) }, dpi == 72 ? 0 : dpi == 300 ? 2 : dpi == 600 ? 3 : 1)
+                let resolution = popup([72, 150, 300, 600].map { loc("{0} dpi", CoreLanguage.number($0)) }, dpi == 72 ? 0 : dpi == 300 ? 2 : dpi == 600 ? 3 : 1)
                 alert.accessoryView = column([resolution], width: 300)
                 read = { .export(format, dpi: [72, 150, 300, 600][max(resolution.indexOfSelectedItem, 0)]) }
             } else {

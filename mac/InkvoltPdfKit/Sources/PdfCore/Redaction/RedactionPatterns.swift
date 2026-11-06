@@ -133,7 +133,7 @@ public enum RedactionPatterns {
         guard let regex = try? NSRegularExpression(pattern: expression) else {
             // NSRegularExpression says only that the pattern can't be read, not where: the usual mistake, a parenthesis
             // or bracket without its partner, is looked for here and pointed at.
-            if let (at, why) = unpaired(expression) { return loc("The pattern has a mistake near character {0}: {1}.", at, why) }
+            if let (at, why) = unpaired(expression) { return loc("The pattern has a mistake near character {0}: {1}.", CoreLanguage.number(at), why) }
             return loc("The pattern has a mistake: it can't be read as a regular expression (perhaps a repeat with nothing to repeat, a \\ before something it can't escape, or a {…} repeat written wrong).")
         }
         do {
@@ -239,7 +239,7 @@ public enum RedactionPatterns {
 
     /// "Email addresses: 3, Dates: 2".
     public static func summary(_ matches: [RedactionMatch]) -> String {
-        counts(matches).map { loc("{0}: {1}", name($0.pattern), $0.count) }.joined(separator: ", ")
+        counts(matches).map { loc("{0}: {1}", name($0.pattern), CoreLanguage.number($0.count)) }.joined(separator: ", ")
     }
 
     // ---- Finding ----
@@ -276,7 +276,7 @@ public enum RedactionPatterns {
             do {
                 all = try TimedRegex.matches(rule.regex, in: view, seconds: 2)
             } catch {
-                throw RedactionSearchTimeout(message: loc("Looking for {0} took too long on page {1}.", name(rule.pattern).lowercased(), page + 1),
+                throw RedactionSearchTimeout(message: loc("Looking for {0} took too long on page {1}.", name(rule.pattern).lowercased(), CoreLanguage.number(page + 1)),
                                              userExpression: false)
             }
             for m in all {
@@ -308,7 +308,7 @@ public enum RedactionPatterns {
             do {
                 all = try TimedRegex.matches(custom, in: view, seconds: expressionTimeout)
             } catch {
-                throw RedactionSearchTimeout(message: loc("Your pattern took too long on page {0}, so the search stopped. Make it simpler: a repeat inside a repeat, such as (a+)+, can take very long on some text.", page + 1), userExpression: true)
+                throw RedactionSearchTimeout(message: loc("Your pattern took too long on page {0}, so the search stopped. Make it simpler: a repeat inside a repeat, such as (a+)+, can take very long on some text.", CoreLanguage.number(page + 1)), userExpression: true)
             }
             for m in all where m.range.length > 0 { add(.expression, m.range.location, m.range.location + m.range.length, inView: true) }
         }

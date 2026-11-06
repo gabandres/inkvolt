@@ -188,7 +188,7 @@ extension DocumentWindowController {
     func pageChoice(allTitle: String) -> (view: NSView, read: () -> (pages: [Int]?, error: String?)) {
         let count = engine.pageCount, current = pages.currentPage
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
-        popup.addItems(withTitles: [allTitle, loc("Current page ({0})", current + 1), loc("Page range")])
+        popup.addItems(withTitles: [allTitle, loc("Current page ({0})", CoreLanguage.number(current + 1)), loc("Page range")])
         popup.setAccessibleName(loc("Pages"))
         let range = NSTextField(string: "\(current + 1)")
         range.placeholderString = loc("e.g. 1-3, 5")
@@ -302,7 +302,7 @@ extension DocumentWindowController {
         let progress: @Sendable (Int, Int) -> Void = { done, total in
             onMain {
                 guard done < total else { return sheet.update(loc("Adding the text layer…"), 1) }
-                sheet.update(loc("{0}: page {1} of {2}…", loc("Recognizing text"), done + 1, total), Double(done) / Double(max(total, 1)))
+                sheet.update(loc("{0}: page {1} of {2}…", loc("Recognizing text"), CoreLanguage.number(done + 1), CoreLanguage.number(total)), Double(done) / Double(max(total, 1)))
             }
         }
         let outcome: EditOutcome?, report: RecognizeTextReport?
@@ -321,19 +321,19 @@ extension DocumentWindowController {
             let words = report?.words ?? 0, hadText = report?.hadText ?? 0, pagesWithWords = report?.pagesWithWords ?? 0
             let suspect = report?.suspect ?? 0, replaced = report?.replaced ?? 0
             let cleaned = replaced == 0 ? ""
-                : " " + (replaced == 1 ? loc("{0} page was replaced with the cleaned image.", replaced) : loc("{0} pages were replaced with the cleaned images.", replaced))
-            let recognized = words == 1 ? loc("Recognized {0} word on {1} page", words, pagesWithWords)
-                : pagesWithWords == 1 ? loc("Recognized {1} words on {0} page", pagesWithWords, words)
-                : loc("Recognized {1} words on {0} pages", pagesWithWords, words)
+                : " " + (replaced == 1 ? loc("{0} page was replaced with the cleaned image.", CoreLanguage.number(replaced)) : loc("{0} pages were replaced with the cleaned images.", CoreLanguage.number(replaced)))
+            let recognized = words == 1 ? loc("Recognized {0} word on {1} page", CoreLanguage.number(words), CoreLanguage.number(pagesWithWords))
+                : pagesWithWords == 1 ? loc("Recognized {1} words on {0} page", CoreLanguage.number(pagesWithWords), CoreLanguage.number(words))
+                : loc("Recognized {1} words on {0} pages", CoreLanguage.number(pagesWithWords), CoreLanguage.number(words))
             if words == 0 {
                 notify(loc("No text was recognized on these pages.") + cleaned, canUndo: true)
             } else if suspect > 0 {
-                let found = suspect == 1 ? loc("{0}; {1} suspect word to check in the sidebar's Suspect Words.", recognized, suspect)
-                    : loc("{0}; {1} suspect words to check in the sidebar's Suspect Words.", recognized, suspect)
+                let found = suspect == 1 ? loc("{0}; {1} suspect word to check in the sidebar's Suspect Words.", recognized, CoreLanguage.number(suspect))
+                    : loc("{0}; {1} suspect words to check in the sidebar's Suspect Words.", recognized, CoreLanguage.number(suspect))
                 notify(found + cleaned, canUndo: true)
                 reviewSuspectWords(nil)
             } else {
-                let done = hadText > 0 ? loc("{0} ({1} already had text). They can be searched and selected now.", recognized, hadText)
+                let done = hadText > 0 ? loc("{0} ({1} already had text). They can be searched and selected now.", recognized, CoreLanguage.number(hadText))
                     : loc("{0}. They can be searched and selected now.", recognized)
                 notify(done + cleaned, canUndo: true)
             }
@@ -474,8 +474,8 @@ extension DocumentWindowController {
         let options = ExportOptions(pages: chosen, title: name, recognize: recognizeWith, source: source, sourcePassword: password) { at in
             let text: String
             switch at.stage {
-            case .reading: text = loc("Reading page {0} ({1} of {2})…", at.page + 1, at.index + 1, at.count)
-            case .recognizing: text = loc("Recognizing text on page {0} ({1} of {2})… The first time, macOS loads text recognition (about a minute).", at.page + 1, at.index + 1, at.count)
+            case .reading: text = loc("Reading page {0} ({1} of {2})…", CoreLanguage.number(at.page + 1), CoreLanguage.number(at.index + 1), CoreLanguage.number(at.count))
+            case .recognizing: text = loc("Recognizing text on page {0} ({1} of {2})… The first time, macOS loads text recognition (about a minute).", CoreLanguage.number(at.page + 1), CoreLanguage.number(at.index + 1), CoreLanguage.number(at.count))
             case .writing: text = loc("Writing the file…")
             }
             let fraction = at.fraction
@@ -501,7 +501,7 @@ extension DocumentWindowController {
                 var why = ""
                 if report.noText > 0 {
                     let none = report.noText == chosen.count ? (chosen.count == 1 ? loc("The page has no text") : loc("None of the pages has text"))
-                        : report.noText == 1 ? loc("{0} page had no text", 1) : loc("{0} pages had no text", report.noText)
+                        : report.noText == 1 ? loc("{0} page had no text", 1) : loc("{0} pages had no text", CoreLanguage.number(report.noText))
                     let reason = !recognize ? loc("{0}: turn on \"Recognize text on scanned pages\" to read scans.", none)
                         : report.recognitionFailed.isEmpty ? loc("{0}, even after text recognition.", none)
                         : loc("{0}; text recognition failed on some of them.", none)
@@ -516,23 +516,23 @@ extension DocumentWindowController {
                 return report
             }
             var notes: [String] = []
-            if format == .excel { notes.append(report.tables == 1 ? loc("1 table") : loc("{0} tables", report.tables)) }
+            if format == .excel { notes.append(report.tables == 1 ? loc("1 table") : loc("{0} tables", CoreLanguage.number(report.tables))) }
             if report.recognized > 0 {
-                notes.append(report.recognized == 1 ? loc("{0} page recognized with OCR", 1) : loc("{0} pages recognized with OCR", report.recognized))
+                notes.append(report.recognized == 1 ? loc("{0} page recognized with OCR", 1) : loc("{0} pages recognized with OCR", CoreLanguage.number(report.recognized)))
             }
-            if report.noText > 0 { notes.append(report.noText == 1 ? loc("{0} page without text", 1) : loc("{0} pages without text", report.noText)) }
+            if report.noText > 0 { notes.append(report.noText == 1 ? loc("{0} page without text", 1) : loc("{0} pages without text", CoreLanguage.number(report.noText))) }
             if report.suspectWords > 0 {
-                notes.append(report.suspectWords == 1 ? loc("1 suspect word (check it against the PDF)") : loc("{0} suspect words (check them against the PDF)", report.suspectWords))
+                notes.append(report.suspectWords == 1 ? loc("1 suspect word (check it against the PDF)") : loc("{0} suspect words (check them against the PDF)", CoreLanguage.number(report.suspectWords)))
             }
             let failed = report.recognitionFailed.count, unreadable = report.unreadable.count
-            if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", failed)) }
-            if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", unreadable)) }
+            if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", CoreLanguage.number(failed))) }
+            if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", CoreLanguage.number(unreadable))) }
             let file = url.lastPathComponent, count = chosen.count
             if notes.isEmpty {
-                notify(count == 1 ? loc("Exported {0} page to {1}.", count, file) : loc("Exported {0} pages to {1}.", count, file))
+                notify(count == 1 ? loc("Exported {0} page to {1}.", CoreLanguage.number(count), file) : loc("Exported {0} pages to {1}.", CoreLanguage.number(count), file))
             } else {
                 let list = notes.joined(separator: ", ")
-                notify(count == 1 ? loc("Exported {0} page to {1} ({2}).", count, file, list) : loc("Exported {0} pages to {1} ({2}).", count, file, list))
+                notify(count == 1 ? loc("Exported {0} page to {1} ({2}).", CoreLanguage.number(count), file, list) : loc("Exported {0} pages to {1} ({2}).", CoreLanguage.number(count), file, list))
             }
             return report
         case .failure(let error):

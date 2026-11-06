@@ -121,7 +121,7 @@ public enum ContentEditor {
         let doc = try PdfEdit.openToRead(data, password)
         let count = try doc.pageCount()
         guard pageIndex >= 0 && pageIndex < count else {
-            throw PdfEngineError(message: loc("Page {0} isn't in this document.", pageIndex + 1))
+            throw PdfEngineError(message: loc("Page {0} isn't in this document.", CoreLanguage.number(pageIndex + 1)))
         }
         let page = doc.page(pageIndex)
         return try walk(page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel).content
@@ -239,7 +239,7 @@ public enum ContentEditor {
             return "“\(c)”"
         }
         let shown = missing.prefix(12).map(show).joined(separator: ", ")
-        let list = missing.count > 12 ? loc("{0} and {1} more", shown, missing.count - 12) : shown
+        let list = missing.count > 12 ? loc("{0} and {1} more", shown, CoreLanguage.number(missing.count - 12)) : shown
         let message: String
         if font.name.isEmpty {
             message = missing.count == 1

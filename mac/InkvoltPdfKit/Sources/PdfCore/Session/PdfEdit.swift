@@ -233,9 +233,9 @@ public struct SignaturesWouldBreak: Error, Equatable, Sendable, CustomStringConv
 
     public var description: String {
         if signatureCount == 1 {
-            return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its signature.", signatureCount, reason)
+            return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its signature.", CoreLanguage.number(signatureCount), reason)
         }
-        return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its {0} signatures.", signatureCount, reason)
+        return loc("This edit can't be added to the signed file as an update ({1}), so saving it would invalidate its {0} signatures.", CoreLanguage.number(signatureCount), reason)
     }
 }
 

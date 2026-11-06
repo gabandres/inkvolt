@@ -432,7 +432,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             cell.picture.image = nil
             thumbs.request(row, scale: scale)
         }
-        cell.setAccessibilityLabel(loc("Page {0}", row + 1))
+        cell.setAccessibilityLabel(loc("Page {0}", CoreLanguage.number(row + 1)))
         return cell
     }
 

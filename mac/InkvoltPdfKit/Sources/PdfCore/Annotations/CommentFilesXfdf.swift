@@ -277,7 +277,7 @@ extension CommentFiles {
             let local = x.localName ?? ""
             let page = Int(x.attribute(forName: "page")?.stringValue ?? "").flatMap { $0 >= 0 ? $0 : nil } ?? -1
             guard let subtype = subtypeOfElement[local] else {
-                if local != "popup" { skipped.append(loc("Page {0}, <{1}>: not a kind of comment Inkvolt PDF imports", page + 1, local)) }
+                if local != "popup" { skipped.append(loc("Page {0}, <{1}>: not a kind of comment Inkvolt PDF imports", CoreLanguage.number(page + 1), local)) }
                 continue
             }
             guard let clean = try cleaner.annotation(fromXfdf(x, subtype)) else { continue }

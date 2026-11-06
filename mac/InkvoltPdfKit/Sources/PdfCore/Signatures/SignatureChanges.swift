@@ -182,11 +182,11 @@ enum SignatureChanges {
 
         private func changed(_ n: Int, _ objA: PObj, _ objB: PObj, _ ra: Roles, _ rb: Roles) {
             if let page = ra.content[n] {
-                problem(loc("the content of page {0}", page + 1))
+                problem(loc("the content of page {0}", CoreLanguage.number(page + 1)))
             } else if n == ra.catalog {
                 compareCatalog(objA, objB)
             } else if let page = ra.pages[n] {
-                if !same(objA, objB, skip: ["Annots"]) { problem(loc("page {0} (its size, rotation or resources)", page + 1)) }
+                if !same(objA, objB, skip: ["Annots"]) { problem(loc("page {0} (its size, rotation or resources)", CoreLanguage.number(page + 1))) }
             } else if ra.pageNodes.contains(n) {
                 problem(loc("pages added, removed or moved"))
             } else if let an = ra.annots[n] {

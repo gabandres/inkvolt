@@ -233,7 +233,7 @@ final class ContentEditing: NSObject {
             if ok && check.width - check.oldWidth > 0.5 {
                 // The widths come from the PDF's font: one too wide to count is said without its number.
                 if let wider = Int(exactly: (check.width - check.oldWidth).rounded()) {
-                    controller.notify(loc("Text changed. It is {0} pt wider than before and doesn't reflow, so it may overlap what follows.", wider), canUndo: true)
+                    controller.notify(loc("Text changed. It is {0} pt wider than before and doesn't reflow, so it may overlap what follows.", CoreLanguage.number(wider)), canUndo: true)
                 } else {
                     controller.notify(loc("Text changed. It is wider than before and doesn't reflow, so it may overlap what follows."), canUndo: true)
                 }

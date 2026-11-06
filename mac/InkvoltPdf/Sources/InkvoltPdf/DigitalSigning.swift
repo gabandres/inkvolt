@@ -322,7 +322,7 @@ struct SignatureCard {
     var title: String { info.status == .unsigned ? loc("{0} (not signed)", info.fieldName) : info.signerName ?? info.fieldName }
 
     var details: String {
-        var lines = [page.map { loc("Field: {0}, page {1}", info.fieldName, $0 + 1) } ?? loc("Field: {0} (invisible)", info.fieldName)]
+        var lines = [page.map { loc("Field: {0}, page {1}", info.fieldName, CoreLanguage.number($0 + 1)) } ?? loc("Field: {0} (invisible)", info.fieldName)]
         let full = DateFormatter()
         full.dateStyle = .full
         full.timeStyle = .medium

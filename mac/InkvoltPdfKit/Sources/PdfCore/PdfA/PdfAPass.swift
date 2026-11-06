@@ -48,28 +48,28 @@ extension PdfA {
             outputIntent(catalog)
 
             if removedAnnots > 0 {
-                changes.append(removedAnnots == 1 ? loc("{0} comment or field that PDF/A doesn't allow, or without an appearance, removed", removedAnnots)
-                    : loc("{0} comments and fields that PDF/A doesn't allow, or without an appearance, removed", removedAnnots))
+                changes.append(removedAnnots == 1 ? loc("{0} comment or field that PDF/A doesn't allow, or without an appearance, removed", CoreLanguage.number(removedAnnots))
+                    : loc("{0} comments and fields that PDF/A doesn't allow, or without an appearance, removed", CoreLanguage.number(removedAnnots)))
             }
-            if hiddenAnnots > 0 { changes.append(hiddenAnnots == 1 ? loc("{0} hidden comment removed", hiddenAnnots) : loc("{0} hidden comments removed", hiddenAnnots)) }
+            if hiddenAnnots > 0 { changes.append(hiddenAnnots == 1 ? loc("{0} hidden comment removed", CoreLanguage.number(hiddenAnnots)) : loc("{0} hidden comments removed", CoreLanguage.number(hiddenAnnots))) }
             let removedActions = actions + aa
             if removedActions > 0 {
-                changes.append(removedActions == 1 ? loc("{0} action PDF/A doesn't allow removed", removedActions) : loc("{0} actions PDF/A doesn't allow removed", removedActions))
+                changes.append(removedActions == 1 ? loc("{0} action PDF/A doesn't allow removed", CoreLanguage.number(removedActions)) : loc("{0} actions PDF/A doesn't allow removed", CoreLanguage.number(removedActions)))
             }
             if images > 0 {
-                changes.append(images == 1 ? loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} picture", images)
-                    : loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} pictures", images))
+                changes.append(images == 1 ? loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} picture", CoreLanguage.number(images))
+                    : loc("smoothing and alternate versions PDF/A doesn't allow taken off {0} pictures", CoreLanguage.number(images)))
             }
-            if lzw > 0 { changes.append(lzw == 1 ? loc("{0} LZW stream re-compressed", lzw) : loc("{0} LZW streams re-compressed", lzw)) }
+            if lzw > 0 { changes.append(lzw == 1 ? loc("{0} LZW stream re-compressed", CoreLanguage.number(lzw)) : loc("{0} LZW streams re-compressed", CoreLanguage.number(lzw))) }
             if tr > 0 { changes.append(loc("transfer and halftone functions removed")) }
-            if embedded > 0 { changes.append(embedded == 1 ? loc("{0} standard font embedded", embedded) : loc("{0} standard fonts embedded", embedded)) }
+            if embedded > 0 { changes.append(embedded == 1 ? loc("{0} standard font embedded", CoreLanguage.number(embedded)) : loc("{0} standard fonts embedded", CoreLanguage.number(embedded))) }
             if dingbats > 0 { changes.append(loc("check marks and other ZapfDingbats symbols embedded")) }
             if ocNames > 0 { changes.append(loc("layer configurations named")) }
             if ownMetadata > 0 {
-                changes.append(ownMetadata == 1 ? loc("{0} picture's or page's own metadata packet removed", ownMetadata)
-                    : loc("{0} pictures' and pages' own metadata packets removed", ownMetadata))
+                changes.append(ownMetadata == 1 ? loc("{0} picture's or page's own metadata packet removed", CoreLanguage.number(ownMetadata))
+                    : loc("{0} pictures' and pages' own metadata packets removed", CoreLanguage.number(ownMetadata)))
             }
-            if longNames > 0 { changes.append(longNames == 1 ? loc("{0} name longer than PDF/A allows shortened", longNames) : loc("{0} names longer than PDF/A allows shortened", longNames)) }
+            if longNames > 0 { changes.append(longNames == 1 ? loc("{0} name longer than PDF/A allows shortened", CoreLanguage.number(longNames)) : loc("{0} names longer than PDF/A allows shortened", CoreLanguage.number(longNames))) }
             changes.append(loc("sRGB output intent and PDF/A metadata added"))
         }
 

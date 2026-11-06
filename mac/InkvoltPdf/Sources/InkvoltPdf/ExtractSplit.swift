@@ -94,7 +94,7 @@ extension DocumentWindowController {
         let base = (pdf.name as NSString).deletingPathExtension
         let range = PageRange.format(chosen)
         panel.nameFieldStringValue = loc("{0} (pages {1}).pdf", base, range)
-        panel.message = chosen.count == 1 ? loc("Save {0} page ({1}) as a new PDF.", 1, range) : loc("Save {0} pages ({1}) as a new PDF.", chosen.count, range)
+        panel.message = chosen.count == 1 ? loc("Save {0} page ({1}) as a new PDF.", 1, range) : loc("Save {0} pages ({1}) as a new PDF.", CoreLanguage.number(chosen.count), range)
         if let folder = pdf.session?.filePath.map({ ($0 as NSString).deletingLastPathComponent }) { panel.directoryURL = URL(fileURLWithPath: folder) }
         guard await panel.beginSheetModal(for: window) == .OK, let url = panel.url else { return false }
         return extract(chosen, to: url)
@@ -106,14 +106,14 @@ extension DocumentWindowController {
         guard let session = pdf.session else { return nil }
         let name = (session.displayName as NSString).deletingPathExtension
         var reserved = Set<String>()
-        let paths = chosen.map { SplitFiles.uniquePath(folder, loc("{0} (page {1}).pdf", name, $0 + 1), &reserved) }
+        let paths = chosen.map { SplitFiles.uniquePath(folder, loc("{0} (page {1}).pdf", name, CoreLanguage.number($0 + 1)), &reserved) }
         let data = session.data, password = session.password
         let files: [(path: String, bytes: @Sendable () throws -> [UInt8])] = zip(paths, chosen).map { path, page in
             (path: path, bytes: { try PageEditor.extract(data, password, [page]) })
         }
         guard await writeFiles(files, busy: loc("Extracting pages…"), failed: loc("Extract didn't work")) else { return nil }
         let into = (folder as NSString).lastPathComponent
-        notify(chosen.count == 1 ? loc("Saved {0} page to “{1}”.", 1, into) : loc("Saved {0} pages to “{1}”.", chosen.count, into))
+        notify(chosen.count == 1 ? loc("Saved {0} page to “{1}”.", 1, into) : loc("Saved {0} pages to “{1}”.", CoreLanguage.number(chosen.count), into))
         return paths
     }
 
@@ -133,7 +133,7 @@ extension DocumentWindowController {
         let half = max(1, count / 2)
         let ranges = NSTextField(string: count > 1 ? "1-\(half); \(half + 1)-\(count)" : "1")
         let note = NSTextField(wrappingLabelWithString: outline.isEmpty ? loc("This document has no bookmarks, so splitting by bookmarks isn't available.")
-                                                       : outline.count == 1 ? loc("{0} top-level bookmark.", 1) : loc("{0} top-level bookmarks.", outline.count))
+                                                       : outline.count == 1 ? loc("{0} top-level bookmark.", 1) : loc("{0} top-level bookmarks.", CoreLanguage.number(outline.count)))
         note.textColor = .secondaryLabelColor
         let name = ((pdf.session?.displayName ?? pdf.name) as NSString).deletingPathExtension
         let folder = NSTextField(string: pdf.session?.filePath.map { ($0 as NSString).deletingLastPathComponent }
@@ -216,9 +216,9 @@ extension DocumentWindowController {
         let files: [(path: String, bytes: @Sendable () throws -> [UInt8])] = zip(paths, parts).map { path, part in
             (path: path, bytes: { try PageEditor.extract(data, password, part.pages) })
         }
-        guard await writeFiles(files, busy: loc("Splitting into {0} files…", parts.count), failed: loc("Split didn't work")) else { return false }
+        guard await writeFiles(files, busy: loc("Splitting into {0} files…", CoreLanguage.number(parts.count)), failed: loc("Split didn't work")) else { return false }
         let folder = ((paths[0] as NSString).deletingLastPathComponent as NSString).lastPathComponent
-        notify(loc("Split into {0} files in “{1}”.", parts.count, folder))
+        notify(loc("Split into {0} files in “{1}”.", CoreLanguage.number(parts.count), folder))
         return true
     }
 
@@ -226,7 +226,7 @@ extension DocumentWindowController {
 
     /// Writes the files off the main thread with a progress sheet; false (and the error shown) when it stopped.
     private func writeFiles(_ files: [(path: String, bytes: @Sendable () throws -> [UInt8])], busy: String, failed: String) async -> Bool {
-        let sheet = ProgressSheet(title: busy, text: files.count == 1 ? loc("1 file") : loc("{0} files", files.count))
+        let sheet = ProgressSheet(title: busy, text: files.count == 1 ? loc("1 file") : loc("{0} files", CoreLanguage.number(files.count)))
         sheet.begin(on: window)
         defer { sheet.end() }
         let batch = files, token = sheet.token

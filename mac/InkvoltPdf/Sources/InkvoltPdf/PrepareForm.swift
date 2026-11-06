@@ -1105,8 +1105,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             suggestionSource.stringValue = FormDesignRules.sourceText(s.source)
         }
         if titleChanged || f != nil || s != nil {
-            announce(f.map { loc("{0} selected, page {1}", $0.describe(), $0.pageIndex + 1) }
-                ?? s.map { loc("Suggested {0} {1}, page {2}", DesignField.kindName($0.kind).lowercased(), $0.name, $0.pageIndex + 1) } ?? title)
+            announce(f.map { loc("{0} selected, page {1}", $0.describe(), CoreLanguage.number($0.pageIndex + 1)) }
+                ?? s.map { loc("Suggested {0} {1}, page {2}", DesignField.kindName($0.kind).lowercased(), $0.name, CoreLanguage.number($0.pageIndex + 1)) } ?? title)
         }
         pinRowWidths()
     }

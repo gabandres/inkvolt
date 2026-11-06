@@ -196,7 +196,7 @@ final class InventorySheet: NSWindowController {
         head.preferredMaxLayoutWidth = i.page >= 0 ? 540 : 650
         var top: [NSView] = [head]
         if i.page >= 0 {
-            let go = NSButton(title: loc("Go to page {0}", i.page + 1), target: self, action: #selector(goClicked(_:)))
+            let go = NSButton(title: loc("Go to page {0}", CoreLanguage.number(i.page + 1)), target: self, action: #selector(goClicked(_:)))
             go.isBordered = false
             go.contentTintColor = .linkColor
             go.tag = i.page

@@ -202,22 +202,22 @@ public struct CompareResult: Sendable {
         let text = inserted + deleted + changed
         if text > 0 {
             var kinds: [String] = []
-            if inserted > 0 { kinds.append(loc("{0} inserted", inserted)) }
-            if deleted > 0 { kinds.append(loc("{0} removed", deleted)) }
-            if changed > 0 { kinds.append(loc("{0} changed", changed)) }
+            if inserted > 0 { kinds.append(loc("{0} inserted", CoreLanguage.number(inserted))) }
+            if deleted > 0 { kinds.append(loc("{0} removed", CoreLanguage.number(deleted))) }
+            if changed > 0 { kinds.append(loc("{0} changed", CoreLanguage.number(changed))) }
             let list = kinds.joined(separator: ", ")
-            parts.append(text == 1 ? loc("{0} text change ({1})", 1, list) : loc("{0} text changes ({1})", text, list))
+            parts.append(text == 1 ? loc("{0} text change ({1})", 1, list) : loc("{0} text changes ({1})", CoreLanguage.number(text), list))
         } else {
             parts.append(loc("No text changes"))
         }
         if pagesInserted > 0 {
-            parts.append(pagesInserted == 1 ? loc("{0} page inserted", 1) : loc("{0} pages inserted", pagesInserted))
+            parts.append(pagesInserted == 1 ? loc("{0} page inserted", 1) : loc("{0} pages inserted", CoreLanguage.number(pagesInserted)))
         }
         if pagesRemoved > 0 {
-            parts.append(pagesRemoved == 1 ? loc("{0} page removed", 1) : loc("{0} pages removed", pagesRemoved))
+            parts.append(pagesRemoved == 1 ? loc("{0} page removed", 1) : loc("{0} pages removed", CoreLanguage.number(pagesRemoved)))
         }
         if pairsWithoutText > 0 {
-            parts.append(pairsWithoutText == 1 ? loc("{0} page without text to compare", 1) : loc("{0} pages without text to compare", pairsWithoutText))
+            parts.append(pairsWithoutText == 1 ? loc("{0} page without text to compare", 1) : loc("{0} pages without text to compare", CoreLanguage.number(pairsWithoutText)))
         }
         return parts.joined(separator: "; ")
     }

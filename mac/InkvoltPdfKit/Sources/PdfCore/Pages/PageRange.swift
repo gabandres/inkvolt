@@ -34,7 +34,7 @@ public enum PageRange {
                 guard let p = page(raw, pageCount) else { return fail(raw) }
                 (from, to) = (p, p)
             }
-            if from < 1 || to > pageCount || from > to { return (false, [], loc("\"{0}\" is outside 1–{1}.", raw, pageCount)) }
+            if from < 1 || to > pageCount || from > to { return (false, [], loc("\"{0}\" is outside 1–{1}.", raw, CoreLanguage.number(pageCount))) }
             for p in from...to { set.insert(p - 1) }
         }
         let pages = set.sorted()

@@ -69,7 +69,7 @@ extension FormEditor {
         switch f.kind {
         case .text:
             let length = value.utf16.count
-            return f.maxLength > 0 && length > f.maxLength ? (nil, loc("it takes at most {0} characters ({1} given)", f.maxLength, length)) : (value, nil)
+            return f.maxLength > 0 && length > f.maxLength ? (nil, loc("it takes at most {0} characters ({1} given)", CoreLanguage.number(f.maxLength), CoreLanguage.number(length))) : (value, nil)
         case .choice:
             let parts = f.multiSelect ? value.split(separator: "\n").map(String.init) : value.isEmpty ? [] : [value]
             if !f.multiSelect && parts.isEmpty { return ("", nil) }
@@ -227,7 +227,7 @@ public enum FormDataFiles {
     /// file isn't one of them, is damaged, too big, or carries a DTD.
     public static func readValues(_ file: [UInt8]) throws -> [String: String] {
         if file.isEmpty { throw PdfEditError(loc("The file is empty.")) }
-        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF reads as form data.", maxFileBytes >> 20)) }
+        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF reads as form data.", CoreLanguage.number(maxFileBytes >> 20))) }
         switch sniff(file) {
         case .json:
             return try readJson(file)
@@ -309,7 +309,7 @@ public enum FormDataFiles {
     /// A CSV's header (field names) and its rows of values. Throws when it is too big, has too many rows, is empty, or
     /// names a column twice.
     static func readTable(_ file: [UInt8]) throws -> (header: [String], rows: [[String]]) {
-        if file.count > Csv.maxBytes { throw PdfEditError(loc("The file is larger than {0} MB.", Csv.maxBytes >> 20)) }
+        if file.count > Csv.maxBytes { throw PdfEditError(loc("The file is larger than {0} MB.", CoreLanguage.number(Csv.maxBytes >> 20))) }
         let rows = try Csv.read(Csv.decode(file))
         if rows.isEmpty { throw PdfEditError(loc("The CSV file is empty.")) }
         let header = rows[0].map { $0.trimmingCharacters(in: .whitespaces) }

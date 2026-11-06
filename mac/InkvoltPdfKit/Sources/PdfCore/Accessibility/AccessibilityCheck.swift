@@ -59,12 +59,12 @@ public struct AccessibilityFinding: Sendable {
     public var fix: String { fixOverride ?? AccessibilityCheck.condition(condition)?.fix ?? "" }
 
     /// "Page 3", or "Document" (.NET's `Where`).
-    public var place: String { page >= 0 ? loc("Page {0}", page + 1) : loc("Document") }
+    public var place: String { page >= 0 ? loc("Page {0}", CoreLanguage.number(page + 1)) : loc("Document") }
 
     // What the Accessibility pane shows for it (the Windows app's `A11yItem`).
 
     public var rowTitle: String { element == place ? "\(condition) · \(place)" : "\(condition) · \(place) · \(element)" }
-    public var rowProblem: String { count > 1 && !problem.contains(String(count)) ? loc("{1} ({0} times)", count, problem) : problem }
+    public var rowProblem: String { count > 1 && !problem.contains(String(count)) ? loc("{1} ({0} times)", CoreLanguage.number(count), problem) : problem }
     public var rowFix: String { loc("Fix: {0}", fix) }
     /// What a screen reader says for the row.
     public var spoken: String { loc("Condition {0}, {1}, {2}. {3} {4}", condition, place, element, rowProblem, rowFix) }
@@ -130,7 +130,7 @@ public struct AccessibilityReport: Sendable {
     public var summary: String {
         if outcome == .passes {
             let machine = AccessibilityCheck.conditions.filter { $0.how == .machine }.count
-            return loc("Passes every machine check ({0} conditions). {1} checks are left for a person.", machine, AccessibilityCheck.humanChecks.count)
+            return loc("Passes every machine check ({0} conditions). {1} checks are left for a person.", CoreLanguage.number(machine), CoreLanguage.number(AccessibilityCheck.humanChecks.count))
         }
         if outcome == .notFullyChecked {
             return loc("Not fully checked: nothing fails in what was checked, but part of the file wasn't checked, so it can't be called a pass.")
@@ -138,9 +138,9 @@ public struct AccessibilityReport: Sendable {
         let conditions = failedConditions.count, problems = failures.count
         let head: String
         if conditions == 1 {
-            head = problems == 1 ? loc("Fails {1} condition ({0} problem)", problems, conditions) : loc("Fails {1} condition ({0} problems)", problems, conditions)
+            head = problems == 1 ? loc("Fails {1} condition ({0} problem)", CoreLanguage.number(problems), CoreLanguage.number(conditions)) : loc("Fails {1} condition ({0} problems)", CoreLanguage.number(problems), CoreLanguage.number(conditions))
         } else {
-            head = problems == 1 ? loc("Fails {1} conditions ({0} problem)", problems, conditions) : loc("Fails {1} conditions ({0} problems)", problems, conditions)
+            head = problems == 1 ? loc("Fails {1} conditions ({0} problem)", CoreLanguage.number(problems), CoreLanguage.number(conditions)) : loc("Fails {1} conditions ({0} problems)", CoreLanguage.number(problems), CoreLanguage.number(conditions))
         }
         let end = tagged ? "." : loc(": the document isn't tagged, so a screen reader can't tell its headings, lists, tables or reading order.")
         return head + end + (notes.isEmpty ? "" : " " + loc("Part of the file wasn't checked."))
@@ -154,7 +154,7 @@ public struct AccessibilityReport: Sendable {
 
     /// The title of the pane's list of failures.
     public var failuresTabTitle: String {
-        !failures.isEmpty ? loc("Fails ({0})", failures.count) : passed ? loc("Fails (none)") : loc("Fails (none found so far)")
+        !failures.isEmpty ? loc("Fails ({0})", CoreLanguage.number(failures.count)) : passed ? loc("Fails (none)") : loc("Fails (none found so far)")
     }
 
     /// What the pane's list of failures says when it is empty.

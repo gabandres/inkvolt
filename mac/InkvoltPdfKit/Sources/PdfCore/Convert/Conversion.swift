@@ -312,7 +312,7 @@ public struct WebCaptureRules: Sendable {
 
     public static var notAPage: String { loc("The page didn't load (it was stopped or left for a download).") }
     public static var busy: String { loc("The page stopped answering (its own scripts keep it busy), so it can't be printed.") }
-    public static func lateLoad(_ seconds: TimeInterval) -> String { loc("The page didn't finish loading within {0} seconds.", Int(seconds)) }
-    public static func latePrint(_ seconds: TimeInterval) -> String { loc("Printing the page didn't finish within {0} seconds.", Int(seconds)) }
+    public static func lateLoad(_ seconds: TimeInterval) -> String { loc("The page didn't finish loading within {0} seconds.", CoreLanguage.number(Int(seconds))) }
+    public static func latePrint(_ seconds: TimeInterval) -> String { loc("Printing the page didn't finish within {0} seconds.", CoreLanguage.number(Int(seconds))) }
     public static var notPrinted: String { loc("The page couldn't be printed to PDF.") }
 }

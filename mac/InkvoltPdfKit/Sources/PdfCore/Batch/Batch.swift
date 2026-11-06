@@ -455,10 +455,10 @@ public struct BatchSummary: Equatable, Sendable {
     /// "3 done, 1 skipped, 2 failed."
     public var text: String {
         var parts: [String] = []
-        if done > 0 { parts.append(done == 1 ? loc("1 done") : loc("{0} done", done)) }
-        if skipped > 0 { parts.append(skipped == 1 ? loc("1 skipped") : loc("{0} skipped", skipped)) }
-        if failed > 0 { parts.append(failed == 1 ? loc("1 failed") : loc("{0} failed", failed)) }
-        if cancelled > 0 { parts.append(cancelled == 1 ? loc("1 cancelled") : loc("{0} cancelled", cancelled)) }
+        if done > 0 { parts.append(done == 1 ? loc("1 done") : loc("{0} done", CoreLanguage.number(done))) }
+        if skipped > 0 { parts.append(skipped == 1 ? loc("1 skipped") : loc("{0} skipped", CoreLanguage.number(skipped))) }
+        if failed > 0 { parts.append(failed == 1 ? loc("1 failed") : loc("{0} failed", CoreLanguage.number(failed))) }
+        if cancelled > 0 { parts.append(cancelled == 1 ? loc("1 cancelled") : loc("{0} cancelled", CoreLanguage.number(cancelled))) }
         return parts.isEmpty ? loc("No files.") : parts.joined(separator: ", ") + "."
     }
 }
@@ -784,7 +784,7 @@ public enum BatchRunner {
                 if figures == 1 {
                     notes.append(loc("1 picture needs alternate text: open the file and use Tools › Reading Order and Alt Text"))
                 } else if figures > 1 {
-                    notes.append(loc("{0} pictures need alternate text: open the file and use Tools › Reading Order and Alt Text", figures))
+                    notes.append(loc("{0} pictures need alternate text: open the file and use Tools › Reading Order and Alt Text", CoreLanguage.number(figures)))
                 }
                 return tagged
             default:
@@ -812,7 +812,7 @@ public enum BatchRunner {
                                                 progress: { [self] done, total in self.report(loc("Checking redaction…"), Double(done) / Double(max(1, total))) }, cancel: cancel)
             if report.isClean { return }
             for f in report.findings.prefix(10) { notes.append("\(f.place): \(RedactionCheck.name(f.kind))") }
-            if report.findings.count > 10 { notes.append(loc("… and {0} more", report.findings.count - 10)) }
+            if report.findings.count > 10 { notes.append(loc("… and {0} more", CoreLanguage.number(report.findings.count - 10))) }
             throw BatchCheckFailed(message: loc("Redaction check: {0}", report.summary))
         }
 
@@ -826,9 +826,9 @@ public enum BatchRunner {
             outputs.append(try names.place(folder, baseName + " accessibility.html") { try html.write(toFile: $0, atomically: false, encoding: .utf8) })
             if report.passed { return }
             for f in report.failures.prefix(10) { notes.append("\(f.condition) · \(f.place): \(f.problem)") }
-            if report.failures.count > 10 { notes.append(loc("… and {0} more (see the report)", report.failures.count - 10)) }
+            if report.failures.count > 10 { notes.append(loc("… and {0} more (see the report)", CoreLanguage.number(report.failures.count - 10))) }
             for n in report.notes.prefix(10) { notes.append(loc("Not checked: {0}", n)) }
-            if report.notes.count > 10 { notes.append(loc("… and {0} more not checked (see the report)", report.notes.count - 10)) }
+            if report.notes.count > 10 { notes.append(loc("… and {0} more not checked (see the report)", CoreLanguage.number(report.notes.count - 10))) }
             throw BatchCheckFailed(message: loc("Accessibility check: {0}", report.summary))
         }
 
@@ -859,7 +859,7 @@ public enum BatchRunner {
             var hadText = 0
             for p in 0..<engine.pageCount {
                 try cancel.check()
-                report(loc("Recognizing text: page {0} of {1}…", p + 1, engine.pageCount), Double(p) / Double(engine.pageCount))
+                report(loc("Recognizing text: page {0} of {1}…", CoreLanguage.number(p + 1), CoreLanguage.number(engine.pageCount)), Double(p) / Double(engine.pageCount))
                 if try TextLayer.hasText(engine, p, cancel: cancel) {
                     hadText += 1
                     continue
@@ -870,7 +870,7 @@ public enum BatchRunner {
             if words.count == 1 {
                 notes.append(loc("Text recognized on 1 page"))
             } else if !words.isEmpty {
-                notes.append(loc("Text recognized on {0} pages", words.count))
+                notes.append(loc("Text recognized on {0} pages", CoreLanguage.number(words.count)))
             } else if hadText < engine.pageCount {
                 notes.append(loc("No text recognized"))
             }
@@ -878,7 +878,7 @@ public enum BatchRunner {
             if suspect == 1 {
                 notes.append(loc("1 suspect word to check (Tools › Review Suspect Words)"))
             } else if suspect > 1 {
-                notes.append(loc("{0} suspect words to check (Tools › Review Suspect Words)", suspect))
+                notes.append(loc("{0} suspect words to check (Tools › Review Suspect Words)", CoreLanguage.number(suspect)))
             }
             return words
         }
@@ -894,7 +894,7 @@ public enum BatchRunner {
                 let jpeg = format == .jpeg
                 for p in 0..<engine.pageCount {
                     try cancel.check()
-                    report(loc("Saving page {0} of {1}…", p + 1, engine.pageCount), Double(p) / Double(engine.pageCount))
+                    report(loc("Saving page {0} of {1}…", CoreLanguage.number(p + 1), CoreLanguage.number(engine.pageCount)), Double(p) / Double(engine.pageCount))
                     let resolution = PageImages.clampDpi(engine.page(p), Double(dpi))
                     outputs.append(try names.place(folder, "\(baseName) - page \(p + 1).\(jpeg ? "jpg" : "png")") { temp in
                         try engine.saveImage(p, dpi: resolution, path: temp, jpeg: jpeg, cancel: cancel)
@@ -914,7 +914,7 @@ public enum BatchRunner {
             let title = ((file.path as NSString).lastPathComponent as NSString).deletingPathExtension
             let report = try DocumentExport.export(engine, exportFormat, to: sink, options: ExportOptions(title: title, source: data, sourcePassword: password),
                                                    cancel: cancel)
-            for problem in report.unreadable { notes.append(loc("Page {0} couldn't be read", problem.page + 1)) }
+            for problem in report.unreadable { notes.append(loc("Page {0} couldn't be read", CoreLanguage.number(problem.page + 1))) }
             if !report.saved {
                 let why = switch exportFormat {
                 case .word: loc("Word: no text or pictures, nothing saved")
@@ -973,11 +973,11 @@ public enum BatchRunner {
     static func redactedNote(_ matches: Int, _ pages: Int, _ summary: String) -> String {
         if matches == 0 { return loc("Redact patterns: nothing found, left as it was") }
         if pages == 1 {
-            if matches == 1 { return loc("Redacted {0} match on {1} page ({2})", matches, pages, summary) }
-            return loc("Redacted {0} matches on {1} page ({2})", matches, pages, summary)
+            if matches == 1 { return loc("Redacted {0} match on {1} page ({2})", CoreLanguage.number(matches), CoreLanguage.number(pages), summary) }
+            return loc("Redacted {0} matches on {1} page ({2})", CoreLanguage.number(matches), CoreLanguage.number(pages), summary)
         }
-        if matches == 1 { return loc("Redacted {0} match on {1} pages ({2})", matches, pages, summary) }
-        return loc("Redacted {0} matches on {1} pages ({2})", matches, pages, summary)
+        if matches == 1 { return loc("Redacted {0} match on {1} pages ({2})", CoreLanguage.number(matches), CoreLanguage.number(pages), summary) }
+        return loc("Redacted {0} matches on {1} pages ({2})", CoreLanguage.number(matches), CoreLanguage.number(pages), summary)
     }
 
     /// Make accessible's note: how many pieces were tagged, the title and the language.
@@ -989,8 +989,8 @@ public enum BatchRunner {
             said = loc("no language (none could be told)")
         }
         let earlier = replaced ? loc("; its earlier tags replaced") : ""
-        if pieces == 1 { return loc("Tagged: {0} piece in reading order, title \"{1}\", {2}{3}", pieces, title, said, earlier) }
-        return loc("Tagged: {0} pieces in reading order, title \"{1}\", {2}{3}", pieces, title, said, earlier)
+        if pieces == 1 { return loc("Tagged: {0} piece in reading order, title \"{1}\", {2}{3}", CoreLanguage.number(pieces), title, said, earlier) }
+        return loc("Tagged: {0} pieces in reading order, title \"{1}\", {2}{3}", CoreLanguage.number(pieces), title, said, earlier)
     }
 
     static func looksLikePdf(_ data: [UInt8]) -> Bool { data.prefix(1024).firstRange(of: Array("%PDF-".utf8)) != nil }

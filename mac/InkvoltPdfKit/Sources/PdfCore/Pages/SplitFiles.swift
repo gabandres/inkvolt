@@ -29,7 +29,7 @@ public struct BatchWriteError: Error, Equatable, Sendable, CustomStringConvertib
     public var message: String {
         if written.isEmpty { return loc("{0} No files were written.", description) }
         let names = written.prefix(5).map { ($0 as NSString).lastPathComponent }.joined(separator: ", ")
-        if written.count > 5 { return loc("{0} These files were written before it stopped: {1} and {2} more.", description, names, written.count - 5) }
+        if written.count > 5 { return loc("{0} These files were written before it stopped: {1} and {2} more.", description, names, CoreLanguage.number(written.count - 5)) }
         return loc("{0} These files were written before it stopped: {1}.", description, names)
     }
 }
@@ -50,7 +50,7 @@ public enum SplitFiles {
         switch mode {
         case .pageCount:
             guard let n = Int(pagesPerFile.trimmingCharacters(in: .whitespaces)), n >= 1, n <= pageCount else {
-                return ([], loc("Enter a page count from 1 to {0}.", pageCount))
+                return ([], loc("Enter a page count from 1 to {0}.", CoreLanguage.number(pageCount)))
             }
             parts = PageEditor.chunksOf(pageCount, n).map { SplitPart(pages: $0) }
         case .ranges:

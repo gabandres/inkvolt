@@ -16,13 +16,13 @@ public struct ReadingOrderItem: Equatable, Sendable {
         let b = block
         let what: String
         switch b.kind {
-        case .heading: what = loc("Heading {0}", b.level)
+        case .heading: what = loc("Heading {0}", CoreLanguage.number(b.level))
         case .list:
             let n = b.items.count
             if b.items.contains(where: { $0.level > 0 }) {
-                what = n == 1 ? loc("List ({0} item, nested)", n) : loc("List ({0} items, nested)", n)
+                what = n == 1 ? loc("List ({0} item, nested)", CoreLanguage.number(n)) : loc("List ({0} items, nested)", CoreLanguage.number(n))
             } else {
-                what = n == 1 ? loc("List ({0} item)", n) : loc("List ({0} items)", n)
+                what = n == 1 ? loc("List ({0} item)", CoreLanguage.number(n)) : loc("List ({0} items)", CoreLanguage.number(n))
             }
         case .table:
             let headers = switch (b.headerRow, b.headerColumn) {
@@ -31,15 +31,15 @@ public struct ReadingOrderItem: Equatable, Sendable {
             case (false, true): loc(", row headers")
             case (false, false): ""
             }
-            what = b.rows.count == 1 ? loc("Table ({0} row{1})", b.rows.count, headers) : loc("Table ({0} rows{1})", b.rows.count, headers)
+            what = b.rows.count == 1 ? loc("Table ({0} row{1})", CoreLanguage.number(b.rows.count), headers) : loc("Table ({0} rows{1})", CoreLanguage.number(b.rows.count), headers)
         case .caption: what = loc("Caption")
         case .note: what = loc("Footnote")
-        case .contents: what = b.items.count == 1 ? loc("Table of contents ({0} entry)", b.items.count) : loc("Table of contents ({0} entries)", b.items.count)
+        case .contents: what = b.items.count == 1 ? loc("Table of contents ({0} entry)", CoreLanguage.number(b.items.count)) : loc("Table of contents ({0} entries)", CoreLanguage.number(b.items.count))
         case .formula: what = loc("Formula")
         case .figure: what = b.decorative ? loc("Picture (decorative)") : needsAlt ? loc("Picture: needs alternate text") : loc("Picture")
         case .paragraph: what = b.lang.map { loc("Paragraph ({0})", $0) } ?? loc("Paragraph")
         }
-        return what + (b.readWith == nil ? "" : loc(" · from page {0}", b.page + 1))
+        return what + (b.readWith == nil ? "" : loc(" · from page {0}", CoreLanguage.number(b.page + 1)))
     }
 
     public var preview: String {
@@ -115,16 +115,16 @@ public enum ReadingOrder {
             s.summary = loc("The document changed since this reading order was made. Choose Make Accessible again to read it anew.")
         } else {
             let n = s.items.count
-            var parts = [n == 1 ? loc("{0} piece on page {1}, in the order a screen reader reads them.", n, page + 1)
-                : loc("{0} pieces on page {1}, in the order a screen reader reads them.", n, page + 1)]
+            var parts = [n == 1 ? loc("{0} piece on page {1}, in the order a screen reader reads them.", CoreLanguage.number(n), CoreLanguage.number(page + 1))
+                : loc("{0} pieces on page {1}, in the order a screen reader reads them.", CoreLanguage.number(n), CoreLanguage.number(page + 1))]
             if readElsewhere > 0 {
-                parts.append(readElsewhere == 1 ? loc("{0} piece here is read with another page.", readElsewhere)
-                    : loc("{0} pieces here are read with another page.", readElsewhere))
+                parts.append(readElsewhere == 1 ? loc("{0} piece here is read with another page.", CoreLanguage.number(readElsewhere))
+                    : loc("{0} pieces here are read with another page.", CoreLanguage.number(readElsewhere)))
             }
             if missing == 0 {
                 parts.append(loc("Every picture has alternate text or is decorative."))
             } else {
-                parts.append(missing == 1 ? loc("{0} picture needs alternate text.", missing) : loc("{0} pictures need alternate text.", missing))
+                parts.append(missing == 1 ? loc("{0} picture needs alternate text.", CoreLanguage.number(missing)) : loc("{0} pictures need alternate text.", CoreLanguage.number(missing)))
             }
             parts.append(written ? loc("The document is tagged this way.") : loc("Apply changes to tag the document this way."))
             s.summary = parts.joined(separator: " ")
@@ -162,7 +162,7 @@ public enum ReadingOrder {
         var list: [PieceKind] = []
         for k in AutoTag.kindsFor(b) {
             if k == .heading {
-                for level in 1...6 { list.append(PieceKind(kind: k, level: level, label: loc("Heading {0}", level))) }
+                for level in 1...6 { list.append(PieceKind(kind: k, level: level, label: loc("Heading {0}", CoreLanguage.number(level)))) }
                 continue
             }
             let label = switch k {
@@ -186,7 +186,7 @@ public enum ReadingOrder {
     }
 
     /// What is announced once a piece was made another kind.
-    public static func kindChanged(_ number: Int, _ label: String) -> String { loc("Piece {0} is now: {1}", number, label) }
+    public static func kindChanged(_ number: Int, _ label: String) -> String { loc("Piece {0} is now: {1}", CoreLanguage.number(number), label) }
 
     public static var kindHelp: String { loc("What a screen reader announces this piece as: a heading, a paragraph, a picture… Apply Changes to tag it so.") }
 
@@ -222,20 +222,20 @@ public enum ReadingOrder {
     public static func found(_ plan: TagPlan) -> String {
         let h = plan.blocks.count { $0.kind == .heading }, t = plan.blocks.count { $0.kind == .table }
         let f = plan.blocks.count { $0.kind == .figure }, missing = plan.figuresWithoutAlt
-        let headings = h == 1 ? loc("{0} heading", h) : loc("{0} headings", h)
-        let tables = t == 1 ? loc("{0} table", t) : loc("{0} tables", t)
-        let figures = f == 1 ? loc("{0} picture", f) : loc("{0} pictures", f)
+        let headings = h == 1 ? loc("{0} heading", CoreLanguage.number(h)) : loc("{0} headings", CoreLanguage.number(h))
+        let tables = t == 1 ? loc("{0} table", CoreLanguage.number(t)) : loc("{0} tables", CoreLanguage.number(t))
+        let figures = f == 1 ? loc("{0} picture", CoreLanguage.number(f)) : loc("{0} pictures", CoreLanguage.number(f))
         if missing == 0 { return loc("Found: {0}, {1}, {2}.", headings, tables, figures) }
         return missing == 1
-            ? loc("Found: {1}, {2}, {3}; {0} picture still needs alternate text, which you add in the Reading Order pane that opens next.", missing, headings, tables, figures)
-            : loc("Found: {1}, {2}, {3}; {0} pictures still need alternate text, which you add in the Reading Order pane that opens next.", missing, headings, tables, figures)
+            ? loc("Found: {1}, {2}, {3}; {0} picture still needs alternate text, which you add in the Reading Order pane that opens next.", CoreLanguage.number(missing), headings, tables, figures)
+            : loc("Found: {1}, {2}, {3}; {0} pictures still need alternate text, which you add in the Reading Order pane that opens next.", CoreLanguage.number(missing), headings, tables, figures)
     }
 
     /// What the status bar says once the tags are written.
     public static func written(_ plan: TagPlan) -> String {
         let missing = plan.figuresWithoutAlt
         if missing == 0 { return loc("Tagged. Check the reading order. Save to keep it.") }
-        return missing == 1 ? loc("Tagged. {0} picture needs alternate text: select each in the Reading Order pane.", missing)
-            : loc("Tagged. {0} pictures need alternate text: select each in the Reading Order pane.", missing)
+        return missing == 1 ? loc("Tagged. {0} picture needs alternate text: select each in the Reading Order pane.", CoreLanguage.number(missing))
+            : loc("Tagged. {0} pictures need alternate text: select each in the Reading Order pane.", CoreLanguage.number(missing))
     }
 }

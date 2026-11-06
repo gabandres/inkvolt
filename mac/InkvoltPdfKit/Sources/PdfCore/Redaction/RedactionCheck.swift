@@ -125,10 +125,10 @@ public struct RedactionCheckReport: Sendable {
         let parts = counts.keys.sorted().map { k -> String in
             let name = RedactionCheck.name(k)
             let lower: String = name.prefix(1).lowercased() + name.dropFirst()
-            return loc("{0} ({1})", lower, counts[k]!)
+            return loc("{0} ({1})", lower, CoreLanguage.number(counts[k]!))
         }
         let list = parts.joined(separator: ", ")
-        return findings.count == 1 ? loc("{0} thing found: {1}.", 1, list) : loc("{0} things found: {1}.", findings.count, list)
+        return findings.count == 1 ? loc("{0} thing found: {1}.", 1, list) : loc("{0} things found: {1}.", CoreLanguage.number(findings.count), list)
     }
 }
 
@@ -567,7 +567,7 @@ extension RedactionCheck {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                notes.append(loc("Page {0}: part of its content couldn't be read, so boxes on it may have been missed.", index + 1))
+                notes.append(loc("Page {0}: part of its content couldn't be read, so boxes on it may have been missed.", CoreLanguage.number(index + 1)))
             }
             guard let annots = page.array("Annots") else { return scan }
             for i in 0..<annots.count {
@@ -669,7 +669,7 @@ extension RedactionCheck {
                 // Its box is outside the page: redacting it draws the page again as a picture, without it, and blacks out nothing.
                 let box = text.rects(start, end).reduce(RectD.zero) { $0.union($1) }
                 let value = text.string(start, end)
-                add(RedactionFinding(.hiddenText, loc("Page {0}, outside the visible page", p + 1), value, page: p, box: box))
+                add(RedactionFinding(.hiddenText, loc("Page {0}, outside the visible page", CoreLanguage.number(p + 1)), value, page: p, box: box))
                 found.append(value)
                 for i in start..<end { reported[p].insert(i) }
             }
@@ -735,7 +735,7 @@ extension RedactionCheck {
                 }
                 let words = runs.map { text.string($0.start, $0.end) }.joined(separator: " ")
                 let box = rects.reduce(RectD.zero) { $0.union($1) }
-                add(RedactionFinding(.unappliedMark, loc("Page {0}", p + 1), words.isEmpty ? loc("(no text under it: what it covers is still in the page)") : words,
+                add(RedactionFinding(.unappliedMark, loc("Page {0}", CoreLanguage.number(p + 1)), words.isEmpty ? loc("(no text under it: what it covers is still in the page)") : words,
                                      page: p, box: box))
                 for (s, e) in runs {
                     found.append(text.string(s, e))
@@ -783,7 +783,7 @@ extension RedactionCheck {
                         let b = text.boxAt(i)
                         return area.contains(b.centerX, b.centerY)
                     }
-                    let place = cover.annot >= 0 ? loc("Page {0}, under a dark comment", p + 1) : loc("Page {0}, under a dark box", p + 1)
+                    let place = cover.annot >= 0 ? loc("Page {0}, under a dark comment", CoreLanguage.number(p + 1)) : loc("Page {0}, under a dark box", CoreLanguage.number(p + 1))
                     if !under.isEmpty {
                         add(RedactionFinding(.coveredText, place, under.map { text.string($0.start, $0.end) }.joined(separator: " "), page: p, box: area))
                         for (s, e) in under {
@@ -861,7 +861,7 @@ extension RedactionCheck {
                 lines.sort { text.boxAt($0.start).x < text.boxAt($1.start).x }
                 let left = lines.filter { text.boxAt($0.start).x < box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
                 let right = lines.filter { text.boxAt($0.start).x >= box.x }.map { text.string($0.start, $0.end).trimmingCharacters(in: .whitespaces) }
-                add(RedactionFinding(.glyphSpacing, loc("Page {0}, beside a dark box", p + 1), (left + ["▮"] + right).joined(separator: " "), page: p, box: box))
+                add(RedactionFinding(.glyphSpacing, loc("Page {0}, beside a dark box", CoreLanguage.number(p + 1)), (left + ["▮"] + right).joined(separator: " "), page: p, box: box))
             }
         }
 
@@ -873,8 +873,8 @@ extension RedactionCheck {
                 if (start..<end).contains(where: reported[p].contains) { continue }
                 let box = text.rects(start, end).reduce(RectD.zero) { $0.union($1) }
                 let cover = scan.covers.first { $0.box.inflate(0.5).contains(box.centerX, box.centerY) }
-                let place = cover == nil ? loc("Page {0}, covered or drawn in the color behind it", p + 1)
-                    : cover!.annot >= 0 ? loc("Page {0}, under a dark comment", p + 1) : loc("Page {0}, under a dark box", p + 1)
+                let place = cover == nil ? loc("Page {0}, covered or drawn in the color behind it", CoreLanguage.number(p + 1))
+                    : cover!.annot >= 0 ? loc("Page {0}, under a dark comment", CoreLanguage.number(p + 1)) : loc("Page {0}, under a dark box", CoreLanguage.number(p + 1))
                 let value = text.string(start, end)
                 add(RedactionFinding(.coveredText, place, value, page: p, box: cover?.box ?? box))
                 found.append(value)
@@ -940,13 +940,13 @@ extension RedactionCheck {
                     var off = 0
                     for i in stride(from: 0, to: img.pixels.count - 2, by: 3) where Self.distance(img.pixels, i, main) > 60 { off += 1 }
                     if off > max(4, n / 50) {
-                        add(RedactionFinding(.areaNotRemoved, loc("Page {0}", p + 1), loc("The redacted area still shows content"), page: p, box: rect))
+                        add(RedactionFinding(.areaNotRemoved, loc("Page {0}", CoreLanguage.number(p + 1)), loc("The redacted area still shows content"), page: p, box: rect))
                     }
                     if !originals.isEmpty && scans[p].pictures.contains(where: { pic in
                         guard let im = pic.image, !pic.box.intersect(area).isEmpty else { return false }
                         return originals.contains(Self.hash(im))
                     }) {
-                        add(RedactionFinding(.areaNotRemoved, loc("Page {0}", p + 1), loc("The picture under the redacted area is the original, unchanged"), page: p, box: rect))
+                        add(RedactionFinding(.areaNotRemoved, loc("Page {0}", CoreLanguage.number(p + 1)), loc("The picture under the redacted area is the original, unchanged"), page: p, box: rect))
                     }
                 }
             }
@@ -974,13 +974,13 @@ extension RedactionCheck {
             hiddenLayers = scan[.hiddenLayers]
             let layers = scan[.hiddenLayers]
             if layers > 0 {
-                let detail = layers == 1 ? loc("{0} layer that don't show, with what they draw", 1) : loc("{0} layers that don't show, with what they draw", layers)
+                let detail = layers == 1 ? loc("{0} layer that don't show, with what they draw", 1) : loc("{0} layers that don't show, with what they draw", CoreLanguage.number(layers))
                 add(RedactionFinding(.hiddenContent, loc("Hidden layers"), detail,
                                      sanitize: .hiddenLayers))
             }
             let annots = scan[.hiddenAnnotations]
             if annots > 0 {
-                let detail = annots == 1 ? loc("{0} comment or field that don't show", 1) : loc("{0} comments and fields that don't show", annots)
+                let detail = annots == 1 ? loc("{0} comment or field that don't show", 1) : loc("{0} comments and fields that don't show", CoreLanguage.number(annots))
                 add(RedactionFinding(.hiddenContent, loc("Hidden comments and form fields"), detail, sanitize: .hiddenAnnotations))
             }
         }
@@ -993,7 +993,7 @@ extension RedactionCheck {
                 if (start..<start + length).contains(where: reported[p].contains) { continue } // reported under its cover
                 let box = text.rects(start, start + length).reduce(RectD.zero) { $0.union($1) }
                 let value = text.string(start, start + length).replacingOccurrences(of: "\n", with: " ")
-                add(RedactionFinding(.pageText, loc("Page {0}", p + 1), value, page: p, box: box))
+                add(RedactionFinding(.pageText, loc("Page {0}", CoreLanguage.number(p + 1)), value, page: p, box: box))
                 for i in start..<start + length { reported[p].insert(i) }
             }
         }

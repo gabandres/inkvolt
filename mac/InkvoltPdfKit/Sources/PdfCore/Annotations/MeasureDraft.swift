@@ -99,7 +99,7 @@ public struct MeasureDraft: Sendable, Equatable {
 
     /// For the self-test and VoiceOver: how many points and the value without the pointer (nil while nothing is under way).
     public func described(_ scale: MeasureScale) -> String? {
-        isActive ? loc("{0} point(s), {1}", points.count, value(scale, includeHover: false)) : nil
+        isActive ? loc("{0} point(s), {1}", CoreLanguage.number(points.count), value(scale, includeHover: false)) : nil
     }
 }
 

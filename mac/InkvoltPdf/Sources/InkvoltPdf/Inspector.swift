@@ -72,7 +72,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         let kind = DocumentEditor.kindName(c)
         if let a = c.author, !a.isEmpty { header.stringValue = loc("{0} by {1}", kind, a) } else { header.stringValue = kind }
         if let m = c.modified {
-            let date = NSTextField(labelWithString: loc("{0} · page {1}", m.formatted(date: .abbreviated, time: .shortened), c.pageIndex + 1))
+            let date = NSTextField(labelWithString: loc("{0} · page {1}", m.formatted(date: .abbreviated, time: .shortened), CoreLanguage.number(c.pageIndex + 1)))
             date.textColor = .secondaryLabelColor
             date.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             stack.addArrangedSubview(date)
@@ -106,7 +106,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         // Replies, and a field for another.
         let replies = editor.replies(to: c.id)
         if !replies.isEmpty {
-            let label = NSTextField(labelWithString: replies.count == 1 ? loc("1 reply") : loc("{0} replies", replies.count))
+            let label = NSTextField(labelWithString: replies.count == 1 ? loc("1 reply") : loc("{0} replies", CoreLanguage.number(replies.count)))
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
             stack.addArrangedSubview(label)
             for r in replies.prefix(6) {
@@ -180,7 +180,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             stepper.action = #selector(sizeChanged(_:))
             stepper.setAccessibilityLabel(loc("Text size"))
             sizeStepper = stepper
-            let value = NSTextField(labelWithString: loc("{0} pt", Int(style.fontSize)))
+            let value = NSTextField(labelWithString: loc("{0} pt", CoreLanguage.number(Int(style.fontSize))))
             stack.addArrangedSubview(row(loc("Text size"), NSStackView(views: [value, stepper])))
         }
     }
@@ -366,7 +366,7 @@ final class AskController: NSViewController {
         case .link:
             title = loc("Link to")
             field.placeholderString = loc("Web or email address")
-            pageField.placeholderString = loc("or page 1–{0}", pageCount)
+            pageField.placeholderString = loc("or page 1–{0}", CoreLanguage.number(pageCount))
             pageField.setAccessibilityLabel(loc("Page number"))
         }
         field.setAccessibilityLabel(title)

@@ -156,7 +156,7 @@ struct ViewTest {
         GoToPageState.testAnswer = String(n + 1)
         choose(loc("Go to Page…"))
         await settle()
-        let refused = pages.currentPage == n - 1 && GoToPageState.lastProblem == loc("Enter a page from 1 to {0}.", n)
+        let refused = pages.currentPage == n - 1 && GoToPageState.lastProblem == loc("Enter a page from 1 to {0}.", CoreLanguage.number(n))
         GoToPageState.testAnswer = nil
         controller.go(0)
         check(chosen && shown && refused, "Go to Page…: “\(n)” shows the last page; “\(n + 1)” is refused with the range, the page kept")

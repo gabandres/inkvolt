@@ -138,7 +138,7 @@ public enum AiPrompts {
         for i in chunks.indices {
             try cancel.check()
             done += 1
-            let summary = try await ask(first[i], AiStep(done, total, false, loc("Summarizing part {0} of {1} ({2})", i + 1, chunks.count, chunks[i].pagesText)), cancel)
+            let summary = try await ask(first[i], AiStep(done, total, false, loc("Summarizing part {0} of {1} ({2})", CoreLanguage.number(i + 1), CoreLanguage.number(chunks.count), chunks[i].pagesText)), cancel)
             parts.append((chunks[i], summary))
         }
 

@@ -171,7 +171,7 @@ final class AccessibilityChecker {
 
         for condition in droppedOrder {
             let n = dropped[condition] ?? 0
-            var more = AccessibilityFinding(condition: condition, problem: loc("… and {0} more like these (only the first {1} are listed).", n, AccessibilityCheck.maxPerCondition))
+            var more = AccessibilityFinding(condition: condition, problem: loc("… and {0} more like these (only the first {1} are listed).", CoreLanguage.number(n), CoreLanguage.number(AccessibilityCheck.maxPerCondition)))
             more.count = n
             findings.append(more)
         }
@@ -402,8 +402,8 @@ final class AccessibilityChecker {
             if let next = item.dict("Next") { stack.append(next) }
             if let kid = item.dict("First") { stack.append(kid) }
         }
-        let problem = count == 1 ? loc("The document has no language, so the language of its {0} bookmark can't be told.", count)
-            : loc("The document has no language, so the language of its {0} bookmarks can't be told.", count)
+        let problem = count == 1 ? loc("The document has no language, so the language of its {0} bookmark can't be told.", CoreLanguage.number(count))
+            : loc("The document has no language, so the language of its {0} bookmarks can't be told.", CoreLanguage.number(count))
         add("11-003", problem, element: loc("Bookmarks"), count: count)
     }
 

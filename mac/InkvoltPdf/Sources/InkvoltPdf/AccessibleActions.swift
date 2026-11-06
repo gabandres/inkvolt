@@ -54,7 +54,7 @@ extension DocumentWindowController {
                 let engine = try PdfEngine.open(data, password: password)
                 defer { engine.close() }
                 return try AutoTag.plan(engine, data, password, progress: { done, total in
-                    Task { @MainActor in sheet.update(loc("Reading page {0} of {1}…", done + 1, total), Double(done) / Double(max(1, total))) }
+                    Task { @MainActor in sheet.update(loc("Reading page {0} of {1}…", CoreLanguage.number(done + 1), CoreLanguage.number(total)), Double(done) / Double(max(1, total))) }
                 }, cancel: token)
             }
         }.value

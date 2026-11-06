@@ -223,7 +223,7 @@ extension DocumentWindowController {
         if report.failed.isEmpty && report.unknownColumns.isEmpty {
             notify(text)
         } else {
-            var lines = report.failed.prefix(1000).map { loc("Row {0}: {1}", $0.row, $0.problems.joined(separator: "; ")) }.joined(separator: "\n")
+            var lines = report.failed.prefix(1000).map { loc("Row {0}: {1}", CoreLanguage.number($0.row), $0.problems.joined(separator: "; ")) }.joined(separator: "\n")
             if report.failed.count > 1000 { lines += "\n" + loc("… and {0} more (see the report)", CoreLanguage.number(report.failed.count - 1000)) }
             infoSheet(loc("Forms Filled"), text, list: report.failed.isEmpty ? nil : lines, listName: loc("Rows not saved"))
         }

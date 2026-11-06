@@ -226,7 +226,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         createButton.title = controller == nil ? loc("Create PDF") : loc("Insert Pages")
         placePopup.removeAllItems()
         let page = current + 1
-        placePopup.addItems(withTitles: [loc("After page {0}", page), loc("Before page {0}", page), loc("At the start"), loc("At the end")])
+        placePopup.addItems(withTitles: [loc("After page {0}", CoreLanguage.number(page)), loc("Before page {0}", CoreLanguage.number(page)), loc("At the start"), loc("At the end")])
         placePopup.setAccessibilityLabel(loc("Insert"))
         placePopup.isHidden = controller == nil
         placeLabel.isHidden = controller == nil
@@ -396,7 +396,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         colorPopup.selectItem(at: colors.firstIndex(of: wantColor ? .color : .grayscale) ?? 0)
         resolutions = ScanChoices.resolutions(caps, source)
         resolutionPopup.removeAllItems()
-        resolutionPopup.addItems(withTitles: resolutions.map { loc("{0} dpi", $0) })
+        resolutionPopup.addItems(withTitles: resolutions.map { loc("{0} dpi", CoreLanguage.number($0)) })
         let dpi = wanted?.resolution ?? d.object(forKey: AppSettings.Key.scanResolution) as? Int ?? 300
         let closest = resolutions.indices.min { abs(resolutions[$0] - dpi) < abs(resolutions[$1] - dpi) }
         let fallback = wanted == nil ? resolutions.firstIndex { $0 >= 300 } : closest
@@ -633,7 +633,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
             view.imageScaling = .scaleProportionallyUpOrDown
             view.widthAnchor.constraint(equalToConstant: 76).isActive = true
             view.heightAnchor.constraint(equalToConstant: 100).isActive = true
-            view.setAccessibilityLabel(loc("Page {0}", pages.count))
+            view.setAccessibilityLabel(loc("Page {0}", CoreLanguage.number(pages.count)))
             thumbs.addArrangedSubview(view)
         }
         refresh()
@@ -646,11 +646,11 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         if let error {
             let why = Self.describe(error)
             message.stringValue = kept == 0 ? loc("The scan stopped: {0}", why)
-                : kept == 1 ? loc("The scan stopped after {0} page, which is kept: {1}", kept, why)
-                : loc("The scan stopped after {0} pages, which are kept: {1}", kept, why)
+                : kept == 1 ? loc("The scan stopped after {0} page, which is kept: {1}", CoreLanguage.number(kept), why)
+                : loc("The scan stopped after {0} pages, which are kept: {1}", CoreLanguage.number(kept), why)
         } else if stopped {
             message.stringValue = kept == 0 ? loc("Scanning stopped.")
-                : kept == 1 ? loc("Scanning stopped; the {0} page scanned is kept.", kept) : loc("Scanning stopped; the {0} pages scanned are kept.", kept)
+                : kept == 1 ? loc("Scanning stopped; the {0} page scanned is kept.", CoreLanguage.number(kept)) : loc("Scanning stopped; the {0} pages scanned are kept.", CoreLanguage.number(kept))
         } else {
             message.stringValue = ScanRun.doneText(kept: kept, blank: blank, unreadable: unreadable, glass: glass, finish: createButton.title)
         }
@@ -693,7 +693,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 // Where, from the document as it is now (it may have changed meanwhile), as Windows clamps it.
                 let n = c.engine.pageCount, current = min(self.insertInto.current, max(n - 1, 0))
                 let at = min(max([current + 1, current, 0, n][max(place, 0)], 0), n)
-                let label = count == 1 ? loc("Insert {0} page from the scanner", count) : loc("Insert {0} pages from the scanner", count)
+                let label = count == 1 ? loc("Insert {0} page from the scanner", CoreLanguage.number(count)) : loc("Insert {0} pages from the scanner", CoreLanguage.number(count))
                 guard await c.insertPages(PdfSource(bytes, nil, NewDocuments.name(loc("Scan", context: "file name"))), at: at, pages: nil, label: label) else {
                     self.message.stringValue = loc("The pages couldn't be inserted.")
                     return
@@ -730,7 +730,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         if isScanning { scanTask?.cancel() }
         if !pages.isEmpty && !Report.isRunning {
             let alert = NSAlert()
-            alert.messageText = pages.count == 1 ? loc("Discard the scanned page?") : loc("Discard the {0} scanned pages?", pages.count)
+            alert.messageText = pages.count == 1 ? loc("Discard the scanned page?") : loc("Discard the {0} scanned pages?", CoreLanguage.number(pages.count))
             alert.addButton(withTitle: loc("Discard"))
             alert.addButton(withTitle: loc("Keep Scanning"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
