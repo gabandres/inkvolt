@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.
 - Al imprimir, las páginas se envían tal como son, no como imágenes: el texto y las líneas se ven nítidos a cualquier tamaño, y los trabajos de impresión son muchas veces más pequeños y rápidos de enviar. Los comentarios, los campos de formulario, las capas que se muestran y los mosaicos de póster se imprimen como antes.
 - Escanear muestra enseguida los escáneres que Inkvolt Print ya conoce, con sus direcciones, antes de que la búsqueda en la red encuentre los demás; uno que cambió de dirección se encuentra en la nueva.
 - Ajustes predefinidos de escaneo: Guardar como ajuste predefinido… guarda con un nombre el origen, el color, la resolución, el tamaño de página, el reconocimiento de texto y las opciones de páginas en blanco. Al elegir uno, se aplican al escáner que esté elegido, y te dice lo que ese escáner no puede hacer.

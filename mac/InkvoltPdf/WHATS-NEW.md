@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
 - Printing sends pages as they are, not as pictures: text and lines stay sharp at any size, and print jobs are many times smaller and faster to send. Comments, form fields, the layers shown and poster tiles print as before.
 - Scan lists the scanners Inkvolt Print knows straight away, with their addresses, before the network search finds the rest; one that moved to a new address is found there.
 - Scan presets: Save as Preset… keeps the source, color, resolution, page size, text recognition and blank page choices under a name. Choosing one sets them for whichever scanner is chosen, and says what that scanner can't do.
