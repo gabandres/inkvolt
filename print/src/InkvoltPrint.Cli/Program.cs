@@ -162,7 +162,7 @@ switch (cmd)
     case "scanners":
         // Read-only: the WIA scanners Windows has drivers for and the 64-bit TWAIN sources beside them, as the app lists them;
         // --caps connects to each and prints what it offers (never scans).
-        var driverScanners = InkvoltPrint.Windows.Scanning.WindowsTwain.BesideWia(Console.WriteLine);
+        var driverScanners = InkvoltPrint.Windows.Scanning.WindowsTwain.BesideWia(Console.Error.WriteLine); // stdout is the list alone
         foreach (var d in await driverScanners.ListScannersAsync(ct))
         {
             Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : d.IsTwain ? " (TWAIN driver)" : "")}");
