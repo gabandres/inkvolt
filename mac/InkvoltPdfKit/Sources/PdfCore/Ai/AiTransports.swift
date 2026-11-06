@@ -805,12 +805,13 @@ public final class AiLoopbackServer: @unchecked Sendable {
 
     /// Stops listening and ends the connections, and returns once the port is closed. Each socket is closed by the thread
     /// using it, so its number can't be reused under that thread (these run beside real connections in the same process).
+    /// The shutdowns happen under the lock `finish` closes under: shut down after the lock was let go, a socket closed in
+    /// between could already be another connection's number (another test's, on CI: "closed before the answer finished").
     public func stop() {
-        let sockets: [Int32] = lock.withLock {
+        lock.withLock {
             stopped = true
-            return open
+            for s in open { shutdown(s, SHUT_RDWR) }
         }
-        for s in sockets { shutdown(s, SHUT_RDWR) }
         listenerClosed.wait()
         listenerClosed.signal() // for another stop()
     }
@@ -846,9 +847,12 @@ public final class AiLoopbackServer: @unchecked Sendable {
         thread.start()
     }
 
+    /// Closed under the lock, so `stop` never shuts down a number this close has freed for another socket.
     private func finish(_ client: Int32) {
-        lock.withLock { open.removeAll { $0 == client } }
-        Darwin.close(client)
+        lock.withLock {
+            open.removeAll { $0 == client }
+            Darwin.close(client)
+        }
     }
 
     private func serve(_ client: Int32) {
