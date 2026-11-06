@@ -611,6 +611,23 @@ public class PageCleanupTests
         Assert.Contains("whitened", ScanPresetText.Summary(preset));
     }
 
+    /// <summary>
+    /// The edge is found on the page straightened by the skew the check measured: a page straightened by another angle
+    /// (edited during the check, or not straightened) would be cut in the wrong place, so it keeps its whole page.
+    /// </summary>
+    [Fact]
+    public void The_paper_edge_crops_only_a_page_straightened_as_it_was_measured()
+    {
+        var edge = new CropBox(0.1, 0.1, 0.7, 0.7);
+        var turned = PageEdits.None with { QuarterTurns = 1 };
+        Assert.Equal(turned with { Filters = PageFilters.PixelFilters }, turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Equal(turned with { Crop = edge, Filters = PageFilters.All }, turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 0));
+        var straightened = PageEdits.None with { Deskew = 2 };
+        Assert.Equal(straightened with { Crop = edge, Filters = PageFilters.All }, straightened.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Equal(PageEdits.None with { Deskew = 1, Filters = PageFilters.PixelFilters }, (PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Null((PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.CropToPaper, photos: false, edge, measuredAt: 2));
+    }
+
     [Fact]
     public void A_preset_written_before_filters_reads_as_none()
     {

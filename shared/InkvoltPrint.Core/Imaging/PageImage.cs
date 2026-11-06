@@ -215,6 +215,22 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
     /// <summary>Sets the crop from a box drawn on the turned page.</summary>
     public PageEdits WithShownCrop(CropBox? shown) =>
         this with { Crop = shown is { } box && !box.IsFull ? box.Clamp().Turn(-QuarterTurns) : null, Filters = Filters & ~PageFilters.CropToPaper };
+
+    /// <summary>
+    /// These edits after a scan's clean up by its settings (<paramref name="cleanup"/>), on a page the check kept (not blank or a
+    /// separator): all of it on a page, on a page of photos only what suits a print (descreen, restore colors). Only a page with
+    /// no filters or crop yet gets it. <paramref name="paperEdge"/> (<see cref="PaperEdge.Find"/>, measured on the page
+    /// straightened by <paramref name="measuredAt"/> degrees) crops only a page straightened by that much: one edited during the
+    /// check, or not straightened, stays whole. Null when nothing changes.
+    /// </summary>
+    public PageEdits? CleanedUp(PageFilters cleanup, bool photos, CropBox? paperEdge, double measuredAt)
+    {
+        if (cleanup == PageFilters.None || Filters != PageFilters.None || Crop is not null) return null;
+        var filters = cleanup & (photos ? PageFilters.Descreen | PageFilters.RestoreColors : PageFilters.PixelFilters);
+        var crop = cleanup.HasFlag(PageFilters.CropToPaper) && !photos && Deskew == measuredAt ? paperEdge : null;
+        if (crop is not null) filters |= PageFilters.CropToPaper;
+        return filters == PageFilters.None ? null : this with { Crop = crop, Filters = filters };
+    }
 }
 
 /// <summary>Arbitrary-angle rotation of raw pixels (straightening a page), bilinear, same size, uncovered corners white.</summary>

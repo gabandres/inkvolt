@@ -193,22 +193,25 @@ public struct CropBox: Equatable, Sendable, Codable {
 }
 
 /// What's been done to a scanned page, applied in this order when the page is saved: straightened by `deskew` degrees
-/// (anticlockwise by that much), cropped to `crop` (in the straightened page), then turned `quarterTurns` quarters
-/// clockwise. No edits: the scanner's own JPEG is saved untouched.
+/// (anticlockwise by that much), cropped to `crop` (in the straightened page), cleaned up by `filters` (`PageCleanup`),
+/// then turned `quarterTurns` quarters clockwise. No edits: the scanner's own JPEG is saved untouched. `.cropToPaper` only
+/// says where `crop` came from, so on its own (no paper's edge was found) it changes nothing.
 public struct PageEdits: Equatable, Sendable {
     public var quarterTurns = 0
     public var deskew = 0.0
     public var crop: CropBox?
+    public var filters: PageFilters = []
 
-    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil) {
+    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, filters: PageFilters = []) {
         self.quarterTurns = quarterTurns
         self.deskew = deskew
         self.crop = crop
+        self.filters = filters
     }
 
     public static let none = PageEdits()
 
-    public var isEmpty: Bool { quarterTurns % 4 == 0 && deskew == 0 && (crop?.isFull ?? true) }
+    public var isEmpty: Bool { quarterTurns % 4 == 0 && deskew == 0 && (crop?.isFull ?? true) && filters.isDisjoint(with: .pixelFilters) }
 
     public func turned(_ quarters: Int) -> PageEdits {
         var e = self
@@ -216,23 +219,76 @@ public struct PageEdits: Equatable, Sendable {
         return e
     }
 
+    /// These edits on a page of this size: past `PageCleanup.maxPixels` no filter runs, so filters alone don't make it
+    /// re-encoded (or even decoded).
+    public func `for`(width: Int, height: Int) -> PageEdits {
+        guard PageCleanup.tooLarge(width, height) else { return self }
+        var e = self
+        e.filters.subtract(.pixelFilters)
+        return e
+    }
+
     /// The crop as seen on the turned page (what the crop view shows).
     public var shownCrop: CropBox { (crop ?? .full).turn(quarterTurns) }
 
-    /// Sets the crop from a box drawn on the turned page.
+    /// Sets the crop from a box drawn on the turned page: the crop is no longer the paper's.
     public func withShownCrop(_ shown: CropBox?) -> PageEdits {
         var e = self
         e.crop = shown.flatMap { $0.isFull ? nil : $0.clamp().turn(-quarterTurns) }
+        e.filters.remove(.cropToPaper)
         return e
+    }
+
+    /// These edits with `filters` in place of their filters (the review's Clean up view). The paper's edge is looked for
+    /// (`paperEdge`, `PaperEdge.find` on the page's analysis copy) only when the crop to it is asked for and not there yet;
+    /// none found, what was there stays. A page of photos is never cropped to the paper. Dropping the crop to the paper drops
+    /// its crop.
+    public func withFilters(_ filters: PageFilters, photos: Bool, paperEdge: () throws -> CropBox?) rethrows -> PageEdits {
+        var e = self
+        let pixels = filters.intersection(.pixelFilters)
+        let wantsCrop = filters.contains(.cropToPaper) && !photos
+        if wantsCrop == self.filters.contains(.cropToPaper) {
+            e.filters = wantsCrop ? pixels.union(.cropToPaper) : pixels
+            return e
+        }
+        if !wantsCrop {
+            e.crop = nil
+            e.filters = pixels
+            return e
+        }
+        if let found = try paperEdge() {
+            e.crop = found
+            e.filters = pixels.union(.cropToPaper)
+        } else {
+            e.filters = pixels
+        }
+        return e
+    }
+
+    /// These edits after a scan's clean up by its settings (`cleanup`), on a page the check kept (not blank or a separator):
+    /// all of it on a page, on a page of photos only what suits a print (descreen, restore colors). Only a page with no
+    /// filters or crop yet gets it. `paperEdge` (`PaperEdge.find`, measured on the page straightened by `measuredAt` degrees)
+    /// crops only a page straightened by that much: one edited during the check, or not straightened, stays whole. Nil when
+    /// nothing changes. The Windows app's `PageEdits.CleanedUp`.
+    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double) -> PageEdits? {
+        guard !cleanup.isEmpty, filters.isEmpty, crop == nil else { return nil }
+        var e = self
+        e.filters = cleanup.intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
+        if cleanup.contains(.cropToPaper), !photos, deskew == measuredAt, let paperEdge {
+            e.crop = paperEdge
+            e.filters.insert(.cropToPaper)
+        }
+        return e.filters.isEmpty ? nil : e
     }
 }
 
 /// Arbitrary-angle rotation of raw pixels (straightening a page), bilinear, same size, uncovered corners white.
 public enum PageRotate {
     /// `pixels` turned `degrees` clockwise (as seen on screen) about the centre. `channels`: 1 for grey, 3 for BGR or RGB;
-    /// rows are `stride` bytes apart.
-    public static func rotate(_ pixels: [UInt8], width: Int, height: Int, stride: Int, channels: Int, degrees: Double) -> [UInt8] {
-        var result = [UInt8](repeating: 255, count: pixels.count)
+    /// rows are `stride` bytes apart. Uncovered corners get `fill`.
+    public static func rotate(_ pixels: [UInt8], width: Int, height: Int, stride: Int, channels: Int, degrees: Double, fill: UInt8 = 255) -> [UInt8] {
+        var result = [UInt8](repeating: fill, count: pixels.count)
+        let outside = Double(fill)
         let (s, c) = (sin(degrees * .pi / 180), cos(degrees * .pi / 180))
         let (cx, cy) = (Double(width - 1) / 2, Double(height - 1) / 2)
         for y in 0..<height {
@@ -247,7 +303,7 @@ public enum PageRotate {
                 let (fx, fy) = (sx - Double(x0), sy - Double(y0))
                 for ch in 0..<channels {
                     func at(_ px: Int, _ py: Int) -> Double {
-                        px < 0 || py < 0 || px >= width || py >= height ? 255 : Double(pixels[py * stride + px * channels + ch])
+                        px < 0 || py < 0 || px >= width || py >= height ? outside : Double(pixels[py * stride + px * channels + ch])
                     }
                     let top = at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx
                     let bottom = at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx

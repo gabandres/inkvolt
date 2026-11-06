@@ -353,12 +353,12 @@ public enum PhotoFinder {
         return result
     }
 
-    private static func dilate(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] { window(mask, w, h, r, dilate: true) }
-    private static func erode(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] { window(mask, w, h, r, dilate: false) }
+    static func dilate(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] { window(mask, w, h, r, dilate: true) }
+    static func erode(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] { window(mask, w, h, r, dilate: false) }
 
     /// Closing on a grid padded with lid all round, so a gap between a print and the edge of the glass stays open (the
     /// clipped window alone would fill it), while a print against the edge keeps its edge.
-    private static func closing(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] {
+    static func closing(_ mask: [Bool], _ w: Int, _ h: Int, _ r: Int) -> [Bool] {
         let (pw, ph) = (w + 2 * r, h + 2 * r)
         var padded = [Bool](repeating: false, count: pw * ph)
         for y in 0..<h { padded.replaceSubrange(((y + r) * pw + r)..<((y + r) * pw + r + w), with: mask[(y * w)..<(y * w + w)]) }
@@ -369,7 +369,7 @@ public enum PhotoFinder {
     }
 
     /// Lid cells the lid around the edges can't reach (light patches inside a print) become print.
-    private static func fillHoles(_ mask: inout [Bool], _ w: Int, _ h: Int) {
+    static func fillHoles(_ mask: inout [Bool], _ w: Int, _ h: Int) {
         var outside = [Bool](repeating: false, count: mask.count)
         var stack: [Int] = []
         func seed(_ i: Int) {
