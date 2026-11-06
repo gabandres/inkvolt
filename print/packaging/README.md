@@ -15,7 +15,7 @@ From the repository root:
 
 ```powershell
 pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print                    # Store build with the Partner Center identity, unsigned
-pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.3.0.0, the last submitted
+pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.4.0.0, the last submitted
 ```
 
 Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
@@ -146,7 +146,7 @@ Inkvolt PDF, the suite's other app, is Store ID `9MXDTSFJ9W28` (`BermudezSystems
 
 Version: four numbers, the last one 0 (the Store reserves it), higher than every earlier submission.
 
-Published: 1.2.0.0 on 2026-11-02 (GitHub release `print-v1.2.0.0`).
+Published: 1.4.0.0 on 2026-11-06 (GitHub release `print-v1.4.0.0`; 1.3.0.0 was published 2026-11-03 without a tag or GitHub release).
 
 ## Upload
 

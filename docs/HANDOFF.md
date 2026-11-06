@@ -13,6 +13,10 @@ apps → releases: PDF for Mac 1.8, Print for Mac 1.3 (after 1.2's review), PDF 
 PDF for Mac 3.6 speed → Office as the Mac's converter (code; a person allows Automation). Left for hardware or a person:
 Print 2.1, 2.2, 3.1, 3.3 on both, paper and screen checks, the Mac UX renames, the Pro checkout.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
+**Inkvolt Print 1.4.0.0 published in the Store 2026-11-06 12:16** (TWAIN scanners, black and white, the job-alert and paper-edge
+follow-ups): hostile-input review since 1.3.0.0 first (one fix, `Dib.Length` in 64 bits; the rest in the merge's message), smoke
+passed side by side, release notes en/es through the API, tag `print-v1.4.0.0`, GitHub release, website `softwareVersion` 1.4.0.
+1.3.0.0 has no tag or GitHub release (published 2026-11-03 without them).
 
 **State on 2026-11-05 (night).** Merged and pushed: Print for Mac P12 1.1, 1.2 (with Report a Problem), 2.6, 2.4 and the
 32 MB reply limit on every read (all reviewed, fixes in); Windows PDF's OcrClean in Export and Scan, Symbol fonts in
