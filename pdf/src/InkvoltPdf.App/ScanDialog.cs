@@ -303,39 +303,45 @@ internal sealed class ScanDialog : Window
     }
 
     /// <summary>
-    /// Scanners with a Windows (WIA) driver, less Windows' own eSCL driver for a network scanner already listed; then the 64-bit
-    /// TWAIN sources when the TWAIN manager is installed (a line under the list says so when it isn't). Reads no device.
+    /// This PC's driver scanners, one list for the app run (Inkvolt Print's: WIA's and the 64-bit TWAIN sources that aren't one of
+    /// them), so the TWAIN manager is read once, not on every Scan dialog.
+    /// </summary>
+    private static readonly DriverScanners Drivers = WindowsTwain.BesideWia(Log.Write);
+
+    /// <summary>
+    /// Scanners with a Windows (WIA) driver and the TWAIN sources read before, at once; then the TWAIN sources once their read ends
+    /// (a line under the list says when this PC has no TWAIN manager or it failed). Windows' own eSCL driver for a network scanner
+    /// already listed is left out. Reads no device.
     /// </summary>
     private async Task LoadDriverScannersAsync()
     {
         try
         {
-            foreach (var d in await WindowsWia.Instance.ListScannersAsync(CancellationToken.None))
-                if (!ScannerList.IsListedOnTheNetwork(d, NetworkTargets()))
-                    AddOrUpdate(new ScannerItem(ScannerList.Key(ScannerKind.Wia, d.Id), d.Name, ScannerKind.Wia, "", null, true, d));
+            AddDrivers(await Drivers.ListNowAsync(CancellationToken.None));
+            AddDrivers(await Drivers.ListScannersAsync(CancellationToken.None));
         }
         catch (WiaException ex)
         {
             Log.Write($"WIA scanners unavailable: {ex.Message}");
             _driversRead = false;
         }
-        string? twainError = null;
-        if (WindowsTwain.ManagerInstalled)
+        var twainError = Drivers.TwainFailure switch
         {
-            try
-            {
-                foreach (var d in await WindowsTwain.Instance.ListScannersAsync(CancellationToken.None))
-                    AddOrUpdate(new ScannerItem(ScannerList.Key(ScannerKind.Twain, d.Id), d.Name, ScannerKind.Twain, "", null, true, d));
-            }
-            catch (Exception ex) when (ex is WiaException or DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
-            {
-                Log.Write($"TWAIN sources unavailable: {ex.Message}");
-                twainError = ex is WiaException w ? WiaErrors.Message(w.Code, false) : Strings.Scan_TwainNotLoaded;
-            }
-        }
+            null => null,
+            WiaException w => WiaErrors.Message(w.Code, false),
+            _ => Strings.Scan_TwainNotLoaded,
+        };
         _twainNote.Text = ScannerList.TwainNote(WindowsTwain.ManagerInstalled, twainError) ?? "";
         _twainNote.Visibility = _twainNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         _driversDone = true;
+    }
+
+    private void AddDrivers(IReadOnlyList<WiaDeviceInfo> drivers)
+    {
+        if (!IsLoaded) return; // closed while TWAIN was read
+        var network = NetworkTargets();
+        foreach (var d in drivers.Where(d => !ScannerList.IsListedOnTheNetwork(d, network)))
+            AddOrUpdate(new ScannerItem(ScannerList.Key(d), d.Name, ScannerList.Kind(d), "", null, true, d));
     }
 
     private List<ScanTarget> NetworkTargets() =>
@@ -450,8 +456,7 @@ internal sealed class ScanDialog : Window
         limit.CancelAfter(TimeSpan.FromSeconds(60));
         try
         {
-            IWiaSystem system = item.Kind == ScannerKind.Twain ? WindowsTwain.Instance : WindowsWia.Instance;
-            var scanner = await WiaScanner.OpenAsync(system, driver, limit.Token);
+            var scanner = await WiaScanner.OpenAsync(Drivers, driver, limit.Token); // a "twain:" id goes to its TWAIN source
             if (cts.IsCancellationRequested) return;
             Connected(scanner, scanner.Capabilities, item);
         }

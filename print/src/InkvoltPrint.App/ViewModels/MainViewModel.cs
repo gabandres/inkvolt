@@ -47,7 +47,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private IReadOnlyList<SpoolerQueue> _queues = [];
     private bool _sweepDone;
     private string? _wantedSelection, _wantedScanner;
-    private readonly IWiaSystem _wia;
+    private readonly DriverScanners _wia;
     private IReadOnlyList<WiaDeviceInfo> _scanners = [];
     private bool _scannersRead;
     private IDisposable? _usbWatch;
@@ -105,6 +105,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
         _usbWatch = pc.NeedsDriver.Watch(RelistQueues); // a USB printer plugged in or out: the queues and USB printers are read again at once
+        _wia.TwainChanged += RelistQueues; // TWAIN's sources read (after WIA's were shown): listed now
         _ = WatchQueuesAsync(_queueWatch.Token);
         if (pc.ChecksHpSoftware) _ = CheckHpSoftwareAsync();
         if (pc.CreateDiscovery() is not { } discovery) return;
@@ -527,7 +528,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 await ReadNeedsDriverAsync(_queues, ct);
                 try
                 {
-                    _scanners = await _wia.ListScannersAsync(ct);
+                    _scanners = await _wia.ListNowAsync(ct); // TWAIN's sources as read before; a new read lists again (TwainChanged)
                     _scannersRead = true;
                     Reconcile(queues: false);
                 }
@@ -709,6 +710,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _fleet?.Hide();
         _queueWatch.Cancel();
         _queueWatch.Dispose();
+        _wia.TwainChanged -= RelistQueues;
         _relist.Dispose();
         _usbWatch?.Dispose();
         _discovery?.Dispose();

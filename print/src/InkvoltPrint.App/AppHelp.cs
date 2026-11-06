@@ -60,7 +60,7 @@ public static class AppHelp
             ("Printers remembered", models.Count == 0 ? "none" : $"{models.Count}: {string.Join(", ", models)}"),
             ("Printers listed now", vm.Printers.Count.ToString()),
             ("USB printers needing their driver", Core.Queues.NeedsDriverText.ReportLine(vm.NeedsDriver.Select(n => n.Printer).ToList(), vm.NeedsDriver.Any(n => n.ShowProtectedPrint))),
-            ("Scan", $"{s.ScanResolution} dpi, {(s.ScanColor ? "color" : "gray")}, OCR {OnOff(s.ScanOcr)}, skip blank {OnOff(s.ScanSkipBlank)}, straighten {OnOff(s.ScanStraighten)}"),
+            ("Scan", $"{s.ScanResolution} dpi, {(s.ScanColor ? "color" : s.ScanBlackAndWhite ? "black and white" : "gray")}, OCR {OnOff(s.ScanOcr)}, skip blank {OnOff(s.ScanSkipBlank)}, straighten {OnOff(s.ScanStraighten)}"),
             ("Scan presets", vm.Presets.Items.Count.ToString()),
             ("Inkvolt PDF", InkvoltApps.Find(InkvoltApps.InkvoltPdf) is null ? "not installed" : $"installed, open scans {OnOff(s.OpenScansInInkvoltPdf)}"),
             ("Notification area", tray is { Enabled: true } ? $"on, alerts {OnOff(tray.Alerts)}, job alerts {OnOff(tray.JobAlerts)}" : "off"),

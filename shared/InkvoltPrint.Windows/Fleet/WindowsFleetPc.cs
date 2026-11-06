@@ -28,7 +28,7 @@ public sealed class WindowsFleetPc : IFleetPc
     public InkvoltPrinters Remembered { get; }
     public IReadOnlyCollection<string> Hidden => Remembered.Forgotten;
     public SupplyHistoryStore? History { get; }
-    public IWiaSystem Wia => WindowsWia.Instance;
+    public IWiaSystem Wia { get; } = WindowsTwain.BesideWia(); // as the app lists them: WIA scanners and TWAIN sources
 
     /// <summary>With the printer's SNMP login as the app keeps it (Credential Manager, read only).</summary>
     public PrinterRecipe Recipe(InkvoltPrinter printer) =>
@@ -46,7 +46,7 @@ public sealed class WindowsFleetPc : IFleetPc
         return new DeviceQueueStatusSource(windows, QueueDeviceReaders.For(queue));
     }
 
-    public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => WindowsWia.Instance.ListScannersAsync(ct);
+    public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => Wia.ListScannersAsync(ct);
 
     /// <summary>The Pro key for a run of the command: read from where both apps keep it, never moved or written.</summary>
     public IProStore ProStore(string localAppData) => new ReadOnlyKey(localAppData, Remembered.ProKey);

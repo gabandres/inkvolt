@@ -85,10 +85,7 @@ public sealed partial class ScanViewModel : ObservableObject
             _ => string.Format(Strings.Scan_ResolutionPhotos, r),
         })).ToList();
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
-
-        RefreshPageSizes(state.ScanPageSize ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
-
-        IsColor = state.ScanColor;
+        // Page sizes and colors: filled for the first source above (OnSourceChanged); every scanner has one.
         UseOcr = state.ScanOcr && OcrAvailable;
         SkipBlank = state.ScanSkipBlank;
         Straighten = state.ScanStraighten;
@@ -162,7 +159,36 @@ public sealed partial class ScanViewModel : ObservableObject
 
     partial void OnSourceChanged(Option<ScanSource>? value)
     {
-        if (_caps is not null) RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key);
+        RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
+        RefreshColors();
+    }
+
+    /// <summary>The color modes the current source offers (black and white where it does), the remembered one chosen as it allows.</summary>
+    [ObservableProperty] public partial IReadOnlyList<Option<ScanColor>> ColorModes { get; set; } = [];
+
+    /// <summary>Color, grey or black and white: what the tab scans in.</summary>
+    [ObservableProperty] public partial Option<ScanColor>? ColorMode { get; set; }
+
+    private bool _adjustingColor;
+
+    private void RefreshColors()
+    {
+        var offered = ScanChoices.Colors(_caps, Source?.Value ?? ScanSource.Platen);
+        _adjustingColor = true; // a fallback forced by the source (no black and white on the glass) isn't the user's choice
+        try
+        {
+            ColorModes = offered.Select(c => new Option<ScanColor>(c, ScanChoices.ColorLabel(c))).ToList();
+            var pick = ScanChoices.Pick(offered, _state.ScanColor, _state.ScanBlackAndWhite);
+            ColorMode = ColorModes.First(o => o.Value == pick);
+        }
+        finally { _adjustingColor = false; }
+    }
+
+    partial void OnColorModeChanged(Option<ScanColor>? value)
+    {
+        if (value is null || _adjustingColor) return;
+        (_state.ScanColor, _state.ScanBlackAndWhite) = ScanChoices.Remember(value.Value);
+        _state.Save();
     }
     public bool HasSourceChoice => Sources.Count > 1;
     public bool OcrAvailable { get; } = WindowsOcr.IsAvailable;
@@ -185,7 +211,6 @@ public sealed partial class ScanViewModel : ObservableObject
 
     [ObservableProperty] public partial Option<int>? Resolution { get; set; }
     [ObservableProperty] public partial Option<ScanArea>? PageSize { get; set; }
-    [ObservableProperty] public partial bool IsColor { get; set; }
     [ObservableProperty] public partial bool UseOcr { get; set; }
 
     /// <summary>Leave near-blank pages out of what's saved (they stay in the review, dimmed, with Keep).</summary>
@@ -516,7 +541,6 @@ public sealed partial class ScanViewModel : ObservableObject
         ? Strings.Scan_EmptyHintGlass
         : Strings.Scan_EmptyHintFeeder;
 
-    partial void OnIsColorChanged(bool value) { _state.ScanColor = value; _state.Save(); }
     partial void OnUseOcrChanged(bool value) { _state.ScanOcr = value; _state.Save(); }
     partial void OnSkipBlankChanged(bool value) { _state.ScanSkipBlank = value; _state.Save(); }
     partial void OnStraightenChanged(bool value) { _state.ScanStraighten = value; _state.Save(); }
@@ -635,7 +659,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>The line under the tab's settings for a scanner reached through Windows; null over eSCL.</summary>
     public string? ScannerNote => _client is Core.Wia.WiaScanner wia
-        ? string.Format(Strings.Scan_ViaWindowsNote, wia.Device.Name)
+        ? string.Format(wia.Device.IsTwain ? Strings.Scan_ViaTwainNote : Strings.Scan_ViaWindowsNote, wia.Device.Name)
         : null;
 
     public void Rebind(IScanner client)
@@ -665,7 +689,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private ScanJob TabJob()
     {
         var area = PageSize?.Value;
-        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, IsColor ? ScanColor.Color : ScanColor.Grayscale, Resolution?.Value ?? 300,
+        var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, ColorMode?.Value ?? ScanColor.Color, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
         return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value);
     }

@@ -331,6 +331,10 @@ public class UsbScannerTests
         Assert.Equal("Fujitsu fi-7160  (TWAIN driver)", ScannerList.Label(ScannerKind.Twain, "Fujitsu fi-7160"));
         Assert.Equal("Office MFP  (192.0.2.5) · found on the network", ScannerList.Label(ScannerKind.Network, "Office MFP", "192.0.2.5", remembered: false));
         Assert.Equal("wia:" + Usb.Id, ScannerList.Key(ScannerKind.Wia, Usb.Id));
+        // As DriverScanners lists them (the keys the dialog remembered before it read that one list stay the same).
+        var source = new WiaDeviceInfo("twain:Fujitsu fi-7160", "Fujitsu fi-7160", Port: WiaDeviceInfo.TwainPort);
+        Assert.Equal((ScannerList.Key(ScannerKind.Wia, Usb.Id), ScannerKind.Wia), (ScannerList.Key(Usb), ScannerList.Kind(Usb)));
+        Assert.Equal((ScannerList.Key(ScannerKind.Twain, "Fujitsu fi-7160"), ScannerKind.Twain), (ScannerList.Key(source), ScannerList.Kind(source)));
 
         // Windows' own eSCL driver for a printer the dialog already reaches over the network: its UUID is in the port.
         var network = new List<ScanTarget> { new("564e4238-4a31-4a35-3552-fc3fdbbd5f99", ["HP Color LaserJet MFP M277dw"], ["192.0.2.7"]) };

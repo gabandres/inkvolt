@@ -69,8 +69,8 @@ public abstract class PcEnvironment
     /// </summary>
     public INeedsDriverPc NeedsDriver => IsDemo ? DemoNeedsDriverPc.Instance : RealNeedsDriverPc.Instance;
 
-    /// <summary>Scanners Windows has a driver for (WIA).</summary>
-    public abstract IWiaSystem Wia { get; }
+    /// <summary>Scanners this PC has a driver for: WIA's, and 64-bit TWAIN sources beside them (<see cref="DriverScanners"/>).</summary>
+    public abstract DriverScanners Wia { get; }
 
     /// <summary>
     /// Network printers' Windows queues are looked up (whether one is set up, and setting one up). False on the made-up PC,
@@ -179,7 +179,7 @@ public abstract class PcEnvironment
             Core.Discovery.NetworkSearch.SearchAsync(Core.Discovery.SocketNetworkScanner.Instance, a => found(a.ToString()), progress, ct);
 
         public override (IReadOnlyList<SpoolerQueue>, IReadOnlyList<WiaDeviceInfo>)? FixedDevices => null;
-        public override IWiaSystem Wia => WindowsWia.Instance;
+        public override DriverScanners Wia { get; } =WindowsTwain.BesideWia(Log.Write); // WIA scanners and TWAIN sources, one list
         public override bool HasWindowsQueues => true;
 
         public override async Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state)

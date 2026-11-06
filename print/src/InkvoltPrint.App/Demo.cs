@@ -55,7 +55,13 @@ internal static class Demo
     /// <summary><c>--demo --no-printers</c>: a made-up PC that finds no printer at all (the empty printer list).</summary>
     public static PcEnvironment EmptyPc { get; } = new DemoPc(empty: true);
 
-    private sealed class DemoPc(bool empty) : PcEnvironment
+    /// <summary>
+    /// <c>--demo --twain</c>: the made-up PC with a made-up TWAIN-only document scanner too (<see cref="TwainScanner"/>), listed on
+    /// its own beside the WIA ones through the same <see cref="Core.Wia.DriverScanners"/> as this PC's.
+    /// </summary>
+    public static PcEnvironment TwainPc { get; } = new DemoPc(empty: false, twain: true);
+
+    private sealed class DemoPc(bool empty, bool twain = false) : PcEnvironment
     {
         public override bool IsDemo => true;
         public override AppState LoadState() => empty ? new AppState { IsInMemory = true } : CreateState();
@@ -69,11 +75,15 @@ internal static class Demo
         public override Task SearchNetworkAsync(Action<string> found, IProgress<Core.Discovery.SearchProgress>? progress, CancellationToken ct) =>
             Demo.SearchNetworkAsync(empty, found, progress, ct);
 
-        // Made up: this PC's queues and scanners are never asked in demo mode.
+        // Made up: this PC's queues and scanners are never asked in demo mode. Listed once, when first asked (the fakes answer at
+        // once, TWAIN's on a pool thread: the made-up list is complete when it returns).
         public override (IReadOnlyList<Core.Queues.SpoolerQueue>, IReadOnlyList<Core.Wia.WiaDeviceInfo>)? FixedDevices =>
-            empty ? ([], []) : (Queues, Demo.Wia.Scanners.Select(s => s.Device).ToList());
+            empty ? ([], []) : (Queues, _scanners ??= Wia.ListScannersAsync(CancellationToken.None).GetAwaiter().GetResult());
+        private IReadOnlyList<Core.Wia.WiaDeviceInfo>? _scanners;
 
-        public override Core.Wia.IWiaSystem Wia => Demo.Wia;
+        // Made when first asked: Demo's static scanners are set up after the PCs.
+        public override Core.Wia.DriverScanners Wia => _wia ??= Scanners(twain);
+        private Core.Wia.DriverScanners? _wia;
         public override bool HasWindowsQueues => false;
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
@@ -107,8 +117,9 @@ internal static class Demo
     }
 
     /// <summary>What <c>--demo status --all</c> reads: the made-up PC, or with <paramref name="empty"/> (<c>--no-printers</c>) one with nothing on it.</summary>
-    public static Core.Fleet.IFleetPc FleetPc(bool empty) =>
-        empty ? new EmptyFleetPc() : new Core.Fleet.DemoFleetPc(CreateTransport, Snmp, Wia, OfflinePc.Current);
+    /// <param name="twain"><c>--twain</c>: with the made-up TWAIN-only document scanner too, listed as the app lists it.</param>
+    public static Core.Fleet.IFleetPc FleetPc(bool empty, bool twain = false) =>
+        empty ? new EmptyFleetPc() : new Core.Fleet.DemoFleetPc(CreateTransport, Snmp, (twain ? TwainPc : Pc).Wia, OfflinePc.Current);
 
     /// <summary>A made-up PC with nothing on it.</summary>
     private sealed class EmptyFleetPc : Core.Fleet.IFleetPc
@@ -308,6 +319,25 @@ internal static class Demo
         scanners[0].FeederStack = () => FeederBatch ? Batch.Value.Count : 3;
         scanners[0].HandlingStatus = Core.Wia.WiaIds.FeedReady;
         return new(scanners);
+    }
+
+    /// <summary>The made-up PC's driver scanners as the app lists them (<see cref="Core.Wia.DriverScanners"/>): WIA's, and with <c>--twain</c> its TWAIN source.</summary>
+    private static Core.Wia.DriverScanners Scanners(bool twain) => new(Wia, new Core.Wia.FakeWiaSystem(twain ? [TwainScanner] : []));
+
+    /// <summary>
+    /// <c>--twain</c>'s made-up TWAIN-only document scanner: glass and a feeder (both sides), black and white, grey or color,
+    /// 100 to 600 dpi, three sheets in the feeder, which it says are there (CAP_FEEDERLOADED). Nothing on this PC is asked.
+    /// </summary>
+    public static Core.Wia.FakeWiaScanner TwainScanner { get; } = MadeUpTwain();
+
+    private static Core.Wia.FakeWiaScanner MadeUpTwain()
+    {
+        var source = Core.Twain.FakeTwain.Source("Demo DocScan 10",
+            new Core.Twain.TwainCaps(Feeder: true, FeederOnly: false, Duplex: true, FeederLoaded: true,
+                [Core.Twain.Tw.PtBw, Core.Twain.Tw.PtGray, Core.Twain.Tw.PtRgb], Core.Wia.WiaValues.Of(300, 100, 150, 200, 300, 600), 8.5, 14),
+            WiaPage, "Demo");
+        source.HandlingStatus = Core.Wia.WiaIds.FeedReady; // the three sheets, put back for each job as the WIA demo scanner's are
+        return source;
     }
 
     /// <summary>A demo WIA page: the feeder batch's next page when the scan splits into files, else what an eSCL demo scan of that area gives.</summary>

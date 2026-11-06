@@ -47,6 +47,20 @@ public static class ScanChoices
         return list;
     }
 
+    /// <summary>
+    /// The color mode to scan in from a remembered choice (Inkvolt Print's Scan tab, a preset), as <paramref name="offered"/>
+    /// (<see cref="Colors"/>) allows: color when wanted and offered, black and white when wanted and offered, else grey, else what
+    /// the source has.
+    /// </summary>
+    public static ScanColor Pick(IReadOnlyList<ScanColor> offered, bool color, bool blackAndWhite) =>
+        color && offered.Contains(ScanColor.Color) ? ScanColor.Color
+        : !color && blackAndWhite && offered.Contains(ScanColor.BlackAndWhite) ? ScanColor.BlackAndWhite
+        : offered.Contains(ScanColor.Grayscale) ? ScanColor.Grayscale
+        : offered.Count > 0 ? offered[0] : ScanColor.Color;
+
+    /// <summary>A chosen color mode as it is remembered (<see cref="Pick"/>'s two flags): color, or black and white, or neither (grey).</summary>
+    public static (bool Color, bool BlackAndWhite) Remember(ScanColor color) => (color == ScanColor.Color, color == ScanColor.BlackAndWhite);
+
     public static string ColorLabel(ScanColor c) => c switch
     {
         ScanColor.Color => CoreStrings.Suite_ColorColor,

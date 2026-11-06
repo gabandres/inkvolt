@@ -85,6 +85,9 @@ internal static class DevSnapshot
             if (Value(args, "--source") is { } source
                 && scanner.Sources.FirstOrDefault(s => s.Value == source switch { "feeder" => Core.Escl.ScanSource.Adf, "duplex" => Core.Escl.ScanSource.AdfDuplex, _ => Core.Escl.ScanSource.Platen }) is { } chosen)
                 scanner.Source = chosen;
+            if (Value(args, "--color") is { } color
+                && scanner.ColorModes.FirstOrDefault(c => c.Value == color switch { "grey" => Core.Escl.ScanColor.Grayscale, "bw" => Core.Escl.ScanColor.BlackAndWhite, _ => Core.Escl.ScanColor.Color }) is { } mode)
+                scanner.ColorMode = mode;
             if (Value(args, "--split") is { } split)
                 scanner.SplitMode = scanner.SplitChoices.FirstOrDefault(c => c.Value == split switch
                 {

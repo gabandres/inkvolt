@@ -18,7 +18,6 @@ public sealed class WindowsTwain : IWiaSystem
     public static WindowsTwain Instance { get; } = new();
 
     private const string Dsm = "TWAINDSM.dll";
-    private static readonly TimeSpan ListTimeout = TimeSpan.FromSeconds(20);
 
     /// <summary>The longest a scan waits for the source to have its first page ready (a scanner warming up, paper being fed).</summary>
     private static readonly TimeSpan ReadyTimeout = TimeSpan.FromMinutes(2);
@@ -29,22 +28,22 @@ public sealed class WindowsTwain : IWiaSystem
 
     private WindowsTwain() { }
 
+    /// <summary>This PC's WIA scanners and TWAIN sources as one list (<see cref="DriverScanners"/>): Inkvolt Print's and Inkvolt PDF's.</summary>
+    public static DriverScanners BesideWia(Action<string>? log = null) => new(WindowsWia.Instance, Instance, log);
+
     /// <summary>The 64-bit TWAIN manager is installed (in Windows' system folder, where makers' installers put it).</summary>
     public static bool ManagerInstalled => Environment.Is64BitProcess && File.Exists(Path.Combine(Environment.SystemDirectory, Dsm));
 
-    /// <summary>The sources the manager knows (id and name: the source's product name). Empty when the manager isn't installed.</summary>
+    /// <summary>
+    /// The sources the manager knows (id and name: the source's product name). Empty when the manager isn't installed. No time limit
+    /// of its own: <see cref="DriverScanners"/> gives up on it (<see cref="DriverScanners.TwainListLimit"/>) through the token.
+    /// </summary>
     public async Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct)
     {
         if (!ManagerInstalled) return [];
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        limit.CancelAfter(ListTimeout);
         try
         {
-            return await _listThread.Value.RunAsync(() => WindowsWia.Wrap(List), limit.Token).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-        {
-            throw new WiaException(WiaErrors.NotAnswering, "The TWAIN manager didn't answer in time.");
+            return await _listThread.Value.RunAsync(() => WindowsWia.Wrap(List), ct).ConfigureAwait(false);
         }
         catch (WorkThreadStuckException)
         {
@@ -64,7 +63,7 @@ public sealed class WindowsTwain : IWiaSystem
     private static IReadOnlyList<WiaDeviceInfo> List()
     {
         using var dsm = new Manager();
-        return dsm.Sources().Select(s => new WiaDeviceInfo(s.ProductName, s.ProductName, NullIfEmpty(s.Manufacturer), NullIfEmpty(s.ProductFamily), "TWAIN"))
+        return dsm.Sources().Select(s => new WiaDeviceInfo(s.ProductName, s.ProductName, NullIfEmpty(s.Manufacturer), NullIfEmpty(s.ProductFamily), WiaDeviceInfo.TwainPort))
             .ToList();
     }
 
@@ -137,10 +136,12 @@ public sealed class WindowsTwain : IWiaSystem
         {
             var list = new List<TwIdentity>();
             var block = Marshal.AllocHGlobal(Marshal.SizeOf<TwIdentity>());
+            var asked = 0;
             try
             {
+                // Bounds the manager's loop (one that keeps answering "next", blank names too); DriverScanners caps the list itself.
                 for (var rc = Entry(App, IntPtr.Zero, Tw.DgControl, Tw.DatIdentity, Tw.MsgGetFirst, block);
-                     rc == Tw.RcSuccess;
+                     rc == Tw.RcSuccess && ++asked <= DriverScanners.MaxSources;
                      rc = Entry(App, IntPtr.Zero, Tw.DgControl, Tw.DatIdentity, Tw.MsgGetNext, block))
                 {
                     var id = Marshal.PtrToStructure<TwIdentity>(block);

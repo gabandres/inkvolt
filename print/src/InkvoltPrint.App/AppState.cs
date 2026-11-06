@@ -47,6 +47,9 @@ public sealed class AppState
     public string? SelectedUuid { get; set; }
     public int ScanResolution { get; set; } = 300;
     public bool ScanColor { get; set; } = true;
+
+    /// <summary>The Scan tab scans in black and white (where the source offers it; <see cref="ScanColor"/> off). <see cref="Core.Suite.ScanChoices.Pick"/>.</summary>
+    public bool ScanBlackAndWhite { get; set; }
     public bool ScanOcr { get; set; } = true;
     public string? ScanFolder { get; set; }
     public string? ScanPageSize { get; set; }
