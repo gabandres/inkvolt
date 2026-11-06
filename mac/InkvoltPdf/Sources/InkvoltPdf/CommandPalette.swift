@@ -108,17 +108,19 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
     static func collect(for window: NSWindow?) -> [Entry] {
         var entries: [Entry] = []
         let chain = responders(window)
-        let english = englishTitles()
-        func walk(_ menu: NSMenu, _ path: [String]) {
+        // Each item's own English title, as the menu bar was built from it (`MainMenu.englishTitle`): never a reverse
+        // lookup of the shown words, which several English titles can share ("Imagen" is Image and Picture).
+        let translated = CoreLanguage.table != nil
+        func walk(_ menu: NSMenu, _ path: [String], _ englishPath: [String]) {
             for item in menu.items where !item.isSeparatorItem && !item.isHidden {
                 if let sub = item.submenu {
                     if sub === NSApp.servicesMenu { continue }
-                    walk(sub, path + [item.title])
+                    walk(sub, path + [item.title], englishPath + [MainMenu.englishTitle(of: item)].compactMap { $0 })
                 } else if let action = item.action, action != #selector(NSWindow.makeKeyAndOrderFront(_:)), !skipped.contains(action),
                           action != #selector(AppDelegate.showCommandPalette(_:)), let handler = handler(item, action, chain) {
                     var entry = Entry(title: item.title, path: path.joined(separator: " › "), shortcut: shortcut(item), item: item, handler: handler)
-                    if !english.isEmpty {
-                        entry.english = ([item.title] + path).compactMap { english[$0] }.joined(separator: " ")
+                    if translated {
+                        entry.english = ([MainMenu.englishTitle(of: item)].compactMap { $0 } + englishPath).joined(separator: " ")
                     }
                     entries.append(entry)
                 }
@@ -128,22 +130,9 @@ final class CommandPalette: NSWindowController, NSSearchFieldDelegate, NSTableVi
         // The document's menus first, the app menu last (its About and Check for Updates opened the list).
         for top in Array(main.items.dropFirst()) + Array(main.items.prefix(1)) {
             guard let menu = top.submenu else { continue }
-            walk(menu, [top.title])
+            walk(menu, [top.title], [MainMenu.englishTitle(of: top)].compactMap { $0 })
         }
         return entries
-    }
-
-    /// Shown text → its English, from the interface's table (empty in English): the menus' titles come from `loc`, so a
-    /// title in the table's language finds the English it was asked for by. A key's " [context]" is left out.
-    static func englishTitles() -> [String: String] {
-        guard let table = CoreLanguage.table else { return [:] }
-        var english: [String: String] = [:]
-        for (key, shown) in table.sentences where !shown.isEmpty && shown != key {
-            var plain = key
-            if key.hasSuffix("]"), let open = key.range(of: " [", options: .backwards) { plain = String(key[..<open.lowerBound]) }
-            english[shown] = english[shown].map { $0 + " " + plain } ?? plain
-        }
-        return english
     }
 
     /// The responder chain as AppKit walks it for a menu command aimed at `window`.

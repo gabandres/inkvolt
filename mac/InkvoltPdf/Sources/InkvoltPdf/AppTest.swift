@@ -268,6 +268,15 @@ struct AppTest {
         check(p.shown.first?.title == loc("Word…") && p.shown.first?.path == loc("File") + " › " + loc("Export To"), "search \"export word\": \(p.shown.count) found, File › Export To › Word first")
         p.filter("zqxj nothing")
         check(p.shown.isEmpty, "search for something no command has: none")
+        // Spanish says Image and Picture both "Imagen": the Image tool is found by its own English, never by Picture.
+        let isImageTool = { (e: CommandPalette.Entry) in
+            e.item.action == #selector(DocumentWindowController.chooseTool(_:)) && e.item.tag == Tool.image.rawValue
+        }
+        let image = p.all.first(where: isImageTool)?.english ?? "none"
+        p.filter("picture")
+        let byPicture = p.shown.contains(where: isImageTool)
+        let ownEnglish = CoreLanguage.table == nil ? image.isEmpty : image.hasPrefix("Image ") && !image.contains("Picture")
+        check(ownEnglish && !byPicture, "the palette's English words are each command's own (the Image tool: \"\(image)\"; \"picture\" finds it: \(byPicture))")
         p.field.stringValue = "zoom in"
         p.filter(p.field.stringValue)
         snapshot(p.window, "command-palette.png")
