@@ -33,11 +33,11 @@ public static partial class ContentEditor
 
     // ---- Finding the paragraphs ----
 
-    /// <summary>A page's text runs and pictures, for <see cref="TranslationSlots"/>.</summary>
+    /// <summary>A page's text runs (an operator drawing columns a run for each, <see cref="ColumnStarts"/>) and pictures, for <see cref="TranslationSlots"/>.</summary>
     /// <exception cref="ContentEditException">Its forms draw each other beyond any sensible amount: not all of it was read.</exception>
     internal static PageContent ReadRaw(PdfPage page, int pageIndex, CancellationToken cancel)
     {
-        var walk = Walk(page, pageIndex, Parse(page, cancel), cancel);
+        var walk = Walk(page, pageIndex, Parse(page, cancel), cancel, columns: true);
         return walk.CutShort ? throw new ContentEditException(PdfStrings.Edit_DrawingsTooDeep) : walk.Content;
     }
 
@@ -47,7 +47,6 @@ public static partial class ContentEditor
     /// </summary>
     internal static List<TranslationSlot> TranslationSlots(PageContent content, IReadOnlyList<RectD> cells, CancellationToken cancel)
     {
-        content = InColumns(content);
         var groups = new Dictionary<int, List<TextRun>>();
         foreach (var r in content.Runs)
         {
@@ -85,7 +84,8 @@ public static partial class ContentEditor
     /// <summary>
     /// A line the editor keeps whole comes apart where it is really two things: at a gap wider than word spacing goes (a
     /// label and what it labels, columns no rules mark), and where the size changes (a form's big title beside its small
-    /// print), or one size would be forced on both. A small mark (a footnote number) stays on its line.
+    /// print), or one size would be forced on both. A small mark (a footnote number) stays on its line. Columns are told
+    /// apart as inside one operator (<see cref="ColumnGap"/>).
     /// </summary>
     private static List<PLine> SplitAtColumns(List<PLine> lines)
     {
@@ -94,6 +94,7 @@ public static partial class ContentEditor
         {
             var cur = new PLine(l.Runs[0]);
             result.Add(cur);
+            var wordGap = l.Runs.Select(r => WordSpacing(LineWords(r), r.FontSize)).Min();
             for (var i = 1; i < l.Runs.Count; i++)
             {
                 var (prev, r) = (l.Runs[i - 1], l.Runs[i]);
@@ -103,8 +104,7 @@ public static partial class ContentEditor
                 // Sizes touching are one word (small capitals: a big D, then "IGITAL"), or go on after a subscript.
                 var sizes = bigger - smaller.FontSize > 0.15 * bigger && smaller.Text.Trim().Length > 4 && gap > 0.4 * bigger;
                 // Figures after a gap are a column of their own, and stay where they are: nothing to translate, and a model would run them into the label.
-                var figures = gap > 0.6 * bigger && (!r.Text.Any(char.IsLetter) || !prev.Text.Any(char.IsLetter));
-                if (gap > 1.5 * bigger || sizes || figures)
+                if (ColumnGap(gap, bigger, wordGap, prev.Text, r.Text) || sizes)
                 {
                     cur = new PLine(r);
                     result.Add(cur);
@@ -115,137 +115,138 @@ public static partial class ContentEditor
         return result;
     }
 
-    /// <summary>One column of an operator that draws several; <see cref="All"/> are the operator's columns in order (filled once they are all made).</summary>
-    internal sealed record RunPiece(TextRun Whole, List<TextRun> All);
+    // ---- Columns: a label and its figures, set apart on one line ----
 
-    /// <summary>The most columns one operator is taken apart into: more is a crafted operator, kept whole.</summary>
+    /// <summary>A gap this wide (ems) sets columns apart whatever is on either side.</summary>
+    private const double ColumnGapEms = 1.5;
+
+    /// <summary>A gap this wide (ems) sets figures apart from what is beside them, when it is also well beyond the line's word spacing (<see cref="WordGapsToColumn"/> times).</summary>
+    private const double FigureGapEms = 0.6;
+
+    private const double WordGapsToColumn = 1.8;
+
+    /// <summary>The widest a justified line stretches the space after a sentence (ems).</summary>
+    private const double SentenceGapEms = 1.0;
+
+    /// <summary>A gap this wide (ems) is between words, not inside one (a kern).</summary>
+    private const double WordGapEms = 0.15;
+
+    /// <summary>The most columns one operator comes apart into: more is a crafted operator, kept whole.</summary>
     private const int MaxColumnsInRun = 64;
 
+    /// <summary>Something with no letters: figures, a dash standing for none, a leader's dot, or a sentence's last "].".</summary>
+    private static bool NoLetters(string s) => s.Trim().Length > 0 && !s.Any(char.IsLetter);
+
+    /// <summary>Figures: no letters, and something a sentence doesn't end with: a digit, a sign, a dash standing for none ("27.3", "-0.5%", "—"); not "]." or ")." alone.</summary>
+    private static bool Figures(string s) =>
+        NoLetters(s) && s.Any(c => char.IsDigit(c) || char.IsSymbol(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.DashPunctuation);
+
     /// <summary>
-    /// A run whose one operator draws columns (a table row's label and its figures, set apart by TJ adjustments, as pdfTeX
-    /// and the census's tables write them) as a run for each, so that each is translated or kept on its own, where
-    /// <see cref="SplitAtColumns"/> would split runs apart: a gap over 1.5 ems, or over 0.6 ems with figures on one side.
+    /// Whether a gap between <paramref name="left"/> and <paramref name="right"/> on one line sets columns apart: over 1.5
+    /// ems, or over 0.6 ems with figures on one side and well beyond how far the line's words are apart
+    /// (<paramref name="wordGap"/>, null: not known), so a justified line's stretched spaces keep a year in its sentence.
+    /// After the gap, anything with no letters counts as figures (a leader's dots); before it, punctuation alone ends a
+    /// sentence ("]. Our") unless the gap is wider than a sentence's space stretches (a table's "VGG’s [41]   VGG-16").
     /// </summary>
-    internal static PageContent InColumns(PageContent content)
+    private static bool ColumnGap(double gap, double em, double? wordGap, string left, string right) =>
+        gap > ColumnGapEms * em || gap > Math.Max(FigureGapEms * em, WordGapsToColumn * (wordGap ?? 0))
+        && (Figures(left) || NoLetters(right) || NoLetters(left) && gap > SentenceGapEms * em);
+
+    /// <summary>
+    /// How far one operator's words with letters are apart (<paramref name="words"/>, left to right): the narrowest gap
+    /// between two, under a column's; null when there is none. A gap between operators isn't counted: on a table's line
+    /// that is a column's.
+    /// </summary>
+    private static double? WordSpacing(IEnumerable<(double Start, double End, string Text)> words, double em)
     {
-        List<TextRun>? runs = null;
-        for (var i = 0; i < content.Runs.Count; i++)
+        double? least = null;
+        (double End, bool Letters)? before = null;
+        foreach (var (start, end, text) in words)
         {
-            var r = content.Runs[i];
-            var pieces = r.Piece is null && (runs?.Count ?? i) < MaxRunsToTranslate ? Columns(r) : null;
-            if (pieces is null)
-            {
-                runs?.Add(r);
-                continue;
-            }
-            runs ??= [.. content.Runs.Take(i)];
-            runs.AddRange(pieces);
+            var letters = text.Any(char.IsLetter);
+            var gap = start - (before?.End ?? 0);
+            if (before is { Letters: true } && letters && gap > WordGapEms * em && gap <= ColumnGapEms * em) least = Math.Min(least ?? double.MaxValue, gap);
+            before = (end, letters);
         }
-        return runs is null ? content : content with { Runs = runs };
+        return least;
     }
 
-    /// <summary>A run's columns as runs of their own; null when it has one.</summary>
-    private static List<TextRun>? Columns(TextRun r)
+    /// <summary>A run's words where the page shows them (x along its line): from its glyphs when they are known, else the run as one.</summary>
+    private static IEnumerable<(double Start, double End, string Text)> LineWords(TextRun r)
     {
-        if (r.Info is not { } info || r.Font is not { } font || r.Blocked is not null || r.Reach is not { } reach || Math.Abs(r.Angle) >= 0.5) return null;
-        var items = info.Items;
-        var em = Math.Abs(r.Size * r.HScale);
-        if (items.Count < 3 || !(em > 1e-9) || !double.IsFinite(em)) return null;
-        // Where each item starts, and where each glyph's ink ends (text space), as the operator moves.
-        var starts = new double[items.Count + 1];
-        var ends = new double[items.Count];
-        double adv = 0;
-        for (var i = 0; i < items.Count; i++)
-        {
-            starts[i] = adv;
-            var item = items[i];
-            if (item.IsNumber)
-            {
-                adv -= item.Number / 1000 * r.Size * r.HScale;
-                continue;
-            }
-            var w = font.WidthOf(item.Code) / 1000;
-            ends[i] = adv + w * r.Size * r.HScale;
-            adv += (w * r.Size + r.CharSpacing + (!font.TwoByte && item.Code == 32 ? r.WordSpacing : 0)) * r.HScale;
-        }
-        starts[items.Count] = adv;
-        if (!double.IsFinite(adv)) return null;
+        if (r.Info is not { } info || !(r.Scale > 0)) return [(r.Box.X, r.Box.Right, r.Text)];
+        return Words(info.Items, Math.Abs(r.Size * r.HScale)).Select(w => (r.Origin.X + (w.Start - info.Start) * r.Scale, r.Origin.X + (w.End - info.Start) * r.Scale, w.Text));
+    }
 
-        bool Ink(int i) => !items[i].IsNumber && items[i].Text.Trim().Length > 0;
-        string TextOf(int from, int to) => string.Concat(items.Skip(from).Take(to - from).Select(x => x.Text));
-        // Figures: digits and no letters ("27.3", "-0.5%"); a sentence's last "]." before a stretched space isn't, nor is a dash standing for none.
-        bool Figures(string s) => s.Any(char.IsDigit) && !s.Any(char.IsLetter);
-        // Cut at each gap wide enough for either rule; then joined back where it is under 1.5 ems and neither side is figures.
-        var cuts = new List<(int Start, int End)>(); // a column's items, [Start, End): from its first glyph to its last
-        int start = 0, lastInk = -1;
-        for (var i = 0; i < items.Count; i++)
+    /// <summary>A glyph that draws something: not an adjustment, not a space (a glyph with no text may be a leader's dot).</summary>
+    private static bool Inked(RunItem item) => !item.IsNumber && (item.Text.Length == 0 || item.Text.Trim().Length > 0);
+
+    /// <summary>An operator's words as its items place them (text space): split where the ink is apart by more than a kern.</summary>
+    private static List<(int First, double Start, double End, string Text)> Words(IReadOnlyList<RunItem> items, double em)
+    {
+        var words = new List<(int First, double Start, double End, string Text)>();
+        var text = new StringBuilder();
+        int first = -1, last = -1;
+        for (var i = 0; i <= items.Count; i++)
         {
-            if (!Ink(i)) continue;
-            if (lastInk >= 0 && starts[i] - ends[lastInk] > 0.6 * em)
+            if (i < items.Count && !Inked(items[i])) continue;
+            if (last >= 0 && (i == items.Count || items[i].At - items[last].InkEnd > WordGapEms * em))
             {
-                cuts.Add((start, lastInk + 1));
-                start = i;
+                for (var k = first; k <= last; k++) text.Append(items[k].Text);
+                words.Add((first, items[first].At, items[last].InkEnd, text.ToString()));
+                text.Clear();
+                first = -1;
+            }
+            if (i == items.Count) break;
+            if (first < 0) first = i;
+            last = i;
+        }
+        return words;
+    }
+
+    /// <summary>
+    /// Where an operator that draws columns (a table row's label and its figures set apart by TJ adjustments, as pdfTeX and
+    /// the census's tables write them) has each start: the item each column's first glyph is, the first column at 0. Columns
+    /// are told apart as <see cref="SplitAtColumns"/> tells runs apart (<see cref="ColumnGap"/>); null when it has one.
+    /// </summary>
+    internal static List<int>? ColumnStarts(IReadOnlyList<RunItem> items, double em)
+    {
+        em = Math.Abs(em);
+        if (items.Count < 3 || !(em > 1e-9) || !double.IsFinite(em)) return null;
+        var words = Words(items, em);
+        if (words.Count < 2) return null;
+        var wordGap = WordSpacing(words.Select(x => (x.Start, x.End, x.Text)), em);
+        // Cut at each gap wide enough to be one; joined back where it isn't, with what is on each side then.
+        var cuts = new List<int>();
+        for (var k = 1; k < words.Count; k++)
+            if (words[k].Start - words[k - 1].End > Math.Min(ColumnGapEms * em, Math.Max(FigureGapEms * em, WordGapsToColumn * (wordGap ?? 0))))
+            {
+                cuts.Add(k);
                 if (cuts.Count > MaxColumnsInRun) return null;
             }
-            lastInk = i;
-        }
         if (cuts.Count == 0) return null;
-        cuts.Add((start, items.Count));
-        var columns = new List<(int Start, int End)> { cuts[0] };
-        for (var k = 1; k < cuts.Count; k++)
+        string TextOf(int from, int to) => string.Concat(words.Skip(from).Take(to - from).Select(x => x.Text));
+        var starts = new List<int> { 0 };
+        var column = 0; // the first word of the column being made
+        for (var c = 0; c < cuts.Count; c++)
         {
-            var (prev, next) = (columns[^1], cuts[k]);
-            var gap = starts[next.Start] - ends[cuts[k - 1].End - 1];
-            if (gap <= 1.5 * em && !Figures(TextOf(prev.Start, prev.End)) && !Figures(TextOf(next.Start, next.End))) columns[^1] = (prev.Start, next.End);
-            else columns.Add((next.Start, next.End));
+            var k = cuts[c];
+            var next = c + 1 < cuts.Count ? cuts[c + 1] : words.Count;
+            if (!ColumnGap(words[k].Start - words[k - 1].End, em, wordGap, TextOf(column, k), TextOf(k, next))) continue;
+            starts.Add(words[k].First);
+            column = k;
         }
-        if (columns.Count < 2) return null;
-
-        var rad = r.Angle * Math.PI / 180;
-        var (dx, dy) = (Math.Cos(rad), Math.Sin(rad));
-        var all = new List<TextRun>(columns.Count);
-        var piece = new RunPiece(r, all);
-        foreach (var (from, to) in columns)
-        {
-            var at = starts[from];
-            double low = 0, high = 0, end = 0, gaps = 0;
-            var gapCount = 0;
-            for (var k = from; k < to; k++)
-            {
-                if (!items[k].IsNumber)
-                {
-                    low = Math.Min(low, starts[k] - at);
-                    end = ends[k] - at;
-                    high = Math.Max(high, end);
-                }
-                else if (items[k].Text == " ")
-                {
-                    gaps += -items[k].Number / 1000;
-                    gapCount++;
-                }
-            }
-            var origin = new PointD(r.Origin.X + dx * at * r.Scale, r.Origin.Y + dy * at * r.Scale);
-            var box = new RectD(origin.X + low * r.Scale, r.Box.Y + (origin.Y - r.Origin.Y), (Math.Max(end, high) - low) * r.Scale, r.Box.Height);
-            all.Add(r with
-            {
-                Text = TextOf(from, to),
-                Box = box,
-                Origin = origin,
-                Reach = (-low * r.Scale, Math.Max(end, high) * r.Scale, reach.Above, reach.Below),
-                OldWidth = end * r.Scale,
-                GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
-                Info = info with { Items = items.GetRange(from, to - from), Tm = new Mat(1, 0, 0, 1, at, 0).Times(info.Tm), Advance = starts[to] - at },
-                Piece = piece,
-            });
-        }
-        return all;
+        return starts.Count < 2 ? null : starts;
     }
 
-    /// <summary>A column of an operator kept as it was, drawn on its own where it was.</summary>
-    private static string KeptColumn(TextRun column)
+    /// <summary>
+    /// A column of an operator kept as it was, drawn from where the column before it left the text position: what the
+    /// operator does first (' and " go to the next line, " sets the spacing) with the first column, then its glyphs and adjustments.
+    /// </summary>
+    private static string Kept(COp op, TextRun column)
     {
         var info = column.Info!;
-        var sb = new StringBuilder(info.Tm.Write()).Append(" Tm [");
+        var sb = new StringBuilder(NextLine(op, column)).Append('[');
         var codes = new List<int>();
         void Flush()
         {
@@ -264,19 +265,7 @@ public static partial class ContentEditor
             }
         }
         Flush();
-        return sb.Append("] TJ ").ToString();
-    }
-
-    /// <summary>
-    /// An operator whose columns were written apart: each column translated as <paramref name="written"/> has it (its new
-    /// lines, or nothing), the others drawn as they were, then everything left where the operator left it.
-    /// </summary>
-    private static string WriteColumns(COp op, RunPiece piece, IReadOnlyDictionary<TextRun, string> written)
-    {
-        var sb = new StringBuilder();
-        if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc ");
-        foreach (var column in piece.All) sb.Append(written.TryGetValue(column, out var text) ? text : KeptColumn(column)).Append(' ');
-        return sb.Append(BackAfter(piece.Whole)).ToString();
+        return sb.Append("] TJ").ToString();
     }
 
     /// <summary>A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its place from left to right.</summary>
@@ -381,8 +370,9 @@ public static partial class ContentEditor
     /// line can't tell, so its place on the page or in its cell does), and how far down it may go.
     /// </summary>
     /// <param name="fills">Rectangles the page fills, with their place in its content: one filled after the paragraph is drawn would paint over text that grows into it.</param>
+    /// <param name="paints">Everything the page's own content paints, in order (null: not known); what the text sits on is the last before it.</param>
     internal static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
-        IReadOnlyList<(RectD Box, int Id)>? fills = null)
+        IReadOnlyList<(RectD Box, int Id)>? fills = null, IReadOnlyList<Paint>? paints = null)
     {
         var p = slot.Paragraph;
         var framed = p with { };
@@ -392,11 +382,10 @@ public static partial class ContentEditor
         var panel = obstacles.Where(o => o.Width * o.Height < 0.8 * pageWidth * pageHeight && o.Contains(p.Box.CenterX, p.Box.CenterY) && o.Contains(p.Box.X + 0.5, p.Box.Y + 0.5) && o.Contains(p.Box.Right - 0.5, p.Box.Bottom - 0.5))
             .OrderBy(o => o.Width * o.Height).Select(o => (RectD?)o).FirstOrDefault();
 
-        // Light text sits on something dark: past its box it would be white on white, unless that is a band the page
-        // filled before drawing it (NIST's headings), which then holds it as a panel does.
-        var color = p.Lead.Color;
-        var light = slot.Cell is null && 0.3 * (color >> 16 & 0xFF) + 0.59 * (color >> 8 & 0xFF) + 0.11 * (color & 0xFF) > 0.85 * 255;
-        if (light && LightsBand(p, fills, pageWidth, pageHeight) is { } band)
+        // Light text sits on something dark: past its box it would be white on white, unless that is a dark band the page
+        // filled right under it (NIST's headings), which then holds it as a panel does.
+        var light = slot.Cell is null && Luma(p.Lead.Color) > 0.85 * 255;
+        if (light && LightsBand(p, paints, pageWidth, pageHeight) is { } band)
         {
             panel = band;
             light = false;
@@ -491,18 +480,28 @@ public static partial class ContentEditor
         return (framed, bottom);
     }
 
+    /// <summary>How light a color looks, 0 to 255.</summary>
+    private static double Luma(int color) => 0.3 * (color >> 16 & 0xFF) + 0.59 * (color >> 8 & 0xFF) + 0.11 * (color & 0xFF);
+
     /// <summary>
-    /// The smallest rectangle the page's own content filled before a paragraph and under all of it (a font's box may
-    /// reach a little past a tight band), not about the whole page; null when there is none or the paragraph is in a form.
+    /// The band light text sits on: the last thing the page's own content painted where the paragraph is, before it, when
+    /// that is a rectangle filled in a dark color under all of it (a font's box may reach a little past a tight band), not
+    /// about the whole page; null when it is anything else (a picture, a stroke, a light card), not known, or the paragraph is in a form.
     /// </summary>
-    private static RectD? LightsBand(TextParagraph p, IReadOnlyList<(RectD Box, int Id)>? fills, double pageWidth, double pageHeight)
+    private static RectD? LightsBand(TextParagraph p, IReadOnlyList<Paint>? paints, double pageWidth, double pageHeight)
     {
-        if (fills is not { Count: > 0 } || p.Runs.Any(r => r.Info?.Form is not null)) return null;
+        if (paints is not { Count: > 0 } || p.Runs.Any(r => r.Info?.Form is not null)) return null;
         var first = p.Runs.Min(DrawOrder);
         var tol = 0.25 * p.FontSize;
-        return fills.Where(f => f.Id < first && f.Box.Width * f.Box.Height < 0.8 * pageWidth * pageHeight
-                                && f.Box.X <= p.Box.X + 0.5 && f.Box.Right >= p.Box.Right - 0.5 && f.Box.Y <= p.Box.Y + tol && f.Box.Bottom >= p.Box.Bottom - tol)
-            .OrderBy(f => f.Box.Width * f.Box.Height).Select(f => (RectD?)f.Box).FirstOrDefault();
+        var under = RectD.FromEdges(p.Box.X, p.Box.Y + tol, p.Box.Right, p.Box.Bottom - tol);
+        Paint? top = null;
+        foreach (var paint in paints)
+        {
+            if (paint.Id >= first) break; // in the order they are painted
+            if (paint.Box is not { } b || b.X < under.Right && b.Right > under.X && b.Y < under.Bottom && b.Bottom > under.Y) top = paint;
+        }
+        if (top is not { Rect: true, Box: { } f, Color: { } color } || Luma(color) >= 0.5 * 255 || f.Width * f.Height >= 0.8 * pageWidth * pageHeight) return null;
+        return f.X <= p.Box.X + 0.5 && f.Right >= p.Box.Right - 0.5 && f.Y <= p.Box.Y + tol && f.Bottom >= p.Box.Bottom - tol ? f : null;
     }
 
     /// <summary>
@@ -773,7 +772,7 @@ public static partial class ContentEditor
         if (run.Scale > 0 && plain.Scale > 0 && Math.Abs(run.Scale / plain.Scale - 1) > 1e-6) face = plain with { Size = plain.Size * plain.Scale / run.Scale };
         var before = new StringBuilder();
         var after = new StringBuilder();
-        if (op.Name != "\"" && Math.Abs(run.CharSpacing - plain.CharSpacing) > 1e-9)
+        if (SetsSpacing(op, run).Length == 0 && Math.Abs(run.CharSpacing - plain.CharSpacing) > 1e-9)
         {
             before.Append(ContentLexer.Number(plain.CharSpacing)).Append(" Tc ");
             after.Append(' ').Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc");
@@ -863,8 +862,8 @@ public static partial class ContentEditor
         var page = doc.Pages[pageIndex];
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes, cancel);
-        var walk = Walk(page, pageIndex, ops, cancel);
-        var content = InColumns(walk.Content);
+        var walk = Walk(page, pageIndex, ops, cancel, columns: true);
+        var content = walk.Content;
         var slots = TranslationSlots(content, cells, cancel);
         var (pageWidth, pageHeight) = PdfObj.DisplaySize(page);
         var written = new List<TranslationWritten>();
@@ -878,7 +877,8 @@ public static partial class ContentEditor
         var taken = new HashSet<(Target, int)>();
         var things = new PageThings(content, obstacles);
         // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
-        var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, RunPiece Piece, Dictionary<TextRun, string> Written)>();
+        // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
+        var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
 
         for (var i = 0; i < slots.Count; i++)
         {
@@ -896,7 +896,7 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_TooLongForBox));
                 continue;
             }
-            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills);
+            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
             var (layout, fit, fits, dropped) = FitText(framed, bottom, text);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
@@ -957,13 +957,13 @@ public static partial class ContentEditor
                 var op = target.OpOf(run);
                 var hasLines = newLines.TryGetValue(run, out var lines);
                 taken.Add((target, op.Start));
-                if (run.Piece is { } piece)
+                var now = hasLines ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines! }, writer.Fonts) : Removed(op, run);
+                if (run.Info!.Columns == 1) edits.Add((op.Start, op.End, now));
+                else
                 {
-                    if (!columned.TryGetValue((target, op.Start), out var known)) columned[(target, op.Start)] = known = (edits, op, piece, new(ReferenceEqualityComparer.Instance));
-                    known.Written[run] = hasLines ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines! }, writer.Fonts) : "";
-                    continue;
+                    if (!columned.TryGetValue((target, op.Start), out var known)) columned[(target, op.Start)] = known = (edits, op, run.Id, new string?[run.Info.Columns]);
+                    known.Parts[run.Info.Column] = now;
                 }
-                edits.Add((op.Start, op.End, hasLines ? WriteLinesAt(page, op, run, plain, layout with { Lines = lines! }, writer.Fonts) : Removed(op, run)));
             }
             // Spaces drawn on their own go too; one on the lines of two paragraphs only once.
             foreach (var run in p.Spaces)
@@ -979,7 +979,13 @@ public static partial class ContentEditor
             written.Add(new TranslationWritten(i, fit, fits, dropped));
         }
 
-        foreach (var (edits, op, piece, done) in columned.Values) edits.Add((op.Start, op.End, WriteColumns(op, piece, done)));
+        if (columned.Count > 0)
+        {
+            // Each column leaves the text position where the next one starts, as the operator did.
+            var columnsOf = content.Runs.Where(r => r.Info is { Columns: > 1 }).ToLookup(r => r.Id);
+            foreach (var (edits, op, id, parts) in columned.Values)
+                edits.Add((op.Start, op.End, string.Join(' ', columnsOf[id].OrderBy(r => r.Info!.Column).Select(r => parts[r.Info!.Column] ?? Kept(op, r)))));
+        }
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);

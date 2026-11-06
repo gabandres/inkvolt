@@ -947,13 +947,24 @@ public static partial class ContentEditor
     private static string Removed(COp op, TextRun run)
     {
         var move = Move(run, run.Info!.Advance);
-        return op.Name switch
-        {
-            "'" => $"T* {move}",
-            "\"" => $"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc T* {move}",
-            _ => move.Length > 0 ? move : " ",
-        };
+        var first = NextLine(op, run);
+        return first.Length > 0 ? first + move : move.Length > 0 ? move : " ";
     }
+
+    /// <summary>
+    /// What a show operator does before it draws, as operators of its own (' and " go to the next line, " sets the
+    /// spacing); nothing for any other operator, or for a column of an operator after its first (that is done by then).
+    /// </summary>
+    private static string NextLine(COp op, TextRun run) => run.Info?.Column > 0 ? "" : op.Name switch
+    {
+        "'" => "T* ",
+        "\"" => $"{SetsSpacing(op, run)}T* ",
+        _ => "",
+    };
+
+    /// <summary>The word and character spacing a " operator sets, as operators of their own; nothing for any other, or for a column after its first.</summary>
+    private static string SetsSpacing(COp op, TextRun run) =>
+        op.Name == "\"" && run.Info?.Column is null or 0 ? $"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc " : "";
 
     /// <summary>
     /// The paragraph's new lines in place of its first show operator (<paramref name="run"/>), in the paragraph's own
@@ -963,8 +974,7 @@ public static partial class ContentEditor
     private static string WriteParagraph(PdfPage page, COp op, TextRun run, TextRun plain, ParagraphLayout layout, CidFontWriter writer)
     {
         var info = run.Info!;
-        var sb = new StringBuilder();
-        if (op.Name == "\"") sb.Append($"{ContentLexer.Number(op.N(0))} Tw {ContentLexer.Number(op.N(1))} Tc ");
+        var sb = new StringBuilder(SetsSpacing(op, run));
         var tw = run.WordSpacing;
         if (Math.Abs(tw) > 1e-9) sb.Append("0 Tw ");
         var toText = info.Tm.Times(info.Ctm).Invert() ?? throw new ContentEditException(PdfStrings.Edit_TextSquashed);

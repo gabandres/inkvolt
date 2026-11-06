@@ -651,11 +651,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Wording faults are the model's, not bugs: "Cuartil cuarto", "Las ingresos", "Errata" as "Errores", "GUIAS" without its
   accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
   **Fixed (2026-11-06).** A row whose label and figures one operator draws (a TJ with wide adjustments: attn-v7's "Transformer
-  (base model) 27.3 38.1", the census's "income inequality 0.488 0.485", resnet's tables) comes apart at its columns
-  (`ContentEditor.InColumns`, the gaps `SplitAtColumns` uses, figures meaning digits and no letters): only the label is sent,
-  and the figures are drawn again where they were. In the corpus's first pages 128 operators split, all table rows, author
-  lists, numbered headings ("3.1 | Encoder and Decoder Stacks") and a list of figures ("Figure 1. | Median Household…"); a sentence's "]." before a stretched space doesn't split.
-  White text on a band the page filled before it uses the band's width (NIST p. 14's "Propósito" keeps its size).
+  (base model) 27.3 38.1", the census's "income inequality 0.488 0.485", resnet's tables) comes apart at its columns: the
+  walk makes a run of each column from the glyph advances it computes (`ContentEditor.ColumnStarts`), told apart by the one
+  rule `SplitAtColumns` also uses between operators (`ColumnGap`: over 1.5 ems, or over 0.6 ems beside figures and
+  well beyond the operator's own word spacing, so pdfTeX's justified "results from 1999" stays one sentence). Only the label
+  is sent; the other columns are drawn again as they were, each from where the one before it left the text position. In
+  the corpus's first pages: table rows, author lists, numbered headings ("3.1 | Encoder and Decoder Stacks") and a list of
+  figures ("Figure 1. | Median Household…"); a sentence's "]." before a stretched space doesn't split.
+  White text on a dark band filled right under it (nothing painted between) uses the band's width (NIST p. 14's
+  "Propósito" keeps its size); on a light card, a picture or a stroke it stays in its box.
   Checked again with the real model (Qwen3 4B Q4, llama-server, 8,192 tokens) on attn-v7 p. 8, census-p60 p. 12, NIST p. 14
   and resnet p. 6, in 8-100 seconds a page: every figure of the four tables is in its column, model names and "90th/10th"
   come back unchanged, nothing of the model's own reached a copy.

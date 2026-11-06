@@ -26,9 +26,6 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
 
     internal ContentEditor.RunInfo? Info { get; init; }
 
-    /// <summary>For a translated copy: one column of an operator that draws several (see <see cref="ContentEditor.InColumns"/>); else null.</summary>
-    internal ContentEditor.RunPiece? Piece { get; init; }
-
     /// <summary>The name its font has in the resources (no slash).</summary>
     internal string FontKey { get; init; } = "";
 
@@ -678,8 +675,15 @@ public static partial class ContentEditor
         public string Write() => string.Join(' ', new[] { A, B, C, D, E, F }.Select(ContentLexer.Number));
     }
 
-    /// <summary>One glyph or TJ adjustment of a run, with the text it stands for.</summary>
-    internal sealed record RunItem(int Code, double Number, string Text, bool IsNumber, bool Trailing = false);
+    /// <summary>
+    /// One glyph or TJ adjustment of a run, with the text it stands for; where it starts along the operator
+    /// (<see cref="At"/>) and, for a glyph, where its ink ends (<see cref="InkEnd"/>): text space, from where the operator starts.
+    /// </summary>
+    internal sealed record RunItem(int Code, double Number, string Text, bool IsNumber, bool Trailing = false)
+    {
+        public double At { get; init; }
+        public double InkEnd { get; init; }
+    }
 
     /// <summary>
     /// A run as its operator draws it: its glyphs and adjustments; the text matrix where its first glyph starts
@@ -699,7 +703,19 @@ public static partial class ContentEditor
         public string? FillOp { get; init; }
         /// <summary>The form XObject the run is drawn in (null: the page's own content).</summary>
         public FormPlace? Form { get; init; }
+        /// <summary>For a translated copy an operator drawing columns is a run for each (<see cref="ColumnStarts"/>): which one this is (0: the first, or the whole operator).</summary>
+        public int Column { get; init; }
+        /// <summary>How many runs the operator is (1: it is whole).</summary>
+        public int Columns { get; init; } = 1;
+        /// <summary>Where along its operator the run starts (text space, as <see cref="RunItem.At"/>): 0 unless it is a column after the first.</summary>
+        public double Start { get; init; }
     }
+
+    /// <summary>
+    /// Something the page's own content paints, where in it (<see cref="Id"/>), and how far it reaches (null: anywhere it
+    /// may); a filled rectangle is <see cref="Rect"/>, with its fill color when that is a plain one (<see cref="Color"/>).
+    /// </summary>
+    internal readonly record struct Paint(RectD? Box, int Id, bool Rect, int? Color);
 
     /// <summary>
     /// Where a run inside a form XObject (a drawing the page reuses) sits: the form, its content parsed, the operator's
@@ -729,6 +745,11 @@ public static partial class ContentEditor
         public long FormBudget = MaxFormBytes;
         /// <summary>Rectangles the page's own content fills, and where in it: what text written before one would be painted over by.</summary>
         public readonly List<(RectD Box, int Id)> Fills = [];
+        /// <summary>Everything the page's own content paints, in order; past <see cref="MaxFills"/> of them, <see cref="PaintsCut"/>.</summary>
+        public readonly List<Paint> Paints = [];
+        public bool PaintsCut;
+        /// <summary>For a translated copy: an operator drawing columns becomes a run for each (<see cref="ColumnStarts"/>).</summary>
+        public bool Columns;
         public bool CutShort => FormBudget < 0;
         public PageContent Content => new(TextRuns, Images);
     }
@@ -740,7 +761,7 @@ public static partial class ContentEditor
         public Mat Ctm = Mat.Identity;
         public TextFont? Font;
         public string FontKey = "";
-        public double Size = 1, Tc, Tw, Th = 1, Tl, Rise;
+        public double Size = 1, Tc, Tw, Th = 1, Tl, Rise, LineWidth = 1;
         public int Render;
         /// <summary>The rectangles clipping what is drawn, together, in page space (null: none; other clip shapes aren't followed).</summary>
         public RectD? Clip;
@@ -749,9 +770,10 @@ public static partial class ContentEditor
         public GState Clone() => (GState)MemberwiseClone();
     }
 
-    private static Walked Walk(PdfPage page, int pageIndex, List<COp> ops, CancellationToken cancel)
+    /// <param name="columns">For a translated copy: an operator drawing columns becomes a run for each (<see cref="ColumnStarts"/>).</param>
+    private static Walked Walk(PdfPage page, int pageIndex, List<COp> ops, CancellationToken cancel, bool columns = false)
     {
-        var w = new Walked();
+        var w = new Walked { Columns = columns };
         Run(w, page, pageIndex, ops, PdfObj.Dict(page.Elements["/Resources"]), new GState(), 0, null, cancel, null);
         // Text in a form drawn through another form that the page draws more than once: editing it would change every
         // copy (only a form the page draws directly is copied for the edit), so it is edited nowhere.
@@ -779,6 +801,18 @@ public static partial class ContentEditor
         RectD? pathBox = null;
         var pathParts = 0;
         var clipping = false;
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue; // all of the path, page space
+        void Reach(double x, double y)
+        {
+            var (px, py) = Project(page, gs.Ctm, x, y);
+            (minX, minY, maxX, maxY) = (Math.Min(minX, px), Math.Min(minY, py), Math.Max(maxX, px), Math.Max(maxY, py));
+        }
+        void Painted(RectD? box, int id, bool rect, int? color)
+        {
+            if (depth != 0 || w.PaintsCut) return;
+            if (w.Paints.Count >= MaxFills) w.PaintsCut = true;
+            else w.Paints.Add(new Paint(box, id, rect, color));
+        }
         for (var i = 0; i < ops.Count; i++)
         {
             if ((i & 1023) == 1023) cancel.ThrowIfCancellationRequested();
@@ -789,20 +823,42 @@ public static partial class ContentEditor
                 case "re" when op.Operands.Count >= 4:
                     pathParts++;
                     pathBox = BoxOf(page, gs.Ctm, op.N(0), op.N(1), op.N(0) + op.N(2), op.N(1) + op.N(3));
+                    Reach(op.N(0), op.N(1));
+                    Reach(op.N(0) + op.N(2), op.N(1) + op.N(3));
+                    Reach(op.N(0), op.N(1) + op.N(3));
+                    Reach(op.N(0) + op.N(2), op.N(1));
                     break;
                 case "m" or "l" or "c" or "v" or "y":
                     pathParts += 2;
+                    for (var k = 0; k + 1 < op.Operands.Count; k += 2) Reach(op.N(k), op.N(k + 1)); // a curve's control points hold it
+                    break;
+                case "w" when op.Operands.Count >= 1:
+                    gs.LineWidth = op.N(0);
+                    break;
+                case "sh":
+                    Painted(gs.Clip, i, false, null);
                     break;
                 case "W" or "W*":
                     clipping = true;
                     break;
                 case "n" or "f" or "F" or "f*" or "B" or "B*" or "b" or "b*" or "S" or "s":
+                {
                     if (clipping && pathParts == 1 && pathBox is { } clip) gs.Clip = gs.Clip is { } was ? was.Intersect(clip) : clip;
-                    if (depth == 0 && op.Name is not ("n" or "S" or "s") && pathParts == 1 && pathBox is { } filled && w.Fills.Count < MaxFills) w.Fills.Add((filled, i));
+                    var fills = op.Name is not ("n" or "S" or "s");
+                    if (depth == 0 && fills && pathParts == 1 && pathBox is { } filled && w.Fills.Count < MaxFills) w.Fills.Add((filled, i));
+                    if (op.Name != "n" && maxX >= minX)
+                    {
+                        // A stroke reaches half its width past the path.
+                        var half = op.Name is "f" or "F" or "f*" ? 0 : Math.Abs(gs.LineWidth) / 2 * Math.Sqrt(Math.Abs(gs.Ctm.A * gs.Ctm.D - gs.Ctm.B * gs.Ctm.C));
+                        var reach = double.IsFinite(half + minX + minY + maxX + maxY) ? RectD.FromEdges(minX - half, minY - half, maxX + half, maxY + half) : (RectD?)null;
+                        Painted(reach, i, fills && pathParts == 1 && pathBox is not null, fills && gs.FillOp is not null && IsPlainColorSpace(resources, gs.FillSpace) ? gs.Fill : null);
+                    }
                     clipping = false;
                     pathParts = 0;
                     pathBox = null;
+                    (minX, minY, maxX, maxY) = (double.MaxValue, double.MaxValue, double.MinValue, double.MinValue);
                     break;
+                }
                 case "q":
                     if (stack.Count < 256) stack.Push(gs.Clone());
                     break;
@@ -916,7 +972,11 @@ public static partial class ContentEditor
                     var xobj = PdfObj.Dict(PdfObj.Dict(resources?.Elements["/XObject"])?.Elements["/" + op.Operands[0].Name]);
                     if (xobj is null) break;
                     var sub = PdfObj.NameOf(xobj, "/Subtype");
-                    if (sub == "/Image") AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
+                    if (sub == "/Image")
+                    {
+                        AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
+                        Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
+                    }
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
                         cancel.ThrowIfCancellationRequested();
@@ -926,6 +986,9 @@ public static partial class ContentEditor
                             : Mat.Identity;
                         var inner = gs.Clone();
                         inner.Ctm = m.Times(gs.Ctm);
+                        // What a form paints is anywhere in its box (anywhere at all without one).
+                        Painted(PdfObj.Array(xobj.Elements["/BBox"]) is { Elements.Count: 4 } reach
+                            ? BoxOf(page, inner.Ctm, PdfObj.Num(reach, 0), PdfObj.Num(reach, 1), PdfObj.Num(reach, 2), PdfObj.Num(reach, 3)) : null, i, false, null);
                         w.FormUses[xobj] = w.FormUses.GetValueOrDefault(xobj) + 1;
                         var bytes = PdfObj.StreamBytes(xobj);
                         w.FormBudget -= bytes.Length + 1024;
@@ -944,6 +1007,7 @@ public static partial class ContentEditor
                 }
                 case "BI":
                     AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null));
+                    Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
                     break;
             }
         }
@@ -1011,15 +1075,16 @@ public static partial class ContentEditor
         return RectD.FromEdges(minX, minY, maxX, maxY);
     }
 
-    /// <summary>Records a text-showing operator as a run and returns the text matrix after it.</summary>
+    /// <summary>
+    /// Records a text-showing operator as a run (for a translated copy, as a run for each column it draws) and returns the
+    /// text matrix after it.
+    /// </summary>
     private static Mat ShowText(Walked w, PdfPage page, int pageIndex, int id, COp op, CObj arg, GState gs, Mat tm, Mat tlm, string? blocked, LookTag? tag, FormPlace? form)
     {
         var font = gs.Font;
         var items = new List<RunItem>();
         var hex = false;
-        double adv = 0, gaps = 0, end = 0; // end: where the last glyph's ink ends (before its spacing)
-        double low = 0, high = 0; // how far its glyphs reach: right-to-left text written in logical order moves back as it goes
-        var gapCount = 0;
+        double adv = 0;
         var fs = gs.Size;
         void Glyphs(CObj s)
         {
@@ -1028,18 +1093,14 @@ public static partial class ContentEditor
             {
                 foreach (var b in s.Bytes)
                 {
-                    items.Add(new RunItem(b, 0, ((char)b).ToString(), false));
-                    end = adv + 0.5 * fs * gs.Th;
-                    (low, high) = (Math.Min(low, adv), Math.Max(high, end));
+                    items.Add(new RunItem(b, 0, ((char)b).ToString(), false) { At = adv, InkEnd = adv + 0.5 * fs * gs.Th });
                     adv += (0.5 * fs + gs.Tc) * gs.Th;
                 }
                 return;
             }
             foreach (var g in font.Decode(s.Bytes))
             {
-                items.Add(new RunItem(g.Code, 0, g.Text, false));
-                end = adv + g.Width * fs * gs.Th;
-                (low, high) = (Math.Min(low, adv), Math.Max(high, end));
+                items.Add(new RunItem(g.Code, 0, g.Text, false) { At = adv, InkEnd = adv + g.Width * fs * gs.Th });
                 adv += (g.Width * fs + gs.Tc + (!font.TwoByte && g.Code == 32 ? gs.Tw : 0)) * gs.Th;
             }
         }
@@ -1053,29 +1114,24 @@ public static partial class ContentEditor
                 {
                     // A wide gap between words shows (and copies) as a space.
                     var space = -el.Num > 180 && items.Count > 0 && items[^1].Text is { } prev && !prev.EndsWith(' ');
-                    items.Add(new RunItem(0, el.Num, space ? " " : "", true));
+                    items.Add(new RunItem(0, el.Num, space ? " " : "", true) { At = adv });
                     adv -= el.Num / 1000 * fs * gs.Th;
-                    if (space)
-                    {
-                        gaps += -el.Num / 1000;
-                        gapCount++;
-                    }
                 }
             }
             // An adjustment after the last glyph moves what follows: it isn't part of the text.
             for (var k = items.Count - 1; k >= 0 && items[k].IsNumber; k--) items[k] = items[k] with { Text = "", Trailing = true };
         }
 
-        var trm = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(tm).Times(gs.Ctm);
         var asc = (font?.Ascent ?? 0.8) * fs;
         var desc = (font?.Descent ?? -0.2) * fs;
-        var box = BoxOf(page, trm, low, desc, Math.Max(end, high), asc);
+        var trm = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(tm).Times(gs.Ctm);
         var (bx0, by0) = Project(page, trm, 0, 0);
         var (bx1, by1) = Project(page, trm, 1, 0);
         var (vx0, vy0) = Project(page, trm, 0, 1);
         var scale = Math.Sqrt((bx1 - bx0) * (bx1 - bx0) + (by1 - by0) * (by1 - by0));
         var vscale = Math.Sqrt((vx0 - bx0) * (vx0 - bx0) + (vy0 - by0) * (vy0 - by0));
         var angle = Math.Atan2(by1 - by0, bx1 - bx0) * 180 / Math.PI;
+        var upright = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0);
         var text = string.Concat(items.Select(i => i.Text));
 
         var why = blocked;
@@ -1087,27 +1143,73 @@ public static partial class ContentEditor
             else if (text.Contains('�')) why = PdfStrings.Edit_BlockedUnreadableChars;
             else if (text.Trim().Length == 0) why = PdfStrings.Edit_BlockedOnlySpaces;
         }
-        var run = new TextRun(pageIndex, id, text, box, Math.Abs(fs) * vscale, font?.Name ?? gs.FontKey, font?.Bold ?? false, font?.Italic ?? false,
-            gs.Fill, angle, why)
+
+        // The run of items [from, to): starting at "at" along the operator, the next one at "next".
+        TextRun Make(int from, int to, double at, double next, int column, int columns)
         {
-            Font = font,
-            Scale = scale,
-            Size = fs,
-            CharSpacing = gs.Tc,
-            WordSpacing = gs.Tw,
-            HScale = gs.Th,
-            GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
-            OldWidth = end * scale,
-            Origin = new PointD(bx0, by0),
-            Reach = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0) ? (-low * scale, Math.Max(end, high) * scale, asc * vscale, -desc * vscale) : null,
-            FontKey = gs.FontKey,
-            Tag = tag,
-        };
-        var info = new RunInfo(items, hex) { Tm = tm, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = adv, FillOp = gs.FillOp, Form = form, Clip = gs.Clip };
-        // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
-        var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
-        if (text.Length > 0) w.TextRuns.Add(run with { Info = why is null || spacesOnly ? info : null });
-        if (why is null) w.Runs[id] = info;
+            var start = at == 0 ? tm : new Mat(1, 0, 0, 1, at, 0).Times(tm);
+            var place = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(start).Times(gs.Ctm);
+            double low = 0, high = 0, end = 0, gaps = 0; // end: where the last glyph's ink ends (before its spacing); low, high: how far its glyphs reach (right-to-left text written in logical order moves back as it goes)
+            var gapCount = 0;
+            for (var k = from; k < to; k++)
+            {
+                var item = items[k];
+                // A column reaches as far as its ink: the spaces before the next one are the gap between them.
+                if (columns == 1 ? !item.IsNumber : Inked(item))
+                {
+                    low = Math.Min(low, item.At - at);
+                    end = item.InkEnd - at;
+                    high = Math.Max(high, end);
+                }
+                else if (item.Text == " ")
+                {
+                    gaps += -item.Number / 1000;
+                    gapCount++;
+                }
+            }
+            var (ox, oy) = Project(page, place, 0, 0);
+            var mine = from == 0 && to == items.Count ? items : items.GetRange(from, to - from);
+            return new TextRun(pageIndex, id, columns == 1 ? text : string.Concat(mine.Select(i => i.Text)), BoxOf(page, place, low, desc, Math.Max(end, high), asc),
+                Math.Abs(fs) * vscale, font?.Name ?? gs.FontKey, font?.Bold ?? false, font?.Italic ?? false, gs.Fill, angle, why)
+            {
+                Font = font,
+                Scale = scale,
+                Size = fs,
+                CharSpacing = gs.Tc,
+                WordSpacing = gs.Tw,
+                HScale = gs.Th,
+                GapEms = gapCount > 0 ? gaps / gapCount : 0.25,
+                OldWidth = end * scale,
+                Origin = new PointD(ox, oy),
+                Reach = upright ? (-low * scale, Math.Max(end, high) * scale, asc * vscale, -desc * vscale) : null,
+                FontKey = gs.FontKey,
+                Tag = tag,
+                Info = new RunInfo(mine, hex)
+                {
+                    Tm = start, TlmAfter = tlm, Ctm = gs.Ctm, Rise = gs.Rise, Advance = next - at, FillOp = gs.FillOp, Form = form, Clip = gs.Clip,
+                    Column = column, Columns = columns, Start = at,
+                },
+            };
+        }
+
+        // Columns only up to the most runs a page may have to be translated: past that it is crowded anyway.
+        if (why is null && w.Columns && upright && Math.Abs(angle) < 0.5 && double.IsFinite(adv) && w.TextRuns.Count < MaxRunsToTranslate && ColumnStarts(items, fs * gs.Th) is { } starts)
+        {
+            // Each column from its first glyph to the next column's (the first from where the operator starts): every item in one.
+            for (var k = 0; k < starts.Count; k++)
+            {
+                var to = k + 1 < starts.Count ? starts[k + 1] : items.Count;
+                w.TextRuns.Add(Make(starts[k], to, k == 0 ? 0 : items[starts[k]].At, to < items.Count ? items[to].At : adv, k, starts.Count));
+            }
+        }
+        else
+        {
+            var run = Make(0, items.Count, 0, adv, 0, 1);
+            // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
+            var spacesOnly = why is not null && blocked is null && font is not null && font.Blocked is null && gs.Render is not (3 or 7) && text.Length > 0 && text.Trim().Length == 0;
+            if (text.Length > 0) w.TextRuns.Add(why is null || spacesOnly ? run : run with { Info = null });
+            if (why is null) w.Runs[id] = run.Info!;
+        }
         return new Mat(1, 0, 0, 1, adv, 0).Times(tm);
     }
 

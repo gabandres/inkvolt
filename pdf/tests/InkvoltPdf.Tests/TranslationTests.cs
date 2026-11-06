@@ -1096,6 +1096,21 @@ public class TranslationCopyTests
         Assert.Equal(75, text.Box.X, 1);
     }
 
+    [Theory]
+    // A white card with a dark stroke on it, the text on the stroke: the card is under the text, but it isn't dark.
+    [InlineData("1 1 1 rg 60 600 400 150 re f 0 G 20 w 72 700 m 132 700 l S ")]
+    // A dark band with a picture on it, the text on the picture: the band isn't what the text sits on.
+    [InlineData("0 0 0.5 rg 72 688 300 22 re f q 60 0 0 22 72 688 cm /Im1 Do Q ")]
+    public void White_text_on_something_other_than_a_dark_band_stays_in_its_box(string under)
+    {
+        var pdf = Page(under + "1 1 1 rg " + Lines(75, 695, 12, 14, "Hello") + "0 0 0 rg " + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
+        var before = ContentEditor.Read(pdf, null, 0).Paragraphs.First(q => q.Text == "Hello");
+        var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : "THE DOG");
+        var text = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX");
+        Assert.True(text.Box.Right <= before.Box.Right + 1, $"{text.Box.Right} past {before.Box.Right}");
+        Assert.True(text.FontSize < 12);
+    }
+
     [Fact]
     public void Text_doesnt_grow_out_of_what_clips_it()
     {
@@ -1301,6 +1316,77 @@ public class TranslationCopyTests
         Assert.DoesNotContain(runs, q => q.Text.Contains("Hello", StringComparison.Ordinal));
         Assert.Equal(first, runs.Single(q => q.Text.Trim() == "2024").Box.X, 2);
         Assert.Equal(second, runs.Single(q => q.Text.Trim() == "1999").Box.X, 2);
+    }
+
+    [Fact]
+    public void A_justified_lines_year_stays_in_its_sentence()
+    {
+        // pdfTeX's justified line: every space a stretched adjustment, a year among the words.
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(results)-650(from)-680(1999)-650(onward)] TJ ET", fontText: Letters);
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["results from 1999 onward"], plan.Texts.Select(t => t.Text));
+    }
+
+    [Fact]
+    public void Every_glyph_of_an_operators_columns_is_drawn_again()
+    {
+        // The space after "2024" is between two columns: it goes with one of them, not with neither.
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(Hello World) -2000 (2024 ) -1500 (1999)] TJ ET", fontText: Letters);
+        var (_, r) = Translate(pdf, _ => "THE DOG");
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs;
+        Assert.Equal("2024 ", runs.Single(q => q.Text.Trim() == "2024").Text);
+    }
+
+    [Fact]
+    public void Columns_of_a_next_line_operator_stay_where_they_were()
+    {
+        // ' moves to the next line before it draws: the kept column is drawn on that line, and what follows after it.
+        var pdf = Page("BT /FA 10 Tf 12 TL 1 0 0 1 72 712 Tm (Hello World       2024) ' (!) Tj ET", fontText: Letters);
+        var before = ContentEditor.Read(pdf, null, 0).Runs;
+        var (plan, r) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Hello World"], plan.Texts.Select(t => t.Text.Trim()));
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs;
+        Assert.Contains(runs, q => q.Text.Contains("THE DOG", StringComparison.Ordinal));
+        var was = before.Single(q => q.Text == "!").Box;
+        var now = runs.Single(q => q.Text == "!").Box;
+        Assert.Equal(was.X, now.X, 2);
+        Assert.Equal(was.Y, now.Y, 2);
+        var year = runs.Single(q => q.Text.Trim() == "2024").Box;
+        Assert.Equal(was.Y, year.Y, 2);
+        Assert.Equal(was.X, year.Right, 1);
+    }
+
+    [Fact]
+    public void Columns_are_told_apart_alike_in_one_operator_and_between_operators()
+    {
+        // What follows a label 0.9 ems on, drawn by the label's own TJ or by an operator of its own: a leader's dots or any
+        // other value with no letters is a column.
+        var probe = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm (Hello World) Tj ET", fontText: Letters);
+        var font = ContentEditor.Read(probe, null, 0).Runs[0].Font!;
+        double Width(string s) => font.Encode(s).Codes.Sum(c => font.WidthOf(c)) / 1000 * 10;
+        string[] Texts(string left, string right)
+        {
+            var one = Page($"BT /FA 10 Tf 1 0 0 1 72 700 Tm [({left}) -900 ({right})] TJ ET", fontText: Letters);
+            var at = (72 + Width(left) + 9).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            var two = Page($"BT /FA 10 Tf 1 0 0 1 72 700 Tm ({left}) Tj 1 0 0 1 {at} 700 Tm ({right}) Tj ET", fontText: Letters);
+            var texts = Translate(two, _ => "THE DOG").Plan.Texts.Select(t => t.Text).ToArray();
+            Assert.Equal(texts, Translate(one, _ => "THE DOG").Plan.Texts.Select(t => t.Text));
+            return texts;
+        }
+        Assert.Equal(["Hello World"], Texts("Hello World", "..."));
+        Assert.Equal(["Hello World"], Texts("Hello World", ".!"));
+    }
+
+    [Fact]
+    public void A_page_whose_columns_make_too_many_runs_is_crowded()
+    {
+        // 400 operators of 51 columns each: under the limit as operators, over it as the runs they come apart into.
+        var sb = new StringBuilder("BT /FA 2 Tf ");
+        var row = "[(Hello)" + string.Concat(Enumerable.Repeat(" -2000 (1)", 50)) + "] TJ ";
+        for (var i = 0; i < 400; i++) sb.Append($"1 0 0 1 20 {780 - i * 1.9:0.0} Tm ").Append(row);
+        var pdf = Page(sb.Append("ET").ToString().Replace(',', '.'), fontText: Letters);
+        var plan = Translation.MakePlan(pdf, null, [0]);
+        Assert.Equal([0], plan.CrowdedPages);
     }
 
     [Fact]
