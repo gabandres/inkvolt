@@ -112,29 +112,33 @@ public static class Dib
 {
     private const int FileHeaderSize = 14;
 
-    /// <summary>Bytes the DIB takes from its header on, from the header alone (its first 40 bytes); 0 when it isn't one.</summary>
+    /// <summary>
+    /// Bytes the DIB takes from its header on, from the header alone (its first 40 bytes); 0 when it isn't one or wouldn't fit in
+    /// memory (the driver writes the header: every sum is in 64 bits, so none wraps around to a small or negative length).
+    /// </summary>
     public static int Length(ReadOnlySpan<byte> header)
     {
         if (header.Length < 40) return 0;
-        var size = BinaryPrimitives.ReadInt32LittleEndian(header);
-        var width = BinaryPrimitives.ReadInt32LittleEndian(header[4..]);
-        var height = Math.Abs(BinaryPrimitives.ReadInt32LittleEndian(header[8..]));
+        long size = BinaryPrimitives.ReadInt32LittleEndian(header);
+        long width = BinaryPrimitives.ReadInt32LittleEndian(header[4..]);
+        var height = Math.Abs((long)BinaryPrimitives.ReadInt32LittleEndian(header[8..])); // int.MinValue has no int opposite
         int bits = BinaryPrimitives.ReadUInt16LittleEndian(header[14..]);
         var compression = BinaryPrimitives.ReadInt32LittleEndian(header[16..]);
         var imageSize = BinaryPrimitives.ReadInt32LittleEndian(header[20..]);
         if (size < 40 || width <= 0 || height == 0 || bits is not (1 or 4 or 8 or 16 or 24 or 32)) return 0;
-        var stride = (long)((width * bits + 31) / 32) * 4;
+        var stride = (width * bits + 31) / 32 * 4;
         long pixels = compression == 0 ? stride * height : imageSize; // BI_RGB: the driver may leave biSizeImage 0
         if (compression == 3 && size == 40) size += 12; // BI_BITFIELDS: three masks after the header
         var total = size + ColorTableSize(header) + pixels;
-        return pixels <= 0 || total > int.MaxValue ? 0 : (int)total;
+        return pixels <= 0 || total > Array.MaxLength - FileHeaderSize ? 0 : (int)total; // the .bmp's array holds it too
     }
 
-    private static int ColorTableSize(ReadOnlySpan<byte> header)
+    /// <summary>The color table's bytes (biClrUsed entries, or the bit depth's full palette), in 64 bits: the driver sets the count.</summary>
+    private static long ColorTableSize(ReadOnlySpan<byte> header)
     {
         int bits = BinaryPrimitives.ReadUInt16LittleEndian(header[14..]);
-        var used = BinaryPrimitives.ReadInt32LittleEndian(header[32..]);
-        var entries = used > 0 ? used : bits <= 8 ? 1 << bits : 0;
+        long used = BinaryPrimitives.ReadInt32LittleEndian(header[32..]);
+        var entries = used > 0 ? used : bits <= 8 ? 1L << bits : 0;
         return entries * 4;
     }
 
@@ -149,7 +153,7 @@ public static class Dib
         bmp[0] = (byte)'B';
         bmp[1] = (byte)'M';
         BinaryPrimitives.WriteInt32LittleEndian(bmp.AsSpan(2), bmp.Length);
-        BinaryPrimitives.WriteInt32LittleEndian(bmp.AsSpan(10), FileHeaderSize + headerSize + ColorTableSize(dib));
+        BinaryPrimitives.WriteInt32LittleEndian(bmp.AsSpan(10), (int)(FileHeaderSize + headerSize + ColorTableSize(dib))); // within length: Length checked
         dib[..length].CopyTo(bmp.AsSpan(FileHeaderSize));
         return bmp;
     }

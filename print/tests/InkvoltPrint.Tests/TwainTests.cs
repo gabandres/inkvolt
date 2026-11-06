@@ -390,6 +390,39 @@ public class TwainTests
     }
 
     /// <summary>WIA's list, changed as a device is plugged in or out.</summary>
+    // ---- A source's page header (hostile input: the driver writes it) ------------------------------------------------------------
+
+    /// <summary>A packed DIB's 40-byte header: 2 × 2 pixels, 24-bit, no compression, then the fields a test changes.</summary>
+    private static byte[] DibHeader(int width = 2, int height = 2, ushort bits = 24, int size = 40, int colorsUsed = 0, int compression = 0, int imageSize = 0)
+    {
+        var h = new byte[64];
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h, size);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h.AsSpan(4), width);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h.AsSpan(8), height);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(h.AsSpan(12), 1);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(h.AsSpan(14), bits);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h.AsSpan(16), compression);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h.AsSpan(20), imageSize);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(h.AsSpan(32), colorsUsed);
+        return h;
+    }
+
+    [Fact]
+    public void A_page_header_whose_numbers_overflow_is_refused_not_thrown_on()
+    {
+        Assert.Equal(40 + 16, Dib.Length(DibHeader())); // a real one still reads
+        // Math.Abs(int.MinValue) threw; the rest wrapped around in int and gave a small length (or a negative one, which
+        // WindowsTwain's ReadDib passed to new byte[]) for a page far bigger than any buffer.
+        Assert.Equal(0, Dib.Length(DibHeader(height: int.MinValue)));
+        Assert.Equal(0, Dib.Length(DibHeader(width: 0x10000001, bits: 32))); // width × bits past int (wrapped: 4 bytes a row)
+        Assert.Equal(0, Dib.Length(DibHeader(size: int.MaxValue - 10, bits: 8))); // header size plus its color table past int
+        Assert.Equal(0, Dib.Length(DibHeader(colorsUsed: 0x40000001))); // a 4 GB color table, × 4 past int
+        Assert.Equal(0, Dib.Length(DibHeader(colorsUsed: int.MaxValue, bits: 8)));
+        Assert.Throws<FormatException>(() => Dib.ToBmp(DibHeader(height: int.MinValue)));
+        Assert.Throws<FormatException>(() => Dib.ToBmp(DibHeader(width: 0x10000001, bits: 32)));
+        Assert.Throws<FormatException>(() => Dib.ToBmp(DibHeader(colorsUsed: 0x40000001)));
+    }
+
     private sealed class ListedWia(IReadOnlyList<WiaDeviceInfo> devices) : IWiaSystem
     {
         public IReadOnlyList<WiaDeviceInfo> Devices { get; set; } = devices;
