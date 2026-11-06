@@ -985,6 +985,31 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it()
+    {
+        // The census's first "Income percentile ratios:": a label in a narrow first column, nothing else on its row, a row
+        // right under it. Its translation is longer than its cell; the row's empty cells to its right take it at its size.
+        double[] xs = [72, 160, 250, 400];
+        string[][] rows = [["North", "1,204", "Growing fast"], ["Lazy dog ratios:", "", ""], ["South", "987", "Steady demand"]];
+        var sb = new StringBuilder("0 G 0.5 w ");
+        for (var r = 0; r <= rows.Length; r++) sb.Append($"{xs[0]} {700 - 16 * r} m {xs[^1]} {700 - 16 * r} l S ");
+        // Only the outer columns ruled (the census rules none): nothing stands between the label and the empty cells.
+        foreach (var x in new[] { xs[0], xs[^1] }) sb.Append($"{x} 700 m {x} {700 - 16 * rows.Length} l S ");
+        for (var r = 0; r < rows.Length; r++)
+            for (var c = 0; c < 3; c++)
+                if (rows[r][c].Length > 0) sb.Append(Lines(xs[c] + 3, 700 - 16 * r - 12, 9, 11, rows[r][c]));
+        var pdf = Page(sb.ToString(), fontText: Letters + ":,");
+        const string Long = "THE QUICK BROWN FOX AND THE LAZY DOG RATIOS:";
+        var (plan, r2) = Translate(pdf, t => t == "Lazy dog ratios:" ? Long : t);
+        Assert.Contains(plan.Pages[0].Cells, c => c.Contains(100, 792 - 684 + 8) && c.Right >= 300); // the label's cell reaches the table's last column
+        var run = ContentEditor.Read(r2.Data!, null, 0).Runs.Single(q => q.Text.Contains("RATIOS", StringComparison.Ordinal));
+        Assert.Equal(Long, run.Text.Trim());
+        Assert.Equal(9, run.FontSize, 2); // not shrunk
+        Assert.True(run.Box.Right <= 400 && run.Box.Y >= 792 - 700 + 16 - 0.5 && run.Box.Bottom <= 792 - 700 + 32 + 0.5, $"{run.Box}");
+        Assert.Equal(0, r2.Report.Shrunk);
+    }
+
+    [Fact]
     public void A_sentence_wrapped_after_a_colon_stays_one_paragraph()
     {
         // Short lines of a narrow column: a line ending in ":" and the next going on in lowercase are one sentence.

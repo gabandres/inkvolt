@@ -312,7 +312,12 @@ public static class Translation
         }
     }
 
-    /// <summary>Each cell with text in it, as a box: its columns from the table's widths, its row from the row heights when the rules give them, else down to the next row's text.</summary>
+    /// <summary>
+    /// Each cell with text in it, as a box: its columns from the table's widths, its row from the row heights when the
+    /// rules give them, else down to the next row's text. The last cell with text on its row takes the empty cells after
+    /// it too (a label heading the rows under it, alone on its row, as the census's "Income percentile ratios:"): a longer
+    /// translation has that room rather than shrinking in its column. A rule between them still stops it (<see cref="ContentEditor.Room"/>).
+    /// </summary>
     internal static IEnumerable<RectD> CellsOf(DocTable t)
     {
         var xs = new double[t.ColumnWidths.Count + 1];
@@ -337,11 +342,15 @@ public static class Translation
                 bottom = Math.Max(below, boxes.Max(b => b.Bottom));
             }
             var col = 0;
-            foreach (var cell in row)
+            var last = -1;
+            for (var c = 0; c < row.Count; c++)
+                if (row[c].Paragraphs.Count > 0) last = c;
+            for (var c = 0; c < row.Count; c++)
             {
-                var end = Math.Min(col + Math.Max(cell.ColSpan, 1), xs.Length - 1);
+                var cell = row[c];
+                var end = c == last ? xs.Length - 1 : Math.Min(col + Math.Max(cell.ColSpan, 1), xs.Length - 1);
                 if (cell.Paragraphs.Count > 0 && end > col && bottom > top) yield return RectD.FromEdges(xs[col], top, xs[end], bottom);
-                col = end;
+                col = Math.Min(col + Math.Max(cell.ColSpan, 1), xs.Length - 1);
             }
         }
     }

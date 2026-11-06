@@ -699,9 +699,11 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`, `A_link_whose_words…`;
   NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a line's end and "800-"
   on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
-  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
-  label in a narrow cell with a row right under it still shrinks to the floor (the census's first "Income percentile
-  ratios:" as "Proporciones de percentiles de ingresos:"): its cell has neither the width nor the height. The model's,
+  **A label alone on its row (2026-11-06).** The last cell with text on a table's row takes the empty cells after it
+  (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
+  column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
+  answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.
+  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
