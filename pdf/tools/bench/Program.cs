@@ -37,6 +37,24 @@ if (args is ["page-check-wrong-picture", .. var pictureArgs] && PageChecks.IsCom
     return PageChecks.Run(pictureArgs);
 }
 
+// A test's check process whose picture of each page takes 10 s more than it was given (PageCheckTests).
+if (args is ["page-check-slow-picture", .. var slowPictureArgs] && PageChecks.IsCommand(slowPictureArgs))
+{
+    PageChecks.TestPictureFault = p =>
+    {
+        Thread.Sleep(10_000);
+        return p;
+    };
+    return PageChecks.Run(slowPictureArgs);
+}
+
+// A test's check process that takes 400 ms more over each check, so checks overlap (PageCheckTests).
+if (args is ["page-check-slow", .. var slowArgs] && PageChecks.IsCommand(slowArgs))
+{
+    PageChecks.TestCheckFault = () => Thread.Sleep(400);
+    return PageChecks.Run(slowArgs);
+}
+
 if (args is ["page-check-out-of-memory", .. var memoryArgs] && PageChecks.IsCommand(memoryArgs))
 {
     // MuPDF giving up once the process held past half of what it may (1.2 GB of its 2 GB).

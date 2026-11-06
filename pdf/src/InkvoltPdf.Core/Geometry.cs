@@ -33,6 +33,20 @@ public readonly record struct RectD(double X, double Y, double Width, double Hei
 /// <summary>Page box size in points, as displayed (rotation applied).</summary>
 public readonly record struct PageGeometry(double OriginX, double OriginY, double Width, double Height);
 
+/// <summary>
+/// The scale a view draws its pages at in full: <paramref name="Scale"/> (pixels a point), or less for a page that would
+/// have more than <paramref name="MaxPixels"/> (the rest of it comes in tiles). Each page by its own size: on a document of
+/// mixed sizes, the pages a check draws ahead are drawn at their own scale.
+/// </summary>
+public readonly record struct ViewScale(double Scale, long MaxPixels)
+{
+    public double For(PageGeometry g)
+    {
+        var pixels = g.Width * g.Height * Scale * Scale;
+        return pixels > MaxPixels ? Math.Sqrt(MaxPixels / (g.Width * g.Height)) : Scale;
+    }
+}
+
 /// <summary>A point in page space: PDF points, origin at the page's top-left, y down.</summary>
 public readonly record struct PointD(double X, double Y);
 
