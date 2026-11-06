@@ -31,8 +31,9 @@ self-test's four redaction checks that failed once and passed alone (not reprodu
 run passed 531 checks, its 16 redaction ones too; watch for it); SNMPv3 on the Mac needs SHA-256/AES (CryptoKit is
 Mac-only: do it in PrintMac, or a package by the owner's word).
 - **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~, ~~PDF for Mac 2.4
-  additions~~, ~~Snapshot, printer status~~, ~~Print 3.6, 3.4~~ (done 11-05) → Print for Mac 1.2 build to TestFlight once
-  1.1 is approved (still Waiting for Review 11-05) → Print 2.3 app half (ScanImaging around the filters, `ScanPdf` through
+  additions~~, ~~Snapshot, printer status~~, ~~Print 3.6, 3.4~~ (done 11-05) → ~~Print for Mac 1.2 build to TestFlight once
+  1.1 is approved~~ (1.1 live, tag `print-mac-v1.1.0`; 1.2 build 6 VALID and version 1.2 prepared 11-06: the owner
+  submits with `node mac/InkvoltPrint/asc-listing.mjs submit`) → Print 2.3 app half (ScanImaging around the filters, `ScanPdf` through
   `PdfWriter` with Vision's words, the Clean up settings and review) → PDF 2.3 scan leftovers → vector printing → 3.2
   SNMPv3 → Spanish for both Mac apps → PDF 3.5 folder search, 3.3 Compare → XL: redaction-by-pattern additions, 3.4 LTV,
   2.1 paragraph editing, 3.1 Translate.
