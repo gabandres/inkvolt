@@ -23,6 +23,13 @@ public static partial class ContentEditor
     private const int MaxWordsToSearch = 4_000;
 
     /// <summary>
+    /// The longest word (characters, spaces apart) a link is followed by: a line holds fewer. A link with a longer one is
+    /// dropped, and a longer new word is never part of where a link goes (looking up each beginning of such a word took
+    /// seconds on a crafted page).
+    /// </summary>
+    private const int MaxLinkWordChars = 256;
+
+    /// <summary>
     /// A link on a translated paragraph's lines (<see cref="TranslationWritten.Slot"/>): its annotation, where it was, its
     /// words then, its underline (<see cref="LinkUnderline"/>; null: none to move) and the baseline of its line; where the
     /// new text is, where its lines start (page as shown) and how far it shrank (<paramref name="Placed"/> null: a turned
@@ -100,17 +107,20 @@ public static partial class ContentEditor
     /// stretch of them, in their order, as they were (not already taken by another link), worth following
     /// (<see cref="Telling"/>); none when there is none. Spaces don't count, so "800-" "63A," (a line's gaps fall where
     /// its maker spaced it) is "800-63A," as one word. A place starts at a new word whose bare form begins the stretch:
-    /// the new words are indexed by their bare forms, looked up by the stretch's beginnings.
+    /// the new words are indexed by their bare forms, looked up by the stretch's beginnings. No word longer than
+    /// <see cref="MaxLinkWordChars"/> takes part.
     /// </summary>
     internal static List<(int Start, int Count)> Follow(IReadOnlyList<string> linkWords, IReadOnlyList<string> newWords, ISet<int> taken)
     {
         var found = new List<(int Start, int Count)>();
+        if (linkWords.Any(w => w.Length > MaxLinkWordChars)) return found;
         var placesFound = new HashSet<int>();
         var telling = linkWords.Select(w => Telling(Bare(w))).ToArray();
         var byBare = new Dictionary<string, List<int>>(StringComparer.Ordinal);
         var longest = 0;
         for (var i = 0; i < newWords.Count; i++)
         {
+            if (newWords[i].Length > MaxLinkWordChars) continue;
             var bare = Bare(newWords[i]);
             if (bare.Length == 0) continue;
             if (!byBare.TryGetValue(bare, out var list)) byBare[bare] = list = [];
@@ -132,7 +142,7 @@ public static partial class ContentEditor
                     {
                         if (taken.Contains(at) || placesFound.Contains(at)) continue;
                         var joined = "";
-                        for (var end = at; end < newWords.Count && !taken.Contains(end); end++)
+                        for (var end = at; end < newWords.Count && !taken.Contains(end) && newWords[end].Length <= MaxLinkWordChars; end++)
                         {
                             joined += newWords[end];
                             var got = joined.AsSpan().TrimStart(AroundWords);

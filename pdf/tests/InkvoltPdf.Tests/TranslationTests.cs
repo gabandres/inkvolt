@@ -2232,4 +2232,19 @@ public class TranslationLinkTimingTests
         Assert.Equal(4_000, ContentEditor.Follow(link, text, new HashSet<int>()).Count);
         Assert.True(watch.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)), $"{watch.Elapsed}");
     }
+
+    [Fact]
+    public void A_link_over_one_very_long_word_is_given_up_on_quickly()
+    {
+        // A crafted page: a link over 100,000 letters without a space, which the translation kept, beside a word as long.
+        var word = new string('a', 99_999) + "1";
+        ContentEditor.Follow(["w0"], ["w0"], new HashSet<int>()); // compiled before it is timed
+        var watch = Stopwatch.StartNew();
+        var found = ContentEditor.Follow([word, "b" + word], ["x" + word, "y" + word], new HashSet<int>());
+        Assert.True(watch.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)), $"{watch.Elapsed}");
+        Assert.Empty(found);
+        Assert.Empty(ContentEditor.Follow([word], [word], new HashSet<int>()));
+        // A word of a link's usual length is still followed.
+        Assert.Equal([(1, 2)], ContentEditor.Follow(["SP", "800-63A"], ["la", "SP", "800-63A,", "dice"], new HashSet<int>()));
+    }
 }
