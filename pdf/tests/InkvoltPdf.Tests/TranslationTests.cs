@@ -903,6 +903,20 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_line_opening_with_a_bracket_stays_in_its_paragraph_and_a_hyphen_joins_the_next_line()
+    {
+        // resnet p. 10: pdfTeX draws a line's opening "(" as its own operator; it isn't a bullet in front of the line, and
+        // the paragraph's last line, after "(classi-", goes with it.
+        var content = Lines(72, 700, 10, 12, "The quick brown fox jumps over a lazy dog, until the") +
+            "BT /FA 10 Tf 1 0 0 1 72 688 Tm (\\() Tj 1 0 0 1 75.3 688 Tm (quick brown fox jumps over a lazy dog, until the dog) Tj ET " +
+            Lines(72, 676, 10, 12, "the quick brown fox jumps over a lazy dog \\(classi-", "fication and dog.");
+        var pdf = Page(content, fontText: Letters + "()-");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("The quick brown fox jumps over a lazy dog, until the (quick brown fox jumps over a lazy dog, until the dog the quick brown fox jumps over a lazy dog (classification and dog.",
+            Assert.Single(plan.Texts).Text);
+    }
+
+    [Fact]
     public void Text_the_editor_cant_rewrite_stays_and_gets_a_comment()
     {
         // /ActualText says what it reads as: rewriting it would leave that wrong.

@@ -306,7 +306,10 @@ public static partial class ContentEditor
         return [.. result];
     }
 
-    /// <summary>A bullet or dash in front of a line, its own piece of text, isn't translated or moved: the line starts after it.</summary>
+    /// <summary>
+    /// A bullet or dash in front of a line, its own piece of text, isn't translated or moved: the line starts after it. An
+    /// opening bracket or quote drawn on its own (pdfTeX's "(" before an italic "i.e.") is the sentence's, not a bullet.
+    /// </summary>
     private static List<PLine> WithoutMarkers(List<PLine> lines)
     {
         var result = new List<PLine>(lines.Count);
@@ -315,7 +318,8 @@ public static partial class ContentEditor
             var first = l.Runs[0];
             // Or a note's number, smaller than what follows: read as the line's size, the line would fall out of its paragraph.
             var note = l.Runs.Count > 1 && first.Text.Trim().Length <= 3 && first.FontSize < 0.85 * l.Runs[1].FontSize;
-            if (l.Runs.Count > 1 && (note || first.Text.Trim().Length <= 2 && !first.Text.Any(char.IsLetterOrDigit)))
+            var marker = first.Text.Trim() is { Length: > 0 and <= 2 } m && !m.Any(char.IsLetterOrDigit) && !m.Any(Opens);
+            if (l.Runs.Count > 1 && (note || marker))
             {
                 var line = new PLine(l.Runs[1]);
                 foreach (var r in l.Runs.Skip(2)) line.Add(r);
@@ -325,6 +329,10 @@ public static partial class ContentEditor
         }
         return result;
     }
+
+    /// <summary>An opening bracket or quote: "(", "[", "{", "“", "‘", "«", and the straight quotes.</summary>
+    private static bool Opens(char c) => c is '"' or '\'' || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.OpenPunctuation
+        or System.Globalization.UnicodeCategory.InitialQuotePunctuation;
 
     // ---- The room a paragraph has ----
 
