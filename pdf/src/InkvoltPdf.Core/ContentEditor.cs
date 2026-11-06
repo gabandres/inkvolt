@@ -1161,8 +1161,9 @@ public static partial class ContentEditor
                     low = Math.Min(low, item.At - at);
                     end = item.InkEnd - at;
                     high = Math.Max(high, end);
-                    // Word spaces are those between its glyphs: not the gap after its last (to the next column).
-                    if (inked) (gaps, gapCount) = (gaps + pending, gapCount + pendingCount);
+                    // A column's word spaces are those between its glyphs: not the gap after its last (to the next column).
+                    // A whole operator counts every space it shows, as it always has (one after its last glyph moves what follows and shows none).
+                    if (inked || columns == 1) (gaps, gapCount) = (gaps + pending, gapCount + pendingCount);
                     (pending, pendingCount, inked) = (0, 0, true);
                 }
                 else if (item.Text == " ")
