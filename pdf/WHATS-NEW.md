@@ -9,6 +9,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Translate with AI keeps a table row's figures in their columns when the row's label and its figures were drawn as one piece of text (as many papers and reports draw them): only the label is translated, and the figures stay where they were.
 - Translate with AI lets white text on a dark band (a heading bar) use the band's width, so a longer translation keeps its size instead of shrinking to the old word's width.
 - Translate with AI keeps a paragraph whole when one of its lines starts with a bracket or a quote drawn on its own, as LaTeX papers often draw "(" and "[": the paragraph is no longer cut there, its last line no longer left on its own after a hyphen, and the bracket is translated with its sentence.
+- Translate with AI keeps a table's label that ends in a colon ("Income ratios:") apart from the row under it, so the row's own label stays on its row.
 - Flatten no longer draws what the page never shows into it: a comment's pop-up note, a comment marked invisible, or a form widget that belongs to no field.
 
 ## 1.8.0

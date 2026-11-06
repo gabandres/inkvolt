@@ -917,6 +917,17 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_label_ending_in_a_colon_stays_apart_from_the_row_under_it()
+    {
+        // The census's table without rules: "Income percentile ratios:" heads the rows under it, figures beside them.
+        var content = Lines(72, 700, 8, 11, "Lazy dog and fox ratios:", "90th/10th", "90th/50th") +
+            Lines(200, 689, 8, 11, "12.63", "2.71");
+        var pdf = Page(content, fontText: Letters + ":/");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal(["Lazy dog and fox ratios:", "90th/10th", "90th/50th"], plan.Texts.Select(t => t.Text.Trim()).Where(t => t.Any(char.IsLetter)));
+    }
+
+    [Fact]
     public void Text_the_editor_cant_rewrite_stays_and_gets_a_comment()
     {
         // /ActualText says what it reads as: rewriting it would leave that wrong.
