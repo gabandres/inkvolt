@@ -628,6 +628,24 @@ public class PageCleanupTests
         Assert.Null((PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.CropToPaper, photos: false, edge, measuredAt: 2));
     }
 
+    /// <summary>
+    /// No edge is counted only where it was looked for and not found: not on a page cropped by hand, one cleaned up by hand during
+    /// the check, one not checked yet (or not looked on: blank, a separator, photos), or one whose edge was found at another straightening.
+    /// </summary>
+    [Fact]
+    public void Only_pages_the_edge_was_looked_for_on_count_as_having_no_edge()
+    {
+        var hand = PageEdits.None with { Crop = new CropBox(0.1, 0.1, 0.7, 0.7) };
+        Assert.False(hand.NoPaperEdge(PageFilters.CropToPaper, searched: true, paperEdge: null));
+        var filters = PageEdits.None with { Filters = PageFilters.Whiten };
+        Assert.False(filters.NoPaperEdge(PageFilters.CropToPaper, searched: true, paperEdge: null));
+        var turned = PageEdits.None with { Deskew = 1 };
+        Assert.False(turned.NoPaperEdge(PageFilters.CropToPaper, searched: true, new CropBox(0.1, 0.1, 0.7, 0.7)));
+        Assert.False(PageEdits.None.NoPaperEdge(PageFilters.CropToPaper, searched: false, paperEdge: null));
+        Assert.False(PageEdits.None.NoPaperEdge(PageFilters.Whiten, searched: false, paperEdge: null));
+        Assert.True(PageEdits.None.NoPaperEdge(PageFilters.CropToPaper, searched: true, paperEdge: null));
+    }
+
     [Fact]
     public void A_preset_written_before_filters_reads_as_none()
     {

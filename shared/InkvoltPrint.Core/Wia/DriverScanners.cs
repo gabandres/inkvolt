@@ -1,3 +1,5 @@
+using System.Runtime.ExceptionServices;
+
 namespace InkvoltPrint.Core.Wia;
 
 /// <summary>
@@ -12,11 +14,13 @@ namespace InkvoltPrint.Core.Wia;
 /// first time, when WIA's list changed since the read before (a device plugged in or out), and after
 /// <see cref="TwainRelistInterval"/>; never while a TWAIN source is in use (a call to it under way, or one within
 /// <see cref="TwainQuiet"/>). A read that fails or hangs (<see cref="TwainListLimit"/>) never costs the WIA list: the sources read
-/// before are kept, so a scanner on its own doesn't drop off the list for one bad read. WIA failing to list fails the list, as before.
+/// before are kept, so a scanner on its own doesn't drop off the list for one bad read. The reverse too: WIA failing to list (its
+/// service stopped, a COM error) keeps the WIA scanners read before and still gives the TWAIN sources; only when neither leaves anything
+/// to list does WIA's failure fail the list (<see cref="WiaFailure"/>), so a caller says Windows' list of scanners didn't answer.
 /// </para>
 /// </summary>
-/// <param name="log">Told why TWAIN's sources couldn't be listed, once per distinct failure (plain words, no device data beyond the
-/// error's message).</param>
+/// <param name="log">Told why WIA's scanners or TWAIN's sources couldn't be listed, once per distinct failure while it lasts (plain
+/// words, no device data beyond the error's message).</param>
 public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<string>? log = null) : IWiaSystem
 {
     /// <summary>Before a TWAIN source's name in its id (as Inkvolt PDF's Scan dialog keys it).</summary>
@@ -32,7 +36,7 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
     private bool _due = true;
     private DateTime _readAt, _usedAt = DateTime.MinValue;
     private int _inUse;
-    private string? _lastFailure;
+    private string? _lastFailure, _lastWiaFailure;
 
     /// <summary>The longest a TWAIN read may take (the only limit on it); past it, the sources read before.</summary>
     public TimeSpan TwainListLimit { get; init; } = TimeSpan.FromSeconds(20);
@@ -45,6 +49,9 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
 
     /// <summary>A TWAIN read ended with other sources than before, or failed or recovered: list again to show it. Raised on any thread.</summary>
     public event Action? TwainChanged;
+
+    /// <summary>Why WIA's last list failed; null when it worked.</summary>
+    public Exception? WiaFailure { get; private set; }
 
     /// <summary>Why the last TWAIN read failed (a <see cref="WiaException"/> when the manager didn't answer); null when it worked or none ended.</summary>
     public Exception? TwainFailure { get; private set; }
@@ -59,7 +66,7 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
         var drivers = await ListWiaAsync(ct).ConfigureAwait(false);
         await ReadTwainIfDue().WaitAsync(ct).ConfigureAwait(false); // the same read, or one WIA's change made due
         await reading.WaitAsync(ct).ConfigureAwait(false);
-        return Merge(drivers, _sources);
+        return Listed(drivers);
     }
 
     /// <summary>
@@ -69,8 +76,8 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
     public async Task<IReadOnlyList<WiaDeviceInfo>> ListNowAsync(CancellationToken ct)
     {
         var drivers = await ListWiaAsync(ct).ConfigureAwait(false);
-        _ = ReadTwainIfDue();
-        return Merge(drivers, _sources);
+        _ = ReadTwainIfDue(); // also when WIA failed: its sources may be all there is
+        return Listed(drivers);
     }
 
     public IWiaDeviceHost Device(string deviceId) =>
@@ -84,13 +91,40 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
         return [.. wiaScanners, .. twainSources.Where(s => !targets.Any(t => WiaMatch.Match(s, [t]) is not null))];
     }
 
+    /// <summary>The merged list; WIA's failure when there is nothing at all to list in its place.</summary>
+    private IReadOnlyList<WiaDeviceInfo> Listed(IReadOnlyList<WiaDeviceInfo> drivers)
+    {
+        var listed = Merge(drivers, _sources);
+        if (listed.Count == 0 && WiaFailure is { } failed) ExceptionDispatchInfo.Throw(failed);
+        return listed;
+    }
+
+    /// <summary>WIA's scanners; when WIA fails, the ones it listed before (none the first time), and the failure said once.</summary>
     private async Task<IReadOnlyList<WiaDeviceInfo>> ListWiaAsync(CancellationToken ct)
     {
-        var drivers = await wia.ListScannersAsync(ct).ConfigureAwait(false);
+        IReadOnlyList<WiaDeviceInfo> drivers;
+        try
+        {
+            drivers = await wia.ListScannersAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
+        {
+            lock (_gate)
+            {
+                WiaFailure = ex;
+                drivers = _lastWia ?? [];
+                if (ex.Message == _lastWiaFailure) return drivers;
+                _lastWiaFailure = ex.Message;
+            }
+            log?.Invoke($"Windows' scanners (WIA) couldn't be listed ({ex.Message}); listing the {drivers.Count} read before and the TWAIN sources");
+            return drivers;
+        }
         lock (_gate)
         {
             if (_lastWia is { } before && !before.Select(d => d.Id).SequenceEqual(drivers.Select(d => d.Id))) _due = true; // plugged in or out
             _lastWia = drivers;
+            WiaFailure = null;
+            _lastWiaFailure = null;
         }
         return drivers;
     }

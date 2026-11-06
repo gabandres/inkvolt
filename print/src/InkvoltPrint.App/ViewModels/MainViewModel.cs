@@ -534,7 +534,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
-                    Log.Write($"Reading Windows' scanners failed: {ex.Message}");
+                    // WIA failing with nothing in its place (no TWAIN source either): the scanner list said it, once.
+                    if (!ReferenceEquals(ex, _wia.WiaFailure)) Log.Write($"Reading Windows' scanners failed: {ex.Message}");
                 }
                 await _relist.WaitAsync(QueueListInterval, ct);
             }

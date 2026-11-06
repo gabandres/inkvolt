@@ -98,10 +98,13 @@ public sealed partial class AlertTracker
     {
         Rules = rules;
         foreach (var (uuid, keys) in shown ?? new Dictionary<string, IReadOnlyList<string>>())
+        {
+            var jobs = (keys ?? []).Where(k => k is not null && k.StartsWith(JobRules.KeyPrefix, StringComparison.Ordinal)).ToList();
+            if (jobs.Count > 0) RememberJobs(uuid, jobs);
             foreach (var key in keys ?? [])
-                if (key is not null && key.StartsWith(JobRules.KeyPrefix, StringComparison.Ordinal)) RememberJob(uuid, key);
-                else if (key is not null && AlertCondition.KindOf(key) is { } kind)
+                if (key is not null && !key.StartsWith(JobRules.KeyPrefix, StringComparison.Ordinal) && AlertCondition.KindOf(key) is { } kind)
                     PrinterOf(uuid).Tracks[key] = new Track(kind) { Notified = true, Confirmed = true };
+        }
     }
 
     public AlertRules Rules { get; set; }
@@ -192,7 +195,7 @@ public sealed partial class AlertTracker
     public DateTimeOffset? PendingUntil(string uuid) =>
         _printers.TryGetValue(uuid, out var p)
             ? p.Tracks.Values.Where(t => t.Present && !t.Confirmed).Select(t => (DateTimeOffset?)(t.FirstSeen + Rules.HoldFor(t.Kind)))
-                .Append(Rules.Jobs ? p.Queue.StuckAt : null).Min()
+                .Concat(Rules.Jobs ? FailedHolds(p.Queue).Append(p.Queue.StuckAt) : []).Min()
             : null;
 
     /// <summary>Problems still within their hold time start it again (the PC woke up: the time it slept doesn't count).</summary>
@@ -226,7 +229,7 @@ public sealed partial class AlertTracker
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>
     public Dictionary<string, IReadOnlyList<string>> Shown() =>
         _printers.Select(p => (p.Key, Keys: p.Value.Tracks.Where(t => t.Value.Notified).Select(t => t.Key)
-                .Concat(p.Value.Queue.Jobs.Values.Where(t => t.Remembered).Take(MaxRememberedJobs).Select(t => t.Line())).Order(StringComparer.Ordinal).ToList()))
+                .Concat(Newest(p.Value.Queue.Jobs.Values.Where(t => t.Remembered)).Select(t => t.Line())).Order(StringComparer.Ordinal).ToList()))
             .Where(p => p.Keys.Count > 0)
             .ToDictionary(p => p.Key, p => (IReadOnlyList<string>)p.Keys, StringComparer.OrdinalIgnoreCase);
 }

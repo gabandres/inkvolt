@@ -49,6 +49,33 @@ public static class ScannerList
 
     private static string? Uuid(string id) => Guid.TryParse(id.Trim('{', '}'), out var g) ? g.ToString("D") : null;
 
+    /// <summary>
+    /// The dialog's driver scanners: WIA's and the TWAIN sources read before to <paramref name="add"/> at once, then the whole list once
+    /// TWAIN's read ends (also after WIA failed: TWAIN's sources may be all there is). False when neither listed anything, whatever WIA
+    /// failed with (a WIA error, a COM error, anything else), for <see cref="NoneFound"/>; <paramref name="drivers"/> logs the failure,
+    /// once while it lasts.
+    /// </summary>
+    public static async Task<bool> ListDriversAsync(DriverScanners drivers, Action<IReadOnlyList<WiaDeviceInfo>> add)
+    {
+        IReadOnlyList<WiaDeviceInfo>? listed = null;
+        try
+        {
+            listed = await drivers.ListNowAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException) { } // nothing to list yet: the read below waits for TWAIN's
+        if (listed is not null) add(listed);
+        try
+        {
+            listed = await drivers.ListScannersAsync(CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return false; // neither WIA nor TWAIN listed anything
+        }
+        add(listed);
+        return true;
+    }
+
     /// <summary>What the dialog says when nothing was found, given whether Windows' scanner list could be read.</summary>
     public static string NoneFound(bool driversRead) => driversRead
         ? "No scanner found. Turn the scanner on and connect it to this PC (USB) or to this network; Inkvolt Print can add a network one by its address."

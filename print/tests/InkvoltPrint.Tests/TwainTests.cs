@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using InkvoltPrint.Core;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Suite;
@@ -195,8 +196,58 @@ public class TwainTests
         twain.Fails = new DllNotFoundException("TWAINDSM.dll");
         Assert.Equal(2, (await system.ListScannersAsync(CancellationToken.None)).Count); // a scanner on its own doesn't vanish from the list
         Assert.Single(notes);
+    }
 
-        await Assert.ThrowsAsync<WiaException>(() => new DriverScanners(new FailingWia(), twain).ListScannersAsync(CancellationToken.None));
+    [Fact]
+    public async Task WIA_failing_to_list_still_gives_the_TWAIN_sources_and_says_so_once()
+    {
+        var twain = new ListingTwain([new WiaDeviceInfo("Example FilmScan 7200", "Example FilmScan 7200", Port: WiaDeviceInfo.TwainPort)]);
+        var notes = new List<string>();
+        var system = new DriverScanners(new FailingWia(), twain, notes.Add) { TwainRelistInterval = TimeSpan.Zero };
+        IReadOnlyList<WiaDeviceInfo>? listed = null;
+        for (var i = 0; i < 3; i++)
+            Assert.Null(await Record.ExceptionAsync(async () => listed = await system.ListScannersAsync(CancellationToken.None)));
+        Assert.Equal(["Example FilmScan 7200"], listed!.Select(d => d.Name));
+        Assert.Single(notes); // WIA's failure, said once while it lasts
+
+        // Nothing in its place (no TWAIN source either): the list fails, as before, so callers say Windows' list didn't answer.
+        await Assert.ThrowsAsync<WiaException>(() => new DriverScanners(new FailingWia(), new ListingTwain([])).ListScannersAsync(CancellationToken.None));
+    }
+
+    /// <summary>Inkvolt PDF's Scan dialog: WIA failing with anything (a COM error, not only a WiaException) and no TWAIN source to list instead.</summary>
+    [Fact]
+    public async Task The_scan_dialogs_driver_list_survives_any_WIA_failure_and_logs_it_once()
+    {
+        foreach (var failure in new Exception[] { new COMException("The RPC server is unavailable.", unchecked((int)0x800706BA)), new InvalidOperationException("Broken.") })
+        {
+            var notes = new List<string>();
+            var added = new List<WiaDeviceInfo>();
+            var system = new DriverScanners(new ListedWia([]) { Fails = failure }, new ListingTwain([]), notes.Add);
+            var read = true;
+            Assert.Null(await Record.ExceptionAsync(async () => read = await ScannerList.ListDriversAsync(system, added.AddRange)));
+            Assert.False(read); // the dialog says Windows' list of scanners didn't answer
+            Assert.Empty(added);
+            Assert.Single(notes);
+        }
+
+        var twain = new ListingTwain([new WiaDeviceInfo("Example FilmScan 7200", "Example FilmScan 7200", Port: WiaDeviceInfo.TwainPort)]);
+        var withTwain = new DriverScanners(new ListedWia([]) { Fails = new COMException("Class not registered.") }, twain);
+        var listed = new List<WiaDeviceInfo>();
+        Assert.True(await ScannerList.ListDriversAsync(withTwain, listed.AddRange));
+        Assert.Equal(["Example FilmScan 7200"], listed.Select(d => d.Name).Distinct());
+    }
+
+    [Fact]
+    public async Task WIA_failing_to_list_keeps_the_WIA_scanners_listed_before()
+    {
+        var wia = new ListedWia([UsbMfp]);
+        var system = new DriverScanners(wia, new ListingTwain([]));
+        Assert.Single(await system.ListScannersAsync(CancellationToken.None));
+
+        wia.Fails = new WiaException(WiaErrors.RpcServerUnavailable, "WIA stopped.");
+        IReadOnlyList<WiaDeviceInfo>? listed = null;
+        Assert.Null(await Record.ExceptionAsync(async () => listed = await system.ListNowAsync(CancellationToken.None)));
+        Assert.Equal(["EPSON Perfection V600 Photo"], listed!.Select(d => d.Name)); // a scanner doesn't vanish for one bad read
     }
 
     [Fact]
@@ -343,7 +394,10 @@ public class TwainTests
     {
         public IReadOnlyList<WiaDeviceInfo> Devices { get; set; } = devices;
 
-        public Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct) => Task.FromResult(Devices);
+        public Exception? Fails { get; set; }
+
+        public Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct) =>
+            Fails is { } ex ? Task.FromException<IReadOnlyList<WiaDeviceInfo>>(ex) : Task.FromResult(Devices);
 
         public IWiaDeviceHost Device(string deviceId) => throw new NotSupportedException();
     }

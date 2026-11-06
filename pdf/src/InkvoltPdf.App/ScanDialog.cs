@@ -315,16 +315,8 @@ internal sealed class ScanDialog : Window
     /// </summary>
     private async Task LoadDriverScannersAsync()
     {
-        try
-        {
-            AddDrivers(await Drivers.ListNowAsync(CancellationToken.None));
-            AddDrivers(await Drivers.ListScannersAsync(CancellationToken.None));
-        }
-        catch (WiaException ex)
-        {
-            Log.Write($"WIA scanners unavailable: {ex.Message}");
-            _driversRead = false;
-        }
+        // WIA failing (with anything) still gives the TWAIN sources once their read ends; Drivers says the failure in the log, once.
+        _driversRead = await ScannerList.ListDriversAsync(Drivers, AddDrivers);
         var twainError = Drivers.TwainFailure switch
         {
             null => null,

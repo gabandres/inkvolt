@@ -7,6 +7,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Scanners with only a TWAIN driver (film scanners, older flatbeds and document scanners) now show on the printer list, with their printer or on their own, and scan in the Scan tab like any other: glass or feeder, both sides, color, grey or black and white, and the same review, clean up and presets. The driver's own window doesn't open. A scanner with a Windows driver too is listed once.
 - Scan in black and white: the Color choice in the Scan tab now offers it when the scanner does.
+- TWAIN scanners still show when Windows' own scanner service isn't answering, and the scanners it listed before stay on the list.
+- Job notifications: a job missing from one look at the queue no longer starts its stuck wait over, a failed job is told on time while the window is closed, and a job just told isn't told again after a restart.
+- Clean up's note about the paper's edge counts only pages where the edge was looked for and not found, not a page you cropped yourself or one not checked yet.
 
 ## 1.3.0
 - A USB printer Windows has no driver for now shows on the printer list as *Plugged in, needs its driver*, with what to do step by step: its maker's driver page (HP's for an HP), Windows Update's optional updates, or adding it in Windows. It says so when Windows protected print mode keeps makers' drivers out. Once a driver is in but Windows made no queue, *Set it up* makes one. Some older printers (host-based USB lasers) only ever work with their maker's driver.
