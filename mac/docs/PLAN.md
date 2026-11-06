@@ -426,7 +426,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | E16 | Speed on huge files (roadmap 3.6): the benchmark, then Find across long documents | FindAllTests | Done (2026-11-02): `mac/tools/bench` (its own SwiftPM package over PdfCore; README.md): Windows' corpus ported line by line (the same `Rng`, seeds, words, paths and comments, so the same Find counts; Apple's deflate and ImageIO's JPEG make other bytes, so other SHA-256s) and its measures (first page, the scrolling proxy, Find, the comment list, peak memory; each run a fresh process, medians of 3), RESULTS.md on the M1 Air. Measured first, as planned: Find's text reading scales with threads (`scale`: 5,000 pages 2.37 s on 1, 0.70 s on 4, 0.55 s on 8), since the shim's contexts share no lock, so no worker processes: `PdfEngine.findAll` reads pages on every core but one (at most 8), each thread with its own MuPDF instance, in page order through `onPage`, cancellable, a page's text remembered for the next search (strings up to 64 M characters, whole texts up to 1 M; `PageText.matches` tells from a string whether a page can match), `keepText: false` for callers that need only the hits' places; the Find bar uses it, and a new search cancels the one before. Memory: every MuPDF instance used to copy the whole file (the drawing set: 1.2 GB for an engine and 0.6 GB more per thread); now `SharedBytes` holds one copy that every instance reads in place (`inkv_open_pdf_shared`, MuPDF's shared buffer), a closed engine lets go of it, and `PdfEngine.readFile` reads a file into one array (DocumentSession's two reads). Before and after on the Air: Find 2.33 → 0.55 s (text), 33.5 → 6.9 s (drawings), 0.27 → 0.07 s (comments), a second search on the text 0.47 s (the remembered strings checked on the same threads: on one they took 1.3 s, longer than reading again); peak 2.56 → 1.31 GB (drawings). `PageText.find`'s search moved into `scan`, which `matches` runs on a string's search view alone, stopping at the first hit. FindAllTests ported with the same names (9 tests, two adapted: the Mac's `findAll` returns its pages and hands them to `onPage` where Windows' is an enumeration; ThreadsFindWhatOneThreadFinds added; FindWorkerTests has no counterpart). Still over target: the drawing set's scroll (584 ms a sheet; Windows 773) and its Find (6.9 s). Not measured: the on-screen scroll (Windows' `scrollbench`); the numbers again on the M6 Mac mini. |
 | 2.3 | USB scanners, the Mac's leftovers (roadmap 2.3): leaving out blank pages, scan presets, the scanners Inkvolt Print remembers | UsbScannerTests (PrintCore; the WIA and TWAIN ones stay with Windows) | Done (2026-11-06, three commits). Blank pages done (2026-11-06, on `ignia-mac`): PrintCore `Suite/ScanRun` (Windows' shared `ScanRun`: each page a scanner sends checked by `BlankPage` on PrintMac's `ScanImaging.analysis` copy, off the main actor, as kept, blank or unreadable; a page the check can't judge is kept; the done line); Scan's "Leave out blank pages" (on by default, remembered as `ScanSkipBlank`), the blank pages counted while scanning and after, the Scan button saying Scan Another Page or Scan More Pages as on Windows. Tests: 5 (4 ported, the fifth the Mac's: stopping stops the device's job). Presets done (2026-11-06, on `ignia-mac`): PrintCore `ScanPresets.fromChoices` (Windows' `FromChoices`: the dialog's source, color, resolution, page size, OCR and blank choices under a name, trimmed, cut and made unique, the resolution clamped, an unknown size dropped); Scan's Preset row (No preset, then the presets in the app's settings as `ScanPresets` JSON, Inkvolt Print's three built-ins until the list is changed, as on Windows), Save as Preset… (a sheet asking the name again while `nameProblem` refuses it) and Delete Preset; a preset chosen, or still chosen when another scanner connects, is matched to it by `PresetPlan` and its notes said. Tests: +2 (1 ported; the Mac's: odd choices made safe). Mac differences: no black and white (the Mac's scans are color or grey), so a preset has no `BlackAndWhite`; text recognition is always available (Vision). The scanners Inkvolt Print remembers done (2026-11-06, on `ignia-mac`): PrintCore `Suite/ScannerList` (Windows' `ScannerList`, its network part: the keys, "Name  (host)" with " · found on the network" for one Inkvolt Print doesn't remember, "Name  (USB)"; `network(remembered:found:)` lists the hand-off's printers with an eSCL root first, then those Bonjour finds, a remembered one found again taking its new address and keeping its name); Scan reads the hand-off (`SuitePrinters.load`, off the main thread, once) as Windows reads Inkvolt Print's state file, and connects again when the chosen scanner turns up at a new address before its old one answered. Nothing added to the hand-off: its printers already carry their eSCL root, and it stays bounded and read-only here. Tests: +2 (the network part of 1 ported; the Mac's: remembered ones first, refreshed by discovery). Mac difference: the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count the pages kept instead of opening a PDF. Review fixes (2026-11-06, on `ignia-mac`): a remembered printer found under a UUID the user accepted, or (one remembered by its address) at one of its hosts, is listed once at its new address, as Inkvolt Print joins them; `PrinterId.key`/`same` the one way a UUID is compared (discovery, the saved state, queue matching, the list); the saved scanner chosen when it turns up after another stood in for it, and a stand-in never saved (`ScannerList.pick`); a preset turned off or deleted while a scanner connects isn't applied; a job goes to the scanner's current address; the blank check stops with Stop; `PresetPlan.sizeKey`. Tests: +4 (the Mac's). |
 | 3.7 | Spanish interface (roadmap 3.7's Mac line) and What's New in Spanish for both Mac apps | PdfStringsTests, ShownStringsTests, CoreStringsTests (PrintCore's target: the PC and the mac job) | Done (2026-11-06, on `ignia-mac`). One mechanism for the app and PdfCore: PrintCore's `loc`/`LocKey` (`CoreLanguage`, Inkvolt Print for Mac's), keyed by the English with Windows' `{0}`, `{1}`, so Windows' Spanish (Strings.es.resx, PdfStrings.es.resx) is used word for word; the app installs one table at launch from three String Catalogs compiled into `es.lproj` by `assemble.sh` (`xcstringstool`; the app is a SwiftPM executable, so not Xcode's extraction): `Resources/Localizable.xcstrings` (the app, 1,738), `PdfStrings.xcstrings` (PdfCore, 1,912) and Inkvolt Print's `CoreStrings.xcstrings` (what PrintCore shows in Scan). A Mac difference: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo, Edición, Visualización, Configuración…), `DocumentCommand.shownTitle` over the English `title` that stays the identity (palette, notes, tests); `Tool.shownTitle` likewise; the palette also matches English words, each typed word at the start of a word ("zoom in" found Zoom to Page through the "in" of "página"). The language: `AppLanguage` (`--lang`, else macOS's per-app choice, which Settings › Language writes; next launch; never written by the self-test), installed after the command line, which stays English. What's New: `WHATS-NEW.es.md` in Spanish (Help › What's New), `appcast.py --notes-es` (Sparkle's `xml:lang="es"` description, from `release-notes/<version>.es.md`); Inkvolt Print: `WHATS-NEW.es.md` and `listing.json`'s `localizations` › `es-MX` (asc-listing.mjs sends it only to a localization the version has). Checks: the PC tests above (keys, stale, duplicates, placeholders, What's New line for line, unwrapped English by AppKit's calls and the app's helpers); `--self-test … --strings --quit` (ReportStrings: each catalog against its compiled Spanish, then what the run asked for without it). On ignia-mac: InkvoltPdfKit 1,240 tests, 0 warnings, green but OcrTests' Vision cases (CRImageReaderError, the Mac's known Vision flake); the app built with warnings as errors and the 150 ms flag; `--self-test --synthetic --edit --strings --quit` in English and in Spanish: strings complete in both; every check passes in both (its UI comparisons through the same `loc`), but the nine that need Vision (Recognize Text, the scan page's exports, redaction's re-recognition) when Vision fails, in either language; each passed in a run where Vision worked. Left English on purpose, as Windows: the command line, logs, file formats and columns, the built-in stamps, prompts to the AI, Report a Problem's details, the self-test's report. The Mac's own wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac". Also fixed: CoreStringsTests read a CRLF checkout's file that starts with a comment as one comment line (the PC named LedmStatusText's keys stale). |
-| 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 10 tests (12 cases), red first. |
+| 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 21 tests (27 cases), red first, with the code review's fixes. |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
 command line runs (it was set only in `applicationDidFinishLaunching`, after `--batch` and `--watch` had exited), and
@@ -1113,15 +1113,29 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   list's nodes, not while it inflates: the 7 KB page's 4 GB of zeros is one lexer call skipping white space. So
   `MuPDFShim` opens every document over its own stream (`inkv_source`, bytes in place or a file read with `pread`): while
   a call reads a page, it hands MuPDF chunks that start at 16 bytes at each new place in the file and grow only while
-  MuPDF asks again within 4 ms (a byte of a twice-Flated page is up to a megabyte), and past the budget or once
-  cancelled it throws `FZ_ERROR_TRYLATER`, MuPDF's progressive-loading "not yet": its filters, lexer and object loading
-  pass it up without repairing the file or caching anything half read. A guard device (`inkv_guard`) in front of the
-  list, text and export devices looks at the clock with each drawing call (nested forms drawn a billion times read no
-  bytes) and refuses a picture, or its soft mask, of more than `PdfEngine.maxPictureSamples` (1 G samples: width ×
-  height × components) before anything decodes it: MuPDF 1.25 decodes a Flate picture through a subsampling stream, so
-  drawn small it allocates little but inflates every sample, and only its size can tell. A stopped page's display list
-  is never kept.
-- **The budget** (`PdfEngine.pageBudget`, default 10 s as Windows' limit; tests use 1 s) runs for the reading (making the
+  MuPDF uses each up within 4 ms of its own CPU time (a byte of a twice-Flated page is up to a megabyte; a slow share
+  or a busy machine doesn't shrink them), and past the budget or once cancelled it throws `FZ_ERROR_TRYLATER`, MuPDF's
+  progressive-loading "not yet": its filters, lexer and object loading pass it up without repairing the file or caching
+  anything half read. That bound sees only the file's bytes, so a stream decompressed more than twice in a row (four
+  Flates make gigabytes of each byte inside the filters, which never read the file again while they do) is refused
+  before the page is read: `inkv_check_streams` walks what the page reaches (content, resources, forms, patterns,
+  pictures, fonts, annotations' appearances; not up the page tree, to other pages or into actions), each object once,
+  and counts each stream's decompressing filters (Flate, LZW, RunLength, Brotli, CCITT, JBIG2, DCT, JPX); more than two
+  refuses the page (`failed`). No real file chains more; a filter inside MuPDF can't be reached without patching it.
+  A guard device (`inkv_guard`) in front of the list, text, export and draw devices looks at the clock with each
+  drawing call (every 64 calls, and before every picture, shading, tile and group: nested forms drawn a billion times
+  read no bytes) and refuses a picture, or its soft mask, of more than `PdfEngine.maxPicturePixels` (268 M pixels,
+  where Windows' check process runs out of memory: half its 2 GB at 4 bytes a pixel) before anything decodes it: MuPDF
+  1.25 decodes a Flate picture through a subsampling stream, so drawn small it allocates little but inflates every
+  sample, and only its size can tell. In front of a draw device it also counts a pattern's tiles over what the pixels
+  show (as the draw device does) and refuses the page (`tooSlow`) when drawing them (30 ns a tile and 0.7 ns a tile
+  pixel: 194 M tiles of 81 pixels took 16-17 s here) would outlast the part's time left: the draw device draws them all
+  inside one call. A stopped page's
+  display list is never kept.
+- **The budget** (`PdfEngine.pageBudget`, default 10 s as Windows' limit; tests use 1 s) is the reading thread's own CPU
+  time (`CLOCK_THREAD_CPUTIME_ID`), so Find's parallel threads, the viewer's or a slow disk can't refuse a page for good
+  that is only waiting (Windows' check process is alone in its process; a refusal is permanent, so the wall clock would
+  be unfair here). It runs for the reading (making the
   display list or the text), then again for the drawing of what was read (a Type 3 glyph read late). Every call that
   reads a page's content goes through `PdfEngine.reading`: `render` (the view, thumbnails, print, OCR's page images,
   redaction's pictures), `saveImage` (export of pictures, Batch's page images), `text` (Find, copy), `textLines` and
@@ -1130,27 +1144,52 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   found is the page's verdict for that engine (`verdictOf`: `fine`, `tooSlow`, `failed` for a picture too large), and a
   refused page throws `PageRefused` at once from then on; an edit opens a new engine, whose pages are read afresh.
 - **Cancel and closing.** Cancel aborts the cookie (the stream throws at its next chunk: the 7 KB page stops in
-  milliseconds); `PdfEngine.close` aborts every reading under way before it takes the engine's locks.
+  milliseconds; export stops before its next picture); `PdfEngine.close` aborts every reading under way before it takes
+  the engine's locks. The cookie's flags are C11 atomics, and a call starting never clears an abort a Cancel set.
+  `CancelToken.unregister` waits while `cancel()` runs that handler on another thread, so a call frees its cookie only
+  once no handler can touch it.
 - **Where it shows.** The viewer draws Windows' "This page took too long to read and isn't shown" ("This page can't be
   displayed" for a picture too large) in the page's place and asks for it no more; Find skips it and its status says
   which pages weren't searched (a Mac sentence: Windows' summary says the page may be damaged); Batch's page images
-  leave it out with "Page {0} couldn't be read"; exports report it as unreadable (an empty page).
+  leave it out with "Page {0} couldn't be read"; exports report it as unreadable (an empty page). Jobs over many pages
+  skip it and say "Pages that couldn't be read were skipped: …" (`SkippedPages`): Redact by Pattern's search (with what
+  it marked, so nobody takes the result as clean), the redaction check (in its notes; an earlier version's page, by
+  name), Prepare Form's field search, Recognize Text and Batch's OCR, the AI assistant's reading (sent as an empty page).
+  **Mac difference:** Windows' versions of those jobs stop at a refused page (only Find, Batch, export, compare, print and
+  the AI skip it). Applying redactions still stops at a refused page with a mark: it can't draw the page to black it
+  out, and skipping would leave the text there. One figure's picture for the AI (Make Accessible) says it couldn't be
+  drawn.
 - **Cost and limits.** Bench `one` on this Mac, the base commit and this branch back to back (the same corpus): the
   drawing set's first page 577 and 578 against 581 and 583 ms, 576 against 579 ms a sheet, Find 7.16 and 7.18 against
   7.14 and 7.21 s; text Find 0.58 s either way, scan 26 ms a page either way, peaks unchanged. The guard first called
   MuPDF's `fz_fill_path` and the like (a second `fz_try` per path) and read the clock at every call: Find on the drawing
   set 7.8 to 8.1 s; it now calls the target's own function for calls that open or close nothing and reads the clock
-  every 64 calls. The neighbours of a hostile page wait for its budget once (the engine draws one page at a time;
+  every 64 calls. After the code review's fixes, `one` alternately on the commit before them and after, while another
+  process kept the Mac's load average at 5-11: the drawing set's sheet 580/580, 722/714, 686/587 ms (before/after),
+  Find on it 7.9/8.8, 11.8/12.8, 11.5/14.7 s, text Find 0.94/0.79 and 0.78/1.11 s. The sheets are even; Find is within
+  that load's noise but slower in each pair, to measure again on a quiet Mac (the walk meets a handful of objects on
+  these pages, and a read of the thread's CPU clock costs 150 ns, a few thousand a page). The neighbours of a hostile page wait for its budget once (the engine draws one page at a time;
   thumbnails share the engine): up to 10 s, then the verdict answers at once. A picture under the cap decodes in full,
-  unbounded by time (at most a gigabyte of samples: a few seconds, and Cancel waits for it). Image files opened as
-  documents (Image Import) and the editing documents of `PdfEdit` are not bounded; they draw nothing on screen.
-  PageCheckTests (10 tests, 12 cases; red first: the bombs drew for 74 s): AFlateBombsPageIsRefusedWithinTheLimitAndTheRestOfTheDocumentWorks,
+  unbounded by time (at most 268 M pixels: a second or two, and Cancel waits for it; the clock is looked at between
+  pictures). An inline picture inside a content stream is under the size cap but not the filter count. Image files
+  opened as documents (Image Import) and the editing documents of `PdfEdit` are not bounded; they draw nothing on screen.
+  The tests' bombs are built by hand (`HandDeflate`: a run of one byte becomes deflate matches of two bits each, so 4 GB
+  of zeros is a count, and each layer is again one byte repeated): the suite's bombs cost microseconds to make instead
+  of some 400 s of zlib on every run, and MuPDF and Apple's inflater read them back exactly.
+  PageCheckTests (21 tests, 27 cases, 30 s; red first: the bombs drew for 74 s): AFlateBombsPageIsRefusedWithinTheLimitAndTheRestOfTheDocumentWorks,
   FindOverADocumentWithABombFinishes, APictureThatInflatesForSecondsIsRefusedAndOneMuPdfStopsAtItsSizeDraws,
   APictureMuPdfDrawsOnlyThroughAnotherIsCheckedAtItsFullSizeToo, ARealDrawingSheetStillDrawsInFull,
   BatchsPageImagesLeaveOutARefusedPageAndSayWhich (Windows' names); EveryCallThatReadsAPagesContentIsBounded,
   CancelStopsABombsPageAtOnceAndRefusesNothing, ClosingTheDocumentStopsABombsPageAtOnce,
   ADamagedFileIsRepairedThroughTheDocumentsOwnStream (Mac additions; the last after the full suite caught MuPDF's repair
-  reading past the bytes' end, an unclamped first version of the stream). The check
+  reading past the bytes' end, an unclamped first version of the stream). From the code review (all red first on the
+  first version): AStreamInflatedMoreThanTwiceIsRefusedAtOnce (four Flates in the content and in a form: drawn for
+  77-80 s), APatternOfMillionsOfTilesIsRefusedWithinTheLimit (194 M tiles at 600 dpi through render, saveImage and
+  renderRegionRgba: 16-17 s each), APictureLargerThanWindowsDecodesIsRefused (17,000² gray, drawn),
+  ExportStopsBetweenPicturesOn Cancel and closing (4.5-4.9 s), UnregisteringWaitsForAHandlerCancelIsRunning (306 of
+  2,000 handlers touched a freed cookie), SlowReadsDontShrinkTheChunksOrRefuseAPage and
+  TheBudgetIsThePagesOwnTimeNotTimeSpentWaiting (both refused), JobsOverManyPagesSkipARefusedPageAndSayWhich (Redact by
+  Pattern threw); ARealPatternStillDrawsInFull and TheHandBuiltBombsInflateToWhatTheySay guard the other side. The check
   process's own tests (its starting, crashing, memory, sharing, the viewer's waits) have no counterpart.
 - A person must look at: a bomb page in the viewer (the sentence, centered, in light and dark; the neighbours drawing
   after it), thumbnails and the organizer (a blank page), Find's status line with a skipped page.

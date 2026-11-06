@@ -1034,21 +1034,28 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   to know it has no hit). (c) A page's text kept across Finds is already kept for the document's lifetime (a second Find
   about a millisecond); keeping it across sessions would write the document's text to disk, which Find never does.
   **A hostile file's time on the Mac (2026-11-06): bounded in process, no check process.** The Mac calls MuPDF 1.25
-  directly (`MuPDFShim`), so each call that reads a page's content takes a cookie with a time budget (10 s, Windows'
-  limit) and a largest picture (1 G samples, width × height × components). The cookie alone stops nothing while MuPDF
-  inflates (the 7 KB page is one lexer call over 4 GB of white space), so the shim opens every document over its own
-  stream, which hands MuPDF small chunks while a page is read and throws MuPDF's progressive-loading "not yet"
-  (`FZ_ERROR_TRYLATER`) once the budget is spent or Cancel fired: no repair, nothing half read kept. A device in front
-  of the list and text devices looks at the clock at each drawing call and refuses a picture over the cap before it is
-  decoded (MuPDF inflates all of a picture's samples for every draw, even drawn small). The page is then refused at
-  once from then on: the viewer says "This page took too long to read and isn't shown", Find finds the rest and says
-  which pages it skipped, Batch's page images leave it out, export reports it empty, print leaves it blank; Cancel and
-  closing the document stop a reading at once. In the tests (1 s budget) the 7 KB and 1 MB pages are refused within
+  directly (`MuPDFShim`), so each call that reads a page's content takes a cookie with a time budget (10 s of the
+  reading thread's own CPU time, Windows' limit) and a largest picture (268 M pixels, where Windows' check process runs
+  out of memory). The cookie alone stops nothing while MuPDF inflates (the 7 KB page is one lexer call over 4 GB of
+  white space), so the shim opens every document over its own stream, which hands MuPDF small chunks while a page is
+  read and throws MuPDF's progressive-loading "not yet" (`FZ_ERROR_TRYLATER`) once the budget is spent or Cancel fired:
+  no repair, nothing half read kept. A stream decompressed more than twice in a row, which that bound can't see (four
+  Flates make gigabytes of each byte), is refused before the page is read. A device in front of the list, text and
+  draw devices looks at the clock at each drawing call, refuses a picture over the cap before it is decoded (MuPDF
+  inflates all of a picture's samples for every draw, even drawn small) and a pattern whose tiles would outlast the
+  budget. The page is then refused at once from then on: the viewer says "This page took too long to read and isn't
+  shown", Find finds the rest and says which pages it skipped, as do Redact by Pattern, the redaction check, Prepare
+  Form, Recognize Text and the AI assistant (Windows' versions of those stop at it); Batch's page images leave it out,
+  export reports it empty, print leaves it blank; Cancel and closing the document stop a reading at once, export
+  between pictures. In the tests (1 s budget) the 7 KB and 1 MB pages are refused within
   about a second (red first: 74 s for both), the 20,000 × 20,000 picture at once, a 72,000-path sheet draws as without.
   Cost (bench `one`, the base commit against this one on the same Mac): the drawing set's first page and a sheet within
-  1% (576 against 579 ms a sheet), Find 7.2 s either way; text and scan unchanged.
-  Not covered: a picture under the cap decodes in full unbounded (a few seconds at most); image files and `PdfEdit`'s
-  editing documents run unbounded; a hostile page holds its engine (its neighbours, its thumbnails) for up to 10 s once.
+  1% (576 against 579 ms a sheet), Find 7.2 s either way; text and scan unchanged. After the code review's fixes the
+  sheets draw as before; Find on the drawing set measured 8-25% slower under another process's load, to measure again
+  on a quiet Mac (mac/docs/PLAN.md).
+  Not covered: a picture under the cap decodes in full (a second or two; the clock is looked at between pictures); an
+  inline picture's filters aren't counted; image files and `PdfEdit`'s editing documents run unbounded; a hostile page
+  holds its engine (its neighbours, its thumbnails) for up to 10 s once.
   `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
