@@ -34,7 +34,8 @@ extension Report {
     }
 
     /// SNMPv3 (Pro) with the system's cryptography as the app installed it (`AppleSnmpCrypto`): a made-up v3 agent
-    /// discovered and read signed and encrypted, each wrong part refused and told apart, a v3 login's Keychain round trip,
+    /// discovered (once: the reader goes on with the probe's engine) and read signed and encrypted, each wrong part refused
+    /// and told apart, SNMP Access…'s check of a login (`SnmpLoginCheck`), a v3 login's Keychain round trip,
     /// and the Pro gate switched on without a key keeping a kept v3 user unused (switched back after).
     private static func v3Check(_ walk: [SnmpVarBind]) async -> [String] {
         guard Usm.crypto is AppleSnmpCrypto else { return ["  SNMPv3: NO (the system's cryptography isn't installed)"] }
@@ -72,6 +73,15 @@ extension Report {
             }
         }
         lines.append("  SNMPv3: a wrong user, auth and priv passphrase refused as: \(told.joined(separator: ", "))")
+        // SNMP Access…'s check before keeping a login.
+        var checks: [String] = []
+        let candidates: [SnmpLogin?] = [login, try? SnmpLogin.forUser(user.name, "wrong auth 2026", user.privPassphrase), SnmpLogin.public]
+        for candidate in candidates {
+            guard let candidate else { continue }
+            let check = await SnmpLoginCheck.check(candidate, host: Demo.snmpHost, known: nil, transport: agent)
+            checks.append("\(check)")
+        }
+        lines.append("  SNMP Access… check (right, wrong auth, public): \(checks.joined(separator: ", "))")
         lines.append("  SNMPv3 Keychain: " + keychainV3Check(login))
         let store = MemorySnmpLogins()
         store.save(login, for: "v3")

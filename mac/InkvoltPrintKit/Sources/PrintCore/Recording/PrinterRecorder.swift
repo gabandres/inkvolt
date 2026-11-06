@@ -7,9 +7,8 @@ public struct RecordOptions: Sendable {
     public var transport: any HttpTransport
     /// Where SNMP goes (UDP in PrintMac, or a made-up agent in tests); nil: SNMP isn't recorded.
     public var snmp: (any SnmpTransport)?
-    public var community = SnmpClient.defaultCommunity
-    /// The printer's own login (its community or SNMPv3 user), when it has one; else `community`. Never written into the
-    /// recording.
+    /// The printer's own login (its community or SNMPv3 user; `record --community`'s), asked by every SNMP request of the
+    /// recording; nil: public. Never written into the recording.
     public var login: SnmpLogin?
     /// eSCL and IPP addresses from DNS-SD, when the printer's aren't the usual ones (as `PrinterConnection.open`).
     public var esclHint: URL?
@@ -86,7 +85,9 @@ public enum PrinterRecorder {
         var notKept: [String] = []
         var scans: [(name: String, jpeg: [UInt8])] = []
 
-        let connection = try await PrinterConnection.open(host, transport: capture, esclHint: options.esclHint, ippHint: options.ippHint, snmp: snmp)
+        let login = options.login ?? .public
+        let connection = try await PrinterConnection.open(host, transport: capture, esclHint: options.esclHint, ippHint: options.ippHint, snmp: snmp,
+                                                          snmpLogin: login)
         let probe = connection.probe
         if !probe.reachable && snmp == nil { throw RecordingError(description: "Nothing answered at \(host).") }
 
@@ -107,7 +108,7 @@ public enum PrinterRecorder {
             _ = await quietly { try await scanner.status() }
             if options.scan { await scan(scanner, &scans, &notKept) }
         }
-        if let snmp { await walkSnmp(snmp, host, options.login ?? (try? SnmpLogin.forCommunity(options.community)) ?? .public) }
+        if let snmp { await walkSnmp(snmp, host, login) }
 
         // The documents, by the names FixtureTransport serves them under (any case, as on Windows).
         var documents: [String: (name: String, text: String)] = [:]

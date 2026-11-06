@@ -50,6 +50,12 @@ final class SnmpAccessModel {
     }
 
     func edited() { error = nil }
+
+    /// Nothing typed for the kind chosen (shown or not): the printer is asked with public.
+    var isBlank: Bool {
+        kind == .community ? community.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            : userName.isEmpty && authPassphrase.isEmpty && privPassphrase.isEmpty
+    }
 }
 
 /// The SNMP access fields.
@@ -98,12 +104,16 @@ struct SnmpAccessFields: View {
     }
 }
 
-/// The printer's menu › SNMP Access…: for a printer read over SNMP, the login it's read with; Save keeps it and connects
-/// again.
+/// The printer's menu › SNMP Access…: for a printer read over SNMP, the login it's read with. Save asks the printer with it
+/// first (`SnmpLoginCheck`): kept, and connected again with, once the printer answers; a refusal says which part was
+/// refused and nothing is kept; no answer (it may be off, or ignore a wrong community) lets Save Anyway keep it.
 struct SnmpAccessSheet: View {
     let printer: PrinterModel
     @State private var model: SnmpAccessModel
-    @State private var refused = false
+    @State private var problem: String?
+    @State private var checking = false
+    /// The login that got no answer: Save keeps it as it is (Save Anyway).
+    @State private var unanswered: SnmpLogin?
     @Environment(\.dismiss) private var dismiss
 
     init(printer: PrinterModel) {
@@ -117,13 +127,14 @@ struct SnmpAccessSheet: View {
             Text(SnmpAccessText.explanation)
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             SnmpAccessFields(model: model)
-            if refused {
-                Text(SnmpAccessText.keychainRefused).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+            if let problem {
+                Text(problem).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             HStack {
+                if checking { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Save") { save() }.keyboardShortcut(.defaultAction)
+                Button(unanswered == nil ? "Save" : "Save Anyway") { save() }.keyboardShortcut(.defaultAction).disabled(checking)
             }
         }
         .padding(20)
@@ -132,7 +143,30 @@ struct SnmpAccessSheet: View {
 
     private func save() {
         guard let login = model.read() else { return }
-        if printer.setSnmpLogin(login) { dismiss() } else { refused = true }
+        if login == unanswered || login == printer.snmpLogin {
+            keep(login)
+            return
+        }
+        problem = nil
+        unanswered = nil
+        checking = true
+        Task {
+            let check = await printer.checkSnmpLogin(login)
+            checking = false
+            guard model.read() == login else { return } // edited while it was asked: Save asks again
+            switch check {
+            case .answered: keep(login)
+            case .refused(let why): problem = SnmpAccessText.refusedHint(why)
+            case .anotherDevice: problem = SnmpAccessText.anotherDevice
+            case .noAnswer:
+                problem = SnmpAccessText.unansweredHint(login)
+                unanswered = login
+            }
+        }
+    }
+
+    private func keep(_ login: SnmpLogin) {
+        if printer.setSnmpLogin(login) { dismiss() } else { problem = SnmpAccessText.keychainRefused }
     }
 }
 
@@ -140,6 +174,18 @@ enum SnmpAccessText {
     static let explanation = "Inkvolt Print reads this printer's status and supplies over SNMP, with the read community or SNMPv3 user "
         + "the printer's administrator set. It's kept in your keychain, used only to read the printer, and never changes anything on it."
     static let keychainRefused = "The keychain didn't keep it, so it isn't used. Try again, or restart your Mac."
+    static let notAdded = "The keychain didn't keep its SNMP access, so the printer wasn't added. Try again, or restart your Mac."
+    static let anotherDevice = "Another device answers at this printer's address with it, so it wasn't kept."
+
+    /// The printer refused the login: which part, and that nothing was kept.
+    static func refusedHint(_ why: SnmpRefusal) -> String { "\(SnmpAccessError(why)) Nothing was changed." }
+
+    /// Nothing answered with the login: what may be wrong, and that Save Anyway keeps it.
+    static func unansweredHint(_ login: SnmpLogin) -> String {
+        let what = login.user != nil ? "The printer didn't answer over SNMPv3: check that it's on and that SNMPv3 is turned on in it."
+            : "The printer didn't answer with this community: check it, and that the printer is on."
+        return what + " Save Anyway keeps it as it is."
+    }
 
     /// What may be wrong when nothing answered at an address, about SNMP: the agent's refusal when it said why.
     static func noAnswerHint(_ login: SnmpLogin, refused: SnmpRefusal?) -> String {

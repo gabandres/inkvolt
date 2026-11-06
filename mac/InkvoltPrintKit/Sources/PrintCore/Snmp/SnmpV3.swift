@@ -133,9 +133,25 @@ public enum Usm {
 
         public static func of(_ user: SnmpV3User, engineId: [UInt8], _ crypto: any SnmpCrypto) -> Keys {
             let hash: ([UInt8]) -> [UInt8] = { crypto.sha256($0) }
-            return Keys(auth: localize(passwordToKey(user.authPassphrase, hash: hash), engineId: engineId, hash: hash),
-                        priv: localize(passwordToKey(user.privPassphrase, hash: hash), engineId: engineId, hash: hash))
+            return Keys(auth: localize(stretch(user.authPassphrase, crypto), engineId: engineId, hash: hash),
+                        priv: localize(stretch(user.privPassphrase, crypto), engineId: engineId, hash: hash))
         }
+    }
+
+    /// Each passphrase's Ku (passwordToKey with SHA-256), by passphrase, not user or engine (Ku depends on the passphrase
+    /// alone): stretching one hashes 1 MiB, so it's done once a run; only the localization is per engine. A few at most (the
+    /// printers' logins); emptied when full. Kept in memory only, as the logins themselves are.
+    private static let stretched = Mutex<[String: [UInt8]]>([:])
+    private static let maxStretched = 32
+
+    private static func stretch(_ passphrase: String, _ crypto: any SnmpCrypto) -> [UInt8] {
+        if let kept = stretched.withLock({ $0[passphrase] }) { return kept }
+        let ku = passwordToKey(passphrase, hash: { crypto.sha256($0) })
+        stretched.withLock { kept in
+            if kept.count >= maxStretched { kept.removeAll() }
+            kept[passphrase] = ku
+        }
+        return ku
     }
 
     // RFC 3414 §5 usmStats counters an agent reports instead of answering: which tells the manager what went wrong.

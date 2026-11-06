@@ -27,15 +27,35 @@ public final class SnmpClient: Sendable {
     let transport: any SnmpTransport
     private let community: String
     private let lastRequestId: Mutex<Int>
-    /// SNMPv3: the user, the system's cryptography (`Usm.crypto` when the client was made) and the engine as discovered.
+    /// SNMPv3: the user, the system's cryptography (`Usm.crypto` when the client was made) and the session with the agent
+    /// (its engine as discovered), which another client of the same printer and user may share.
     let user: SnmpV3User?
     let crypto: (any SnmpCrypto)?
-    let v3 = Mutex(V3State())
+    let v3: SnmpV3Session
 
     /// A v1 or v2c client with `community`.
-    public init(transport: any SnmpTransport, host: String, version: SnmpVersion, community: String = SnmpClient.defaultCommunity,
-                timeout: Duration = .seconds(1), retries: Int = 1, maxRows: Int = 64) {
+    public convenience init(transport: any SnmpTransport, host: String, version: SnmpVersion, community: String = SnmpClient.defaultCommunity,
+                            timeout: Duration = .seconds(1), retries: Int = 1, maxRows: Int = 64) {
         precondition(version != .v3, "SNMPv3 needs a login with a user.")
+        self.init(transport, host, version, community, nil, nil, timeout, retries, maxRows)
+    }
+
+    /// A client with `login`: its community over `version` (v1, v2c), or its SNMPv3 user (`version` v3). Throws when the two
+    /// don't go together: SNMPv3 goes with a login with a user, and only it.
+    public convenience init(transport: any SnmpTransport, host: String, version: SnmpVersion, login: SnmpLogin, timeout: Duration = .seconds(1),
+                            retries: Int = 1, maxRows: Int = 64) throws {
+        guard (version == .v3) == (login.user != nil) else { throw SnmpLoginError("SNMPv3 goes with a login with a user, and only it.") }
+        self.init(transport, host, version, login.community, login.user, nil, timeout, retries, maxRows)
+    }
+
+    /// An SNMPv3 client of `user`, going on with `session` (another client's of the same printer) when it was made for that
+    /// user.
+    convenience init(transport: any SnmpTransport, host: String, user: SnmpV3User, session: SnmpV3Session?, timeout: Duration) {
+        self.init(transport, host, .v3, "", user, session, timeout, 1, 64)
+    }
+
+    private init(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ community: String, _ user: SnmpV3User?,
+                 _ session: SnmpV3Session?, _ timeout: Duration, _ retries: Int, _ maxRows: Int) {
         self.transport = transport
         self.host = host
         self.version = version
@@ -43,25 +63,9 @@ public final class SnmpClient: Sendable {
         self.timeout = timeout
         self.retries = retries
         self.maxRows = maxRows
-        user = nil
-        crypto = nil
-        lastRequestId = Mutex(Int.random(in: 1..<Int(Int32.max / 2)))
-    }
-
-    /// A client with `login`: its community over `version` (v1, v2c), or its SNMPv3 user (`version` v3). Throws when the two
-    /// don't go together: SNMPv3 goes with a login with a user, and only it.
-    public init(transport: any SnmpTransport, host: String, version: SnmpVersion, login: SnmpLogin, timeout: Duration = .seconds(1),
-                retries: Int = 1, maxRows: Int = 64) throws {
-        guard (version == .v3) == (login.user != nil) else { throw SnmpLoginError("SNMPv3 goes with a login with a user, and only it.") }
-        self.transport = transport
-        self.host = host
-        self.version = version
-        community = login.community
-        self.timeout = timeout
-        self.retries = retries
-        self.maxRows = maxRows
-        user = login.user
-        crypto = login.user == nil ? nil : Usm.crypto
+        self.user = user
+        crypto = user == nil ? nil : Usm.crypto
+        v3 = session.flatMap { $0.user != nil && $0.user == user ? $0 : nil } ?? SnmpV3Session(user: user)
         lastRequestId = Mutex(Int.random(in: 1..<Int(Int32.max / 2)))
     }
 

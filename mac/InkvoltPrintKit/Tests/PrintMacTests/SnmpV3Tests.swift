@@ -83,7 +83,7 @@ import Testing
         let printer = try #require(try await SnmpPrinterClient.probe(transport: agent, host: "192.0.2.14", login: login))
         #expect(printer.identity.version == .v3)
         #expect(try await printer.supplies().count == 3)
-        #expect(agent.v3Log.filter { $0 == "discovery" }.count == 2)
+        #expect(agent.v3Log.filter { $0 == "discovery" }.count == 1) // the reader goes on with the probe's engine
         #expect(agent.v3Log.allSatisfy { $0 == "discovery" || $0 == "answered" })
     }
 }

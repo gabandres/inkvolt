@@ -89,7 +89,18 @@ final class AddPrinterModel {
 
     func add(_ f: FoundPrinter) {
         guard let i = found.firstIndex(where: { $0.id == f.id }), found[i].state == .canAdd else { return }
-        let p: PrinterModel? = if let d = f.removed { app.addBack(d) } else if let probe = f.probe { app.add(probe, host: f.host) } else { nil }
+        let p: PrinterModel?
+        if let d = f.removed {
+            p = app.addBack(d)
+        } else if let probe = f.probe {
+            guard let added = app.add(probe, host: f.host) else {
+                found[i].error = SnmpAccessText.notAdded
+                return
+            }
+            p = added
+        } else {
+            p = nil
+        }
         guard let p else {
             found[i].error = "Couldn't add it: it isn't on the network now."
             return
@@ -116,7 +127,9 @@ final class AddPrinterModel {
             return
         }
         guard let host = a.host else { return }
-        guard let login = showsSnmp ? snmpAccess.read() : .public else {
+        // What's filled in counts, shown or not; nothing typed is public.
+        guard let login = snmpAccess.isBlank ? .public : snmpAccess.read() else {
+            showsSnmp = true // why it can't be used shows there
             addressError = "Check SNMP access below."
             return
         }
@@ -132,10 +145,14 @@ final class AddPrinterModel {
             }
             if let listed = app.listed(probe, host) {
                 // The login it answered to now: kept, and the printer connects again with it.
-                if let answered = probe.snmp, listed.canSetSnmpLogin { _ = listed.setSnmpLogin(answered.loginOrPublic) }
+                if let answered = probe.snmp, listed.canSetSnmpLogin, !listed.setSnmpLogin(answered.loginOrPublic) {
+                    addressError = SnmpAccessText.keychainRefused
+                    return
+                }
                 app.selectedID = listed.id
-            } else {
-                app.add(probe, host: host)
+            } else if app.add(probe, host: host) == nil {
+                addressError = SnmpAccessText.notAdded
+                return
             }
             app.isAddingPrinter = false
         }

@@ -332,7 +332,7 @@ public final class PrinterConnection: Sendable {
 }
 
 /// Why the probe's SNMPv3 agent refused, as its callback tells it.
-private final class RefusalSeen: Sendable {
+final class RefusalSeen: Sendable {
     private let seen = Mutex<SnmpRefusal?>(nil)
 
     var reason: SnmpRefusal? { seen.withLock { $0 } }

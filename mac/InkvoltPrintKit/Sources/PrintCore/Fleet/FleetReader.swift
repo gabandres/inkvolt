@@ -55,6 +55,7 @@ public enum FleetReader {
     static let couldntRead = "Inkvolt Print couldn't read it"
     static let differentDevice = "A different device answers at this address"
     static let cantReach = "Can't reach the printer"
+    static let snmpRefused = "The printer refused its SNMP login"
     static let readyToScan = "Ready to scan"
     static let queuesNote = "macOS's printers couldn't be read, so printers known only to macOS aren't listed."
     static let scannersNote = "macOS's scanners couldn't be read, so scanners on their own aren't listed."
@@ -170,12 +171,13 @@ public enum FleetReader {
         let target = p.target
         let step = try await session.connect(target)
         if case .elsewhere = step { return elsewhere(p) }
+        if case .refused = step { return silent(p, mac, snmpRefused) } // it answers: not "can't reach"
         guard case .connected(let conn, _) = step else { return silent(p, mac, cantReach) }
         let reading: PrinterReading
         switch try await session.read(target) {
         case .read(let r): reading = r
         case .elsewhere: return elsewhere(p)
-        case .offline, .connected: return silent(p, mac, cantReach) // read gives neither today; never "a different device"
+        case .offline, .connected, .refused: return silent(p, mac, cantReach) // read gives neither today; never "a different device"
         }
         if reading.isOffline { return silent(p, mac, cantReach) }
         let known = reading.supplies == nil || reading.usage == nil ? lastKnown(p.uuid, mac) : nil

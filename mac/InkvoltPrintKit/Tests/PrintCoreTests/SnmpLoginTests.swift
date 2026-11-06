@@ -59,29 +59,22 @@ struct SnmpLoginTests {
         #expect(throws: SnmpLoginError.self) { try SnmpLogin.forCommunity(String(repeating: "é", count: 128)) }
     }
 
-    @Test func theStoreKeepsRenamesAndDeletesAPrintersLogin() throws {
+    // Mac difference (SnmpLogin.swift): no rename, so Windows' TheStoreKeepsRenamesAndDeletesAPrintersLogin keeps and
+    // deletes here, and RenamingNeverOverwritesALoginKeptUnderTheNewId has no Mac counterpart.
+    @Test func theStoreKeepsAndDeletesAPrintersLogin() throws {
         let store = MemorySnmpLogins()
         let logins: any SnmpLogins = store
         #expect(logins.get(Self.printer) == nil)
         logins.save(try Self.login(Self.secret), for: Self.printer)
         #expect(logins.get(Self.printer.uppercased())?.community == Self.secret)
 
-        logins.rename(Self.printer, to: Self.host)
+        logins.save(.public, for: Self.printer) // public: what was kept goes, nothing takes its place
         #expect(logins.get(Self.printer) == nil)
-        #expect(logins.get(Self.host)?.community == Self.secret)
-
-        logins.save(.public, for: Self.host) // public: what was kept goes, nothing takes its place
-        #expect(logins.get(Self.host) == nil)
         #expect(store.count == 0)
-    }
 
-    @Test func renamingNeverOverwritesALoginKeptUnderTheNewId() throws {
-        let logins: any SnmpLogins = MemorySnmpLogins()
-        logins.save(try Self.login("first"), for: "a")
-        logins.save(try Self.login("second"), for: "b")
-        logins.rename("a", to: "b")
-        #expect(logins.get("b")?.community == "second")
-        #expect(logins.get("a") == nil)
+        logins.save(try Self.login(Self.secret), for: Self.printer)
+        logins.delete(Self.printer.uppercased()) // removed from the list: its login goes with it
+        #expect(store.count == 0)
     }
 
     @Test func theAgentAnswersOnlyToItsCommunityAndEveryReadUsesIt() async throws {
@@ -123,6 +116,78 @@ struct SnmpLoginTests {
         }
         #expect(reading.supplies?.count == 3)
         #expect(agent.received.contains { $0.community == Self.secret })
+    }
+
+    /// SnmpV3Tests' passphrases (and wrong ones): stretched once a run (`Usm.Keys`), which is slow with the PC's crypto.
+    private static let user = SnmpV3User(name: "reader", authPassphrase: "authpass-2026", privPassphrase: "privpass-2026")
+
+    private static func v3Agent() throws -> SnmpAgent {
+        TestSnmpCrypto.install()
+        return SnmpAgent(try SnmpAgent.parseWalk(Fixtures.text("snmp-demo/workgroup-laser.txt")), user: user,
+                         engineId: Array("inkvolt-engine".utf8), crypto: TestSnmpCrypto())
+    }
+
+    private static func v3Login(auth: String = user.authPassphrase, priv: String = user.privPassphrase) throws -> SnmpLogin {
+        try SnmpLogin.forUser(user.name, auth, priv)
+    }
+
+    @Test func aRefusedLoginIsItsOwnStateNotOffline() async throws {
+        let agent = try Self.v3Agent()
+        let identity = try #require(try await SnmpPrinterClient.probe(transport: agent, host: Self.host, login: Self.v3Login())).identity
+        let wrong = try Self.v3Login(auth: "wrong-auth-pass")
+        let recipe = PrinterRecipe(transport: { _, _ in HostRouter([:]) }, snmp: agent, snmpLogin: { wrong })
+        let monitor = PrinterMonitor(id: Self.printer, name: "Laser", target: PrinterWhere(Self.host, snmp: SnmpDevice.from(identity)),
+                                     recipe: recipe, accepted: { [] }, acceptUuids: { _ in }, onEvent: { _ in })
+        #expect(await monitor.check() == false)
+        let view = await monitor.view
+        #expect(view.phase != .offline)
+        #expect(view.statusDetail?.contains("authentication passphrase") == true, "\(view.statusDetail ?? "")")
+    }
+
+    @Test func aLoginRefusedOnAConnectionReadsAsRefusedNotOffline() async throws {
+        let agent = SnmpV3Tests.Spoofer(try Self.v3Agent())
+        let identity = try #require(try await SnmpPrinterClient.probe(transport: agent, host: Self.host, login: Self.v3Login())).identity
+        let login = try Self.v3Login()
+        let recipe = PrinterRecipe(transport: { _, _ in HostRouter([:]) }, snmp: agent, snmpLogin: { login })
+        let monitor = PrinterMonitor(id: Self.printer, name: "Laser", target: PrinterWhere(Self.host, snmp: SnmpDevice.from(identity)),
+                                     recipe: recipe, accepted: { [] }, acceptUuids: { _ in }, onEvent: { _ in })
+        #expect(await monitor.check())
+        agent.spoof.withLock { $0 = (Usm.wrongDigests, agent.agent.engineId) } // the printer's administrator changed its key
+        try await Task.sleep(for: SnmpPrinterClient.sharedFor + .milliseconds(100)) // past the read shared by status and supplies
+        #expect(await monitor.check() == false)
+        let view = await monitor.view
+        #expect(view.phase != .offline)
+        #expect(view.statusDetail?.contains("authentication passphrase") == true, "\(view.statusDetail ?? "")")
+    }
+
+    @Test func aNewLoginIsUsedByTheNextCheckEvenOnAConnectionStillGood() async throws {
+        let agent = try Self.agent()
+        let identity = try #require(try await SnmpPrinterClient.probe(transport: agent, host: Self.host, login: Self.login(Self.secret))).identity
+        let logins = MemorySnmpLogins()
+        logins.save(try Self.login(Self.secret), for: Self.printer)
+        let recipe = PrinterRecipe(transport: { _, _ in HostRouter([:]) }, snmp: agent, snmpLogin: { logins.get(Self.printer) })
+        let monitor = PrinterMonitor(id: Self.printer, name: "Laser", target: PrinterWhere(Self.host, snmp: SnmpDevice.from(identity)),
+                                     recipe: recipe, accepted: { [] }, acceptUuids: { _ in }, onEvent: { _ in })
+        #expect(await monitor.check()) // the window closed: checked now and then on the connection made
+
+        logins.save(try Self.login("changed"), for: Self.printer) // SNMP Access… while it's checked in the background
+        #expect(await monitor.check() == false) // asked with the new community, which the agent ignores
+        #expect(agent.received.last?.community == "changed")
+    }
+
+    @Test func checkingALoginSaysWhetherItsAnsweredOrWhichPartIsRefused() async throws {
+        let agent = try Self.v3Agent()
+        let device = SnmpDevice.from(try #require(try await SnmpPrinterClient.probe(transport: agent, host: Self.host, login: Self.v3Login())).identity)
+        #expect(await SnmpLoginCheck.check(try Self.v3Login(), host: Self.host, known: device, transport: agent) == .answered)
+        #expect(await SnmpLoginCheck.check(try Self.v3Login(auth: "wrong-auth-pass"), host: Self.host, known: device, transport: agent)
+            == .refused(.wrongAuthKey))
+        #expect(await SnmpLoginCheck.check(try Self.v3Login(priv: "wrong-priv-pass"), host: Self.host, known: device, transport: agent)
+            == .refused(.wrongPrivKey))
+        #expect(await SnmpLoginCheck.check(try Self.login(Self.secret), host: Self.host, known: device, transport: agent) == .noAnswer)
+
+        let other = SnmpAgent(try SnmpAgent.parseWalk(Fixtures.text("snmp-demo/workgroup-laser.txt").replacingOccurrences(of: "DEMO0005200", with: "OTHER0001")),
+                              community: Self.secret)
+        #expect(await SnmpLoginCheck.check(try Self.login(Self.secret), host: Self.host, known: device, transport: other) == .anotherDevice)
     }
 
     @Test func neitherWhatIsRememberedNorALogLineHoldsTheCommunity() async throws {

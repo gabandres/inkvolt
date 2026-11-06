@@ -181,11 +181,12 @@ struct SnmpV3Tests {
         #expect(printer.identity.version == .v3)
         #expect(printer.identity.serialNumber == "DEMO0005200")
         #expect(try await printer.supplies().count == 3)
-        // Each client discovers the engine once (the probe's, then the reader's); every other request is answered.
-        #expect(agent.v3Log.filter { $0 == "discovery" }.count == 2)
+        // The engine is discovered once: the reader and every identity check go on with the probe's.
+        #expect(agent.v3Log.filter { $0 == "discovery" }.count == 1)
         #expect(agent.v3Log.first == "discovery")
         #expect(agent.v3Log.allSatisfy { $0 == "discovery" || $0 == "answered" })
         #expect(try await printer.readIdentity() != nil)
+        #expect(agent.v3Log.filter { $0 == "discovery" }.count == 1)
     }
 
     @Test func aWalkUsesGetBulkOverV3() async throws {
@@ -248,6 +249,151 @@ struct SnmpV3Tests {
         _ = try await client.get([PrinterMib.sysName.appending(0)]) // discovery and a first answer pass untouched
         tampered.on.store(true, ordering: .relaxed)
         await #expect(throws: SnmpTimeoutError.self) { try await client.get([PrinterMib.sysName.appending(0)]) }
+    }
+
+    private static let otherEngine = hex("80001f8880aaaaaaaaaaaaaaaa")
+
+    @Test(arguments: [
+        ("unknownUserNames", false), // from another engine: anyone's
+        ("unknownEngineIDs", true), // after discovery: no reason to discover again
+        ("notInTimeWindows", true), // unsigned: never sets the clock, never "doesn't take authPriv"
+    ])
+    func anUnsignedReportRfc3414DoesntAllowIsNoAnswer(_ counter: String, _ fromItsEngine: Bool) async throws {
+        let spoofer = Spoofer(try Self.agent())
+        let client = try SnmpClient(transport: spoofer, host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
+        _ = try await client.get([PrinterMib.sysName.appending(0)])
+        let oid = counter == "unknownUserNames" ? Usm.unknownUserNames : counter == "unknownEngineIDs" ? Usm.unknownEngineIds : Usm.notInTimeWindows
+        spoofer.spoof.withLock { $0 = (oid, fromItsEngine ? Self.engine : Self.otherEngine) }
+        do {
+            _ = try await client.get([PrinterMib.sysName.appending(0)])
+            Issue.record("\(counter): answered")
+        } catch {
+            #expect(error is SnmpTimeoutError, "\(counter): \(error)")
+        }
+        #expect(spoofer.agent.v3Log.filter { $0 == "discovery" }.count == 1)
+        #expect(client.v3.withLock { $0.engine?.boots } == 3)
+    }
+
+    @Test func anUnsignedRefusalFromTheAgentsOwnEngineStillSaysWhich() async throws {
+        let spoofer = Spoofer(try Self.agent())
+        let client = try SnmpClient(transport: spoofer, host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
+        _ = try await client.get([PrinterMib.sysName.appending(0)])
+        spoofer.spoof.withLock { $0 = (Usm.wrongDigests, Self.engine) }
+        await #expect(throws: SnmpAccessError(.wrongAuthKey)) { try await client.get([PrinterMib.sysName.appending(0)]) }
+    }
+
+    @Test(arguments: [(-1, 0, false), (0, -(Usm.timeWindow + 1), false), (0, -(Usm.timeWindow - 10), true)])
+    func aSignedAnswerOutsideTheTimeWindowIsNoAnswerAndLeavesTheClock(_ boots: Int, _ time: Int, _ inWindow: Bool) async throws {
+        let stale = Stale(try Self.agent(), keys: Usm.Keys.of(Self.right, engineId: Self.engine, Self.crypto))
+        let client = try SnmpClient(transport: stale, host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
+        _ = try await client.get([PrinterMib.sysName.appending(0)])
+        stale.shift.withLock { $0 = (boots, time) }
+        let got = try? await client.get([PrinterMib.sysName.appending(0)])
+        #expect((got != nil) == inWindow, "boots \(boots), time \(time)")
+        #expect(client.v3.withLock { $0.engine?.boots } == 3)
+        #expect(client.v3.withLock { $0.engine?.timeNow ?? 0 } >= 4321)
+    }
+
+    @Test func theClockIsSetFromASignedReportOncePerRequest() async throws {
+        let agent = try Self.agent()
+        let client = try SnmpClient(transport: Restarting(agent), host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
+        await #expect(throws: SnmpTimeoutError.self) { try await client.get([PrinterMib.sysName.appending(0)]) }
+        #expect(agent.v3Log.filter { $0 == "notInTimeWindows" }.count == 2) // resynchronized once, then no answer
+    }
+
+    @Test func aUsersKeysAreWorkedOutOncePerPassphraseNotPerEngine() {
+        let counting = Counting()
+        let passphrase = "pass-\(UUID().uuidString)" // one never stretched before (both keys from it: a 1 MiB hash is slow here)
+        let user = SnmpV3User(name: "cache", authPassphrase: passphrase, privPassphrase: passphrase)
+        let a = Usm.Keys.of(user, engineId: Self.engine, counting)
+        let b = Usm.Keys.of(SnmpV3User(name: "another", authPassphrase: passphrase, privPassphrase: passphrase), engineId: Self.rfcEngine, counting)
+        #expect(counting.stretched == 1) // repeated to 1 MiB and hashed once, whatever the user or engine
+        #expect(a.auth != b.auth)
+        let fresh = Usm.Keys.of(user, engineId: Self.engine, Self.crypto)
+        #expect(a.auth == fresh.auth && a.priv == fresh.priv)
+    }
+
+    @Test func aV2cIdentityWithAV3LoginIsAskedOverV3NeverWithAnEmptyCommunity() async throws {
+        let agent = try Self.agent()
+        let identity = SnmpIdentity(version: .v2c, deviceIndex: 1, deviceDescription: nil, systemDescription: nil, systemName: nil, location: nil,
+                                    serialNumber: nil, login: try Self.login(Self.right))
+        let printer = SnmpPrinterClient(transport: agent, host: "192.0.2.14", identity: identity)
+        let supplies = try? await printer.supplies()
+        #expect(supplies?.count == 3)
+        #expect(!agent.received.contains { $0.version != .v3 })
+    }
+
+    /// Unsigned reports of `spoof`'s counter from its engine, once set, for every request but a discovery: anyone on the
+    /// network can send one.
+    final class Spoofer: SnmpTransport {
+        let agent: SnmpAgent
+        let spoof = Mutex<(counter: Oid, engineId: [UInt8])?>(nil)
+
+        init(_ agent: SnmpAgent) { self.agent = agent }
+
+        func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
+            guard let spoofed = spoof.withLock({ $0 }), let m = try? SnmpV3Message.decode(request), !m.engineId.isEmpty else {
+                return try await agent.send(request, to: host, timeout: timeout)
+            }
+            let report = SnmpMessage(.v3, "", .report, requestId: 0, errorStatus: 0, errorIndex: 0,
+                                     varBinds: [SnmpVarBind(spoofed.counter, .unsigned(Ber.counter32, 1))])
+            return SnmpV3Message(messageId: m.messageId, flags: 0, engineId: spoofed.engineId, engineBoots: 9, engineTime: 99_999,
+                                 userName: m.userName, contextEngineId: spoofed.engineId, pdu: report).encode()
+        }
+    }
+
+    /// The agent's answers with their boots and time moved by `shift` (encrypted and signed again with the user's keys), as an
+    /// old answer replayed would carry.
+    final class Stale: SnmpTransport {
+        let agent: SnmpAgent
+        let keys: Usm.Keys
+        let shift = Mutex<(boots: Int, time: Int)?>(nil)
+
+        init(_ agent: SnmpAgent, keys: Usm.Keys) {
+            self.agent = agent
+            self.keys = keys
+        }
+
+        func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
+            guard let reply = try await agent.send(request, to: host, timeout: timeout) else { return nil }
+            guard let by = shift.withLock({ $0 }), let m = try? SnmpV3Message.decode(reply), m.isPrivate, let encrypted = m.encrypted else {
+                return reply
+            }
+            let crypto = SnmpV3Tests.crypto
+            let clear = Usm.aesCfb(key: keys.priv, iv: Usm.aesIv(boots: m.engineBoots, time: m.engineTime, salt: m.privParameters), encrypted,
+                                   encrypt: false, crypto)
+            let (boots, time) = (m.engineBoots + by.boots, m.engineTime + by.time)
+            let again = Usm.aesCfb(key: keys.priv, iv: Usm.aesIv(boots: boots, time: time, salt: m.privParameters), clear, encrypt: true, crypto)
+            return SnmpV3Message(messageId: m.messageId, flags: m.flags, engineId: m.engineId, engineBoots: boots, engineTime: time,
+                                 userName: m.userName, privParameters: m.privParameters, encrypted: again).sign(keys.auth, crypto)
+        }
+    }
+
+    /// An agent that restarts before every request it's sent (but a discovery): each comes outside its time window.
+    final class Restarting: SnmpTransport {
+        let agent: SnmpAgent
+
+        init(_ agent: SnmpAgent) { self.agent = agent }
+
+        func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
+            if let m = try? SnmpV3Message.decode(request), !m.engineId.isEmpty { agent.engineBoots += 1 }
+            return try await agent.send(request, to: host, timeout: timeout)
+        }
+    }
+
+    /// The tests' crypto, counting the passphrases stretched to 1 MiB.
+    final class Counting: SnmpCrypto {
+        private let count = Mutex(0)
+        var stretched: Int { count.withLock { $0 } }
+
+        func sha256(_ data: [UInt8]) -> [UInt8] {
+            if data.count >= 1_048_576 { count.withLock { $0 += 1 } }
+            return SnmpV3Tests.crypto.sha256(data)
+        }
+
+        func hmacSha256(key: [UInt8], _ data: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.hmacSha256(key: key, data) }
+
+        func aes128(key: [UInt8], block: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.aes128(key: key, block: block) }
     }
 
     /// Flips a byte in the encrypted answer, as someone on the way could.

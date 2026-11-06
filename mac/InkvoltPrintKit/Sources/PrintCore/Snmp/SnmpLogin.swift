@@ -111,14 +111,10 @@ public protocol SnmpLogins: Sendable {
     func delete(_ printerId: String)
 }
 
+/// Mac difference: no `rename` (Windows' `ISnmpLogins.Rename`, for its start-up id migration of printers added by address
+/// in older state files): the Mac app's printer ids never change (normalized since 1.0), so a login is kept by its id for
+/// good and goes with the printer (`delete`).
 extension SnmpLogins {
-    /// Moves a printer's login to its new id; never overwrites one kept there.
-    public func rename(_ oldId: String, to newId: String) {
-        guard let login = get(oldId) else { return }
-        if get(newId) == nil { save(login, for: newId) }
-        delete(oldId)
-    }
-
     /// The printer's login as it may be used now (what every reader of a printer asks: the app, `status --all`): an SNMPv3
     /// user only while Inkvolt Pro allows it (`Pro.allows(.snmpV3)`), else none (public); a community always (free). What
     /// is kept stays, for when a licence comes. Windows' `SnmpLoginRules.Usable`.

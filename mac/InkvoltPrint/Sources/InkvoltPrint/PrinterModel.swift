@@ -113,12 +113,20 @@ final class PrinterModel: Identifiable {
     var snmpLogin: SnmpLogin { app.snmpLogins.get(id) ?? .public }
 
     /// The printer's menu › SNMP Access…: the login it's read with, kept in the Keychain (public: nothing kept), then a new
-    /// connection with it. False when the Keychain refused (nothing changed).
+    /// connection with it: at once while it's watched live; checked in the background, at its next check (the session sees
+    /// the login changed, `PrinterSession.loginChanged`). False when the Keychain refused (nothing changed).
     func setSnmpLogin(_ chosen: SnmpLogin) -> Bool {
         guard canSetSnmpLogin, chosen != snmpLogin else { return true }
         guard app.snmpLogins.save(chosen, for: id) else { return false }
-        if polling == nil { start() } // connects again, with it
+        if polling == nil { start() }
         return true
+    }
+
+    /// SNMP Access…'s check before a login is kept: whether the printer at its address answers with it, as itself.
+    func checkSnmpLogin(_ login: SnmpLogin) async -> SnmpLoginCheck {
+        guard let monitor else { return .noAnswer }
+        let target = await monitor.target
+        return await SnmpLoginCheck.check(login, host: target.host, known: target.snmp, transport: app.snmpTransport)
     }
 
     /// A scanner of its own (no printer, no queue).
@@ -315,7 +323,7 @@ final class PrinterModel: Identifiable {
         switch view.phase {
         case .offline, .elsewhere: true
         case .online: destination.map { $0.state == 5 || !$0.isAcceptingJobs } ?? false
-        case .connecting: false
+        case .connecting, .refused: false // refused: SNMP Access… is the fix, not another address
         }
     }
 
@@ -419,6 +427,7 @@ final class PrinterModel: Identifiable {
         switch view.phase {
         case .connecting: .unknown
         case .offline, .elsewhere: .off
+        case .refused: .error
         case .online: view.severity == .error ? .error : view.severity == .warning ? .warning : .ok
         }
     }

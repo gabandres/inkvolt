@@ -517,10 +517,10 @@ final class AppModel {
         try await NetworkSearch.search(SocketNetworkScanner(localNetwork: signal), found: found, progress: progress)
     }
 
-    /// Asks the device at `host` what it is (over SNMP with `snmpLogin`, public when nil), and makes Add a printer's entry for
-    /// it (nil: not a printer).
-    func identify(_ host: String, ipp: URL? = nil, snmpLogin: SnmpLogin? = nil) async -> FoundPrinter? {
-        await AddPrinter.identify(host, ipp: ipp, transport: transport, snmp: snmp, snmpLogin: snmpLogin) { [weak self] probe, host in
+    /// Asks a device the search found what it is (over SNMP with public), and makes Add a printer's entry for it (nil: not a
+    /// printer). An address typed in, with its SNMP access, goes through `probe`.
+    func identify(_ host: String) async -> FoundPrinter? {
+        await AddPrinter.identify(host, transport: transport, snmp: snmp) { [weak self] probe, host in
             await self?.listedEntry(probe, host)
         }
     }
@@ -545,11 +545,11 @@ final class AppModel {
     }
 
     /// Lists, remembers and selects the printer that answered at `host`. A printer read over SNMP keeps the login it answered
-    /// to (`SnmpIdentity.login`) in the Keychain, never in the state file; one that answered HTTP has no use for it.
-    @discardableResult
-    func add(_ probe: ProbeResult, host: String) -> PrinterModel {
+    /// to (`SnmpIdentity.login`) in the Keychain, never in the state file; one that answered HTTP has no use for it. Nil when
+    /// the Keychain refused that login: nothing is added or changed, since the printer would be read with public.
+    func add(_ probe: ProbeResult, host: String) -> PrinterModel? {
         let known = AddPrinter.knownPrinter(probe, host: host)
-        if let answered = probe.snmp { keepSnmpLogin(known.uuid, answered.loginOrPublic) }
+        if let answered = probe.snmp, !keepSnmpLogin(known.uuid, answered.loginOrPublic) { return nil }
         store.unforget(known.uuid)
         if let p = printers.first(where: { $0.id.caseInsensitiveCompare(known.uuid) == .orderedSame }) {
             selectedID = p.id
