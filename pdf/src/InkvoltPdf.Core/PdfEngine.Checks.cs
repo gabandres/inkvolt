@@ -113,6 +113,21 @@ public sealed partial class PdfEngine
         return picture.Scale > 0 ? request.TakePicture(picture.Scale) : null;
     }
 
+    /// <summary>
+    /// Whether a render of the whole page with its comments at <paramref name="scale"/> would come from the page's check
+    /// (not decided yet, the picture small enough, its check not under way at another scale): the viewer asks for it at
+    /// once instead of a quick preview first, which would leave the full render here to make the display list again.
+    /// </summary>
+    public bool CheckDraws(int page, double scale)
+    {
+        if (PictureOf(page, scale).Scale <= 0) return false;
+        lock (_checkGate)
+        {
+            if (_disposed || ChecksPlan() is null || (PageVerdict)_verdicts![page] != PageVerdict.Unknown) return false;
+            return _checking![page] is not { Sent: true } asked || asked.PictureScale == scale;
+        }
+    }
+
     /// <summary>Requests whose check draws a picture not taken yet (under _checkGate): the last few, so pages scrolled past don't keep theirs.</summary>
     private readonly List<CheckRequest> _pictured = [];
 

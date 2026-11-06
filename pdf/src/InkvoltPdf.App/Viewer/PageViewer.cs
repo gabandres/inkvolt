@@ -864,8 +864,10 @@ public sealed partial class PageViewer : ScrollViewer
             }
             else if (!_full.TryGetValue(page, out var have) || Math.Abs(have.Scale - fullScale) > 1e-6 || have.Rotation != rotation)
             {
-                // Previews of the visible pages, then of their neighbours, come before every full render.
-                if (have is null && !_stale.ContainsKey(page)) QueuePreview(page, (isVisible ? -2 : -1) + Math.Min(dist, 0.9), fullScale);
+                // Previews of the visible pages, then of their neighbours, come before every full render; not for a page
+                // its check draws in full (a check process draws it, and the next ones meanwhile, as quickly).
+                if (have is null && !_stale.ContainsKey(page) && !engine.CheckDraws(page, fullScale))
+                    QueuePreview(page, (isVisible ? -2 : -1) + Math.Min(dist, 0.9), fullScale);
                 var p = page;
                 var s = fullScale;
                 var whole = new RectD(0, 0, g.Width, g.Height);

@@ -499,6 +499,21 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void TheViewerAsksAtOnceForAPageItsCheckDraws()
+    {
+        // A page not checked yet, at a size the check draws: no quick preview first (its full render here would make the
+        // display list again). Once decided, or too large a picture, or with no checks, the preview comes first as before.
+        using var engine = Open(ThreePages(Drawn, ""));
+        Assert.True(engine.CheckDraws(0, 1.5));
+        var tooLarge = Math.Sqrt(PageChecks.MaxPicturePixels / (612.0 * 792)) * 1.01;
+        Assert.False(engine.CheckDraws(0, tooLarge));
+        engine.Render(0, 1.5);
+        Assert.False(engine.CheckDraws(0, 1.5));
+        using var plain = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        Assert.False(plain.CheckDraws(0, 1.5));
+    }
+
+    [Fact]
     public void APictureOfAnotherSizeThanAskedIsNeverShown()
     {
         // A check process reads an untrusted file: one that answers with a picture it wasn't asked for is ended, as one
