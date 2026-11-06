@@ -339,13 +339,14 @@ public static partial class ContentEditor
     }
 
     /// <summary>
-    /// Two short lines, the second starting in capitals or the first ending in a colon (a table's "Income percentile
-    /// ratios:" above its "90th/10th" row), nothing carrying over: entries of a list or a table's labels, not a sentence wrapped.
+    /// Two short lines, the second starting in capitals, or the first ending in a colon and the second not going on in
+    /// lowercase (a table's "Income percentile ratios:" above its "90th/10th" row; not "as follows:" above "accuracy rose"),
+    /// nothing carrying over: entries of a list or a table's labels, not a sentence wrapped.
     /// </summary>
     private static bool Labels(string above, string below)
     {
         var (a, b) = (above.Trim(), below.Trim());
-        return a.Length is > 0 and <= 28 && b.Length is > 0 and <= 28 && (char.IsUpper(b[0]) || a[^1] == ':') && !",-".Contains(a[^1]);
+        return a.Length is > 0 and <= 28 && b.Length is > 0 and <= 28 && (char.IsUpper(b[0]) || a[^1] == ':' && !char.IsLower(b[0])) && !",-".Contains(a[^1]);
     }
 
     /// <summary>How wide text is in a run's font and spacing (points); estimated from the line's characters when the font can't tell.</summary>

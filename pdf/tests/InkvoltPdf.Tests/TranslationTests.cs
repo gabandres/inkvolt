@@ -985,6 +985,16 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_sentence_wrapped_after_a_colon_stays_one_paragraph()
+    {
+        // Short lines of a narrow column: a line ending in ":" and the next going on in lowercase are one sentence.
+        var content = Lines(72, 700, 10, 12, "and the quick fox is as so:", "brown dogs jump over lazy");
+        var pdf = Page(content, fontText: Letters + ":");
+        var (plan, _) = Translate(pdf, _ => "THE DOG");
+        Assert.Equal("and the quick fox is as so: brown dogs jump over lazy", Assert.Single(plan.Texts).Text.Trim());
+    }
+
+    [Fact]
     public void A_centered_label_with_free_room_on_one_side_keeps_its_size()
     {
         // resnet Table 3's "top-1 err." as "error top-1": a rule close on its left, free room on its right, the next row
