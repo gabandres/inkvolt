@@ -9791,6 +9791,17 @@
         }
       }
     },
+    "Page {0} took too long to read and wasn't searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} tardaba demasiado en leerse y no se buscó en ella."
+          }
+        }
+      }
+    },
     "Page {0} · {1}": {
       "extractionState": "manual",
       "localizations": {
@@ -15621,6 +15632,28 @@
         }
       }
     },
+    "This page can't be displayed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta página no se puede mostrar"
+          }
+        }
+      }
+    },
+    "This page took too long to read and isn't shown": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta página tardaba demasiado en leerse y no se muestra"
+          }
+        }
+      }
+    },
     "This picture can't be deleted: {0}.": {
       "extractionState": "manual",
       "localizations": {
@@ -18477,6 +18510,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} páginas reconocidas con OCR"
+          }
+        }
+      }
+    },
+    "{0} pages took too long to read and weren't searched: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas tardaban demasiado en leerse y no se buscó en ellas: {1}."
           }
         }
       }
