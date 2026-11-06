@@ -85,10 +85,7 @@ public sealed partial class ScanViewModel : ObservableObject
             _ => string.Format(Strings.Scan_ResolutionPhotos, r),
         })).ToList();
         Resolution = Resolutions.MinBy(r => Math.Abs(r.Value - state.ScanResolution));
-
-        RefreshPageSizes(state.ScanPageSize ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
-
-        RefreshColors();
+        // Page sizes and colors: filled for the first source above (OnSourceChanged); every scanner has one.
         UseOcr = state.ScanOcr && OcrAvailable;
         SkipBlank = state.ScanSkipBlank;
         Straighten = state.ScanStraighten;
@@ -162,8 +159,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     partial void OnSourceChanged(Option<ScanSource>? value)
     {
-        if (_caps is null) return;
-        RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key);
+        RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
         RefreshColors();
     }
 
