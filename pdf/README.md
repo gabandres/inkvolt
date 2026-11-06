@@ -786,7 +786,8 @@ terms of the GNU Affero General Public License, version 3 (see [LICENSE](LICENSE
 
 Inkvolt PDF uses MuPDF (via MuPDFCore), which is AGPL-3.0, so Inkvolt PDF and anything distributed with it must stay under
 the AGPL with its source available. Other dependencies: PDFsharp (MIT; pinned to 6.2.x because 6.5+ changed to AGPL
-with a runtime license check), Jint (BSD-2-Clause), HarfBuzzSharp (MIT).
+with a runtime license check), Jint (BSD-2-Clause), HarfBuzzSharp (MIT). Data: Adobe's ZapfDingbats AFM (Adobe's AFM
+license) and its glyph list (BSD-3-Clause), in `src/InkvoltPdf.Core/Fonts`.
 
 All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › About).
 `System.Security.Cryptography.Pkcs` is pinned to a patched release (PDFsharp pulls a vulnerable 8.0.1).

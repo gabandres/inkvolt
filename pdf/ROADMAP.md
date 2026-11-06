@@ -373,8 +373,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Times. The standard Symbol font not embedded (2026-11-04): read through Symbol's own encoding (`GlyphNames.InSymbol`,
   so "a" in it is α) and measured with Windows' Symbol (`SystemFonts.Program("symbol.ttf")`, whose widths are Adobe's;
   the euro at 160, which it lacks, is 750), a word in it is part of the paragraph, typed letters too
-  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). Still to do: ZapfDingbats not embedded, which
-  Windows has no twin of to measure (its widths would be new font data), so a run in it still edits line by line.
+  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). The standard ZapfDingbats not embedded (2026-11-06):
+  Windows has no twin of it (Segoe UI Symbol's dingbats are other shapes), so it stays in ZapfDingbats, read through its
+  built-in encoding and measured with Adobe's own data (`ZapfDingbats`: the Core 14 `ZapfDingbats.afm` and Adobe's Zapf
+  Dingbats glyph list, unmodified in `Core/Fonts` with the AFM licence, which `THIRD-PARTY-NOTICES.md` repeats); a word in
+  it is part of the paragraph, a typed ✔ too (`ParagraphEditTests.AWordInStandardZapfDingbatsNotEmbedded…`). PDF/A's
+  Segoe UI Symbol embedding reads its characters from the same table (`PdfA.DingbatUnicode`). MuPDF reads such a font by
+  its own glyphs, not as the characters (before and after an edit alike).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and

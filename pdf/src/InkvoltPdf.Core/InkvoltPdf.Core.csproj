@@ -35,6 +35,13 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <!-- Adobe's ZapfDingbats AFM (Adobe's AFM licence, in Fonts/README.txt, which goes with it) and its glyph list
+         (BSD-3-Clause): the standard font's widths and characters when a PDF doesn't embed it (ZapfDingbats.cs) -->
+    <EmbeddedResource Include="Fonts\ZapfDingbats.afm" LogicalName="InkvoltPdf.Core.Fonts.ZapfDingbats.afm" />
+    <EmbeddedResource Include="Fonts\zapfdingbats.txt" LogicalName="InkvoltPdf.Core.Fonts.zapfdingbats.txt" />
+    <EmbeddedResource Include="Fonts\README.txt" LogicalName="InkvoltPdf.Core.Fonts.README.txt" />
+  </ItemGroup>
+  <ItemGroup>
     <InternalsVisibleTo Include="InkvoltPdf.Tests" />
     <!-- The app's dev script flips Pro.Enforced to show the locked views -->
     <InternalsVisibleTo Include="InkvoltPdf" />

@@ -38,6 +38,8 @@ internal sealed class TextFont
     private readonly bool _standard14;
     // The standard Symbol font, not embedded and without a descriptor: Windows' Symbol, whose widths are Adobe's, measures it.
     private readonly TrueTypeProgram? _symbolMetrics;
+    // The standard ZapfDingbats font, not embedded and without a descriptor: Adobe's AFM measures it (ZapfDingbats).
+    private readonly bool _dingbats;
     // Read once: checks run later, after the document they came from may be closed.
     private readonly bool _hasDescriptor, _embedded, _hasWidths;
     private readonly Dictionary<int, bool> _glyphKnown = [];
@@ -109,8 +111,10 @@ internal sealed class TextFont
             var plain = StripStyle(Name);
             _standard14 = descriptor is null && plain is "Helvetica" or "Arial" or "Times" or "TimesNewRoman" or "Times-Roman" or "Courier" or "CourierNew";
             if (descriptor is null && subtype == "/Type1" && Name == "Symbol") _symbolMetrics = SystemFonts.Program("symbol.ttf");
-            // ZapfDingbats has no twin on Windows with its widths to lay it out with.
-            if (descriptor is null && _symbolMetrics is null && (Name.StartsWith("Symbol", StringComparison.Ordinal) || Name.StartsWith("ZapfDingbats", StringComparison.Ordinal)))
+            // ZapfDingbats has no twin on Windows (Segoe UI Symbol's dingbats are other shapes), so it stays in the file's
+            // font, drawn by the reader's own, and is measured with Adobe's AFM widths.
+            _dingbats = descriptor is null && subtype == "/Type1" && Name == "ZapfDingbats";
+            if (descriptor is null && _symbolMetrics is null && !_dingbats && (Name.StartsWith("Symbol", StringComparison.Ordinal) || Name.StartsWith("ZapfDingbats", StringComparison.Ordinal)))
                 Blocked ??= PdfStrings.Edit_BlockedSymbolFont;
         }
 
@@ -150,6 +154,7 @@ internal sealed class TextFont
     // ---- Reading ----
 
     private static readonly string?[] SymbolEncoding = [.. Enumerable.Range(0, 256).Select(GlyphNames.InSymbol)];
+    private static readonly string?[] DingbatsEncoding = ZapfDingbats.Encoding;
 
     private void ReadSimpleEncoding(string subtype)
     {
@@ -165,7 +170,7 @@ internal sealed class TextFont
                 differences = PdfObj.Array(d.Elements["/Differences"]);
                 break;
         }
-        var builtIn = _symbolMetrics is not null ? SymbolEncoding : (_program as Type1Program)?.BuiltIn;
+        var builtIn = _symbolMetrics is not null ? SymbolEncoding : _dingbats ? DingbatsEncoding : (_program as Type1Program)?.BuiltIn;
         if (baseEncoding is null || !GlyphNames.IsKnownEncoding(baseEncoding))
         {
             // No (usable) base encoding: the font's own. Type 1 programs carry one; otherwise Standard for text fonts.
@@ -190,7 +195,7 @@ internal sealed class TextFont
             }
         }
         for (var c = 0; c < 256; c++)
-            _simpleText[c] = _toUnicode.TryGetValue(c, out var t) ? t : _names[c] is { } n ? GlyphNames.ToUnicode(n) : null;
+            _simpleText[c] = _toUnicode.TryGetValue(c, out var t) ? t : _names[c] is not { } n ? null : _dingbats ? ZapfDingbats.Text(n) ?? GlyphNames.ToUnicode(n) : GlyphNames.ToUnicode(n);
     }
 
     private void ReadW(PdfArray? w)
@@ -303,6 +308,7 @@ internal sealed class TextFont
         if (code is >= 0 and < 256 && _widths[code] is > 0 and var sw) return sw;
         if (ProgramAdvance(code) is { } pa) return pa;
         if (SymbolAdvance(code) is { } sa) return sa;
+        if (DingbatsAdvance(code) is { } da) return da;
         if (_standard14 && _simpleText[code] is { Length: 1 } t) return StdFont.FromName(Name).Advance(t[0]) * 1000;
         return code is >= 0 and < 256 && _widths[code] is { } z ? z : _hasWidths ? _missingWidth : 500;
     }
@@ -314,6 +320,9 @@ internal sealed class TextFont
         if (at == 0xA0) return 750; // the euro Adobe added at 160, which Windows' Symbol lacks
         return sm.Lookup(3, 0, 0xF000 + at) is var g and > 0 ? sm.Advance(g) : null;
     }
+
+    /// <summary>A code's width in the standard ZapfDingbats font (its glyph name's in Adobe's AFM).</summary>
+    private double? DingbatsAdvance(int code) => _dingbats && code is >= 0 and < 256 && _names[code] is { } name ? ZapfDingbats.Width(name) : null;
 
     private bool HasWidth(int code) => TwoByte ? _cidWidths.ContainsKey(code) : code is >= 0 and < 256 && _widths[code] is > 0;
 
@@ -411,7 +420,7 @@ internal sealed class TextFont
                 _ => HasWidth(code) && (!_hasToUnicode || _toUnicode.ContainsKey(code)), // program unreadable: the PDF's tables
             };
             // A width is needed to place it; an embedded TrueType glyph's width can be added from the program.
-            if (has && !HasWidth(code) && !(_standard14 && !_hasWidths) && ProgramAdvance(code) is null && (_hasWidths || SymbolAdvance(code) is null)) has = false;
+            if (has && !HasWidth(code) && !(_standard14 && !_hasWidths) && ProgramAdvance(code) is null && (_hasWidths || (SymbolAdvance(code) ?? DingbatsAdvance(code)) is null)) has = false;
         }
         _glyphKnown[code] = has;
         return has;
