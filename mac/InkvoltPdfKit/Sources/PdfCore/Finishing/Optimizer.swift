@@ -366,6 +366,8 @@ public enum Optimizer {
             return Array(try Data(contentsOf: url))
         } catch is PdfEngineError {
             return nil
+        } catch is PageRefused {
+            return nil // a picture too large to decode (or too slow): left as it is, as Windows' page check leaves it
         }
     }
 

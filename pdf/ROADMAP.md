@@ -1045,6 +1045,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   which pages it skipped, Batch's page images leave it out, export reports it empty, print leaves it blank; Cancel and
   closing the document stop a reading at once. In the tests (1 s budget) the 7 KB and 1 MB pages are refused within
   about a second (red first: 74 s for both), the 20,000 × 20,000 picture at once, a 72,000-path sheet draws as without.
+  Cost (bench `one`, the base commit against this one on the same Mac): the drawing set's first page and a sheet within
+  1% (576 against 579 ms a sheet), Find 7.2 s either way; text and scan unchanged.
   Not covered: a picture under the cap decodes in full unbounded (a few seconds at most); image files and `PdfEdit`'s
   editing documents run unbounded; a hostile page holds its engine (its neighbours, its thumbnails) for up to 10 s once.
   `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".

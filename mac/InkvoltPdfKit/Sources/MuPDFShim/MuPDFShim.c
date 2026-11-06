@@ -150,11 +150,25 @@ typedef struct {
     fz_device super;
     fz_device *target;
     inkv_cookie *cookie;
+    unsigned calls; // the clock is read every 64 calls (72,000 paths a sheet read it 150,000 times: 4% of Find)
 } inkv_guard;
 
 #define TARGET(dev) (((inkv_guard *)(dev))->target)
 
-static void guard_check(fz_context *ctx, fz_device *dev) { inkv_watch(ctx, ((inkv_guard *)dev)->cookie, FZ_ERROR_ABORT); }
+// A drawing call that opens or closes nothing goes straight to the target's own function: MuPDF's fz_fill_path and
+// the like only add a second fz_try per call (the guard's own call has one), which cost Find on the drawing set 10%.
+// Calls that open or close a clip, mask, group or tile go through MuPDF's, which keeps the target's container stack.
+#define FORWARD(dev, fn, ...) \
+    do { \
+        fz_device *t_ = TARGET(dev); \
+        if (t_->fn) t_->fn(ctx, t_, __VA_ARGS__); \
+    } while (0)
+
+static void guard_check(fz_context *ctx, fz_device *dev) {
+    inkv_guard *g = (inkv_guard *)dev;
+    inkv_cookie *c = g->cookie;
+    if (c->stopped || c->cancelled || (++g->calls & 63) == 0) inkv_watch(ctx, c, FZ_ERROR_ABORT);
+}
 
 /// Refuses a picture (or its soft mask) of more samples than the cookie allows, before MuPDF decodes any of it.
 static void guard_picture(fz_context *ctx, fz_device *dev, fz_image *image) {
@@ -173,13 +187,13 @@ static void guard_picture(fz_context *ctx, fz_device *dev, fz_image *image) {
 static void guard_fill_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_colorspace *cs,
                             const float *color, float alpha, fz_color_params cp) {
     guard_check(ctx, dev);
-    fz_fill_path(ctx, TARGET(dev), path, even_odd, ctm, cs, color, alpha, cp);
+    FORWARD(dev, fill_path, path, even_odd, ctm, cs, color, alpha, cp);
 }
 
 static void guard_stroke_path(fz_context *ctx, fz_device *dev, const fz_path *path, const fz_stroke_state *stroke, fz_matrix ctm,
                               fz_colorspace *cs, const float *color, float alpha, fz_color_params cp) {
     guard_check(ctx, dev);
-    fz_stroke_path(ctx, TARGET(dev), path, stroke, ctm, cs, color, alpha, cp);
+    FORWARD(dev, stroke_path, path, stroke, ctm, cs, color, alpha, cp);
 }
 
 static void guard_clip_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_rect scissor) {
@@ -196,13 +210,13 @@ static void guard_clip_stroke_path(fz_context *ctx, fz_device *dev, const fz_pat
 static void guard_fill_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_colorspace *cs, const float *color,
                             float alpha, fz_color_params cp) {
     guard_check(ctx, dev);
-    fz_fill_text(ctx, TARGET(dev), text, ctm, cs, color, alpha, cp);
+    FORWARD(dev, fill_text, text, ctm, cs, color, alpha, cp);
 }
 
 static void guard_stroke_text(fz_context *ctx, fz_device *dev, const fz_text *text, const fz_stroke_state *stroke, fz_matrix ctm,
                               fz_colorspace *cs, const float *color, float alpha, fz_color_params cp) {
     guard_check(ctx, dev);
-    fz_stroke_text(ctx, TARGET(dev), text, stroke, ctm, cs, color, alpha, cp);
+    FORWARD(dev, stroke_text, text, stroke, ctm, cs, color, alpha, cp);
 }
 
 static void guard_clip_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_rect scissor) {
@@ -218,23 +232,23 @@ static void guard_clip_stroke_text(fz_context *ctx, fz_device *dev, const fz_tex
 
 static void guard_ignore_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm) {
     guard_check(ctx, dev);
-    fz_ignore_text(ctx, TARGET(dev), text, ctm);
+    FORWARD(dev, ignore_text, text, ctm);
 }
 
 static void guard_fill_shade(fz_context *ctx, fz_device *dev, fz_shade *shade, fz_matrix ctm, float alpha, fz_color_params cp) {
     guard_check(ctx, dev);
-    fz_fill_shade(ctx, TARGET(dev), shade, ctm, alpha, cp);
+    FORWARD(dev, fill_shade, shade, ctm, alpha, cp);
 }
 
 static void guard_fill_image(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, float alpha, fz_color_params cp) {
     guard_picture(ctx, dev, image);
-    fz_fill_image(ctx, TARGET(dev), image, ctm, alpha, cp);
+    FORWARD(dev, fill_image, image, ctm, alpha, cp);
 }
 
 static void guard_fill_image_mask(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, fz_colorspace *cs, const float *color,
                                   float alpha, fz_color_params cp) {
     guard_picture(ctx, dev, image);
-    fz_fill_image_mask(ctx, TARGET(dev), image, ctm, cs, color, alpha, cp);
+    FORWARD(dev, fill_image_mask, image, ctm, cs, color, alpha, cp);
 }
 
 static void guard_clip_image_mask(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, fz_rect scissor) {

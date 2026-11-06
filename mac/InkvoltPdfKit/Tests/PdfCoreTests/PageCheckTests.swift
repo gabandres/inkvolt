@@ -313,6 +313,22 @@ struct PageCheckTests {
         #expect(took < Self.limit + Self.slack, "\(took) s")
     }
 
+    @Test func ReducingTheSizeLeavesAPictureThatInflatesForSeconds() throws {
+        // The same picture, drawn small (2,880 dpi), so Reduce File Size would resample it through MuPDF: refused for its
+        // size before MuPDF inflates it, and left as it is.
+        let file = Self.picture(Self.zlib([], zeros: 20_000 * 20_000 * 3), "/Type /XObject /Subtype /Image /Width 20000 /Height 20000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode")
+        var result: OptimizeResult?
+        let took = try Self.time { result = try Optimizer.optimize(file, nil, OptimizeOptions(maxImageDpi: 150)) }
+        #expect(took < Self.limit + Self.slack, "\(took) s")
+        #expect(result?.imagesDownsampled == 0) // left as it is
+
+        // A real picture of 2,000 x 2,000 shown at 288 dpi is resampled as before.
+        var rng = SplitMix(seed: 5)
+        let real = (0..<(2000 * 2000 * 3)).map { _ in UInt8(rng.next(256)) }
+        let photo = Self.picture(Self.zlib(real, zeros: 0), "/Type /XObject /Subtype /Image /Width 2000 /Height 2000 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter /FlateDecode")
+        #expect(try Optimizer.optimize(photo, nil, OptimizeOptions(maxImageDpi: 150)).imagesDownsampled == 1)
+    }
+
     @Test func ARealDrawingSheetStillDrawsInFull() throws {
         // A sheet like the bench's drawing set: 72,000 paths on ARCH D, Flate content, a title; drawn at the app's budget
         // as without one.

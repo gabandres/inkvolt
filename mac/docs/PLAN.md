@@ -1135,7 +1135,12 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   displayed" for a picture too large) in the page's place and asks for it no more; Find skips it and its status says
   which pages weren't searched (a Mac sentence: Windows' summary says the page may be damaged); Batch's page images
   leave it out with "Page {0} couldn't be read"; exports report it as unreadable (an empty page).
-- **Cost and limits.** The neighbours of a hostile page wait for its budget once (the engine draws one page at a time;
+- **Cost and limits.** Bench `one` on this Mac, the base commit and this branch back to back (the same corpus): the
+  drawing set's first page 577 and 578 against 581 and 583 ms, 576 against 579 ms a sheet, Find 7.16 and 7.18 against
+  7.14 and 7.21 s; text Find 0.58 s either way, scan 26 ms a page either way, peaks unchanged. The guard first called
+  MuPDF's `fz_fill_path` and the like (a second `fz_try` per path) and read the clock at every call: Find on the drawing
+  set 7.8 to 8.1 s; it now calls the target's own function for calls that open or close nothing and reads the clock
+  every 64 calls. The neighbours of a hostile page wait for its budget once (the engine draws one page at a time;
   thumbnails share the engine): up to 10 s, then the verdict answers at once. A picture under the cap decodes in full,
   unbounded by time (at most a gigabyte of samples: a few seconds, and Cancel waits for it). Image files opened as
   documents (Image Import) and the editing documents of `PdfEdit` are not bounded; they draw nothing on screen.
