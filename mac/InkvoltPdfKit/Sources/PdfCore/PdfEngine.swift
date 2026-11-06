@@ -177,6 +177,21 @@ public final class PdfEngine: @unchecked Sendable {
     public var pageCount: Int { pages.count }
     public let isEncrypted: Bool
 
+    /// Seconds a call may spend reading a page's content (the page check's limit on Windows, 10 s); tests shorten it.
+    public static var defaultPageBudget: Double { budgetForTests ?? 10 }
+    @TaskLocal static var budgetForTests: Double?
+
+    /// This engine's budget for reading a page (0: no limit).
+    public var pageBudget: Double {
+        get { verdicts.budget }
+        set { verdicts.budget = newValue }
+    }
+
+    private let verdicts = PageVerdicts()
+
+    /// What reading the page found so far.
+    public func verdictOf(_ page: Int) -> PageVerdict { verdicts[page] }
+
     private init(_ main: Instance, source: Source, password: String?) throws {
         self.main = main
         self.source = source
@@ -676,6 +691,8 @@ extension PdfEngine {
         public let text: PageText?
         public let hits: [(start: Int, end: Int)]
         public let error: String?
+        /// Set when the page was refused (its reading took too long, or a picture on it is too large): skipped.
+        public var refused: PageRefused? = nil
     }
 
     /// Threads `findAll` reads pages on, each with its own MuPDF instance over the engine's one copy of the bytes: every
