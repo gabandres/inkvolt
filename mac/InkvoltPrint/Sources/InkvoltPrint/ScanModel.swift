@@ -193,29 +193,47 @@ final class ScanModel {
             }
             var count = 0
             var added: [String] = []
+            var failure: (any Error)?
             do {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
                     status = "Scanned \(count) \(count == 1 ? "page" : "pages")…"
                     added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
                 }
-                // The page checks finish (blank pages skipped, separators found) before a preset saves.
-                for _ in 0..<150 where pages.pages.contains(where: { !$0.analysed }) { try await Task.sleep(for: .milliseconds(100)) }
-                if duplex { pages.separatorBacks(added) }
-                keep()
-                let cleaned = recordCleanup(added, check.cleanup)
+            } catch {
+                failure = error
+            }
+            // Every page check lands (blank pages skipped, separators found, pages cleaned up) before the scan's clean up
+            // becomes its step of Undo and a preset saves, as Windows waits for them all; a stopped scan's pages too.
+            await checksLanded()
+            if failure == nil && duplex { pages.separatorBacks(added) }
+            keep()
+            let cleaned = recordCleanup(added, check.cleanup)
+            switch failure {
+            case nil:
                 let found = notes(added, split: split, photos: photos, duplex: duplex) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
                 status = count == 0 ? "No pages came from the scanner." : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 await finished?()
-            } catch is CancellationError {
+            case is CancellationError:
                 status = "Scan stopped."
-            } catch let e as ScanError {
+            case let e as ScanError:
                 problem = e.description
                 status = count > 0 ? pages.summary : ""
-            } catch {
+            default:
                 problem = "The scan didn't finish: the scanner stopped answering."
                 status = count > 0 ? pages.summary : ""
             }
+        }
+    }
+
+    /// The page checks still running (each page's, beside the next page's scan), by page.
+    @ObservationIgnored private var checks: [String: Task<Void, Never>] = [:]
+
+    /// Waits for every page check that is running; each ends by itself (the analysis copy is at most 1100 pixels).
+    private func checksLanded() async {
+        while let next = checks.first {
+            await next.value.value
+            if checks[next.key] == next.value { checks[next.key] = nil }
         }
     }
 
@@ -274,7 +292,8 @@ final class ScanModel {
         keep()
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
-        Task {
+        checks[id] = Task {
+            defer { checks[id] = nil }
             let result: Checked? = await offPool { Self.check(jpeg, dpi: dpi, c) }
             guard let result, pages.page(id) != nil else {
                 pages.analysed(id, looksBlank: false, skew: 0, skipBlank: false, straighten: false) // the page stays as scanned
@@ -381,48 +400,78 @@ final class ScanModel {
 
     // MARK: Clean up (roadmap 2.3)
 
-    /// One step of the review's Undo: each page's edits before a clean up (its crop and filters go back).
+    /// One step of the review's Undo: each page's edits before a clean up and right after it (what of its crop and filters
+    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`).
     struct UndoStep {
         var name: String
         var before: [String: PageEdits]
+        var after: [String: PageEdits]
     }
+
+    /// Counts every change to the steps of Undo: Edit › Undo is registered again on each, even when two steps share a name.
+    private(set) var undoChanges = 0
 
     /// "Clean up page 2": what Undo would undo; nil when there's nothing.
     var undoName: String? { undoSteps.last?.name }
 
+    /// Undo can run: there's a step, and no scan or save is under way (Windows' `CanUndo`, not while busy).
+    var canUndo: Bool { !undoSteps.isEmpty && !isSaving && !isScanning }
+
     /// Undoes the last clean up.
     func undo() {
-        guard let step = undoSteps.popLast() else { return }
+        guard canUndo, let step = undoSteps.popLast() else { return }
+        undoChanges += 1
         savedParts.clear()
-        pages.restoreCleanup(step.before)
+        pages.restoreCleanup(step.before, after: step.after)
         keep()
         for id in step.before.keys { refreshThumbnail(id) }
         status = "Undone: \(step.name.prefix(1).lowercased() + step.name.dropFirst())."
     }
 
-    private func recordUndo(_ name: String, _ before: [String: PageEdits]) {
-        if !before.isEmpty { undoSteps.append(UndoStep(name: name, before: before)) }
+    private func recordUndo(_ name: String, _ before: [String: PageEdits], after: [String: PageEdits]) {
+        guard !before.isEmpty else { return }
+        undoSteps.append(UndoStep(name: name, before: before, after: after))
+        undoChanges += 1
     }
 
     /// A scan cleaned up by its settings is one step of Undo, however many pages it has; what to say about it
     /// (`ScanPages.cleanupSummary`: how many pages, and any whose paper's edge couldn't be found).
     private func recordCleanup(_ added: [String], _ cleanup: PageFilters) -> String {
         guard !cleanup.isEmpty else { return "" }
-        var before: [String: PageEdits] = [:]
-        for id in added { if let edits = pages.page(id)?.beforeCleanup { before[id] = edits } }
+        var before: [String: PageEdits] = [:], after: [String: PageEdits] = [:]
+        for id in added {
+            guard let page = pages.page(id), let edits = page.beforeCleanup else { continue }
+            before[id] = edits
+            after[id] = page.edits
+        }
         let name = before.count == 1 ? "Clean up page \(pages.number(before.keys.first!) ?? 1)" : "Clean up \(before.count) pages"
-        recordUndo(name, before)
+        recordUndo(name, before, after: after)
         return pages.cleanupSummary(added, cleanup)
     }
 
+    /// Each page's paper edge as `PaperEdge.find` saw it on the page straightened by `deskew` (nil edge: none to be sure
+    /// of), so the Clean up view's choices don't decode and look again on every switch.
+    @ObservationIgnored private var paperEdges: [String: (deskew: Double, edge: CropBox?)] = [:]
+
     /// The page's edits with `filters` in place of its own (`PageEdits.withFilters`): the paper's edge is looked for on the
-    /// analysis copy only when a crop to it is new. Nil when the page isn't there.
+    /// analysis copy only when a crop to it is new, once per page and straightening. Nil when the page isn't there.
     func edits(_ id: String, with filters: PageFilters) async -> PageEdits? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let (edits, photos, dpi) = (page.edits, page.hasPhotos, page.dpi)
-        return await offPool {
-            edits.withFilters(filters, photos: photos) { ScanImaging.paperEdge(jpeg, dpi: dpi, deskew: edits.deskew) }
+        if let known = paperEdges[id], known.deskew == edits.deskew {
+            return edits.withFilters(filters, photos: photos) { known.edge }
         }
+        let (result, looked): (PageEdits, CropBox??) = await offPool {
+            var looked: CropBox?? = nil
+            let result = edits.withFilters(filters, photos: photos) { () -> CropBox? in
+                let edge = ScanImaging.paperEdge(jpeg, dpi: dpi, deskew: edits.deskew)
+                looked = .some(edge)
+                return edge
+            }
+            return (result, looked)
+        }
+        if case .some(let edge) = looked, images[id] != nil { paperEdges[id] = (edits.deskew, edge) }
+        return result
     }
 
     /// What the Clean up view shows: the page (or a scan's first photo) with `filters`, at most 1600 pixels on its longest
@@ -456,22 +505,52 @@ final class ScanModel {
     /// The Clean up view's Done: the page gets `filters`, one step of Undo.
     func applyClean(_ id: String, _ filters: PageFilters) async {
         guard let edits = await edits(id, with: filters), let page = pages.page(id), edits != page.edits else { return }
-        recordUndo("Clean up page \(pages.number(id) ?? 1)", [id: page.edits])
+        recordUndo("Clean up page \(pages.number(id) ?? 1)", [id: page.edits], after: [id: edits])
         change(id) { $0.setEdits(id, edits) }
     }
 
-    /// The Clean up view's All Pages: `filters` on every page that is saved (not a separator, not left out), one step of Undo.
-    func applyCleanToAll(_ filters: PageFilters) async {
-        var before: [String: PageEdits] = [:]
-        for page in pages.pages where !page.isSeparator && !page.skipped {
-            guard let edits = await edits(page.id, with: filters), let now = pages.page(page.id), edits != now.edits else { continue }
-            before[page.id] = now.edits
-            pages.setEdits(page.id, edits)
-            refreshThumbnail(page.id)
+    /// All Pages' progress while it looks at the pages: how many are done of how many.
+    private(set) var cleanProgress: (done: Int, total: Int)?
+
+    /// The Clean up view's All Pages: the switches it shows (`shown`; a page of photos has no crop or whiten) set as
+    /// `chosen` has them on every page that is saved (not a separator, not left out), the others' own left alone; one step
+    /// of Undo. The pages are looked at a few at a time (`cleanProgress`); `stop` (the view's Cancel) changes none.
+    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, stop: BatchStop = BatchStop()) async {
+        let targets = pages.pages.filter { !$0.isSeparator && !$0.skipped }.map { ($0.id, $0.edits.filters.setting(shown, as: chosen)) }
+        var found: [String: PageEdits] = [:]
+        cleanProgress = (0, targets.count)
+        defer { cleanProgress = nil }
+        let width = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount - 1))
+        await withTaskGroup(of: (String, PageEdits?).self) { group in
+            var next = 0
+            func start() {
+                guard next < targets.count, !stop.isStopped else { return }
+                let (id, filters) = targets[next]
+                next += 1
+                group.addTask { (id, await self.edits(id, with: filters)) }
+            }
+            for _ in 0..<width { start() }
+            for await (id, edits) in group {
+                if let edits { found[id] = edits }
+                cleanProgress?.done += 1
+                start()
+            }
+        }
+        if stop.isStopped {
+            status = "Clean up stopped: no page was changed."
+            return
+        }
+        var before: [String: PageEdits] = [:], after: [String: PageEdits] = [:]
+        for (id, _) in targets {
+            guard let edits = found[id], let now = pages.page(id), edits != now.edits else { continue }
+            before[id] = now.edits
+            after[id] = edits
+            pages.setEdits(id, edits)
+            refreshThumbnail(id)
         }
         savedParts.clear()
         keep()
-        recordUndo(before.count == 1 ? "Clean up 1 page" : "Clean up \(before.count) pages", before)
+        recordUndo(before.count == 1 ? "Clean up 1 page" : "Clean up \(before.count) pages", before, after: after)
         status = before.count == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(before.count) pages were cleaned up (Undo puts them back)."
     }
 
@@ -480,6 +559,7 @@ final class ScanModel {
         pages.delete(id)
         images[id] = nil
         thumbnails[id] = nil
+        paperEdges[id] = nil
         keep()
         status = pages.summary
     }
@@ -505,7 +585,11 @@ final class ScanModel {
         images = [:]
         origins = [:]
         thumbnails = [:]
-        undoSteps = []
+        paperEdges = [:]
+        if !undoSteps.isEmpty {
+            undoSteps = []
+            undoChanges += 1
+        }
         problem = nil
         status = ""
         app.scanStore?.forget(printer.id)
@@ -670,18 +754,34 @@ final class ScanModel {
     /// Saving makes more than one file (a batch, or several images): the save panel asks for a folder.
     var savesSeveralFiles: Bool { format == .jpeg ? imagesPerFile.reduce(0, +) > 1 : imagesPerFile.count > 1 }
 
+    /// A save's Cancel: the files written before it (`written[f]`, empty for those that weren't), which stay.
+    private struct SaveStopped: Error {
+        var written: [[URL]]
+    }
+
     /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first. A
     /// file whose `asSent[f]` is there is the scanner's own PDF, written as it sent it (nothing rendered).
+    /// - Throws: `SaveStopped` with the files written so far when `stop` fires.
     nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
                                           stop: BatchStop? = nil) throws -> [URL] {
+        var written: [[URL]] = jobs.map { _ in [] }
+        do {
+            try write(jobs, to: targets, format: format, asSent: asSent, stop: stop, written: &written)
+        } catch is CancellationError {
+            throw SaveStopped(written: written)
+        }
+        return written.flatMap { $0 }
+    }
+
+    nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
+                                          stop: BatchStop?, written: inout [[URL]]) throws {
         var files: [[OutputImage]] = []
         for (f, job) in jobs.enumerated() { files.append(f < asSent.count && asSent[f] != nil ? [] : try render([job], stop: stop)[0]) }
-        var written: [URL] = []
         for (f, (file, urls)) in zip(files, targets).enumerated() {
             try stop?.check()
             if format != .jpeg, f < asSent.count, let pdf = asSent[f] {
                 try Data(pdf).write(to: urls[0], options: .atomic) // the scanner's own PDF, as it sent it
-                written.append(urls[0])
+                written[f] = [urls[0]]
                 continue
             }
             switch format {
@@ -692,15 +792,16 @@ final class ScanModel {
                     return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words)
                 }
                 try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
-                written.append(urls[0])
+                written[f] = [urls[0]]
             case .jpeg:
+                var images: [URL] = []
                 for (image, url) in zip(file, urls) {
                     try Data(image.jpeg).write(to: url, options: urls.count == 1 && files.count == 1 ? .atomic : .withoutOverwriting)
-                    written.append(url)
+                    images.append(url)
                 }
+                written[f] = images
             }
         }
-        return written
     }
 
     /// Where each file goes in `folder`, named after `stem`: "Scan.pdf"; a batch "Scan (1).pdf", "Scan (2).pdf"; images
@@ -776,8 +877,9 @@ final class ScanModel {
                     return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop)
                 }
             }
-            if case .failure(let error) = result, error is CancellationError {
+            if case .failure(let error) = result, error is SaveStopped || error is CancellationError {
                 isSaving = false
+                savedPdfs = all.filter { $0.pathExtension.lowercased() == "pdf" }
                 status = all.isEmpty ? "Save cancelled. The pages are still here."
                     : "Save cancelled after \(all.count) \(all.count == 1 ? "file" : "files"): Save again writes the rest."
                 return
@@ -852,20 +954,30 @@ final class ScanModel {
             return
         }
         let files = pages.files
-        let job = jobs(files), sent = asSent(files)
+        // The files a cancelled save wrote stay written: saving again writes only the rest (`savedParts`).
+        let earlier = files.map { savedParts.find($0.map(\.id)) }
+        let rest = files.indices.filter { earlier[$0] == nil }
+        let job = jobs(rest.map { files[$0] }), sent = asSent(rest.map { files[$0] }), restTargets = rest.map { targets[$0] }
         let stop = BatchStop()
         saveStop = stop
-        let result: Result<[URL], any Error> = await offPool { Result { try Self.write(job, to: targets, format: format, asSent: sent, stop: stop) } }
+        let result: Result<[URL], any Error> = await offPool {
+            Result { try Self.write(job, to: restTargets, format: format, asSent: sent, stop: stop) }
+        }
         saveStop = nil
         isSaving = false
+        let before = earlier.compactMap { $0 }.flatMap { $0 }.map { URL(fileURLWithPath: $0) }
         // Cancel stops before the next page or file; one that came after everything was written changes nothing.
-        if case .failure(let error) = result, error is CancellationError {
-            status = "Save cancelled. The pages are still here."
+        if case .failure(let error) = result, let stopped = error as? SaveStopped {
+            for (i, urls) in stopped.written.enumerated() where !urls.isEmpty { savedParts.add(files[rest[i]].map(\.id), paths: urls.map(\.path)) }
+            let saved = before + stopped.written.flatMap { $0 }
+            savedPdfs = saved.filter { $0.pathExtension.lowercased() == "pdf" }
+            status = saved.isEmpty ? "Save cancelled. The pages are still here."
+                : "Save cancelled after \(saved.count) \(saved.count == 1 ? "file" : "files") (\(saved.map(\.lastPathComponent).joined(separator: ", "))): Save again writes the rest."
             return
         }
         switch result {
         case .success(let urls):
-            await finishSaving(urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
+            await finishSaving(before + urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
         case .failure:
             problem = "The scan couldn't be saved there. Choose another place, or check there's room on the disk."
             status = pages.summary

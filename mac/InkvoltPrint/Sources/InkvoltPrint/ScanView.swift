@@ -20,15 +20,23 @@ struct ScanView: View {
         let withCrop = loading.sheet(item: croppingTarget) { (target: CropTarget) in cropSheet(target) }
         let withPhotos = withCrop.sheet(item: photosTarget) { (target: CropTarget) in photosSheet(target) }
         let sheets = withPhotos.sheet(item: cleaningTarget) { (target: CropTarget) in CleanSheet(scan: scan, id: target.id) }
-        let undo = sheets.onChange(of: scan.undoName, initial: true) { (_: String?, _: String?) in registerUndo() }
+        let undoState = UndoState(changes: scan.undoChanges, can: scan.canUndo)
+        let undo = sheets.onChange(of: undoState, initial: true) { (_: UndoState, _: UndoState) in registerUndo() }
         return undo.onChange(of: app.paneRequest, initial: true) { (old: PaneRequest?, new: PaneRequest?) in requested(old, new) }
+    }
+
+    /// What Edit › Undo is registered again on: every change to the steps (two may share a name), and a scan or save
+    /// starting or ending (no Undo meanwhile).
+    private struct UndoState: Equatable {
+        var changes: Int
+        var can: Bool
     }
 
     /// Edit › Undo (⌘Z) undoes the review's last clean up, named in the menu ("Undo Clean up page 2"), as the save bar's Undo does.
     private func registerUndo() {
         guard let undoManager else { return }
         undoManager.removeAllActions(withTarget: scan)
-        guard let name = scan.undoName else { return }
+        guard scan.canUndo, let name = scan.undoName else { return }
         undoManager.registerUndo(withTarget: scan) { (model: ScanModel) in model.undo() }
         undoManager.setActionName(name)
     }
@@ -180,12 +188,21 @@ struct TextLanguagePicker: View {
     @Binding var language: String?
     private static let languages = ScanPdf.textLanguages()
 
+    /// The language as Vision names it ("ru" from a Windows preset shows as Russian, "ru-RU", the language text is read
+    /// in); what's stored changes only when another is picked.
+    private var shown: Binding<String?> {
+        let tags = Self.languages.map(\.tag)
+        let vision = { (stored: String?) -> String? in stored.map { ScanPdf.visionTag($0, among: tags) ?? $0 } }
+        return Binding(get: { vision(language) }, set: { (picked: String?) in if picked != vision(language) { language = picked } })
+    }
+
     var body: some View {
-        Picker("Text language", selection: $language) {
+        let selected = shown
+        return Picker("Text language", selection: selected) {
             Text("Automatic").tag(String?.none)
             ForEach(Self.languages, id: \.tag) { (l: (tag: String, name: String)) in Text(l.name).tag(Optional(l.tag)) }
             // A language a preset from Windows (or another Mac) names that Vision doesn't read here.
-            if let language, !Self.languages.contains(where: { $0.tag == language }) {
+            if let language = selected.wrappedValue, !Self.languages.contains(where: { $0.tag == language }) {
                 Text("\(language) (not on this Mac: Automatic)").tag(Optional(language))
             }
         }
@@ -367,7 +384,7 @@ private struct SaveBar: View {
                     .help(scan.savedPdfs.count == 1 ? "Open the PDF just saved in Inkvolt PDF" : "Open the PDFs just saved in Inkvolt PDF")
             }
             Spacer()
-            if let name = scan.undoName, !scan.isSaving {
+            if let name = scan.undoName, scan.canUndo {
                 Button("Undo") { scan.undo() }.help("Undo: \(name.lowercased())")
             }
             if scan.isSaving {
@@ -497,6 +514,8 @@ private struct CleanSheet: View {
     @State private var image: NSImage?
     @State private var note = "Working…"
     @State private var applying = false
+    /// All Pages' stop: the view's Cancel while it looks at the pages.
+    @State private var stopAll: BatchStop?
 
     init(scan: ScanModel, id: String) {
         self.scan = scan
@@ -524,12 +543,16 @@ private struct CleanSheet: View {
                 shown
             }
             HStack {
-                Button("All Pages") { apply(all: true) }.help("Gives every page these choices")
+                Button("All Pages") { apply(all: true) }.help("Gives every page these choices").disabled(applying)
+                if let progress = scan.cleanProgress {
+                    ProgressView(value: Double(progress.done), total: Double(max(progress.total, 1))).frame(width: 140)
+                    Text("\(progress.done) of \(progress.total) pages").foregroundStyle(.secondary).monospacedDigit()
+                }
                 Spacer()
-                Button("Cancel", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
-                Button("Done") { apply(all: false) }.keyboardShortcut(.defaultAction)
+                Button("Cancel", role: .cancel) { cancel() }.keyboardShortcut(.cancelAction)
+                    .disabled(applying && stopAll == nil)
+                Button("Done") { apply(all: false) }.keyboardShortcut(.defaultAction).disabled(applying)
             }
-            .disabled(applying)
         }
         .padding(18)
         .frame(minWidth: 820, minHeight: 660)
@@ -576,14 +599,24 @@ private struct CleanSheet: View {
         AccessibilityNotification.Announcement(note).post()
     }
 
+    /// All Pages sets only the switches this view shows (a page of photos has no crop or whiten): the other pages keep
+    /// their own.
     private func apply(all: Bool) {
         applying = true
         note = "Working…"
         let chosen = filters
+        let stop = all ? BatchStop() : nil
+        stopAll = stop
+        let shown = PageFilters.switches(photos: photos)
         Task {
-            if all { await scan.applyCleanToAll(chosen) } else { await scan.applyClean(id, chosen) }
+            if let stop { await scan.applyCleanToAll(chosen, shown: shown, stop: stop) } else { await scan.applyClean(id, chosen) }
             dismiss()
         }
+    }
+
+    /// Cancel: closes the view; while All Pages looks at the pages, stops it first (no page changes).
+    private func cancel() {
+        if let stopAll { stopAll.stop() } else { dismiss() }
     }
 }
 

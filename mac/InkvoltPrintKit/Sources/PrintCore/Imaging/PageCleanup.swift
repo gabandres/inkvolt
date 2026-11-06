@@ -27,6 +27,15 @@ public struct PageFilters: OptionSet, Hashable, Sendable, Codable {
     public static let pixelFilters: PageFilters = [.whiten, .descreen, .restoreColors]
 
     public static let all: PageFilters = [.cropToPaper, .pixelFilters]
+
+    /// The Clean up view's switches on a page: on a page of photos only what suits a print (no paper to crop to or whiten).
+    public static func switches(photos: Bool) -> PageFilters { photos ? [.descreen, .restoreColors] : .all }
+
+    /// These filters with the switches `shown` set as `chosen` has them, the others as they are: All Pages from a Clean up
+    /// view that hides some (opened on a page of photos) leaves the other pages' crop to the paper and whitening alone.
+    public func setting(_ shown: PageFilters, as chosen: PageFilters) -> PageFilters {
+        subtracting(shown).union(chosen.intersection(shown))
+    }
 }
 
 /// What `PageCleanup.apply` gives: the page, what really changed it, and the specks removed.

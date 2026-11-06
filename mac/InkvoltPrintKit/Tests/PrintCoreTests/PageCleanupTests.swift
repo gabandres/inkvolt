@@ -703,9 +703,40 @@ struct PageCleanupStepsTests {
         pages.turn("a", 1)
         pages.setEdits("b", PageEdits(filters: .whiten))
         pages.delete("b")
-        pages.restoreCleanup(["a": before!, "b": .none])
+        pages.restoreCleanup(["a": before!, "b": .none], after: ["a": PageEdits(deskew: 1, crop: Self.edge, filters: .all), "b": PageEdits(filters: .whiten)])
         #expect(pages.page("a")?.edits == PageEdits(quarterTurns: 1, deskew: 1))
         #expect(pages.pages.count == 1)
+    }
+
+    /// A crop drawn by hand after the clean up isn't the clean up's: Undo puts back only what the clean up changed and is
+    /// still as it left it (on Windows the hand crop is its own step, undone first).
+    @Test func undoingACleanUpKeepsACropDrawnByHandSince() {
+        var pages = ScanPages([ScannedPage(id: "a", dpi: 300), ScannedPage(id: "b", dpi: 300)])
+        let before = pages.analysed("a", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .all, paperEdge: Self.edge)!
+        let after = pages.page("a")!.edits
+        let hand = CropBox(0.2, 0.2, 0.5, 0.5)
+        pages.crop("a", shown: hand)
+        pages.setEdits("b", PageEdits(filters: [.whiten]))
+        pages.reset("b") // everything put back by hand: nothing for Undo to put back
+        pages.restoreCleanup(["a": before, "b": .none], after: ["a": after, "b": PageEdits(filters: [.whiten])])
+        #expect(pages.page("a")?.edits == PageEdits(crop: hand))
+        #expect(pages.page("b")?.edits == PageEdits.none)
+        // Untouched since, all of it goes back.
+        var again = ScanPages([ScannedPage(id: "a", dpi: 300)])
+        let was = again.analysed("a", looksBlank: false, skew: 0, skipBlank: true, straighten: true, cleanup: .all, paperEdge: Self.edge)!
+        again.restoreCleanup(["a": was], after: ["a": again.page("a")!.edits])
+        #expect(again.page("a")?.edits == PageEdits.none)
+    }
+
+    /// All Pages from the Clean up view sets only the switches it shows: opened on a page of photos (no crop or whiten
+    /// there), the other pages keep their crop to the paper and whitening.
+    @Test func allPagesSetsOnlyTheSwitchesTheViewShows() {
+        #expect(PageFilters.switches(photos: false) == .all)
+        #expect(PageFilters.switches(photos: true) == [.descreen, .restoreColors])
+        let page: PageFilters = [.cropToPaper, .whiten, .restoreColors]
+        #expect(page.setting(.switches(photos: true), as: [.descreen]) == [.cropToPaper, .whiten, .descreen])
+        #expect(page.setting(.switches(photos: true), as: [.cropToPaper, .whiten]) == [.cropToPaper, .whiten])
+        #expect(page.setting(.switches(photos: false), as: [.descreen]) == [.descreen])
     }
 
     @Test func aPagesFiltersAndLanguageSurviveARestart() {

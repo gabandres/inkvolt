@@ -474,7 +474,7 @@ enum Report {
         scan.straighten = true
         scan.findPhotos = false
         scan.cleanup = [.cropToPaper, .whiten]
-        scan.ocrLanguage = "ru-RU"
+        scan.ocrLanguage = "ru" // as a Windows preset names it: Vision's "ru-RU"
         await scanAndWait(scan)
         guard let page = scan.pages.pages.first else { return ["cleanup: no page came"] }
         var lines = ["cleanup: \(scan.pages.summary); note: \(page.note.isEmpty ? "-" : page.note); undo: \(scan.undoName ?? "none")",
@@ -495,6 +495,15 @@ enum Report {
         lines.append("clean up view Done: note \(scan.pages.page(page.id)?.note ?? "-"); undo: \(scan.undoName ?? "none")")
         await scan.applyCleanToAll([.cropToPaper, .whiten, .restoreColors])
         lines.append("All Pages: \(scan.status) note \(scan.pages.page(page.id)?.note ?? "-"); undo: \(scan.undoName ?? "none")")
+        // All Pages from a view of photos sets only its switches; one stopped changes nothing; each step counts for Edit › Undo.
+        let changes = scan.undoChanges
+        await scan.applyCleanToAll([.descreen], shown: .switches(photos: true))
+        lines.append("All Pages from a photos view: note \(scan.pages.page(page.id)?.note ?? "-"); Undo's changes \(scan.undoChanges - changes)")
+        scan.undo()
+        let stopAll = BatchStop()
+        stopAll.stop()
+        await scan.applyCleanToAll([], stop: stopAll)
+        lines.append("All Pages stopped: \(scan.status) note \(scan.pages.page(page.id)?.note ?? "-"); Undo's changes \(scan.undoChanges - changes)")
         let url = AppModel.dataFolder.appendingPathComponent("scan-cleanup.pdf")
         await scan.save(to: url, reveal: false)
         let pdf = PDFDocument(url: url)
@@ -505,7 +514,8 @@ enum Report {
         lines.append("PDF text \(text.count) characters; PDFKit finds " + russian.joined(separator: ", ")
             + ", 'Crop to the paper': \(!(pdf?.findString("Crop to the paper", withOptions: []) ?? []).isEmpty)")
         lines.append("PDF text read: " + String(text.split(separator: "\n").prefix(4).joined(separator: " / ").prefix(300)))
-        lines.append("text languages (Vision, this Mac): " + ScanPdf.textLanguages().map(\.tag).joined(separator: ", "))
+        let tags = ScanPdf.textLanguages().map(\.tag)
+        lines.append("text languages (Vision, this Mac): " + tags.joined(separator: ", ") + "; ru reads as \(ScanPdf.visionTag("ru", among: tags) ?? "Automatic")")
         return lines
     }
 

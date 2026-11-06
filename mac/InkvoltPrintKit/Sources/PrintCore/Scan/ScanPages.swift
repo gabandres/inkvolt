@@ -213,12 +213,20 @@ public struct ScanPages: Equatable, Sendable {
     public mutating func setEdits(_ id: String, _ edits: PageEdits) { update(id) { $0.edits = edits } }
 
     /// One step of Undo of a clean up: each page's crop and filters as `before` has them, its turns and straightening as they
-    /// are now. A page that isn't there any more is passed over.
-    public mutating func restoreCleanup(_ before: [String: PageEdits]) {
+    /// are now. Only what the clean up changed and is still as it left it (`after`): a crop drawn by hand since (which drops
+    /// the crop to the paper) stays, as do filters changed since; on Windows each of those is a step of its own, undone
+    /// first. A page that isn't there any more is passed over.
+    public mutating func restoreCleanup(_ before: [String: PageEdits], after: [String: PageEdits]) {
         for (id, edits) in before {
+            let left = after[id] ?? edits
             update(id) { p in
-                p.edits.crop = edits.crop
-                p.edits.filters = edits.filters
+                if p.edits.crop == left.crop && p.edits.filters.contains(.cropToPaper) == left.filters.contains(.cropToPaper) {
+                    p.edits.crop = edits.crop
+                    p.edits.filters = p.edits.filters.setting(.cropToPaper, as: edits.filters)
+                }
+                if p.edits.filters.intersection(.pixelFilters) == left.filters.intersection(.pixelFilters) {
+                    p.edits.filters = p.edits.filters.setting(.pixelFilters, as: edits.filters)
+                }
             }
         }
     }

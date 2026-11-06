@@ -32,9 +32,11 @@ public enum ScanImaging {
 
     /// The page with its edits: straightened by `deskew` degrees, cropped, cleaned up by its filters (PrintCore's
     /// `PageCleanup`, on the page scanned at `dpi`), turned. `maxPixels`: decoded at most that many pixels on its longest side
-    /// first (thumbnails, previews: the filters then go by that copy's own resolution); nil: full size.
+    /// first (thumbnails, previews: the filters then go by that copy's own resolution); nil: full size. A page too large to
+    /// clean up is drawn without its filters, as it is saved (`PageEdits.for(width:height:)`), however small the copy.
     /// - Throws: `CancellationError` when `stop` fires.
-    public static func render(_ jpeg: [UInt8], _ edits: PageEdits, maxPixels: Int? = nil, dpi: Int = 300, stop: BatchStop? = nil) throws -> CGImage {
+    public static func render(_ jpeg: [UInt8], _ given: PageEdits, maxPixels: Int? = nil, dpi: Int = 300, stop: BatchStop? = nil) throws -> CGImage {
+        let edits = asSaved(given, jpeg)
         var image = try decode(jpeg, maxPixels: maxPixels)
         let grey = image.colorSpace?.model == .monochrome
         let copyDpi = maxPixels == nil ? dpi : self.copyDpi(dpi, jpeg, decodedWidth: image.width)
@@ -56,9 +58,13 @@ public enum ScanImaging {
     /// The page as saved: the scanner's JPEG when it has no edits (filters on a page too large to clean up are none), else
     /// the edited page encoded once.
     public static func jpeg(_ original: [UInt8], _ edits: PageEdits, dpi: Int = 300, stop: BatchStop? = nil) throws -> [UInt8] {
-        let size = Self.size(original)
-        let fitting = size.map { edits.for(width: $0.width, height: $0.height) } ?? edits
+        let fitting = asSaved(edits, original)
         return fitting.isEmpty ? original : try jpeg(render(original, fitting, dpi: dpi, stop: stop))
+    }
+
+    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` without its filters.
+    static func asSaved(_ edits: PageEdits, _ jpeg: [UInt8]) -> PageEdits {
+        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? edits
     }
 
     /// The sheet as a crop of the page straightened by `deskew` degrees (`PaperEdge.find` on the analysis copy, whose

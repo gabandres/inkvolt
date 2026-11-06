@@ -237,6 +237,70 @@ struct MacImagingTests {
         #expect(languages.allSatisfy { !$0.name.isEmpty })
     }
 
+    /// Windows' presets name a Text language by its language alone ("ru", "en"); Vision lists "ru-RU", "en-US".
+    @Test func aTextLanguageIsMatchedToVisionsTagByItsLanguage() {
+        let vision = ["en-US", "fr-FR", "zh-Hans", "zh-Hant", "pt-BR", "ru-RU"]
+        #expect(ScanPdf.visionTag("ru", among: vision) == "ru-RU")
+        #expect(ScanPdf.visionTag("en", among: vision) == "en-US")
+        #expect(ScanPdf.visionTag("EN-gb", among: vision) == "en-US")
+        #expect(ScanPdf.visionTag("zh-Hant", among: vision) == "zh-Hant")
+        #expect(ScanPdf.visionTag("zh", among: vision) == "zh-Hans")
+        #expect(ScanPdf.visionTag("pt_PT", among: vision) == "pt-BR")
+        #expect(ScanPdf.visionTag("fr-FR", among: vision) == "fr-FR")
+        #expect(ScanPdf.visionTag("de", among: vision) == nil)
+        #expect(ScanPdf.visionTag("", among: vision) == nil)
+        #expect(ScanPdf.visionTag("ru", among: ScanPdf.textLanguages().map(\.tag)) == "ru-RU")
+    }
+
+    /// A grey page of `width` × `height` pixels, one level all over, as a baseline JPEG written by hand: a page past
+    /// `PageCleanup.maxPixels` is about a megabyte this way, where an encoder would need its pixels in memory first. One
+    /// channel, quantisation 1, Huffman tables with only the codes it uses (DC: no change "0", the first block's level
+    /// "10"; AC: end of block "0"), so every block after the first is two zero bits.
+    static func uniformGreyJpeg(width: Int, height: Int, level: Int) -> [UInt8] {
+        func be16(_ v: Int) -> [UInt8] { [UInt8(v >> 8 & 0xFF), UInt8(v & 0xFF)] }
+        var out: [UInt8] = [0xFF, 0xD8]
+        out += [0xFF, 0xDB] + be16(67) + [0x00] + [UInt8](repeating: 1, count: 64)
+        out += [0xFF, 0xC0] + be16(11) + [8] + be16(height) + be16(width) + [1, 1, 0x11, 0]
+        let dcCounts: [UInt8] = [1, 1] + [UInt8](repeating: 0, count: 14), acCounts: [UInt8] = [1] + [UInt8](repeating: 0, count: 15)
+        out += [0xFF, 0xC4] + be16(2 + 1 + 16 + 2 + 1 + 16 + 1) + [0x00] + dcCounts + [0, 10] + [0x10] + acCounts + [0x00]
+        out += [0xFF, 0xDA] + be16(8) + [1, 1, 0x00, 0, 63, 0]
+        // The first block: DC category 10 ("10"), its 10 bits (8 × the level less 128), end of block ("0").
+        let dc = 8 * (level - 128)
+        precondition(dc >= 512 && dc < 1024, "a level the category 10 code holds")
+        let bits = [true, false] + (0..<10).map { dc >> (9 - $0) & 1 == 1 } + [false]
+        let blocks = ((width + 7) / 8) * ((height + 7) / 8)
+        let total = bits.count + 2 * (blocks - 1)
+        var data = [UInt8](repeating: 0, count: (total + 7) / 8)
+        for (i, bit) in bits.enumerated() where bit { data[i / 8] |= 0x80 >> (i % 8) }
+        let pad = data.count * 8 - total
+        if pad > 0 { data[data.count - 1] |= UInt8((1 << pad) - 1) } // padded with ones, as the standard says
+        out += data // no 0xFF byte can come out of these bits but a padded last one
+        if data.last == 0xFF { out.append(0x00) }
+        out += [0xFF, 0xD9]
+        return out
+    }
+
+    /// One rule for a page too large to clean up: drawn (thumbnails, the crop view, the Clean up view) without its filters,
+    /// as it is saved. (A photo cut out of it goes by the photo's own size, saved and shown alike, as on Windows.)
+    @Test func aPageTooLargeToCleanIsShownAsItIsSaved() async throws {
+        let (saved, shown, small) = try await offPool { () -> Result<(Bool, Int, Int), any Error> in
+            Result {
+                let huge = Self.uniformGreyJpeg(width: 17_400, height: 17_400, level: 200)
+                let size = try #require(ScanImaging.size(huge))
+                #expect(PageCleanup.tooLarge(size.width, size.height))
+                let whiten = PageEdits(filters: [.whiten, .restoreColors])
+                let saved = try ScanImaging.jpeg(huge, whiten) == huge // saved as scanned
+                let shown = try Self.level(ScanImaging.jpeg(ScanImaging.render(huge, whiten, maxPixels: 400)), x: 200, y: 200)
+                let page = Self.uniformGreyJpeg(width: 800, height: 800, level: 200)
+                let small = try Self.level(ScanImaging.jpeg(ScanImaging.render(page, whiten, maxPixels: 400)), x: 200, y: 200)
+                return (saved, shown, small)
+            }
+        }.get()
+        #expect(saved)
+        #expect(abs(shown - 200) <= 3, "\(shown)")
+        #expect(small > 240, "\(small)") // a page that can be cleaned is shown cleaned
+    }
+
     @Test func aPhotoSheetPreviewOfAPaperNoIntCanMeasureIsNone() {
         // The paper comes from the printer's queue: a size that isn't a number (or a width of 0) draws no preview.
         for paper in [SheetPaper(8.5, 1e300, 0, 0, 0, 0), SheetPaper(0, 11, 0, 0, 0, 0), SheetPaper(8.5, .nan, 0, 0, 0, 0)] {

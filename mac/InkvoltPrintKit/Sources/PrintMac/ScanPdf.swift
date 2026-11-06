@@ -63,16 +63,28 @@ public enum ScanPdf {
         return tags.map { tag in (tag, Locale.current.localizedString(forIdentifier: tag) ?? tag) }
     }
 
-    /// The words on a page, recognised by Vision on this Mac in `language` (a BCP-47 tag Vision lists; nil: Vision tells
-    /// the language itself); nil when recognition fails (the page still saves, without text).
+    /// Vision's tag for a Text language a preset or the settings name (`wanted`), among `supported`: the same tag, else the
+    /// first with its language ("ru", as Windows' presets name it, is Vision's "ru-RU"); nil when Vision doesn't read it.
+    public static func visionTag(_ wanted: String, among supported: [String]) -> String? {
+        let tag = wanted.replacingOccurrences(of: "_", with: "-")
+        if let same = supported.first(where: { $0.caseInsensitiveCompare(tag) == .orderedSame }) { return same }
+        func language(_ t: String) -> Substring { t.split(separator: "-", maxSplits: 1).first ?? "" }
+        let wantedLanguage = language(tag).lowercased()
+        if wantedLanguage.isEmpty { return nil }
+        return supported.first { language($0).lowercased() == wantedLanguage }
+    }
+
+    /// The words on a page, recognised by Vision on this Mac in `language` (a BCP-47 tag, matched to Vision's by
+    /// `visionTag`; nil or not read here: Vision tells the language itself); nil when recognition fails (the page still
+    /// saves, without text).
     public static func recognize(_ jpeg: [UInt8], language: String? = nil) -> [OcrWord]? {
         guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
-        if let language, let supported = try? request.supportedRecognitionLanguages(), supported.contains(language) {
-            request.recognitionLanguages = [language]
+        if let language, let supported = try? request.supportedRecognitionLanguages(), let tag = visionTag(language, among: supported) {
+            request.recognitionLanguages = [tag]
         } else {
             request.automaticallyDetectsLanguage = true
         }
