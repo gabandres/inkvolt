@@ -623,7 +623,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
   A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
   A stopped run's unreached paragraphs get no comment each: the summary names their pages.
-  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named. Text
+  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and text turned other than by a quarter
+  turn (a stamp at 30°, mirrored or slanted text) stay and are named. Text
   in a hidden layer is neither sent nor rewritten.
   Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
   its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
@@ -677,7 +678,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   into it before it shrinks, and an operator's column no longer counts the gap to the next column among its word spaces
   (resnet's "error top-1" and attn-v7's "Transformador (modelo base)" keep their size); a column's body paragraphs take one
   size, the one its most shrunk paragraph needs, no smaller than 80% (attn-v7 p. 8's body all at 8.47 pt).
-  **Still wrong.** Tables turned on the page, like the census's appendix, stay in English (named in the summary). A link's
+  **Turned text (2026-11-06).** Text set sideways or upside down (the census's appendix tables, a landscape table on a
+  portrait page) is translated: each quarter turn the page's runs read in (within half a degree) is turned upright in the
+  frame Export to Word turns a page by (`TranslationFrame`, `ContentEditor.TurnedParts`), its tables' rows and columns
+  found there from that direction's lines with the page's rules (`Surroundings`), and its paragraphs grouped, given their
+  room and fitted there as upright ones are; each new line's start is turned back onto the page and written in the run's
+  own text space, so it reads as before. Upright tables are now found from upright lines only (a sideways table's cells,
+  in their own frame, could land among them). `TranslationTests.A_table_set_sideways_is_translated_cell_by_cell…`; on
+  census-p60 p. 31 and 33 (stand-in answers) every label, heading and note is translated, figures stay in their columns,
+  nothing is named as turned. A multi-line row label in such a table ("AMERICAN INDIAN / AND ALASKA / NATIVE ALONE OR / IN
+  COMBINATION") goes as one paragraph a line, upright or turned alike (its lines sit on the figures' rows).
+  **Still wrong.** A link's
   underline and area stay where they were while the text moves (NIST p. 14: "complementarios, el Documento Especial" is
   underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
   label in a narrow cell with a row right under it still shrinks to the floor (the census's first "Income percentile

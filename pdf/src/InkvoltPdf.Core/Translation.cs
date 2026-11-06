@@ -10,14 +10,18 @@ namespace InkvoltPdf.Core;
 public sealed record TranslationLanguage(string Name, string Tag);
 
 /// <summary>One page of a plan: where its table cells are and what else its text must keep clear of (pictures, figures, rules).</summary>
-public sealed record TranslationPagePlan(int Page, IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles);
+public sealed record TranslationPagePlan(int Page, IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles)
+{
+    /// <summary>The cells of tables set sideways, by the quarter turns their text reads in (1 to 3), in that turn's frame (<see cref="ExportPage.Turned"/>).</summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<RectD>> TurnedCells { get; init; } = new Dictionary<int, IReadOnlyList<RectD>>();
+}
 
 /// <summary>A paragraph's text to translate, once however often it repeats: the pieces it is sent in, the page it is first on.</summary>
 public sealed record TranslationJob(string Text, int Page, IReadOnlyList<string> Pieces);
 
 /// <summary>
 /// What a translation will do, read from the pages before anything is sent: the paragraphs' text, and what can't be
-/// translated (scanned pages, turned text, pages with more pieces of text than can be worked out).
+/// translated (scanned pages, text turned other than by quarter turns, pages with more pieces of text than can be worked out).
 /// </summary>
 public sealed class TranslationPlan
 {
@@ -205,8 +209,9 @@ public static class Translation
                         crowded.Add(p);
                         continue;
                     }
-                    var (cells, obstacles) = Surroundings(engine, doc.Pages[p], p, content, cancel);
-                    var slots = ContentEditor.TranslationSlots(content, cells, cancel);
+                    var (cells, obstacles, turnedCells) = Surroundings(engine, doc.Pages[p], p, content, cancel);
+                    var (width, height) = PdfObj.DisplaySize(doc.Pages[p]);
+                    var slots = ContentEditor.TranslationSlots(content, cells, cancel, ContentEditor.TurnedParts(content, width, height, turnedCells));
                     var pageHasWords = false;
                     foreach (var slot in slots)
                     {
@@ -232,8 +237,10 @@ public static class Translation
                     }
                     if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => ContentEditor.IsInvisible(r.Blocked))))
                         scans.Add(p);
-                    if (content.Runs.Any(r => Math.Abs(r.Angle) >= 0.5 && TranslationText.HasWords(r.Text))) turned.Add(p);
-                    plans.Add(new TranslationPagePlan(p, cells, obstacles));
+                    // Turned text no slot holds (at an angle other than a quarter turn, mirrored or slanted) stays as it is.
+                    var inSlots = new HashSet<TextRun>(slots.SelectMany(s => s.Paragraph.Runs), ReferenceEqualityComparer.Instance);
+                    if (content.Runs.Any(r => Math.Abs(r.Angle) >= 0.5 && TranslationText.HasWords(r.Text) && !inSlots.Contains(r))) turned.Add(p);
+                    plans.Add(new TranslationPagePlan(p, cells, obstacles) { TurnedCells = turnedCells });
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
                 {
@@ -259,30 +266,49 @@ public static class Translation
         }
     }
 
-    /// <summary>A page's table cells (from Export to Word's analysis) and the pictures, vector figures and rules its text must keep clear of.</summary>
-    private static (IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles) Surroundings(PdfEngine? engine, PdfPage pdfPage, int page, PageContent content, CancellationToken cancel)
+    /// <summary>
+    /// A page's table cells (from Export to Word's analysis) and the pictures, vector figures and rules its text must keep
+    /// clear of; the cells of tables set sideways, found the same way with the page turned so their text reads left to
+    /// right, by quarter turn, in that frame.
+    /// </summary>
+    private static (IReadOnlyList<RectD> Cells, IReadOnlyList<RectD> Obstacles, IReadOnlyDictionary<int, IReadOnlyList<RectD>> Turned) Surroundings(
+        PdfEngine? engine, PdfPage pdfPage, int page, PageContent content, CancellationToken cancel)
     {
+        var turned = new Dictionary<int, IReadOnlyList<RectD>>();
         // The boxes a form's fields fill in: on the page though not in its content.
         var fields = new List<RectD>();
         if (PdfObj.Array(pdfPage.Elements["/Annots"]) is { } annots)
             for (var i = 0; i < annots.Elements.Count && fields.Count < MaxRunsToLayOut; i++)
                 if (PdfObj.Dict(annots.Elements[i]) is { } annot && PdfObj.NameOf(annot, "/Subtype") == "/Widget" && PdfObj.Array(annot.Elements["/Rect"]) is { Elements.Count: >= 4 } rect)
                     fields.Add(PdfObj.RectToPage(pdfPage, rect));
-        if (engine is null) return ([], fields);
+        if (engine is null) return ([], fields, turned);
         // A page this crowded isn't worth laying out (its time grows much faster than its text): no tables found, as on a map.
-        if (content.Runs.Count > MaxRunsToLayOut) return ([], fields);
+        if (content.Runs.Count > MaxRunsToLayOut) return ([], fields, turned);
         try
         {
             var export = engine.GetExportPage(page, images: true, cancel, boxesOnly: true);
             var obstacles = export.Rules.Concat(export.Images.Select(i => i.Box)).Concat(fields).ToList();
-            var cells = new List<RectD>();
-            foreach (var block in DocLayout.LayOut(export, DocLayout.BodySize([export])).Blocks)
-                if (block is DocTable table) cells.AddRange(CellsOf(table));
-            return (cells.Count > 4_000 ? [] : cells, obstacles);
+            var body = DocLayout.BodySize([export]);
+            List<RectD> Cells(ExportPage p)
+            {
+                var cells = new List<RectD>();
+                foreach (var block in DocLayout.LayOut(p, body).Blocks)
+                    if (block is DocTable table) cells.AddRange(CellsOf(table));
+                return cells.Count > 4_000 ? [] : cells;
+            }
+            var upright = Cells(export with { Lines = [.. export.Lines.Where(l => l.Reads == 0)] });
+            // A table set sideways: its direction's lines with the page's rules and pictures, turned to read left to right.
+            for (var turn = 1; turn <= 3; turn++)
+            {
+                var t = turn;
+                var lines = export.Lines.Where(l => l.Reads == t).ToList();
+                if (lines.Any(l => l.Text.Any(char.IsLetter))) turned[turn] = Cells((export with { Lines = lines }).Turned(turn));
+            }
+            return (upright, obstacles, turned);
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
         {
-            return ([], fields);
+            return ([], fields, turned);
         }
     }
 
@@ -513,7 +539,7 @@ public static class Translation
                         return null;
                     }
                     return text;
-                }, cancel);
+                }, cancel, page.TurnedCells);
 
                 var wrote = written.ToDictionary(w => w.Slot);
                 var no = refused.ToDictionary(r => r.Slot);

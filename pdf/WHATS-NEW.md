@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Translate with AI translates tables and text set sideways on a page (a landscape table on a portrait page) cell by cell too, and the translation reads the same way the original did.
 - A paragraph with check marks, arrows or other symbols in the standard ZapfDingbats font, as older software and forms wrote them, edits as a whole paragraph too, and they stay in ZapfDingbats.
 - Large drawings (sheets with tens of thousands of lines) show up and scroll faster: each sheet is read and drawn once instead of twice, and the next two sheets are drawn while you look at one.
 - Translate with AI keeps a table row's figures in their columns when the row's label and its figures were drawn as one piece of text (as many papers and reports draw them): only the label is translated, and the figures stay where they were.

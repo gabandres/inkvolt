@@ -1163,6 +1163,62 @@ public class TranslationCopyTests
         Assert.Equal(before.Box.Y, after.Box.Y, 0);
     }
 
+    /// <summary>
+    /// A ruled table of 3 rows (a label, its figures) set sideways on an upright page, reading bottom to top as a landscape
+    /// table on a portrait page does, under an upright line. In the table's own frame (u along its rows, v up its
+    /// columns) the label column is u 100–220, the figures' 220–300, rows 20 high from v 400 down. Returns the page and,
+    /// on the page as shown (top-left origin), the label cells.
+    /// </summary>
+    private static (byte[] Pdf, RectD[] LabelCells) SidewaysTable()
+    {
+        string[] labels = ["Quick fox", "Lazy dog", "Brown fox"];
+        string[] figures = ["12", "345", "6,789"];
+        var sb = new StringBuilder(Lines(72, 740, 12, 14, "The quick brown fox jumps over a lazy dog."));
+        // Turned a quarter: (u, v) in the table's frame is (612 - v, u) on the page, in PDF space (y up).
+        sb.Append("q 0 1 -1 0 612 0 cm 0.5 w ");
+        for (var r = 0; r <= 3; r++) sb.Append($"100 {400 - 20 * r} m 300 {400 - 20 * r} l S ");
+        foreach (var u in new[] { 100, 220, 300 }) sb.Append($"{u} 400 m {u} 340 l S ");
+        sb.Append("BT /FA 9 Tf ");
+        for (var r = 0; r < 3; r++)
+            sb.Append($"1 0 0 1 103 {400 - 20 * r - 14} Tm ({labels[r]}) Tj 1 0 0 1 223 {400 - 20 * r - 14} Tm ({figures[r]}) Tj ");
+        sb.Append("ET Q");
+        // A label cell (u 100–220, v from 400 - 20 r down 20) on the page as shown: x = 612 - v, y = 792 - u.
+        var cells = Enumerable.Range(0, 3).Select(r => RectD.FromEdges(612 - (400 - 20 * r), 792 - 220, 612 - (380 - 20 * r), 792 - 100)).ToArray();
+        return (Page(sb.ToString(), fontText: Letters), cells);
+    }
+
+    [Fact]
+    public void A_table_set_sideways_is_translated_cell_by_cell_and_stays_turned_in_its_cells()
+    {
+        var (pdf, cells) = SidewaysTable();
+        var (plan, r) = Translate(pdf, t => t.Any(char.IsLetter) ? $"{Marked} {t} and over the lazy dog" : t);
+        // Each label goes alone, the figures stay, nothing is named as turned text left in English.
+        foreach (var label in new[] { "Quick fox", "Lazy dog", "Brown fox" }) Assert.Contains(plan.Texts, t => t.Text == label);
+        Assert.DoesNotContain(plan.Texts, t => t.Text.Contains("fox", StringComparison.Ordinal) && t.Text.Contains("dog", StringComparison.Ordinal) && t.Text.Length < 30);
+        Assert.Empty(plan.TurnedTextPages);
+        Assert.Equal(4, r.Report.Translated);
+        // Its rows and columns were found with the page turned so the table reads left to right: 3 rows of 2 cells.
+        Assert.Equal(6, plan.Pages[0].TurnedCells.GetValueOrDefault(3)?.Count);
+        Assert.Empty(plan.Pages[0].Cells);
+
+        var after = ContentEditor.Read(r.Data!, null, 0);
+        var text = ContentEditPdf.Text(r.Data!);
+        for (var i = 0; i < 3; i++)
+        {
+            // Its new text reads as the old did (bottom to top), and stays between the cell's rules.
+            var mine = after.Runs.Where(q => q.Text.Trim().Length > 0 && cells[i].Contains(q.Box.CenterX, q.Box.CenterY)).ToList();
+            Assert.NotEmpty(mine);
+            Assert.Contains(mine, q => q.Text.Contains(Marked, StringComparison.Ordinal) || q.Text.Contains("lazy", StringComparison.Ordinal));
+            foreach (var q in mine)
+            {
+                Assert.Equal(-90, ContentEditor.Turn(q.Angle), 1);
+                Assert.True(q.Box.X >= cells[i].X - 0.5 && q.Box.Right <= cells[i].Right + 0.5 && q.Box.Y >= cells[i].Y - 0.5 && q.Box.Bottom <= cells[i].Bottom + 0.5,
+                    $"{q.Text}: {q.Box} outside {cells[i]}");
+            }
+        }
+        foreach (var figure in new[] { "12", "345", "6,789" }) Assert.Contains(figure, text, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_protected_file_keeps_its_protection_and_a_copys_language_is_the_new_one()
     {
