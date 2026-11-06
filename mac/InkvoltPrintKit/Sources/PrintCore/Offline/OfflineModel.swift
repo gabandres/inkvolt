@@ -99,9 +99,9 @@ public struct Reachability: Equatable, Sendable {
         for p in openPorts {
             let text = switch p {
             case 631: "IPP"
-            case 9100: "raw printing (port 9100)"
-            case 80, 443: "its web page"
-            default: "port \(p)"
+            case 9100: loc("raw printing (port 9100)")
+            case 80, 443: loc("its web page")
+            default: loc("port {0}", p)
             }
             if !parts.contains(text) { parts.append(text) }
         }
@@ -112,7 +112,7 @@ public struct Reachability: Equatable, Sendable {
         switch parts.count {
         case 0: ""
         case 1: parts[0]
-        default: parts.dropLast().joined(separator: ", ") + " and " + parts[parts.count - 1]
+        default: loc("{0} and {1}", parts.dropLast().joined(separator: ", "), parts[parts.count - 1])
         }
     }
 
@@ -168,10 +168,10 @@ public struct CheckResult: Equatable, Sendable {
 
     public static func titleOf(_ kind: CheckKind) -> String {
         switch kind {
-        case .network: "Printer on the network"
-        case .connection: "Printer answers"
-        case .queues: "macOS printers for this device"
-        case .queueState: "Paused, not accepting jobs or stuck jobs"
+        case .network: loc("Printer on the network")
+        case .connection: loc("Printer answers")
+        case .queues: loc("macOS printers for this device")
+        case .queueState: loc("Paused, not accepting jobs or stuck jobs")
         }
     }
 
@@ -202,11 +202,11 @@ public struct MatchedQueue: Equatable, Sendable {
     public var portText: String {
         let uri = queue.deviceUri ?? ""
         let host = CupsQueues.host(uri) ?? uri
-        if CupsQueues.scheme(uri) == "dnssd" || CupsQueues.serviceInstance(uri) != nil { return "Bonjour (macOS finds the printer by its name)" }
+        if CupsQueues.scheme(uri) == "dnssd" || CupsQueues.serviceInstance(uri) != nil { return loc("Bonjour (macOS finds the printer by its name)") }
         return switch CupsQueues.scheme(uri) {
-        case "socket": "raw printing (HP Jetdirect - Socket) to \(host)"
-        case "lpd": "LPD to \(host)"
-        case "ipp", "ipps", "http", "https": "IPP to \(host)"
+        case "socket": loc("raw printing (HP Jetdirect - Socket) to {0}", host)
+        case "lpd": loc("LPD to {0}", host)
+        case "ipp", "ipps", "http", "https": loc("IPP to {0}", host)
         default: CupsQueues.connectionText(queue)
         }
     }

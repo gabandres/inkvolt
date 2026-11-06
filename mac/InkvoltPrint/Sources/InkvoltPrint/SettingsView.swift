@@ -19,6 +19,7 @@ private struct GeneralSettings: View {
     @Environment(AppModel.self) private var model
     @State private var login = LoginItem()
     @AppStorage(InkvoltPdfApp.openScansKey) private var openScans = false
+    @State private var language = AppLanguage.choice
 
     var body: some View {
         Form {
@@ -46,6 +47,19 @@ private struct GeneralSettings: View {
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
+            // Hidden until Spanish is complete (AppLanguage.spanishReady), as on Windows.
+            if AppLanguage.spanishReady {
+                Section {
+                    Picker("Language", selection: $language) {
+                        Text("Same as macOS").tag(AppLanguage.Choice.system)
+                        Text(verbatim: "English").tag(AppLanguage.Choice.english)
+                        Text(verbatim: "Español").tag(AppLanguage.Choice.spanish)
+                    }
+                    .onChange(of: language) { _, choice in AppLanguage.save(choice) }
+                    Text("Takes effect the next time Inkvolt Print starts.")
+                        .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear { login.refresh() }
@@ -63,7 +77,7 @@ final class LoginItem {
 
     var note: String? {
         if let error { return error }
-        return needsApproval ? "macOS asks you to allow it: turn on Inkvolt Print in System Settings › General › Login Items." : nil
+        return needsApproval ? String(localized: "macOS asks you to allow it: turn on Inkvolt Print in System Settings › General › Login Items.") : nil
     }
 
     func refresh() { status = SMAppService.mainApp.status }
@@ -73,7 +87,7 @@ final class LoginItem {
         do {
             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
         } catch {
-            self.error = on ? "macOS didn't add Inkvolt Print to your login items." : "macOS didn't remove Inkvolt Print from your login items."
+            self.error = on ? String(localized: "macOS didn't add Inkvolt Print to your login items.") : String(localized: "macOS didn't remove Inkvolt Print from your login items.")
         }
         refresh()
     }

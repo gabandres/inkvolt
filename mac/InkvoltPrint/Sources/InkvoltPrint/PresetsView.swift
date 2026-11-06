@@ -23,7 +23,7 @@ struct PresetStrip: View {
         let styled = button.buttonStyle(.borderless)
         let shortcut: KeyboardShortcut? = Self.shortcut(i)
         let keyed = styled.keyboardShortcut(shortcut)
-        let name: String = "Scan with " + p.name
+        let name: String = String(localized: "Scan with \(p.name)")
         let named = keyed.accessibilityLabel(Text(name))
         let off: Bool = scan.isScanning || scan.caps == nil
         return named.disabled(off)
@@ -159,7 +159,7 @@ private struct PresetEditor: View {
                 HStack {
                     Text("Folder")
                     Spacer()
-                    Text(app.presetFolder(preset.id)?.path(percentEncoded: false) ?? "Asked the first time").foregroundStyle(.secondary).lineLimit(1)
+                    Text(app.presetFolder(preset.id)?.path(percentEncoded: false) ?? String(localized: "Asked the first time")).foregroundStyle(.secondary).lineLimit(1)
                         .truncationMode(.head)
                     Button("Choose…") { chooseFolder() }
                 }
@@ -168,7 +168,7 @@ private struct PresetEditor: View {
                 if let problem = FileNameTemplate.problem(preset.fileName) {
                     Text(problem).foregroundStyle(.red).font(.caption)
                 } else {
-                    Text("Next: \(FileNameTemplate.fileName(preset.fileName, NameContext(now: Date(), preset: preset.name, printer: "Printer", number: preset.nextNumber, pages: 3)))")
+                    Text("Next: \(FileNameTemplate.fileName(preset.fileName, NameContext(now: Date(), preset: preset.name, printer: String(localized: "Printer"), number: preset.nextNumber, pages: 3)))")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
@@ -179,7 +179,7 @@ private struct PresetEditor: View {
                     Text("Print a copy").tag(PresetAfter.print)
                     Text("Attach to a new email").tag(PresetAfter.email)
                     if InkvoltPdfApp.url != nil || preset.after == .openInInkvoltPdf {
-                        Text(InkvoltPdfApp.url == nil ? "Open in Inkvolt PDF (not installed)" : "Open in Inkvolt PDF").tag(PresetAfter.openInInkvoltPdf)
+                        Text(InkvoltPdfApp.url == nil ? String(localized: "Open in Inkvolt PDF (not installed)") : String(localized: "Open in Inkvolt PDF")).tag(PresetAfter.openInInkvoltPdf)
                     }
                 }
                 if preset.after == .openInInkvoltPdf && preset.fileType == .jpeg {
@@ -195,7 +195,7 @@ private struct PresetEditor: View {
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Use This Folder"
+        panel.prompt = String(localized: "Use This Folder")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         app.setPresetFolder(preset.id, url)
         preset.folder = .custom

@@ -27,8 +27,8 @@ enum PhotoPaper: String, CaseIterable, Identifiable {
         switch self {
         case .letter: "Letter (8.5 × 11 in)"
         case .a4: "A4 (210 × 297 mm)"
-        case .photo4x6: "4 × 6 in photo paper"
-        case .photo5x7: "5 × 7 in photo paper"
+        case .photo4x6: String(localized: "4 × 6 in photo paper")
+        case .photo5x7: String(localized: "5 × 7 in photo paper")
         }
     }
 
@@ -105,8 +105,8 @@ final class PhotosModel {
     var softWarning: String? {
         let soft = printDpi.filter { ($0 ?? .infinity) < PhotoLayout.lowDpi }.count
         if soft == 0 { return nil }
-        return soft == 1 ? "1 photo prints below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list)."
-            : "\(soft) photos print below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list)."
+        return soft == 1 ? String(localized: "1 photo prints below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list).")
+            : String(localized: "\(soft) photos print below \(Int(PhotoLayout.lowDpi)) dpi and may look soft (marked in the list).")
     }
 
     /// Whether the sheets go straight to the printer's macOS queue (else through the print panel). Demo mode's printers
@@ -157,7 +157,7 @@ final class PhotosModel {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
         panel.allowsMultipleSelection = true
-        panel.message = "Choose the photos to print."
+        panel.message = String(localized: "Choose the photos to print.")
         guard panel.runModal() == .OK else { return }
         add(panel.urls)
     }
@@ -171,7 +171,7 @@ final class PhotosModel {
             defer { if accessing { url.stopAccessingSecurityScopedResource() } }
             if let image = try? PhotoSheets.load(url) { photos.append(PhotoItem(url: url, image: image)) } else { unreadable += 1 }
         }
-        if unreadable > 0 { problem = unreadable == 1 ? "One file couldn't be read as a picture." : "\(unreadable) files couldn't be read as pictures." }
+        if unreadable > 0 { problem = unreadable == 1 ? String(localized: "One file couldn't be read as a picture.") : String(localized: "\(unreadable) files couldn't be read as pictures.") }
         refresh()
     }
 
@@ -209,7 +209,7 @@ final class PhotosModel {
         let images = photos.map(\.image), names = photos.map(\.name), sheet = sheet
         let data: Data? = await offPool { try? PhotoSheets.pdf(sheets, photos: images, names: names, paper: sheet) }
         guard let data else {
-            problem = "The sheets couldn't be prepared for printing."
+            problem = String(localized: "The sheets couldn't be prepared for printing.")
             return
         }
         let title = photos.count == 1 ? photos[0].name : "\(photos.count) photos"
@@ -218,7 +218,7 @@ final class PhotosModel {
             return
         }
         guard let document = PDFDocument(data: data) else {
-            problem = "The sheets couldn't be prepared for printing."
+            problem = String(localized: "The sheets couldn't be prepared for printing.")
             return
         }
         Printing.print(document, name: title, on: printer, app: app, actualSize: true,
@@ -234,10 +234,10 @@ final class PhotosModel {
                                                  color: colors.count > 1 ? color : nil)
         do {
             _ = try await LibCups().printPdf(queue, pdf, title: title, media: media, options: options)
-            sent = "Sent \(sheets == 1 ? "1 sheet" : "\(sheets) sheets") to \(printer.name)."
+            sent = sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name).")
         } catch {
             let why = (error as? PrintJobSendError)?.message ?? error.localizedDescription
-            problem = "The photos couldn't be sent to \(printer.name): \(why)"
+            problem = String(localized: "The photos couldn't be sent to \(printer.name): \(why)")
         }
     }
 }
@@ -264,7 +264,7 @@ struct PhotosView: View {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(p.name).lineLimit(1).truncationMode(.middle)
                                 if let i = model.photos.firstIndex(where: { $0.id == p.id }), let dpi = model.printDpi[i], let shown = Int(exactly: dpi.rounded()) {
-                                    Text("\(shown) dpi\(dpi < PhotoLayout.lowDpi ? ": may look soft" : "")")
+                                    Text(dpi < PhotoLayout.lowDpi ? String(localized: "\(shown) dpi: may look soft") : String(localized: "\(shown) dpi"))
                                         .font(.caption).foregroundStyle(dpi < PhotoLayout.lowDpi ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                                 }
                             }
@@ -350,7 +350,7 @@ struct PhotosView: View {
                 .overlay { if model.photos.isEmpty { ContentUnavailableView("No photos yet", systemImage: "photo.on.rectangle", description: Text("Add the photos to print.")) } }
                 Divider()
                 HStack {
-                    Text(model.sheets.count == 1 ? "1 sheet" : "\(model.sheets.count) sheets").foregroundStyle(.secondary)
+                    Text(model.sheets.count == 1 ? String(localized: "1 sheet") : String(localized: "\(model.sheets.count) sheets")).foregroundStyle(.secondary)
                     if let soft = model.softWarning { Text(soft).foregroundStyle(.orange).lineLimit(2) }
                     if model.kind != .contactSheet && !model.photos.isEmpty {
                         Text("Drag a photo on a sheet to move its crop.").font(.caption).foregroundStyle(.secondary)
@@ -359,7 +359,7 @@ struct PhotosView: View {
                     if model.printing { ProgressView().controlSize(.small) }
                     Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                     if let sent = model.sent { Text(sent).foregroundStyle(.secondary) }
-                    Button(model.printsToQueue ? "Print" : "Print…") { Task { await model.print() } }
+                    Button(model.printsToQueue ? String(localized: "Print") : String(localized: "Print…")) { Task { await model.print() } }
                         .buttonStyle(.borderedProminent)
                         .disabled(model.sheets.isEmpty || model.printing)
                 }
@@ -399,7 +399,7 @@ private struct CropCells: View {
                         Button("Zoom Out") { model.zoom(cell.photo, by: 0.8) }
                         Button("Reset Crop") { model.resetCrop(cell.photo) }
                     }
-                    .help(cell.photo < model.photos.count ? "\(model.photos[cell.photo].name): drag to move the crop" : "")
+                    .help(cell.photo < model.photos.count ? String(localized: "\(model.photos[cell.photo].name): drag to move the crop") : "")
             }
         }
     }

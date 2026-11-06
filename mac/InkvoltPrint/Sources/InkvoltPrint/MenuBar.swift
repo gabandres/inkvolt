@@ -13,7 +13,7 @@ struct MenuBarMenu: View {
             .sorted { $0.element.line.level != $1.element.line.level ? $0.element.line.level > $1.element.line.level : $0.offset < $1.offset }
             .map(\.element)
         if lines.isEmpty {
-            Text(model.localNetwork == .denied ? "No Local Network access" : "No printers yet")
+            Text(model.localNetwork == .denied ? String(localized: "No Local Network access") : String(localized: "No printers yet"))
         }
         ForEach(lines, id: \.id) { entry in
             Button("\(MenuBarIcon.mark(entry.line.level)) \(entry.line.name): \(entry.line.text)") {
@@ -76,9 +76,9 @@ enum MenuBarIcon {
         let badgeName: String?
         switch level {
         case .ok: (description, badgeName) = ("Inkvolt Print", nil)
-        case .offline: (description, badgeName) = ("Inkvolt Print: a printer is offline", "minus.circle.fill")
-        case .warning: (description, badgeName) = ("Inkvolt Print: a printer needs attention", "exclamationmark.circle.fill")
-        case .error: (description, badgeName) = ("Inkvolt Print: a printer has a problem", "xmark.circle.fill")
+        case .offline: (description, badgeName) = (String(localized: "Inkvolt Print: a printer is offline"), "minus.circle.fill")
+        case .warning: (description, badgeName) = (String(localized: "Inkvolt Print: a printer needs attention"), "exclamationmark.circle.fill")
+        case .error: (description, badgeName) = (String(localized: "Inkvolt Print: a printer has a problem"), "xmark.circle.fill")
         }
         // The Inkvolt mark as a template (assets/make-icon.py), the printer symbol where the asset catalog is missing.
         guard let base = NSImage(named: "MenuBarIcon")?.copy() as? NSImage

@@ -17,11 +17,11 @@ public struct ScannedPdfPages: PdfPageRenderer {
     }
 
     static func pages(_ pdf: [UInt8], dpi: Int) throws -> [[UInt8]] {
-        guard let document = PDFDocument(data: Data(pdf)), !document.isLocked else { throw ScanError("The scanner's PDF couldn't be opened.") }
+        guard let document = PDFDocument(data: Data(pdf)), !document.isLocked else { throw ScanError(loc("The scanner's PDF couldn't be opened.")) }
         var pages: [[UInt8]] = []
         for i in 0..<document.pageCount {
             try Task.checkCancellation()
-            guard let page = document.page(at: i)?.pageRef else { throw ScanError("The scanner's PDF has a page that couldn't be read.") }
+            guard let page = document.page(at: i)?.pageRef else { throw ScanError(loc("The scanner's PDF has a page that couldn't be read.")) }
             pages.append(try ScanImaging.jpeg(draw(page, dpi: dpi)))
         }
         return pages
@@ -35,12 +35,12 @@ public struct ScannedPdfPages: PdfPageRenderer {
         let scale = CGFloat(max(dpi, 1)) / 72
         // Checked as Double first: a box too big for an Int (or not finite) would trap in the conversion.
         let w = max(1, (size.width * scale).rounded()), h = max(1, (size.height * scale).rounded())
-        guard w.isFinite, h.isFinite, w * h <= Double(maxPixels) else { throw ScanError("The scanner's PDF has a page too large to show.") }
+        guard w.isFinite, h.isFinite, w * h <= Double(maxPixels) else { throw ScanError(loc("The scanner's PDF has a page too large to show.")) }
         let width = Int(w), height = Int(h)
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
               let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
-            throw ScanError("The scanner's PDF has a page too large to show.")
+            throw ScanError(loc("The scanner's PDF has a page too large to show."))
         }
         context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -48,7 +48,7 @@ public struct ScannedPdfPages: PdfPageRenderer {
         // The transform takes the page's box (and its /Rotate) onto the turned size, never scaling it.
         context.concatenate(page.getDrawingTransform(.mediaBox, rect: CGRect(origin: .zero, size: size), rotate: 0, preserveAspectRatio: true))
         context.drawPDFPage(page)
-        guard let image = context.makeImage() else { throw ScanError("The scanner's PDF has a page that couldn't be drawn.") }
+        guard let image = context.makeImage() else { throw ScanError(loc("The scanner's PDF has a page that couldn't be drawn.")) }
         return image
     }
 }

@@ -99,17 +99,17 @@ public enum SeparatorSheet {
 
         let name = PatchCodes.name(code)
         let lines: [SheetText] = [
-            SheetText("Separator sheet", size: 26, baseline: h - 72),
+            SheetText(loc("Separator sheet"), size: 26, baseline: h - 72),
             SheetText(name, size: 18, baseline: h - 104),
-            SheetText("Inkvolt Print starts a new file at this sheet.", size: 11, baseline: h - min(top - 72, 150)),
-            SheetText("Put a copy in front of each document in the feeder, face up like the pages.", size: 11, baseline: foot),
-            SheetText("On the Scan tab, choose \"Split into files at: Patch codes\".", size: 11, baseline: foot - 16),
-            SheetText("Print at actual size (100%, not \"fit to page\"), in black. Keep the area around the bars clean.",
+            SheetText(loc("Inkvolt Print starts a new file at this sheet."), size: 11, baseline: h - min(top - 72, 150)),
+            SheetText(loc("Put a copy in front of each document in the feeder, face up like the pages."), size: 11, baseline: foot),
+            SheetText(loc("On the Scan tab, choose \"Split into files at: Patch codes\"."), size: 11, baseline: foot - 16),
+            SheetText(loc("Print at actual size (100%, not \"fit to page\"), in black. Keep the area around the bars clean."),
                       size: 9, baseline: foot - 40),
-            SheetText("Reuse the sheet rather than copying it: copiers widen bars. Scanned sheets are left out unless you keep them.",
+            SheetText(loc("Reuse the sheet rather than copying it: copiers widen bars. Scanned sheets are left out unless you keep them."),
                       size: 9, baseline: foot - 54),
         ]
-        return SeparatorSheetPage(width: w, height: h, bars: bars, lines: lines, title: "Separator sheet (\(name))")
+        return SeparatorSheetPage(width: w, height: h, bars: bars, lines: lines, title: loc("Separator sheet ({0})", name))
     }
 
     /// The sheet's bars (no text) as a scan of it would show them at `pixelsPerInch`: black on white. For tests and demo mode.

@@ -130,14 +130,15 @@ struct SupplyChart: View {
         let parts = data.lines.compactMap { line -> String? in
             let points = line.segments.flatMap { $0 }
             guard let first = points.first, let last = points.last else { return nil }
-            let levels = "\(line.supply) from \(first.percent)% to \(last.percent)%"
+            let supply = SupplyNames.display(line.supply)
+            let levels = String(localized: "\(supply) from \(first.percent)% to \(last.percent)%")
             switch line.changes.count {
             case 0: return levels
-            case 1: return levels + ", changed on " + date(line.changes[0]).formatted(long)
-            default: return levels + ", changed \(line.changes.count) times"
+            case 1: return String(localized: "\(levels), changed on \(date(line.changes[0]).formatted(long))")
+            default: return String(localized: "\(levels), changed \(line.changes.count) times")
             }
         }
-        return "Levels since \(date(data.from).formatted(long)): " + parts.joined(separator: "; ")
+        return String(localized: "Levels since \(date(data.from).formatted(long)): \(parts.joined(separator: "; "))")
     }
 
     /// Noon on that day here (a day's mark never slips across midnight with daylight saving).
@@ -175,17 +176,17 @@ enum SupplyHistoryExport {
             return nil
         }
         let panel = NSSavePanel()
-        panel.title = "Export the supply history"
+        panel.title = String(localized: "Export the supply history")
         panel.allowedContentTypes = [.commaSeparatedText]
-        panel.nameFieldStringValue = "Supply history \(Day(Date())).csv"
+        panel.nameFieldStringValue = String(localized: "Supply history \(Day(Date()).description).csv")
         panel.directoryURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
         panel.canCreateDirectories = true
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         do {
             try write(csv, to: url)
-            return "Saved \(url.lastPathComponent)"
+            return String(localized: "Saved \(url.lastPathComponent)")
         } catch {
-            return "Could not save the supply history: \(error.localizedDescription)"
+            return String(localized: "Could not save the supply history: \(error.localizedDescription)")
         }
     }
 

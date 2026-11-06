@@ -29,13 +29,13 @@ public enum DemoScanPage {
             }
             let inch = CGFloat(150)
             var y = CGFloat(h) - inch
-            draw("Inkvolt Print demo", size: 28, bold: true, at: CGPoint(x: inch, y: y), context)
+            draw(loc("Inkvolt Print demo"), size: 28, bold: true, at: CGPoint(x: inch, y: y), context)
             y -= 50
             let lines = [
-                "This page came from the demo scanner. Nothing was scanned and nothing left this Mac.",
-                "Pages are checked as they arrive: blank sheets are left out and crooked ones straightened.",
-                "Turn, crop, reorder or delete pages before saving them as a PDF or JPEG images.",
-                "A searchable PDF carries the words Vision recognises on this Mac, invisible over the page.",
+                loc("This page came from the demo scanner. Nothing was scanned and nothing left this Mac."),
+                loc("Pages are checked as they arrive: blank sheets are left out and crooked ones straightened."),
+                loc("Turn, crop, reorder or delete pages before saving them as a PDF or JPEG images."),
+                loc("A searchable PDF carries the words Vision recognises on this Mac, invisible over the page."),
             ]
             for (i, text) in (0..<18).map({ lines[$0 % lines.count] }).enumerated() {
                 draw(text, size: 13, bold: false, at: CGPoint(x: inch, y: y - CGFloat(i) * 24), context)
@@ -72,11 +72,11 @@ public enum DemoScanPage {
         context.setFillColor(CGColor(red: 0.93, green: 0.91, blue: 0.84, alpha: 1))
         context.fill(sheet)
         var y = sheet.maxY - inch
-        draw("Inkvolt Print demo", size: 28, bold: true, at: CGPoint(x: sheet.minX + inch, y: y), context)
+        draw(loc("Inkvolt Print demo"), size: 28, bold: true, at: CGPoint(x: sheet.minX + inch, y: y), context)
         y -= 50
         let lines = [
-            "This sheet lay on the scanner's lid: Crop to the paper takes the lid off around it.",
-            "Whiten the background evens the yellowed paper out to white; the writing stays.",
+            loc("This sheet lay on the scanner's lid: Crop to the paper takes the lid off around it."),
+            loc("Whiten the background evens the yellowed paper out to white; the writing stays."),
             "Привет из демо-сканера: этот текст тоже находится поиском.",
         ]
         for (i, text) in (0..<12).map({ lines[$0 % lines.count] }).enumerated() {

@@ -98,10 +98,10 @@ public final class IppClient: Sendable {
         }
         let (code, label): (String, String)
         switch r.int("printer-state") {
-        case 3: (code, label) = ("ready", "Ready")
-        case 4: (code, label) = ("processing", "Printing")
-        case 5: (code, label) = ("stopped", "Stopped")
-        default: (code, label) = ("unknown", "Unknown")
+        case 3: (code, label) = ("ready", loc("Ready"))
+        case 4: (code, label) = ("processing", loc("Printing"))
+        case 5: (code, label) = ("stopped", loc("Stopped"))
+        default: (code, label) = ("unknown", loc("Unknown"))
         }
         let severity = alerts.map(\.severity).max() ?? (code == "stopped" ? .error : .info)
         let detail = alerts.filter { $0.severity == severity }.lazy.compactMap { IppStatusText.explain($0.id) }.first

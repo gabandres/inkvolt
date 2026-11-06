@@ -132,17 +132,17 @@ public struct ScannerStatus: Equatable, Sendable {
     public func problem(feeder: Bool) -> String? {
         if feeder, let adfState, !adfLoaded {
             switch adfState {
-            case "ScannerAdfJam": return "The document feeder is jammed. Clear the paper and try again."
-            case "ScannerAdfDoorOpen", "ScannerAdfHatchOpen": return "The document feeder's cover is open. Close it and try again."
+            case "ScannerAdfJam": return loc("The document feeder is jammed. Clear the paper and try again.")
+            case "ScannerAdfDoorOpen", "ScannerAdfHatchOpen": return loc("The document feeder's cover is open. Close it and try again.")
             case "ScannerAdfMispick", "ScannerAdfMultipickDetected":
-                return "The document feeder couldn't pick up a page. Straighten the stack and try again."
-            case "ScannerAdfInputTrayOverloaded": return "Too many pages in the document feeder. Take some out and try again."
+                return loc("The document feeder couldn't pick up a page. Straighten the stack and try again.")
+            case "ScannerAdfInputTrayOverloaded": return loc("Too many pages in the document feeder. Take some out and try again.")
             case "ScannerAdfDuplexPageTooShort", "ScannerAdfDuplexPageTooLong":
-                return "This page size can't be scanned on both sides. Scan one side, or use the glass."
-            default: return "Load the pages into the document feeder first."
+                return loc("This page size can't be scanned on both sides. Scan one side, or use the glass.")
+            default: return loc("Load the pages into the document feeder first.")
             }
         }
-        return ["Idle", "Processing", "Testing"].contains(state) ? nil : "Scanner is \(state.lowercased())."
+        return ["Idle", "Processing", "Testing"].contains(state) ? nil : loc("Scanner is {0}.", state.lowercased())
     }
 
     public static func parse(_ root: XmlElement) -> ScannerStatus {

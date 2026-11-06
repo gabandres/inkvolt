@@ -30,21 +30,21 @@ public struct MacBatchDocuments: BatchDocuments {
         try stop.check()
         let data = Data(held.bytes)
         if Self.isPdf(held.bytes) {
-            guard let pdf = PDFDocument(data: data) else { throw BatchFileError("This PDF can't be read: it may be damaged.") }
+            guard let pdf = PDFDocument(data: data) else { throw BatchFileError(loc("This PDF can't be read: it may be damaged.")) }
             if pdf.isLocked {
                 guard let password, pdf.unlock(withPassword: password) else { throw BatchPasswordError() }
             }
-            if !pdf.allowsPrinting { throw BatchFileError("This PDF's author doesn't allow printing it.") }
+            if !pdf.allowsPrinting { throw BatchFileError(loc("This PDF's author doesn't allow printing it.")) }
             return PdfBatchDocument(held.fingerprint, pdf)
         }
         guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
               let type = CGImageSourceGetType(source) as String? else {
-            throw BatchFileError("This picture can't be read: it may be damaged, or not a kind macOS reads.")
+            throw BatchFileError(loc("This picture can't be read: it may be damaged, or not a kind macOS reads."))
         }
         // A TIFF's pages print one by one; other kinds (an animated GIF, a HEIC's extra pictures) print their first picture.
         let isTiff = UTType(type)?.conforms(to: .tiff) == true
         let count = isTiff ? CGImageSourceGetCount(source) : min(1, CGImageSourceGetCount(source))
-        if count < 1 { throw BatchFileError("This picture can't be read: it may be damaged.") }
+        if count < 1 { throw BatchFileError(loc("This picture can't be read: it may be damaged.")) }
         if count > BatchPrintLimits.maxPages { return PictureBatchDocument(held.fingerprint, source, count: count) } // the measurer says why
         for i in 0..<count {
             let props = CGImageSourceCopyPropertiesAtIndex(source, i, nil) as? [CFString: Any]
@@ -68,7 +68,7 @@ public struct MacBatchDocuments: BatchDocuments {
         do {
             return try ScanImaging.jpeg(image)
         } catch {
-            throw BatchFileError("A page couldn't be prepared for printing.")
+            throw BatchFileError(loc("A page couldn't be prepared for printing."))
         }
     }
 }
@@ -90,24 +90,24 @@ final class PdfBatchDocument: BatchDocument, @unchecked Sendable {
     func render(_ page: Int, _ stop: BatchStop) async throws -> BatchPrintPage {
         try stop.check()
         return try lock.withLock {
-            guard page >= 1, page <= pdf.pageCount, let p = pdf.page(at: page - 1) else { throw BatchFileError("Page \(page) can't be drawn.") }
+            guard page >= 1, page <= pdf.pageCount, let p = pdf.page(at: page - 1) else { throw BatchFileError(loc("Page {0} can't be drawn.", page)) }
             // The CropBox, as Preview shows the page and Windows' batch prints it (Windows.Data.Pdf's PdfPage.Size); PDFKit gives
             // the MediaBox where there is none, and draws the box from its corner, turned as /Rotate says.
             let box = p.bounds(for: .cropBox)
             let turned = abs(p.rotation) % 180 == 90
             let width = Double(turned ? box.height : box.width), height = Double(turned ? box.width : box.height)
-            guard width > 0, height > 0, width < 14_400, height < 14_400 else { throw BatchFileError("Page \(page) has no size a printer can take.") }
+            guard width > 0, height > 0, width < 14_400, height < 14_400 else { throw BatchFileError(loc("Page {0} has no size a printer can take.", page)) }
             var scale = MacBatchDocuments.dpi / 72
             let pixels = width * scale * height * scale
             if pixels > MacBatchDocuments.maxPagePixels { scale *= (MacBatchDocuments.maxPagePixels / pixels).squareRoot() }
             let w = max(1, Int(width * scale)), h = max(1, Int(height * scale)) // bounded: under 14,400 pt at most 300 dpi, checked above
             guard let context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { throw BatchFileError("Page \(page) can't be drawn.") }
+                                          bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { throw BatchFileError(loc("Page {0} can't be drawn.", page)) }
             context.setFillColor(CGColor(gray: 1, alpha: 1))
             context.fill(CGRect(x: 0, y: 0, width: w, height: h))
             context.scaleBy(x: CGFloat(scale), y: CGFloat(scale))
             p.draw(with: .cropBox, to: context)
-            guard let image = context.makeImage() else { throw BatchFileError("Page \(page) can't be drawn.") }
+            guard let image = context.makeImage() else { throw BatchFileError(loc("Page {0} can't be drawn.", page)) }
             return BatchPrintPage(try MacBatchDocuments.jpeg(image), width / 72, height / 72)
         }
     }
@@ -138,22 +138,22 @@ final class PictureBatchDocument: BatchDocument, @unchecked Sendable {
             let props = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
             let width = (props?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 0
             let height = (props?[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? 0
-            let what = pageCount > 1 ? "Page \(page) of the picture" : "The picture"
-            guard index >= 0, index < pageCount, width > 0, height > 0 else { throw BatchFileError("\(what) can't be drawn.") }
+            let what = pageCount > 1 ? loc("Page {0} of the picture", page) : loc("The picture")
+            guard index >= 0, index < pageCount, width > 0, height > 0 else { throw BatchFileError(loc("{0} can't be drawn.", what)) }
             let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceCreateThumbnailWithTransform: true,
                                             kCGImageSourceThumbnailMaxPixelSize: min(max(width, height), MacBatchDocuments.maxEdge),
                                             kCGImageSourceShouldCacheImmediately: true]
-            guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary) else { throw BatchFileError("\(what) can't be drawn.") }
+            guard let image = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary) else { throw BatchFileError(loc("{0} can't be drawn.", what)) }
             // Drawn on white: a picture with see-through parts prints as it looks.
             guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
                                           space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
-                throw BatchFileError("\(what) can't be drawn.")
+                throw BatchFileError(loc("{0} can't be drawn.", what))
             }
             let all = CGRect(x: 0, y: 0, width: image.width, height: image.height)
             context.setFillColor(CGColor(gray: 1, alpha: 1))
             context.fill(all)
             context.draw(image, in: all)
-            guard let flat = context.makeImage() else { throw BatchFileError("\(what) can't be drawn.") }
+            guard let flat = context.makeImage() else { throw BatchFileError(loc("{0} can't be drawn.", what)) }
             return BatchPrintPage(try MacBatchDocuments.jpeg(flat), Double(image.width) / MacBatchDocuments.dpi, Double(image.height) / MacBatchDocuments.dpi)
         }
     }

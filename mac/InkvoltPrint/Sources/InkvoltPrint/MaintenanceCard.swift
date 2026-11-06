@@ -37,7 +37,7 @@ final class MaintenanceModel {
 
     func run(_ a: MaintenanceAction) async {
         guard let conn = await printer.connection() else {
-            result = MaintenanceResult(false, "The printer isn't answering.")
+            result = MaintenanceResult(false, String(localized: "The printer isn't answering."))
             return
         }
         busy = true
@@ -49,7 +49,7 @@ final class MaintenanceModel {
             retry = a
             askingPassword = true
         } catch {
-            result = MaintenanceResult(false, "The printer didn't take the request.")
+            result = MaintenanceResult(false, String(localized: "The printer didn't take the request."))
         }
     }
 
@@ -100,7 +100,7 @@ struct MaintenanceCard: View {
         .confirmationDialog(model.asking?.label ?? "", isPresented: Binding(get: { model.asking != nil }, set: { if !$0 { model.asking = nil } })) {
             if let a = model.asking { Button(a.confirmButton) { Task { await model.run(a) } } }
         } message: {
-            Text(model.asking.map { a in a.uses + (a.printsPage ? "\n\nThe printer needs to be on and free, with plain paper loaded." : "") } ?? "")
+            Text(model.asking.map { a in a.uses + (a.printsPage ? String(localized: "\n\nThe printer needs to be on and free, with plain paper loaded.") : "") } ?? "")
         }
         .sheet(isPresented: $model.askingPassword) {
             VStack(alignment: .leading, spacing: 12) {

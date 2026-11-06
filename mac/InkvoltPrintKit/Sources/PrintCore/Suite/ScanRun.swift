@@ -61,25 +61,26 @@ public enum ScanRun {
     ///   - finish: the finish button's words ("Create PDF", "Insert Pages").
     public static func doneText(kept: Int, blank: Int, unreadable: Int, glass: Bool, finish: String) -> String {
         var left: [String] = []
-        if blank > 0 { left.append(blank == 1 ? "1 blank page left out" : "\(blank) blank pages left out") }
+        if blank > 0 { left.append(blank == 1 ? loc("{0} blank page left out", blank) : loc("{0} blank pages left out", blank)) }
         if unreadable > 0 {
-            left.append(unreadable == 1 ? "1 page that couldn't be read left out" : "\(unreadable) pages that couldn't be read left out")
+            left.append(unreadable == 1 ? loc("{0} page that couldn't be read left out", unreadable)
+                : loc("{0} pages that couldn't be read left out", unreadable))
         }
         let also = left.isEmpty ? "" : " (\(left.joined(separator: ", ")))"
         if kept == 0 {
             return blank > 0 && unreadable == 0
-                ? "Every page scanned looked blank, so none were added\(also). Clear \"Leave out blank pages\" to keep them."
-                : "The scanner returned no pages\(also)."
+                ? loc("Every page scanned looked blank, so none were added{0}. Clear \"Leave out blank pages\" to keep them.", also)
+                : loc("The scanner returned no pages{0}.", also)
         }
         return glass
-            ? "Done\(also). For another page, put it on the glass and press Scan Another Page; or press \(finish)."
-            : "Done: \(pages(kept)) from the feeder\(also)."
+            ? loc("Done{0}. For another page, put it on the glass and press Scan Another Page; or press {1}.", also, finish)
+            : loc("Done: {0} from the feeder{1}.", pages(kept), also)
     }
 
     /// "Scanned page 3. Scanning…", with the blank pages left out so far.
     public static func progressText(_ count: Int, blank: Int) -> String {
-        blank > 0 ? "Scanned page \(count) (\(blank) blank left out). Scanning…" : "Scanned page \(count). Scanning…"
+        blank > 0 ? loc("Scanned page {0} ({1} blank left out). Scanning…", count, blank) : loc("Scanned page {0}. Scanning…", count)
     }
 
-    public static func pages(_ n: Int) -> String { n == 1 ? "1 page" : "\(n) pages" }
+    public static func pages(_ n: Int) -> String { n == 1 ? loc("{0} page", n) : loc("{0} pages", n) }
 }

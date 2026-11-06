@@ -100,7 +100,7 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         // The units come once the scanner says it's available, a moment after the session opens.
         for _ in 0..<50 where scanner.availableFunctionalUnitTypes.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
         let types = scanner.availableFunctionalUnitTypes.compactMap { ICScannerFunctionalUnitType(rawValue: $0.uintValue) }
-        if types.isEmpty { throw ScanError("The scanner offers no glass or feeder.") }
+        if types.isEmpty { throw ScanError(loc("The scanner offers no glass or feeder.")) }
         var platen: InputCaps?, adf: InputCaps?, duplex = false
         for type in types where type == .flatbed || type == .documentFeeder {
             try await select(type)
@@ -215,7 +215,7 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
 
     public func didRemove(_ device: ICDevice) {
         isOpen = false
-        pages?.finish(throwing: ScanError("The scanner was disconnected."))
+        pages?.finish(throwing: ScanError(loc("The scanner was disconnected.")))
         pages = nil
     }
 
@@ -223,10 +223,10 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     nonisolated static func words(_ error: any Error) -> String {
         // ImageCaptureCore's codes (ICReturnCode); it has none for an empty feeder or a jam: those come in the description.
         switch (error as NSError).code {
-        case -9925, -9926: return "Someone else is using the scanner. Try again in a moment."
-        case -9923, -9927, -9958: return "The scanner didn't answer. Check that it's on and connected."
-        case -9924: return "The scan was stopped."
-        default: return "The scanner stopped: \((error as NSError).localizedDescription)"
+        case -9925, -9926: return loc("Someone else is using the scanner. Try again in a moment.")
+        case -9923, -9927, -9958: return loc("The scanner didn't answer. Check that it's on and connected.")
+        case -9924: return loc("The scan was stopped.")
+        default: return loc("The scanner stopped: {0}", (error as NSError).localizedDescription)
         }
     }
 }

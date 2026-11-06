@@ -200,24 +200,24 @@ public enum QueueDevice {
 public enum QueueDeviceText {
     public static func origin(_ from: QueueReadingFrom) -> String {
         switch from {
-        case .printerOverUsb: "the printer over USB (IPP)"
-        case .printerOverNetwork: "the printer over IPP"
+        case .printerOverUsb: loc("the printer over USB (IPP)")
+        case .printerOverNetwork: loc("the printer over IPP")
         }
     }
 
     /// Short, for the supplies card and the fleet: "From the printer over USB".
     public static func source(_ from: QueueReadingFrom) -> String {
         switch from {
-        case .printerOverUsb: "From the printer over USB"
-        case .printerOverNetwork: "From the printer"
+        case .printerOverUsb: loc("From the printer over USB")
+        case .printerOverNetwork: loc("From the printer")
         }
     }
 
     /// The origin when no printer answered: the queue as macOS has it.
-    public static let macOSOrigin = "macOS's print queue"
+    public static var macOSOrigin: String { loc("macOS's print queue") }
 
     /// The supplies card of a queue printer that's online with no levels from anywhere.
-    public static let notReported = "Not reported by this printer."
+    public static var notReported: String { loc("Not reported by this printer.") }
 
     /// The supplies card's source line for `read`: `from`, where the printer's own levels came from (nil: none, so the levels
     /// shown are cupsd's copy, with no line); "Not reported by this printer." for a queue that's online with none at all; nil

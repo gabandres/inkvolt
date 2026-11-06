@@ -32,15 +32,15 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
     public static func forUser(_ name: String?, _ authPassphrase: String?, _ privPassphrase: String?) throws -> SnmpLogin {
         let name = name ?? "", auth = authPassphrase ?? "", priv = privPassphrase ?? ""
         let min = SnmpV3User.minPassphrase, max = SnmpV3User.maxPassphrase
-        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw SnmpLoginError("Enter the SNMPv3 user name.") }
+        if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw SnmpLoginError(loc("Enter the SNMPv3 user name.")) }
         if name.utf8.count > SnmpV3User.maxName || name.unicodeScalars.contains(where: SnmpValue.isControl) {
-            throw SnmpLoginError("The user name is 1 to \(SnmpV3User.maxName) characters, without control characters.")
+            throw SnmpLoginError(loc("The user name is 1 to {0} characters, without control characters.", SnmpV3User.maxName))
         }
-        if auth.utf16.count < min { throw SnmpLoginError("The authentication passphrase has at least \(min) characters.") }
-        if priv.utf16.count < min { throw SnmpLoginError("The privacy passphrase has at least \(min) characters.") }
-        if auth.utf16.count > max || priv.utf16.count > max { throw SnmpLoginError("A passphrase can have at most \(max) characters.") }
+        if auth.utf16.count < min { throw SnmpLoginError(loc("The authentication passphrase has at least {0} characters.", min)) }
+        if priv.utf16.count < min { throw SnmpLoginError(loc("The privacy passphrase has at least {0} characters.", min)) }
+        if auth.utf16.count > max || priv.utf16.count > max { throw SnmpLoginError(loc("A passphrase can have at most {0} characters.", max)) }
         if (auth + priv).unicodeScalars.contains(where: SnmpValue.isControl) {
-            throw SnmpLoginError("The passphrases can't have tabs, line breaks or other control characters.")
+            throw SnmpLoginError(loc("The passphrases can't have tabs, line breaks or other control characters."))
         }
         return SnmpLogin(community: "", user: SnmpV3User(name: name, authPassphrase: auth, privPassphrase: priv))
     }
@@ -50,9 +50,9 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
     public static func forCommunity(_ text: String?) throws -> SnmpLogin {
         guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .public }
         if text.unicodeScalars.contains(where: SnmpValue.isControl) {
-            throw SnmpLoginError("The community can't have tabs, line breaks or other control characters.")
+            throw SnmpLoginError(loc("The community can't have tabs, line breaks or other control characters."))
         }
-        if text.utf8.count > maxCommunity { throw SnmpLoginError("The community can be at most \(maxCommunity) characters.") }
+        if text.utf8.count > maxCommunity { throw SnmpLoginError(loc("The community can be at most {0} characters.", maxCommunity)) }
         return SnmpLogin(community: text)
     }
 

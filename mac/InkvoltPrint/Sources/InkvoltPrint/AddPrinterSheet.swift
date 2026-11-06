@@ -102,7 +102,7 @@ final class AddPrinterModel {
             p = nil
         }
         guard let p else {
-            found[i].error = "Couldn't add it: it isn't on the network now."
+            found[i].error = String(localized: "Couldn't add it: it isn't on the network now.")
             return
         }
         found[i].state = .added
@@ -130,7 +130,7 @@ final class AddPrinterModel {
         // What's filled in counts, shown or not; nothing typed is public.
         guard let login = snmpAccess.isBlank ? .public : snmpAccess.read() else {
             showsSnmp = true // why it can't be used shows there
-            addressError = "Check SNMP access below."
+            addressError = String(localized: "Check SNMP access below.")
             return
         }
         isAddingAddress = true

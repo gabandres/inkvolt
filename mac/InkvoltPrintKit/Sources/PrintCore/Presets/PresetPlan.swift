@@ -21,13 +21,13 @@ public struct PresetPlan: Equatable, Sendable {
         case .feeder: useFeeder = hasFeeder
         default: useFeeder = hasFeeder && (feederLoaded == true || !hasGlass)
         }
-        if preset.source == .glass && !hasGlass { notes.append("This scanner has no glass: scanning from the document feeder.") }
-        if preset.source == .feeder && !hasFeeder { notes.append("This scanner has no document feeder: scanning from the glass.") }
+        if preset.source == .glass && !hasGlass { notes.append(loc("This scanner has no glass: scanning from the document feeder.")) }
+        if preset.source == .feeder && !hasFeeder { notes.append(loc("This scanner has no document feeder: scanning from the glass.")) }
 
         var source = ScanSource.platen
         if useFeeder {
             source = preset.twoSided && caps.adfDuplex ? .adfDuplex : .adf
-            if preset.twoSided && !caps.adfDuplex { notes.append("This scanner's feeder scans one side only.") }
+            if preset.twoSided && !caps.adfDuplex { notes.append(loc("This scanner's feeder scans one side only.")) }
         }
 
         let colors = ScanChoices.colors(caps, source)
@@ -43,12 +43,12 @@ public struct PresetPlan: Equatable, Sendable {
         let offered = ScanChoices.pageSizes(caps, source)
         let size = ScanChoices.defaultPageSize(offered, remembered: preset.pageSize, metric: metric)
         if let wanted = preset.pageSize, size.key != wanted, let missing = ScanChoices.pageSizes.first(where: { $0.key == wanted }) {
-            notes.append("\(missing.label) doesn't fit this source: scanning \(size.label).")
+            notes.append(loc("{0} doesn't fit this source: scanning {1}.", missing.label, size.label))
         }
 
         let ocr = preset.fileType == .searchablePdf && ocrAvailable
         if preset.fileType == .searchablePdf && !ocrAvailable {
-            notes.append("Text recognition isn't available on this Mac: the PDF won't be searchable.")
+            notes.append(loc("Text recognition isn't available on this Mac: the PDF won't be searchable."))
         }
         return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes)
     }

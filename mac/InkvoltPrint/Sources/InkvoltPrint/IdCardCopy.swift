@@ -30,9 +30,9 @@ final class IdCardCopyModel {
 
     var hint: String {
         switch step {
-        case .front: "Put the card face down in the corner of the scanner glass (by the arrow mark), then click Scan Front. You'll turn it over halfway."
-        case .back: "Turn the card over in the same corner of the glass, then click Scan Back."
-        case .done: "Both sides are on one sheet, at actual size. Print again, or start over with another card."
+        case .front: String(localized: "Put the card face down in the corner of the scanner glass (by the arrow mark), then click Scan Front. You'll turn it over halfway.")
+        case .back: String(localized: "Turn the card over in the same corner of the glass, then click Scan Back.")
+        case .done: String(localized: "Both sides are on one sheet, at actual size. Print again, or start over with another card.")
         }
     }
 
@@ -43,7 +43,7 @@ final class IdCardCopyModel {
         problem = nil
         defer { isScanning = false }
         guard let scanner = await printer.scanner() else {
-            problem = "The scanner isn't available while the printer isn't connected."
+            problem = String(localized: "The scanner isn't available while the printer isn't connected.")
             return
         }
         let caps = try? await scanner.capabilities()
@@ -54,7 +54,7 @@ final class IdCardCopyModel {
             var page: [UInt8]?
             for try await jpeg in scanner.scan(request) where page == nil { page = jpeg }
             guard let page, let image = NSImage(data: Data(page)) else {
-                problem = "No page came from the scanner."
+                problem = String(localized: "No page came from the scanner.")
                 return
             }
             let side = IdCardSheet.Side(jpeg: page, dpi: ScanModel.dpi(of: page, asked: dpi, widthIn300ths: CopyLayout.idCardScanWidth))
@@ -71,7 +71,7 @@ final class IdCardCopyModel {
         } catch let e as ScanError {
             problem = e.description
         } catch {
-            problem = "The scan didn't finish: the scanner stopped answering."
+            problem = String(localized: "The scan didn't finish: the scanner stopped answering.")
         }
     }
 
@@ -88,7 +88,7 @@ final class IdCardCopyModel {
     func print() {
         let paper = Self.paper
         guard let document else {
-            problem = "The copy couldn't be prepared for printing."
+            problem = String(localized: "The copy couldn't be prepared for printing.")
             return
         }
         Printing.print(document, name: "ID card copy", on: printer, app: app, actualSize: true, paper: NSSize(width: paper.width, height: paper.height))
@@ -118,9 +118,9 @@ struct IdCardCopySheet: View {
             Text(model.hint).fixedSize(horizontal: false, vertical: true)
             // The sheet as it prints: front on the top half, back on the bottom half.
             VStack(spacing: 0) {
-                half(model.front, "Front")
+                half(model.front, String(localized: "Front"))
                 Divider()
-                half(model.back, model.step == .back ? "Back: turn the card over" : "Back")
+                half(model.back, model.step == .back ? String(localized: "Back: turn the card over") : String(localized: "Back"))
             }
             .frame(width: 300, height: 388)
             .background(.white)
@@ -136,7 +136,7 @@ struct IdCardCopySheet: View {
                 if model.step == .done {
                     Button("Print Again") { model.print() }.buttonStyle(.borderedProminent)
                 } else {
-                    Button(model.step == .front ? "Scan Front" : "Scan Back") { Task { await model.scanSide() } }
+                    Button(model.step == .front ? String(localized: "Scan Front") : String(localized: "Scan Back")) { Task { await model.scanSide() } }
                         .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction).disabled(model.isScanning)
                 }
             }
@@ -155,6 +155,6 @@ struct IdCardCopySheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(image == nil ? "\(label), not scanned yet" : "\(label), scanned")
+        .accessibilityLabel(image == nil ? String(localized: "\(label), not scanned yet") : String(localized: "\(label), scanned"))
     }
 }

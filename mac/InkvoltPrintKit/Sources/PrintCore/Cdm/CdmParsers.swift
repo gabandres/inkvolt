@@ -110,15 +110,15 @@ public enum CdmParsers {
 
     // MARK: Status
 
-    private static let knownAlerts: [String: (text: String, severity: Severity, detail: String?)] = [
-        "doorOpen": ("Door open", .error, "A door or cover is open. Close it to continue."),
-        "trayEmpty": ("Load paper", .error, "Load paper into the tray and push it all the way in."),
-        "trayOpen": ("Tray open", .error, "Push the paper tray all the way in."),
-        "cartridgeLow": ("Cartridge low", .warning, "Printing goes on; have a replacement ready."),
-        "cartridgeVeryLow": ("Cartridge very low", .warning, "Print quality may drop soon; replace the cartridge."),
-        "cartridgeOut": ("Cartridge empty", .error, "Replace the cartridge to keep printing."),
-        "cartridgeMissing": ("Cartridge missing", .error, "Put the cartridge back in and close the door."),
-        "jam": ("Paper jam", .error, "Open the doors the printer shows, gently pull out the jammed paper, and close them."),
+    private static let knownAlerts: [String: (text: LocKey, severity: Severity, detail: LocKey?)] = [
+        "doorOpen": (LocKey("Door open"), .error, LocKey("A door or cover is open. Close it to continue.")),
+        "trayEmpty": (LocKey("Load paper"), .error, LocKey("Load paper into the tray and push it all the way in.")),
+        "trayOpen": (LocKey("Tray open"), .error, LocKey("Push the paper tray all the way in.")),
+        "cartridgeLow": (LocKey("Cartridge low"), .warning, LocKey("Printing goes on; have a replacement ready.")),
+        "cartridgeVeryLow": (LocKey("Cartridge very low"), .warning, LocKey("Print quality may drop soon; replace the cartridge.")),
+        "cartridgeOut": (LocKey("Cartridge empty"), .error, LocKey("Replace the cartridge to keep printing.")),
+        "cartridgeMissing": (LocKey("Cartridge missing"), .error, LocKey("Put the cartridge back in and close the door.")),
+        "jam": (LocKey("Paper jam"), .error, LocKey("Open the doors the printer shows, gently pull out the jammed paper, and close them.")),
     ]
 
     /// `/cdm/system/v1/status` (ready, inPowerSave, processing…) with the alerts of `/cdm/alert/v1/alerts`; without a system
@@ -143,12 +143,12 @@ public enum CdmParsers {
             default: severity = known?.severity ?? .warning
             }
             guard let severity else { continue }
-            var text = known?.text ?? LedmStatusText.humanize(category)
-            if let color = color(a) { text = "\(text) (\(color))" }
-            alerts.append((PrinterAlert(id: category, severity: severity, message: text), known?.detail))
+            var text = known?.text.text ?? LedmStatusText.humanize(category)
+            if let color = color(a) { text = "\(text) (\(SupplyNames.color(color)))" }
+            alerts.append((PrinterAlert(id: category, severity: severity, message: text), known?.detail?.text))
         }
 
-        if code == nil && alerts.isEmpty { return PrinterStatus(code: "unknown", message: "Status not available", severity: .info, alerts: []) }
+        if code == nil && alerts.isEmpty { return PrinterStatus(code: "unknown", message: loc("Status not available"), severity: .info, alerts: []) }
         let finalCode = code ?? "unknown"
         let severity = alerts.map(\.alert.severity).max() ?? LedmStatusText.severityOf(finalCode)
         let error = alerts.first { $0.alert.severity == .error }

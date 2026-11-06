@@ -30,10 +30,10 @@ public struct FleetSupply: Equatable, Sendable {
 /// How a queue is connected, in words without a server's or port's name (the Windows app's `FleetReader.ConnectionWord`).
 public enum FleetConnection {
     public static let usb = "USB"
-    public static let network = "Network"
+    public static var network: String { loc("Network") }
     /// A queue another computer shares: its name ends in that computer's name, which an export leaves out.
-    public static let shared = "Shared from another computer"
-    public static let other = "Other"
+    public static var shared: String { loc("Shared from another computer") }
+    public static var other: String { loc("Other") }
 
     /// A network printer's interfaces as the page and `status --all` both show them ("LEDM, IPP"); nil when it gave none.
     public static func interfaces(_ list: [String]) -> String? { list.isEmpty ? nil : list.joined(separator: ", ") }
@@ -101,8 +101,8 @@ public struct FleetPrinter: Equatable, Sendable {
 
     public static func of(_ f: FleetFacts) -> FleetPrinter {
         let usable = f.status.flatMap { $0.isUnavailable ? nil : $0 }
-        var p = FleetPrinter(id: f.id, name: FleetText.clean(f.name, maxText) ?? "Printer with no name", kind: f.kind,
-                             trouble: troubleOf(f, usable), status: FleetText.clean(f.status?.message, maxText) ?? "Status not available")
+        var p = FleetPrinter(id: f.id, name: FleetText.clean(f.name, maxText) ?? loc("Printer with no name"), kind: f.kind,
+                             trouble: troubleOf(f, usable), status: FleetText.clean(f.status?.message, maxText) ?? loc("Status not available"))
         p.model = FleetText.clean(f.model, maxText)
         p.connection = FleetText.clean(f.connection, maxText)
         // Worst first, keeping the printer's order among equals (a stable sort, as LINQ's OrderByDescending).

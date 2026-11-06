@@ -69,22 +69,22 @@ public struct SnmpReading: Equatable, Sendable {
 /// hrPrinterDetectedErrorState bits (RFC 2790) that no alert already covers.
 public enum SnmpPrinterStatus {
     /// hrPrinterDetectedErrorState bits, numbered from the first byte's most significant bit (RFC 2790).
-    private static let errorBits: [(bit: Int, id: String, severity: Severity, message: String)] = [
-        (0, "media-low", .warning, "Paper low"),
-        (1, "media-empty", .error, "Out of paper"),
-        (2, "toner-low", .warning, "Toner low"),
-        (3, "toner-empty", .error, "Toner empty"),
-        (4, "door-open", .error, "A door is open"),
-        (5, "media-jam", .error, "Paper jam"),
-        (6, "offline", .error, "The printer is offline"),
-        (7, "service-requested", .error, "The printer needs attention"),
-        (8, "input-tray-missing", .error, "Paper tray missing"),
-        (9, "output-tray-missing", .error, "Output tray missing"),
-        (10, "marker-supply-missing", .error, "Cartridge missing"),
-        (11, "output-area-almost-full", .warning, "Output tray almost full"),
-        (12, "output-area-full", .error, "Output tray full"),
-        (13, "input-tray-empty", .warning, "A paper tray is empty"),
-        (14, "maintenance-overdue", .warning, "Maintenance is overdue"),
+    private static let errorBits: [(bit: Int, id: String, severity: Severity, message: LocKey)] = [
+        (0, "media-low", .warning, LocKey("Paper low")),
+        (1, "media-empty", .error, LocKey("Out of paper")),
+        (2, "toner-low", .warning, LocKey("Toner low")),
+        (3, "toner-empty", .error, LocKey("Toner empty")),
+        (4, "door-open", .error, LocKey("A door is open")),
+        (5, "media-jam", .error, LocKey("Paper jam")),
+        (6, "offline", .error, LocKey("The printer is offline")),
+        (7, "service-requested", .error, LocKey("The printer needs attention")),
+        (8, "input-tray-missing", .error, LocKey("Paper tray missing")),
+        (9, "output-tray-missing", .error, LocKey("Output tray missing")),
+        (10, "marker-supply-missing", .error, LocKey("Cartridge missing")),
+        (11, "output-area-almost-full", .warning, LocKey("Output tray almost full")),
+        (12, "output-area-full", .error, LocKey("Output tray full")),
+        (13, "input-tray-empty", .warning, LocKey("A paper tray is empty")),
+        (14, "maintenance-overdue", .warning, LocKey("Maintenance is overdue")),
     ]
 
     /// Reasons that say the same thing, so an error bit doesn't repeat an alert in other words.
@@ -122,7 +122,7 @@ public enum SnmpPrinterStatus {
             if let existing = alerts.firstIndex(where: { $0.id == x.id }) {
                 if x.severity > alerts[existing].severity { alerts[existing].severity = x.severity }
             } else {
-                let message = x.id == "other" || x.id == "unknown" ? "The printer reports a problem" : IppStatusText.describe(x.id)
+                let message = x.id == "other" || x.id == "unknown" ? loc("The printer reports a problem") : IppStatusText.describe(x.id)
                 alerts.append(PrinterAlert(id: x.id, severity: x.severity, message: message))
             }
             if let d = words(a.description) {
@@ -141,7 +141,7 @@ public enum SnmpPrinterStatus {
         for bit in errorBits {
             if !isSet(r.detectedErrorState, bit.bit) || covered(alerts, bit.id) { continue }
             if bit.id == "service-requested" && !alerts.isEmpty { continue } // set alongside the real problem (a jam, low toner…)
-            alerts.append(PrinterAlert(id: bit.id, severity: bit.severity, message: bit.message))
+            alerts.append(PrinterAlert(id: bit.id, severity: bit.severity, message: bit.message.text))
         }
 
         let offline = isSet(r.detectedErrorState, 6)
@@ -156,15 +156,15 @@ public enum SnmpPrinterStatus {
     }
 
     private static func overallState(_ device: Int?, _ printer: Int?, offline: Bool) -> (String, String) {
-        if offline { return ("stopped", "Offline") }
-        if printer == PrinterMib.printerPrinting { return ("processing", "Printing") }
-        if printer == PrinterMib.printerWarmup { return ("warmingUp", "Warming up") }
-        if device == PrinterMib.deviceDown { return ("stopped", "Stopped") }
-        if printer == PrinterMib.printerIdle { return ("ready", "Ready") }
-        if device == PrinterMib.deviceRunning && printer == PrinterMib.printerOther { return ("inPowerSave", "Sleeping") } // RFC 3805's "Standby"
-        if device == PrinterMib.deviceRunning || device == PrinterMib.deviceWarning { return ("ready", "Ready") }
-        if device == PrinterMib.deviceTesting { return ("processing", "Testing") }
-        return ("unknown", "Unknown")
+        if offline { return ("stopped", loc("Offline")) }
+        if printer == PrinterMib.printerPrinting { return ("processing", loc("Printing")) }
+        if printer == PrinterMib.printerWarmup { return ("warmingUp", loc("Warming up")) }
+        if device == PrinterMib.deviceDown { return ("stopped", loc("Stopped")) }
+        if printer == PrinterMib.printerIdle { return ("ready", loc("Ready")) }
+        if device == PrinterMib.deviceRunning && printer == PrinterMib.printerOther { return ("inPowerSave", loc("Sleeping")) } // RFC 3805's "Standby"
+        if device == PrinterMib.deviceRunning || device == PrinterMib.deviceWarning { return ("ready", loc("Ready")) }
+        if device == PrinterMib.deviceTesting { return ("processing", loc("Testing")) }
+        return ("unknown", loc("Unknown"))
     }
 
     /// The supply table as consumables. Levels are a share of the maximum (RFC 3805: -1 other, -2 unknown, -3 "some left";

@@ -92,6 +92,7 @@ enum Report {
             cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))
             cancelled.append(handOffLine(model))
+            if args.contains("--strings") { cancelled += ReportStrings.lines() }
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try? Data((text(model, after: wait, search: search) + cancelled.map { $0 + "\n" }.joined()).utf8).write(to: folder.appendingPathComponent("report-\(name).txt"), options: .atomic)

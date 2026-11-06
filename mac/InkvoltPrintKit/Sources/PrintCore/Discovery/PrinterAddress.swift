@@ -13,8 +13,8 @@ public struct PrinterAddress: Equatable, Sendable {
 
     public static func parse(_ typed: String?) -> PrinterAddress {
         let text = typed?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if text.isEmpty { return fail("Type the printer's IP address or name.") }
-        let invalid = fail("\"\(text)\" is not a valid address.")
+        if text.isEmpty { return fail(loc("Type the printer's IP address or name.")) }
+        let invalid = fail(loc("\"{0}\" is not a valid address.", text))
         if text.contains("://") {
             guard let url = URLComponents(string: text), let host = url.host, !host.isEmpty, validPort(url.port) else { return invalid }
             switch url.scheme?.lowercased() {
@@ -25,7 +25,7 @@ public struct PrinterAddress: Equatable, Sendable {
                 guard let port = url.port, port != defaultPort(scheme) else { return PrinterAddress(host: host) }
                 return PrinterAddress(host: host, ipp: ippUrl(scheme, host, port, url.path))
             default:
-                return fail("Use the printer's IP address or name (or an http, https, ipp or ipps address).")
+                return fail(loc("Use the printer's IP address or name (or an http, https, ipp or ipps address)."))
             }
         }
         // An IPv6 host comes with or without its brackets depending on the platform's URLComponents.

@@ -10,7 +10,7 @@ struct InkvoltPrintApp: App {
     @State private var model = AppModel.shared
 
     var body: some Scene {
-        Window(model.isDemo ? "Inkvolt Print — Demo" : "Inkvolt Print", id: MainWindow.id) {
+        Window(model.isDemo ? String(localized: "Inkvolt Print — Demo") : "Inkvolt Print", id: MainWindow.id) { // English: the app's name
             MainWindow().environment(model)
         }
         .defaultSize(width: 920, height: 620)
@@ -87,10 +87,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let waiting = AppModel.shared.printers.reduce(0) { $0 + $1.unsavedPages }
             guard waiting > 0 else { return .terminateNow }
             let alert = NSAlert()
-            alert.messageText = "Quit with \(waiting) scanned \(waiting == 1 ? "page" : "pages") not saved?"
-            alert.informativeText = "They'll be offered again the next time Inkvolt Print opens."
-            alert.addButton(withTitle: "Quit")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = waiting == 1 ? String(localized: "Quit with \(waiting) scanned page not saved?")
+                : String(localized: "Quit with \(waiting) scanned pages not saved?")
+            alert.informativeText = String(localized: "They'll be offered again the next time Inkvolt Print opens.")
+            alert.addButton(withTitle: String(localized: "Quit"))
+            alert.addButton(withTitle: String(localized: "Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return .terminateCancel }
             AppModel.shared.scanStore?.keepForNextStart()
             return .terminateNow

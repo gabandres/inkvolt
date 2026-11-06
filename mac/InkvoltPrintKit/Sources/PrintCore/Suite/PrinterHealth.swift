@@ -53,8 +53,8 @@ public struct PrinterHealth: Sendable, Equatable {
         let state = readiness(status)
         let text: String
         switch state {
-        case .sleeping: text = "Sleeping"
-        case .ready: text = "Ready"
+        case .sleeping: text = loc("Sleeping")
+        case .ready: text = loc("Ready")
         default: text = status.message
         }
         return PrinterHealth(state: state, text: text, tonerPercent: toner, paperProblems: paper, problems: problems, supplies: supplyText)

@@ -42,15 +42,15 @@ public enum QueueJobText {
     /// The job's state; a job the printer can't take now says why (`printerOffline`: its queue says the printer can't be
     /// reached).
     public static func status(_ s: JobState, printerOffline: Bool = false) -> String {
-        if printerOffline && (s == .pending || s == .processing) { return "Printer offline" }
+        if printerOffline && (s == .pending || s == .processing) { return loc("Printer offline") }
         return switch s {
-        case .pending: "Waiting"
-        case .held: "On hold"
-        case .processing: "Printing"
-        case .stopped: "Stopped"
-        case .canceled: "Cancelled"
-        case .aborted: "Error"
-        case .completed: "Printed"
+        case .pending: loc("Waiting")
+        case .held: loc("On hold")
+        case .processing: loc("Printing")
+        case .stopped: loc("Stopped", context: "job")
+        case .canceled: loc("Cancelled")
+        case .aborted: loc("Error")
+        case .completed: loc("Printed")
         }
     }
 
@@ -65,8 +65,8 @@ public enum QueueJobText {
     /// "3 pages", "Page 2 of 3" while printing, "" while the page count isn't known.
     public static func pages(_ pages: Int?, _ printed: Int, _ s: JobState) -> String {
         guard let pages, pages > 0 else { return "" }
-        if s == .processing && printed > 0 && printed < pages { return "Page \(printed + 1) of \(pages)" }
-        return pages == 1 ? "1 page" : "\(pages) pages"
+        if s == .processing && printed > 0 && printed < pages { return loc("Page {0} of {1}", printed + 1, pages) }
+        return pages == 1 ? loc("{0} page", 1) : loc("{0} pages", pages)
     }
 
     /// Submitted time: just the time for today's jobs, else the date too.
@@ -85,10 +85,10 @@ public enum QueueJobText {
 
     /// One line under the card title: "2 jobs, 1 printing".
     public static func summary(_ jobs: [QueueJob]) -> String {
-        if jobs.isEmpty { return "Nothing waiting to print" }
+        if jobs.isEmpty { return loc("Nothing waiting to print") }
         let printing = jobs.count(where: { $0.state == .processing })
-        let what = jobs.count == 1 ? "1 job" : "\(jobs.count) jobs"
-        return printing > 0 && jobs.count > 1 ? "\(what), \(printing) printing" : what
+        let what = jobs.count == 1 ? loc("1 job") : loc("{0} jobs", jobs.count)
+        return printing > 0 && jobs.count > 1 ? loc("{0}, {1} printing", what, printing) : what
     }
 
     /// Oldest first, like the queue window.

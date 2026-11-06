@@ -312,7 +312,7 @@ final class AppModel {
         let host = p.host.contains(":") ? "[\(p.host)]" : p.host
         let ipp = await p.connection()?.ipp?.endpoint ?? p.ippHint ?? URL(string: "ipp://\(host):631/ipp/print")
         guard let plan = QueueSetup.plan(name: p.name, ippUri: ipp, hostName: p.hostName, destinations: destinations ?? []) else {
-            return "This printer doesn't offer driverless printing (IPP), so macOS needs its maker's driver for it. Add it in Printers & Scanners."
+            return String(localized: "This printer doesn't offer driverless printing (IPP), so macOS needs its maker's driver for it. Add it in Printers & Scanners.")
         }
         var failure: QueueControlError?
         do {
@@ -320,7 +320,7 @@ final class AppModel {
         } catch let e as QueueControlError {
             failure = e
         } catch {
-            failure = .failed("It stopped before it was done.")
+            failure = .failed(String(localized: "It stopped before it was done."))
         }
         await readQueues()
         return QueueSetup.outcome(failure, info: plan.info)
