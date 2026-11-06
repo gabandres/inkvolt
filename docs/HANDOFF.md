@@ -15,17 +15,30 @@ refuses an Inkvolt assembly not at the package version. Since 11-05 night also m
 additions (fixes on both platforms), PrintCore halves of Print 3.6 and 3.4. Print for Mac 1.1 is still
 Waiting for Review, so no 1.2 build. Owner: free disk space on `ignia-mac` (95 % full; Vision recompiles its model and
 returns no words).
-- **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~ (done 11-05) → Print for Mac
-  1.2 build to TestFlight once 1.1 is approved (still Waiting for Review 11-05) → ~~PDF for Mac 2.4 additions~~ (done
-  11-05) → Snapshot tool, printer status when printing (branch `t3/a9dc297a`, review fixes running) → Print 3.6 USB supply levels → Print 3.4 job notifications → PDF 2.3 scan leftovers → vector printing → Print 2.3 scan
-  cleanup, 3.2 SNMPv3 → Spanish for both Mac apps → PDF 3.5 folder search, 3.3 Compare → XL: redaction-by-pattern
-  additions, 3.4 LTV, 2.1 paragraph editing, 3.1 Translate.
-- **Lane 2, the PC (PrintCore halves, `swift-dev.ps1`, no Mac):** 3.6, 3.4, 2.3, 3.2 ahead of their lane-1 turn
-  (SNMPv3's crypto: check what Foundation offers off the Mac first).
-- **Lane 3, Windows partials:** ~~Flate bomb bounded by time~~ (page checks, done 11-05; the byte scanner `InflateGuard`
-  on `t3/pdf-handoff-small-open-items` was rejected, don't merge it) → the x64 soft-mask test and `pack-msix.ps1`'s stale
-  Release outputs, repack and smoke 1.8.0.0 (owner uploads) → TWAIN in Print's Scan tab → Translate's "Still wrong" with a real
-  model → `drawings.pdf` speed.
+**Later on 2026-11-05 (night), all merged, reviewed and pushed (master `a97f5f2`):** PDF for Mac's Snapshot tool and
+printer status when printing (`printers.json` hand-off in the app group); Print for Mac 3.6 USB supply levels and 3.4 job
+notifications (app halves: `ippusb://` queues, a localhost relay with `network.client` only, IPP Get-Jobs over cupsd's
+socket; CUPS keeps a job to a dead address "printing", retried each minute); PrintCore half of Print 2.3 (scan cleanup,
+the Unicode OCR layer); Windows Print 2.5 TWAIN and black and white in the Scan tab (`DriverScanners`, one list, also
+Inkvolt PDF's Scan dialog). CI fixes: check-int notes in scan cleanup; the huge-page cleanup test off CI.
+**The Mac's disk is full (~100 MB free, other projects' builds): no Mac session until the owner frees space**; until
+then Mac items go through the PC and the `mac` CI job (push a branch for CI, delete it after).
+**Small follow-ups (S):** Inkvolt PDF's Scan dialog lists no TWAIN sources when WIA itself fails (since `DriverScanners`;
+before a release); Windows' twins of three job-alert gaps fixed on the Mac (a job missing from one read restarts the
+stuck wait; `PendingUntil` ignores the failed-job hold; `Shown` keeps the oldest 256) and the scan summary's
+"no paper edge" miscount; PdfCore's `Ocr/ScanCleanup.swift` to use PrintCore's `CleanupParts` (Mac lane); the Mac
+self-test's four redaction checks that failed once and passed alone; SNMPv3 on the Mac needs SHA-256/AES (CryptoKit is
+Mac-only: do it in PrintMac, or a package by the owner's word).
+- **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~, ~~PDF for Mac 2.4
+  additions~~, ~~Snapshot, printer status~~, ~~Print 3.6, 3.4~~ (done 11-05) → Print for Mac 1.2 build to TestFlight once
+  1.1 is approved (still Waiting for Review 11-05) → Print 2.3 app half (ScanImaging around the filters, `ScanPdf` through
+  `PdfWriter` with Vision's words, the Clean up settings and review) → PDF 2.3 scan leftovers → vector printing → 3.2
+  SNMPv3 → Spanish for both Mac apps → PDF 3.5 folder search, 3.3 Compare → XL: redaction-by-pattern additions, 3.4 LTV,
+  2.1 paragraph editing, 3.1 Translate.
+- **Lane 2, the PC (PrintCore halves, `swift-dev.ps1`, no Mac):** ~~3.6, 3.4, 2.3~~ (done 11-05); 3.2 needs crypto (above).
+- **Lane 3, Windows partials:** ~~Flate bomb (page checks)~~, ~~1.8.0.0 released~~, ~~TWAIN in Print's Scan tab~~ (done
+  11-05; the byte scanner `InflateGuard` on `t3/pdf-handoff-small-open-items` was rejected, don't merge it) → the small
+  follow-ups above → Translate's "Still wrong" with a real model → `drawings.pdf` speed.
 - **Owner:** MS Office as the Mac's converter (Microsoft 365 on the Mac, the Automation prompt); ZapfDingbats needs font
   data (a package).
 
