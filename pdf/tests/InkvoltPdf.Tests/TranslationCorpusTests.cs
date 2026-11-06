@@ -10,7 +10,7 @@ namespace InkvoltPdf.Tests;
 /// The translated copy on real files, run only with INKVOLTPDF_CORPUS set to a folder of PDFs (the export corpus's
 /// <c>.cache</c>). No model: each text comes back longer and marked. Checks page counts, pictures' places and that the
 /// marked text shows: pixels change where each page's text was written (MuPDF's text extraction doesn't see clipping).
-/// INKVOLTPDF_CORPUS_OUT saves the first pages of each copy there, to look at.
+/// INKVOLTPDF_CORPUS_OUT saves the first pages of each copy there, to look at, and each copy itself.
 /// </summary>
 public class TranslationCorpusTests(ITestOutputHelper output)
 {
@@ -40,6 +40,11 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                              $"{plan.Blocked.Count} blocked, scans {plan.ScanPages.Count}, turned {plan.TurnedTextPages.Count}, failed {r.FailedPages.Count}; fonts {string.Join("/", r.Fonts)}; read {read.TotalSeconds:0.0}s write {sw.Elapsed.TotalSeconds:0.0}s; {pdf.Length / 1024} KB → {(result.Data?.Length ?? 0) / 1024} KB");
             foreach (var g in plan.Blocked.GroupBy(b => b.Why).OrderByDescending(g => g.Count()).Take(3)) output.WriteLine($"  blocked {g.Count()}: {g.Key}");
             if (result.Data is null) continue;
+            if (outDir is not null)
+            {
+                Directory.CreateDirectory(outDir);
+                File.WriteAllBytes(Path.Combine(outDir, $"{Path.GetFileNameWithoutExtension(file)}-copy.pdf"), result.Data);
+            }
             Assert.Equal(pdf.Length, File.ReadAllBytes(file).Length);
             using var copy = PdfEngine.Open(result.Data, MuPDFCore.InputFileTypes.PDF, null);
             using var original = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, null);

@@ -373,8 +373,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Times. The standard Symbol font not embedded (2026-11-04): read through Symbol's own encoding (`GlyphNames.InSymbol`,
   so "a" in it is α) and measured with Windows' Symbol (`SystemFonts.Program("symbol.ttf")`, whose widths are Adobe's;
   the euro at 160, which it lacks, is 750), a word in it is part of the paragraph, typed letters too
-  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). Still to do: ZapfDingbats not embedded, which
-  Windows has no twin of to measure (its widths would be new font data), so a run in it still edits line by line.
+  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). The standard ZapfDingbats not embedded (2026-11-06):
+  Windows has no twin of it (Segoe UI Symbol's dingbats are other shapes), so it stays in ZapfDingbats, read through its
+  built-in encoding and measured with Adobe's own data (`ZapfDingbats`: the Core 14 `ZapfDingbats.afm` and Adobe's Zapf
+  Dingbats glyph list, unmodified in `Core/Fonts` with the AFM licence, which `THIRD-PARTY-NOTICES.md` repeats); a word in
+  it is part of the paragraph, a typed ✔ too (`ParagraphEditTests.AWordInStandardZapfDingbatsNotEmbedded…`). PDF/A's
+  Segoe UI Symbol embedding reads its characters from the same table (`PdfA.DingbatUnicode`). MuPDF reads such a font by
+  its own glyphs, not as the characters (before and after an edit alike).
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
@@ -618,7 +623,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
   A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
   A stopped run's unreached paragraphs get no comment each: the summary names their pages.
-  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and turned text stay and are named. Text
+  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and text turned other than by a quarter
+  turn (a stamp at 30°, mirrored or slanted text) stay and are named. Text
   in a hidden layer is neither sent nor rewritten.
   Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
   its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
@@ -672,11 +678,39 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   into it before it shrinks, and an operator's column no longer counts the gap to the next column among its word spaces
   (resnet's "error top-1" and attn-v7's "Transformador (modelo base)" keep their size); a column's body paragraphs take one
   size, the one its most shrunk paragraph needs, no smaller than 80% (attn-v7 p. 8's body all at 8.47 pt).
-  **Still wrong.** Tables turned on the page, like the census's appendix, stay in English (named in the summary). A link's
-  underline and area stay where they were while the text moves (NIST p. 14: "complementarios, el Documento Especial" is
-  underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
-  label in a narrow cell with a row right under it still shrinks to the floor (the census's first "Income percentile
-  ratios:" as "Proporciones de percentiles de ingresos:"): its cell has neither the width nor the height. The model's,
+  **Turned text (2026-11-06).** Text set sideways or upside down (the census's appendix tables, a landscape table on a
+  portrait page) is translated: each quarter turn the page's runs read in (within half a degree) is turned upright in the
+  frame Export to Word turns a page by (`TranslationFrame`, `ContentEditor.TurnedParts`), its tables' rows and columns
+  found there from that direction's lines with the page's rules (`Surroundings`), and its paragraphs grouped, given their
+  room and fitted there as upright ones are; each new line's start is turned back onto the page and written in the run's
+  own text space, so it reads as before. Upright tables are now found from upright lines only (a sideways table's cells,
+  in their own frame, could land among them). `TranslationTests.A_table_set_sideways_is_translated_cell_by_cell…`; on
+  census-p60 p. 31 and 33 (stand-in answers) every label, heading and note is translated, figures stay in their columns,
+  nothing is named as turned. A multi-line row label in such a table ("AMERICAN INDIAN / AND ALASKA / NATIVE ALONE OR / IN
+  COMBINATION") goes as one paragraph a line, upright or turned alike (its lines sit on the figures' rows).
+  **Links and underlines (2026-11-06).** A link on a translated paragraph's lines moves onto its words where the
+  translation keeps them as they were (an identifier, a document number: "(SP) 800-63A,", "SP 800-63C,"; spaces don't
+  count, so a line's "800-" "63A," finds "800-63A,"), a copy of the link for each further line they reach, and its
+  underline is drawn again under them (its distance from the baseline and thickness scaled with the text, its color); a
+  link whose words were translated is taken off the page and out of the structure tree (what they became can't be
+  told), with its underline (its painting operator ends the path unpainted) (`ContentEditor.TranslateLinks.cs`:
+  `LinksOfWritten`, `Follow`, `FixLinks`, run by `TranslationWriter.Finish` once the copy's fonts are in it, so the new
+  words can be read). A turned paragraph's links are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`,
+  `A_link_whose_words…`; NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a
+  line's end and "800-" on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
+  Review (2026-11-06): a link's underline is only one rectangle filled in a plain color within the link's width; any
+  other mark under the words (no link's, a stroke, a spot color, two links' underlines in one operator) stays as drawn.
+  The underlines are blanked in the same step that moves the links, after the page is read again (a page that can't be
+  keeps both as they were). A link is looked for only in its own paragraph's new lines, at the place nearest where it was;
+  two places as near drop it. `Follow` tries only new words that can start the stretch.
+  **A label alone on its row (2026-11-06).** The only cell with text on a table's row takes the empty cells after it
+  (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
+  column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
+  answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.
+  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). Looked at 2026-11-06 and left:
+  the request would have to carry the looks as markup (a bold stretch, a subscript), the reply's markup be checked and
+  turned into spans (a small model drops or moves tags, and a stretch's words move in translation), and the copy's
+  one-face fitting (`MixedText` with `oneFace`) learn spans, with a rise for subscripts; not small. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
@@ -963,6 +997,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   unsmoothed run before, at 25 to 30% load: smoothing back costs the check some 120 ms a sheet), frames with a blank
   page 216 to 174 of 240, pages still blank after the stop 2 to 1, the same pages again 579 to 919 ms, Find 35.0 to
   30.7 s; text first page 0.29 to 0.24 s, scan 0.25 to 0.23 s, comments 0.89 to 0.67 s. Still missed as above.
+  **Find on the drawing set, the options looked at (2026-11-06), none taken.** (a) MuPDF's text without the paths:
+  MuPDFWrapper.dll (MuPDFCore 2.0.1) exports 90 functions, and text comes only from `GetStructuredTextPage` on a display
+  list that `GetDisplayList` makes by running the whole page (no text device, no page run, no flags to leave paths or
+  pictures out). MuPDF's own text device run straight on the page (`fz_new_stext_page_from_page`, as PyMuPDF does) took
+  112 to 121 ms for one 4.4 MB sheet of drawings.pdf here, against 230 to 410 ms for list and text: about twice as fast,
+  but only with a wrapper built with that export, a native change for the owner to decide. (b) Our own reading of the
+  text operators as Find's first pass: `ContentLexer.Parse` takes 380 to 540 ms on that sheet's content (Debug build), no
+  faster than MuPDF; a byte scan for BT … ET could take tens of milliseconds, but a page left out on its word trusts a
+  second reader over MuPDF's (fonts without /ToUnicode, reading order across operators, forms, annotations), the
+  disagreement the review ruled out, and as a filter that only confirms it saves nothing (every page must still be read
+  to know it has no hit). (c) A page's text kept across Finds is already kept for the document's lifetime (a second Find
+  about a millisecond); keeping it across sessions would write the document's text to disk, which Find never does.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the

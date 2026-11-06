@@ -19,6 +19,8 @@ package's metadata).
 | Microsoft.Extensions.DependencyInjection.Abstractions (used by PDFsharp) | 8.0.2 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime |
 | .NET runtime and WPF (self-contained) | 10.0 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime, https://github.com/dotnet/wpf |
 | Windows SDK projection (Microsoft.Windows.SDK.NET) | 10.0.22621 | Microsoft Windows SDK license | Microsoft Corporation | https://aka.ms/WinSDKLicenseURL |
+| ZapfDingbats font metrics (`ZapfDingbats.afm`, one of Adobe's Core 14 AFM files, unmodified; data only, no font program) | 002.000 | Adobe's AFM license (below) | Adobe Systems Incorporated; ITC Zapf Dingbats is a registered trademark of International Typeface Corporation | http://partners.adobe.com/public/developer/font/index.html |
+| ITC Zapf Dingbats Glyph List (`zapfdingbats.txt`, unmodified) | 2.0 | BSD-3-Clause | Adobe | https://github.com/adobe-type-tools/agl-aglfn |
 
 ## Libraries built into MuPDF
 
@@ -57,6 +59,17 @@ MuPDF is licensed under the GNU Affero General Public License v3.0 (https://www.
 Its complete source code is available from https://mupdf.com/releases and https://github.com/ArtifexSoftware/mupdf
 (tag 1.25.2); MuPDFCore's source, including the build scripts for MuPDFWrapper.dll, from
 https://github.com/arklumpus/MuPDFCore (tag v2.0.1).
+
+## Adobe's AFM license
+
+Both files are embedded in `InkvoltPdf.Core.dll` with `pdf/src/InkvoltPdf.Core/Fonts/README.txt`, which holds this
+paragraph, as it asks:
+
+> This file and the 14 PostScript(R) AFM files it accompanies may be used, copied, and distributed for any purpose and
+> without charge, with or without modification, provided that all copyright notices are retained; that the AFM files are
+> not distributed without this file; that all modifications to this file or any of the AFM files are prominently noted in
+> the modified file(s); and that this paragraph is not modified. Adobe Systems has no responsibility or obligation to
+> support the use of the AFM files.
 
 ## Full license texts
 

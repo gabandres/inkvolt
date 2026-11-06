@@ -4,7 +4,14 @@ using PdfSharp.Pdf;
 namespace InkvoltPdf.Core;
 
 /// <summary>A paragraph of a page as a translated copy sees it, and the table cell it stays in (null: not in a table).</summary>
-internal sealed record TranslationSlot(TextParagraph Paragraph, RectD? Cell);
+internal sealed record TranslationSlot(TextParagraph Paragraph, RectD? Cell)
+{
+    /// <summary>Turned text: the part of the page it is in; null for upright text.</summary>
+    public TurnedPart? Part { get; init; }
+
+    /// <summary>Turned text: the slot in its part's frame, where it is laid out (its paragraph's <see cref="TextParagraph.Upright"/>, its cell turned there); null for upright text.</summary>
+    public TranslationSlot? Upright => Part is { } part && Paragraph.Upright is { } framed ? new TranslationSlot(framed, Cell is { } c ? part.Frame.In(c) : null) : null;
+}
 
 /// <summary>What was written for one paragraph of a page: its place among the page's slots, how far it shrank, whether it fits.</summary>
 internal sealed record TranslationWritten(int Slot, double Fit, bool Fits, IReadOnlyList<string> Dropped);
@@ -43,14 +50,26 @@ public static partial class ContentEditor
 
     /// <summary>
     /// A page's paragraphs for translating, in reading order of their first line: each table cell's text apart from its
-    /// neighbors', raised marks taken into the line they sit on, a bullet in front of a line left where it is.
+    /// neighbors', raised marks taken into the line they sit on, a bullet in front of a line left where it is. Turned
+    /// text (<paramref name="turned"/>, see <see cref="TurnedParts"/>) is found the same way in its own frame.
     /// </summary>
-    internal static List<TranslationSlot> TranslationSlots(PageContent content, IReadOnlyList<RectD> cells, CancellationToken cancel)
+    internal static List<TranslationSlot> TranslationSlots(PageContent content, IReadOnlyList<RectD> cells, CancellationToken cancel, IReadOnlyList<TurnedPart>? turned = null)
+    {
+        var slots = UprightSlots(content, cells, cancel);
+        foreach (var part in turned ?? [])
+            foreach (var s in UprightSlots(part.Content, part.Cells, cancel))
+                slots.Add(new TranslationSlot(OnPage(s.Paragraph, part), s.Cell is { } c ? part.Frame.Out(c) : null) { Part = part });
+        // The same order however the page's runs were grouped.
+        return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => r.Id))];
+    }
+
+    /// <summary>The paragraphs of a page's upright text (or a turned part's, in its frame), in no particular order.</summary>
+    private static List<TranslationSlot> UprightSlots(PageContent content, IReadOnlyList<RectD> cells, CancellationToken cancel)
     {
         var groups = new Dictionary<int, List<TextRun>>();
         foreach (var r in content.Runs)
         {
-            if (Math.Abs(r.Angle) >= 0.5 || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0 || r.Blocked == HiddenLayerBlocked) continue;
+            if (!(Math.Abs(r.Angle) < 0.5) || r.Text.Trim().Length == 0 || r.FontSize <= 0.5 || r.Box.Width <= 0 || r.Blocked == HiddenLayerBlocked) continue;
             if (!double.IsFinite(r.FontSize) || !double.IsFinite(r.Box.X + r.Box.Y + r.Box.Width + r.Box.Height)) continue; // a crafted matrix
             var cell = -1;
             for (var i = 0; i < cells.Count; i++)
@@ -77,8 +96,7 @@ public static partial class ContentEditor
                     slots.Add(new TranslationSlot(Paragraph(spacesOnly, part, translating: true), cell >= 0 ? cells[cell] : null));
             }
         }
-        // The same order however the page's runs were grouped.
-        return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => r.Id))];
+        return slots;
     }
 
     /// <summary>
@@ -348,7 +366,14 @@ public static partial class ContentEditor
         {
             foreach (var r in content.Runs)
             {
-                if (r.Text.Trim().Length == 0 || Math.Abs(r.Angle) >= 0.5) continue; // a margin's turned stamp isn't where the text column ends
+                if (r.Text.Trim().Length == 0) continue;
+                if (!(Math.Abs(r.Angle) < 0.5))
+                {
+                    // Text of another direction (a margin's turned stamp; in a turned frame, the page's other text, NaN or
+                    // turned there): in the way where it is drawn, not where the text column ends.
+                    Boxes.Add((r.Box, r));
+                    continue;
+                }
                 TextLeft = Math.Min(TextLeft, r.Box.X);
                 TextRight = Math.Max(TextRight, r.Box.Right);
                 Boxes.Add((r.Box, r));
@@ -922,12 +947,33 @@ public static partial class ContentEditor
             if (_seen.Add(owner)) _owners.Add(owner);
         }
 
-        /// <summary>The installed fonts drawn from go into the document and the resources of everything that uses them.</summary>
+        private readonly List<(int Page, List<LinkFix> Links)> _links = [];
+
+        /// <summary>A page's links to move onto their words or drop, once its fonts are in the document (<see cref="FixLinks"/>).</summary>
+        public void LinksAfter(int page, List<LinkFix> links) => _links.Add((page, links));
+
+        /// <summary>
+        /// The installed fonts drawn from go into the document and the resources of everything that uses them; then the
+        /// translated paragraphs' links are moved or dropped (their new words can be read only once the fonts are there).
+        /// </summary>
         public void Finish()
         {
-            if (Fonts.IsEmpty) return;
-            var fonts = Fonts.BuildFonts(_doc);
-            foreach (var owner in _owners) AddFonts(_doc, owner, fonts);
+            if (!Fonts.IsEmpty)
+            {
+                var fonts = Fonts.BuildFonts(_doc);
+                foreach (var owner in _owners) AddFonts(_doc, owner, fonts);
+            }
+            foreach (var (page, links) in _links)
+            {
+                try
+                {
+                    FixLinks(_doc, page, links);
+                }
+                catch (Exception ex) when (ex is ContentEditException or InvalidOperationException or ArgumentException)
+                {
+                    // The page's new content can't be read again: its links and their underlines stay as they were.
+                }
+            }
         }
 
         /// <summary>Forms reachable from more than one page's resources, found once: asking per form and per page would take page count squared.</summary>
@@ -961,18 +1007,21 @@ public static partial class ContentEditor
     /// <summary>
     /// Writes one page's translated paragraphs. <paramref name="textOf"/> gives a paragraph's new text (null: it stays as
     /// it is). Everything is worked out first and the page's content changes only at the end, so a page that fails
-    /// partway stays as it was (the exception goes to the caller).
+    /// partway stays as it was (the exception goes to the caller). Turned text is laid out in its frame
+    /// (<see cref="TurnedParts"/>, with the cells <paramref name="turnedCells"/> found there) and written turned back.
     /// </summary>
     internal static (List<TranslationSlot> Slots, List<TranslationWritten> Written, List<TranslationRefused> Refused) TranslatePage(
-        TranslationWriter writer, PdfDocument doc, int pageIndex, IReadOnlyList<RectD> cells, IReadOnlyList<RectD> obstacles, Func<int, TextParagraph, string?> textOf, CancellationToken cancel)
+        TranslationWriter writer, PdfDocument doc, int pageIndex, IReadOnlyList<RectD> cells, IReadOnlyList<RectD> obstacles, Func<int, TextParagraph, string?> textOf, CancellationToken cancel,
+        IReadOnlyDictionary<int, IReadOnlyList<RectD>>? turnedCells = null)
     {
         var page = doc.Pages[pageIndex];
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes, cancel);
         var walk = Walk(page, pageIndex, ops, cancel, columns: true);
         var content = walk.Content;
-        var slots = TranslationSlots(content, cells, cancel);
         var (pageWidth, pageHeight) = PdfObj.DisplaySize(page);
+        var turned = TurnedParts(content, pageWidth, pageHeight, turnedCells);
+        var slots = TranslationSlots(content, cells, cancel, turned);
         var written = new List<TranslationWritten>();
         var refused = new List<TranslationRefused>();
 
@@ -983,6 +1032,11 @@ public static partial class ContentEditor
         var owners = new List<PdfDictionary>();
         var taken = new HashSet<(Target, int)>();
         var things = new PageThings(content, obstacles);
+        var paints = walk.PaintsCut ? null : walk.Paints;
+        // A turned part's surroundings in its frame, worked out once it has a paragraph to lay out.
+        var framed = new Dictionary<int, (PageThings Things, List<RectD> Obstacles, List<(RectD, int)> Fills, List<Paint>? Paints)>();
+        // Where each upright paragraph's new text went, and how far it shrank, where its lines start: its links follow it (LinksOfWritten).
+        var placed = new Dictionary<int, (RectD Box, double Fit, List<PointD> Lines)>();
         // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
         // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
@@ -1005,14 +1059,26 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_TooLongForBox));
                 continue;
             }
-            var (framed, bottom, wide, wideBottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
-            var (layout, fit, fits, dropped) = FitText(framed, bottom, text, wide, wideBottom);
+            (TextParagraph, double, TextParagraph?, double) room;
+            if (slot is { Part: { } part, Upright: { } upright })
+            {
+                if (!framed.TryGetValue(part.Frame.Turn, out var f))
+                {
+                    var o = obstacles.Select(part.Frame.In).ToList();
+                    framed[part.Frame.Turn] = f = (new PageThings(part.Content, o), o, [.. walk.Fills.Select(x => (part.Frame.In(x.Box), x.Id))],
+                        paints?.Select(x => x with { Box = x.Box is { } b ? part.Frame.In(b) : null }).ToList());
+                }
+                room = Room(upright, f.Things, f.Obstacles, part.Frame.Width, part.Frame.Height, f.Fills, f.Paints);
+            }
+            else room = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, paints);
+            var (inRoom, bottom, wide, wideBottom) = room;
+            var (layout, fit, fits, dropped) = FitText(inRoom, bottom, text, wide, wideBottom);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));
                 continue;
             }
-            laid[i] = new Laid(text, framed, bottom, wide, wideBottom, layout, fit, fits, dropped);
+            laid[i] = new Laid(text, inRoom, bottom, wide, wideBottom, layout, fit, fits, dropped);
         }
         OneSizePerColumn(slots, laid, cancel);
 
@@ -1025,8 +1091,10 @@ public static partial class ContentEditor
 
             var anchor = Anchor(p.Runs);
             var plain = PlainRun(p.Runs) with { };
-            var oldLines = LineRuns(p, plain);
-            var newLines = LinesToRuns(p, oldLines, layout, fit);
+            // Turned text: which old line each new one goes at is told in its frame, where it was laid out.
+            var newLines = slots[i] is { Part: { } turnedPart, Upright.Paragraph: { } inFrame }
+                ? OnPage(LinesToRuns(inFrame, LineRuns(inFrame, PlainRun(inFrame.Runs)), layout, fit), turnedPart)
+                : LinesToRuns(p, LineRuns(p, plain), layout, fit);
             plain.Size *= fit;
             Target target;
             List<(int Start, int End, string Text)> edits;
@@ -1096,6 +1164,7 @@ public static partial class ContentEditor
             foreach (var name in layout.Check.StandIns)
                 if (!writer.FontNames.Contains(name)) writer.FontNames.Add(name);
             written.Add(new TranslationWritten(i, fit, fits, dropped));
+            if (slots[i].Part is null) placed[i] = (layout.Check.Box, fit, [.. layout.Lines.Select(l => l.Origin)]);
         }
 
         if (columned.Count > 0)
@@ -1105,11 +1174,14 @@ public static partial class ContentEditor
             foreach (var (edits, op, id, parts) in columned.Values)
                 edits.Add((op.Start, op.End, string.Join(' ', columnsOf[id].OrderBy(r => r.Info!.Column).Select(r => parts[r.Info!.Column] ?? Kept(op, r)))));
         }
+        // Links, and their underlines, are moved once the page and its fonts are written.
+        var links = written.Count > 0 ? LinksOfWritten(page, slots, written, placed, ops, paints) : [];
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);
         if (pageEdits.Count > 0) WriteTarget(doc, page, pageTarget, pageEdits);
         foreach (var owner in owners) writer.NeedsFonts(owner);
+        if (links.Count > 0) writer.LinksAfter(pageIndex, links);
         SignedEdits.NoteRemoval();
         return (slots, written, refused);
     }

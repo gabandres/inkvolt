@@ -985,6 +985,50 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it()
+    {
+        // The census's first "Income percentile ratios:": a label in a narrow first column, nothing else on its row, a row
+        // right under it. Its translation is longer than its cell; the row's empty cells to its right take it at its size.
+        double[] xs = [72, 160, 250, 400];
+        string[][] rows = [["North", "1,204", "Growing fast"], ["Lazy dog ratios:", "", ""], ["South", "987", "Steady demand"]];
+        var sb = new StringBuilder("0 G 0.5 w ");
+        for (var r = 0; r <= rows.Length; r++) sb.Append($"{xs[0]} {700 - 16 * r} m {xs[^1]} {700 - 16 * r} l S ");
+        // Only the outer columns ruled (the census rules none): nothing stands between the label and the empty cells.
+        foreach (var x in new[] { xs[0], xs[^1] }) sb.Append($"{x} 700 m {x} {700 - 16 * rows.Length} l S ");
+        for (var r = 0; r < rows.Length; r++)
+            for (var c = 0; c < 3; c++)
+                if (rows[r][c].Length > 0) sb.Append(Lines(xs[c] + 3, 700 - 16 * r - 12, 9, 11, rows[r][c]));
+        var pdf = Page(sb.ToString(), fontText: Letters + ":,");
+        const string Long = "THE QUICK BROWN FOX AND THE LAZY DOG RATIOS:";
+        var (plan, r2) = Translate(pdf, t => t == "Lazy dog ratios:" ? Long : t);
+        Assert.Contains(plan.Pages[0].Cells, c => c.Contains(100, 792 - 684 + 8) && c.Right >= 300); // the label's cell reaches the table's last column
+        var run = ContentEditor.Read(r2.Data!, null, 0).Runs.Single(q => q.Text.Contains("RATIOS", StringComparison.Ordinal));
+        Assert.Equal(Long, run.Text.Trim());
+        Assert.Equal(9, run.FontSize, 2); // not shrunk
+        Assert.True(run.Box.Right <= 400 && run.Box.Y >= 792 - 700 + 16 - 0.5 && run.Box.Bottom <= 792 - 700 + 32 + 0.5, $"{run.Box}");
+        Assert.Equal(0, r2.Report.Shrunk);
+    }
+
+    [Fact]
+    public void A_cell_with_text_beside_it_on_its_row_keeps_its_column()
+    {
+        // A row with a name and a figure, its last column empty: the figure isn't a label alone on its row, its cell ends at its column.
+        double[] xs = [72, 160, 250, 400];
+        string[][] rows = [["North", "1,204", "Growing fast"], ["East", "55", ""], ["South", "987", "Steady demand"]];
+        var sb = new StringBuilder("0 G 0.5 w ");
+        for (var r = 0; r <= rows.Length; r++) sb.Append($"{xs[0]} {700 - 16 * r} m {xs[^1]} {700 - 16 * r} l S ");
+        foreach (var x in xs) sb.Append($"{x} 700 m {x} {700 - 16 * rows.Length} l S ");
+        for (var r = 0; r < rows.Length; r++)
+            for (var c = 0; c < 3; c++)
+                if (rows[r][c].Length > 0) sb.Append(Lines(xs[c] + 3, 700 - 16 * r - 12, 9, 11, rows[r][c]));
+        var (plan, _) = Translate(Page(sb.ToString(), fontText: Letters + ":,"), t => t);
+        var figure = Assert.Single(plan.Pages[0].Cells, c => c.Contains(200, 792 - 684 + 8));
+        Assert.Equal(250, figure.Right, 1);
+        var name = Assert.Single(plan.Pages[0].Cells, c => c.Contains(100, 792 - 684 + 8));
+        Assert.Equal(160, name.Right, 1);
+    }
+
+    [Fact]
     public void A_sentence_wrapped_after_a_colon_stays_one_paragraph()
     {
         // Short lines of a narrow column: a line ending in ":" and the next going on in lowercase are one sentence.
@@ -1161,6 +1205,257 @@ public class TranslationCopyTests
         var after = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text.StartsWith("The quick", StringComparison.Ordinal));
         Assert.Equal(before.Box.X, after.Box.X, 0);
         Assert.Equal(before.Box.Y, after.Box.Y, 0);
+    }
+
+    /// <summary>
+    /// A ruled table of 3 rows (a label, its figures) set sideways on an upright page, reading bottom to top as a landscape
+    /// table on a portrait page does, under an upright line. In the table's own frame (u along its rows, v up its
+    /// columns) the label column is u 100–220, the figures' 220–300, rows 20 high from v 400 down. Returns the page and,
+    /// on the page as shown (top-left origin), the label cells.
+    /// </summary>
+    private static (byte[] Pdf, RectD[] LabelCells) SidewaysTable()
+    {
+        string[] labels = ["Quick fox", "Lazy dog", "Brown fox"];
+        string[] figures = ["12", "345", "6,789"];
+        var sb = new StringBuilder(Lines(72, 740, 12, 14, "The quick brown fox jumps over a lazy dog."));
+        // Turned a quarter: (u, v) in the table's frame is (612 - v, u) on the page, in PDF space (y up).
+        sb.Append("q 0 1 -1 0 612 0 cm 0.5 w ");
+        for (var r = 0; r <= 3; r++) sb.Append($"100 {400 - 20 * r} m 300 {400 - 20 * r} l S ");
+        foreach (var u in new[] { 100, 220, 300 }) sb.Append($"{u} 400 m {u} 340 l S ");
+        sb.Append("BT /FA 9 Tf ");
+        for (var r = 0; r < 3; r++)
+            sb.Append($"1 0 0 1 103 {400 - 20 * r - 14} Tm ({labels[r]}) Tj 1 0 0 1 223 {400 - 20 * r - 14} Tm ({figures[r]}) Tj ");
+        sb.Append("ET Q");
+        // A label cell (u 100–220, v from 400 - 20 r down 20) on the page as shown: x = 612 - v, y = 792 - u.
+        var cells = Enumerable.Range(0, 3).Select(r => RectD.FromEdges(612 - (400 - 20 * r), 792 - 220, 612 - (380 - 20 * r), 792 - 100)).ToArray();
+        return (Page(sb.ToString(), fontText: Letters), cells);
+    }
+
+    [Fact]
+    public void A_table_set_sideways_is_translated_cell_by_cell_and_stays_turned_in_its_cells()
+    {
+        var (pdf, cells) = SidewaysTable();
+        var (plan, r) = Translate(pdf, t => t.Any(char.IsLetter) ? $"{Marked} {t} and over the lazy dog" : t);
+        // Each label goes alone, the figures stay, nothing is named as turned text left in English.
+        foreach (var label in new[] { "Quick fox", "Lazy dog", "Brown fox" }) Assert.Contains(plan.Texts, t => t.Text == label);
+        Assert.DoesNotContain(plan.Texts, t => t.Text.Contains("fox", StringComparison.Ordinal) && t.Text.Contains("dog", StringComparison.Ordinal) && t.Text.Length < 30);
+        Assert.Empty(plan.TurnedTextPages);
+        Assert.Equal(4, r.Report.Translated);
+        // Its rows and columns were found with the page turned so the table reads left to right: 3 rows of 2 cells.
+        Assert.Equal(6, plan.Pages[0].TurnedCells.GetValueOrDefault(3)?.Count);
+        Assert.Empty(plan.Pages[0].Cells);
+
+        var after = ContentEditor.Read(r.Data!, null, 0);
+        var text = ContentEditPdf.Text(r.Data!);
+        for (var i = 0; i < 3; i++)
+        {
+            // Its new text reads as the old did (bottom to top), and stays between the cell's rules.
+            var mine = after.Runs.Where(q => q.Text.Trim().Length > 0 && cells[i].Contains(q.Box.CenterX, q.Box.CenterY)).ToList();
+            Assert.NotEmpty(mine);
+            Assert.Contains(mine, q => q.Text.Contains(Marked, StringComparison.Ordinal) || q.Text.Contains("lazy", StringComparison.Ordinal));
+            foreach (var q in mine)
+            {
+                Assert.Equal(-90, ContentEditor.Turn(q.Angle), 1);
+                Assert.True(q.Box.X >= cells[i].X - 0.5 && q.Box.Right <= cells[i].Right + 0.5 && q.Box.Y >= cells[i].Y - 0.5 && q.Box.Bottom <= cells[i].Bottom + 0.5,
+                    $"{q.Text}: {q.Box} outside {cells[i]}");
+            }
+        }
+        foreach (var figure in new[] { "12", "345", "6,789" }) Assert.Contains(figure, text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Text_of_another_direction_on_a_paragraphs_lines_is_in_its_way()
+    {
+        // A label set sideways (bottom to top, its baseline at x 300 from y 100 up, PDF space), an upright line across its
+        // path (y 250) and an upright line beside it (y 120, from x 72): each translation grows, and none runs over the
+        // other direction's text.
+        var content = "BT /FA 12 Tf 1 0 0 1 280 250 Tm (Lazy dog) Tj 1 0 0 1 72 120 Tm (Brown dog) Tj ET " +
+            "q 0 1 -1 0 300 0 cm BT /FA 12 Tf 1 0 0 1 100 0 Tm (Quick fox) Tj ET Q";
+        var pdf = Page(content, fontText: Letters);
+        var (_, r) = Translate(pdf, t => $"{t} and the quick brown fox jumps over the lazy dog");
+        var after = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Trim().Length > 0).ToList();
+        var sideways = after.Where(q => Math.Abs(q.Angle) >= 0.5).ToList();
+        var upright = after.Where(q => Math.Abs(q.Angle) < 0.5).ToList();
+        Assert.Contains(sideways, q => q.Text.Contains("Quick fox and", StringComparison.Ordinal));
+        Assert.Contains(upright, q => q.Text.Contains("Brown dog and", StringComparison.Ordinal));
+        foreach (var s in sideways)
+            foreach (var u in upright)
+                Assert.False(s.Box.Intersect(u.Box) is { Width: > 0.5, Height: > 0.5 }, $"\"{s.Text}\" {s.Box} runs over \"{u.Text}\" {u.Box}");
+    }
+
+    /// <summary>
+    /// A paragraph of three lines whose second has a link drawn in blue (<paramref name="link"/>), underlined by a thin
+    /// blue rectangle filled after the text, and a /Link annotation over it. Returns the page and the underline's box (page as shown).
+    /// </summary>
+    private static (byte[] Pdf, RectD Underline) LinkedParagraph(string link)
+    {
+        var (pdf, underlines) = LinkedParagraph([link]);
+        return (pdf, underlines[0]);
+    }
+
+    /// <summary>
+    /// <see cref="LinkedParagraph(string)"/> with the links <paramref name="links"/> on its second line (" and " between
+    /// them), its first line <paramref name="first"/>, underlined as <paramref name="underline"/> draws them (given each
+    /// link's box, page as shown; null: a thin blue rectangle filled for each), with a /Link annotation over each unless
+    /// <paramref name="annotate"/> is false, and <paramref name="extra"/> drawn after. Returns each underline's box.
+    /// </summary>
+    private static (byte[] Pdf, RectD[] Underlines) LinkedParagraph(string[] links, Func<RectD[], string>? underline = null, bool annotate = true,
+        string first = "The quick brown fox jumps over the lazy dog and the", string extra = "")
+    {
+        string Content(string drawn) =>
+            $"BT /FA 12 Tf 1 0 0 1 72 700 Tm ({first}) Tj " +
+            $"1 0 0 1 72 686 Tm (fox goes on over ) Tj " + string.Join("( and ) Tj ", links.Select(l => $"0 0 1 rg ({l}) Tj 0 g ")) + "( and a lazy dog until the) Tj " +
+            $"1 0 0 1 72 672 Tm (end of the day.) Tj ET " + drawn + extra;
+        var plain = Page(Content(""), fontText: Letters);
+        var runs = ContentEditor.Read(plain, null, 0).Runs;
+        var boxes = links.Select(l => runs.Single(r => r.Text == l && r.Box.Y > 792 - 700).Box).ToArray();
+        // Under the baseline (y 686 in PDF space), half a point thick.
+        var underlines = boxes.Select(b => RectD.FromEdges(b.X, 792 - 686 + 1.5, b.Right, 792 - 686 + 2)).ToArray();
+        underline ??= bs => string.Concat(bs.Select(b => $"0 0 1 rg {N(b.X)} {N(686 - 2)} {N(b.Width)} 0.5 re f "));
+        var pdf = Page(Content(underline(boxes)), fontText: Letters);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify);
+        var annots = new PdfArray(doc);
+        foreach (var box in annotate ? boxes : [])
+        {
+            var annot = new PdfDictionary(doc);
+            annot.Elements["/Type"] = new PdfName("/Annot");
+            annot.Elements["/Subtype"] = new PdfName("/Link");
+            annot.Elements["/Rect"] = PdfObj.Reals(doc, box.X, 792 - box.Bottom, box.Right, 792 - box.Y);
+            annot.Elements["/Border"] = new PdfArray(doc, new PdfInteger(0), new PdfInteger(0), new PdfInteger(0));
+            var action = new PdfDictionary(doc);
+            action.Elements["/S"] = new PdfName("/URI");
+            action.Elements["/URI"] = new PdfString("https://example.com/");
+            annot.Elements["/A"] = action;
+            doc.Internals.AddObject(annot);
+            annots.Elements.Add(annot.Reference!);
+        }
+        if (annots.Elements.Count > 0) doc.Pages[0].Elements["/Annots"] = annots;
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        return (ms.ToArray(), underlines);
+    }
+
+    private static RectD Taller(RectD r) => RectD.FromEdges(r.X, r.Y - 1, r.Right, r.Bottom + 1);
+
+    private static string N(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Blue pixels (a link's underline) in a box of the page as shown, at 4 px a point.</summary>
+    private static int BluePixels(byte[] pdf, RectD box)
+    {
+        using var engine = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, null);
+        var image = engine.Render(0, 4, annotations: false);
+        var count = 0;
+        for (var y = (int)(box.Y * 4); y < (int)Math.Ceiling(box.Bottom * 4) && y < image.Height; y++)
+            for (var x = (int)(box.X * 4); x < (int)Math.Ceiling(box.Right * 4) && x < image.Width; x++)
+            {
+                var i = y * image.Stride + 3 * x;
+                if (image.Pixels[i] > 180 && image.Pixels[i + 1] < 90 && image.Pixels[i + 2] < 90) count++; // BGR
+            }
+        return count;
+    }
+
+    [Fact]
+    public void A_links_area_and_underline_follow_its_words_when_the_translation_keeps_them()
+    {
+        var (pdf, underline) = LinkedParagraph("QUICK FOX 42");
+        Assert.True(BluePixels(pdf, Taller(underline)) > 0);
+        var (_, r) = Translate(pdf, _ => "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 sits there until the end of the day.");
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        var hit = text.Find("QUICK FOX 42", matchCase: true, wholeWord: false).Single();
+        var words = text.GetRects(hit.Start, hit.End).Aggregate((a, b) => a.Union(b));
+        Assert.True(Math.Abs(words.X - underline.X) > 5, "the words moved"); // else the test shows nothing
+        // The link covers the words where they are now, not where they were.
+        var area = engine.GetLinks(0).Single().Area;
+        Assert.InRange(area.X, words.X - 1.5, words.X + 1.5);
+        Assert.InRange(area.Right, words.Right - 1.5, words.Right + 1.5);
+        Assert.True(area.Y < words.CenterY && area.Bottom > words.CenterY, $"{area} {words}");
+        // The underline is under them now, and gone from where they were.
+        Assert.True(BluePixels(r.Data!, RectD.FromEdges(words.X + 1, words.CenterY, words.Right - 1, words.Bottom + 6)) > 0);
+        if (Taller(underline).Intersect(RectD.FromEdges(words.X, words.Y, words.Right, words.Bottom + 6)) is not { Width: > 0, Height: > 0 })
+            Assert.Equal(0, BluePixels(r.Data!, Taller(underline)));
+    }
+
+    [Fact]
+    public void A_link_whose_words_the_translation_doesnt_keep_is_dropped_with_its_underline()
+    {
+        var (pdf, underline) = LinkedParagraph("QUICK FOX 42");
+        var (_, r) = Translate(pdf, _ => "Now a lazy dog jumps over the brown fox, and the quick one sits there until the end of the day.");
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        Assert.Empty(engine.GetLinks(0));
+        using (var doc = PdfReader.Open(new MemoryStream(r.Data!), PdfDocumentOpenMode.Import))
+            Assert.Equal(0, PdfObj.Array(doc.Pages[0].Elements["/Annots"])?.Elements.Count ?? 0);
+        Assert.Equal(0, BluePixels(r.Data!, new RectD(0, 0, 612, 792)));
+    }
+
+    private const string KeepsQuickFox = "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 sits there until the end of the day.";
+
+    [Fact]
+    public void An_underline_that_belongs_to_no_link_stays_as_drawn()
+    {
+        var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42"], annotate: false);
+        var (_, r) = Translate(pdf, _ => KeepsQuickFox);
+        Assert.True(BluePixels(r.Data!, Taller(underlines[0])) > 0);
+    }
+
+    [Fact]
+    public void A_links_underline_in_a_color_that_cant_be_drawn_again_stays_as_drawn()
+    {
+        // Stroked: its color isn't followed (only a plain fill's is), so it couldn't be drawn again under the words.
+        var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42"], bs => string.Concat(bs.Select(b => $"0 0 1 RG 0.5 w {N(b.X)} {N(686 - 1.75)} m {N(b.Right)} {N(686 - 1.75)} l S ")));
+        Assert.True(BluePixels(pdf, Taller(underlines[0])) > 0);
+        var (_, r) = Translate(pdf, _ => KeepsQuickFox);
+        Assert.True(BluePixels(r.Data!, Taller(underlines[0])) > 0);
+    }
+
+    [Fact]
+    public void Two_links_underlines_filled_by_one_operator_stay_as_drawn()
+    {
+        var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42", "LAZY DOG 7"],
+            bs => "0 0 1 rg " + string.Concat(bs.Select(b => $"{N(b.X)} {N(686 - 2)} {N(b.Width)} 0.5 re ")) + "f ");
+        var (_, r) = Translate(pdf, _ => "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 and the LAZY DOG 7 sit there until the end of the day.");
+        Assert.All(underlines, u => Assert.True(BluePixels(r.Data!, Taller(u)) > 0, $"{u}"));
+    }
+
+    [Fact]
+    public void A_links_words_are_found_at_each_place_the_new_text_has_them()
+    {
+        var none = new HashSet<int>();
+        // Spaces don't count: "800-" "63A," is "800-63A,"; each place is found, an untelling stretch ("the") isn't.
+        Assert.Equal([(1, 2), (5, 1)], ContentEditor.Follow(["SP", "800-63A"], ["see", "800-", "63A,", "and", "the", "(800-63A)"], none));
+        Assert.Empty(ContentEditor.Follow(["the", "and"], ["the", "and", "dog"], none));
+        Assert.Equal([(2, 1)], ContentEditor.Follow(["800-63A"], ["800-63A", "x", "800-63A"], new HashSet<int> { 0 }));
+    }
+
+    [Fact]
+    public void A_pages_underlines_stay_until_its_links_are_moved()
+    {
+        // Links are moved once the copy's fonts are in it (TranslationWriter.Finish); until then, and if moving them
+        // fails, the underlines stay with them as they were.
+        var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42"]);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify);
+        var writer = new ContentEditor.TranslationWriter(doc, "T");
+        var (_, written, _) = ContentEditor.TranslatePage(writer, doc, 0, [], [], (_, _) => KeepsQuickFox, CancellationToken.None);
+        Assert.Single(written);
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        Assert.True(BluePixels(ms.ToArray(), Taller(underlines[0])) > 0);
+    }
+
+    [Fact]
+    public void A_link_follows_its_own_words_where_the_translation_has_them_twice()
+    {
+        // "QUICK FOX 42" on the first line too, not linked: the link stays on the second, where its words were.
+        var (pdf, _) = LinkedParagraph(["QUICK FOX 42"], first: "QUICK FOX 42 and the quick brown fox jumps over the");
+        var (_, r) = Translate(pdf, _ => "QUICK FOX 42 and the quick brown fox jumps over the fox goes on over QUICK FOX 42 and a LAZY DOG until the end of the day.");
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        var hits = text.Find("QUICK FOX 42", matchCase: true, wholeWord: false).ToList();
+        Assert.Equal(2, hits.Count);
+        var second = text.GetRects(hits[1].Start, hits[1].End).Aggregate((a, b) => a.Union(b));
+        var area = engine.GetLinks(0).Single().Area;
+        Assert.InRange(area.X, second.X - 1.5, second.X + 1.5);
+        Assert.True(area.Y < second.CenterY && area.Bottom > second.CenterY, $"{area} {second}");
     }
 
     [Fact]
@@ -1919,5 +2214,22 @@ public class TranslationCopyTests
     private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
     {
         public void Report(T value) => report(value);
+    }
+}
+
+/// <summary>A translated link's words looked for in its paragraph's new text, timed: alone, as a test holding a deadline (<see cref="Timing.Alone"/>).</summary>
+[Collection(Timing.Alone)]
+public class TranslationLinkTimingTests
+{
+    [Fact]
+    public void A_links_words_are_looked_for_quickly_in_a_long_paragraph()
+    {
+        // The most words a link and a paragraph give, every new word beginning the link's first: milliseconds, not seconds.
+        var link = Enumerable.Range(0, 64).Select(i => $"w{i}").ToList();
+        var text = Enumerable.Repeat("w0", 4_000).ToList();
+        ContentEditor.Follow(["w0"], ["w0"], new HashSet<int>()); // compiled before it is timed
+        var watch = Stopwatch.StartNew();
+        Assert.Equal(4_000, ContentEditor.Follow(link, text, new HashSet<int>()).Count);
+        Assert.True(watch.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)), $"{watch.Elapsed}");
     }
 }

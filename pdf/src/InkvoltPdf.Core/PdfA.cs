@@ -673,32 +673,9 @@ public static class PdfA
             return null;
         }
 
-        /// <summary>The Unicode value of a code in ZapfDingbats' built-in encoding (Adobe's zdingbat.txt), else 0.</summary>
-        internal static int DingbatUnicode(int code) => code switch
-        {
-            0x25 => 0x260E,
-            0x2A => 0x261B,
-            0x2B => 0x261E,
-            0x48 => 0x2605,
-            0x6C => 0x25CF,
-            0x6E => 0x25A0,
-            0x73 => 0x25B2,
-            0x74 => 0x25BC,
-            0x75 => 0x25C6,
-            0x77 => 0x25D7,
-            0xA8 => 0x2663,
-            0xA9 => 0x2666,
-            0xAA => 0x2665,
-            0xAB => 0x2660,
-            0xD5 => 0x2192,
-            0xD6 => 0x2194,
-            0xD7 => 0x2195,
-            >= 0xAC and <= 0xB5 => 0x2460 + code - 0xAC,
-            >= 0x80 and <= 0x8D => 0x2768 + code - 0x80, // the brackets a89 to a96: unnamed in the AFM's encoding, but the base font draws them
-            >= 0x21 and <= 0x7E => 0x2700 + code - 0x20,
-            >= 0xA1 and <= 0xFE and not 0xF0 => 0x26C0 + code,
-            _ => 0,
-        };
+        /// <summary>The Unicode value of a code in ZapfDingbats' built-in encoding (Adobe's AFM and glyph list), else 0.</summary>
+        internal static int DingbatUnicode(int code) =>
+            code != 0x20 && ZapfDingbats.Name(code) is { } name && ZapfDingbats.Text(name) is { } text ? char.ConvertToUtf32(text, 0) : 0;
 
         /// <summary>
         /// Embeds ZapfDingbats (a Fill &amp; Sign mark, an Acrobat form's check box) from Windows' Segoe UI Symbol, which the app

@@ -181,11 +181,53 @@ public partial class ParagraphEditTests
     }
 
     [Fact]
-    public void AWordInStandardZapfDingbatsNotEmbeddedStillEditsLineByLine()
+    public void AWordInStandardZapfDingbatsNotEmbeddedIsPartOfTheParagraphAndStaysInIt()
     {
-        // No widths in the file and none on this PC to lay ZapfDingbats out with: the paragraph is edited line by line.
-        var p = ContentEditor.Read(WithFace("sphinx", "FS", standard: "ZapfDingbats"), null, 0).Paragraphs.Single(q => q.Lines.Count > 1 && q.Text.Contains("quick", StringComparison.Ordinal));
-        Assert.NotNull(p.Blocked);
+        // /FS is ZapfDingbats as old software wrote it, without widths: "sphinx" in it is six dingbats (its own encoding,
+        // Adobe's AFM, the characters from Adobe's Zapf Dingbats glyph list), measured with the AFM's widths.
+        const string Marks = "▲❐❈❉■❘";
+        var pdf = WithFace("sphinx", "FS", standard: "ZapfDingbats");
+        var marks = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.FontName == "ZapfDingbats");
+        Assert.Equal(Marks, marks.Text);
+        Assert.Null(marks.Blocked);
+        Assert.Equal(Size * (892 + 762 + 787 + 713 + 761 + 138) / 1000.0, marks.Box.Width, 1);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        var body = Body.Replace("sphinx", Marks, StringComparison.Ordinal);
+        Assert.Equal(body, p.Text);
+
+        // Rewritten with words in front and a check mark typed onto the word: it moves along in ZapfDingbats, the mark too.
+        var text = "Now then " + body.Replace(Marks, Marks + "✔", StringComparison.Ordinal);
+        var check = p.Check(text);
+        Assert.Empty(check.Missing);
+        Assert.Empty(check.Faces); // nothing from this PC
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited, "Now then");
+        Assert.Null(q.Blocked);
+        Assert.Equal(text, q.Text);
+        var run = q.Runs.Single(r => r.Text.Trim() == Marks + "✔");
+        Assert.Equal("ZapfDingbats", run.FontName);
+        Assert.Equal(Size * (892 + 762 + 787 + 713 + 761 + 138 + 846) / 1000.0, run.Box.Width, 1);
+        Assert.Equal(p.Lead.FontName, q.Lead.FontName);
+        // MuPDF reads a ZapfDingbats it doesn't embed by its own font's glyphs, not as these characters; it reads the moved
+        // word as it read it before, the typed mark after it.
+        static string Word(string read) => read[(read.IndexOf("and a ", StringComparison.Ordinal) + 6)..read.IndexOf(" of black", StringComparison.Ordinal)];
+        var before = Word(ContentEditPdf.Text(pdf).ReplaceLineEndings(" "));
+        Assert.Equal(6, before.Length);
+        Assert.StartsWith(before, Word(ContentEditPdf.Text(edited).ReplaceLineEndings(" ")), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ZapfDingbatsMetricsAreAdobes()
+    {
+        // Every code of the built-in encoding has a name and a width, and its names their characters.
+        Assert.Equal(202, Enumerable.Range(0, 256).Count(c => ZapfDingbats.Name(c) is not null));
+        Assert.Equal(974, ZapfDingbats.Width("a1"));
+        Assert.Equal(278, ZapfDingbats.Width("space"));
+        Assert.Null(ZapfDingbats.Width("A"));
+        Assert.Equal("✔", ZapfDingbats.Text("a20"));
+        Assert.Equal("❨", ZapfDingbats.Text(ZapfDingbats.Name(128)!)); // a89, a bracket past 127
+        Assert.Null(ZapfDingbats.Name(0xF0));
     }
 
     [Fact]
