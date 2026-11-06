@@ -160,7 +160,7 @@ final class AppModel {
     /// The connection recipe for one printer: this Mac's network (or the made-up one) and the printer's certificate pins.
     func recipe(_ id: String) -> PrinterRecipe {
         let logins = snmpLogins
-        return PrinterRecipe(transport: transport, snmp: snmp, pin: store.pins(id), snmpLogin: { logins.get(id) })
+        return PrinterRecipe(transport: transport, snmp: snmp, pin: store.pins(id), snmpLogin: { logins.usable(id) })
     }
 
     /// Every printer read once, for `status --all` (`FleetReader`): the state file's printers through this Mac's network (or the
@@ -174,7 +174,7 @@ final class AppModel {
             scanners = { @Sendable () async -> [SystemScanner]? in await SystemScanners.listOnce() }
         }
         let recipe: @Sendable (String) -> PrinterRecipe = { id in
-            PrinterRecipe(transport: transport, snmp: snmp, pin: ReadOnlyPin(store.pins(id)), snmpLogin: { logins.get(id) })
+            PrinterRecipe(transport: transport, snmp: snmp, pin: ReadOnlyPin(store.pins(id)), snmpLogin: { logins.usable(id) })
         }
         return AppFleetMac(store: store, makeRecipe: recipe,
                            queues: queues, listScanners: scanners, history: history)
@@ -523,6 +523,11 @@ final class AppModel {
         await AddPrinter.identify(host, ipp: ipp, transport: transport, snmp: snmp, snmpLogin: snmpLogin) { [weak self] probe, host in
             await self?.listedEntry(probe, host)
         }
+    }
+
+    /// What answers at `host` (Add a Printer's address), over SNMP with `snmpLogin`: nil when the probe couldn't run.
+    func probe(_ host: String, ipp: URL?, snmpLogin: SnmpLogin) async -> ProbeResult? {
+        try? await PrinterConnection.probe(DeviceHttp(host: host, transport: transport), ippHint: ipp, snmp: snmp, snmpLogin: snmpLogin)
     }
 
     /// Keeps a printer's SNMP login (public: nothing kept). False when the Keychain refused; nothing is logged of it.

@@ -28,7 +28,7 @@ import PrintMac
 /// through the reader (`fleetCheck`); `--batch-print [queue <name>]` runs Batch Print (`batchPrintCheck`: the window, lists, a
 /// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled); `--jobs` reads
 /// every printer's queue as job alerts do and lists the alerts a tracker of its own would raise (`jobsCheck`, roadmap 3.4); `--snmp` checks SNMP access
-/// (`snmpCheck`, roadmap 3.2: the Keychain store and the made-up agent's community). A
+/// (`snmpCheck`, roadmap 3.2: the Keychain store, the made-up agent's community and its SNMPv3 user). A
 /// queue printer's lines say where its status and levels came from (roadmap 3.6). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.

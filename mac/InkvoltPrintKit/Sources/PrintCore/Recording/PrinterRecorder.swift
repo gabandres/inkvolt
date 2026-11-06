@@ -8,7 +8,8 @@ public struct RecordOptions: Sendable {
     /// Where SNMP goes (UDP in PrintMac, or a made-up agent in tests); nil: SNMP isn't recorded.
     public var snmp: (any SnmpTransport)?
     public var community = SnmpClient.defaultCommunity
-    /// The printer's own login (its community), when it has one; else `community`. Never written into the recording.
+    /// The printer's own login (its community or SNMPv3 user), when it has one; else `community`. Never written into the
+    /// recording.
     public var login: SnmpLogin?
     /// eSCL and IPP addresses from DNS-SD, when the printer's aren't the usual ones (as `PrinterConnection.open`).
     public var esclHint: URL?
@@ -177,13 +178,13 @@ public enum PrinterRecorder {
     }
 
     private static func walkSnmp(_ snmp: SnmpCapture, _ host: String, _ login: SnmpLogin) async {
-        // As the app asks first: the probe (v2c and v1 at once). Then each subtree, one GetNext at a time.
+        // As the app asks first: the probe (v2c and v1 at once, or v3). Then each subtree, one GetNext at a time.
         guard let found = await quietly({ try await SnmpPrinterClient.probe(transport: snmp, host: host, login: login) }), let printer = found else {
             return
         }
         snmp.setModel(printer.identity.model)
         _ = await quietly { try await printer.read() }
-        let client = SnmpClient(transport: snmp, host: host, version: printer.identity.version, community: login.community)
+        guard let client = try? SnmpClient(transport: snmp, host: host, version: printer.identity.version, login: login) else { return }
         let started = ContinuousClock.now
         for root in snmpSubtrees {
             var at = root
@@ -310,7 +311,7 @@ public enum PrinterRecorder {
     }
 
     /// Passes SNMP through and keeps every object a reply carried.
-    final class SnmpCapture: SnmpTransport {
+    final class SnmpCapture: SnmpTransport, SnmpObserver {
         private let inner: any SnmpTransport
         private let state = Mutex<(objects: [Oid: SnmpVarBind], v2c: Bool, model: String?, requests: Int, replies: Int, elapsed: Duration)>(
             ([:], false, nil, 0, 0, .zero))
@@ -333,16 +334,33 @@ public enum PrinterRecorder {
             let took = ContinuousClock.now - started
             state.withLock { $0.elapsed += took }
             guard let reply else { return nil }
+            if SnmpV3Message.isV3(reply) {
+                // Encrypted on the wire: the client hands over each answer it read (`observe`). A v3 agent takes GetBulk
+                // too: replayed as v2c and v1.
+                state.withLock { s in
+                    s.replies += 1
+                    s.v2c = true
+                }
+                return reply
+            }
             let message = try? SnmpMessage.decode(reply)
             state.withLock { s in
                 s.replies += 1
                 guard let message else { return }
                 if message.version == .v2c { s.v2c = true }
-                if message.errorStatus == SnmpMessage.noError {
-                    for vb in message.varBinds where !vb.value.isException && vb.value.tag != Ber.null { s.objects[vb.name] = vb }
-                }
+                Self.keep(message, &s.objects)
             }
             return reply
+        }
+
+        /// An SNMPv3 answer, as the client read it.
+        func observe(_ reply: SnmpMessage) {
+            state.withLock { Self.keep(reply, &$0.objects) }
+        }
+
+        private static func keep(_ message: SnmpMessage, _ objects: inout [Oid: SnmpVarBind]) {
+            guard message.errorStatus == SnmpMessage.noError else { return }
+            for vb in message.varBinds where !vb.value.isException && vb.value.tag != Ber.null { objects[vb.name] = vb }
         }
     }
 }

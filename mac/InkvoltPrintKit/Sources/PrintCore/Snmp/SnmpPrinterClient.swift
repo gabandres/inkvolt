@@ -56,8 +56,16 @@ public actor SnmpPrinterClient {
     public init(transport: any SnmpTransport, host: String, identity: SnmpIdentity, timeout: Duration? = nil) {
         self.identity = identity
         self.transport = transport
-        client = SnmpClient(transport: transport, host: host, version: identity.version, community: identity.loginOrPublic.community,
-                            timeout: timeout ?? Self.probeTimeout)
+        client = Self.makeClient(transport, host, identity.version, identity.login, timeout ?? Self.probeTimeout)
+    }
+
+    /// A client of `version` with `login` (its community, or for v3 its user); a v3 identity without a user (none is made)
+    /// is asked over v2c with public.
+    private static func makeClient(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?,
+                                   _ timeout: Duration) -> SnmpClient {
+        let login = login ?? .public
+        if let client = try? SnmpClient(transport: transport, host: host, version: version, login: login, timeout: timeout) { return client }
+        return SnmpClient(transport: transport, host: host, version: version == .v3 ? .v2c : version, community: login.community, timeout: timeout)
     }
 
     public nonisolated var host: String { client.host }
@@ -66,15 +74,24 @@ public actor SnmpPrinterClient {
     /// hrPrinterStatus, over v2c and v1 at once (v2c kept when both answer). Only an agent with a Host Resources printer entry
     /// counts (a router or a PC answering "public" isn't a printer). Then its model and serial number. Nil when nothing
     /// answers, or it isn't a printer.
-    /// - Parameter login: the printer's own login (`SnmpLogins`); nil: `SnmpLogin.public`.
-    public static func probe(transport: any SnmpTransport, host: String, login: SnmpLogin? = nil) async throws -> SnmpPrinterClient? {
+    /// - Parameters:
+    ///   - login: the printer's own login (`SnmpLogins`); nil: `SnmpLogin.public`. With an SNMPv3 user only v3 is asked
+    ///     (authPriv), never v1 or v2c.
+    ///   - refused: told why an SNMPv3 agent refused the user or its keys (the probe then finds nothing).
+    public static func probe(transport: any SnmpTransport, host: String, login: SnmpLogin? = nil,
+                             refused: (@Sendable (SnmpRefusal) -> Void)? = nil) async throws -> SnmpPrinterClient? {
+        if login?.user != nil {
+            let v3 = await identify(transport, host, .v3, login, refused)
+            try Task.checkCancellation()
+            return v3.map { SnmpPrinterClient(transport: transport, host: host, identity: $0) }
+        }
         enum Event: Sendable {
             case answer(SnmpVersion, SnmpIdentity?)
             case v2cDeadline
         }
         let found = await withTaskGroup(of: Event.self) { group -> SnmpIdentity? in
             for version in [SnmpVersion.v2c, .v1] {
-                group.addTask { .answer(version, await identify(transport, host, version, login)) }
+                group.addTask { .answer(version, await identify(transport, host, version, login, nil)) }
             }
             var pending = 2
             var v1Answer: SnmpIdentity?
@@ -101,6 +118,8 @@ public actor SnmpPrinterClient {
                     }
                 case .v2cDeadline:
                     return v1Answer
+                case .answer(.v3, _):
+                    continue // never asked here
                 }
             }
             return v1Answer
@@ -109,11 +128,10 @@ public actor SnmpPrinterClient {
         return found.map { SnmpPrinterClient(transport: transport, host: host, identity: $0) }
     }
 
-    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?) async
-        -> SnmpIdentity? {
+    private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?,
+                                 _ refused: (@Sendable (SnmpRefusal) -> Void)?) async -> SnmpIdentity? {
         do {
-            let community = (login ?? .public).community
-            let client = SnmpClient(transport: transport, host: host, version: version, community: community, timeout: probeTimeout)
+            let client = makeClient(transport, host, version, login, probeTimeout)
             let next = try await client.getNext([PrinterMib.sysDescr, PrinterMib.sysName, PrinterMib.sysLocation, PrinterMib.hrPrinterStatus])
             guard !next[3].value.isException, let index = next[3].name.after(PrinterMib.hrPrinterStatus), index.count == 1 else { return nil }
             func text(_ i: Int, _ column: Oid) -> String? { next[i].name.after(column) == [0] ? next[i].value.text : nil }
@@ -121,6 +139,9 @@ public actor SnmpPrinterClient {
             return SnmpIdentity(version: version, deviceIndex: index[0], deviceDescription: more[0].value.text,
                                 systemDescription: text(0, PrinterMib.sysDescr), systemName: text(1, PrinterMib.sysName),
                                 location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, login: login)
+        } catch let error as SnmpAccessError {
+            refused?(error.reason)
+            return nil
         } catch {
             return nil
         }

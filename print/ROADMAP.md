@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2 (a community per printer) and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 and 3.2's community on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2 and 3.5 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 and 3.2 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
 2026-11-06: the Mac halves above and the 1.6 Pro key) is on TestFlight, for the owner to submit; the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -448,6 +448,14 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   printer id, replaced in place, nothing for `public`, deleted with the printer), never in `state.json`. Add a Printer › Know its
   address? › SNMP access, and the printer's menu › SNMP Access… for a printer read over SNMP. `--report --demo --snmp`: the
   sandboxed app's Keychain round trip and the made-up agent. Not yet: a printer with `public` disabled.
+- **Now (Mac): SNMPv3, built 2026-11-06 (Pro, `ProFeature.snmpV3`).** The same SNMP access fields take an SNMPv3 user and its two
+  passphrases; authPriv only, as on Windows. PrintCore has the protocol (`SnmpV3Message`, `Usm`: keys from passphrases and localized,
+  the digest's place, CFB over the block cipher, discovery, the clock, reports told apart; every length from the agent bounded: engine
+  ID 32 bytes, fields 64, numbers 0…2³¹−1) behind `SnmpCrypto` (SHA-256, HMAC-SHA-256, one AES-128 block), which PrintMac's
+  `AppleSnmpCrypto` implements with CryptoKit and CommonCrypto (no package); the PC's tests use a stand-in of their own.
+  `SnmpV3Tests` (Windows' names, the MD5 and SHA-1 vectors in PrintMacTests), `SnmpV3ProTests`; `--report --demo --snmp`: the
+  made-up v3 agent read with the system's crypto, each wrong part refused, the Keychain and the Pro gate. Never tried on a
+  printer's agent.
 - **Effort** M. Windows and Mac (PrintCore's SNMP is the same code).
 
 ### 3.3 The printer's own copier, copy extras

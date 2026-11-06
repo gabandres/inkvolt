@@ -123,8 +123,11 @@ final class AddPrinterModel {
         isAddingAddress = true
         Task {
             defer { isAddingAddress = false }
-            guard let f = await app.identify(host, ipp: a.ipp, snmpLogin: login), let probe = f.probe else {
-                addressError = AddPrinterText.noAnswer(host) + " " + Self.snmpHint(login)
+            let answer = await app.probe(host, ipp: a.ipp, snmpLogin: login)
+            guard let probe = answer, probe.reachable else {
+                let refused = answer?.snmpRefused
+                addressError = AddPrinterText.noAnswer(host) + " " + SnmpAccessText.noAnswerHint(login, refused: refused)
+                if refused != nil { showsSnmp = true }
                 return
             }
             if let listed = app.listed(probe, host) {
@@ -136,12 +139,6 @@ final class AddPrinterModel {
             }
             app.isAddingPrinter = false
         }
-    }
-
-    /// What may be wrong when nothing answered, about SNMP.
-    static func snmpHint(_ login: SnmpLogin) -> String {
-        login.isDefault ? "A printer that answers only SNMP may need its community: open SNMP access below."
-            : "Check the SNMP community too."
     }
 }
 

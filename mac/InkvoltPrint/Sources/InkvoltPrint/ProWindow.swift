@@ -27,6 +27,7 @@ enum ProSetup {
     static func configure(_ model: AppModel) {
         Pro.verifier = CryptoKitProVerifier()
         Pro.store = model.isDemo ? MemoryProStore() : ProKeyRoot.store(own: StateProStore(model.store))
+        Usm.crypto = AppleSnmpCrypto() // SNMPv3's (roadmap 3.2), before any printer connects
     }
 
     /// One line for `--report`: the licence's state, and whether the shared file's folder is there (nothing written).

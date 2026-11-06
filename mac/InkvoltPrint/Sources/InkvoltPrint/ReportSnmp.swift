@@ -6,7 +6,7 @@ import PrintMac
 /// kept under a made-up printer id, read back, replaced and deleted again; nothing else is touched), and the made-up
 /// agent of demo mode's SNMP-only laser (the tests' fake, on no network) answering only to its community: silent to public
 /// and a wrong one, read with the right one, and a printer session connecting only once the login is kept. Nothing secret
-/// is written to the report: lines say what was checked and how it came out.
+/// is written to the report: lines say what was checked and how it came out. Then SNMPv3 (`v3Check`).
 extension Report {
     static func snmpCheck(_ model: AppModel) async -> [String] {
         var lines = ["SNMP access:"]
@@ -30,7 +30,66 @@ extension Report {
             lines.append("  read with its community: no answer")
         }
         lines.append("  a session: " + (await sessionCheck(agent, right)))
+        return lines + (await v3Check(walk))
+    }
+
+    /// SNMPv3 (Pro) with the system's cryptography as the app installed it (`AppleSnmpCrypto`): a made-up v3 agent
+    /// discovered and read signed and encrypted, each wrong part refused and told apart, a v3 login's Keychain round trip,
+    /// and the Pro gate switched on without a key keeping a kept v3 user unused (switched back after).
+    private static func v3Check(_ walk: [SnmpVarBind]) async -> [String] {
+        guard Usm.crypto is AppleSnmpCrypto else { return ["  SNMPv3: NO (the system's cryptography isn't installed)"] }
+        guard let login = try? SnmpLogin.forUser("made-up-reader", "made-up auth 2026", "made-up priv 2026"), let user = login.user else {
+            return ["  SNMPv3: NO (no login made)"]
+        }
+        let engine: [UInt8] = [0x80, 0x00, 0x1F, 0x88, 0x80, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+        let agent = SnmpAgent(walk, user: user, engineId: engine, engineBoots: 2, engineTime: 600)
+        var lines: [String] = []
+        let started = ContinuousClock.now
+        if let printer = (try? await SnmpPrinterClient.probe(transport: agent, host: Demo.snmpHost, login: login)) ?? nil {
+            let supplies = (try? await printer.supplies().count) ?? 0
+            let took = (ContinuousClock.now - started) / .milliseconds(1)
+            let discoveries = agent.v3Log.filter { $0 == "discovery" }.count
+            let answered = agent.v3Log.filter { $0 == "answered" }.count
+            lines.append("  SNMPv3: read signed and encrypted: \(printer.identity.version == .v3 ? "yes" : "NO"), \(supplies) supplies, "
+                + "\(discoveries) discoveries, \(answered) answers, \(Int(took)) ms")
+        } else {
+            lines.append("  SNMPv3: read signed and encrypted: NO (no answer)")
+        }
+        var told: [String] = []
+        let wrong: [(String, String, String)] = [("someone", user.authPassphrase, user.privPassphrase),
+                                                 (user.name, "wrong auth 2026", user.privPassphrase),
+                                                 (user.name, user.authPassphrase, "wrong priv 2026")]
+        for (name, auth, priv) in wrong {
+            guard let bad = try? SnmpLogin.forUser(name, auth, priv),
+                  let client = try? SnmpClient(transport: agent, host: Demo.snmpHost, version: .v3, login: bad) else { continue }
+            do {
+                _ = try await client.get([PrinterMib.sysName.appending(0)])
+                told.append("read!")
+            } catch let error as SnmpAccessError {
+                told.append("\(error.reason)")
+            } catch {
+                told.append("no answer")
+            }
+        }
+        lines.append("  SNMPv3: a wrong user, auth and priv passphrase refused as: \(told.joined(separator: ", "))")
+        lines.append("  SNMPv3 Keychain: " + keychainV3Check(login))
+        let store = MemorySnmpLogins()
+        store.save(login, for: "v3")
+        let enforced = Pro.enforced
+        Pro.enforced = true
+        let gated = Pro.licence == nil ? store.usable("v3") == nil : store.usable("v3") != nil
+        Pro.enforced = enforced
+        lines.append("  SNMPv3 gate: with the Pro check on and \(Pro.licence == nil ? "no key, the kept user unused" : "a key, the kept user used"): "
+            + yes(gated))
         return lines
+    }
+
+    private static func keychainV3Check(_ login: SnmpLogin) -> String {
+        let store = SnmpLoginKeychain()
+        let id = "inkvolt-report-check-\(UUID().uuidString.lowercased())"
+        defer { store.delete(id) }
+        guard store.save(login, for: id) else { return "NO (the keychain refused to keep it)" }
+        return "kept and read back: \(yes(store.get(id) == login))"
     }
 
     private static func yes(_ ok: Bool) -> String { ok ? "yes" : "NO" }

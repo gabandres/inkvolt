@@ -25,6 +25,25 @@ struct SnmpLoginTests {
         #expect(SnmpLogin.fromSecret(nil) == nil)
     }
 
+    @Test func aPassphraseTooLongForCredentialManagerIsRefusedWhenTyped() throws {
+        // Windows' limit (what Credential Manager keeps); the Keychain keeps the same logins.
+        let fine = String(repeating: "p", count: SnmpV3User.maxPassphrase)
+        let pasted = String(repeating: "p", count: SnmpV3User.maxPassphrase + 1)
+        _ = try SnmpLogin.forUser("reader", fine, fine)
+        #expect { try SnmpLogin.forUser("reader", pasted, fine) } throws: { "\($0)".contains("\(SnmpV3User.maxPassphrase)") }
+        #expect { try SnmpLogin.forUser("reader", fine, pasted) } throws: { "\($0)".contains("\(SnmpV3User.maxPassphrase)") }
+        let euros = String(repeating: "€", count: SnmpV3User.maxPassphrase)
+        let longest = try SnmpLogin.forUser(String(repeating: "é", count: SnmpV3User.maxName / 2), euros, euros)
+        #expect(longest.toSecret().count < 2560, "\(longest.toSecret().count)")
+    }
+
+    @Test func aUserNameIsMeasuredAsTheAgentDoesInBytes() throws {
+        _ = try SnmpLogin.forUser(String(repeating: "a", count: SnmpV3User.maxName), "authpassphrase", "privpassphrase")
+        #expect(throws: SnmpLoginError.self) { // 64 bytes
+            try SnmpLogin.forUser(String(repeating: "é", count: SnmpV3User.maxName), "authpassphrase", "privpassphrase")
+        }
+    }
+
     @Test(arguments: [nil, "", "   ", "public"] as [String?])
     func blankOrPublicIsTheDefaultAndNothingIsKept(_ typed: String?) throws {
         let login = try SnmpLogin.forCommunity(typed)

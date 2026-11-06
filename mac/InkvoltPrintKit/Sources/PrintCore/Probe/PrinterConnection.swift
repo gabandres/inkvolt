@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 /// Which interfaces a printer answered on. Probed once, in parallel, with short timeouts.
 public struct ProbeResult: Sendable {
@@ -18,6 +19,9 @@ public struct ProbeResult: Sendable {
     /// The printer answered SNMP with the Printer MIB: asked only when neither LEDM, CDM nor IPP answered, and only when
     /// the caller passed an SNMP transport.
     public var snmp: SnmpIdentity?
+
+    /// An SNMPv3 agent answered and refused the login's user or keys (nothing else answered); nil otherwise.
+    public var snmpRefused: SnmpRefusal?
 
     public var reachable: Bool { ledm != nil || scanner != nil || ipp != nil || cdm != nil || snmp != nil }
 
@@ -161,11 +165,15 @@ public final class PrinterConnection: Sendable {
 
         // SNMP last, and only for a printer none of the others reached.
         var snmpIdentity: SnmpIdentity?
+        let refused = RefusalSeen()
         if l.ledm.tree == nil && l.cdm == nil && i == nil, let snmp {
-            snmpIdentity = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin)?.identity
+            let found = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin, refused: { refused.saw($0) })
+            snmpIdentity = found?.identity
         }
-        return ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
-                           ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)
+        var result = ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
+                                 ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)
+        if snmpIdentity == nil { result.snmpRefused = refused.reason }
+        return result
     }
 
     private static func probeLedmAndCdm(_ http: DeviceHttp) async -> (ledm: LedmProbe, cdm: CdmProbe?) {
@@ -321,4 +329,13 @@ public final class PrinterConnection: Sendable {
             return nil
         }
     }
+}
+
+/// Why the probe's SNMPv3 agent refused, as its callback tells it.
+private final class RefusalSeen: Sendable {
+    private let seen = Mutex<SnmpRefusal?>(nil)
+
+    var reason: SnmpRefusal? { seen.withLock { $0 } }
+
+    func saw(_ reason: SnmpRefusal) { seen.withLock { $0 = reason } }
 }
