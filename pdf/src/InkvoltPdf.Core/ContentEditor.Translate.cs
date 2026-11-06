@@ -6,10 +6,11 @@ namespace InkvoltPdf.Core;
 /// <summary>A paragraph of a page as a translated copy sees it, and the table cell it stays in (null: not in a table).</summary>
 internal sealed record TranslationSlot(TextParagraph Paragraph, RectD? Cell)
 {
-    /// <summary>Turned text: the part of the page it is in, and the slot in that part's frame (where it is laid out); null for upright text.</summary>
+    /// <summary>Turned text: the part of the page it is in; null for upright text.</summary>
     public TurnedPart? Part { get; init; }
 
-    public TranslationSlot? Upright { get; init; }
+    /// <summary>Turned text: the slot in its part's frame, where it is laid out (its paragraph's <see cref="TextParagraph.Upright"/>, its cell turned there); null for upright text.</summary>
+    public TranslationSlot? Upright => Part is { } part && Paragraph.Upright is { } framed ? new TranslationSlot(framed, Cell is { } c ? part.Frame.In(c) : null) : null;
 }
 
 /// <summary>What was written for one paragraph of a page: its place among the page's slots, how far it shrank, whether it fits.</summary>
@@ -57,7 +58,7 @@ public static partial class ContentEditor
         var slots = UprightSlots(content, cells, cancel);
         foreach (var part in turned ?? [])
             foreach (var s in UprightSlots(part.Content, part.Cells, cancel))
-                slots.Add(new TranslationSlot(OnPage(s.Paragraph, part), s.Cell is { } c ? part.Frame.Out(c) : null) { Part = part, Upright = s });
+                slots.Add(new TranslationSlot(OnPage(s.Paragraph, part), s.Cell is { } c ? part.Frame.Out(c) : null) { Part = part });
         // The same order however the page's runs were grouped.
         return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => r.Id))];
     }
