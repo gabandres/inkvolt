@@ -265,4 +265,4 @@ public final class StateStore: Sendable {
     }
 }
 
-private func same(_ a: String, _ b: String) -> Bool { a.caseInsensitiveCompare(b) == .orderedSame }
+private func same(_ a: String, _ b: String) -> Bool { PrinterId.same(a, b) }

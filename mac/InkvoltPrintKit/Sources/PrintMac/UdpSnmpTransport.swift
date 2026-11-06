@@ -25,7 +25,7 @@ public struct UdpSnmpTransport: SnmpTransport {
     public func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
         let stop = StopFlag()
         let port = port
-        let once = OnceExchange()
+        let once = OnceResult<Exchange>()
         // Cancelled, the wait ends at once: not when the blocking loop next looks at `stop`, which on a busy machine may be
         // long after (the block can wait for a thread; CI once took 28 s to end a cancelled 30 s wait).
         let result = await withTaskCancellationHandler {
@@ -88,32 +88,6 @@ public struct UdpSnmpTransport: SnmpTransport {
             if n < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR { return .none } // ECONNREFUSED: no agent there
         }
         return .none
-    }
-}
-
-/// The exchange's continuation, resumed once: by the exchange's end or by cancellation, whichever comes first. Cancelled
-/// before the continuation is there, it resumes as soon as it is.
-final class OnceExchange: Sendable {
-    private let state = Mutex<(continuation: CheckedContinuation<UdpSnmpTransport.Exchange, Never>?, ended: UdpSnmpTransport.Exchange?)>((nil, nil))
-
-    func start(_ continuation: CheckedContinuation<UdpSnmpTransport.Exchange, Never>) {
-        let ended: UdpSnmpTransport.Exchange? = state.withLock { s in
-            if let ended = s.ended { return ended }
-            s.continuation = continuation
-            return nil
-        }
-        if let ended { continuation.resume(returning: ended) }
-    }
-
-    func finish(_ result: UdpSnmpTransport.Exchange) {
-        let waiting: CheckedContinuation<UdpSnmpTransport.Exchange, Never>? = state.withLock { s in
-            if s.ended != nil { return nil }
-            s.ended = result
-            let c = s.continuation
-            s.continuation = nil
-            return c
-        }
-        waiting?.resume(returning: result)
     }
 }
 

@@ -71,11 +71,7 @@ public enum DnssdJoin {
             && !path.contains { "?#\\:".contains($0) }
     }
 
-    private static func clean(_ uuid: String?) -> String? {
-        guard var raw = uuid?.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "{}")) else { return nil }
-        if raw.lowercased().hasPrefix("urn:uuid:") { raw = String(raw.dropFirst(9)) }
-        return raw
-    }
+    private static func clean(_ uuid: String?) -> String? { uuid.map(PrinterId.bare) }
 
     private static func sameHost(_ a: DnssdService, _ b: DnssdService) -> Bool {
         (a.hostName != nil && a.hostName?.lowercased() == b.hostName?.lowercased()) || (a.ipv4 != nil && a.ipv4 == b.ipv4)

@@ -169,9 +169,8 @@ public enum CupsQueues {
     }
 
     static func normalizedUuid(_ text: String) -> String? {
-        var raw = text.trimmingCharacters(in: CharacterSet(charactersIn: "{} "))
-        if raw.lowercased().hasPrefix("urn:uuid:") { raw = String(raw.dropFirst(9)) }
-        return PrinterId.isValid(raw) ? raw.lowercased() : nil
+        let key = PrinterId.key(text)
+        return PrinterId.isValid(key) ? key : nil
     }
 
     private static func bareHost(_ h: String) -> String {

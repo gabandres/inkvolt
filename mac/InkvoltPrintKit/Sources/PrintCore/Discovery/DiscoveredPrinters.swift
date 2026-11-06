@@ -39,7 +39,7 @@ public enum DiscoveredPrinters {
         var order: [String] = []
         var buckets: [String: [AnnouncedService]] = [:]
         for s in services {
-            guard let key = DnssdJoin.key(s.dnssd, all)?.trimmingCharacters(in: CharacterSet(charactersIn: "{}")).lowercased() else { continue }
+            guard let key = DnssdJoin.key(s.dnssd, all).map(PrinterId.key) else { continue }
             if buckets[key] == nil { order.append(key) }
             buckets[key, default: []].append(s)
         }

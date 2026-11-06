@@ -39,33 +39,36 @@ public struct SocketNetworkScanner: NetworkScanner {
         guard let nwPort = NWEndpoint.Port(rawValue: UInt16(clamping: port)) else { return false }
         let connection = NWConnection(host: NWEndpoint.Host(host), port: nwPort, using: .tcp)
         let signal = localNetwork
+        let once = OnceResult<Bool>()
+        // The timeout and a cancel end the wait themselves, on Swift's clock: not through the connection's queue, which
+        // waits for a GCD thread (with GCD's pool held, a 600 ms wait took 16 s; CI once took 7.5 s).
+        let timer = Task {
+            try? await Task.sleep(for: timeout)
+            once.finish(false)
+        }
         let open: Bool = await withTaskCancellationHandler {
             await withCheckedContinuation { (done: CheckedContinuation<Bool, Never>) in
-                let once = Once()
-                let finish: @Sendable (Bool) -> Void = { result in
-                    guard once.claim() else { return }
-                    connection.cancel()
-                    done.resume(returning: result)
-                }
+                once.start(done)
                 connection.stateUpdateHandler = { state in
                     switch state {
                     case .ready:
                         signal?.answered()
-                        finish(true)
+                        once.finish(true)
                     case .waiting:
                         // Refused (nothing listens), no route, or Local Network denied: not a printer port either way.
                         if connection.currentPath?.unsatisfiedReason == .localNetworkDenied { signal?.denied() }
-                        finish(false)
-                    case .failed, .cancelled: finish(false)
+                        once.finish(false)
+                    case .failed, .cancelled: once.finish(false)
                     default: break
                     }
                 }
                 connection.start(queue: Self.queue)
-                Self.queue.asyncAfter(deadline: .now() + timeout.timeInterval) { finish(false) }
             }
         } onCancel: {
-            connection.cancel()
+            once.finish(false)
         }
+        timer.cancel()
+        connection.cancel()
         try Task.checkCancellation()
         return open
     }
@@ -159,14 +162,4 @@ private func ipString(_ address: in_addr) -> String {
     var buffer = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
     inet_ntop(AF_INET, &address, &buffer, socklen_t(INET_ADDRSTRLEN))
     return buffer.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
-}
-
-/// Lets only the first of several callbacks finish a continuation.
-final class Once: Sendable {
-    private let claimed = Atomic(false)
-    func claim() -> Bool { !claimed.exchange(true, ordering: .relaxed) }
-}
-
-extension Duration {
-    var timeInterval: Double { Double(components.seconds) + Double(components.attoseconds) / 1e18 }
 }

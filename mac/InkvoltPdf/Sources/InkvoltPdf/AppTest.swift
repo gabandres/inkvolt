@@ -1,5 +1,7 @@
 import AppKit
 import PdfCore
+import PrintCore
+import PrintMac
 
 /// The self-test's scenario for D7 part e (`--edit` with `--quit`, once every document is done): the app's own windows
 /// driven through their controls, on copies of the synthetic documents in a temporary folder (never a real file): the
@@ -388,39 +390,115 @@ struct AppTest {
 
     // MARK: Scan
 
+    /// Scan's presets: the laser's feeder, grey, 200 dpi, Legal, blank pages kept, saved as "Contracts"; the same name
+    /// refused; the preset matched to the flatbed (no feeder, no Legal), saying so; deleted.
+    private mutating func scanPresets() async {
+        ScanWindowController.show()
+        guard let s = ScanWindowController.shared else { return check(false, "Scan presets: not shown") }
+        defer {
+            ScanWindowController.testPresetName = nil
+            s.skipBlank.state = .on
+            s.window?.orderOut(nil)
+        }
+        func choose(_ popup: NSPopUpButton, _ text: String) {
+            guard let i = (0..<popup.numberOfItems).first(where: { popup.item(at: $0)?.title.contains(text) == true }) else { return }
+            popup.selectItem(at: i)
+            popup.sendAction(popup.action, to: popup.target)
+        }
+        let builtIns = s.presetPopup.numberOfItems == 4 && s.presetPopup.titleOfSelectedItem == "No preset"
+        choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
+        _ = await wait(5) { s.caps?.adf != nil }
+        choose(s.sourcePopup, "feeder")
+        s.colorPopup.selectItem(withTitle: "Grayscale")
+        s.resolutionPopup.selectItem(withTitle: "200 dpi")
+        choose(s.sizePopup, "Legal")
+        s.skipBlank.state = .off
+        s.ocr.state = .on
+        ScanWindowController.testPresetName = "Contracts"
+        s.savePresetButton.performClick(nil)
+        let saved = s.presets.last
+        let choices = saved?.source == .feeder && saved?.color == false && saved?.resolution == 200
+        let rest = saved?.pageSize == "legal" && saved?.skipBlank == false && saved?.fileType == .searchablePdf
+        let shown = s.presetPopup.titleOfSelectedItem == "Contracts" && s.message.stringValue == "Saved the preset \"Contracts\"."
+        check(builtIns && saved?.name == "Contracts" && choices && rest && shown,
+              "Scan presets: Inkvolt Print's three to start with; Save as Preset… keeps the feeder, grey, 200 dpi, Legal, OCR and blank choices")
+        let count = s.presets.count
+        ScanWindowController.testPresetName = "contracts"
+        s.savePresetButton.performClick(nil)
+        check(s.presets.count == count && s.message.stringValue == "Another preset is already called \"Contracts\".",
+              "a second preset of the same name is refused: “\(s.message.stringValue)”")
+
+        // The flatbed: no feeder, a glass too short for Legal; the preset is matched to it and says what had to give.
+        choose(s.scannerPopup, DemoScanDevice.flatbed.name)
+        _ = await wait(5) { s.caps != nil && s.caps?.adf == nil }
+        let said = s.message.stringValue
+        let matched = s.sourcePopup.titleOfSelectedItem == "Scanner glass" && s.colorPopup.titleOfSelectedItem == "Grayscale"
+        let notes = said.contains("This scanner has no document feeder: scanning from the glass.") && said.contains("Legal (8.5 × 14 in) doesn't fit this source")
+        check(matched && notes && s.skipBlank.state == .off && s.resolutionPopup.titleOfSelectedItem == "200 dpi",
+              "a preset matched to the flatbed: the glass, grey, 200 dpi, blank pages kept, “\(said.prefix(120))”")
+        // Chosen while another scanner connects, then No preset: nothing is applied once it has.
+        choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
+        choose(s.presetPopup, "Contracts")
+        choose(s.presetPopup, "No preset")
+        let laserRead = await wait(5) { s.caps?.adf != nil }
+        check(laserRead && s.message.stringValue.isEmpty && s.selectedPreset == nil,
+              "a preset turned off while the scanner connected isn't applied once it has: “\(s.message.stringValue.prefix(120))”")
+        choose(s.presetPopup, "Contracts")
+        s.deletePresetButton.performClick(nil)
+        check(!s.presets.contains { $0.name == "Contracts" } && s.presetPopup.titleOfSelectedItem == "No preset"
+              && s.message.stringValue == "Deleted the preset \"Contracts\".",
+              "Delete Preset: gone from the list, No preset chosen")
+    }
+
     private mutating func scan() async {
         ScanWindowController.useDemoScanners()
+        // A printer Inkvolt Print remembers (its hand-off), listed before discovery; the demo laser stays the one chosen.
+        let office = SuitePrinter(id: "12345678-1234-4abc-8def-123456789abc", name: "Office MFP", host: "192.0.2.77",
+                                  esclRoot: "http://192.0.2.77/eSCL/")
+        ScanWindowController.testRemembered = SuitePrinters([office, SuitePrinter(id: "b", name: "Label printer", host: "192.0.2.78")])
+        AppSettings.defaults.set("icc:" + DemoScanDevice.laserScanner.id, forKey: AppSettings.Key.scanDevice)
         // Read as Recognize Text reads (its choices: cleaned, suspect words listed), by a stand-in: "recognlzed" on each page.
         ScanWindowController.testReader = OcrTest.StandInReader()
         ScanWindowController.testSpelling = OcrTest.StandInDictionary()
         defer {
             ScanWindowController.testScanners = nil
+            ScanWindowController.testRemembered = nil
             ScanWindowController.testReader = nil
             ScanWindowController.testSpelling = nil
         }
         ScanWindowController.show()
         guard let s = ScanWindowController.shared else { return check(false, "Scan: not shown") }
         let connected = await wait(5) { s.caps != nil }
-        check(connected && s.scanners.count == 2 && s.scanButton.isEnabled,
-              "Scan: \(s.scanners.count) scanners listed, the first one's capabilities read (\(s.sourcePopup.numberOfItems) sources)")
-        // The feeder: three pages; the last one removed; then one more from the glass.
+        let titles = s.scannerPopup.itemTitles
+        let laser = s.scannerPopup.titleOfSelectedItem == DemoScanDevice.laserScanner.name
+        check(connected && s.scanners.count == 3 && titles.first == "Office MFP  (192.0.2.77)" && laser && s.scanButton.isEnabled,
+              "Scan: \(s.scanners.count) scanners listed (\(titles.joined(separator: ", "))): the one Inkvolt Print remembers first "
+              + "(a printer without eSCL left out), the demo laser chosen and its capabilities read (\(s.sourcePopup.numberOfItems) sources)")
+        // The feeder: three pages, the third blank and left out; then one from the glass, removed, and one more.
         if let feeder = (0..<s.sourcePopup.numberOfItems).first(where: { s.sourcePopup.item(at: $0)?.title.contains("feeder") == true }) {
             s.sourcePopup.selectItem(at: feeder)
             s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
         }
         s.ocr.state = .on
+        let skipsBlank = s.skipBlank.state == .on
         s.scanButton.performClick(nil)
         _ = await wait(1) { s.isScanning }
         _ = await wait(20) { !s.isScanning }
-        let fed = s.pages.count
-        s.removeLastButton.performClick(nil)
+        let fed = s.pages.count, fedText = s.message.stringValue
+        check(skipsBlank && fed == 2 && s.lastBlank == 1 && fedText == "Done: 2 pages from the feeder (1 blank page left out)."
+              && s.scanButton.title == "Scan More Pages",
+              "Leave out blank pages (on by default): the feeder's blank third page left out, “\(fedText)”")
         s.sourcePopup.selectItem(at: 0)
         s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
-        s.scanButton.performClick(nil)
-        _ = await wait(1) { s.isScanning }
-        _ = await wait(20) { !s.isScanning }
-        check(fed == 3 && s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled,
-              "Scan: 3 pages from the feeder, the last removed, 1 from the glass: \(s.pages.count) pages")
+        for remove in [true, false] {
+            s.scanButton.performClick(nil)
+            _ = await wait(1) { s.isScanning }
+            _ = await wait(20) { !s.isScanning }
+            if remove { s.removeLastButton.performClick(nil) }
+        }
+        check(s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled && s.scanButton.title == "Scan Another Page"
+              && s.message.stringValue.hasPrefix("Done. For another page, put it on the glass"),
+              "Scan: 2 pages from the feeder, 1 from the glass removed, 1 more: \(s.pages.count) pages")
         snapshot(s.window, "scan.png")
         let page = s.pages.first
         let pixels = page.flatMap { NSBitmapImageRep(data: Data($0.jpeg))?.pixelsWide } ?? 0
@@ -490,6 +568,7 @@ struct AppTest {
             insert?.window?.orderOut(nil)
         }
         document?.close()
+        await scanPresets()
         let dense = ScanWindowController.withDensity([0xFF, 0xD8, 0xFF, 0xDB, 0x00, 0x02], dpi: 300)
         check(dense.count == 24 && dense[16] == 0x01 && dense[17] == 0x2C, "a scanned JPEG gets the scan's resolution in its JFIF header")
     }
