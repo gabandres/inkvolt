@@ -36,10 +36,22 @@ public enum ScanRun {
     }
 
     /// A page without a JPEG frame header is unreadable; one the check can't judge is kept: never lose a page to the check.
+    /// Stopped while the check runs (off the caller's actor), it answers at once (kept, then dropped by the caller's
+    /// cancellation check) and the check's verdict is dropped, so Stop doesn't wait for a slow check to stop the device.
     static func fate(_ jpeg: [UInt8], _ analysis: Analysis?) async -> ScanPageFate {
         guard (try? PdfWriter.jpegInfo(jpeg)) != nil else { return .unreadable }
         guard let analysis else { return .kept }
-        let blank = await Task.detached(priority: .userInitiated) { (try? BlankPage.isBlank(analysis(jpeg))) ?? false }.value
+        let once = OnceResult<Bool>()
+        let check = Task.detached(priority: .userInitiated) {
+            if Task.isCancelled { return }
+            once.finish((try? BlankPage.isBlank(analysis(jpeg))) ?? false)
+        }
+        let blank = await withTaskCancellationHandler {
+            await withCheckedContinuation { once.start($0) }
+        } onCancel: {
+            check.cancel()
+            once.finish(false)
+        }
         return blank ? .blank : .kept
     }
 

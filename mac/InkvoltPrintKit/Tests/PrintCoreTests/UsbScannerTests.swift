@@ -126,10 +126,12 @@ struct UsbScannerTests {
 
         let plan = PresetPlan.plan(list[0], Self.duplexScanner, feederLoaded: nil, ocrAvailable: true, metric: false)
         #expect(plan.request == ScanRequest(source: .adfDuplex, color: .grayscale, resolution: 300, width: 2550, height: 4200))
+        #expect(plan.sizeKey == "legal") // the dialog picks the size by its key, not by matching width and height
         #expect(plan.ocr)
         #expect(plan.notes.isEmpty)
 
         let flatbed = PresetPlan.plan(list[0], Self.flatbed, feederLoaded: nil, ocrAvailable: false, metric: true)
+        #expect(flatbed.sizeKey == "a4")
         #expect(flatbed.request.source == .platen)
         #expect(flatbed.request.color == .grayscale)
         #expect(!flatbed.ocr)
@@ -205,6 +207,52 @@ struct UsbScannerTests {
         #expect(after.first?.esclRoot.absoluteString == "http://192.0.2.11/eSCL/")
     }
 
+    /// The Mac's own, as Inkvolt Print joins them: a remembered printer found under a UUID the user accepted for it ("This is
+    /// my printer"), or one remembered by its address (no UUID) found at one of its hosts, is listed once, under its
+    /// remembered key, at its new address. A printer with a UUID of its own is never joined to another by address.
+    @Test func A_remembered_scanner_found_under_an_accepted_uuid_or_at_its_host_is_listed_once() {
+        let renewed = "aaaaaaaa-1111-4222-8333-444444444444"
+        let byAddress = PrinterId.normalize(nil, host: "192.0.2.60")
+        let handed = SuitePrinters([
+            SuitePrinter(id: Self.office, name: "Office MFP", host: "192.0.2.10", esclRoot: "http://192.0.2.10/eSCL/",
+                         acceptedUuids: ["{" + renewed.uppercased() + "}"]),
+            SuitePrinter(id: byAddress, name: "Front desk", host: "192.0.2.60", esclRoot: "http://192.0.2.60/eSCL/",
+                         hosts: ["192.0.2.60", "NPIFRONT.local."]),
+            SuitePrinter(id: "cccccccc-1111-4222-8333-444444444444", name: "Hall MFP", host: "192.0.2.70", esclRoot: "http://192.0.2.70/eSCL/"),
+        ])
+        var front = Self.found("dddddddd-1111-4222-8333-444444444444", "Front desk MFP", "192.0.2.61")
+        front.hostName = "npifront.local"
+        let found = [Self.found(renewed, "HP Color LaserJet MFP", "192.0.2.11"), front,
+                     Self.found("eeeeeeee-1111-4222-8333-444444444444", "Another MFP", "192.0.2.70")] // the hall's old address
+        let list = ScannerList.network(remembered: handed, found: found)
+        #expect(list.map(\.name) == ["Office MFP", "Front desk", "Hall MFP", "Another MFP"])
+        #expect(list.map(\.key) == [ScannerList.key(Self.office), ScannerList.key(byAddress), ScannerList.key("cccccccc-1111-4222-8333-444444444444"),
+                                    ScannerList.key("eeeeeeee-1111-4222-8333-444444444444")])
+        #expect(list.map(\.host) == ["192.0.2.11", "192.0.2.61", "192.0.2.70", "192.0.2.70"])
+        #expect(list.map(\.remembered) == [true, true, true, false])
+    }
+
+    /// The Mac's own: the list keeps the scanner chosen in it; the saved one is chosen when it's listed, also when it turns up
+    /// after another was chosen in its place (a USB scanner ImageCaptureCore reports after the remembered network ones); and
+    /// a choice made only because the saved one wasn't there yet is a fallback, never saved over it.
+    @Test func The_saved_scanner_is_chosen_when_it_turns_up_and_a_fallback_isnt_saved() {
+        let saved = "icc:usb-1"
+        #expect(ScannerList.pick([], current: nil, fallback: false, saved: saved) == nil)
+        let early = ScannerList.pick(["escl:a", "escl:b"], current: nil, fallback: false, saved: saved)
+        #expect(early?.index == 0 && early?.fallback == true)
+        let later = ScannerList.pick(["escl:a", "escl:b", saved], current: "escl:a", fallback: true, saved: saved)
+        #expect(later?.index == 2 && later?.fallback == false)
+        // Chosen by the user: kept when the saved one turns up.
+        let kept = ScannerList.pick(["escl:a", "escl:b", saved], current: "escl:b", fallback: false, saved: saved)
+        #expect(kept?.index == 1 && kept?.fallback == false)
+        // A fallback still listed stays chosen (no reconnect) while the saved one is missing.
+        let still = ScannerList.pick(["escl:b", "escl:a"], current: "escl:a", fallback: true, saved: saved)
+        #expect(still?.index == 1 && still?.fallback == true)
+        // Nothing saved yet: the first is simply the choice.
+        let first = ScannerList.pick(["escl:a"], current: nil, fallback: false, saved: nil)
+        #expect(first?.index == 0 && first?.fallback == false)
+    }
+
     // ---- What goes wrong ----------------------------------------------------------------------------------------------------------
 
     @Test func A_jam_mid_stack_says_so_and_keeps_the_pages_before_it() async {
@@ -235,6 +283,31 @@ struct UsbScannerTests {
         for _ in 0..<100 where !stopped.value { try await Task.sleep(for: .milliseconds(10)) }
         #expect(stopped.value)
     }
+
+    /// The Mac's own: Stop while a page is being checked for blankness ends the scan and the device's job at once, not when
+    /// the check (seconds on a big page or a busy Mac) finishes; the check's verdict is dropped.
+    @Test func Stopping_while_a_page_is_checked_stops_the_device_at_once() async throws {
+        let stopped = Stopped()
+        let checking = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        defer { release.signal() }
+        let slow: ScanRun.Analysis = { jpeg in
+            checking.signal()
+            Self.wait(release, seconds: 5)
+            return try Self.analysis { _ in false }(jpeg)
+        }
+        let task = Task {
+            for try await _ in ScanRun.pages(EndlessScanner(stopped: stopped), ScanRequest(source: .adf), analysis: slow) {}
+        }
+        await Task.detached { Self.wait(checking, seconds: 5) }.value
+        let started = ContinuousClock.now
+        task.cancel()
+        for _ in 0..<300 where !stopped.value { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(stopped.value)
+        #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
+    }
+
+    /// Blocks the calling thread (a check, a detached task) until signalled, at most `seconds`.
+    static func wait(_ semaphore: DispatchSemaphore, seconds: Double) { _ = semaphore.wait(timeout: .now() + seconds) }
 
     final class Stopped: @unchecked Sendable {
         private let lock = NSLock()

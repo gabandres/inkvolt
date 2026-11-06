@@ -25,7 +25,7 @@ public struct DemoFleetMac: FleetMac {
 
     public var remembered: [KnownPrinter] { state.printers }
 
-    public func accepted(_ id: String) -> [String] { state.acceptedUuids.first { $0.key.caseInsensitiveCompare(id) == .orderedSame }?.value ?? [] }
+    public func accepted(_ id: String) -> [String] { state.acceptedUuids.first { PrinterId.same($0.key, id) }?.value ?? [] }
 
     public func firmware(_ id: String) -> String? { state.firmware.first { $0.key.caseInsensitiveCompare(id) == .orderedSame }?.value.version }
 

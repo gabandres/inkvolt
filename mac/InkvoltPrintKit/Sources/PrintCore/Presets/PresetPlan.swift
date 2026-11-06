@@ -2,6 +2,8 @@
 public struct PresetPlan: Equatable, Sendable {
     public var request: ScanRequest
     public var ocr: Bool
+    /// The page size chosen (`ScanPageSize.key`), so a dialog selects it by key.
+    public var sizeKey: String
     /// Plain sentences for the status line when the scanner can't do what the preset asks.
     public var notes: [String]
 
@@ -48,6 +50,6 @@ public struct PresetPlan: Equatable, Sendable {
         if preset.fileType == .searchablePdf && !ocrAvailable {
             notes.append("Text recognition isn't available on this Mac: the PDF won't be searchable.")
         }
-        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, notes: notes)
+        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes)
     }
 }

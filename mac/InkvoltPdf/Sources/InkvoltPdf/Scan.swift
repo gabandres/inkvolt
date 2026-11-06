@@ -32,11 +32,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     /// The self-test scans from Inkvolt Print's demo scanners (a laser with glass and feeder, a photo flatbed).
     static func useDemoScanners() { testScanners = DemoScanDevice.all }
 
-    /// A scanner in the list: its id (what's remembered), its label, its address (a network one's) and how to reach it.
+    /// A scanner in the list: its id (what's remembered), its name (for messages), its label (in the list), where a network
+    /// one is reached (its address and eSCL root) and how to reach it.
     struct Scanner {
         let id: String
         let name: String
-        var host: String?
+        let label: String
+        var endpoint: String?
         let device: @MainActor () -> (any ScanDevice)?
     }
 
@@ -60,8 +62,6 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     static var testPresetName: String?
     /// The presets listed after "No preset".
     private(set) var presets: [ScanPreset] = []
-    /// A preset chosen before the scanner's capabilities were read: applied once they are.
-    private var pendingPreset: ScanPreset?
     let scannerState = NSTextField(wrappingLabelWithString: "")
     let pageCount = NSTextField(labelWithString: "")
     let message = NSTextField(wrappingLabelWithString: "")
@@ -89,6 +89,11 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     /// The document Create PDF last opened (the self-test reads it).
     private(set) var lastCreated: PdfDocument?
     private var device: (any ScanDevice)?
+    /// Where `device` reaches its scanner (a network one's address and eSCL root): a job made after it moved gets a new one.
+    private var deviceEndpoint: String?
+    /// The scanner chosen only because the saved one isn't listed yet: never saved over it, and the saved one is chosen
+    /// when it turns up (`ScannerList.pick`).
+    private var fallbackChoice = false
     private var connectTask: Task<Void, Never>?
     private(set) var scanTask: Task<Void, Never>?
     /// The last job's blank pages left out (the self-test reads it).
@@ -287,48 +292,66 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private func rebuildList() {
         let transport = URLSessionTransport.factory(localNetwork: localNetwork)
         var list: [Scanner] = ScannerList.network(remembered: remembered, found: network).map { s in
-            Scanner(id: s.key, name: ScannerList.label(s), host: s.host) { EsclClient(DeviceHttp(host: s.host, transport: transport), root: s.esclRoot) }
+            Scanner(id: s.key, name: s.name, label: ScannerList.label(s), endpoint: "\(s.host) \(s.esclRoot.absoluteString)") {
+                EsclClient(DeviceHttp(host: s.host, transport: transport), root: s.esclRoot)
+            }
         }
         let system = systemScanners
         for s in usb {
             let demo = Self.testScanners != nil
-            list.append(Scanner(id: "icc:" + s.id, name: demo ? s.name : ScannerList.usbLabel(s.name)) {
+            list.append(Scanner(id: "icc:" + s.id, name: s.name, label: demo ? s.name : ScannerList.usbLabel(s.name)) {
                 demo ? DemoScanDevice(s) : system?.device(s.id)
             })
         }
-        let selected = scanners.indices.contains(scannerPopup.indexOfSelectedItem) ? scanners[scannerPopup.indexOfSelectedItem] : nil
-        let current = selected?.id
+        let current = currentScanner?.id
         scanners = list
-        scannerPopup.removeAllItems()
-        scannerPopup.addItems(withTitles: list.map(\.name))
-        if list.isEmpty { return refresh() }
+        Self.fill(scannerPopup, list.map(\.label))
+        let saved = AppSettings.defaults.string(forKey: AppSettings.Key.scanDevice)
+        guard let pick = ScannerList.pick(list.map(\.id), current: current, fallback: fallbackChoice, saved: saved) else { return refresh() }
         if localNetwork.access != .denied { scannerState.stringValue = "" }
-        let wanted = current ?? AppSettings.defaults.string(forKey: AppSettings.Key.scanDevice)
-        let index = list.firstIndex { $0.id == wanted } ?? 0
-        scannerPopup.selectItem(at: index)
-        // Another scanner, or the same one at a new address while the old one hasn't answered (DHCP may have moved it).
-        let moved = list[index].id == current && list[index].host != selected?.host && caps == nil && !isScanning
-        if list[index].id != current || moved { connect() }
+        fallbackChoice = pick.fallback
+        scannerPopup.selectItem(at: pick.index)
+        // Another scanner, or the same one at a new address while the old one hasn't answered (DHCP may have moved it); one
+        // that answered gets its new address when the next job starts (scanClicked).
+        let chosen = list[pick.index]
+        let moved = chosen.id == current && chosen.endpoint != deviceEndpoint && caps == nil && !isScanning
+        if chosen.id != current || moved { connect() }
         refresh()
+    }
+
+    /// The scanner chosen in the list.
+    private var currentScanner: Scanner? {
+        scanners.indices.contains(scannerPopup.indexOfSelectedItem) ? scanners[scannerPopup.indexOfSelectedItem] : nil
+    }
+
+    /// A popup's items one by one: `addItems(withTitles:)` drops a title already there (two scanners of one model, a preset
+    /// called "No preset"), and the items would no longer line up with what they stand for.
+    private static func fill(_ popup: NSPopUpButton, _ titles: [String]) {
+        popup.removeAllItems()
+        for title in titles { popup.menu?.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: "")) }
     }
 
     // MARK: Choices
 
-    @objc private func scannerChanged() { connect() }
+    @objc private func scannerChanged() {
+        fallbackChoice = false // the user's choice: saved
+        connect()
+    }
 
     /// Reads the chosen scanner's capabilities, then fills the choices from them.
     private func connect() {
         connectTask?.cancel()
         caps = nil
         device = nil
-        guard scanners.indices.contains(scannerPopup.indexOfSelectedItem) else { return refresh() }
-        let scanner = scanners[scannerPopup.indexOfSelectedItem]
-        AppSettings.defaults.set(scanner.id, forKey: AppSettings.Key.scanDevice)
+        deviceEndpoint = nil
+        guard let scanner = currentScanner else { return refresh() }
+        if !fallbackChoice { AppSettings.defaults.set(scanner.id, forKey: AppSettings.Key.scanDevice) }
         guard let device = scanner.device() else {
             message.stringValue = "\(scanner.name) can't be used now."
             return refresh()
         }
         self.device = device
+        deviceEndpoint = scanner.endpoint
         message.stringValue = "Connecting to \(scanner.name)…"
         refresh()
         connectTask = Task { [weak self] in
@@ -338,7 +361,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 self.caps = caps
                 self.message.stringValue = caps == nil ? "\(scanner.name) didn't say what it can scan; it may not be an eSCL scanner." : ""
                 self.fillChoices()
-                if caps != nil, let preset = self.pendingPreset ?? self.selectedPreset { self.applyPreset(preset) }
+                if caps != nil, let preset = self.selectedPreset { self.applyPreset(preset) }
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 self.message.stringValue = "\(scanner.name) didn't answer: \(Self.describe(error))"
@@ -436,9 +459,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         presets = Self.loadPresets()
         filling = true
         defer { filling = false }
-        presetPopup.removeAllItems()
-        // Through the menu: addItems(withTitles:) would drop a preset that happened to be called "No preset".
-        for title in ["No preset"] + presets.map(\.name) { presetPopup.menu?.addItem(NSMenuItem(title: title, action: nil, keyEquivalent: "")) }
+        Self.fill(presetPopup, ["No preset"] + presets.map(\.name))
         presetPopup.selectItem(at: presets.firstIndex { $0.id == id }.map { $0 + 1 } ?? 0)
     }
 
@@ -452,19 +473,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         applyPreset(preset)
     }
 
-    /// Sets the choices from a preset matched to this scanner, saying what had to give; waits for the scanner's
-    /// capabilities when they aren't read yet.
+    /// Sets the choices from a preset matched to this scanner, saying what had to give. Before the scanner's capabilities
+    /// are read, nothing yet: `connect` applies the preset still chosen once they are (none after No preset or a delete).
     private func applyPreset(_ preset: ScanPreset) {
-        guard let caps else {
-            pendingPreset = preset
-            return
-        }
-        pendingPreset = nil
+        guard let caps else { return }
         let metric = Locale.current.measurementSystem == .metric
         let plan = PresetPlan.plan(preset, caps, feederLoaded: nil, ocrAvailable: true, metric: metric)
-        let r = plan.request
-        let size = ScanChoices.pageSizes.first { $0.width == r.width && $0.height == r.height }
-        fillChoices(wanted: r, sizeKey: size?.key)
+        fillChoices(wanted: plan.request, sizeKey: plan.sizeKey)
         ocr.state = plan.ocr ? .on : .off
         skipBlank.state = preset.skipBlank ? .on : .off
         message.stringValue = plan.notes.isEmpty ? "Preset \"\(preset.name)\" chosen." : plan.notes.joined(separator: " ")
@@ -568,13 +583,19 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         for p in [scannerPopup, presetPopup, sourcePopup, colorPopup, resolutionPopup, sizePopup] { p.isEnabled = !isScanning && p.numberOfItems > 0 }
         savePresetButton.isEnabled = ready && !isScanning
         deletePresetButton.isEnabled = !isScanning && selectedPreset != nil
-        pageCount.stringValue = pages.isEmpty ? "No pages yet" : (pages.count == 1 ? "1 page" : "\(pages.count) pages")
+        pageCount.stringValue = pages.isEmpty ? "No pages yet" : ScanRun.pages(pages.count)
         progress.isHidden = !isScanning
         if isScanning { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     }
 
     @objc func scanClicked() {
-        guard let device, caps != nil, !isScanning else { return NSSound.beep() }
+        guard var device, caps != nil, !isScanning else { return NSSound.beep() }
+        // The scanner moved (DHCP) since it was connected: the job goes to where the list now finds it.
+        if let scanner = currentScanner, scanner.endpoint != deviceEndpoint, let moved = scanner.device() {
+            device = moved
+            self.device = moved
+            deviceEndpoint = scanner.endpoint
+        }
         rememberChoices()
         let request = request
         let glass = request.source == .platen
@@ -669,7 +690,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 // Where, from the document as it is now (it may have changed meanwhile), as Windows clamps it.
                 let n = c.engine.pageCount, current = min(self.insertInto.current, max(n - 1, 0))
                 let at = min(max([current + 1, current, 0, n][max(place, 0)], 0), n)
-                let label = "Insert \(count == 1 ? "1 page" : "\(count) pages") from the scanner"
+                let label = "Insert \(ScanRun.pages(count)) from the scanner"
                 guard await c.insertPages(PdfSource(bytes, nil, NewDocuments.name("Scan")), at: at, pages: nil, label: label) else {
                     self.message.stringValue = "The pages couldn't be inserted."
                     return

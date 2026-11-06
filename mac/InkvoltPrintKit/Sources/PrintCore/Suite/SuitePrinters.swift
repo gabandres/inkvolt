@@ -72,7 +72,7 @@ public struct SuitePrinters: Equatable, Sendable {
         }
         let forgotten = Set(state.forgottenUuids.map { $0.lowercased() })
         let list = state.printers.filter { !forgotten.contains($0.uuid.lowercased()) }.map { p in
-            let accepted = state.acceptedUuids.first { $0.key.caseInsensitiveCompare(p.uuid) == .orderedSame }?.value ?? []
+            let accepted = state.acceptedUuids.first { PrinterId.same($0.key, p.uuid) }?.value ?? []
             let hosts = [p.host] + (lookup(hostNames, p.uuid).map { [$0] } ?? [])
             return SuitePrinter(id: p.uuid, name: p.name, model: p.model, host: p.host, esclRoot: p.esclRoot, ippUri: p.ippUri,
                                 hosts: hosts, acceptedUuids: accepted, queue: lookup(queues, p.uuid), snmpOnly: p.snmp != nil)

@@ -97,6 +97,20 @@ struct NetTests {
         #expect(!PrinterId.fileName(#"..\..\evil"#).contains("."))
     }
 
+    /// One key however a UUID is written (braces, "urn:uuid:", case, spaces), shared by discovery, the saved state, queue
+    /// matching and Inkvolt PDF's scanner list.
+    @Test func aUuidWrittenAnyWayIsOneKey() {
+        let id = "12345678-1234-4abc-8def-123456789abc"
+        for raw in [id, " {12345678-1234-4ABC-8DEF-123456789ABC} ", "urn:uuid:" + id.uppercased(), "{urn:uuid:\(id)}"] {
+            #expect(PrinterId.key(raw) == id, "\(raw)")
+            #expect(PrinterId.same(raw, id), "\(raw)")
+        }
+        #expect(PrinterId.key("Not A UUID") == "not a uuid") // not a UUID: kept as text, compared without case
+        #expect(!PrinterId.same(id, "aaaaaaaa-1111-4222-8333-444444444444"))
+        #expect(!PrinterId.same(nil, id))
+        #expect(CupsQueues.normalizedUuid("urn:uuid:{" + id.uppercased() + "}") == id)
+    }
+
     @Test func theHostIdIsTheWindowsApps() {
         // MD5("printdesk-host:10.0.0.5") read as .NET's Guid: the first three fields little-endian.
         let hash = Digest.md5(Array("printdesk-host:10.0.0.5".utf8))

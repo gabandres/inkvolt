@@ -436,6 +436,14 @@ struct AppTest {
         let notes = said.contains("This scanner has no document feeder: scanning from the glass.") && said.contains("Legal (8.5 × 14 in) doesn't fit this source")
         check(matched && notes && s.skipBlank.state == .off && s.resolutionPopup.titleOfSelectedItem == "200 dpi",
               "a preset matched to the flatbed: the glass, grey, 200 dpi, blank pages kept, “\(said.prefix(120))”")
+        // Chosen while another scanner connects, then No preset: nothing is applied once it has.
+        choose(s.scannerPopup, DemoScanDevice.laserScanner.name)
+        choose(s.presetPopup, "Contracts")
+        choose(s.presetPopup, "No preset")
+        let laserRead = await wait(5) { s.caps?.adf != nil }
+        check(laserRead && s.message.stringValue.isEmpty && s.selectedPreset == nil,
+              "a preset turned off while the scanner connected isn't applied once it has: “\(s.message.stringValue.prefix(120))”")
+        choose(s.presetPopup, "Contracts")
         s.deletePresetButton.performClick(nil)
         check(!s.presets.contains { $0.name == "Contracts" } && s.presetPopup.titleOfSelectedItem == "No preset"
               && s.message.stringValue == "Deleted the preset \"Contracts\".",

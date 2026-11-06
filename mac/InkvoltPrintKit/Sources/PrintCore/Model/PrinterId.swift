@@ -5,9 +5,26 @@ import Foundation
 public enum PrinterId {
     /// The printer's UUID if it is one; otherwise a stable GUID derived from its address.
     public static func normalize(_ uuid: String?, host: String) -> String {
-        var raw = uuid?.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "{}"))
-        if let r = raw, r.lowercased().hasPrefix("urn:uuid:") { raw = String(r.dropFirst(9)) }
-        return raw.flatMap(guid) ?? fromHost(host)
+        uuid.map(bare).flatMap(guid) ?? fromHost(host)
+    }
+
+    /// A printer id as compared (discovery's join, the saved state, queue matching, Inkvolt PDF's scanner list): `bare`, in
+    /// lower case, so a UUID written with braces, "urn:uuid:", spaces or capitals is one printer. Text that isn't a UUID is
+    /// compared the same way.
+    public static func key(_ text: String) -> String { bare(text).lowercased() }
+
+    /// The same printer id, written either way (`key`); nil is no printer.
+    public static func same(_ a: String?, _ b: String?) -> Bool {
+        guard let a, let b else { return false }
+        return key(a) == key(b)
+    }
+
+    /// The id as published, with spaces, braces and a "urn:uuid:" prefix gone (its case kept).
+    static func bare(_ text: String) -> String {
+        let edges = CharacterSet(charactersIn: "{}").union(.whitespacesAndNewlines)
+        let raw = text.trimmingCharacters(in: edges)
+        guard raw.lowercased().hasPrefix("urn:uuid:") else { return raw }
+        return String(raw.dropFirst(9)).trimmingCharacters(in: edges)
     }
 
     public static func isValid(_ uuid: String?) -> Bool { uuid.flatMap(guid) != nil }
@@ -22,6 +39,11 @@ public enum PrinterId {
         if uuids.isEmpty { return .unknown }
         let known = Set((accepted + [id]).map { normalize($0, host: host).lowercased() })
         return uuids.contains { known.contains($0.lowercased()) } ? .same : .different
+    }
+
+    /// The id was made from one of `hosts` (a printer added by address that reports no UUID), not a UUID of its own.
+    public static func isFromAddress(_ id: String, hosts: [String]) -> Bool {
+        !isValid(id) || hosts.contains { same(id, fromHost($0)) }
     }
 
     /// The real UUIDs among `reported`, normalised (blank and malformed ones left out).

@@ -91,33 +91,6 @@ public struct UdpSnmpTransport: SnmpTransport {
     }
 }
 
-/// A continuation resumed once: by the work's end, a timeout or a cancel, whichever comes first. Finished before the
-/// continuation is there, it resumes as soon as it is. Lets a wait end on the cancel or timeout itself, not when a GCD
-/// thread a busy machine may not give for seconds gets to look (SNMP's exchange, Search my network's port check).
-final class OnceResult<Value: Sendable>: Sendable {
-    private let state = Mutex<(continuation: CheckedContinuation<Value, Never>?, ended: Value?)>((nil, nil))
-
-    func start(_ continuation: CheckedContinuation<Value, Never>) {
-        let ended: Value? = state.withLock { s in
-            if let ended = s.ended { return ended }
-            s.continuation = continuation
-            return nil
-        }
-        if let ended { continuation.resume(returning: ended) }
-    }
-
-    func finish(_ result: Value) {
-        let waiting: CheckedContinuation<Value, Never>? = state.withLock { s in
-            if s.ended != nil { return nil }
-            s.ended = result
-            let c = s.continuation
-            s.continuation = nil
-            return c
-        }
-        waiting?.resume(returning: result)
-    }
-}
-
 /// Set when the waiting task is cancelled; the blocking receive loop checks it.
 final class StopFlag: Sendable {
     private let value = Atomic(false)
