@@ -171,7 +171,7 @@ enum CleanupDespeckle {
     static func remove(_ gray: inout [UInt8], _ width: Int, _ height: Int, _ dpi: Int, _ stop: BatchStop?) throws -> Int {
         let scale = Double(dpi) / 300
         let maxArea = max(2, Int(Double(self.maxArea) * scale * scale))
-        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven)))
+        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven))) // bounded: dpi is 1 to 9600 (PageCleanup.scanDpi), isolation 1/20
         let stride = width + 1
 
         // Ink counts summed over the rectangle above and left of each pixel, to count the ink around a speck at once.

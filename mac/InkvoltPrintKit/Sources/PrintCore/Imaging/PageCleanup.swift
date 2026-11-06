@@ -110,7 +110,7 @@ public enum PaperEdge {
 
     /// The light level each edge of the scan mostly has, when it mostly has one.
     private static func lidLevels(_ img: GrayImage, _ ppi: Double) -> [Int] {
-        let strip = max(2, Int((ppi * 0.05).rounded(.toNearestOrEven)))
+        let strip = max(2, Int((ppi * 0.05).rounded(.toNearestOrEven))) // bounded: ppi is 20 to 9600 (find's guard)
         let (w, h) = (img.width, img.height)
         var levels: [Int] = []
         for (x0, y0, x1, y1) in [(0, 0, w, strip), (0, h - strip, w, h), (0, 0, strip, h), (w - strip, 0, w, h)] {
@@ -129,7 +129,7 @@ public enum PaperEdge {
     }
 
     private static func sheet(_ pixels: [UInt8], _ w: Int, _ h: Int, _ lid: Int, _ ppi: Double) -> CropBox? {
-        let cell = max(1, Int((ppi / 50).rounded(.toNearestOrEven)))
+        let cell = max(1, Int((ppi / 50).rounded(.toNearestOrEven))) // bounded: ppi is 20 to 9600 (find's guard)
         let (gw, gh) = ((w + cell - 1) / cell, (h + cell - 1) / cell)
         var mask = [Bool](repeating: false, count: gw * gh)
         for gy in 0..<gh {
@@ -145,8 +145,8 @@ public enum PaperEdge {
             }
         }
         let cellsPerInch = ppi / Double(cell)
-        let open = max(1, Int((0.04 * cellsPerInch).rounded(.toNearestOrEven)))
-        let close = max(1, Int((0.08 * cellsPerInch).rounded(.toNearestOrEven)))
+        let open = max(1, Int((0.04 * cellsPerInch).rounded(.toNearestOrEven))) // bounded: cellsPerInch is ppi / cell, at most 9600
+        let close = max(1, Int((0.08 * cellsPerInch).rounded(.toNearestOrEven))) // bounded: cellsPerInch is ppi / cell, at most 9600
         mask = PhotoFinder.dilate(PhotoFinder.erode(mask, gw, gh, open), gw, gh, open)
         mask = PhotoFinder.closing(mask, gw, gh, close)
         PhotoFinder.fillHoles(&mask, gw, gh)
@@ -156,7 +156,7 @@ public enum PaperEdge {
         if Double(part.count) < minFill * Double(bw * bh) { return nil } // not a solid rectangle
         if Double(bw * bh) < minShare * Double(gw * gh) || Double(bw) < minSide * cellsPerInch || Double(bh) < minSide * cellsPerInch { return nil }
 
-        let padding = Int((pad * ppi).rounded(.up))
+        let padding = Int((pad * ppi).rounded(.up)) // bounded: pad is a constant fraction of an inch, ppi 20 to 9600
         let (x0, y0) = (max(0, part.minX * cell - padding), max(0, part.minY * cell - padding))
         let (x1, y1) = (min(w, (part.maxX + 1) * cell + padding), min(h, (part.maxY + 1) * cell + padding))
         if Double(x1 - x0) >= nothingToCrop * Double(w) && Double(y1 - y0) >= nothingToCrop * Double(h) { return nil }
@@ -226,7 +226,7 @@ public enum PaperEdge {
             }
         }
 
-        let reach = max(2, Int((ppi * together).rounded(.toNearestOrEven)))
+        let reach = max(2, Int((ppi * together).rounded(.toNearestOrEven))) // bounded: ppi is 20 to 9600 (find's guard, through sheet)
         let longest = ppi * together * 4
         let dust = ppi * dustSide
         var seen = [Bool](repeating: false, count: pixels.count)
@@ -598,7 +598,7 @@ enum Descreen {
         // Just enough to lose the dots (about 4% of their strength left), so type on a tint stays readable.
         let sigma = 0.4 * Double(period)
         let radius = max(1, Int(sigma * 0.7))
-        let passes = max(3, Int((sigma * sigma / (Double(radius * (radius + 1)) / 3)).rounded(.up)))
+        let passes = max(3, Int((sigma * sigma / (Double(radius * (radius + 1)) / 3)).rounded(.up))) // bounded: sigma is 0.4 x an Int period under maxLag (dpi / 25), radius at least 1
         var blurred = [UInt8](repeating: 0, count: rw * rh * channels)
         for y in 0..<rh {
             let from = (y0 + y) * width * channels + x0 * channels
@@ -681,7 +681,7 @@ enum Descreen {
             let start = (line * 2 + 1) * block / (samples * 2)
             return gray[(y0 + (start + i) % block) * width + x0 + i]
         }
-        return diagonal > 0 ? Int(max(2, min(Double(wave), Double(diagonal) * 2.0.squareRoot()).rounded(.toNearestOrEven))) : wave
+        return diagonal > 0 ? Int(max(2, min(Double(wave), Double(diagonal) * 2.0.squareRoot()).rounded(.toNearestOrEven))) : wave // bounded: the smaller of two Int wavelengths, each under maxLag
     }
 
     /// The first lag of at least 2 where sample lines correlate with themselves, at a local peak of correlation; 0 when
