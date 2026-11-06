@@ -61,11 +61,124 @@ struct PrintCopyTests {
         #expect(copy.pages.count == 3 && copy.pages.allSatisfy(Self.isVector))
         #expect(!copy.rewritten && copy.data == pdf)
         #expect(copy.pages[0] == .vector(toPage: Affine(1, 0, 0, -1, 0, 792)))
-        // Asked to (Core Graphics couldn't open the bytes): written by MuPDF, the same pages.
-        let written = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf), rewrite: true)
+        // Core Graphics couldn't open the bytes: the same copy written by MuPDF, its pages as they were.
+        let written = try copy.rewrittenByMuPDF()
         let writtenPages = try Self.shown(written.data).count
         #expect(written.rewritten && written.data != pdf && writtenPages == 3)
+        #expect(written.pages == copy.pages && written.boxes == copy.boxes)
         #expect(try Core2Pdf.allText(written.data, page: 1).contains("Page 2 alpha"))
+    }
+
+    /// The ink in a region of page 1 on screen (MuPDF, comments and fields drawn) and in the copy's page content.
+    private static func inks(_ original: [UInt8], _ copy: PrintCopy, _ region: RectD) throws -> (screen: Double, paper: Double) {
+        (try Core2Pdf.ink(original, 0, region), try Core2Pdf.ink(copy.data, 0, region))
+    }
+
+    @Test func whatMuPdfDoesntDrawIsntDrawnOnPaperAndKeepsItsPageVector() throws {
+        let black = Core2Pdf.stream("0 g 0 0 100 50 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 50]")
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [8 0 R 9 0 R] /SigFlags 3 >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R 9 0 R] >>",
+            // A popup with an appearance of its own (MuPDF never draws popups).
+            "<< /Type /Annot /Subtype /Popup /Rect [100 600 200 650] /F 4 /AP << /N 10 0 R >> >>",
+            // A square marked Invisible.
+            "<< /Type /Annot /Subtype /Square /Rect [250 600 350 650] /F 5 /AP << /N 10 0 R >> >>",
+            // A square marked NoView.
+            "<< /Type /Annot /Subtype /Square /Rect [400 600 500 650] /F 36 /AP << /N 10 0 R >> >>",
+            // A widget of no field (no /FT, no /T): MuPDF draws no such widget.
+            "<< /Type /Annot /Subtype /Widget /Rect [100 400 200 450] /F 4 /AP << /N 10 0 R >> >>",
+            // An invisible signature: signed, a Rect with no area, no appearance (Print and Locked).
+            "<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signer) /Rect [0 0 0 0] /F 132 /P 3 0 R /V 11 0 R >>",
+            // A text field squeezed to no height.
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Flat) /Rect [250 400 350 400] /F 4 /P 3 0 R /AP << /N 10 0 R >> >>",
+            black,
+            "<< /Type /Sig /Filter /Adobe.PPKLite /ByteRange [0 10 20 30] /Contents <00> >>",
+        ])
+        let copy = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf))
+        #expect(copy.pages.allSatisfy(Self.isVector), "\(copy.pages)")
+        for region in [RectD(100, 142, 100, 50), RectD(250, 142, 100, 50), RectD(400, 142, 100, 50), RectD(100, 342, 100, 50)] {
+            let ink = try Self.inks(pdf, copy, region)
+            #expect(ink.screen < 0.01 && ink.paper < 0.01, "\(region): screen \(ink.screen), paper \(ink.paper)")
+        }
+        // Flatten (File › Flatten) keeps the same rule: the popup isn't drawn into the page.
+        let popup = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R] >>",
+            "<< /Type /Annot /Subtype /Popup /Rect [100 600 200 650] /F 4 /AP << /N 5 0 R >> >>",
+            black,
+        ])
+        let flat = try Flattener.flatten(popup, nil)
+        let popupInk = try Core2Pdf.ink(flat, 0, RectD(100, 142, 100, 50))
+        #expect(flat != popup && popupInk < 0.01)
+    }
+
+    @Test func aFieldPrintsTheAppearanceTheScreenShowsNotOneMadeAgain() throws {
+        // /NeedAppearances asks for new appearances, but MuPDF shows the field's own (a black box here): so does paper.
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] /NeedAppearances true /DA (/Helv 12 Tf 0 g) >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R] >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Ada) /Rect [100 600 200 650] /F 4 /P 3 0 R /AP << /N 5 0 R >> >>",
+            Core2Pdf.stream("0 g 0 0 100 50 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 50]"),
+        ])
+        let copy = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf))
+        #expect(copy.pages.allSatisfy(Self.isVector))
+        let ink = try Self.inks(pdf, copy, RectD(102, 144, 96, 46))
+        #expect(ink.screen > 0.9 && ink.paper > 0.9, "screen \(ink.screen), paper \(ink.paper)")
+    }
+
+    @Test func anAppearanceFlatteningCantPlaceMakesThePageAPicture() throws {
+        func doc(_ widget: String, _ appearance: String) -> [UInt8] {
+            Core2Pdf.build([
+                "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R] >>",
+                widget,
+                appearance,
+            ])
+        }
+        let why = PrintedPage.picture("a comment or form field on it has no appearance of its own")
+        // A text field whose appearance has no width: flattening can't fit it to the field; MuPDF may draw its own.
+        let thin = doc("<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /Rect [72 600 300 630] /F 4 /P 3 0 R /AP << /N 5 0 R >> >>",
+                       Core2Pdf.stream("0 g 0 0 0 30 re f", "/Type /XObject /Subtype /Form /BBox [0 0 0 30]"))
+        #expect(try PrintCopy.make(thin, nil, shown: try Self.shown(thin)).pages == [why])
+        // A check box whose state (/AS /Yes) isn't among its appearances: MuPDF makes one up.
+        let box = doc("<< /Type /Annot /Subtype /Widget /FT /Btn /T (Agree) /Rect [72 600 92 620] /F 4 /P 3 0 R /V /Yes /AS /Yes /AP << /N << /Off 5 0 R >> >> >>",
+                      Core2Pdf.stream("", "/Type /XObject /Subtype /Form /BBox [0 0 20 20]"))
+        #expect(try PrintCopy.make(box, nil, shown: try Self.shown(box)).pages == [why])
+        // An unsigned signature field: MuPDF shows its own "sign here" box, not the file's appearance.
+        let unsigned = doc("<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signer) /Rect [100 100 300 160] /F 4 /P 3 0 R /AP << /N 5 0 R >> >>",
+                           Core2Pdf.stream("", "/Type /XObject /Subtype /Form /BBox [0 0 200 60]"))
+        #expect(try PrintCopy.make(unsigned, nil, shown: try Self.shown(unsigned)).pages == [why])
+    }
+
+    @Test func aPageCoreGraphicsReadsDifferentlyPrintsAsAPicture() throws {
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /CropBox [10 20 610 780] /Rotate 90 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>",
+        ])
+        let copy = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf))
+        let letter = PageBox(0, 0, 612, 792, rotation: 0)
+        #expect(copy.boxes == [PageBox(10, 20, 610, 780, rotation: 90), letter, letter])
+        // Page 1 read alike (within MuPDF's rounding, its turn written as -270), page 2 another size, page 3 turned.
+        let read: [PageBox?] = [PageBox(10, 20, 610.2, 780, rotation: -270), PageBox(0, 0, 595, 842, rotation: 0), PageBox(0, 0, 612, 792, rotation: 180)]
+        let checked = copy.checked { read[$0] }
+        let why = PrintedPage.picture("Core Graphics reads its box or turn differently than MuPDF")
+        #expect(Self.isVector(checked[0]) && checked[1] == why && checked[2] == why)
+        // A page Core Graphics doesn't have prints as a picture too.
+        #expect(copy.checked { $0 == 0 ? read[0] : nil }[1] == .picture("Core Graphics couldn't read the page"))
+    }
+
+    @Test func makingTheCopyStopsWhenCancelled() throws {
+        let pdf = TestPdf.make(3)
+        let token = CancelToken()
+        token.cancel()
+        #expect(throws: CancellationError.self) { try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf), cancel: token) }
     }
 
     @Test func commentsAndFieldsAreDrawnIntoTheCopysPages() throws {

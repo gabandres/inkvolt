@@ -255,7 +255,7 @@ struct AttachmentsLayersTest {
         check(printed != nil && printed === window.layerEngine, "printing uses the layers shown")
         // On paper as vectors (Core Graphics draws the copy made from the layer engine's bytes): blue gone, red there.
         let paper = folder.appendingPathComponent("layers-printed.pdf")
-        let job = window.printToFile(paper, setup: PrintSetup(), range: "")
+        let job = await window.printToFile(paper, setup: PrintSetup(), range: "")
         let colors = Self.colors((try? Data(contentsOf: paper)).flatMap { try? PdfEngine.open([UInt8]($0)) })
         check(job.sheets == 1 && job.vectors == 1 && job.pictures == 0 && colors.blue == 0 && colors.red > 0 && colors.green > 0,
               "printed as vectors with the layers shown (pixels on paper: blue \(colors.blue), red \(colors.red), green \(colors.green))")

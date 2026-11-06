@@ -652,7 +652,7 @@ struct PagesTest {
         var unexplained = false
         for (i, (label, setup, pagesTyped, expected)) in layouts.enumerated() {
             let url = path("print-\(i).pdf")
-            let printed = controller.printToFile(url, setup: setup, range: pagesTyped)
+            let printed = await controller.printToFile(url, setup: setup, range: pagesTyped)
             let sheets = printed.sheets
             var ok = false
             if let data = try? Data(contentsOf: url), let e = try? PdfEngine.open([UInt8](data)) {
@@ -676,6 +676,15 @@ struct PagesTest {
               + results.joined(separator: "; ") + "; the print panel carries the Inkvolt options")
         check(!unexplained, pictured.isEmpty ? "every page printed as vectors"
               : "pages printed as vectors but where the print copy says why not (\(pictured.joined(separator: ", ")))")
+        // The copy is made before the panel (off the main thread), taken once by the operation that follows; an
+        // operation made without one (the panel's preview drawing) never makes it.
+        let unprepared = (operation.view as? PrintSheetView)?.hasCopy == false
+        let printed = controller.layerEngine ?? controller.engine
+        let prepared = await controller.preparePrint(progress: false)
+        let taken = controller.takePreparedPrint(printed)
+        let once = controller.takePreparedPrint(printed) == nil
+        check(unprepared && prepared && taken?.document != nil && once,
+              "the print copy is made before the print panel opens and taken once; an operation without it draws pictures")
         await vectorsAgainstPictures(range: range)
     }
 
@@ -683,7 +692,7 @@ struct PagesTest {
     /// first page are text on paper only in the vector job, and it is much smaller.
     private mutating func vectorsAgainstPictures(range: String) async {
         let pictures = path("print-pictures.pdf")
-        let asPictures = controller.printToFile(pictures, setup: PrintSetup(), range: range, pictures: true)
+        let asPictures = await controller.printToFile(pictures, setup: PrintSetup(), range: range, pictures: true)
         let size = { (url: URL) -> Int in ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0 }
         let vectorBytes = size(path("print-0.pdf")), pictureBytes = size(pictures)
         let source = (try? controller.engine.text(0))?.text ?? ""
@@ -704,10 +713,10 @@ struct PagesTest {
               + String(format: "; sheet 1 inked where the pictures are (off by %.2f %% of the sheet)", look * 100))
         // A poster tile and a page turned by Rotate (then undone) land where the pictures do.
         let poster = PrintSetup(handling: .poster, posterScale: 2, overlap: 18, cutMarks: true)
-        let tile = comparePictures(poster, "1", "poster")
+        let tile = await comparePictures(poster, "1", "poster")
         var turned = -1.0
         if await controller.rotatePages([0], degrees: 90) {
-            turned = comparePictures(PrintSetup(), "1", "turned")
+            turned = await comparePictures(PrintSetup(), "1", "turned")
             controller.pdf.undo()
         }
         check(tile >= 0 && tile < 0.005 && turned >= 0 && turned < 0.005,
@@ -717,10 +726,10 @@ struct PagesTest {
 
     /// Prints `range` with `setup` as vectors (a page the print copy keeps a picture as one) and as pictures; how far their first sheets' ink lies apart (`difference`; -1: a job failed
     /// or had pictures in the vector run).
-    private func comparePictures(_ setup: PrintSetup, _ range: String, _ name: String) -> Double {
+    private func comparePictures(_ setup: PrintSetup, _ range: String, _ name: String) async -> Double {
         let vectors = path("print-\(name).pdf"), pictures = path("print-\(name)-pictures.pdf")
-        let a = controller.printToFile(vectors, setup: setup, range: range)
-        let b = controller.printToFile(pictures, setup: setup, range: range, pictures: true)
+        let a = await controller.printToFile(vectors, setup: setup, range: range)
+        let b = await controller.printToFile(pictures, setup: setup, range: range, pictures: true)
         guard a.sheets > 0, a.vectors + a.pictures > 0, !a.reasons.values.contains(PrintSheetView.noCopy), b.sheets == a.sheets else { return -1 }
         return Self.difference(vectors, pictures)
     }

@@ -546,12 +546,20 @@ Mac differences for the PDF app (so far):
   per sheet at actual size or fitted, pages per sheet, booklet, poster), the sheets laid out by `PrintPlan`. Vector
   printing (2026-11-06, `PdfCore/Printing/PrintCopy`, PrintCopyTests): on paper each page is drawn by Core Graphics
   (`CGContext.drawPDFPage`, through `PrintLayout.toPaper` and the page's `toPageMatrix`, clipped to its box: poster tiles
-  too) from a print copy made in memory when the job starts: the bytes the view engine shows (the layers chosen
-  included), every comment and form field (signatures too) drawn into its page by its own appearance (`Flattener`),
-  decrypted. A page prints as MuPDF's 300 dpi picture, as every page did before, only when the copy can't show it as
-  MuPDF does: a comment or field without an appearance of its own (MuPDF makes one up), a note kept upright
-  (NoRotate) on a turned page, a /Rotate that isn't a quarter turn, a size Core Graphics reads differently (/UserUnit,
-  broken boxes), or no copy at all (Core Graphics can't open it or MuPDF's rewrite of it). The panel's preview stays the engine's pictures (it opens at once). Dark Pages
+  too) from a print copy made in memory before the print panel opens, off the main thread (a sheet with Cancel after
+  0.3 s; Cancel prints nothing): the bytes the view engine shows (the layers chosen made again from the document's,
+  not kept beside them), every comment and form field (signatures too) drawn into its page by its own appearance
+  (`Flattener`; the file's own, never one made again, as MuPDF ignores /NeedAppearances), decrypted; Core Graphics
+  reads it in place (one buffer). The rule: paper never shows more or less than the screen, and when unsure the page is
+  a picture. `Flattener.Look` is MuPDF 1.25's drawing rule (pdf_process_annot, the appearances it makes up at load),
+  used both to draw and to classify: nothing for a link or popup, the Invisible, Hidden and NoView flags, a widget of
+  no field (no /FT or /T), a /Rect without area (an invisible signature); a page prints as MuPDF's 300 dpi picture,
+  as every page did before, when MuPDF draws an appearance flattening can't (none of its own, an /AS state its
+  appearances lack, an unsigned signature's "sign here" box, a box without area), a note kept upright (NoRotate) on a
+  turned page, a /Rotate that isn't a quarter turn, a size, box or turn Core Graphics reads differently (/UserUnit,
+  broken boxes; `PrintCopy.checked` per page), or no copy at all (Core Graphics can't open it or MuPDF's rewrite of
+  it). File › Flatten draws by the same rule (a popup's appearance is no longer drawn into the page; Windows draws
+  it). The panel's preview stays the engine's pictures and never makes the copy. Dark Pages
   only colors the screen. A font the file doesn't embed is Core Graphics' choice on paper (MuPDF's on screen).
   Self-test (`--only-print`): 20 KB on paper against 456 KB as pictures for the synthetic document, its words found as
   text, every layout's ink where the pictures put it. Pages larger than 16
