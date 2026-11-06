@@ -35,7 +35,24 @@ struct TransportTests {
         try await Task.sleep(for: .milliseconds(100))
         task.cancel()
         await #expect(throws: CancellationError.self) { try await task.value }
-        #expect(ContinuousClock.now - started < .seconds(2))
+        // CI once took 28 s here (passed on a rerun; 0.1 s on the Mac, also under a full run and 12 busy loops): the wait
+        // now ends on the cancel itself, not when the receive loop's thread gets to look. CI's runner can still starve this
+        // task for seconds, as in ConnectionTests, so it gets 10 s there: a cancel that didn't work would take the 30 s.
+        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
+        #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
+    }
+
+    @Test func snmpCancelledBeforeItSendsEndsAtOnce() async throws {
+        let server = try UdpServer { _ in nil }
+        defer { server.stop() }
+        let started = ContinuousClock.now
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await PortSnmp(port: server.port).send([0x30, 0x00], to: "127.0.0.1", timeout: .seconds(30))
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
+        #expect(ContinuousClock.now - started < .seconds(onCI ? 10 : 2))
     }
 
     // MARK: HTTP
@@ -184,19 +201,9 @@ struct TransportTests {
 struct PortSnmp: SnmpTransport {
     let port: UInt16
 
+    /// The app's own transport, on the agent's port.
     func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
-        let stop = StopFlag()
-        let port = port
-        let result = await withTaskCancellationHandler {
-            await withCheckedContinuation { (done: CheckedContinuation<UdpSnmpTransport.Exchange, Never>) in
-                DispatchQueue.global().async { done.resume(returning: UdpSnmpTransport.exchange(request, host: host, port: port, timeout: timeout, stop: stop)) }
-            }
-        } onCancel: {
-            stop.set()
-        }
-        try Task.checkCancellation()
-        if case .reply(let bytes) = result { return bytes }
-        return nil
+        try await UdpSnmpTransport(port: port).send(request, to: host, timeout: timeout)
     }
 }
 
