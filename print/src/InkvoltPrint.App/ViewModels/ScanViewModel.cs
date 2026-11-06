@@ -807,9 +807,9 @@ public sealed partial class ScanViewModel : ObservableObject
                 foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters };
             });
         }
-        // Every page the crop was tried on, not only those something else changed: with crop alone, one with no edge has no other change.
-        var noEdge = cleanup.HasFlag(PageFilters.CropToPaper)
-            ? added.Count(p => !p.LooksBlank && !p.IsSkipped && !p.IsSeparator && !p.HasPhotos && !p.FindsPhotos && !p.Edits.Filters.HasFlag(PageFilters.CropToPaper)) : 0;
+        // Every page the crop was tried on and found no edge, not only those something else changed: with crop alone, one with no edge
+        // has no other change. Not a page cropped or cleaned up by hand, nor one never looked on (not checked yet, blank, photos).
+        var noEdge = cleanup.HasFlag(PageFilters.CropToPaper) ? added.Count(p => p.NoPaperEdge) : 0;
         var text = changed.Count == 0 ? "" : Plural.Of(changed.Count, Strings.Scan_CleanedUp_One, Strings.Scan_CleanedUp_Many);
         return noEdge == 0 ? text : (text + " " + Plural.Of(noEdge, Strings.Scan_NoEdge_One, Strings.Scan_NoEdge_Many)).TrimStart();
     }
@@ -1784,6 +1784,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <summary>Found blank by the checks (whether or not it's left out).</summary>
     public bool LooksBlank { get; private set; }
 
+    /// <summary>The scan's crop to the paper was looked for on the page and found no edge, so it stays whole (<see cref="PageEdits.NoPaperEdge"/>).</summary>
+    public bool NoPaperEdge { get; private set; }
+
     public bool ShowsFileStart => FileStart > 0;
     public string FileStartText => string.Format(Strings.Scan_FileNumber, FileStart);
     public string FileStartMenuText => StartsFile ? Strings.Scan_DontStartFileHere : Strings.Scan_StartFileHere;
@@ -1902,7 +1905,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
         {
             if (skipBlank || straighten || split != SplitAt.None || findPhotos || cleanup != PageFilters.None)
             {
-                var (blank, angle, separator, looksBlank, photos, crop) = await Task.Run(() =>
+                var (blank, angle, separator, looksBlank, photos, searched, crop) = await Task.Run(() =>
                 {
                     var image = ScanImaging.Analysis(Original);
                     var ppi = image.Width * (double)Dpi / _size.Width;
@@ -1911,14 +1914,16 @@ public sealed partial class ScanPageViewModel : ObservableObject
                     var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
                     var photos = findPhotos && !isBlank && !separator.IsSeparator ? PhotoFinder.Find(image, ppi) : null;
                     var angle = straighten && !isBlank && !separator.IsSeparator && photos is null ? Deskew.Angle(image) : 0;
-                    var crop = cleanup.HasFlag(PageFilters.CropToPaper) && !isBlank && !looksBlank && !separator.IsSeparator && photos is null ? PaperEdge.Find(image, ppi, angle) : null;
-                    return (isBlank, angle, separator, looksBlank, photos, crop);
+                    var searched = cleanup.HasFlag(PageFilters.CropToPaper) && !isBlank && !looksBlank && !separator.IsSeparator && photos is null;
+                    var crop = searched ? PaperEdge.Find(image, ppi, angle) : null;
+                    return (isBlank, angle, separator, looksBlank, photos, searched, crop);
                 });
                 LooksBlank = looksBlank;
                 Separator = separator;
                 IsSkipped = blank;
                 if (photos is not null) Photos = photos;
                 if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
+                NoPaperEdge = Edits.NoPaperEdge(cleanup, searched, crop);
                 // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.
                 if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle) is { } cleaned)
                 {
