@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What a font is used for: the codes drawn (and of those, the ones that show), where it is first used.
 final class AccessibilityFontUse {
@@ -65,7 +66,7 @@ extension AccessibilityChecker {
         for p in 0..<pageCount {
             try cancel.check()
             if totalOps > maxDocumentOperators {
-                notes.append("The document's content is very long: pages \(p + 1) to \(pageCount) weren't checked.")
+                notes.append(loc("The document's content is very long: pages {0} to {1} weren't checked.", p + 1, pageCount))
                 break
             }
             let page = pageObjects[p]
@@ -75,39 +76,52 @@ extension AccessibilityChecker {
             let ops = try ContentLexer.parse(bytes, cancel: cancel, limit: Self.maxOperators + 1)
             var marks: [AccessibilityWalk.Mc] = []
             try walk.run(ops, PageBoxes.inherited(page, "Resources"), .identity, page.int("StructParents"), &marks, 0, false)
-            if walk.stopped { notes.append("Page \(p + 1): its content is very long; only the first part of it was checked.") }
+            if walk.stopped { notes.append(loc("Page {0}: its content is very long; only the first part of it was checked.", p + 1)) }
             report(walk, p)
             try annotations(p, page)
             step(p + 1)
         }
         for id in formOrder {
             guard let use = forms[id], use.tagged, use.uses > 1 else { continue }
-            add("30-002", "A form XObject with tagged content is drawn \(use.uses) times, so its tags would stand for several places at once.", page: use.page, element: "Form XObject")
+            add("30-002", loc("A form XObject with tagged content is drawn {0} times, so its tags would stand for several places at once.", use.uses), page: use.page, element: loc("Form XObject"))
         }
-        for _ in refForms { add("30-001", "The document draws content taken from another file (a reference XObject).", element: "Form XObject") }
+        for _ in refForms { add("30-001", loc("The document draws content taken from another file (a reference XObject)."), element: loc("Form XObject")) }
         formFields()
     }
 
     private func report(_ walk: AccessibilityWalk, _ p: Int) {
+        let content = loc("Page content")
         if walk.untagged > 0 {
-            add("01-005", "\(Self.count(walk.untagged, "content item")) on this page \(walk.untagged == 1 ? "is" : "are") neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).",
-                page: p, box: walk.untaggedBox, element: "Page content", count: walk.untagged)
+            let n = walk.untagged
+            let problem = n == 1 ? loc("{0} content item on this page is neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", n)
+                : loc("{0} content items on this page are neither tagged nor marked as an artifact (text, pictures or drawings a screen reader can't place).", n)
+            add("01-005", problem, page: p, box: walk.untaggedBox, element: content, count: n)
         }
         if walk.artifactInTagged > 0 {
-            add("01-003", "\(Self.count(walk.artifactInTagged, "artifact")) on this page \(walk.artifactInTagged == 1 ? "is" : "are") inside tagged content.", page: p, element: "Page content", count: walk.artifactInTagged)
+            let n = walk.artifactInTagged
+            let problem = n == 1 ? loc("{0} artifact on this page is inside tagged content.", n) : loc("{0} artifacts on this page are inside tagged content.", n)
+            add("01-003", problem, page: p, element: content, count: n)
         }
         if walk.taggedInArtifact > 0 {
-            add("01-004", "\(Self.count(walk.taggedInArtifact, "piece")) of tagged content on this page \(walk.taggedInArtifact == 1 ? "is" : "are") inside an artifact.", page: p, element: "Page content", count: walk.taggedInArtifact)
+            let n = walk.taggedInArtifact
+            let problem = n == 1 ? loc("{0} piece of tagged content on this page is inside an artifact.", n) : loc("{0} pieces of tagged content on this page are inside an artifact.", n)
+            add("01-004", problem, page: p, element: content, count: n)
         }
         if walk.noLang > 0 {
-            add("11-001", "The language of \(Self.count(walk.noLang, "piece")) of text on this page can't be told: the document, its tags and its marked content give none.",
-                page: p, box: walk.noLangBox, element: "Page text", count: walk.noLang)
+            let n = walk.noLang
+            let problem = n == 1 ? loc("The language of {0} piece of text on this page can't be told: the document, its tags and its marked content give none.", n)
+                : loc("The language of {0} pieces of text on this page can't be told: the document, its tags and its marked content give none.", n)
+            add("11-001", problem, page: p, box: walk.noLangBox, element: loc("Page text"), count: n)
         }
         if walk.spanNoLang > 0 {
-            add("11-002", "\(Self.count(walk.spanNoLang, "span")) of marked content on this page \(walk.spanNoLang == 1 ? "has" : "have") alternate, actual or expansion text without a language.",
-                page: p, element: "Page content", count: walk.spanNoLang)
+            let n = walk.spanNoLang
+            let problem = n == 1 ? loc("{0} span of marked content on this page has alternate, actual or expansion text without a language.", n)
+                : loc("{0} spans of marked content on this page have alternate, actual or expansion text without a language.", n)
+            add("11-002", problem, page: p, element: content, count: n)
         }
-        for lang in walk.badLangs.sorted() { add("UA 7.2-Lang", "Marked content on this page has the language “\(Self.short(lang))”, which isn't a language code.", page: p, element: "Page content") }
+        for lang in walk.badLangs.sorted() {
+            add("UA 7.2-Lang", loc("Marked content on this page has the language “{0}”, which isn't a language code.", Self.short(lang)), page: p, element: content)
+        }
     }
 
     func textFont(_ font: PObj) -> TextFont {
@@ -166,13 +180,13 @@ extension AccessibilityChecker {
         guard let annots = page.array("Annots"), annots.count > 0 else { return }
         let tabs = page.name("Tabs")
         if tabs == nil {
-            add("28-008", "This page has comments, links or form fields but doesn't set its tab order (no Tabs entry).", page: p, element: "Page")
+            add("28-008", loc("This page has comments, links or form fields but doesn't set its tab order (no Tabs entry)."), page: p, element: loc("Page"))
         } else if tabs != "S" {
-            add("28-009", "This page's tab order is “\(tabs ?? "")”, not the order of the tags (S).", page: p, element: "Page")
+            add("28-009", loc("This page's tab order is “{0}”, not the order of the tags (S).", tabs ?? ""), page: p, element: loc("Page"))
         }
         let clip = PageBoxes.visibleBox(page)
         totalOps += min(annots.count, 20_000) * Self.operatorsPerAnnotation
-        if annots.count > 20_000 { notes.append("Page \(p + 1): it has very many annotations; only the first 20,000 were checked.") }
+        if annots.count > 20_000 { notes.append(loc("Page {0}: it has very many annotations; only the first 20,000 were checked.", p + 1)) }
         for (i, a) in annots.elements.lazy.filter(\.isDict).prefix(20_000).enumerated() {
             if i & 255 == 255 { try cancel.check() }
             let subtype = a.name("Subtype") ?? ""
@@ -191,32 +205,34 @@ extension AccessibilityChecker {
             let contents = Self.hasText(a, "Contents")
             let label = Self.annotName(subtype)
             let capital = Self.cap(label)
+            let this = Self.thisName(subtype)
+            let inTag = std.map { loc(" (it is in a {0} tag)", $0) } ?? loc(" (it isn't tagged)")
 
             if !hidden && !outside && subtype != "Popup" { // a pop-up belongs to its comment and isn't read on its own
                 if !["Widget", "PrinterMark", "Link"].contains(subtype) && std != "Annot" {
-                    add("28-002", "This \(label) isn't inside an Annot tag\(std.map { " (it is in a \($0) tag)" } ?? " (it isn't tagged)").", page: p, box: box, element: capital)
+                    add("28-002", Self.cap(loc("{0} isn't inside an Annot tag{1}.", this, inTag)), page: p, box: box, element: capital)
                 }
                 if subtype != "Widget" && !contents && !alt {
-                    add("28-004", "This \(label) has no description: no text (Contents) and no alternate text on its tag.", page: p, box: box, element: capital)
+                    add("28-004", Self.cap(loc("{0} has no description: no text (Contents) and no alternate text on its tag.", this)), page: p, box: box, element: capital)
                 }
                 if subtype == "Widget" && Self.isFieldWidget(a) && !Self.hasFieldTooltip(a) && !alt {
-                    add("28-005", "The form field “\(Self.short(Self.fieldName(a)))” has no tooltip and no alternate text, so a screen reader can't say what to fill in.", page: p, box: box, element: "Form field")
+                    add("28-005", loc("The form field “{0}” has no tooltip and no alternate text, so a screen reader can't say what to fill in.", Self.short(Self.fieldName(a))), page: p, box: box, element: loc("Form field"))
                 }
                 if subtype == "Widget" && std != "Form" {
-                    add("28-010", "The form field “\(Self.short(Self.fieldName(a)))” isn't inside a Form tag\(std == nil ? " (it isn't tagged)" : "").", page: p, box: box, element: "Form field")
+                    add("28-010", loc("The form field “{0}” isn't inside a Form tag{1}.", Self.short(Self.fieldName(a)), std == nil ? loc(" (it isn't tagged)") : ""), page: p, box: box, element: loc("Form field"))
                 }
                 if subtype == "Link" {
-                    if std != "Link" { add("28-011", "This link isn't inside a Link tag\(std.map { " (it is in a \($0) tag)" } ?? " (it isn't tagged)").", page: p, box: box, element: "Link") }
-                    if !contents { add("28-012", "This link has no description of where it goes (Contents).", page: p, box: box, element: "Link") }
+                    if std != "Link" { add("28-011", loc("This link isn't inside a Link tag{0}.", inTag), page: p, box: box, element: loc("Link")) }
+                    if !contents { add("28-012", loc("This link has no description of where it goes (Contents)."), page: p, box: box, element: loc("Link")) }
                 }
-                if subtype == "TrapNet" { add("28-007", "This page has a trap network annotation (TrapNet).", page: p, box: box, element: "Trap network") }
-                if subtype == "PrinterMark" && parent != nil { add("28-017", "This printer's mark is in the tags.", page: p, box: box, element: "Printer's mark") }
+                if subtype == "TrapNet" { add("28-007", loc("This page has a trap network annotation (TrapNet)."), page: p, box: box, element: loc("Trap network")) }
+                if subtype == "PrinterMark" && parent != nil { add("28-017", loc("This printer's mark is in the tags."), page: p, box: box, element: loc("Printer's mark")) }
             }
             if contents && !docLang && !a.has("Lang") && parent?.has("Lang") != true {
-                add("11-004", "This \(label)'s text has no language, and the document has none.", page: p, box: box, element: capital)
+                add("11-004", Self.cap(loc("{0}'s text has no language, and the document has none.", this)), page: p, box: box, element: capital)
             }
             if subtype == "FileAttachment", let fs = a.dict("FS"), fs.has("EF"), !Self.hasBothNames(fs) {
-                add("28-016", "This attached file lacks one of its file names (F and UF).", page: p, box: box, element: "Attached file")
+                add("28-016", loc("This attached file lacks one of its file names (F and UF)."), page: p, box: box, element: loc("Attached file"))
             }
             mediaClips(a, p, box)
             if !hidden { try appearance(a, p, page) }
@@ -225,22 +241,40 @@ extension AccessibilityChecker {
 
     private static func annotName(_ subtype: String) -> String {
         switch subtype {
-        case "Text": "note"
-        case "Link": "link"
-        case "Widget": "form field"
-        case "FreeText": "text box"
-        case "Highlight", "Underline", "StrikeOut", "Squiggly": "text markup comment"
-        case "Stamp": "stamp"
-        case "FileAttachment": "attached-file comment"
-        case "Popup": "pop-up note"
-        case "Ink": "drawing"
-        case "Square", "Circle", "Line", "Polygon", "PolyLine": "shape comment"
-        case "": "annotation"
-        default: "\(subtype) annotation"
+        case "Text": loc("note")
+        case "Link": loc("link")
+        case "Widget": loc("form field")
+        case "FreeText": loc("text box")
+        case "Highlight", "Underline", "StrikeOut", "Squiggly": loc("text markup comment")
+        case "Stamp": loc("stamp")
+        case "FileAttachment": loc("attached-file comment")
+        case "Popup": loc("pop-up note")
+        case "Ink": loc("drawing")
+        case "Square", "Circle", "Line", "Polygon", "PolyLine": loc("shape comment")
+        case "": loc("annotation")
+        default: loc("{0} annotation", subtype)
         }
     }
 
-    private static func cap(_ s: String) -> String { s.prefix(1).uppercased() + s.dropFirst() }
+    /// "this note", "this link"…: the start of a sentence about one annotation (Windows' `This`).
+    private static func thisName(_ subtype: String) -> String {
+        switch subtype {
+        case "Text": loc("this note")
+        case "Link": loc("this link")
+        case "Widget": loc("this form field")
+        case "FreeText": loc("this text box")
+        case "Highlight", "Underline", "StrikeOut", "Squiggly": loc("this text markup comment")
+        case "Stamp": loc("this stamp")
+        case "FileAttachment": loc("this attached-file comment")
+        case "Popup": loc("this pop-up note")
+        case "Ink": loc("this drawing")
+        case "Square", "Circle", "Line", "Polygon", "PolyLine": loc("this shape comment")
+        case "": loc("this annotation")
+        default: loc("this {0} annotation", subtype)
+        }
+    }
+
+    static func cap(_ s: String) -> String { s.prefix(1).uppercased() + s.dropFirst() }
 
     private static func isFieldWidget(_ a: PObj) -> Bool {
         var d: PObj? = a
@@ -291,7 +325,7 @@ extension AccessibilityChecker {
             return
         }
         guard let clip = r.dict("C"), clip.name("S") == "MCD" else { return }
-        if !clip.has("CT") { add("28-014", "A media clip on this page doesn't say its type (CT).", page: p, box: box, element: "Media clip") }
+        if !clip.has("CT") { add("28-014", loc("A media clip on this page doesn't say its type (CT)."), page: p, box: box, element: loc("Media clip")) }
         // Alt: language and text pairs, every one a string, no text empty.
         var usable = false
         if let alt = clip.array("Alt"), alt.count % 2 == 0 {
@@ -303,7 +337,7 @@ extension AccessibilityChecker {
                 }
             }
         }
-        if !usable { add("28-015", "A media clip on this page has no usable alternate description (Alt: pairs of a language and a text).", page: p, box: box, element: "Media clip") }
+        if !usable { add("28-015", loc("A media clip on this page has no usable alternate description (Alt: pairs of a language and a text)."), page: p, box: box, element: loc("Media clip")) }
     }
 
     /// The fonts an annotation's appearance draws with (they must meet the font rules too). Each stream once: walking it
@@ -315,7 +349,7 @@ extension AccessibilityChecker {
             streams.append(n)
         } else {
             streams = Array(n.keys.compactMap { n.dict($0) }.filter(\.isStream).prefix(8)) // every state (a check box's on and off)
-            if n.keys.count > 8 { noteOnce("An annotation has very many appearances; only the first 8 were checked.") }
+            if n.keys.count > 8 { noteOnce(loc("An annotation has very many appearances; only the first 8 were checked.")) }
         }
         for s in streams where (s.identity == n.identity || walkedAppearances.insert(s.identity).inserted) && totalOps <= maxDocumentOperators {
             let bytes = s.streamData ?? []
@@ -328,10 +362,10 @@ extension AccessibilityChecker {
             } catch let e as CancellationError {
                 throw e
             } catch {
-                noteOnce("An annotation's appearance couldn't be read, so its fonts weren't checked.")
+                noteOnce(loc("An annotation's appearance couldn't be read, so its fonts weren't checked."))
                 continue
             }
-            if walk.stopped { notes.append("Page \(p + 1): an annotation's appearance is very long; only the first part of it was checked.") }
+            if walk.stopped { notes.append(loc("Page {0}: an annotation's appearance is very long; only the first part of it was checked.", p + 1)) }
         }
     }
 
@@ -362,8 +396,12 @@ extension AccessibilityChecker {
                 for kid in kids.elements where kid.isDict { stack.append((kid, depth + 1)) }
             }
         }
-        if !stack.isEmpty { noteOnce("The file has very many form fields; only the first 50,000 were checked.") }
-        if count > 0 { add("11-005", "The tooltips of \(Self.count(count, "form field")) have no language, and the document has none.", element: "Form fields", count: count) }
+        if !stack.isEmpty { noteOnce(loc("The file has very many form fields; only the first 50,000 were checked.")) }
+        if count > 0 {
+            let problem = count == 1 ? loc("The tooltips of {0} form field have no language, and the document has none.", count)
+                : loc("The tooltips of {0} form fields have no language, and the document has none.", count)
+            add("11-005", problem, element: loc("Form fields"), count: count)
+        }
     }
 }
 
@@ -547,7 +585,7 @@ final class AccessibilityWalk {
                         }
                     }
                     if depth >= AccessibilityChecker.maxFormDepth {
-                        c.noteOnce("Forms nested more than \(AccessibilityChecker.maxFormDepth) deep weren't checked.")
+                        c.noteOnce(loc("Forms nested more than {0} deep weren't checked.", AccessibilityChecker.maxFormDepth))
                         break
                     }
                     if !active.insert(x.identity).inserted { break }

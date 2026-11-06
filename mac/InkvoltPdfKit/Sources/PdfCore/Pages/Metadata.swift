@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A document's properties (the Info dictionary) and its PDF version.
 public struct PdfMetadata: Equatable, Sendable {
@@ -308,7 +309,7 @@ extension PdfEdit {
         do {
             doc = try MuDoc.open(data)
         } catch let e as PdfEngineError {
-            throw PdfEditError("This PDF can't be read: \(e.message)")
+            throw PdfEditError(loc("This PDF can't be read: {0}", e.message))
         }
         if doc.needsPassword && doc.authBits(password) == 0 { throw PasswordRequired(wrongPassword: !(password ?? "").isEmpty) }
         return doc

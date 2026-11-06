@@ -46,9 +46,9 @@ struct UxWordsTests {
         #expect(PlainWords.entries.count == 6)
         for e in PlainWords.entries {
             for word in PlainWords.jargon {
-                #expect(!e.note.localizedCaseInsensitiveContains(word), "\(e.name): \(word)")
+                #expect(!e.note.english.localizedCaseInsensitiveContains(word), "\(e.name): \(word)")
             }
-            #expect(e.note.hasSuffix("."))
+            #expect(e.note.english.hasSuffix("."))
             #expect(e.proposed != e.name)
         }
         #expect(PlainWords.note(for: "Flatten…") != nil)

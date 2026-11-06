@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The redaction check's search of the file's data: the values in every object of the document (strings, decoded
 /// streams, the text content streams show in their own fonts, attached files), named by what holds them; in each earlier
@@ -160,7 +161,7 @@ extension RedactionCheck {
         // Attached files first: a file-attachment comment's file is named by its file specification.
         for o in doc.allObjects() where o.isDict && (o.name("Type") == "Filespec" || o.has("EF")) {
             let name = o.text("UF") ?? o.text("F") ?? ""
-            let owner = Owner(part: .attachment, page: -1, place: name.isEmpty ? "An attached file" : "Attached file '\(name)'", fix: .embeddedFiles)
+            let owner = Owner(part: .attachment, page: -1, place: name.isEmpty ? loc("An attached file") : loc("Attached file '{0}'", name), fix: .embeddedFiles)
             tryAdd(o, owner)
             if let ef = o.dict("EF") { for key in ef.keys { set(ef[key], owner) } }
         }
@@ -168,8 +169,8 @@ extension RedactionCheck {
         for p in 0..<(try doc.pageCount()) {
             try cancel.check()
             let page = doc.page(p)
-            tryAdd(page, Owner(part: .page, page: p, place: "Page \(p + 1)'s own data", fix: .metadata))
-            content(page["Contents"], Owner(part: .content, page: p, place: "Page \(p + 1)", fix: nil,
+            tryAdd(page, Owner(part: .page, page: p, place: loc("Page {0}'s own data", p + 1), fix: .metadata))
+            content(page["Contents"], Owner(part: .content, page: p, place: loc("Page {0}", p + 1), fix: nil,
                                             resources: PageBoxes.inherited(page, "Resources")))
             for a in page.array("Annots")?.elements ?? [] where a.isDict {
                 let owner = annotOwner(a, p)
@@ -193,11 +194,11 @@ extension RedactionCheck {
         if let acro = catalog.dict("AcroForm") {
             func field(_ f: PObj, _ depth: Int) {
                 guard depth <= 32, seen.insert(f.identity).inserted else { return }
-                tryAdd(f, Owner(part: .field, page: -1, place: "Form field '\(fieldName(f))'", fix: .formValues))
+                tryAdd(f, Owner(part: .field, page: -1, place: loc("Form field '{0}'", fieldName(f)), fix: .formValues))
                 for k in f.array("Kids")?.elements ?? [] where k.isDict { field(k, depth + 1) }
             }
             for f in acro.array("Fields")?.elements ?? [] where f.isDict { field(f, 0) }
-            let xfa = Owner(part: .xfa, page: -1, place: "The form's XFA data", fix: .formValues)
+            let xfa = Owner(part: .xfa, page: -1, place: loc("The form's XFA data"), fix: .formValues)
             if let x = acro["XFA"] {
                 if x.isStream {
                     tryAdd(x, xfa)
@@ -208,7 +209,7 @@ extension RedactionCheck {
         }
 
         // The outline: siblings by /Next, children by /First, each item once.
-        let bookmark = Owner(part: .bookmark, page: -1, place: "Bookmark", fix: .bookmarks)
+        let bookmark = Owner(part: .bookmark, page: -1, place: loc("Bookmark"), fix: .bookmarks)
         var stack: [PObj] = []
         if let top = catalog.dict("Outlines")?.dict("First") { stack.append(top) }
         var guardCount = 0
@@ -220,9 +221,9 @@ extension RedactionCheck {
             if let child = item.dict("First") { stack.append(child) }
         }
 
-        if let info = doc.info { tryAdd(info, Owner(part: .info, page: -1, place: "Document properties", fix: .metadata)) }
+        if let info = doc.info { tryAdd(info, Owner(part: .info, page: -1, place: loc("Document properties"), fix: .metadata)) }
 
-        let structure = Owner(part: .structure, page: -1, place: "Tags (structure tree)", fix: nil)
+        let structure = Owner(part: .structure, page: -1, place: loc("Tags (structure tree)"), fix: nil)
         var elems: [(PObj?, Int)] = [(catalog.dict("StructTreeRoot")?["K"], 0)]
         guardCount = 0
         while let (item, depth) = elems.popLast(), guardCount < 500_000 {
@@ -242,28 +243,28 @@ extension RedactionCheck {
         let subtype = a.name("Subtype") ?? ""
         let flags = a.int("F") ?? 0
         if subtype == "Widget" || a.has("FT") {
-            return Owner(part: .annotation, page: p, place: "Form field '\(fieldName(a))' on page \(p + 1)",
+            return Owner(part: .annotation, page: p, place: loc("Form field '{0}' on page {1}", fieldName(a), p + 1),
                          fix: flags & (2 | 32) != 0 ? .hiddenAnnotations : .formValues)
         }
         let what: String
         switch subtype {
-        case "Text": what = "Note"
-        case "FreeText": what = "Text box"
-        case "Square": what = "Rectangle"
-        case "Circle": what = "Ellipse"
-        case "Ink": what = "Drawing"
-        case "Popup": what = "Pop-up note"
-        case "FileAttachment": what = "Attached file (comment)"
-        case "": what = "Comment"
+        case "Text": what = loc("Note", context: "a kind of comment")
+        case "FreeText": what = loc("Text box", context: "a kind of comment")
+        case "Square": what = loc("Rectangle", context: "a kind of comment")
+        case "Circle": what = loc("Ellipse", context: "a kind of comment")
+        case "Ink": what = loc("Drawing", context: "a kind of comment")
+        case "Popup": what = loc("Pop-up note")
+        case "FileAttachment": what = loc("Attached file (comment)")
+        case "": what = loc("Comment", context: "a kind of finding")
         default: what = subtype
         }
         if flags & (2 | 32) != 0 {
-            return Owner(part: .annotation, page: p, place: "Hidden \(what.lowercased()) on page \(p + 1)", fix: .hiddenAnnotations)
+            return Owner(part: .annotation, page: p, place: loc("Hidden {0} on page {1}", what.lowercased(), p + 1), fix: .hiddenAnnotations)
         }
         switch subtype {
-        case "Link": return Owner(part: .annotation, page: p, place: "Link on page \(p + 1)", fix: .externalLinks)
-        case "FileAttachment": return Owner(part: .annotation, page: p, place: "\(what) on page \(p + 1)", fix: .embeddedFiles)
-        default: return Owner(part: .annotation, page: p, place: "\(what) on page \(p + 1)", fix: .comments)
+        case "Link": return Owner(part: .annotation, page: p, place: loc("Link on page {0}", p + 1), fix: .externalLinks)
+        case "FileAttachment": return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, p + 1), fix: .embeddedFiles)
+        default: return Owner(part: .annotation, page: p, place: loc("{0} on page {1}", what, p + 1), fix: .comments)
         }
     }
 
@@ -517,7 +518,7 @@ extension RedactionCheck.Check {
             for m in matcher.matches(texts[p].text) { shown[m.value, default: 0] += 1 }
             for (v, count) in drawn.sorted(by: { $0.key < $1.key }) where count > (shown[v] ?? 0) {
                 hits.insert(v)
-                add(RedactionFinding(.hiddenText, "Page \(p + 1), in its content but not shown", matcher.values[v], page: p,
+                add(RedactionFinding(.hiddenText, loc("Page {0}, in its content but not shown", p + 1), matcher.values[v], page: p,
                                      box: RedactionCheck.offPage, sanitize: hiddenLayers > 0 ? .hiddenLayers : nil))
             }
         }
@@ -542,15 +543,15 @@ extension RedactionCheck.Check {
     private static func unowned(_ o: PObj, _ text: String, _ used: Bool) -> RedactionFinding {
         let type = o.isDict ? o.name("Type") ?? "" : ""
         let number = o.num
-        if type == "Metadata" { return RedactionFinding(.metadata, "XMP metadata", text, sanitize: .metadata) }
+        if type == "Metadata" { return RedactionFinding(.metadata, loc("XMP metadata"), text, sanitize: .metadata) }
         if o.isDict && (o.has("JS") || o.name("S") == "JavaScript") {
-            return RedactionFinding(.fileData, "A script (JavaScript)", text, sanitize: .activeContent)
+            return RedactionFinding(.fileData, loc("A script (JavaScript)"), text, sanitize: .activeContent)
         }
-        if type == "Filespec" || type == "EmbeddedFile" { return RedactionFinding(.attachment, "An attached file", text, sanitize: .embeddedFiles) }
-        if type == "Annot" { return RedactionFinding(.annotation, "A comment", text, sanitize: .comments) }
-        if type == "StructElem" { return RedactionFinding(.structureTree, "Tags (structure tree)", text) }
-        if !used { return RedactionFinding(.fileData, "Object \(number), which nothing in the document uses", text, rewrite: true) }
-        return RedactionFinding(.fileData, "Object \(number) of the file", text)
+        if type == "Filespec" || type == "EmbeddedFile" { return RedactionFinding(.attachment, loc("An attached file"), text, sanitize: .embeddedFiles) }
+        if type == "Annot" { return RedactionFinding(.annotation, loc("A comment"), text, sanitize: .comments) }
+        if type == "StructElem" { return RedactionFinding(.structureTree, loc("Tags (structure tree)"), text) }
+        if !used { return RedactionFinding(.fileData, loc("Object {0}, which nothing in the document uses", number), text, rewrite: true) }
+        return RedactionFinding(.fileData, loc("Object {0} of the file", number), text)
     }
 
     /// The object numbers the document reaches from its catalog and its properties.
@@ -564,13 +565,13 @@ extension RedactionCheck.Check {
     func earlierVersions(_ engine: PdfEngine, _ matcher: RedactionCheck.ValueMatcher?, _ inFile: Set<Int>, _ ends: [Int]) throws {
         if ends.isEmpty { return }
         let maxRevisions = RedactionCheck.maxRevisions
-        if ends.count > maxRevisions { notes.append("Only the last \(maxRevisions) of the file's \(ends.count) earlier versions were checked.") }
+        if ends.count > maxRevisions { notes.append(loc("Only the last {0} of the file's {1} earlier versions were checked.", maxRevisions, ends.count)) }
         let current = Set(texts.flatMap { RedactionCheck.words($0.text) })
         var reportedValues = Set<Int>()
         for k in max(0, ends.count - maxRevisions)..<ends.count {
             try cancel.check()
             let prefix = Array(data[0..<ends[k]])
-            let place = "Earlier version \(k + 1) of the file"
+            let place = loc("Earlier version {0} of the file", k + 1)
             do {
                 if let matcher {
                     let old = try PdfEdit.openToRead(prefix, password)
@@ -592,13 +593,13 @@ extension RedactionCheck.Check {
                         gone.append(w)
                     }
                     if gone.isEmpty { continue }
-                    add(RedactionFinding(.earlierRevision, "\(place), page \(p + 1)",
-                                         "Text no longer on the pages: " + gone.prefix(12).joined(separator: " ") + (gone.count > 12 ? " …" : ""), rewrite: true))
+                    add(RedactionFinding(.earlierRevision, loc("{0}, page {1}", place, p + 1),
+                                         loc("Text no longer on the pages: ") + gone.prefix(12).joined(separator: " ") + (gone.count > 12 ? " …" : ""), rewrite: true))
                 }
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                notes.append("\(place) couldn't be read on its own.")
+                notes.append(loc("{0} couldn't be read on its own.", place))
             }
             step()
         }
@@ -613,7 +614,7 @@ extension RedactionCheck.Check {
         try cancel.check()
         for (v, start, length) in matcher.firstOfEach(text) {
             if !hits.insert(v).inserted || inFile.contains(v) { continue }
-            add(RedactionFinding(.fileData, "The file's bytes, outside the objects the document reads", RedactionCheck.excerpt(text, start, length), rewrite: true))
+            add(RedactionFinding(.fileData, loc("The file's bytes, outside the objects the document reads"), RedactionCheck.excerpt(text, start, length), rewrite: true))
         }
     }
 }

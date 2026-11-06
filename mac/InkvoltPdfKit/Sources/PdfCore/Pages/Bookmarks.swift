@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Reads and rewrites the document's bookmarks: add, rename, delete, reorder, nest, restyle, retarget (the Windows app's
 /// `Bookmarks`). A signed document gets the change as an incremental update (bookmarks are outside what signatures lock).
@@ -50,11 +51,11 @@ public enum Bookmarks {
         var used = Set<Int>()
 
         func build(_ nodes: [Bookmark], _ depth: Int) throws -> [PdfStructure.OutlineItem] {
-            if depth > 64 { throw PdfEditError("Bookmarks are nested too deeply.") }
+            if depth > 64 { throw PdfEditError(loc("Bookmarks are nested too deeply.")) }
             var list: [PdfStructure.OutlineItem] = []
             for node in nodes {
                 if node.pageIndex >= pageCount || node.pageIndex < -1 {
-                    throw PdfEditError("Bookmark \"\(node.title)\" leads to page \(node.pageIndex + 1), which the document doesn't have.")
+                    throw PdfEditError(loc("Bookmark \"{0}\" leads to page {1}, which the document doesn't have.", node.title, node.pageIndex + 1))
                 }
                 let reuse = node.sourceId > 0 && node.sourceId <= existing.count && used.insert(node.sourceId).inserted
                 let d = reuse ? existing[node.sourceId - 1] : doc.add(doc.dict())

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// How a stamp looks: `title` in bold capitals in a rounded frame, an optional `detail` line under it (who and when), all
 /// in `color`. `name` is the PDF stamp name (/Name: Approved, NotApproved, Draft, …), which other viewers may know;
@@ -129,13 +130,13 @@ public enum RubberStamps {
     /// its new size; its own design and author kept).
     public static func put(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ rect: RectD, _ design: StampDesign, author: String?,
                            replaceId: String? = nil) throws -> [UInt8] {
-        if rect.isEmpty { throw PdfEditError("The stamp needs a size.") }
+        if rect.isEmpty { throw PdfEditError(loc("The stamp needs a size.")) }
         return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             var design = design
             var old: (page: Int, annot: PObj)?
             if let replaceId {
-                guard let found = try Annotations.find(doc, replaceId) else { throw PdfEditError("The stamp is no longer in the document.") }
+                guard let found = try Annotations.find(doc, replaceId) else { throw PdfEditError(loc("The stamp is no longer in the document.")) }
                 old = found
                 design = designOf(found.annot) ?? design
             }
@@ -173,7 +174,7 @@ public enum RubberStamps {
     /// Moves or resizes a stamp: a vector one is redrawn at its new size, an image one keeps its picture.
     public static func move(_ data: [UInt8], _ password: String?, _ id: String, _ pageIndex: Int, _ rect: RectD) throws -> [UInt8] {
         let doc = try PdfEdit.openToRead(data, password)
-        guard let found = try Annotations.find(doc, id) else { throw PdfEditError("The stamp is no longer in the document.") }
+        guard let found = try Annotations.find(doc, id) else { throw PdfEditError(loc("The stamp is no longer in the document.")) }
         if let design = designOf(found.annot) { return try put(data, password, pageIndex, rect, design, author: nil, replaceId: id) }
         return try SignatureStamps.put(data, password, pageIndex, rect, nil, replaceId: id)
     }

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import MuPDFShim
 
 /// Page size for images turned into PDF pages.
@@ -31,7 +32,7 @@ public enum ImageImport {
 
     /// - Throws: `PdfEditError` when there are no images, or a file isn't an image that can be read (the message names it).
     public static func imagesToPdf(_ images: [(bytes: [UInt8], name: String)], pageSize: PageSizeOption = .fitImage) throws -> [UInt8] {
-        if images.isEmpty { throw PdfEditError("There are no images to convert.") }
+        if images.isEmpty { throw PdfEditError(loc("There are no images to convert.")) }
         let doc = try MuDoc.create()
         for (bytes, name) in images {
             let pictures: [Picture]
@@ -41,7 +42,7 @@ public enum ImageImport {
             case let type?:
                 pictures = try decoded(doc, bytes, type, name)
             case nil:
-                throw PdfEditError("\"\(name)\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).")
+                throw PdfEditError(loc("\"{0}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).", name))
             }
             for p in pictures { try addPage(doc, p, pageSize) }
         }
@@ -62,7 +63,7 @@ public enum ImageImport {
         case let type?:
             p = try decoded(doc, bytes, type, name)[0]
         case nil:
-            throw PdfEditError("\"\(name)\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).")
+            throw PdfEditError(loc("\"{0}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).", name))
         }
         return (p.image, p.width, p.height, p.dpiX, p.dpiY, p.orientation)
     }
@@ -211,7 +212,7 @@ public enum ImageImport {
         do {
             image = try MuDoc.openImage(bytes, magic: magic, in: doc)
         } catch let e as PdfEngineError {
-            throw PdfEditError("\"\(name)\" can't be read as an image: \(e.message)")
+            throw PdfEditError(loc("\"{0}\" can't be read as an image: {1}", name, e.message))
         }
         var list: [Picture] = []
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
@@ -224,7 +225,7 @@ public enum ImageImport {
             // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.
             let scale = header.width > 0 ? Double(header.width) / bw : 1
             if (bw * scale) * (bh * scale) > PdfEngine.maxPixels {
-                throw PdfEditError("\"\(name)\" is too large (\(Int(bw * scale)) x \(Int(bh * scale)) pixels).")
+                throw PdfEditError(loc("\"{0}\" is too large ({1} x {2} pixels).", name, Int(bw * scale), Int(bh * scale)))
             }
             var px: UnsafeMutablePointer<UInt8>?
             var w: Int32 = 0, h: Int32 = 0
@@ -235,7 +236,7 @@ public enum ImageImport {
             let dy = header.dpiY ?? header.dpiX ?? (header.width > 0 ? defaultDpi : 72)
             list.append(Picture(image: store(doc, Int(w), Int(h), rgba), width: Int(w), height: Int(h), dpiX: dx, dpiY: dy, orientation: 1))
         }
-        if list.isEmpty { throw PdfEditError("\"\(name)\" has no image MuPDF can draw.") }
+        if list.isEmpty { throw PdfEditError(loc("\"{0}\" has no image MuPDF can draw.", name)) }
         return list
     }
 

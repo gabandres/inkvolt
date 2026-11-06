@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The assistant's saved settings, under the Windows app's names (`AppSettings`'s Ai…). Off by default. API keys are never
 /// here: see `AiKeyStore`.
@@ -51,7 +52,9 @@ public struct AiConfig: Sendable, Equatable {
 /// an endpoint and confirms a send. There is no Inkvolt server, default key or telemetry.
 public enum AiService {
     public static let presetNames = ["Ollama", "LMStudio", "Custom"]
-    public static let presetLabels = ["Ollama (on this Mac)", "LM Studio (on this Mac)", "Custom: any OpenAI-compatible endpoint"]
+    public static var presetLabels: [String] {
+        [loc("Ollama (on this Mac)"), loc("LM Studio (on this Mac)"), loc("Custom: any OpenAI-compatible endpoint")]
+    }
 
     /// The base URL a preset stands for (Custom: the saved custom URL).
     public static func urlOf(_ preset: String, _ customUrl: String) -> String {
@@ -64,11 +67,11 @@ public enum AiService {
 
     /// The saved configuration, or nil with the reason when the assistant is off or incomplete.
     public static func current(_ s: AiSettings) -> (config: AiConfig?, problem: String?) {
-        if !s.enabled { return (nil, "The AI assistant is off.") }
+        if !s.enabled { return (nil, loc("The AI assistant is off.")) }
         let parsed = AiEndpoint.tryParse(urlOf(s.preset, s.customUrl))
         guard let endpoint = parsed.endpoint else { return (nil, parsed.error) }
         let model = AiText.trim(s.model)
-        if model.isEmpty { return (nil, "Choose a model for the AI assistant.") }
+        if model.isEmpty { return (nil, loc("Choose a model for the AI assistant.")) }
         // Ollama: until it is asked (resolve), the size it uses unless told otherwise on most machines.
         let context = s.preset == "Ollama" ? AiText.defaultContextTokens : min(max(s.contextTokens, 1024), 2_000_000)
         return (AiConfig(endpoint: endpoint, preset: s.preset, model: model, contextTokens: context), nil)
@@ -86,7 +89,7 @@ public enum AiService {
             resolved.contextSource = answer.source
         } else {
             resolved.contextTokens = AiText.defaultContextTokens
-            resolved.contextSource = "Ollama's usual default (it didn't say)"
+            resolved.contextSource = loc("Ollama's usual default (it didn't say)")
         }
         return resolved
     }
@@ -107,25 +110,25 @@ public enum AiService {
 
     /// The one-line state for Settings: "Off", or "On: model at host (stays on this Mac)".
     public static func describe(_ s: AiSettings) -> String {
-        if !s.enabled { return "Off. Inkvolt PDF has no AI of its own; you can connect one you choose." }
+        if !s.enabled { return loc("Off. Inkvolt PDF has no AI of its own; you can connect one you choose.") }
         let now = current(s)
-        if let c = now.config { return "On: \(c.model) at \(c.serverLabel). \(c.endpoint.reachText)." }
-        return "On, but not set up: \(now.problem ?? "")"
+        if let c = now.config { return loc("On: {0} at {1}. {2}.", c.model, c.serverLabel, c.endpoint.reachText) }
+        return loc("On, but not set up: {0}", now.problem ?? "")
     }
 
     /// What the settings say about an endpoint's address.
     public static func reachNote(_ endpoint: AiEndpoint) -> String {
         switch endpoint.reach {
-        case .internet: "\(endpoint.reachText). Text you send is handled under that provider's terms."
-        case .thisMac: "\(endpoint.reachText): text goes only to the server running on this computer."
+        case .internet: loc("{0}. Text you send is handled under that provider's terms.", endpoint.reachText)
+        case .thisMac: loc("{0}: text goes only to the server running on this computer.", endpoint.reachText)
         case .localNetwork: "\(endpoint.reachText)."
         }
     }
 
     /// What the settings say about the endpoint's key.
     public static func keyNote(saved: Bool) -> String {
-        saved ? "A key is saved for this endpoint, in your keychain. Leave the box empty to keep it."
-            : "Only if the endpoint needs one (local servers don't). Kept in your keychain, sent only to this endpoint."
+        saved ? loc("A key is saved for this endpoint, in your keychain. Leave the box empty to keep it.")
+            : loc("Only if the endpoint needs one (local servers don't). Kept in your keychain, sent only to this endpoint.")
     }
 
     /// The context size typed in the settings ("4,096"), nil unless a number from 1,024 to 2,000,000.
@@ -138,44 +141,46 @@ public enum AiService {
 
     /// What's wrong with the settings as filled in, or nil. The context is checked even with the assistant off, as on Windows.
     public static func validate(enabled: Bool, url: String, model: String, context: String) -> String? {
-        if parseContext(context) == nil { return "Enter a context size from 1,024 to 2,000,000 tokens." }
+        if parseContext(context) == nil { return loc("Enter a context size from 1,024 to 2,000,000 tokens.") }
         if !enabled { return nil }
         let parsed = AiEndpoint.tryParse(url)
         if parsed.endpoint == nil { return parsed.error }
-        if AiText.trim(model).isEmpty { return "Choose or type a model (Test connection lists the endpoint's models)." }
+        if AiText.trim(model).isEmpty { return loc("Choose or type a model (Test connection lists the endpoint's models).") }
         return nil
     }
 
     /// What Test connection found.
     public static func testResult(host: String, models: [String], typed: String) -> String {
-        let count = models.count == 1 ? "1 model" : "\(AiText.n0(models.count)) models"
-        if models.isEmpty { return "Connected to \(host), but it doesn't list its models: type the model's name." }
+        let n = models.count
+        if models.isEmpty { return loc("Connected to {0}, but it doesn't list its models: type the model's name.", host) }
         if !typed.isEmpty && !models.contains(where: { $0.lowercased() == typed.lowercased() }) {
-            return "Connected: \(count), but not \"\(typed)\". Pick one from the list."
+            if n == 1 { return loc("Connected: {0} model, but not \"{1}\". Pick one from the list.", n, typed) }
+            return loc("Connected: {0} models, but not \"{1}\". Pick one from the list.", CoreLanguage.number(n), typed)
         }
-        return "Connected to \(host): \(count) available."
+        if n == 1 { return loc("Connected to {1}: {0} model available.", n, host) }
+        return loc("Connected to {1}: {0} models available.", CoreLanguage.number(n), host)
     }
 
     /// Test connection's second sentence for Ollama.
     public static func ollamaContextNote(_ model: String, context: Int?, source: String) -> String {
-        if let context { return " \(model) reads \(AiText.n0(context)) tokens at once (\(source))." }
-        return " Ollama didn't say how much \(model) reads at once (it isn't loaded yet): Inkvolt PDF assumes \(AiText.n0(AiText.defaultContextTokens)) tokens, its usual default."
+        if let context { return " " + loc("{0} reads {1} tokens at once ({2}).", model, CoreLanguage.number(context), source) }
+        return " " + loc("Ollama didn't say how much {0} reads at once (it isn't loaded yet): Inkvolt PDF assumes {1} tokens, its usual default.", model, CoreLanguage.number(AiText.defaultContextTokens))
     }
 
-    public static let intro = "Inkvolt PDF has no AI of its own. If you want one, connect a model you run (Ollama, LM Studio) or an "
-        + "OpenAI-compatible service you have an account with. Only text you pick is sent, after you see it, to the "
-        + "endpoint below. Bermudez Systems receives nothing."
+    public static var intro: String {
+        loc("Inkvolt PDF has no AI of its own. If you want one, connect a model you run (Ollama, LM Studio) or an OpenAI-compatible service you have an account with. Only text you pick is sent, after you see it, to the endpoint below. Bermudez Systems receives nothing.")
+    }
 
-    public static let contextHelp = "Set it to the context the server runs the model with (LM Studio: Context Length when loading the model; "
-        + "4,096 by default). Larger than that, the server cuts the text and answers go wrong; smaller, long documents "
-        + "are summarized in more parts."
+    public static var contextHelp: String {
+        loc("Set it to the context the server runs the model with (LM Studio: Context Length when loading the model; 4,096 by default). Larger than that, the server cuts the text and answers go wrong; smaller, long documents are summarized in more parts.")
+    }
 
-    public static let ollamaContextHelp = "Context size: asked from Ollama before each use (the model as loaded, or its num_ctx; 4,096 when "
-        + "Ollama can't tell, its usual default). To give the model more, set OLLAMA_CONTEXT_LENGTH or the "
-        + "context length in Ollama's settings."
+    public static var ollamaContextHelp: String {
+        loc("Context size: asked from Ollama before each use (the model as loaded, or its num_ctx; 4,096 when Ollama can't tell, its usual default). To give the model more, set OLLAMA_CONTEXT_LENGTH or the context length in Ollama's settings.")
+    }
 
     public static func trustNote(_ endpoints: [String]) -> String {
-        "Sends without showing what goes first to: \(endpoints.joined(separator: ", ")). (Text the PDF forbids copying is always asked about.)"
+        loc("Sends without showing what goes first to: {0}. (Text the PDF forbids copying is always asked about.)", endpoints.joined(separator: ", "))
     }
 }
 
@@ -198,9 +203,15 @@ public struct AiOutgoing: Sendable, Equatable {
 
     /// The window's "What" line.
     public var summary: String {
-        let count = requests.count == 1 ? "1 request" : "\(requests.count) requests"
-        let then = followUp.map { ", then \($0)." } ?? "."
-        return "\(what): \(AiText.n0(characters)) characters (about \(AiText.n0(tokens)) tokens) in \(count)\(then)"
+        let n = requests.count
+        let chars = CoreLanguage.number(characters)
+        let toks = CoreLanguage.number(tokens)
+        if let followUp {
+            if n == 1 { return loc("{1}: {2} characters (about {3} tokens) in {0} request, then {4}.", n, what, chars, toks, followUp) }
+            return loc("{1}: {2} characters (about {3} tokens) in {0} requests, then {4}.", CoreLanguage.number(n), what, chars, toks, followUp)
+        }
+        if n == 1 { return loc("{1}: {2} characters (about {3} tokens) in {0} request.", n, what, chars, toks) }
+        return loc("{1}: {2} characters (about {3} tokens) in {0} requests.", CoreLanguage.number(n), what, chars, toks)
     }
 }
 
@@ -230,8 +241,8 @@ public struct AiConsent: Sendable, Equatable {
 
     /// Why Send can't be pressed yet, or nil.
     public func blocked(host: String, understood: Bool, sendAnyway: Bool) -> String? {
-        if firstCloud && !understood { return "Tick \"I understand\" to send text to \(host), or Cancel." }
-        if restricted && !sendAnyway { return "Tick \"Send it anyway\" to send text the author restricted, or Cancel." }
+        if firstCloud && !understood { return loc("Tick \"I understand\" to send text to {0}, or Cancel.", host) }
+        if restricted && !sendAnyway { return loc("Tick \"Send it anyway\" to send text the author restricted, or Cancel.") }
         return nil
     }
 
@@ -246,17 +257,18 @@ public struct AiConsent: Sendable, Equatable {
         return out
     }
 
-    public static let onlyThis = "Only this text, the instructions shown below and the model's name are sent: no file name, folder, document properties or other documents."
-
-    public static func cloudNote(_ host: String) -> String {
-        "This is the first time you send text to \(host). It leaves this Mac, and that provider may keep and use it under its own "
-            + "terms, not Inkvolt PDF's. Only send documents you're allowed to share with it."
+    public static var onlyThis: String {
+        loc("Only this text, the instructions shown below and the model's name are sent: no file name, folder, document properties or other documents.")
     }
 
-    public static func cloudTick(_ host: String) -> String { "I understand: this text leaves this Mac for \(host)" }
-    public static let restrictedNote = "The author of this PDF restricted copying its text. Sending it to an AI copies it out of the document."
-    public static let restrictedTick = "Send it anyway: I'm allowed to use this text"
-    public static func dontAskTick(_ host: String) -> String { "Don't ask again for \(host) (change this in Settings › AI assistant)" }
+    public static func cloudNote(_ host: String) -> String {
+        loc("This is the first time you send text to {0}. It leaves this Mac, and that provider may keep and use it under its own terms, not Inkvolt PDF's. Only send documents you're allowed to share with it.", host)
+    }
+
+    public static func cloudTick(_ host: String) -> String { loc("I understand: this text leaves this Mac for {0}", host) }
+    public static var restrictedNote: String { loc("The author of this PDF restricted copying its text. Sending it to an AI copies it out of the document.") }
+    public static var restrictedTick: String { loc("Send it anyway: I'm allowed to use this text") }
+    public static func dontAskTick(_ host: String) -> String { loc("Don't ask again for {0} (change this in Settings › AI assistant)", host) }
     /// The preview shows at most this many characters; Copy All has everything.
     public static let maxShown = 400_000
 
@@ -264,7 +276,7 @@ public struct AiConsent: Sendable, Equatable {
     public static func shownPreview(_ full: String) -> String {
         let count = full.utf16.count
         if count <= maxShown { return full }
-        return String(decoding: Array(full.utf16.prefix(maxShown)), as: UTF16.self) + "\n… and \(AiText.n0(count - maxShown)) more characters (Copy All has everything)."
+        return String(decoding: Array(full.utf16.prefix(maxShown)), as: UTF16.self) + "\n" + loc("… and {0} more characters (Copy All has everything).", CoreLanguage.number(count - maxShown))
     }
 }
 
@@ -366,20 +378,21 @@ public enum AiJobs {
         public let historyQuestion: String
     }
 
-    private static func have(_ pages: [Int]) -> String { pages.count == 1 ? "has" : "have" }
-
     /// The summary of `pages`, or the reason nothing goes.
     public static func summary(_ pages: [Int], _ texts: [AiPageText], _ config: AiConfig, settings: AiSettings) -> (job: Summary?, notSent: String?) {
         let chunks = AiText.chunk(texts, config.inputTokens)
         let named = AiText.pagesText(pages)
-        if chunks.isEmpty { return (nil, "Not sent: \(named) \(have(pages)) no text. Scanned pages need Recognize Text (OCR) first.") }
+        if chunks.isEmpty {
+            if pages.count == 1 { return (nil, loc("Not sent: {1} has no text. Scanned pages need Recognize Text (OCR) first.", 1, named)) }
+            return (nil, loc("Not sent: {1} have no text. Scanned pages need Recognize Text (OCR) first.", pages.count, named))
+        }
         let first = AiPrompts.summaryRequests(chunks)
         let showCombine = config.endpoint.reach == .internet || !AiService.skipsPreview(settings, config.endpoint)
         let followUp: String? = first.count == 1 ? nil
-            : showCombine ? "the partial summaries the model writes, which you'll see before they're sent back to it to be combined"
-            : "the partial summaries the model writes, sent back to it to be combined (without asking, as chosen for this endpoint)"
-        let outgoing = AiOutgoing(first, what: "The text of \(named)", followUp: followUp)
-        return (Summary(chunks: chunks, outgoing: outgoing, label: "Summarize \(named)", showCombine: showCombine, pages: pages), nil)
+            : showCombine ? loc("the partial summaries the model writes, which you'll see before they're sent back to it to be combined")
+            : loc("the partial summaries the model writes, sent back to it to be combined (without asking, as chosen for this endpoint)")
+        let outgoing = AiOutgoing(first, what: loc("The text of {0}", named), followUp: followUp)
+        return (Summary(chunks: chunks, outgoing: outgoing, label: loc("Summarize {0}", named), showCombine: showCombine, pages: pages), nil)
     }
 
     /// Runs a summary: the map step's answers are the model's own text and don't show; the final one streams to `onFinal`.
@@ -413,27 +426,45 @@ public enum AiJobs {
 
     /// The combining round as the window describes it.
     public static func combineOutgoing(_ round: [[AiMessage]], pages: [Int]) -> AiOutgoing {
-        AiOutgoing(round, what: "The partial summaries the model wrote about \(AiText.pagesText(pages))")
+        AiOutgoing(round, what: loc("The partial summaries the model wrote about {0}", AiText.pagesText(pages)))
     }
 
-    public static let combineTitle = "Send the partial summaries to combine them?"
+    public static var combineTitle: String { loc("Send the partial summaries to combine them?") }
 
     /// The pages a question is about: the Pages box's "All" (or nothing), or a range.
     public static func scope(_ text: String, pageCount: Int) -> (pages: [Int]?, error: String?) {
         let trimmed = AiText.trim(text)
         if trimmed.isEmpty || trimmed.lowercased() == "all" { return (Array(0..<pageCount), nil) }
         let parsed = PageRange.tryParse(trimmed, pageCount)
-        return parsed.ok ? (parsed.pages, nil) : (nil, "Pages: \(parsed.error ?? "")")
+        return parsed.ok ? (parsed.pages, nil) : (nil, loc("Pages: {0}", parsed.error ?? ""))
     }
 
     /// A question about `pages`, with the conversation so far, or the reason nothing goes.
     public static func question(_ question: String, turns: [AiTurn], pages: [Int], _ texts: [AiPageText], _ config: AiConfig) -> (job: Question?, notSent: String?) {
         let request = AiPrompts.ask(question, history: turns, pages: texts, inputTokens: config.inputTokens)
-        if request.pages.isEmpty { return (nil, "Not sent: \(AiText.pagesText(pages)) \(have(pages)) no text to ask about.") }
-        var what = request.trimmed
-            ? "Your question, the parts of \(AiText.pagesText(request.pages)) most related to it (all of \(AiText.pagesText(pages)) doesn't fit the model's context)"
-            : "Your question and the text of \(AiText.pagesText(request.pages))"
-        if !turns.isEmpty { what += ", and the conversation so far (\(turns.count) earlier \(turns.count == 1 ? "answer" : "answers"))" }
+        let all = AiText.pagesText(pages)
+        if request.pages.isEmpty {
+            if pages.count == 1 { return (nil, loc("Not sent: {1} has no text to ask about.", 1, all)) }
+            return (nil, loc("Not sent: {1} have no text to ask about.", pages.count, all))
+        }
+        let asked = AiText.pagesText(request.pages)
+        let n = turns.count
+        let what: String
+        if request.trimmed {
+            if n == 0 {
+                what = loc("Your question, the parts of {0} most related to it (all of {1} doesn't fit the model's context)", asked, all)
+            } else if n == 1 {
+                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answer)", n, asked, all)
+            } else {
+                what = loc("Your question, the parts of {1} most related to it (all of {2} doesn't fit the model's context), and the conversation so far ({0} earlier answers)", n, asked, all)
+            }
+        } else if n == 0 {
+            what = loc("Your question and the text of {0}", asked)
+        } else if n == 1 {
+            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answer)", n, asked)
+        } else {
+            what = loc("Your question and the text of {1}, and the conversation so far ({0} earlier answers)", n, asked)
+        }
         return (Question(request: request, outgoing: AiOutgoing([request.messages], what: what)), nil)
     }
 
@@ -449,8 +480,8 @@ public enum AiJobs {
         }
         let shown = AiText.clean(selection)
         let oneLine = shown.replacingOccurrences(of: "\n", with: " ")
-        let label = "Explain: “\(AiProtocol.shorten(oneLine, 120))”"
-        let outgoing = AiOutgoing([messages], what: "The selected text (\(AiText.pagesText(page, page)))")
+        let label = loc("Explain: “{0}”", AiProtocol.shorten(oneLine, 120))
+        let outgoing = AiOutgoing([messages], what: loc("The selected text ({0})", AiText.pagesText(page, page)))
         return (Explanation(messages: messages, outgoing: outgoing, label: label,
                             historyQuestion: "Explain this passage from page \(page + 1): \"\(AiProtocol.shorten(shown, 600))\""), nil)
     }
@@ -459,26 +490,29 @@ public enum AiJobs {
     /// `SuggestAltAsync`): the request with the picture, as the window describes it.
     public static func altText(png: [UInt8], nearby: String, language: String?, page: Int, number: Int) -> (messages: [AiMessage], outgoing: AiOutgoing) {
         let messages = AiPrompts.altText(png, nearby: nearby, language: language, page: page)
-        return (messages, AiOutgoing([messages], what: "picture \(number) of page \(page + 1) (as an image) and the text near it"))
+        return (messages, AiOutgoing([messages], what: loc("picture {0} of page {1} (as an image) and the text near it", number, page + 1)))
     }
 
-    public static let altTextTitle = "Suggest alternate text?"
-    public static let altTextSetup = "Alternate text suggestions use your own AI model: one that reads pictures (a vision model such as llava or gemma3 in Ollama, or a cloud model)."
+    public static var altTextTitle: String { loc("Suggest alternate text?") }
+    public static var altTextSetup: String {
+        loc("Alternate text suggestions use your own AI model: one that reads pictures (a vision model such as llava or gemma3 in Ollama, or a cloud model).")
+    }
 
     /// The note on a finished answer.
     public static func finishNote(_ reply: AiReply, answer: String) -> String? {
-        if reply.finishReason == notCombined { return "The partial summaries, not combined: you chose not to send them back to the model." }
-        if reply.wasCutOff { return "The answer was cut off at the model's length limit." }
-        return answer.isEmpty ? "The model sent an empty answer." : nil
+        if reply.finishReason == notCombined { return loc("The partial summaries, not combined: you chose not to send them back to the model.") }
+        if reply.wasCutOff { return loc("The answer was cut off at the model's length limit.") }
+        return answer.isEmpty ? loc("The model sent an empty answer.") : nil
     }
 
     /// The progress line of a step.
     public static func stepText(_ step: AiStep) -> String {
-        step.total > 1 ? "\(step.what) (\(step.index) of \(step.total))…" : "\(step.what)…"
+        step.total > 1 ? loc("{0} ({1} of {2})…", step.what, step.index, step.total) : "\(step.what)…"
     }
 
-    public static let emptyPane = "Ask a question about this document below, summarize it, or select text and Control-click › Explain with AI.\n\n"
-        + "Before anything is sent you see exactly what goes where. Answers are AI-generated and may be wrong: check them against the pages they cite."
+    public static var emptyPane: String {
+        loc("Ask a question about this document below, summarize it, or select text and Control-click › Explain with AI.\n\nBefore anything is sent you see exactly what goes where. Answers are AI-generated and may be wrong: check them against the pages they cite.")
+    }
 }
 
 /// A piece of an answer as it is drawn: plain or bold, and a page link for a citation.
@@ -496,7 +530,7 @@ public struct AiRun: Sendable, Equatable {
 
 /// How an answer is shown: simple Markdown (headings, bullets, bold), "[p. N]" citations as links to the pages.
 public enum AiAnswerMarkup {
-    public static let aiNote = "AI-generated, may be wrong"
+    public static var aiNote: String { loc("AI-generated, may be wrong") }
 
     /// What Copy puts on the clipboard.
     public static func copied(_ text: String) -> String { "\(text)\n\n(\(aiNote))" }

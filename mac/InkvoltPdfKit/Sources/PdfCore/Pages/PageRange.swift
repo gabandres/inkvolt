@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 public enum PageSubset: Sendable { case all, even, odd }
 
@@ -8,7 +9,7 @@ public enum PageRange {
     /// `ok` false with `error` saying why; else the pages.
     public static func tryParse(_ text: String?, _ pageCount: Int) -> (ok: Bool, pages: [Int], error: String?) {
         guard let text, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return (false, [], "Enter one or more pages, e.g. 1-3, 5, 8-")
+            return (false, [], loc("Enter one or more pages, e.g. 1-3, 5, 8-"))
         }
         var set = Set<Int>()
         let parts = text.split(whereSeparator: { $0 == "," || $0 == ";" })
@@ -33,7 +34,7 @@ public enum PageRange {
                 guard let p = page(raw, pageCount) else { return fail(raw) }
                 (from, to) = (p, p)
             }
-            if from < 1 || to > pageCount || from > to { return (false, [], "\"\(raw)\" is outside 1–\(pageCount).") }
+            if from < 1 || to > pageCount || from > to { return (false, [], loc("\"{0}\" is outside 1–{1}.", raw, pageCount)) }
             for p in from...to { set.insert(p - 1) }
         }
         let pages = set.sorted()
@@ -71,6 +72,6 @@ public enum PageRange {
     }
 
     private static func fail(_ raw: String) -> (ok: Bool, pages: [Int], error: String?) {
-        (false, [], "\"\(raw)\" is not a valid page range.")
+        (false, [], loc("\"{0}\" is not a valid page range.", raw))
     }
 }

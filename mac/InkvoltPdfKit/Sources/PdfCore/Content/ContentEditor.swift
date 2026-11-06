@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A piece of text as a page's content draws it: one text-showing operator (Tj, TJ, ' or ") of the page's own content,
 /// which is usually a line or a word. Page space (points, top-left origin of the page as shown).
@@ -120,7 +121,7 @@ public enum ContentEditor {
         let doc = try PdfEdit.openToRead(data, password)
         let count = try doc.pageCount()
         guard pageIndex >= 0 && pageIndex < count else {
-            throw PdfEngineError(message: "Page \(pageIndex + 1) isn't in this document.")
+            throw PdfEngineError(message: loc("Page {0} isn't in this document.", pageIndex + 1))
         }
         let page = doc.page(pageIndex)
         return try walk(page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel).content
@@ -152,7 +153,7 @@ public enum ContentEditor {
     public static func replaceText(_ data: [UInt8], _ password: String?, _ run: TextRun, _ newText: String) throws -> [UInt8] {
         let text = oneLine(newText)
         if Array(text.utf16) == Array(run.text.utf16) { return data }
-        let doc = try PdfEdit.open(data, password, failure: "This PDF can't be edited")
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be edited"))
         let page = try pageOf(doc, run.pageIndex)
         let content = streams(page)
         let ops = ContentLexer.parse(content.bytes)
@@ -161,9 +162,9 @@ public enum ContentEditor {
         let now = walked.textRuns.first { $0.id == run.id && same($0.text, run.text) }
             ?? walked.textRuns.filter { same($0.text, run.text) && near($0.box, run.box) }
             .min { distance($0.box, run.box) < distance($1.box, run.box) }
-        if let why = now?.blocked { throw ContentEditError("This text can't be edited: \(why).") }
+        if let why = now?.blocked { throw ContentEditError(loc("This text can't be edited: {0}.", why)) }
         guard let now, let info = walked.runs[now.id], let font = now.font, let fontDict = walked.fontDicts[ObjectIdentifier(font)] else {
-            throw ContentEditError("The page changed since this text was picked. Pick it again.")
+            throw ContentEditError(loc("The page changed since this text was picked. Pick it again."))
         }
 
         let planned = plan(info, now, text)
@@ -233,16 +234,23 @@ public enum ContentEditor {
 
     private static func missingGlyphs(_ font: TextFont, _ missing: [String]) -> ContentEditError {
         func show(_ c: String) -> String {
-            if c == " " { return "space" }
+            if c == " " { return loc("space") }
             if let u = c.utf16.first, c.unicodeScalars.first?.properties.generalCategory == .control { return String(format: "U+%04X", u) }
             return "“\(c)”"
         }
-        let list = missing.prefix(12).map(show).joined(separator: ", ") + (missing.count > 12 ? " and \(missing.count - 12) more" : "")
-        let name = font.name.isEmpty ? "This text's font" : "The font “\(font.name)”"
-        return ContentEditError(
-            "\(name) has no \(missing.count == 1 ? "glyph" : "glyphs") for \(list) in this PDF (an embedded font usually holds only the "
-                + "characters the document uses). Use characters already in this text, or add a text box instead.",
-            missing: missing)
+        let shown = missing.prefix(12).map(show).joined(separator: ", ")
+        let list = missing.count > 12 ? loc("{0} and {1} more", shown, missing.count - 12) : shown
+        let message: String
+        if font.name.isEmpty {
+            message = missing.count == 1
+                ? loc("This text's font has no glyph for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", list)
+                : loc("This text's font has no glyphs for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", list)
+        } else {
+            message = missing.count == 1
+                ? loc("The font “{0}” has no glyph for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", font.name, list)
+                : loc("The font “{0}” has no glyphs for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", font.name, list)
+        }
+        return ContentEditError(message, missing: missing)
     }
 
     /// The text-showing operator rewritten with new parts (strings of codes and TJ adjustments).
@@ -284,15 +292,15 @@ public enum ContentEditor {
 
     /// Moves and/or resizes a picture so its bounding box becomes `box` (page space).
     public static func moveImage(_ data: [UInt8], _ password: String?, _ image: PageImage, _ box: RectD) throws -> [UInt8] {
-        if box.width < 1 || box.height < 1 { throw ContentEditError("A picture can't be made that small.") }
+        if box.width < 1 || box.height < 1 { throw ContentEditError(loc("A picture can't be made that small.")) }
         return try editImage(data, password, image) { _, page, found, op, ctm, ops, content in
             let p2u = pageToUser(PageBoxes.frame(page))
-            guard let u2p = p2u.inverted() else { throw ContentEditError("This page's size can't be read.") }
+            guard let u2p = p2u.inverted() else { throw ContentEditError(loc("This page's size can't be read.")) }
             let old = found.box
             let sx: Double = box.width / old.width, sy: Double = box.height / old.height
             let d = Mat(sx, 0, 0, sy, box.x - old.x * sx, box.y - old.y * sy)
             let dUser = u2p.times(d).times(p2u)
-            guard let inv = ctm.inverted() else { throw ContentEditError("This picture is drawn squashed flat, so it can't be moved.") }
+            guard let inv = ctm.inverted() else { throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved.")) }
             let m = ctm.times(dUser).times(inv) // inserted before the Do, the image lands on CTM × D
             let at = ops.firstIndex(where: { $0 === op })!
             // "q a b c d e f cm /Im Do Q": change that cm; otherwise wrap the Do.
@@ -342,15 +350,15 @@ public enum ContentEditor {
 
     private static func editImage(_ data: [UInt8], _ password: String?, _ image: PageImage, dropName: Bool = false,
                                   _ edit: (MuDoc, PObj, PageImage, COp, Mat, [COp], [UInt8]) throws -> Edits) throws -> [UInt8] {
-        let doc = try PdfEdit.open(data, password, failure: "This PDF can't be edited")
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be edited"))
         let page = try pageOf(doc, image.pageIndex)
         let content = streams(page)
         let ops = ContentLexer.parse(content.bytes)
         let walked = try walk(page, image.pageIndex, ops, nil)
         let now = walked.images.first { $0.id == image.id && near($0.box, image.box) } ?? walked.images.last { near($0.box, image.box) }
-        if let why = now?.blocked { throw ContentEditError("This picture can't be edited: \(why).") }
+        if let why = now?.blocked { throw ContentEditError(loc("This picture can't be edited: {0}.", why)) }
         guard let now, let ctm = walked.imageCtm[now.id] else {
-            throw ContentEditError("The page changed since this picture was picked. Pick it again.")
+            throw ContentEditError(loc("The page changed since this picture was picked. Pick it again."))
         }
         let op = ops[now.id]
         let oldName = op.name == "Do" ? op.operands[0].name : nil
@@ -416,7 +424,7 @@ public enum ContentEditor {
 
     private static func pageOf(_ doc: MuDoc, _ index: Int) throws -> PObj {
         let count = try doc.pageCount()
-        guard index >= 0 && index < count else { throw ContentEditError("This page is no longer in the document.") }
+        guard index >= 0 && index < count else { throw ContentEditError(loc("This page is no longer in the document.")) }
         return doc.page(index)
     }
 
@@ -475,7 +483,7 @@ public enum ContentEditor {
             }
         }
         if streams.parts.contains(where: \.unreadable) {
-            throw ContentEditError("Part of this page's content can't be read (it is damaged), so the page can't be rewritten without losing it.")
+            throw ContentEditError(loc("Part of this page's content can't be read (it is damaged), so the page can't be rewritten without losing it."))
         }
         page.set("Contents", doc.addStream(updated, deflate: true))
         return updated
@@ -618,10 +626,12 @@ public enum ContentEditor {
         return w
     }
 
-    private static let formBlocked =
-        "it is part of a form XObject (a drawing the page reuses), and only the page's own content can be edited in this version"
-    private static let actualTextBlocked =
-        "it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong"
+    private static var formBlocked: String {
+        loc("it is part of a form XObject (a drawing the page reuses), and only the page's own content can be edited in this version")
+    }
+    private static var actualTextBlocked: String {
+        loc("it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong")
+    }
 
     private static func run(_ w: Walked, _ ops: [COp], _ resources: PObj?, _ start: GState, _ depth: Int, _ blocked: String?) throws {
         var gs = start
@@ -721,7 +731,7 @@ public enum ContentEditor {
                     try run(w, formOps, xobj.dict("Resources") ?? resources, inner, depth + 1, formBlocked)
                 }
             case "BI":
-                addImage(w, id, gs.ctm, true, blocked ?? (op.broken ? "where its data ends can't be told for sure, so changing it could damage the page" : nil))
+                addImage(w, id, gs.ctm, true, blocked ?? (op.broken ? loc("where its data ends can't be told for sure, so changing it could damage the page") : nil))
             default:
                 break
             }
@@ -832,15 +842,15 @@ public enum ContentEditor {
         var why = blocked
         if why == nil {
             if font == nil {
-                why = "its font is missing from the page"
+                why = loc("its font is missing from the page")
             } else if let fb = font?.blocked {
                 why = fb
             } else if gs.render == 3 || gs.render == 7 {
-                why = "it is invisible text (recognized text over a scan)"
+                why = loc("it is invisible text (recognized text over a scan)")
             } else if text.contains("\u{FFFD}") {
-                why = "some of its characters can't be read"
+                why = loc("some of its characters can't be read")
             } else if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                why = "it is only spaces"
+                why = loc("it is only spaces")
             }
         }
         let info = RunInfo(items: items, hex: hex)

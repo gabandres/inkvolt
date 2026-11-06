@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A recognized word and its box in page space (points, top-left origin of the displayed, rotated and cropped page). The
 /// box is the word's own, level box, turned `angle` degrees clockwise about its centre (a word on a skewed scan runs at
@@ -55,7 +56,7 @@ public enum TextLayer {
             let count = try doc.pageCount()
             var descendant: PObj?
             for (index, words) in pages {
-                guard index >= 0 && index < count else { throw PdfEditError("There is no page \(index + 1).") }
+                guard index >= 0 && index < count else { throw PdfEditError(loc("There is no page {0}.", index + 1)) }
                 setLayer(doc, doc.page(index), words, language, &descendant)
             }
         }
@@ -105,7 +106,7 @@ public enum TextLayer {
     /// - Throws: `PdfEditError` when the page has no Inkvolt text layer, the word isn't there or the text is empty.
     public static func correct(_ data: [UInt8], _ password: String?, _ page: Int, _ index: Int, _ text: String) throws -> [UInt8] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { throw PdfEditError("A word can't be empty.") }
+        if trimmed.isEmpty { throw PdfEditError(loc("A word can't be empty.")) }
         return try change(data, password, page, index) { w in
             var w = w
             w.text = trimmed
@@ -131,11 +132,11 @@ public enum TextLayer {
     private static func change(_ data: [UInt8], _ password: String?, _ page: Int, _ index: Int, _ transform: (OcrWord) -> OcrWord) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
             guard page >= 0, page < (try doc.pageCount()), let layer = findLayer(doc.page(page)), let parsed = parseWords(layer.text) else {
-                throw PdfEditError("This page has no recognized text to correct.")
+                throw PdfEditError(loc("This page has no recognized text to correct."))
             }
             let p = doc.page(page)
             var words = inFrameOf(p, parsed, layer.text)
-            guard index >= 0 && index < words.count else { throw PdfEditError("That recognized word isn't on the page any more.") }
+            guard index >= 0 && index < words.count else { throw PdfEditError(loc("That recognized word isn't on the page any more.")) }
             words[index] = transform(words[index])
             var descendant: PObj?
             setLayer(doc, p, words, languageOf(layer.text), &descendant)

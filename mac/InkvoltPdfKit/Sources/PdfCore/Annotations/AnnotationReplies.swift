@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension Annotations {
     /// Adds a reply to a comment: a note bound to it (/IRT, reply type R) at its top-left corner, drawn as the note icon,
@@ -7,9 +8,9 @@ extension Annotations {
     public static func addReply(_ data: [UInt8], _ password: String?, _ parentId: String, _ text: String, author: String,
                                 id: String? = nil) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
-            guard let found = try find(doc, parentId) else { throw PdfEditError("That comment no longer exists.") }
+            guard let found = try find(doc, parentId) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let parent = found.annot
-            if !parent.isRef { throw PdfEditError("That comment can't be replied to.") }
+            if !parent.isRef { throw PdfEditError(loc("That comment can't be replied to.")) }
             let page = doc.page(found.page)
             var x = 0.0, top = 20.0
             if let r = parent.array("Rect"), r.count >= 4 {

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 
 public enum CommentFileFormat: Sendable, CaseIterable { case xfdf, fdf, csv }
 
@@ -84,7 +85,7 @@ public enum CommentFiles {
     ]
 
     static func tooMany() -> PdfEditError {
-        PdfEditError("The file has more than \(maxComments.formatted()) comments, the most Inkvolt PDF imports.")
+        PdfEditError(loc("The file has more than {0} comments, the most Inkvolt PDF imports.", CoreLanguage.number(maxComments)))
     }
 
     // ---------------- Export ----------------
@@ -95,7 +96,7 @@ public enum CommentFiles {
         do {
             doc = try PdfEdit.openToRead(data, password)
         } catch let e as PdfEditError {
-            throw PdfEditError(e.message.replacingOccurrences(of: "This PDF can't be read", with: "This PDF's comments can't be read"))
+            throw PdfEditError(e.message.replacingOccurrences(of: loc("This PDF can't be read"), with: loc("This PDF's comments can't be read")))
         }
         var (records, left) = try collect(doc)
         let bytes: [UInt8]
@@ -131,7 +132,7 @@ public enum CommentFiles {
             Record(key: keys[f.annot.identity] ?? "", page: f.page, dict: portable.annotation(f.annot),
                    replyTo: f.annot.dict("IRT").flatMap { keys[$0.identity] })
         }
-        let lines = left.keys.sorted().map { "\(plural(left[$0] ?? 0, kindName($0))): not exported (they hold files or media)" }
+        let lines = left.keys.sorted().map { loc("{0}: not exported (they hold files or media)", countOf(left[$0] ?? 0, $0)) }
         return (records, lines)
     }
 
@@ -250,26 +251,29 @@ public enum CommentFiles {
         for r in records {
             let subtype = r.subtype
             let author = r.dict["T"]?.stringValue ?? ""
-            let whereText = "Page \(r.page + 1), \(kindName(subtype))\(author.isEmpty ? "" : " by " + author)"
+            let whereText = author.isEmpty
+                ? loc("Page {0}, {1}", r.page + 1, kindName(subtype))
+                : loc("Page {0}, {1} by {2}", r.page + 1, kindName(subtype), author)
             if r.page < 0 || r.page >= pageCount {
-                skipped.append("\(whereText): the document has no page \(r.page + 1)")
+                skipped.append(loc("{0}: the document has no page {1}", whereText, r.page + 1))
                 continue
             }
             if notComments.contains(subtype) || notCarried.contains(subtype) {
-                skipped.append("\(whereText): \(notCarried.contains(subtype) ? "files and media aren't imported" : "not a comment")")
+                skipped.append(notCarried.contains(subtype)
+                    ? loc("{0}: files and media aren't imported", whereText) : loc("{0}: not a comment", whereText))
                 continue
             }
             if byKey[r.key] != nil {
-                skipped.append("\(whereText): already in the document")
+                skipped.append(loc("{0}: already in the document", whereText))
                 continue
             }
             guard let rect = r.dict["Rect"]?.numbers, rect.count == 4, rect.allSatisfy(\.isFinite) else {
-                skipped.append("\(whereText): it has no position")
+                skipped.append(loc("{0}: it has no position", whereText))
                 continue
             }
             if let same = byLook[look(r.page, subtype, rect, r.dict["Contents"]?.stringValue, r.dict["T"]?.stringValue)] {
                 byKey[r.key] = same
-                skipped.append("\(whereText): already in the document")
+                skipped.append(loc("{0}: already in the document", whereText))
                 continue
             }
 
@@ -300,7 +304,9 @@ public enum CommentFiles {
             }
         }
         if orphans > 0 {
-            notes.append("\(plural(orphans, "reply", "replies")) kept as comments of their own: the comment they answer is neither in the document nor in the file.")
+            notes.append(orphans == 1
+                ? loc("{0} reply kept as comments of their own: the comment they answer is neither in the document nor in the file.", 1)
+                : loc("{0} replies kept as comments of their own: the comment they answer is neither in the document nor in the file.", CoreLanguage.number(orphans)))
         }
         if added.isEmpty { return CommentImport(data: data, added: 0, skipped: skipped, notes: notes) }
         if let labels { try PdfStructure.writeLabels(doc, labels) }
@@ -316,8 +322,8 @@ public enum CommentFiles {
 
     /// The comments in an XFDF, FDF or CSV file, and lines for those that can't be read.
     static func parse(_ file: [UInt8]) throws -> (records: [Record], skipped: [String]) {
-        if file.isEmpty { throw PdfEditError("The file is empty.") }
-        if file.count > maxFileBytes { throw PdfEditError("The file is larger than \(maxFileBytes >> 20) MB, the most Inkvolt PDF imports.") }
+        if file.isEmpty { throw PdfEditError(loc("The file is empty.")) }
+        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF imports.", maxFileBytes >> 20)) }
         var skipped: [String] = []
         var start = file.count >= 3 && file[0] == 0xEF && file[1] == 0xBB && file[2] == 0xBF ? 3 : 0
         while start < file.count && [32, 9, 13, 10].contains(file[start]) { start += 1 }
@@ -335,7 +341,7 @@ public enum CommentFiles {
 
     private static func readFdf(_ file: [UInt8]) throws -> [Record] {
         let fdf = Fdf.read(file)
-        guard let root = fdf.fdfDict() else { throw PdfEditError("The FDF file has no /FDF dictionary.") }
+        guard let root = fdf.fdfDict() else { throw PdfEditError(loc("The FDF file has no /FDF dictionary.")) }
         guard let list = fdf.resolve(root["Annots"])?.arrayValue else { return [] }
         if list.count > maxComments { throw tooMany() }
 
@@ -433,7 +439,7 @@ public enum CommentFiles {
 
         func value(_ v: FdfValue?, _ depth: Int) throws -> FdfValue? {
             nodes += 1
-            if nodes > CommentFiles.maxNodes { throw PdfEditError("The file holds more objects than Inkvolt PDF imports.") }
+            if nodes > CommentFiles.maxNodes { throw PdfEditError(loc("The file holds more objects than Inkvolt PDF imports.")) }
             if depth > 32 { return nil }
             guard let v else { return nil }
             guard case .ref(let n) = v else { return try clean(v, depth) }
@@ -520,32 +526,37 @@ public enum CommentFiles {
 
     // ---------------- Words ----------------
 
-    /// What a comment of `subtype` is called ("highlight", "note", "drawing").
-    public static func kindName(_ subtype: String) -> String {
+    /// What a comment of `subtype` is called ("highlight", "note", "drawing"), in the interface's language.
+    public static func kindName(_ subtype: String) -> String { kindNames(subtype).one }
+
+    /// A kind's name for one comment and for several (Windows' `KindNames`).
+    private static func kindNames(_ subtype: String) -> (one: String, many: String) {
         switch subtype {
-        case "Text": "note"
-        case "FreeText": "text box"
-        case "Highlight": "highlight"
-        case "Underline": "underline"
-        case "StrikeOut": "strike-through"
-        case "Squiggly": "squiggly underline"
-        case "Ink": "drawing"
-        case "Square": "rectangle"
-        case "Circle": "ellipse"
-        case "Line": "line"
-        case "Polygon": "polygon"
-        case "PolyLine": "connected lines"
-        case "Stamp": "stamp"
-        case "Caret": "insert mark"
-        case "Redact": "redaction mark"
-        case "FileAttachment": "file attachment"
-        case "Sound": "sound"
-        case "": "comment"
-        default: subtype
+        case "Text": (loc("note"), loc("notes"))
+        case "FreeText": (loc("text box"), loc("text boxes"))
+        case "Highlight": (loc("highlight"), loc("highlights"))
+        case "Underline": (loc("underline"), loc("underlines"))
+        case "StrikeOut": (loc("strike-through"), loc("strike-throughs"))
+        case "Squiggly": (loc("squiggly underline"), loc("squiggly underlines"))
+        case "Ink": (loc("drawing"), loc("drawings"))
+        case "Square": (loc("rectangle"), loc("rectangles"))
+        case "Circle": (loc("ellipse"), loc("ellipses"))
+        case "Line": (loc("line"), loc("lines"))
+        case "Polygon": (loc("polygon"), loc("polygons"))
+        case "PolyLine": (loc("connected lines"), loc("connected lines"))
+        case "Stamp": (loc("stamp"), loc("stamps"))
+        case "Caret": (loc("insert mark"), loc("insert marks"))
+        case "Redact": (loc("redaction mark"), loc("redaction marks"))
+        case "FileAttachment": (loc("file attachment"), loc("file attachments"))
+        case "Sound": (loc("sound"), loc("sounds"))
+        case "": (loc("comment"), loc("comments"))
+        default: (subtype, subtype.hasSuffix("s") ? subtype : subtype + "s")
         }
     }
 
-    static func plural(_ n: Int, _ word: String, _ plural: String? = nil) -> String {
-        n == 1 ? "1 \(word)" : "\(n.formatted(.number.locale(Locale(identifier: "en_US")))) \(plural ?? (word.hasSuffix("s") ? word : word + "s"))"
+    /// "1 highlight", "12 highlights": a count of comments of one kind.
+    static func countOf(_ n: Int, _ subtype: String) -> String {
+        let names = kindNames(subtype)
+        return n == 1 ? "1 \(names.one)" : "\(CoreLanguage.number(n)) \(names.many)"
     }
 }

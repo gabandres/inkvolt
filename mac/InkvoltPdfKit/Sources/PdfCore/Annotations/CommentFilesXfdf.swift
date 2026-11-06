@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// XFDF (ISO 19444-1) for `CommentFiles`: written by hand (attributes in Acrobat's order), read with Foundation's XML
 /// parser after any DTD is refused.
@@ -55,7 +56,7 @@ extension CommentFiles {
             }
         }
         for subtype in notInXfdf.keys.sorted() {
-            left.append("\(plural(notInXfdf[subtype] ?? 0, kindName(subtype))): XFDF has no element for them (FDF keeps them)")
+            left.append(loc("{0}: XFDF has no element for them (FDF keeps them)", countOf(notInXfdf[subtype] ?? 0, subtype)))
         }
         out += "</annots>"
         if let pdfFileName { out += "<f href=\"\(xml(pdfFileName, attribute: true))\"/>" }
@@ -256,16 +257,16 @@ extension CommentFiles {
 
     static func readXfdf(_ file: [UInt8], _ skipped: inout [String]) throws -> [Record] {
         if hasDtd(file) {
-            throw PdfEditError("The XFDF file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end.")
+            throw PdfEditError(loc("The XFDF file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end."))
         }
         let doc: XMLDocument
         do {
             doc = try XMLDocument(data: Data(file), options: [.nodeLoadExternalEntitiesNever])
         } catch {
-            throw PdfEditError("The file isn't valid XFDF: \(error.localizedDescription)")
+            throw PdfEditError(loc("The file isn't valid XFDF: {0}", error.localizedDescription))
         }
         guard let root = doc.rootElement(), root.localName == "xfdf" else {
-            throw PdfEditError("The file isn't XFDF (its root element isn't <xfdf>).")
+            throw PdfEditError(loc("The file isn't XFDF (its root element isn't <xfdf>)."))
         }
         var elements: [XMLElement] = []
         for annots in children(root) where annots.localName == "annots" { elements += children(annots) }
@@ -276,7 +277,7 @@ extension CommentFiles {
             let local = x.localName ?? ""
             let page = Int(x.attribute(forName: "page")?.stringValue ?? "").flatMap { $0 >= 0 ? $0 : nil } ?? -1
             guard let subtype = subtypeOfElement[local] else {
-                if local != "popup" { skipped.append("Page \(page + 1), <\(local)>: not a kind of comment Inkvolt PDF imports") }
+                if local != "popup" { skipped.append(loc("Page {0}, <{1}>: not a kind of comment Inkvolt PDF imports", page + 1, local)) }
                 continue
             }
             guard let clean = try cleaner.annotation(fromXfdf(x, subtype)) else { continue }

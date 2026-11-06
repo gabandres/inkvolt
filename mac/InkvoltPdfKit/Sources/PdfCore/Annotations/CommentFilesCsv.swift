@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The comments CSV of `CommentFiles` (a row per comment, for spreadsheets).
 extension CommentFiles {
@@ -96,11 +97,11 @@ extension CommentFiles {
     // swiftlint:disable:next function_body_length
     static func readCsv(_ file: [UInt8], _ skipped: inout [String]) throws -> [Record] {
         let rows = try Csv.read(Csv.decode(file))
-        if rows.isEmpty { throw PdfEditError("The file is empty.") }
+        if rows.isEmpty { throw PdfEditError(loc("The file is empty.")) }
         let header = rows[0].map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
         func col(_ name: String) -> Int? { header.firstIndex(of: name.lowercased()) }
         if col("Page") == nil || col("Type") == nil || col("Rect") == nil {
-            throw PdfEditError("The file isn't XFDF, FDF or a comments CSV: a CSV needs the columns Page, Type and Rect (export one to see them all).")
+            throw PdfEditError(loc("The file isn't XFDF, FDF or a comments CSV: a CSV needs the columns Page, Type and Rect (export one to see them all)."))
         }
         if rows.count - 1 > maxComments { throw tooMany() }
 
@@ -116,7 +117,7 @@ extension CommentFiles {
             let pg = !pageText.isEmpty && pageText.allSatisfy({ $0.isASCII && $0.isNumber }) ? (Int(pageText).map { $0 - 1 } ?? -1) : -1
             let subtype = cell("Type").trimmingCharacters(in: .whitespaces)
             if xfdfElements[subtype] == nil {
-                skipped.append("Row \(line): \"\(subtype)\" isn't a kind of comment Inkvolt PDF imports")
+                skipped.append(loc("Row {0}: \"{1}\" isn't a kind of comment Inkvolt PDF imports", line, subtype))
                 continue
             }
             var d: [String: FdfValue] = ["Subtype": .name(subtype)]

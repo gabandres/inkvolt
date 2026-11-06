@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Drawing and markup annotations (the Windows app's `Annotations.Drawing`): ink (pen and highlighter), rectangles,
 /// ellipses, lines and arrows, polygons and polylines, and FreeText boxes (typewriter, text box, callout). Each gets its
@@ -71,11 +72,11 @@ extension Annotations {
     private static func redraw(_ data: [UInt8], _ password: String?, _ id: String,
                                _ change: (AnnotGeometry, AnnotStyle) -> (AnnotGeometry, AnnotStyle)) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
-            guard let found = try find(doc, id) else { throw PdfEditError("That comment no longer exists.") }
+            guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page)
             let subtype = found.annot.name("Subtype") ?? ""
             guard isDrawing(found.annot, subtype), let current = describe(page, found.annot, subtype) else {
-                throw PdfEditError("This comment can't be reshaped or restyled.")
+                throw PdfEditError(loc("This comment can't be reshaped or restyled."))
             }
             let (g, s) = change(current.geometry, current.style)
             try validate(subtype, g, s)
@@ -118,31 +119,31 @@ extension Annotations {
 
     static func validate(_ subtype: String, _ g: AnnotGeometry, _ s: AnnotStyle) throws {
         let points = g.paths.joined() + g.callout
-        if points.count > maxPoints { throw PdfEditError("Too many points.") }
+        if points.count > maxPoints { throw PdfEditError(loc("Too many points.")) }
         let box = g.box
         if points.contains(where: { !$0.x.isFinite || !$0.y.isFinite })
             || !box.x.isFinite || !box.y.isFinite || !box.width.isFinite || !box.height.isFinite {
-            throw PdfEditError("The position isn't a number.")
+            throw PdfEditError(loc("The position isn't a number."))
         }
         if !s.width.isFinite || !s.opacity.isFinite || !s.fontSize.isFinite || (s.dash ?? []).contains(where: { !$0.isFinite }) {
-            throw PdfEditError("The style isn't valid.")
+            throw PdfEditError(loc("The style isn't valid."))
         }
         switch subtype {
         case "Ink":
-            if !g.paths.contains(where: { !$0.isEmpty }) { throw PdfEditError("Nothing was drawn.") }
+            if !g.paths.contains(where: { !$0.isEmpty }) { throw PdfEditError(loc("Nothing was drawn.")) }
         case "Line":
-            if g.paths.count != 1 || g.paths[0].count != 2 { throw PdfEditError("A line needs a start and an end.") }
+            if g.paths.count != 1 || g.paths[0].count != 2 { throw PdfEditError(loc("A line needs a start and an end.")) }
         case "Polygon", "PolyLine":
-            if g.paths.count != 1 || g.paths[0].count < (subtype == "Polygon" ? 3 : 2) { throw PdfEditError("Not enough vertices.") }
+            if g.paths.count != 1 || g.paths[0].count < (subtype == "Polygon" ? 3 : 2) { throw PdfEditError(loc("Not enough vertices.")) }
         case "Square", "Circle", "FreeText":
-            if g.box.isEmpty { throw PdfEditError("The box is empty.") }
-            if g.callout.count > 2 { throw PdfEditError("A callout has a tip and at most one knee.") }
+            if g.box.isEmpty { throw PdfEditError(loc("The box is empty.")) }
+            if g.callout.count > 2 { throw PdfEditError(loc("A callout has a tip and at most one knee.")) }
         default:
             break
         }
         let noLine = s.color == nil || s.width <= 0
-        if ["Ink", "Line", "PolyLine"].contains(subtype) && noLine { throw PdfEditError("A line needs a color and a width.") }
-        if ["Square", "Circle", "Polygon"].contains(subtype) && noLine && s.fill == nil { throw PdfEditError("A shape needs a border or a fill.") }
+        if ["Ink", "Line", "PolyLine"].contains(subtype) && noLine { throw PdfEditError(loc("A line needs a color and a width.")) }
+        if ["Square", "Circle", "Polygon"].contains(subtype) && noLine && s.fill == nil { throw PdfEditError(loc("A shape needs a border or a fill.")) }
     }
 
     private static func normalize(_ s: AnnotStyle) -> AnnotStyle {

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What a tag block becomes: a paragraph (P), a heading (H1-H6), a list (L › LI › LBody, nested lists inside an item's
 /// LBody), a table, a figure, a figure's or table's caption (Caption: inside the table it belongs to), a footnote (Note,
@@ -265,7 +266,7 @@ public enum AutoTag {
     /// A figure as a PNG on white, at most `maxSide` pixels on its longer side.
     public static func figurePng(_ engine: PdfEngine, _ page: Int, _ box: RectD, maxSide: Int = 768) throws -> [UInt8] {
         let scale = min(4, max(0.25, Double(maxSide) / max(1, max(box.width, box.height))))
-        guard var r = try engine.renderRegionRgba(page, box, scale: scale, cancel: nil) else { throw PdfEditError("The picture couldn't be drawn.") }
+        guard var r = try engine.renderRegionRgba(page, box, scale: scale, cancel: nil) else { throw PdfEditError(loc("The picture couldn't be drawn.")) }
         var i = 0
         while i + 3 < r.rgba.count {
             let a = Int(r.rgba[i + 3])

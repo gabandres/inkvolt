@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// An optional-content group (layer), the Windows app's `LayerInfo`.
 public struct LayerInfo: Sendable, Equatable {
@@ -130,7 +131,7 @@ public enum Layers {
         do {
             return try PdfEdit.openToRead(data, password)
         } catch let e as PdfEditError {
-            throw PdfEditError(e.message.replacingOccurrences(of: "This PDF can't be read", with: "This PDF's layers can't be read"))
+            throw PdfEditError(e.message.replacingOccurrences(of: loc("This PDF can't be read"), with: loc("This PDF's layers can't be read")))
         }
     }
 

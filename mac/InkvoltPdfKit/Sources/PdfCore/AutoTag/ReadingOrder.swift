@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// One piece of a page in the reading order pane: its number, what it is, the start of its text (the Windows app's
 /// `ReadingOrderItem`).
@@ -15,21 +16,30 @@ public struct ReadingOrderItem: Equatable, Sendable {
         let b = block
         let what: String
         switch b.kind {
-        case .heading: what = "Heading \(b.level)"
+        case .heading: what = loc("Heading {0}", b.level)
         case .list:
-            let nested = b.items.contains { $0.level > 0 } ? ", nested" : ""
-            what = "List (\(b.items.count) \(b.items.count == 1 ? "item" : "items")\(nested))"
+            let n = b.items.count
+            if b.items.contains(where: { $0.level > 0 }) {
+                what = n == 1 ? loc("List ({0} item, nested)", n) : loc("List ({0} items, nested)", n)
+            } else {
+                what = n == 1 ? loc("List ({0} item)", n) : loc("List ({0} items)", n)
+            }
         case .table:
-            let columns = b.headerRow ? ", column headers" : "", rows = b.headerColumn ? ", row headers" : ""
-            what = "Table (\(b.rows.count) \(b.rows.count == 1 ? "row" : "rows")\(columns)\(rows))"
-        case .caption: what = "Caption"
-        case .note: what = "Footnote"
-        case .contents: what = "Table of contents (\(b.items.count) \(b.items.count == 1 ? "entry" : "entries"))"
-        case .formula: what = "Formula"
-        case .figure: what = b.decorative ? "Picture (decorative)" : needsAlt ? "Picture: needs alternate text" : "Picture"
-        case .paragraph: what = b.lang.map { "Paragraph (\($0))" } ?? "Paragraph"
+            let headers = switch (b.headerRow, b.headerColumn) {
+            case (true, true): loc(", column headers, row headers")
+            case (true, false): loc(", column headers")
+            case (false, true): loc(", row headers")
+            case (false, false): ""
+            }
+            what = b.rows.count == 1 ? loc("Table ({0} row{1})", b.rows.count, headers) : loc("Table ({0} rows{1})", b.rows.count, headers)
+        case .caption: what = loc("Caption")
+        case .note: what = loc("Footnote")
+        case .contents: what = b.items.count == 1 ? loc("Table of contents ({0} entry)", b.items.count) : loc("Table of contents ({0} entries)", b.items.count)
+        case .formula: what = loc("Formula")
+        case .figure: what = b.decorative ? loc("Picture (decorative)") : needsAlt ? loc("Picture: needs alternate text") : loc("Picture")
+        case .paragraph: what = b.lang.map { loc("Paragraph ({0})", $0) } ?? loc("Paragraph")
         }
-        return what + (b.readWith == nil ? "" : " · from page \(b.page + 1)")
+        return what + (b.readWith == nil ? "" : loc(" · from page {0}", b.page + 1))
     }
 
     public var preview: String {
@@ -102,12 +112,22 @@ public enum ReadingOrder {
         }
         let missing = plan.figuresWithoutAlt
         if stale {
-            s.summary = "The document changed since this reading order was made. Choose Make Accessible again to read it anew."
+            s.summary = loc("The document changed since this reading order was made. Choose Make Accessible again to read it anew.")
         } else {
-            let elsewhere = readElsewhere == 0 ? "" : "\(readElsewhere) \(readElsewhere == 1 ? "piece here is" : "pieces here are") read with another page. "
-            let pictures = missing == 0 ? "Every picture has alternate text or is decorative." : "\(missing) \(missing == 1 ? "picture needs" : "pictures need") alternate text."
-            s.summary = "\(s.items.count) \(s.items.count == 1 ? "piece" : "pieces") on page \(page + 1), in the order a screen reader reads them. "
-                + elsewhere + pictures + (written ? " The document is tagged this way." : " Apply changes to tag the document this way.")
+            let n = s.items.count
+            var parts = [n == 1 ? loc("{0} piece on page {1}, in the order a screen reader reads them.", n, page + 1)
+                : loc("{0} pieces on page {1}, in the order a screen reader reads them.", n, page + 1)]
+            if readElsewhere > 0 {
+                parts.append(readElsewhere == 1 ? loc("{0} piece here is read with another page.", readElsewhere)
+                    : loc("{0} pieces here are read with another page.", readElsewhere))
+            }
+            if missing == 0 {
+                parts.append(loc("Every picture has alternate text or is decorative."))
+            } else {
+                parts.append(missing == 1 ? loc("{0} picture needs alternate text.", missing) : loc("{0} pictures need alternate text.", missing))
+            }
+            parts.append(written ? loc("The document is tagged this way.") : loc("Apply changes to tag the document this way."))
+            s.summary = parts.joined(separator: " ")
         }
         s.editable = !stale
         s.canMoveToPageBefore = !stale && page > 0
@@ -142,18 +162,18 @@ public enum ReadingOrder {
         var list: [PieceKind] = []
         for k in AutoTag.kindsFor(b) {
             if k == .heading {
-                for level in 1...6 { list.append(PieceKind(kind: k, level: level, label: "Heading \(level)")) }
+                for level in 1...6 { list.append(PieceKind(kind: k, level: level, label: loc("Heading {0}", level))) }
                 continue
             }
             let label = switch k {
-            case .list: "List"
-            case .contents: "Table of contents"
-            case .table: "Table"
-            case .caption: "Caption"
-            case .note: "Footnote"
-            case .formula: "Formula"
-            case .figure: "Picture"
-            default: "Paragraph"
+            case .list: loc("List")
+            case .contents: loc("Table of contents", context: "piece kind")
+            case .table: loc("Table")
+            case .caption: loc("Caption")
+            case .note: loc("Footnote")
+            case .formula: loc("Formula")
+            case .figure: loc("Picture")
+            default: loc("Paragraph")
             }
             list.append(PieceKind(kind: k, level: 0, label: label))
         }
@@ -166,47 +186,56 @@ public enum ReadingOrder {
     }
 
     /// What is announced once a piece was made another kind.
-    public static func kindChanged(_ number: Int, _ label: String) -> String { "Piece \(number) is now: \(label)" }
+    public static func kindChanged(_ number: Int, _ label: String) -> String { loc("Piece {0} is now: {1}", number, label) }
 
-    public static let kindHelp = "What a screen reader announces this piece as: a heading, a paragraph, a picture… Apply Changes to tag it so."
+    public static var kindHelp: String { loc("What a screen reader announces this piece as: a heading, a paragraph, a picture… Apply Changes to tag it so.") }
 
     // ---- Make Accessible's window ----
 
     /// What the title and language are missing, or nil when they will do.
     public static func problem(title: String, language: String) -> String? {
-        if title.isBlank { return "Type a title: PDF/UA asks for one." }
-        return AccessibilityCheck.isLanguage(language.trimmedWS) ? nil : "Choose or type a language code, such as en, en-US or es."
+        if title.isBlank { return loc("Type a title: PDF/UA asks for one.") }
+        return AccessibilityCheck.isLanguage(language.trimmedWS) ? nil : loc("Choose or type a language code, such as en, en-US or es.")
     }
 
-    public static let introduction = "Tags the document on this Mac, from its layout: headings, paragraphs, lists, tables and pictures in reading order; running headers, footers and page numbers are marked as decoration. Screen readers and Reflow use the tags. You can undo this until you save."
+    public static var introduction: String {
+        loc("Tags the document on this Mac, from its layout: headings, paragraphs, lists, tables and pictures in reading order; running headers, footers and page numbers are marked as decoration. Screen readers and Reflow use the tags. You can undo this until you save.")
+    }
 
-    public static let replaces = "This document already has tags. They are replaced with new ones (pictures in the same place keep their alternate text)."
+    public static var replaces: String {
+        loc("This document already has tags. They are replaced with new ones (pictures in the same place keep their alternate text).")
+    }
 
     public static func titleNote(_ plan: TagPlan) -> String {
         switch plan.titleFrom {
-        case .metadata: "From the document's properties. Screen readers say it first, and the window shows it."
-        case .heading: "From the first heading: check that it says what the document is."
-        case .none: "No title was found: type one that says what the document is."
+        case .metadata: loc("From the document's properties. Screen readers say it first, and the window shows it.")
+        case .heading: loc("From the first heading: check that it says what the document is.")
+        case .none: loc("No title was found: type one that says what the document is.")
         }
     }
 
     public static func languageNote(_ plan: TagPlan) -> String {
-        if plan.language == nil { return "The language couldn't be told from the text: choose or type its code (such as en or es)." }
-        return plan.languageGuessed ? "Read from the text: check it. A code such as en, en-US or es-PR." : "From the document. A code such as en, en-US or es-PR."
+        if plan.language == nil { return loc("The language couldn't be told from the text: choose or type its code (such as en or es).") }
+        return plan.languageGuessed ? loc("Read from the text: check it. A code such as en, en-US or es-PR.") : loc("From the document. A code such as en, en-US or es-PR.")
     }
 
     public static func found(_ plan: TagPlan) -> String {
-        func count(_ n: Int, _ what: String) -> String { n == 1 ? "1 \(what)" : "\(n) \(what)s" }
-        let headings = plan.blocks.count { $0.kind == .heading }, tables = plan.blocks.count { $0.kind == .table }
-        let figures = plan.blocks.count { $0.kind == .figure }, missing = plan.figuresWithoutAlt
-        let tail = missing > 0 ? "; \(count(missing, "picture")) still \(missing == 1 ? "needs" : "need") alternate text, which you add in the Reading Order pane that opens next." : "."
-        return "Found: \(count(headings, "heading")), \(count(tables, "table")), \(count(figures, "picture"))" + tail
+        let h = plan.blocks.count { $0.kind == .heading }, t = plan.blocks.count { $0.kind == .table }
+        let f = plan.blocks.count { $0.kind == .figure }, missing = plan.figuresWithoutAlt
+        let headings = h == 1 ? loc("{0} heading", h) : loc("{0} headings", h)
+        let tables = t == 1 ? loc("{0} table", t) : loc("{0} tables", t)
+        let figures = f == 1 ? loc("{0} picture", f) : loc("{0} pictures", f)
+        if missing == 0 { return loc("Found: {0}, {1}, {2}.", headings, tables, figures) }
+        return missing == 1
+            ? loc("Found: {1}, {2}, {3}; {0} picture still needs alternate text, which you add in the Reading Order pane that opens next.", missing, headings, tables, figures)
+            : loc("Found: {1}, {2}, {3}; {0} pictures still need alternate text, which you add in the Reading Order pane that opens next.", missing, headings, tables, figures)
     }
 
     /// What the status bar says once the tags are written.
     public static func written(_ plan: TagPlan) -> String {
         let missing = plan.figuresWithoutAlt
-        return missing == 0 ? "Tagged. Check the reading order. Save to keep it."
-            : "Tagged. \(missing) \(missing == 1 ? "picture needs" : "pictures need") alternate text: select each in the Reading Order pane."
+        if missing == 0 { return loc("Tagged. Check the reading order. Save to keep it.") }
+        return missing == 1 ? loc("Tagged. {0} picture needs alternate text: select each in the Reading Order pane.", missing)
+            : loc("Tagged. {0} pictures need alternate text: select each in the Reading Order pane.", missing)
     }
 }

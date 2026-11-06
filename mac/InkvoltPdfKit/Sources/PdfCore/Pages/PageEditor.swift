@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Margins as the user sees the page (after its /Rotate), in points.
 public struct Margins: Equatable, Sendable {
@@ -34,7 +35,7 @@ public struct PdfSource: Sendable {
 public enum PageEditor {
     public static func delete(_ data: [UInt8], _ password: String?, _ pages: [Int]) throws -> [UInt8] {
         try edit(data, password) { doc in
-            if Set(pages).count >= (try doc.pageCount()) { throw PdfEditError("A document must keep at least one page.") }
+            if Set(pages).count >= (try doc.pageCount()) { throw PdfEditError(loc("A document must keep at least one page.")) }
             try PdfStructure.removePages(doc, pages)
             SignedEdits.noteRemoval()
         }
@@ -45,7 +46,7 @@ public enum PageEditor {
         try edit(data, password) { doc in
             let count = try doc.pageCount()
             if order.count != count || Set(order).count != order.count || order.contains(where: { $0 < 0 || $0 >= count }) {
-                throw PdfEditError("Order must be a permutation of the document's pages.")
+                throw PdfEditError(loc("Order must be a permutation of the document's pages."))
             }
             if order == Array(0..<count) { return }
             let pages = try doc.pages()
@@ -73,7 +74,7 @@ public enum PageEditor {
 
     /// Turns pages by `degrees` (a multiple of 90) clockwise, on top of how they are turned already.
     public static func rotate(_ data: [UInt8], _ password: String?, _ pages: [Int], _ degrees: Int) throws -> [UInt8] {
-        if degrees % 90 != 0 { throw PdfEditError("Rotation must be a multiple of 90°.") }
+        if degrees % 90 != 0 { throw PdfEditError(loc("Rotation must be a multiple of 90°.")) }
         return try edit(data, password) { doc in try doc.rotate(Array(Set(pages)).sorted(), degrees) }
     }
 
@@ -135,7 +136,7 @@ public enum PageEditor {
         let keep = Set(pages)
         let doc = try PdfEdit.open(data, password)
         let count = try doc.pageCount()
-        if !keep.contains(where: { $0 >= 0 && $0 < count }) { throw PdfEditError("No pages selected.") }
+        if !keep.contains(where: { $0 >= 0 && $0 < count }) { throw PdfEditError(loc("No pages selected.")) }
         let xmp = Xmp.read(doc)
         let labels = try PdfStructure.readLabels(doc)
         try PdfStructure.removePages(doc, (0..<count).filter { !keep.contains($0) })
@@ -155,7 +156,7 @@ public enum PageEditor {
     /// Combines documents into a new one, keeping each file's bookmarks (nested under a bookmark per source file when
     /// `bookmarkPerFile`), links and form fields (renamed on a name clash, e.g. "name_2").
     public static func merge(_ sources: [PdfSource], _ bookmarkPerFile: Bool) throws -> [UInt8] {
-        if sources.isEmpty { throw PdfEditError("Nothing to combine.") }
+        if sources.isEmpty { throw PdfEditError(loc("Nothing to combine.")) }
         let doc = try MuDoc.create()
         var outline: [PdfStructure.OutlineItem] = []
         for source in sources {
@@ -199,7 +200,7 @@ public enum PageEditor {
                 let b = PageBoxes.visibleBox(page)
                 let (l, bottom, r, t) = toPdfSpace(m, PageBoxes.rotate(page))
                 let x1 = b.x1 + l, y1 = b.y1 + bottom, x2 = b.x2 - r, y2 = b.y2 - t
-                if x2 - x1 < 1 || y2 - y1 < 1 { throw PdfEditError("The margins are larger than page \(i + 1).") }
+                if x2 - x1 < 1 || y2 - y1 < 1 { throw PdfEditError(loc("The margins are larger than page {0}.", i + 1)) }
                 page.set("CropBox", doc.reals(x1, y1, x2, y2))
             }
         }
@@ -282,7 +283,7 @@ public enum PageEditor {
         do {
             src = try MuDoc.open(source.data, in: doc)
         } catch let e as PdfEngineError {
-            throw PdfEditError("\"\(source.name)\" can't be read: \(e.message)")
+            throw PdfEditError(loc("\"{0}\" can't be read: {1}", source.name, e.message))
         }
         if src.needsPassword && src.authBits(source.password) == 0 { throw PasswordRequired(wrongPassword: !(source.password ?? "").isEmpty) }
         return src

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A link annotation: where it is (page space) and where it leads (a URI, or a page of this document).
 public struct LinkInfo: Equatable, Sendable {
@@ -12,7 +13,7 @@ public struct LinkInfo: Equatable, Sendable {
     public var targetPage: Int
 
     /// What it leads to, for lists and tooltips.
-    public func describe() -> String { uri ?? (targetPage >= 0 ? "Page \(targetPage + 1)" : "Another action") }
+    public func describe() -> String { uri ?? (targetPage >= 0 ? loc("Page {0}", targetPage + 1) : loc("Another action")) }
 }
 
 /// Link annotations made and edited with the Link tool (the Windows app's `Links`): a rectangle on a page leading to a web
@@ -63,23 +64,23 @@ public enum Links {
     public static func putOnText(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ lineRects: [RectD], uri: String?,
                                  targetPage: Int) throws -> [UInt8] {
         let lines = lineRects.filter { !$0.isEmpty }
-        if lines.isEmpty { throw PdfEditError("No text to link.") }
+        if lines.isEmpty { throw PdfEditError(loc("No text to link.")) }
         let all = RectD.fromEdges(lines.map(\.x).min()!, lines.map(\.y).min()!, lines.map(\.right).max()!, lines.map(\.bottom).max()!)
         return try put(data, password, pageIndex, all, uri, targetPage, nil, lines)
     }
 
     private static func put(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ rect: RectD, _ uri: String?, _ targetPage: Int,
                             _ replaceId: String?, _ lines: [RectD]?) throws -> [UInt8] {
-        if rect.width < 1 || rect.height < 1 { throw PdfEditError("The link needs a size.") }
+        if rect.width < 1 || rect.height < 1 { throw PdfEditError(loc("The link needs a size.")) }
         var address: String?
         if let uri {
-            guard let normalized = normalize(uri) else { throw PdfEditError("That isn't a web or email address.") }
+            guard let normalized = normalize(uri) else { throw PdfEditError(loc("That isn't a web or email address.")) }
             address = normalized
         }
         return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             let count = try doc.pageCount()
-            if address == nil && (targetPage < 0 || targetPage >= count) { throw PdfEditError("Choose a page from 1 to \(count).") }
+            if address == nil && (targetPage < 0 || targetPage >= count) { throw PdfEditError(loc("Choose a page from 1 to {0}.", count)) }
 
             let page = doc.page(pageIndex)
             let annot: PObj
@@ -123,7 +124,7 @@ public enum Links {
 
     /// Moves or resizes a link (onto another page too), keeping where it leads, whatever its action.
     public static func move(_ data: [UInt8], _ password: String?, _ id: String, _ pageIndex: Int, _ rect: RectD) throws -> [UInt8] {
-        if rect.width < 1 || rect.height < 1 { throw PdfEditError("The link needs a size.") }
+        if rect.width < 1 || rect.height < 1 { throw PdfEditError(loc("The link needs a size.")) }
         return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             let annot = try relocate(doc, id, pageIndex)
@@ -137,9 +138,9 @@ public enum Links {
 
     /// The link `id`, moved into page `pageIndex`'s annotations if it was on another page.
     private static func relocate(_ doc: MuDoc, _ id: String, _ pageIndex: Int) throws -> PObj {
-        guard let found = try Annotations.find(doc, id) else { throw PdfEditError("That link is no longer in the document.") }
+        guard let found = try Annotations.find(doc, id) else { throw PdfEditError(loc("That link is no longer in the document.")) }
         let link = found.annot
-        if link.name("Subtype") != "Link" { throw PdfEditError("That isn't a link.") }
+        if link.name("Subtype") != "Link" { throw PdfEditError(loc("That isn't a link.")) }
         if found.page == pageIndex { return link }
         let from = doc.annots(doc.page(found.page))
         var kept: PObj?
@@ -159,7 +160,7 @@ public enum Links {
     public static func delete(_ data: [UInt8], _ password: String?, _ id: String) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
             guard let found = try Annotations.find(doc, id), found.annot.name("Subtype") == "Link" else {
-                throw PdfEditError("That link is no longer in the document.")
+                throw PdfEditError(loc("That link is no longer in the document."))
             }
             _ = try Annotations.deleteIn(doc, id)
         }

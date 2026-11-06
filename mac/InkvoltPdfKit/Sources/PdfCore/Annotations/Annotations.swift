@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 public enum AnnotationKind: String, Sendable {
     case text = "Text", freeText = "FreeText", highlight = "Highlight", underline = "Underline", strikeOut = "StrikeOut"
@@ -63,7 +64,7 @@ public enum Annotations {
         do {
             doc = try PdfEdit.openToRead(data, password)
         } catch let e as PdfEditError {
-            throw PdfEditError(e.message.replacingOccurrences(of: "This PDF can't be read", with: "This PDF's comments can't be read"))
+            throw PdfEditError(e.message.replacingOccurrences(of: loc("This PDF can't be read"), with: loc("This PDF's comments can't be read")))
         }
         var list: [AnnotationInfo] = []
         for p in 0..<(try doc.pageCount()) {
@@ -103,7 +104,7 @@ public enum Annotations {
     /// `PageText.rects` gives them). `note` becomes the comment's text.
     public static func addTextMarkup(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ kind: TextMarkupKind, _ lineRects: [RectD],
                                      _ color: AnnotColor, note: String?, author: String, id: String? = nil) throws -> [UInt8] {
-        if lineRects.allSatisfy(\.isEmpty) { throw PdfEditError("No text to mark.") }
+        if lineRects.allSatisfy(\.isEmpty) { throw PdfEditError(loc("No text to mark.")) }
         return try PageEditor.edit(data, password) { doc in
             try checkPage(doc, pageIndex)
             addTextMarkupIn(doc, pageIndex, kind, lineRects, color, note: note, author: author, id: id)
@@ -223,7 +224,7 @@ public enum Annotations {
     /// rebuilt.
     public static func setContents(_ data: [UInt8], _ password: String?, _ id: String, _ text: String) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
-            guard let found = try find(doc, id) else { throw PdfEditError("That comment no longer exists.") }
+            guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let p = found.page, annot = found.annot
             annot.set("Contents", doc.text(text))
             annot.set("M", doc.now())
@@ -236,7 +237,7 @@ public enum Annotations {
     /// Deletes an annotation with its popup and its replies (and theirs).
     public static func delete(_ data: [UInt8], _ password: String?, _ id: String) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
-            if !(try deleteIn(doc, id)) { throw PdfEditError("That comment no longer exists.") }
+            if !(try deleteIn(doc, id)) { throw PdfEditError(loc("That comment no longer exists.")) }
         }
     }
 
@@ -296,7 +297,7 @@ public enum Annotations {
 
     static func checkPage(_ doc: MuDoc, _ pageIndex: Int) throws {
         let count = try doc.pageCount()
-        if pageIndex < 0 || pageIndex >= count { throw PdfEditError("There is no page \(pageIndex + 1).") }
+        if pageIndex < 0 || pageIndex >= count { throw PdfEditError(loc("There is no page {0}.", pageIndex + 1)) }
     }
 
     @discardableResult

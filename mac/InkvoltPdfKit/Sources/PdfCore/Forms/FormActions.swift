@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 extension FormEditor {
     /// Runs the actions a user event triggers on a widget (identified by field name, page and its index in the page's
@@ -11,7 +12,7 @@ extension FormEditor {
         let doc: MuDoc
         var readOnly = false
         do {
-            doc = try PdfEdit.open(data, password, failure: "This PDF's form can't be read")
+            doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
         } catch is OwnerPasswordRequired {
             doc = try PdfEdit.openToRead(data, password)
             readOnly = true
@@ -154,7 +155,7 @@ final class FormActionRunner {
     /// A change was dropped because the document is read-only here.
     private(set) var wantedChange = false
     var focusField: String?
-    private(set) var label = "Form action"
+    private(set) var label = LocKey("Form action")
     /// An outward step was declined, refused, or went over the caps: the running script is stopped and the rest of this
     /// run's actions are skipped.
     private(set) var stopped = false
@@ -275,7 +276,7 @@ final class FormActionRunner {
             return true
         }
         log("Form action: \(what) stopped (too many outward actions)")
-        if !stopped { notices.append("This form kept trying to open, send or email things, so Inkvolt PDF stopped its script.") }
+        if !stopped { notices.append(loc("This form kept trying to open, send or email things, so Inkvolt PDF stopped its script.")) }
         stopped = true
         return false
     }
@@ -457,7 +458,7 @@ final class FormActionRunner {
             wantedChange = true
             return
         }
-        label = "Reset form"
+        label = LocKey("Reset form")
         for f in pick(names, exclude) {
             if !["Tx", "Ch", "Btn"].contains(f.type) || (f.type == "Btn" && f.flags & FormEditor.ffPushButton != 0) { continue }
             let dv = FormEditor.inherited(f.dict, "DV")
@@ -534,7 +535,7 @@ final class FormActionRunner {
             log("Import: the file isn't FDF or XFDF form data")
             return true
         }
-        label = "Import form data"
+        label = LocKey("Import form data")
         for f in fields {
             guard let v = values[f.name], let first = v.first else { continue }
             switch f.type {
@@ -568,7 +569,7 @@ final class FormActionRunner {
             saved = try FormEditor.save(doc, source, password, xmp)
         }
         runDeferred(saved ?? source)
-        let label = self.label == "Form action" && !js.touched.isEmpty ? "Form script" : self.label
+        let label = self.label == LocKey("Form action") && !js.touched.isEmpty ? loc("Form script") : self.label.text
         return FormActionResult(data: saved, label: label, alerts: notices + alerts, log: js.log, focusField: focusField,
                                 needsPermission: wantedChange || (readOnly && !js.touched.isEmpty))
     }

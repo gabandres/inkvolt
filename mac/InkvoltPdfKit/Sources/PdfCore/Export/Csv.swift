@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Comma-separated values (RFC 4180; the Windows app's `Csv`): fields with a comma, quote, line break or edge spaces are
 /// quoted, quotes doubled. Written as UTF-8 with a byte order mark and CRLF line ends, so Excel opens accents and other
@@ -74,7 +75,7 @@ public enum Csv {
         func endRow() throws {
             endField()
             if row.count > 1 || !row[0].isEmpty {
-                if rows.count >= maxRows { throw PdfEditError("The file has more than \(maxRows.formatted()) rows.") }
+                if rows.count >= maxRows { throw PdfEditError(loc("The file has more than {0} rows.", CoreLanguage.number(maxRows))) }
                 rows.append(row)
             }
             row = []

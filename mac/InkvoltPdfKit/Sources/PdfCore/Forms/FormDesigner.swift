@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A field drawn with a field tool of Prepare Form (page space).
 public struct DesignPlacement: Equatable, Sendable {
@@ -372,35 +373,48 @@ public struct DesignRefusal: Error, Equatable, Sendable {
 /// The properties panel's and the field commands' rules (the Windows app's `DocumentTab.FormDesign`, kept in PdfCore so they
 /// are tested): what each choice offers, what a typed value does to a field, and which fields an action makes.
 public enum FormDesignRules {
-    public static let formats: [(label: String, format: FieldFormat?)] = [
-        ("None", nil),
-        ("Number (1,234.56)", FieldFormat(.number, decimals: 2)),
-        ("Whole number (1,234)", FieldFormat(.number, decimals: 0)),
-        ("Currency ($1,234.56)", FieldFormat(.number, decimals: 2, currency: "$", currencyPrepend: true)),
-        ("Percent (12.50%)", FieldFormat(.percent, decimals: 2)),
-        ("Date (mm/dd/yyyy)", FieldFormat(.date, datePattern: "mm/dd/yyyy")),
-        ("Date (dd/mm/yyyy)", FieldFormat(.date, datePattern: "dd/mm/yyyy")),
-        ("Date (yyyy-mm-dd)", FieldFormat(.date, datePattern: "yyyy-mm-dd")),
-        ("ZIP code", FieldFormat(.special, special: 0)),
-        ("ZIP+4", FieldFormat(.special, special: 1)),
-        ("Phone number", FieldFormat(.special, special: 2)),
-        ("Social Security number", FieldFormat(.special, special: 3)),
-    ]
+    /// The format list, its labels in the interface's language (computed, so a language installed at launch shows).
+    public static var formats: [(label: String, format: FieldFormat?)] {
+        [
+            (loc("None"), nil),
+            (loc("Number (1,234.56)"), FieldFormat(.number, decimals: 2)),
+            (loc("Whole number (1,234)"), FieldFormat(.number, decimals: 0)),
+            (loc("Currency ($1,234.56)"), FieldFormat(.number, decimals: 2, currency: "$", currencyPrepend: true)),
+            (loc("Percent (12.50%)"), FieldFormat(.percent, decimals: 2)),
+            (loc("Date (mm/dd/yyyy)"), FieldFormat(.date, datePattern: "mm/dd/yyyy")),
+            (loc("Date (dd/mm/yyyy)"), FieldFormat(.date, datePattern: "dd/mm/yyyy")),
+            (loc("Date (yyyy-mm-dd)"), FieldFormat(.date, datePattern: "yyyy-mm-dd")),
+            (loc("ZIP code"), FieldFormat(.special, special: 0)),
+            (loc("ZIP+4"), FieldFormat(.special, special: 1)),
+            (loc("Phone number"), FieldFormat(.special, special: 2)),
+            (loc("Social Security number"), FieldFormat(.special, special: 3)),
+        ]
+    }
 
-    public static let borderColors: [(label: String, color: AnnotColor?)] = [
-        ("None", nil), ("Black", AnnotColor(0, 0, 0)), ("Gray", AnnotColor(0.45, 0.45, 0.45)), ("Blue", AnnotColor(0.1, 0.35, 0.8)), ("Red", AnnotColor(0.8, 0.1, 0.1)),
-    ]
+    public static var borderColors: [(label: String, color: AnnotColor?)] {
+        [
+            (loc("None"), nil), (loc("Black"), AnnotColor(0, 0, 0)), (loc("Gray"), AnnotColor(0.45, 0.45, 0.45)),
+            (loc("Blue"), AnnotColor(0.1, 0.35, 0.8)), (loc("Red"), AnnotColor(0.8, 0.1, 0.1)),
+        ]
+    }
 
-    public static let fillColors: [(label: String, color: AnnotColor?)] = [
-        ("None", nil), ("White", AnnotColor(1, 1, 1)), ("Light gray", AnnotColor(0.85, 0.85, 0.85)), ("Light blue", AnnotColor(0.88, 0.93, 1)), ("Light yellow", AnnotColor(1, 0.98, 0.8)),
-    ]
+    public static var fillColors: [(label: String, color: AnnotColor?)] {
+        [
+            (loc("None"), nil), (loc("White"), AnnotColor(1, 1, 1)), (loc("Light gray"), AnnotColor(0.85, 0.85, 0.85)),
+            (loc("Light blue"), AnnotColor(0.88, 0.93, 1)), (loc("Light yellow"), AnnotColor(1, 0.98, 0.8)),
+        ]
+    }
 
+    // English: "Auto" is Windows' Spanish too (FormDesign_SizeAuto), and parseSize reads it back.
     public static let sizes = ["Auto", "8", "9", "10", "11", "12", "14", "16", "18", "24"]
 
-    public static let suggestionKinds: [(label: String, kind: DesignFieldKind, multiline: Bool)] = [
-        ("Text field", .text, false), ("Multi-line text field", .text, true), ("Check box", .checkBox, false), ("Radio button", .radio, false),
-        ("Dropdown", .comboBox, false), ("List box", .listBox, false), ("Signature field", .signature, false),
-    ]
+    public static var suggestionKinds: [(label: String, kind: DesignFieldKind, multiline: Bool)] {
+        [
+            (loc("Text field"), .text, false), (loc("Multi-line text field"), .text, true), (loc("Check box"), .checkBox, false),
+            (loc("Radio button"), .radio, false), (loc("Dropdown"), .comboBox, false), (loc("List box"), .listBox, false),
+            (loc("Signature field"), .signature, false),
+        ]
+    }
 
     /// The index in `choices` of a color (within 0.02 each), or nil when it is none of them ("Custom (kept)").
     public static func colorIndex(_ choices: [(label: String, color: AnnotColor?)], _ color: AnnotColor?) -> Int? {
@@ -415,26 +429,29 @@ public enum FormDesignRules {
         var labels = formats.map(\.label)
         let at = formats.firstIndex { $0.format == f.format }
         if f.customFormat {
-            labels.append("Custom script (kept)")
+            labels.append(loc("Custom script (kept)"))
         } else if at == nil {
-            labels.append("Other (\(f.format.map { String(describing: $0.kind) } ?? "format"), kept)")
+            labels.append(loc("Other ({0}, kept)", f.format.map { String(describing: $0.kind) } ?? "format"))
         }
         return (labels, !f.customFormat ? at ?? labels.count - 1 : labels.count - 1)
     }
 
     public static func panelTitle(_ f: DesignField?, _ s: FieldSuggestion?) -> String {
-        if let f { return "\(DesignField.kindName(f.kind)) · page \(f.pageIndex + 1)\(f.signed ? " · signed" : "")" }
-        if let s { return "Suggested \(DesignField.kindName(s.kind).lowercased()) · page \(s.pageIndex + 1)" }
-        return "Prepare Form"
+        if let f {
+            let kind = DesignField.kindName(f.kind)
+            return f.signed ? loc("{0} · page {1} · signed", kind, f.pageIndex + 1) : loc("{0} · page {1}", kind, f.pageIndex + 1)
+        }
+        if let s { return loc("Suggested {0} · page {1}", DesignField.kindName(s.kind).lowercased(), s.pageIndex + 1) }
+        return loc("Prepare Form")
     }
 
     public static func sourceText(_ source: String) -> String {
         switch source {
-        case "underscores": "Found from a run of underscores."
-        case "line": "Found from a line to write on."
-        case "box": "Found from an empty box."
-        case "square": "Found from a small square."
-        default: "Found from a box character."
+        case "underscores": loc("Found from a run of underscores.")
+        case "line": loc("Found from a line to write on.")
+        case "box": loc("Found from an empty box.")
+        case "square": loc("Found from a small square.")
+        default: loc("Found from a box character.")
         }
     }
 
@@ -500,7 +517,7 @@ public enum FormDesignRules {
     public static func tabOrder(moving f: DesignField, by step: Int, in fields: [DesignField]) -> Result<[String], DesignRefusal> {
         var onPage = fields.filter { $0.pageIndex == f.pageIndex }.sorted { $0.tabIndex < $1.tabIndex }
         guard let i = onPage.firstIndex(where: { $0.id == f.id }), onPage.indices.contains(i + step) else {
-            return .failure(DesignRefusal(step < 0 ? "This field is already filled first on its page." : "This field is already filled last on its page."))
+            return .failure(DesignRefusal(step < 0 ? loc("This field is already filled first on its page.") : loc("This field is already filled last on its page.")))
         }
         onPage.swapAt(i, i + step)
         return .success(onPage.map(\.id))
@@ -531,7 +548,7 @@ public enum FormDesignRules {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if text.isEmpty { return f.with { $0.maxLength = 0 } }
         guard text.allSatisfy({ $0.isASCII && $0.isNumber }), let n = Int(text), n <= 100_000 else {
-            throw DesignRefusal("Type the most characters as a whole number (0: no limit).")
+            throw DesignRefusal(loc("Type the most characters as a whole number (0: no limit)."))
         }
         return f.with { $0.maxLength = n }
     }
@@ -542,7 +559,7 @@ public enum FormDesignRules {
         if v == f.exportValue { return f }
         if let problem = FormDesign.exportValueProblem(v) { throw DesignRefusal(problem) }
         if f.kind == .radio && fields.contains(where: { $0.id != f.id && $0.kind == .radio && $0.name == f.name && $0.exportValue == v }) {
-            throw DesignRefusal("Another button of \"\(f.name)\" already stands for \"\(v)\": give this one a value of its own.")
+            throw DesignRefusal(loc("Another button of \"{0}\" already stands for \"{1}\": give this one a value of its own.", f.name, v))
         }
         return f.with {
             $0.exportValue = v
@@ -579,7 +596,7 @@ public enum FormDesignRules {
     public static func withChoices(_ f: DesignField, _ typed: String) throws -> DesignField {
         let (options, labels) = parseChoices(typed)
         if options == f.options && labels == f.shownOptions { return f }
-        if options.isEmpty { throw DesignRefusal("Type at least one choice.") }
+        if options.isEmpty { throw DesignRefusal(loc("Type at least one choice.")) }
         return f.with {
             $0.options = options
             $0.optionLabels = labels == options ? [] : labels

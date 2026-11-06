@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A file of a batch (the Windows app's `BatchFile`).
 public struct BatchFile: Equatable, Sendable {
@@ -93,7 +94,7 @@ public enum BatchNames {
 
     /// An error for a template that can't make names, else nil.
     public static func validate(_ template: String) -> String? {
-        template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Type a name for the results, for example <<name>>." : nil
+        template.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? loc("Type a name for the results, for example <<name>>.") : nil
     }
 
     /// `number`: the file's place in the batch, from 1.
@@ -220,39 +221,39 @@ public enum BatchStep: Equatable, Sendable {
     /// What the action is called in the list.
     public var title: String {
         switch self {
-        case .optimize: "Reduce file size"
-        case .protect: "Protect with a password"
-        case .unprotect: "Remove password protection"
-        case .sanitize: "Sanitize"
-        case .redactPatterns: "Redact patterns"
-        case .checkRedaction: "Check redaction"
-        case .checkAccessibility: "Check accessibility"
-        case .reportContents: "Report contents"
-        case .watermark: "Add watermark"
-        case .headerFooter(let o, _): o.bates != nil ? "Add header, footer & Bates numbers" : "Add header & footer"
-        case .rotate: "Rotate pages"
-        case .flatten: "Flatten"
-        case .ocr: "Recognize text (OCR)"
-        case .makeAccessible: "Make accessible"
-        case .saveAsPdfA: "Save as PDF/A"
-        case .saveAsPdfA2a: "Save as PDF/A-2a"
+        case .optimize: loc("Reduce file size")
+        case .protect: loc("Protect with a password")
+        case .unprotect: loc("Remove password protection")
+        case .sanitize: loc("Sanitize")
+        case .redactPatterns: loc("Redact patterns")
+        case .checkRedaction: loc("Check redaction")
+        case .checkAccessibility: loc("Check accessibility")
+        case .reportContents: loc("Report contents")
+        case .watermark: loc("Add watermark")
+        case .headerFooter(let o, _): o.bates != nil ? loc("Add header, footer & Bates numbers") : loc("Add header & footer")
+        case .rotate: loc("Rotate pages")
+        case .flatten: loc("Flatten")
+        case .ocr: loc("Recognize text (OCR)")
+        case .makeAccessible: loc("Make accessible")
+        case .saveAsPdfA: loc("Save as PDF/A")
+        case .saveAsPdfA2a: loc("Save as PDF/A-2a")
         case .export(let format, _):
             switch format {
-            case .word: "Export to Word"
-            case .excel: "Export tables to Excel"
-            case .powerPoint: "Export to PowerPoint"
-            case .html: "Export to HTML"
-            case .text: "Export as plain text"
-            case .commentsXfdf: "Export comments (XFDF)"
-            case .commentsFdf: "Export comments (FDF)"
-            case .commentsCsv: "Export comments (CSV)"
-            case .formDataXfdf: "Export form data (XFDF)"
-            case .formDataFdf: "Export form data (FDF)"
-            case .formDataCsv: "Export form data (CSV)"
-            case .formDataJson: "Export form data (JSON)"
-            case .commentSummary: "Summarize comments"
-            case .png: "Export pages as PNG images"
-            case .jpeg: "Export pages as JPEG images"
+            case .word: loc("Export to Word")
+            case .excel: loc("Export tables to Excel")
+            case .powerPoint: loc("Export to PowerPoint")
+            case .html: loc("Export to HTML")
+            case .text: loc("Export as plain text")
+            case .commentsXfdf: loc("Export comments (XFDF)")
+            case .commentsFdf: loc("Export comments (FDF)")
+            case .commentsCsv: loc("Export comments (CSV)")
+            case .formDataXfdf: loc("Export form data (XFDF)")
+            case .formDataFdf: loc("Export form data (FDF)")
+            case .formDataCsv: loc("Export form data (CSV)")
+            case .formDataJson: loc("Export form data (JSON)")
+            case .commentSummary: loc("Summarize comments")
+            case .png: loc("Export pages as PNG images")
+            case .jpeg: loc("Export pages as JPEG images")
             }
         }
     }
@@ -349,32 +350,32 @@ public struct BatchPlan: Sendable {
 
     /// What is wrong with the plan (for the dialog), or nil.
     public func validate(ocrAvailable: Bool) -> String? {
-        if steps.isEmpty { return "Add at least one action." }
+        if steps.isEmpty { return loc("Add at least one action.") }
         if let locked = steps.lazy.compactMap(\.proFeature).first(where: { !Pro.allows($0) }) { return Pro.locked(locked) }
-        if outputFolder.trimmingCharacters(in: .whitespaces).isEmpty || !outputFolder.hasPrefix("/") { return "Choose a folder for the results." }
+        if outputFolder.trimmingCharacters(in: .whitespaces).isEmpty || !outputFolder.hasPrefix("/") { return loc("Choose a folder for the results.") }
         if let nameError = BatchNames.validate(nameTemplate) { return nameError }
         if let protect = steps.firstIndex(where: \.isProtect), steps[(protect + 1)...].contains(where: \.changesPdf) {
-            return "Put \"Protect with a password\" after the other changes: they would need its password."
+            return loc("Put \"Protect with a password\" after the other changes: they would need its password.")
         }
         for case .protect(let p) in steps {
-            if p.needsPasswords { return "Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them." }
-            if (p.userPassword ?? "").isEmpty && (p.ownerPassword ?? "").isEmpty { return "Protect with a password needs an open password, a permissions password, or both." }
+            if p.needsPasswords { return loc("Protect with a password needs its passwords (a preset doesn't keep them): choose it and Change… to type them.") }
+            if (p.userPassword ?? "").isEmpty && (p.ownerPassword ?? "").isEmpty { return loc("Protect with a password needs an open password, a permissions password, or both.") }
         }
         if let pdfa = steps.firstIndex(where: \.isPdfA) {
             if steps.contains(where: \.isProtect) {
-                return "A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\"."
+                return loc("A PDF/A file can't be password protected: remove \"Save as PDF/A\" or \"Protect with a password\".")
             }
-            if steps[(pdfa + 1)...].contains(where: \.changesPdf) { return "Put \"Save as PDF/A\" after the other changes, so the result stays PDF/A." }
+            if steps[(pdfa + 1)...].contains(where: \.changesPdf) { return loc("Put \"Save as PDF/A\" after the other changes, so the result stays PDF/A.") }
         }
         var formats = Set<BatchExportFormat>()
         for s in steps {
-            if let f = s.exportFormat, !formats.insert(f).inserted { return "\"\(s.title)\" is in the list twice." }
+            if let f = s.exportFormat, !formats.insert(f).inserted { return loc("\"{0}\" is in the list twice.", s.title) }
         }
         for case .redactPatterns(let r) in steps {
-            if r.isEmpty { return "Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern." }
+            if r.isEmpty { return loc("Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.") }
             if let e = RedactionPatterns.validateExpression(r.expression) { return e }
         }
-        if !ocrAvailable && steps.contains(.ocr) { return "Text recognition isn't available on this Mac." }
+        if !ocrAvailable && steps.contains(.ocr) { return loc("Text recognition isn't available on this Mac.") }
         return nil
     }
 }
@@ -454,11 +455,11 @@ public struct BatchSummary: Equatable, Sendable {
     /// "3 done, 1 skipped, 2 failed."
     public var text: String {
         var parts: [String] = []
-        if done > 0 { parts.append("\(done) done") }
-        if skipped > 0 { parts.append("\(skipped) skipped") }
-        if failed > 0 { parts.append("\(failed) failed") }
-        if cancelled > 0 { parts.append("\(cancelled) cancelled") }
-        return parts.isEmpty ? "No files." : parts.joined(separator: ", ") + "."
+        if done > 0 { parts.append(done == 1 ? loc("1 done") : loc("{0} done", done)) }
+        if skipped > 0 { parts.append(skipped == 1 ? loc("1 skipped") : loc("{0} skipped", skipped)) }
+        if failed > 0 { parts.append(failed == 1 ? loc("1 failed") : loc("{0} failed", failed)) }
+        if cancelled > 0 { parts.append(cancelled == 1 ? loc("1 cancelled") : loc("{0} cancelled", cancelled)) }
+        return parts.isEmpty ? loc("No files.") : parts.joined(separator: ", ") + "."
     }
 }
 
@@ -518,8 +519,8 @@ public enum BatchRunner {
         }
         var items = results.all()
         for i in items.indices where items[i] == nil {
-            items[i] = BatchItemResult(files[i], .cancelled, "Cancelled")
-            progress?(BatchProgress(index: i, state: .cancelled, message: "Cancelled", fraction: 0, result: items[i]))
+            items[i] = BatchItemResult(files[i], .cancelled, loc("Cancelled"))
+            progress?(BatchProgress(index: i, state: .cancelled, message: loc("Cancelled"), fraction: 0, result: items[i]))
         }
         return BatchSummary(items.map { $0! })
     }
@@ -624,31 +625,31 @@ public enum BatchRunner {
         func run() async -> BatchItemResult {
             do {
                 try cancel.check()
-                report("Reading…", 0)
+                report(loc("Reading…"), 0)
                 baseName = BatchNames.expand(plan.nameTemplate, file.namedAs, index + 1, plan.date)
                 folder = plan.keepSubfolders && !file.relativeFolder.isEmpty ? (plan.outputFolder as NSString).appendingPathComponent(file.relativeFolder) : plan.outputFolder
                 var data = Array(try Data(contentsOf: URL(fileURLWithPath: file.path)))
                 if file.isImage {
-                    report("Making a PDF of the image…", 0)
+                    report(loc("Making a PDF of the image…"), 0)
                     data = try ImageImport.imagesToPdf([(data, (file.path as NSString).lastPathComponent)], pageSize: plan.imagePageSize)
                 } else {
-                    if !BatchRunner.looksLikePdf(data) { return result(.failed, "This file isn't a PDF.") }
+                    if !BatchRunner.looksLikePdf(data) { return result(.failed, loc("This file isn't a PDF.")) }
                     if PdfSecurity.needsOpenPassword(data) { try await unlock(data) }
                 }
                 let changes = plan.steps.contains { $0.changesPdf }
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
                 let keepSigned = changes && plan.signedFiles == .skip && BatchRunner.isSigned(data, password)
                 if keepSigned && plan.steps.allSatisfy({ $0.changesPdf }) {
-                    return result(.skipped, "Signed: left as it is so its signatures stay valid")
+                    return result(.skipped, loc("Signed: left as it is so its signatures stay valid"))
                 }
-                if keepSigned { notes.append("Signed: only exported, the PDF left as it is so its signatures stay valid") }
+                if keepSigned { notes.append(loc("Signed: only exported, the PDF left as it is so its signatures stay valid")) }
                 pageCount = try pages(data)
-                if pageCount == 0 { return result(.failed, "This PDF has no pages.") }
+                if pageCount == 0 { return result(.failed, loc("This PDF has no pages.")) }
 
                 for (s, step) in plan.steps.enumerated() {
                     try cancel.check()
                     if keepSigned && step.changesPdf { continue }
-                    report("\(step.title)…", Double(s) / Double(plan.steps.count))
+                    report(loc("{0}…", step.title), Double(s) / Double(plan.steps.count))
                     switch step {
                     case .export(let format, let dpi):
                         try export(data, format, dpi)
@@ -672,9 +673,9 @@ public enum BatchRunner {
                     let bytes = data
                     outputs.insert(try names.place(folder, baseName + ".pdf") { try Data(bytes).write(to: URL(fileURLWithPath: $0)) }, at: 0)
                 }
-                return result(.done, outputs.isEmpty ? "Done (nothing to save)" : "Done")
+                return result(.done, outputs.isEmpty ? loc("Done (nothing to save)") : loc("Done"))
             } catch is CancellationError {
-                return result(.cancelled, "Cancelled")
+                return result(.cancelled, loc("Cancelled"))
             } catch let skip as BatchSkip {
                 return result(.skipped, skip.reason)
             } catch let failed as BatchCheckFailed {
@@ -688,7 +689,7 @@ public enum BatchRunner {
         private func unlock(_ data: [UInt8]) async throws {
             var wrong = false
             while true {
-                guard let given = await ask(.open, wrong) else { throw BatchSkip(reason: "Needs a password to open (skipped)") }
+                guard let given = await ask(.open, wrong) else { throw BatchSkip(reason: loc("Needs a password to open (skipped)")) }
                 do {
                     try PdfEngine.open(data, password: given).close()
                     password = given
@@ -720,7 +721,7 @@ public enum BatchRunner {
                     }
                 } catch let e as OwnerPasswordRequired {
                     guard let given = await ask(.permissions, e.wrongPassword && pw != nil) else {
-                        throw BatchSkip(reason: "Restricted: needs its permissions password to be changed (skipped)")
+                        throw BatchSkip(reason: loc("Restricted: needs its permissions password to be changed (skipped)"))
                     }
                     password = given
                 }
@@ -733,7 +734,7 @@ public enum BatchRunner {
             case .optimize(let o):
                 let r = try Optimizer.optimize(d, pw, o)
                 if r.isWorthIt { return r.data }
-                notes.append("Already compact: size left as it was")
+                notes.append(loc("Already compact: size left as it was"))
                 return d
             case .protect(let p):
                 return try PdfSecurity.protect(d, pw, userPassword: p.userPassword, ownerPassword: p.ownerPassword, permissions: p.permissions, method: p.method)
@@ -749,9 +750,7 @@ public enum BatchRunner {
                     redactedValues += matches.map(\.text)
                     for (page, areas) in RedactionPatterns.areas(matches) { redactedAreas[page, default: []] += areas }
                 }
-                notes.append(matches.isEmpty
-                    ? "Redact patterns: nothing found, left as it was"
-                    : "Redacted \(matches.count) \(matches.count == 1 ? "match" : "matches") on \(pages) \(pages == 1 ? "page" : "pages") (\(RedactionPatterns.summary(matches)))")
+                notes.append(BatchRunner.redactedNote(matches.count, pages, matches.isEmpty ? "" : RedactionPatterns.summary(matches)))
                 return redacted
             case .watermark(let w):
                 return try Watermarks.apply(d, pw, all, w)
@@ -766,11 +765,11 @@ public enum BatchRunner {
                 return try Flattener.flatten(d, pw, f)
             case .saveAsPdfA:
                 let r = try PdfA.convert(d, pw)
-                notes.append(r.changes.isEmpty ? "PDF/A-2b: nothing needed changing" : "PDF/A-2b: \(r.changes.joined(separator: "; "))")
+                notes.append(r.changes.isEmpty ? loc("{0}: nothing needed changing", "PDF/A-2b") : "PDF/A-2b: \(r.changes.joined(separator: "; "))")
                 return r.data
             case .saveAsPdfA2a:
                 let r = try PdfA.convert(d, pw, conformance: .a)
-                notes.append(r.changes.isEmpty ? "PDF/A-2a: nothing needed changing" : "PDF/A-2a: \(r.changes.joined(separator: "; "))")
+                notes.append(r.changes.isEmpty ? loc("{0}: nothing needed changing", "PDF/A-2a") : "PDF/A-2a: \(r.changes.joined(separator: "; "))")
                 return r.data
             case .makeAccessible(let fallback):
                 let engine = try PdfEngine.open(d, password: pw)
@@ -779,15 +778,17 @@ public enum BatchRunner {
                 let title = tags.title ?? ((file.namedAs as NSString).lastPathComponent as NSString).deletingPathExtension
                 let language = tags.language ?? fallback
                 let tagged = try AutoTag.write(d, pw, tags, AccessibleOptions(title: title, language: language), cancel: cancel)
-                let said = language.map { "language \($0)\(tags.languageGuessed && tags.language != nil ? " (read from the text)" : "")" } ?? "no language (none could be told)"
-                notes.append("Tagged: \(tags.blocks.count) \(tags.blocks.count == 1 ? "piece" : "pieces") in reading order, title \"\(title)\", \(said)"
-                    + (tags.wasTagged ? "; its earlier tags replaced" : ""))
-                if tags.figuresWithoutAlt > 0 {
-                    notes.append("\(tags.figuresWithoutAlt) \(tags.figuresWithoutAlt == 1 ? "picture needs" : "pictures need") alternate text: open the file and use Tools › Reading Order and Alt Text")
+                notes.append(BatchRunner.taggedNote(tags.blocks.count, title: title, language: language, guessed: tags.languageGuessed && tags.language != nil,
+                                             replaced: tags.wasTagged))
+                let figures = tags.figuresWithoutAlt
+                if figures == 1 {
+                    notes.append(loc("1 picture needs alternate text: open the file and use Tools › Reading Order and Alt Text"))
+                } else if figures > 1 {
+                    notes.append(loc("{0} pictures need alternate text: open the file and use Tools › Reading Order and Alt Text", figures))
                 }
                 return tagged
             default:
-                throw PdfEditError("\(step.title) isn't an action that changes the file.")
+                throw PdfEditError(loc("{0} isn't an action that changes the file.", step.title))
             }
         }
 
@@ -808,33 +809,33 @@ public enum BatchRunner {
         /// The redaction check: anything found fails the file (the first findings go in its notes).
         private func checkRedaction(_ data: [UInt8]) throws {
             let report = try RedactionCheck.run(data, password, RedactionCheckOptions(values: redactedValues, areas: redactedAreas, original: beforeRedaction),
-                                                progress: { [self] done, total in self.report("Checking redaction…", Double(done) / Double(max(1, total))) }, cancel: cancel)
+                                                progress: { [self] done, total in self.report(loc("Checking redaction…"), Double(done) / Double(max(1, total))) }, cancel: cancel)
             if report.isClean { return }
             for f in report.findings.prefix(10) { notes.append("\(f.place): \(RedactionCheck.name(f.kind))") }
-            if report.findings.count > 10 { notes.append("… and \(report.findings.count - 10) more") }
-            throw BatchCheckFailed(message: "Redaction check: \(report.summary)")
+            if report.findings.count > 10 { notes.append(loc("… and {0} more", report.findings.count - 10)) }
+            throw BatchCheckFailed(message: loc("Redaction check: {0}", report.summary))
         }
 
         /// The accessibility check: its report beside the result, and a failure or a part not checked fails the file (the
         /// first ones go in its notes).
         private func checkAccessibility(_ data: [UInt8]) throws {
             let report = try AccessibilityCheck.run(data, password, progress: { [self] done, total in
-                self.report("Checking accessibility…", Double(done) / Double(max(1, total)))
+                self.report(loc("Checking accessibility…"), Double(done) / Double(max(1, total)))
             }, cancel: cancel)
             let html = AccessibilityReportHtml.write(report, (file.namedAs as NSString).lastPathComponent, checkedAt: Date())
             outputs.append(try names.place(folder, baseName + " accessibility.html") { try html.write(toFile: $0, atomically: false, encoding: .utf8) })
             if report.passed { return }
             for f in report.failures.prefix(10) { notes.append("\(f.condition) · \(f.place): \(f.problem)") }
-            if report.failures.count > 10 { notes.append("… and \(report.failures.count - 10) more (see the report)") }
-            for n in report.notes.prefix(10) { notes.append("Not checked: \(n)") }
-            if report.notes.count > 10 { notes.append("… and \(report.notes.count - 10) more not checked (see the report)") }
-            throw BatchCheckFailed(message: "Accessibility check: \(report.summary)")
+            if report.failures.count > 10 { notes.append(loc("… and {0} more (see the report)", report.failures.count - 10)) }
+            for n in report.notes.prefix(10) { notes.append(loc("Not checked: {0}", n)) }
+            if report.notes.count > 10 { notes.append(loc("… and {0} more not checked (see the report)", report.notes.count - 10)) }
+            throw BatchCheckFailed(message: loc("Accessibility check: {0}", report.summary))
         }
 
         /// What's in this PDF: its report beside the result, as a web page and as JSON.
         private func reportContents(_ data: [UInt8]) throws {
             let report = try DocumentInventory.run(data, password, progress: { [self] done, total in
-                self.report("Looking through the file…", Double(done) / Double(max(1, total)))
+                self.report(loc("Looking through the file…"), Double(done) / Double(max(1, total)))
             }, cancel: cancel)
             let name = (file.namedAs as NSString).lastPathComponent
             let now = Date()
@@ -842,7 +843,7 @@ public enum BatchRunner {
             let json = InventoryReportFiles.json(report, name, madeAt: now)
             outputs.append(try names.place(folder, baseName + " contents.html") { try html.write(toFile: $0, atomically: false, encoding: .utf8) })
             outputs.append(try names.place(folder, baseName + " contents.json") { try json.write(toFile: $0, atomically: false, encoding: .utf8) })
-            if !report.isEmpty { notes.append("Contents: \(report.summary)") }
+            if !report.isEmpty { notes.append(loc("Contents: {0}", report.summary)) }
         }
 
         private func pages(_ data: [UInt8]) throws -> Int {
@@ -858,7 +859,7 @@ public enum BatchRunner {
             var hadText = 0
             for p in 0..<engine.pageCount {
                 try cancel.check()
-                report("Recognizing text: page \(p + 1) of \(engine.pageCount)…", Double(p) / Double(engine.pageCount))
+                report(loc("Recognizing text: page {0} of {1}…", p + 1, engine.pageCount), Double(p) / Double(engine.pageCount))
                 if try TextLayer.hasText(engine, p, cancel: cancel) {
                     hadText += 1
                     continue
@@ -866,9 +867,19 @@ public enum BatchRunner {
                 let found = try host.recognize!(engine, p, cancel)
                 if !found.isEmpty { words[p] = found }
             }
-            if !words.isEmpty { notes.append("Text recognized on \(BatchRunner.plural(words.count, "page"))") } else if hadText < engine.pageCount { notes.append("No text recognized") }
+            if words.count == 1 {
+                notes.append(loc("Text recognized on 1 page"))
+            } else if !words.isEmpty {
+                notes.append(loc("Text recognized on {0} pages", words.count))
+            } else if hadText < engine.pageCount {
+                notes.append(loc("No text recognized"))
+            }
             let suspect = words.values.reduce(0) { n, page in n + page.filter { !$0.suspect.isEmpty }.count }
-            if suspect > 0 { notes.append("\(BatchRunner.plural(suspect, "suspect word")) to check (Tools › Review Suspect Words)") }
+            if suspect == 1 {
+                notes.append(loc("1 suspect word to check (Tools › Review Suspect Words)"))
+            } else if suspect > 1 {
+                notes.append(loc("{0} suspect words to check (Tools › Review Suspect Words)", suspect))
+            }
             return words
         }
 
@@ -883,7 +894,7 @@ public enum BatchRunner {
                 let jpeg = format == .jpeg
                 for p in 0..<engine.pageCount {
                     try cancel.check()
-                    report("Saving page \(p + 1) of \(engine.pageCount)…", Double(p) / Double(engine.pageCount))
+                    report(loc("Saving page {0} of {1}…", p + 1, engine.pageCount), Double(p) / Double(engine.pageCount))
                     let resolution = PageImages.clampDpi(engine.page(p), Double(dpi))
                     outputs.append(try names.place(folder, "\(baseName) - page \(p + 1).\(jpeg ? "jpg" : "png")") { temp in
                         try engine.saveImage(p, dpi: resolution, path: temp, jpeg: jpeg, cancel: cancel)
@@ -903,14 +914,14 @@ public enum BatchRunner {
             let title = ((file.path as NSString).lastPathComponent as NSString).deletingPathExtension
             let report = try DocumentExport.export(engine, exportFormat, to: sink, options: ExportOptions(title: title, source: data, sourcePassword: password),
                                                    cancel: cancel)
-            for problem in report.unreadable { notes.append("Page \(problem.page + 1) couldn't be read") }
+            for problem in report.unreadable { notes.append(loc("Page {0} couldn't be read", problem.page + 1)) }
             if !report.saved {
                 let why = switch exportFormat {
-                case .word: "Word: no text or pictures, nothing saved"
-                case .excel: "Excel: no tables found, nothing saved"
-                case .powerPoint: "PowerPoint: nothing on the pages, nothing saved"
-                case .html: "HTML: no text or pictures, nothing saved"
-                case .text: "Text: no text found, nothing saved"
+                case .word: loc("Word: no text or pictures, nothing saved")
+                case .excel: loc("Excel: no tables found, nothing saved")
+                case .powerPoint: loc("PowerPoint: nothing on the pages, nothing saved")
+                case .html: loc("HTML: no text or pictures, nothing saved")
+                case .text: loc("Text: no text found, nothing saved")
                 }
                 notes.append(why)
                 return
@@ -929,11 +940,11 @@ public enum BatchRunner {
             case .commentsXfdf, .commentsFdf, .commentsCsv:
                 let f: CommentFileFormat = format == .commentsXfdf ? .xfdf : format == .commentsFdf ? .fdf : .csv
                 let export = try CommentFiles.export(data, password, f, pdfFileName: name)
-                if export.count > 0 { bytes = export.data } else { notes.append("Comments: none, nothing saved") }
+                if export.count > 0 { bytes = export.data } else { notes.append(loc("Comments: none, nothing saved")) }
                 suffix = (f == .csv ? " comments." : ".") + CommentFiles.fileExtension(f)
             case .commentSummary:
                 if (try CommentSummary.plan(Annotations.read(data, password))).isEmpty {
-                    notes.append("Comment summary: no comments, nothing saved")
+                    notes.append(loc("Comment summary: no comments, nothing saved"))
                 } else {
                     bytes = try CommentSummary.make(data, password, title: name)
                 }
@@ -948,7 +959,7 @@ public enum BatchRunner {
                 if !(try FormEditor.dataFields(data, password)).isEmpty {
                     bytes = try FormDataFiles.export(data, password, f, pdfFileName: name)
                 } else {
-                    notes.append("Form data: no form fields, nothing saved")
+                    notes.append(loc("Form data: no form fields, nothing saved"))
                 }
                 suffix = (f == .csv ? " data." : ".") + FormDataFiles.fileExtension(f)
             }
@@ -958,7 +969,29 @@ public enum BatchRunner {
         }
     }
 
-    static func plural(_ n: Int, _ word: String) -> String { n == 1 ? "1 \(word)" : "\(n) \(word)s" }
+    /// Redact patterns' note: nothing found, or how many matches on how many pages (`summary`: what they were).
+    static func redactedNote(_ matches: Int, _ pages: Int, _ summary: String) -> String {
+        if matches == 0 { return loc("Redact patterns: nothing found, left as it was") }
+        if pages == 1 {
+            if matches == 1 { return loc("Redacted {0} match on {1} page ({2})", matches, pages, summary) }
+            return loc("Redacted {0} matches on {1} page ({2})", matches, pages, summary)
+        }
+        if matches == 1 { return loc("Redacted {0} match on {1} pages ({2})", matches, pages, summary) }
+        return loc("Redacted {0} matches on {1} pages ({2})", matches, pages, summary)
+    }
+
+    /// Make accessible's note: how many pieces were tagged, the title and the language.
+    static func taggedNote(_ pieces: Int, title: String, language: String?, guessed: Bool, replaced: Bool) -> String {
+        let said: String
+        if let language {
+            said = guessed ? loc("language {0} (read from the text)", language) : loc("language {0}", language)
+        } else {
+            said = loc("no language (none could be told)")
+        }
+        let earlier = replaced ? loc("; its earlier tags replaced") : ""
+        if pieces == 1 { return loc("Tagged: {0} piece in reading order, title \"{1}\", {2}{3}", pieces, title, said, earlier) }
+        return loc("Tagged: {0} pieces in reading order, title \"{1}\", {2}{3}", pieces, title, said, earlier)
+    }
 
     static func looksLikePdf(_ data: [UInt8]) -> Bool { data.prefix(1024).firstRange(of: Array("%PDF-".utf8)) != nil }
 
@@ -970,14 +1003,14 @@ public enum BatchRunner {
     /// Why a file failed, in words for the list.
     static func describe(_ error: Error) -> String {
         switch error {
-        case is PasswordRequired: return "Needs a password to open"
+        case is PasswordRequired: return loc("Needs a password to open")
         case let e as PdfEditError: return e.message
         case let e as PdfAError: return e.description
-        case let e as PdfEngineError: return "This PDF is damaged and can't be read (\(e.message))"
+        case let e as PdfEngineError: return loc("This PDF is damaged and can't be read ({0})", e.message)
         case let e as SignaturesWouldBreak: return e.description
         case let e as OwnerPasswordRequired: return e.description
-        case let e as CocoaError where e.code == .fileReadNoSuchFile || e.code == .fileNoSuchFile: return "The file isn't there any more"
-        case let e as CocoaError where e.code == .fileReadNoPermission || e.code == .fileWriteNoPermission: return "No access: \(e.localizedDescription)"
+        case let e as CocoaError where e.code == .fileReadNoSuchFile || e.code == .fileNoSuchFile: return loc("The file isn't there any more")
+        case let e as CocoaError where e.code == .fileReadNoPermission || e.code == .fileWriteNoPermission: return loc("No access: {0}", e.localizedDescription)
         default:
             let text = "\(error)"
             return text.trimmingCharacters(in: .whitespaces).isEmpty ? "\(type(of: error))" : text

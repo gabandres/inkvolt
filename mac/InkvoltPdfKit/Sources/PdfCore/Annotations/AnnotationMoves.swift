@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Moving and recoloring sticky notes and text marks in place (drawings have `updateGeometry` and `updateStyle`): the
 /// annotation keeps its id, text, author and replies. A Mac addition; the Windows app doesn't move or recolor these yet.
@@ -10,11 +11,11 @@ extension Annotations {
     /// - Throws: `PdfEditError` when there is no such comment, or it is another kind.
     public static func move(_ data: [UInt8], _ password: String?, _ id: String, dx: Double, dy: Double) throws -> [UInt8] {
         let doc = try PdfEdit.openToRead(data, password)
-        guard let found = try find(doc, id) else { throw PdfEditError("That comment no longer exists.") }
+        guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
         try checkMovable(found.annot)
         if dx == 0 && dy == 0 { return data }
         return try PageEditor.edit(data, password) { doc in
-            guard let found = try find(doc, id) else { throw PdfEditError("That comment no longer exists.") }
+            guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page), a = found.annot
             let o = PageBoxes.toPdf(page, 0, 0), d = PageBoxes.toPdf(page, dx, dy)
             let vx = d.x - o.x, vy = d.y - o.y
@@ -51,7 +52,7 @@ extension Annotations {
     /// - Throws: `PdfEditError` when there is no such comment, or it is another kind.
     public static func setColor(_ data: [UInt8], _ password: String?, _ id: String, _ color: AnnotColor) throws -> [UInt8] {
         try PageEditor.edit(data, password) { doc in
-            guard let found = try find(doc, id) else { throw PdfEditError("That comment no longer exists.") }
+            guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page), a = found.annot
             try checkMovable(a)
             let subtype = a.name("Subtype") ?? ""
@@ -77,7 +78,7 @@ extension Annotations {
     private static func checkMovable(_ a: PObj) throws {
         let subtype = a.name("Subtype") ?? ""
         if subtype != "Text" && !markupSubtypes.contains(subtype) {
-            throw PdfEditError("Only notes and text marks (highlight, underline, strike-out) move and change color this way.")
+            throw PdfEditError(loc("Only notes and text marks (highlight, underline, strike-out) move and change color this way."))
         }
     }
 }

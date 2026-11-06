@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import PrintCore
 
 /// The kind of Office file: which of Microsoft's apps it belongs to (the Windows app's `OfficeApp`). On the Mac it picks
 /// the words of a message; LibreOffice converts all three.
@@ -157,8 +158,8 @@ public enum WebFiles {
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
         guard typed.hasPrefix("/") || typed.hasPrefix("~/") else { return parseAddress(typed) }
         let path = (typed as NSString).expandingTildeInPath
-        guard fileExists(path) else { return (nil, "That file wasn't found.") }
-        guard isWebFile(path) else { return (nil, "Choose a saved web page (.html or .mht).") }
+        guard fileExists(path) else { return (nil, loc("That file wasn't found.")) }
+        guard isWebFile(path) else { return (nil, loc("Choose a saved web page (.html or .mht).")) }
         return (URL(fileURLWithPath: path), nil)
     }
 
@@ -167,11 +168,11 @@ public enum WebFiles {
     /// Foundation's URL, which would percent-encode "not a host" into a host. An address with a name or password in it
     /// is refused too (.NET takes it): it can make one site look like another.
     public static func parseAddress(_ text: String) -> (url: URL?, error: String?) {
-        let notAddress = "That isn't a web address."
+        let notAddress = loc("That isn't a web address.")
         let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !typed.isEmpty else { return (nil, "Type a web address, such as example.com.") }
+        guard !typed.isEmpty else { return (nil, loc("Type a web address, such as example.com.")) }
         guard !typed.unicodeScalars.contains(where: { $0.value < 0x20 || $0.value == 0x7F }) else { return (nil, notAddress) }
-        let onlyWeb = "Only web addresses (http or https) can be opened here. For a file on this Mac, use Browse."
+        let onlyWeb = loc("Only web addresses (http or https) can be opened here. For a file on this Mac, use Browse.")
         let lower = typed.lowercased()
         if !typed.contains("://"), lower.hasPrefix("javascript:") || lower.hasPrefix("data:") || lower.hasPrefix("file:") { return (nil, onlyWeb) }
         let full = typed.contains("://") ? typed : "https://" + typed
@@ -183,8 +184,8 @@ public enum WebFiles {
         let rest = full[mark.upperBound...]
         let end = rest.firstIndex { "/?#".contains($0) } ?? rest.endIndex
         let authority = String(rest[..<end])
-        guard !authority.isEmpty else { return (nil, "That web address has no site name.") }
-        guard !authority.contains("@") else { return (nil, "That web address has a name or password in it, which can't be used here.") }
+        guard !authority.isEmpty else { return (nil, loc("That web address has no site name.")) }
+        guard !authority.contains("@") else { return (nil, loc("That web address has a name or password in it, which can't be used here.")) }
         guard let site = site(authority) else { return (nil, notAddress) }
         var tail = encoded(String(rest[end...]))
         if !tail.hasPrefix("/") { tail = "/" + tail }
@@ -264,7 +265,11 @@ public struct WebCaptureRules: Sendable {
     public var isLocal: Bool { source.isFileURL }
     public var runsPageScripts: Bool { !isLocal }
 
-    public var loadingText: String { isLocal ? "Opening the file…" : "Loading \(source.host ?? "the page")…" }
+    public var loadingText: String {
+        if isLocal { return loc("Opening the file…") }
+        if let host = source.host { return loc("Loading {0}…", host) }
+        return loc("Loading the page…")
+    }
 
     /// Where the page may go. The main frame: a web page stays on the web, a saved page stays itself (its anchors). A
     /// frame inside it: the web and what a page makes itself, and for a web page nothing from this Mac; a saved page's
@@ -288,26 +293,26 @@ public struct WebCaptureRules: Sendable {
 
     /// What to tell the user about a load that failed.
     public static func describe(domain: String, code: Int) -> String {
-        guard domain == NSURLErrorDomain else { return "The page couldn't be loaded (\(domain) \(code))." }
+        guard domain == NSURLErrorDomain else { return loc("The page couldn't be loaded ({0} {1}).", domain, code) }
         switch code {
-        case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: return "The site wasn't found. Check the address and the internet connection."
+        case NSURLErrorCannotFindHost, NSURLErrorDNSLookupFailed: return loc("The site wasn't found. Check the address and the internet connection.")
         case NSURLErrorCannotConnectToHost, NSURLErrorNotConnectedToInternet, NSURLErrorInternationalRoamingOff, NSURLErrorDataNotAllowed:
-            return "The site couldn't be reached. Check the internet connection."
-        case NSURLErrorTimedOut: return "The site took too long to answer."
+            return loc("The site couldn't be reached. Check the internet connection.")
+        case NSURLErrorTimedOut: return loc("The site took too long to answer.")
         case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate, NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot,
              NSURLErrorServerCertificateNotYetValid, NSURLErrorClientCertificateRejected, NSURLErrorClientCertificateRequired:
-            return "The site's security certificate isn't valid, so the page wasn't loaded."
-        case NSURLErrorNetworkConnectionLost: return "The connection was interrupted."
-        case NSURLErrorFileDoesNotExist: return "That file wasn't found."
-        default: return "The page couldn't be loaded (\(code))."
+            return loc("The site's security certificate isn't valid, so the page wasn't loaded.")
+        case NSURLErrorNetworkConnectionLost: return loc("The connection was interrupted.")
+        case NSURLErrorFileDoesNotExist: return loc("That file wasn't found.")
+        default: return loc("The page couldn't be loaded ({0}).", code)
         }
     }
 
-    public static func describe(httpStatus: Int) -> String { "The site answered with an error (\(httpStatus))." }
+    public static func describe(httpStatus: Int) -> String { loc("The site answered with an error ({0}).", httpStatus) }
 
-    public static let notAPage = "The page didn't load (it was stopped or left for a download)."
-    public static let busy = "The page stopped answering (its own scripts keep it busy), so it can't be printed."
-    public static func lateLoad(_ seconds: TimeInterval) -> String { "The page didn't finish loading within \(Int(seconds)) seconds." }
-    public static func latePrint(_ seconds: TimeInterval) -> String { "Printing the page didn't finish within \(Int(seconds)) seconds." }
-    public static let notPrinted = "The page couldn't be printed to PDF."
+    public static var notAPage: String { loc("The page didn't load (it was stopped or left for a download).") }
+    public static var busy: String { loc("The page stopped answering (its own scripts keep it busy), so it can't be printed.") }
+    public static func lateLoad(_ seconds: TimeInterval) -> String { loc("The page didn't finish loading within {0} seconds.", Int(seconds)) }
+    public static func latePrint(_ seconds: TimeInterval) -> String { loc("Printing the page didn't finish within {0} seconds.", Int(seconds)) }
+    public static var notPrinted: String { loc("The page couldn't be printed to PDF.") }
 }

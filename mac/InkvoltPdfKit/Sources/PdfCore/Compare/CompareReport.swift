@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A compare report (the Windows app's `CompareReport`): a copy of the new document with the changes as comments, so it
 /// can be saved, shared and read in any viewer. Inserted words get a green highlight, changed words an amber one whose
@@ -35,26 +36,27 @@ public enum CompareReport {
                     for span in c.new where span.page < pageCount && span.page < newPages.count {
                         let rects = newPages[span.page].rects(span.start, span.end)
                         if rects.isEmpty { continue }
-                        let note = c.kind == .inserted ? "Inserted (not in \(oldName))" : "Changed. \(oldName) has: “\(quote(c.oldText))”"
+                        let note = c.kind == .inserted ? loc("Inserted (not in {0})", oldName) : loc("Changed. {0} has: “{1}”", oldName, quote(c.oldText))
                         Annotations.addTextMarkupIn(doc, span.page, .highlight, rects, c.kind == .inserted ? insertedColor : changedColor,
                                                     note: note, author: author)
                     }
                 case .deleted:
-                    let text = "Removed: “\(quote(c.oldText))”"
+                    let text = loc("Removed: “{0}”", quote(c.oldText))
                     if let a = c.newAnchor, a.page < pageCount, a.page < newPages.count, let spot = spot(newPages[a.page], a.start) {
                         Annotations.addNoteIn(doc, a.page, spot.x, spot.y, text, author: author, color: removedColor)
                     } else if let p = result.rows[c.row].newPage, p < pageCount {
                         marginNote(p, text, removedColor)
                     }
                 case .pageInserted:
-                    if let span = c.new.first, span.page < pageCount { marginNote(span.page, "Inserted page: \(oldName) doesn't have it.", insertedColor) }
+                    if let span = c.new.first, span.page < pageCount { marginNote(span.page, loc("Inserted page: {0} doesn't have it.", oldName), insertedColor) }
                 case .pageRemoved:
                     guard let span = c.old.first else { continue }
                     // On the next page the new document has, else its last one.
                     let next = result.rows.dropFirst(c.row + 1).first { $0.newPage != nil }?.newPage ?? pageCount - 1
                     if next >= 0 {
-                        marginNote(next, "Removed page: page \(span.page + 1) of \(oldName) was here"
-                            + (c.oldText.isEmpty ? " (it has no text)." : ": “\(quote(c.oldText))”"), removedColor)
+                        let note = c.oldText.isEmpty ? loc("Removed page: page {0} of {1} was here (it has no text).", span.page + 1, oldName)
+                            : loc("Removed page: page {0} of {1} was here: “{2}”", span.page + 1, oldName, quote(c.oldText))
+                        marginNote(next, note, removedColor)
                     }
                 }
             }

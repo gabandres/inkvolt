@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// The "What's in this PDF" report (`InventoryReport`) as a self-contained web page (no scripts, no files beside it,
 /// accessible: language, headings in order, tables with header cells, light and dark colors with enough contrast, words
@@ -12,28 +13,30 @@ public enum InventoryReportFiles {
     /// - Parameter fileName: the file's name, for the title.
     public static func html(_ report: InventoryReport, _ fileName: String, madeAt: Date) -> String {
         let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "d MMMM yyyy, HH:mm"
+        // The page's words in the interface's language (English on the command line), its dates' month names too.
+        f.locale = CoreLanguage.language == "en" ? Locale(identifier: "en_US_POSIX") : CoreLanguage.locale
+        f.dateFormat = loc("d MMMM yyyy, HH:mm")
         let date = f.string(from: madeAt)
-        let pages = report.pages == 1 ? "1 page." : "\(DocumentInventory.n0(report.pages)) pages."
+        let pages = report.pages == 1
+            ? loc("{0} page. Everything the file carries besides what its pages show, and what it does when it is opened.", DocumentInventory.n0(1))
+            : loc("{0} pages. Everything the file carries besides what its pages show, and what it does when it is opened.", DocumentInventory.n0(report.pages))
 
-        var sb = "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n"
+        var sb = "<!DOCTYPE html>\n<html lang=\"" + CoreLanguage.language + "\">\n<head>\n<meta charset=\"utf-8\">\n"
         sb += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         sb += "<meta name=\"generator\" content=\"Inkvolt PDF\">\n"
-        sb += "<title>What's in this PDF: " + encode(fileName) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"
-        sb += "<a class=\"skip\" href=\"#main\">Skip to the summary</a>\n"
-        sb += "<header>\n<h1>What's in this PDF</h1>\n<p class=\"file\">" + encode(fileName) + "</p>\n"
-        sb += "<p>Looked at on " + encode(date) + " by Inkvolt PDF. " + pages
-        sb += " Everything the file carries besides what its pages show, and what it does when it is opened.</p>\n</header>\n"
-        sb += "<nav aria-label=\"Sections\">\n<ul>\n<li><a href=\"#summary\">Summary</a></li>\n"
+        sb += "<title>" + loc("What's in this PDF: {0}", encode(fileName)) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"
+        sb += "<a class=\"skip\" href=\"#main\">" + loc("Skip to the summary") + "</a>\n"
+        sb += "<header>\n<h1>" + loc("What's in this PDF") + "</h1>\n<p class=\"file\">" + encode(fileName) + "</p>\n"
+        sb += "<p>" + loc("Looked at on {0} by Inkvolt PDF. ", encode(date)) + pages + "</p>\n</header>\n"
+        sb += "<nav aria-label=\"" + loc("Sections") + "\">\n<ul>\n<li><a href=\"#summary\">" + loc("Summary") + "</a></li>\n"
         for s in InventorySection.allCases where report.items.contains(where: { $0.section == s }) {
             sb += "<li><a href=\"#" + s.id + "\">" + encode(DocumentInventory.title(s)) + "</a></li>\n"
         }
-        sb += "<li><a href=\"#sanitize\">What Sanitize removes</a></li>\n"
-        if !report.notes.isEmpty { sb += "<li><a href=\"#notes\">Not looked at</a></li>\n" }
+        sb += "<li><a href=\"#sanitize\">" + loc("What Sanitize removes") + "</a></li>\n"
+        if !report.notes.isEmpty { sb += "<li><a href=\"#notes\">" + loc("Not looked at") + "</a></li>\n" }
         sb += "</ul>\n</nav>\n<main id=\"main\">\n"
 
-        sb += "<section aria-labelledby=\"summary\">\n<h2 id=\"summary\">Summary</h2>\n<p class=\"verdict " + (report.isEmpty ? "clean" : "found") + "\">"
+        sb += "<section aria-labelledby=\"summary\">\n<h2 id=\"summary\">" + loc("Summary") + "</h2>\n<p class=\"verdict " + (report.isEmpty ? "clean" : "found") + "\">"
         sb += encode(report.summary) + "</p>\n</section>\n"
 
         for s in InventorySection.allCases {
@@ -42,22 +45,22 @@ public enum InventoryReportFiles {
             sb += section(s, items)
         }
 
-        sb += "<section aria-labelledby=\"sanitize\">\n<h2 id=\"sanitize\">What Sanitize removes</h2>\n"
-        sb += "<p>Review › Sanitize Document removes these kinds and rewrites the file as one version.</p>\n<table aria-labelledby=\"sanitize\">\n"
-        sb += "<thead><tr><th scope=\"col\">Kind</th><th scope=\"col\">Found</th></tr></thead>\n<tbody>\n"
+        sb += "<section aria-labelledby=\"sanitize\">\n<h2 id=\"sanitize\">" + loc("What Sanitize removes") + "</h2>\n"
+        sb += "<p>" + loc("Review › Sanitize Document removes these kinds and rewrites the file as one version.") + "</p>\n<table aria-labelledby=\"sanitize\">\n"
+        sb += "<thead><tr><th scope=\"col\">" + loc("Kind") + "</th><th scope=\"col\">" + loc("Found") + "</th></tr></thead>\n<tbody>\n"
         for (item, label, _) in kinds {
-            sb += "<tr><th scope=\"row\">" + encode(label) + "</th><td>" + DocumentInventory.n0(report.counts[item]) + "</td></tr>\n"
+            sb += "<tr><th scope=\"row\">" + encode(label.text) + "</th><td>" + DocumentInventory.n0(report.counts[item]) + "</td></tr>\n"
         }
-        sb += "<tr><th scope=\"row\">Earlier versions</th><td>" + DocumentInventory.n0(report.counts.earlierRevisions) + "</td></tr>\n"
-        sb += "<tr><th scope=\"row\">Objects nothing uses</th><td>" + DocumentInventory.n0(report.counts.unusedObjects) + "</td></tr>\n"
+        sb += "<tr><th scope=\"row\">" + loc("Earlier versions") + "</th><td>" + DocumentInventory.n0(report.counts.earlierRevisions) + "</td></tr>\n"
+        sb += "<tr><th scope=\"row\">" + loc("Objects nothing uses") + "</th><td>" + DocumentInventory.n0(report.counts.unusedObjects) + "</td></tr>\n"
         sb += "</tbody>\n</table>\n</section>\n"
 
         if !report.notes.isEmpty {
-            sb += "<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">Not looked at</h2>\n<ul>\n"
+            sb += "<section aria-labelledby=\"notes\">\n<h2 id=\"notes\">" + loc("Not looked at") + "</h2>\n<ul>\n"
             for n in report.notes { sb += "<li>" + encode(n) + "</li>\n" }
             sb += "</ul>\n</section>\n"
         }
-        sb += "</main>\n<footer>\n<p>Made by Inkvolt PDF on this computer; nothing was sent anywhere, and no address in the file was contacted.</p>\n</footer>\n</body>\n</html>\n"
+        sb += "</main>\n<footer>\n<p>" + loc("Made by Inkvolt PDF on this computer; nothing was sent anywhere, and no address in the file was contacted.") + "</p>\n</footer>\n</body>\n</html>\n"
         return sb
     }
 
@@ -67,15 +70,15 @@ public enum InventoryReportFiles {
         let trigger = s == .scripts || s == .actions || s == .addresses
         var sb = "<section aria-labelledby=\"" + id + "\">\n<h2 id=\"" + id + "\">" + encode(DocumentInventory.title(s))
         sb += " (" + DocumentInventory.n0(items.count) + ")</h2>\n<table aria-labelledby=\"" + id + "\">\n<thead><tr>"
-        sb += "<th scope=\"col\">What</th><th scope=\"col\">Where</th>" + (trigger ? "<th scope=\"col\">Runs</th>" : "")
-        sb += "<th scope=\"col\">Found</th></tr></thead>\n<tbody>\n"
+        sb += "<th scope=\"col\">" + loc("What") + "</th><th scope=\"col\">" + loc("Where") + "</th>" + (trigger ? "<th scope=\"col\">" + loc("Runs") + "</th>" : "")
+        sb += "<th scope=\"col\">" + loc("Found") + "</th></tr></thead>\n<tbody>\n"
         for i in items {
             sb += "<tr" + (i.withoutClick ? " class=\"auto\"" : "") + "><th scope=\"row\">" + encode(i.what) + "</th><td>" + encode(i.place) + "</td>"
             if trigger {
-                sb += "<td>" + encode(DocumentInventory.name(i.trigger)) + (i.withoutClick ? " <strong>(no click needed)</strong>" : "") + "</td>"
+                sb += "<td>" + encode(DocumentInventory.name(i.trigger)) + (i.withoutClick ? " <strong>" + loc("(no click needed)") + "</strong>" : "") + "</td>"
             }
             sb += "<td><code>" + encode(i.detail) + "</code>"
-            if !i.calls.isEmpty { sb += "<br><span class=\"calls\">It " + encode(i.calls.joined(separator: ", ")) + ".</span>" }
+            if !i.calls.isEmpty { sb += "<br><span class=\"calls\">" + loc("It {0}.", context: "report", encode(i.calls.joined(separator: ", "))) + "</span>" }
             sb += "</td></tr>\n"
         }
         return sb + "</tbody>\n</table>\n</section>\n"
@@ -165,18 +168,19 @@ public enum InventoryReportFiles {
     /// Each kind's name in JSON ("hiddenLayers").
     static func key(_ item: SanitizeItem) -> String { kinds.first { $0.item == item }?.key ?? "\(item)" }
 
-    private static let kinds: [(item: SanitizeItem, label: String, key: String)] = [
-        (.metadata, "Metadata", "metadata"),
-        (.hiddenLayers, "Hidden layers", "hiddenLayers"),
-        (.hiddenAnnotations, "Hidden comments and fields", "hiddenAnnotations"),
-        (.comments, "Comments, markup, stamps and drawings", "comments"),
-        (.formValues, "Form values", "formValues"),
-        (.bookmarks, "Bookmarks", "bookmarks"),
-        (.thumbnails, "Page thumbnails", "thumbnails"),
-        (.activeContent, "Scripts and active content", "activeContent"),
-        (.externalLinks, "Links to web pages and other files", "externalLinks"),
-        (.embeddedFiles, "Attached files", "embeddedFiles"),
-        (.signatures, "Digital signatures", "signatures"),
+    /// Each kind's name in the web page (shown in the interface's language where it is written) and its JSON key.
+    private static let kinds: [(item: SanitizeItem, label: LocKey, key: String)] = [
+        (.metadata, LocKey("Metadata"), "metadata"),
+        (.hiddenLayers, LocKey("Hidden layers"), "hiddenLayers"),
+        (.hiddenAnnotations, LocKey("Hidden comments and fields"), "hiddenAnnotations"),
+        (.comments, LocKey("Comments, markup, stamps and drawings"), "comments"),
+        (.formValues, LocKey("Form values"), "formValues"),
+        (.bookmarks, LocKey("Bookmarks"), "bookmarks"),
+        (.thumbnails, LocKey("Page thumbnails"), "thumbnails"),
+        (.activeContent, LocKey("Scripts and active content"), "activeContent"),
+        (.externalLinks, LocKey("Links to web pages and other files"), "externalLinks"),
+        (.embeddedFiles, LocKey("Attached files"), "embeddedFiles"),
+        (.signatures, LocKey("Digital signatures"), "signatures"),
     ]
 
     private static let css = """

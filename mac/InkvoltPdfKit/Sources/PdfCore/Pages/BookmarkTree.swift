@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A color for annotations and bookmark titles, components 0…1.
 public struct AnnotColor: Equatable, Hashable, Sendable {
@@ -49,7 +50,7 @@ public struct BookmarkNotFound: Error, Equatable, Sendable {
 
 /// A bookmark can't be moved into itself (.NET's `InvalidOperationException`).
 public struct BookmarkMoveRefused: Error, Equatable, Sendable {
-    public var message = "A bookmark can't be moved into itself."
+    public var message = loc("A bookmark can't be moved into itself.")
 }
 
 /// Edits of a bookmark tree addressed by index paths: [2] is the third top-level bookmark, [2, 0] its first child.
@@ -57,11 +58,11 @@ public struct BookmarkMoveRefused: Error, Equatable, Sendable {
 /// was edited.
 public enum BookmarkTree {
     public static func at(_ tree: [Bookmark], _ path: [Int]) throws -> Bookmark {
-        if path.isEmpty { throw BookmarkNotFound(message: "Empty bookmark path.") }
+        if path.isEmpty { throw BookmarkNotFound(message: loc("Empty bookmark path.")) }
         var list = tree
         var b: Bookmark?
         for i in path {
-            guard i >= 0 && i < list.count else { throw BookmarkNotFound(message: "The bookmark isn't there any more.") }
+            guard i >= 0 && i < list.count else { throw BookmarkNotFound(message: loc("The bookmark isn't there any more.")) }
             b = list[i]
             list = list[i].children
         }

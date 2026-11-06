@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Where a merge's forms go and what they are called.
 public struct FormMergeOptions: Sendable {
@@ -40,9 +41,10 @@ public struct FormMergeReport: Sendable {
 
     /// "198 forms made, 2 rows failed."
     public var text: String {
-        var s = "\(FormDataFiles.number(made.count)) form\(made.count == 1 ? "" : "s") made"
-        if !failed.isEmpty { s += ", \(FormDataFiles.number(failed.count)) row\(failed.count == 1 ? "" : "s") failed" }
-        if stopped { s += ", stopped before the end" }
+        let madeCount = FormDataFiles.number(made.count), failedCount = FormDataFiles.number(failed.count)
+        var s = made.count == 1 ? loc("{0} form made", madeCount) : loc("{0} forms made", madeCount)
+        if !failed.isEmpty { s += failed.count == 1 ? loc(", {0} row failed", failedCount) : loc(", {0} rows failed", failedCount) }
+        if stopped { s += loc(", stopped before the end") }
         return s + "."
     }
 
@@ -78,7 +80,7 @@ public enum FormMerge {
         for m in token.matches(in: template, range: NSRange(location: 0, length: ns.length)) {
             let name = ns.substring(with: m.range(at: 1))
             if !isBatchToken(name) && !known.contains(name.lowercased()) {
-                return "<<\(name)>> is neither a column of the CSV nor <<name>>, <<n>> or <<date>>."
+                return loc("<<{0}>> is neither a column of the CSV nor <<name>>, <<n>> or <<date>>.", name)
             }
         }
         return nil
@@ -116,7 +118,7 @@ public enum FormMerge {
                 var filled = form
                 if problems.isEmpty && !good.isEmpty {
                     let result = try FormEditor.fill(form, password, good)
-                    problems += result.rejected.map { $0.message.isEmpty ? "\($0.fieldName): refused by the form" : "\($0.fieldName): \($0.message)" }
+                    problems += result.rejected.map { $0.message.isEmpty ? loc("{0}: refused by the form", $0.fieldName) : "\($0.fieldName): \($0.message)" }
                     filled = result.data
                 }
                 if !problems.isEmpty {

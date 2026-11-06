@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import PrintCore
 
 /// Where text sent to an AI endpoint goes.
 public enum AiReach: Sendable, Equatable {
@@ -87,9 +88,9 @@ public struct AiEndpoint: Sendable, Equatable {
     /// "Stays on this Mac", "Stays on your network (nas.local:11434)", "Leaves this Mac: sent to api.example.com".
     public var reachText: String {
         switch reach {
-        case .thisMac: "Stays on this Mac"
-        case .localNetwork: "Stays on your network (\(host))"
-        case .internet: "Leaves this Mac: sent to \(host)"
+        case .thisMac: loc("Stays on this Mac")
+        case .localNetwork: loc("Stays on your network ({0})", host)
+        case .internet: loc("Leaves this Mac: sent to {0}", host)
         }
     }
 
@@ -109,10 +110,10 @@ public struct AiEndpoint: Sendable, Equatable {
     /// travel unencrypted). Read by hand, not through Foundation's URL, which turns look-alike dots into real ones.
     public static func tryParse(_ typed: String?) -> (endpoint: AiEndpoint?, error: String?) {
         var text = AiText.trim(typed ?? "")
-        if text.isEmpty { return (nil, "Enter the endpoint's address, e.g. https://api.example.com/v1") }
+        if text.isEmpty { return (nil, loc("Enter the endpoint's address, e.g. https://api.example.com/v1")) }
         let guessed = !text.contains("://")
         if guessed { text = "http://" + text }
-        let notAddress = "That isn't a web address. Enter one such as https://api.example.com/v1"
+        let notAddress = loc("That isn't a web address. Enter one such as https://api.example.com/v1")
         guard let schemeEnd = text.range(of: "://") else { return (nil, notAddress) }
         let schemeText = String(text[..<schemeEnd.lowerBound]).lowercased()
         var rest = String(text[schemeEnd.upperBound...])
@@ -125,7 +126,7 @@ public struct AiEndpoint: Sendable, Equatable {
         }
         // A host name is taken as plain ASCII only: its IDNA form, in which "。" becomes a real dot, could be another host.
         if authority.unicodeScalars.contains(where: { $0.value > 0x7E }) {
-            return (nil, "Type the host name in plain letters and digits (an international domain name in its xn-- form).")
+            return (nil, loc("Type the host name in plain letters and digits (an international domain name in its xn-- form)."))
         }
         if authority.unicodeScalars.contains(where: { $0.value <= 0x20 || $0.value == 0x7F }) || !isSchemeText(schemeText) { return (nil, notAddress) }
         var userInfo = ""
@@ -136,16 +137,16 @@ public struct AiEndpoint: Sendable, Equatable {
         }
         guard let (rawHost, rawPort) = splitHostPort(hostPort), !rawHost.isEmpty, isHostText(rawHost) else { return (nil, notAddress) }
         guard schemeText == "http" || schemeText == "https" else {
-            return (nil, "The address must start with https:// (or http:// for this Mac or your network).")
+            return (nil, loc("The address must start with https:// (or http:// for this Mac or your network)."))
         }
-        if !userInfo.isEmpty { return (nil, "Leave the user name and password out of the address; put an API key in the key box instead.") }
+        if !userInfo.isEmpty { return (nil, loc("Leave the user name and password out of the address; put an API key in the key box instead.")) }
         var pathText = rest
         var hasTail = false
         if let cut = rest.firstIndex(where: { $0 == "?" || $0 == "#" }) {
             pathText = String(rest[..<cut])
             hasTail = true
         }
-        if hasTail { return (nil, "Leave out the part after ? or #: enter just the base address, e.g. https://api.example.com/v1") }
+        if hasTail { return (nil, loc("Leave out the part after ? or #: enter just the base address, e.g. https://api.example.com/v1")) }
 
         let host = rawHost.lowercased()
         let reach = classify(host)
@@ -157,7 +158,7 @@ public struct AiEndpoint: Sendable, Equatable {
             scheme = "https"
         }
         if scheme == "http" && reach == .internet {
-            return (nil, "Use https:// for \(host): it is outside your network, and http:// would send the text unencrypted.")
+            return (nil, loc("Use https:// for {0}: it is outside your network, and http:// would send the text unencrypted.", host))
         }
         if port == (scheme == "https" ? 443 : 80) { port = nil }
 

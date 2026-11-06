@@ -1,6 +1,7 @@
 import Darwin
 import Foundation
 import Network
+import PrintCore
 import Security
 
 /// Bytes that arrive on one queue and are read in order by one reader: what the transports hand the client as a body.
@@ -326,10 +327,11 @@ final class AiSocketTransport: AiTransport {
         try cancel.check()
         let allowed = resolved.filter(endpoint.allows)
         if allowed.isEmpty {
-            let place = endpoint.reach == .thisMac ? "this Mac" : "your network"
-            throw AiAddressError(resolved.isEmpty
-                ? "Couldn't find \(host). Check the address, and that this Mac is online."
-                : "\(host) leads to \(resolved[0]), outside \(place), so nothing was sent. If the endpoint is on the internet, enter its public https:// address.")
+            if resolved.isEmpty { throw AiAddressError(loc("Couldn't find {0}. Check the address, and that this Mac is online.", host)) }
+            if endpoint.reach == .thisMac {
+                throw AiAddressError(loc("{0} leads to {1}, outside this Mac, so nothing was sent. If the endpoint is on the internet, enter its public https:// address.", host, resolved[0]))
+            }
+            throw AiAddressError(loc("{0} leads to {1}, outside your network, so nothing was sent. If the endpoint is on the internet, enter its public https:// address.", host, resolved[0]))
         }
         let secure = endpoint.scheme == "https"
         let connection = try await connectFirst(allowed, port: endpoint.port ?? (secure ? 443 : 80), tlsName: secure ? host : nil, cancel)

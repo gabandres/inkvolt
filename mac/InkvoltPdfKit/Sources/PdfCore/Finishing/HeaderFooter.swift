@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Bates numbering: a prefix, a running number padded with zeros, a suffix ("ABC-000123").
 public struct BatesFormat: Equatable, Sendable {
@@ -153,8 +154,8 @@ public enum HeaderFooter {
     /// Writes the header and footer on `pages` (0-based; Bates numbers follow page order).
     /// - Throws: `PdfEditError` when there is nothing to write or the size is out of range; `OwnerPasswordRequired`.
     public static func apply(_ data: [UInt8], _ password: String?, _ pages: [Int], _ options: HeaderFooterOptions) throws -> [UInt8] {
-        if options.isEmpty { throw PdfEditError("Type the text of a header or a footer.") }
-        if !options.fontSize.isFinite || options.fontSize < 1 || options.fontSize > 200 { throw PdfEditError("The font size must be from 1 to 200 points.") }
+        if options.isEmpty { throw PdfEditError(loc("Type the text of a header or a footer.")) }
+        if !options.fontSize.isFinite || options.fontSize < 1 || options.fontSize > 200 { throw PdfEditError(loc("The font size must be from 1 to 200 points.")) }
         let doc = try PdfEdit.open(data, password)
         let pageCount = try doc.pageCount()
         let count = options.pageCount ?? pageCount

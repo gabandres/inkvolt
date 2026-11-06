@@ -1,6 +1,7 @@
 import CoreText
 import Foundation
 import MuPDFShim
+import PrintCore
 
 /// PDF/A-2 levels: B keeps the look; A also keeps the structure (tags, language, Unicode text) for accessibility.
 public enum PdfAConformance: String, Equatable, Sendable {
@@ -14,7 +15,7 @@ public enum PdfAConformance: String, Equatable, Sendable {
 public struct PdfAError: Error, Equatable, Sendable, CustomStringConvertible {
     public var blockers: [String]
     public init(_ blockers: [String]) { self.blockers = blockers }
-    public var description: String { "This PDF can't be saved as PDF/A: " + blockers.joined(separator: " ") }
+    public var description: String { loc("This PDF can't be saved as PDF/A: {0}", blockers.joined(separator: " ")) }
 }
 
 /// A PDF/A copy and what was changed to conform, in words (removed scripts, embedded fonts, ...).
@@ -69,7 +70,7 @@ public enum PdfA {
         var data = data
         var changes: [String] = []
         if SignedEdits.looksSigned(data) && Signatures.verify(data, password).contains(where: { $0.status != .unsigned }) {
-            throw PdfAError(["It is digitally signed: a PDF/A copy is a rewrite, which would break the signatures. (Sanitize can remove them first.)"])
+            throw PdfAError([loc("It is digitally signed: a PDF/A copy is a rewrite, which would break the signatures. (Sanitize can remove them first.)")])
         }
         // First, while the file's own text has them: every rewrite below goes through MuPDF, which cuts them as it reads.
         let longNames: Int
@@ -80,16 +81,16 @@ public enum PdfA {
         if try PdfSecurity.readSecurity(data, password).isEncrypted {
             let protected = data
             data = try SignedEdits.run({ try PdfSecurity.unprotect(protected, password) }, allowRewrite: true).0
-            changes.append("password protection removed (PDF/A files can't be encrypted)")
+            changes.append(loc("password protection removed (PDF/A files can't be encrypted)"))
         }
 
         if SignedEdits.looksSigned(data) {
-            let perms = try PdfEdit.open(data, nil, failure: "This PDF can't be converted").catalog.dict("Perms")
+            let perms = try PdfEdit.open(data, nil, failure: loc("This PDF can't be converted")).catalog.dict("Perms")
             if perms?.has("DocMDP") == true {
-                throw PdfAError(["It is certified: a PDF/A copy is a rewrite, which would break the certification. (Sanitize can remove it first.)"])
+                throw PdfAError([loc("It is certified: a PDF/A copy is a rewrite, which would break the certification. (Sanitize can remove it first.)")])
             }
             if perms?.has("UR3") == true || perms?.has("UR") == true {
-                changes.append("Reader usage rights removed (the form maker's seal, not a person's signature; a rewritten copy would void it)")
+                changes.append(loc("Reader usage rights removed (the form maker's seal, not a person's signature; a rewritten copy would void it)"))
             }
         }
 
@@ -101,29 +102,30 @@ public enum PdfA {
             cleaned = made
             return made.data
         }, allowRewrite: true)
-        guard let sanitized = cleaned else { throw PdfAError(["It couldn't be cleaned of scripts and attached files."]) }
-        if sanitized.removed[.activeContent] > 0 {
-            changes.append("\(count(sanitized.removed[.activeContent], "script or active item", "scripts and active items")) removed")
+        guard let sanitized = cleaned else { throw PdfAError([loc("It couldn't be cleaned of scripts and attached files.")]) }
+        let scripts = sanitized.removed[.activeContent], attached = sanitized.removed[.embeddedFiles]
+        if scripts > 0 {
+            changes.append(scripts == 1 ? loc("{0} script or active item removed", scripts) : loc("{0} scripts and active items removed", scripts))
         }
-        if sanitized.removed[.embeddedFiles] > 0 {
-            changes.append("\(count(sanitized.removed[.embeddedFiles], "attached file", "attached files")) removed")
+        if attached > 0 {
+            changes.append(attached == 1 ? loc("{0} attached file removed", attached) : loc("{0} attached files removed", attached))
         }
         data = sanitized.data
 
-        let doc = try PdfEdit.open(data, nil, failure: "This PDF can't be converted")
+        let doc = try PdfEdit.open(data, nil, failure: loc("This PDF can't be converted"))
         var pdfUa = false
         if conformance == .a {
             var blockers: [String] = []
             let catalog = doc.catalog
             if !catalog.has("StructTreeRoot") || catalog.dict("MarkInfo")?["Marked"].map({ $0.kind == .bool && $0.bool }) != true {
-                blockers.append("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Tools › Make Accessible).")
+                blockers.append(loc("It isn't tagged: PDF/A-2a keeps the document's structure, so tag it first (Tools › Make Accessible)."))
             }
-            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { blockers.append("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).") }
+            if !AccessibilityCheck.isLanguage(catalog.text("Lang")) { blockers.append(loc("It doesn't say its language: PDF/A-2a needs one (Make Accessible sets it).")) }
             if !blockers.isEmpty { throw PdfAError(blockers) }
             pdfUa = Xmp.saysPdfUa(Xmp.read(doc))
             // Level A wants every character's Unicode value (6.2.11.7.2): TeX's math glyphs get theirs.
             let fonts = try FontUnicode.complete(doc)
-            if fonts > 0 { changes.append("\(count(fonts, "font", "fonts")) given the Unicode values of their characters") }
+            if fonts > 0 { changes.append(fonts == 1 ? loc("{0} font given the Unicode values of their characters", fonts) : loc("{0} fonts given the Unicode values of their characters", fonts)) }
         }
         let pass = try Pass(doc, changes)
         pass.longNames = longNames
@@ -169,15 +171,16 @@ public enum PdfA {
 
     /// Why nothing was saved: each blocker on a line of its own.
     public static func refusalMessage(_ blockers: [String], conformance: PdfAConformance = .b) -> String {
-        "Nothing was saved. This document has what \(conformance.name) doesn't allow, and changing it would change how the document looks:\n\n"
-            + blockers.map { "• " + $0 }.joined(separator: "\n")
+        let list = blockers.map { "• " + $0 }.joined(separator: "\n")
+        return loc("Nothing was saved. This document has what {0} doesn't allow, and changing it would change how the document looks:\n\n{1}", conformance.name, list)
     }
 
     /// What the saved copy is and what was changed to get there.
     public static func savedMessage(_ fileName: String, _ changes: [String], conformance: PdfAConformance = .b) -> String {
-        "\(fileName) is an archival copy (\(conformance.name)\(conformance == .a ? ", tagged for accessibility" : "")). To get there:\n\n"
-            + changes.map { "• " + capitalized($0) }.joined(separator: "\n")
-            + "\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF."
+        let list = changes.map { "• " + capitalized($0) }.joined(separator: "\n")
+        return conformance == .a
+            ? loc("{0} is an archival copy ({1}, tagged for accessibility). To get there:\n\n{2}\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF.", fileName, conformance.name, list)
+            : loc("{0} is an archival copy ({1}). To get there:\n\n{2}\n\nInkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validator such as veraPDF.", fileName, conformance.name, list)
     }
 
     /// Embeds the standard Helvetica, Times, Courier and ZapfDingbats faces the document draws with but doesn't embed, as the
@@ -195,8 +198,6 @@ public enum PdfA {
         if c.count > 1 && c[1].isUppercase { return s }
         return s.prefix(1).uppercased() + s.dropFirst()
     }
-
-    static func count(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
 
     static func unique(_ items: [String]) -> [String] {
         var seen = Set<String>()

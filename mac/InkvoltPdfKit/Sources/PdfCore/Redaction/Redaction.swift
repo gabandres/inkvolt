@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// True redaction (the Windows app's `Redaction`): every page with areas to redact is drawn (with its annotations and
 /// form fields) as a picture, the areas are painted solid black in the pixels, and the page's content is replaced by that
@@ -25,7 +26,7 @@ public enum Redaction {
         return try PageEditor.edit(cleared, password, rewrite: true) { doc in
             let count = try doc.pageCount()
             for (index, areas) in pages {
-                guard index >= 0 && index < count && index < engine.pageCount else { throw PdfEditError("There is no page \(index + 1).") }
+                guard index >= 0 && index < count && index < engine.pageCount else { throw PdfEditError(loc("There is no page {0}.", index + 1)) }
                 try cancel.check()
                 let scale = dpi / 72
                 let img = try engine.render(index, scale: scale, cancel: cancel)

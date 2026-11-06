@@ -1,5 +1,6 @@
 import Foundation
 import MuPDFShim
+import PrintCore
 
 /// A document needs a password to open (the Windows app's `PasswordRequiredException`); `wrongPassword` when one was
 /// given and didn't open it.
@@ -126,7 +127,7 @@ public final class PdfEngine: @unchecked Sendable {
 
         /// Opens the source in a new context of `store` bytes; with `password` when it needs one.
         static func open(_ source: Source, store: Int, password: String?) throws -> Instance {
-            guard let ctx = inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") }
+            guard let ctx = inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
             var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
             let doc: OpaquePointer?
             var shared: SharedBytes?
@@ -246,7 +247,7 @@ public final class PdfEngine: @unchecked Sendable {
 
     /// The page's geometry, or `PdfEngineError` when there is no such page (a caller's stale index must not crash).
     private func geometry(_ page: Int) throws -> PageGeometry {
-        guard pages.indices.contains(page) else { throw PdfEngineError(message: "There is no page \(page + 1).") }
+        guard pages.indices.contains(page) else { throw PdfEngineError(message: loc("There is no page {0}.", page + 1)) }
         return pages[page]
     }
 
@@ -301,8 +302,10 @@ public final class PdfEngine: @unchecked Sendable {
     private static func checkSize(_ width: Double, _ height: Double) throws {
         // Not a number is too large too (a page or a zoom of infinity), and is shown without its size.
         if !(width * height <= maxPixels) {
-            let size = Int(exactly: width.rounded()).flatMap { w in Int(exactly: height.rounded()).map { " (\(w) x \($0) pixels)" } } ?? ""
-            throw PdfEngineError(message: "The image would be too large\(size). Use a lower zoom or resolution.")
+            if let w = Int(exactly: width.rounded()), let h = Int(exactly: height.rounded()) {
+                throw PdfEngineError(message: loc("The image would be too large ({0} x {1} pixels). Use a lower zoom or resolution.", w, h))
+            }
+            throw PdfEngineError(message: loc("The image would be too large. Use a lower zoom or resolution."))
         }
     }
 
@@ -321,7 +324,7 @@ public final class PdfEngine: @unchecked Sendable {
         }
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         if Int(inkv_count_pages(instance.ctx, instance.doc, &err)) != pages.count {
-            throw PdfEngineError(message: "The document changed while open.")
+            throw PdfEngineError(message: loc("The document changed while open."))
         }
         textInstance = instance
         return instance

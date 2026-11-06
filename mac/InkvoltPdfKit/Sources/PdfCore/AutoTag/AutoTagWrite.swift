@@ -1,5 +1,6 @@
 import Foundation
 import MuPDFShim
+import PrintCore
 
 extension AutoTag {
     /// Writes the plan's tags (see the type's remarks). Tags the document already had are replaced. A signed document's edit
@@ -8,7 +9,7 @@ extension AutoTag {
     ///   encrypted document opened without its permissions password; `CancellationError` when `cancel` fired.
     public static func write(_ data: [UInt8], _ password: String?, _ plan: TagPlan, _ options: AccessibleOptions = AccessibleOptions(),
                              cancel: CancelToken? = nil) throws -> [UInt8] {
-        let doc = try PdfEdit.open(data, password, failure: "This PDF can't be tagged")
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be tagged"))
         try Writer(doc, plan, options, cancel).run()
         try doc.checkFailure()
         return try PdfEdit.save(doc, original: data, password: password)
@@ -373,7 +374,7 @@ extension AutoTag {
                 .map { ($0, PageBoxes.rectToPage(page, $0.array("Rect"))) }
 
             if ContentEditor.hasUnreadableContent(page) {
-                throw PdfEditError("Part of page \(index + 1)'s content can't be read (it is damaged), so it can't be tagged without losing it.")
+                throw PdfEditError(loc("Part of page {0}'s content can't be read (it is damaged), so it can't be tagged without losing it.", index + 1))
             }
             let content = ContentEditor.contentBytes(page)
             let walk = PageWalk(PageBoxes.frame(page), AutoTag.resources(page), shared)

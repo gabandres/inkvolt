@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// A form field as form data sees it (export, import, merge; the Windows app's `FormDataField`): one per field name.
 /// `value`: as exported (a check box or radio's export value, "Off" when off; a multi-select list's choices joined by
@@ -61,21 +62,22 @@ extension FormEditor {
     public static func checkValue(_ f: FormDataField, _ raw: String) -> (value: String?, problem: String?) {
         let value = raw.replacingOccurrences(of: "\r\n", with: "\n")
         func short(_ s: String) -> String { s.count <= 40 ? s : String(s.prefix(40)) + "…" }
-        if f.readOnly { return value == f.value ? (nil, nil) : (nil, "it is read-only") }
+        if f.readOnly { return value == f.value ? (nil, nil) : (nil, loc("it is read-only")) }
         if f.required && value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && f.kind != .checkBox && f.kind != .radio {
-            return (nil, "it is required, and the value is empty")
+            return (nil, loc("it is required, and the value is empty"))
         }
         switch f.kind {
         case .text:
             let length = value.utf16.count
-            return f.maxLength > 0 && length > f.maxLength ? (nil, "it takes at most \(f.maxLength) characters (\(length) given)") : (value, nil)
+            return f.maxLength > 0 && length > f.maxLength ? (nil, loc("it takes at most {0} characters ({1} given)", f.maxLength, length)) : (value, nil)
         case .choice:
             let parts = f.multiSelect ? value.split(separator: "\n").map(String.init) : value.isEmpty ? [] : [value]
             if !f.multiSelect && parts.isEmpty { return ("", nil) }
             if f.editable { return (value, nil) }
             for p in parts where !f.options.contains(p) && !f.labels.contains(p) {
-                let list = f.options.prefix(8).map(short).joined(separator: ", ") + (f.options.count > 8 ? ", …" : "")
-                return (nil, "\"\(short(p))\" isn't one of its choices (\(list))")
+                let list = f.options.prefix(8).map(short).joined(separator: ", ")
+                return (nil, f.options.count > 8
+                    ? loc("\"{0}\" isn't one of its choices ({1}, …)", short(p), list) : loc("\"{0}\" isn't one of its choices ({1})", short(p), list))
             }
             return (value, nil)
         default:
@@ -87,7 +89,7 @@ extension FormEditor {
                 if ["true", "yes", "1", "x", "on", "checked"].contains(trimmed.lowercased()) { return (on, nil) }
                 if ["false", "no", "0", "unchecked"].contains(trimmed.lowercased()) { return ("Off", nil) }
             }
-            return (nil, "\"\(short(trimmed))\" isn't one of its states (\((f.options + ["Off"]).joined(separator: ", ")))")
+            return (nil, loc("\"{0}\" isn't one of its states ({1})", short(trimmed), (f.options + ["Off"]).joined(separator: ", ")))
         }
     }
 }
@@ -122,7 +124,7 @@ public enum FormDataFiles {
         }
     }
 
-    static func noFields() -> PdfEditError { PdfEditError("This PDF has no form fields with data.") }
+    static func noFields() -> PdfEditError { PdfEditError(loc("This PDF has no form fields with data.")) }
 
     public static func export(_ data: [UInt8], _ password: String?, _ format: FormDataFormat, pdfFileName: String? = nil) throws -> [UInt8] {
         let fields = try FormEditor.dataFields(data, password)
@@ -175,9 +177,9 @@ public enum FormDataFiles {
         let values: [String: String]
         if sniff(file) == .csv {
             let (header, rows) = try readTable(file)
-            if rows.isEmpty { throw PdfEditError("The CSV has field names but no row of values.") }
+            if rows.isEmpty { throw PdfEditError(loc("The CSV has field names but no row of values.")) }
             if rows.count > 1 {
-                notes.append("The file has \(number(rows.count)) rows of values: the first was filled in. Fill Forms from CSV makes a form for each row.")
+                notes.append(loc("The file has {0} rows of values: the first was filled in. Fill Forms from CSV makes a form for each row.", number(rows.count)))
             }
             values = row(header, rows[0])
         } else {
@@ -224,8 +226,8 @@ public enum FormDataFiles {
     /// Full field name → value (several values joined by "\n") from XFDF, FDF, JSON or a CSV's first row. Throws when the
     /// file isn't one of them, is damaged, too big, or carries a DTD.
     public static func readValues(_ file: [UInt8]) throws -> [String: String] {
-        if file.isEmpty { throw PdfEditError("The file is empty.") }
-        if file.count > maxFileBytes { throw PdfEditError("The file is larger than \(maxFileBytes >> 20) MB, the most Inkvolt PDF reads as form data.") }
+        if file.isEmpty { throw PdfEditError(loc("The file is empty.")) }
+        if file.count > maxFileBytes { throw PdfEditError(loc("The file is larger than {0} MB, the most Inkvolt PDF reads as form data.", maxFileBytes >> 20)) }
         switch sniff(file) {
         case .json:
             return try readJson(file)
@@ -234,9 +236,9 @@ public enum FormDataFiles {
             return rows.isEmpty ? [:] : row(header, rows[0])
         case .xfdf, .fdf:
             if CommentFiles.hasDtd(Array(file.prefix(4096))) {
-                throw PdfEditError("The file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end.")
+                throw PdfEditError(loc("The file has a DTD (<!DOCTYPE>), which Inkvolt PDF doesn't read: it could make the file read other files or grow without end."))
             }
-            guard let parsed = FormData.parse(file) else { throw PdfEditError("The file isn't XFDF, FDF, JSON or CSV form data, or it is damaged.") }
+            guard let parsed = FormData.parse(file) else { throw PdfEditError(loc("The file isn't XFDF, FDF, JSON or CSV form data, or it is damaged.")) }
             return parsed.mapValues { $0.joined(separator: "\n") }
         }
     }
@@ -263,7 +265,7 @@ public enum FormDataFiles {
                 inString = true
             } else if b == UInt8(ascii: "{") || b == UInt8(ascii: "[") {
                 depth += 1
-                if depth > 64 { throw PdfEditError("The JSON file can't be read: it is nested more than 64 levels deep.") }
+                if depth > 64 { throw PdfEditError(loc("The JSON file can't be read: it is nested more than 64 levels deep.")) }
             } else if b == UInt8(ascii: "}") || b == UInt8(ascii: "]") {
                 depth -= 1
             }
@@ -272,12 +274,12 @@ public enum FormDataFiles {
         do {
             object = try JSONSerialization.jsonObject(with: Data(file), options: [.json5Allowed])
         } catch {
-            throw PdfEditError("The JSON file can't be read: \(error.localizedDescription)")
+            throw PdfEditError(loc("The JSON file can't be read: {0}", error.localizedDescription))
         }
         var root = object as? [String: Any]
         if let fields = root?["fields"] as? [String: Any] { root = fields }
         guard let root else {
-            throw PdfEditError("The JSON file should hold an object of field names and values: {\"fields\": {\"name\": \"value\"}}.")
+            throw PdfEditError(loc("The JSON file should hold an object of field names and values: {\"fields\": {\"name\": \"value\"}}."))
         }
         var result: [String: String] = [:]
         func scalar(_ v: Any) -> String? {
@@ -307,12 +309,12 @@ public enum FormDataFiles {
     /// A CSV's header (field names) and its rows of values. Throws when it is too big, has too many rows, is empty, or
     /// names a column twice.
     static func readTable(_ file: [UInt8]) throws -> (header: [String], rows: [[String]]) {
-        if file.count > Csv.maxBytes { throw PdfEditError("The file is larger than \(Csv.maxBytes >> 20) MB.") }
+        if file.count > Csv.maxBytes { throw PdfEditError(loc("The file is larger than {0} MB.", Csv.maxBytes >> 20)) }
         let rows = try Csv.read(Csv.decode(file))
-        if rows.isEmpty { throw PdfEditError("The CSV file is empty.") }
+        if rows.isEmpty { throw PdfEditError(loc("The CSV file is empty.")) }
         let header = rows[0].map { $0.trimmingCharacters(in: .whitespaces) }
         var seen = Set<String>()
-        for h in header where !h.isEmpty && !seen.insert(h).inserted { throw PdfEditError("The column \"\(h)\" is in the CSV twice.") }
+        for h in header where !h.isEmpty && !seen.insert(h).inserted { throw PdfEditError(loc("The column \"{0}\" is in the CSV twice.", h)) }
         return (header, Array(rows.dropFirst()))
     }
 
@@ -323,5 +325,5 @@ public enum FormDataFiles {
         return values
     }
 
-    static func number(_ n: Int) -> String { n.formatted(.number.locale(Locale(identifier: "en_US"))) }
+    static func number(_ n: Int) -> String { CoreLanguage.number(n) }
 }
