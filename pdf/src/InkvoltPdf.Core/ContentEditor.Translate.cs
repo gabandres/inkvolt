@@ -391,11 +391,17 @@ public static partial class ContentEditor
         // A panel the text sits in (a shaded box, a callout) holds it unless it is about the whole page.
         var panel = obstacles.Where(o => o.Width * o.Height < 0.8 * pageWidth * pageHeight && o.Contains(p.Box.CenterX, p.Box.CenterY) && o.Contains(p.Box.X + 0.5, p.Box.Y + 0.5) && o.Contains(p.Box.Right - 0.5, p.Box.Bottom - 0.5))
             .OrderBy(o => o.Width * o.Height).Select(o => (RectD?)o).FirstOrDefault();
-        var holder = slot.Cell ?? panel;
 
-        // Light text sits on something dark that isn't known here (a filled band): past its box it would be white on white.
+        // Light text sits on something dark: past its box it would be white on white, unless that is a band the page
+        // filled before drawing it (NIST's headings), which then holds it as a panel does.
         var color = p.Lead.Color;
         var light = slot.Cell is null && 0.3 * (color >> 16 & 0xFF) + 0.59 * (color >> 8 & 0xFF) + 0.11 * (color & 0xFF) > 0.85 * 255;
+        if (light && LightsBand(p, fills, pageWidth, pageHeight) is { } band)
+        {
+            panel = band;
+            light = false;
+        }
+        var holder = slot.Cell ?? panel;
 
         if ((p.Lines.Count == 1 || slot.Cell is not null) && !page.Crowded && !light)
         {
@@ -483,6 +489,20 @@ public static partial class ContentEditor
             framed.Left = Math.Min(Math.Max(framed.Left, clip.X), Math.Max(p.Left, framed.Left));
         }
         return (framed, bottom);
+    }
+
+    /// <summary>
+    /// The smallest rectangle the page's own content filled before a paragraph and under all of it (a font's box may
+    /// reach a little past a tight band), not about the whole page; null when there is none or the paragraph is in a form.
+    /// </summary>
+    private static RectD? LightsBand(TextParagraph p, IReadOnlyList<(RectD Box, int Id)>? fills, double pageWidth, double pageHeight)
+    {
+        if (fills is not { Count: > 0 } || p.Runs.Any(r => r.Info?.Form is not null)) return null;
+        var first = p.Runs.Min(DrawOrder);
+        var tol = 0.25 * p.FontSize;
+        return fills.Where(f => f.Id < first && f.Box.Width * f.Box.Height < 0.8 * pageWidth * pageHeight
+                                && f.Box.X <= p.Box.X + 0.5 && f.Box.Right >= p.Box.Right - 0.5 && f.Box.Y <= p.Box.Y + tol && f.Box.Bottom >= p.Box.Bottom - tol)
+            .OrderBy(f => f.Box.Width * f.Box.Height).Select(f => (RectD?)f.Box).FirstOrDefault();
     }
 
     /// <summary>

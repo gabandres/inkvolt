@@ -1074,13 +1074,26 @@ public class TranslationCopyTests
     [Fact]
     public void White_text_stays_in_its_box_on_whatever_dark_thing_it_sits_on()
     {
-        var pdf = Page("0 0 0 rg 72 690 60 20 re f 1 1 1 rg " + Lines(75, 695, 12, 14, "Hello") + "0 0 0 rg " + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
+        // A wide dark stroke: not a band the page filled, so how far it reaches isn't known.
+        var pdf = Page("0 G 20 w 72 700 m 132 700 l S 1 1 1 rg " + Lines(75, 695, 12, 14, "Hello") + "0 0 0 rg " + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
         var before = ContentEditor.Read(pdf, null, 0).Paragraphs.First(q => q.Text == "Hello");
         var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : "THE DOG");
         var after = ContentEditor.Read(r.Data!, null, 0);
         var text = after.Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX");
         Assert.True(text.Box.Right <= before.Box.Right + 1, $"{text.Box.Right} past {before.Box.Right}");
         Assert.True(text.FontSize < 12);
+    }
+
+    [Fact]
+    public void White_text_on_a_band_the_page_filled_uses_the_bands_room()
+    {
+        // NIST's "Purpose" heading: white on a dark band drawn just before it, the band much wider than the word.
+        var pdf = Page("0 0 0.5 rg 72 688 300 22 re f 1 1 1 rg " + Lines(75, 695, 12, 14, "Hello") + "0 0 0 rg " + Lines(72, 400, 10, 12, "2024 draft!"), fontText: Letters);
+        var (_, r) = Translate(pdf, t => t == "Hello" ? "THE QUICK BROWN FOX" : "THE DOG");
+        var text = ContentEditor.Read(r.Data!, null, 0).Paragraphs.First(q => q.Text == "THE QUICK BROWN FOX");
+        Assert.Equal(12, text.FontSize, 1);
+        Assert.True(text.Box.Right <= 372, $"{text.Box.Right} past the band");
+        Assert.Equal(75, text.Box.X, 1);
     }
 
     [Fact]
