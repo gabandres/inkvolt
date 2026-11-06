@@ -928,6 +928,40 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_centered_label_with_free_room_on_one_side_keeps_its_size()
+    {
+        // resnet Table 3's "top-1 err." as "error top-1": a rule close on its left, free room on its right, the next row
+        // under it. Centered between the rule and as far again, the longer text shrank; it moves over instead.
+        string Content(double ruleX, double x) => Lines(72, 700, 10, 12, "The quick brown fox") + Lines(470, 700, 10, 12, "lazy dog") +
+            $"0 G 0.4 w {ruleX} 680 m {ruleX} 640 l S " + Lines(x, 660, 10, 12, "THE DOG") + Lines(250, 648, 10, 12, "The quick brown fox jumps over a lazy dog");
+        var width = ContentEditor.Read(Page(Content(100, 290), fontText: Letters), null, 0).Runs.Single(r => r.Text == "THE DOG").Box.Width;
+        var pdf = Page(Content(306 - width / 2 - 6, 306 - width / 2), fontText: Letters); // centered on the page
+        var label = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "THE DOG").Box;
+        var (_, r) = Translate(pdf, t => t == "THE DOG" ? "THE QUICK DOG" : t);
+        var run = ContentEditor.Read(r.Data!, null, 0).Runs.Single(q => q.Text.Contains("QUICK", StringComparison.Ordinal));
+        Assert.Equal("THE QUICK DOG", run.Text.Trim());
+        Assert.Equal(10, run.FontSize, 2);
+        Assert.True(run.Box.X > label.X - 6, $"{run.Box}");
+        Assert.True(run.Box.Bottom < 652, $"{run.Box}");
+    }
+
+    [Fact]
+    public void A_space_the_font_lacks_is_as_wide_as_its_columns_word_spaces_not_the_gap_to_the_next()
+    {
+        // resnet Table 3's head row, one operator of pdfTeX's with no space glyph: its word spaces and the gap between
+        // its columns are adjustments; counting the gap among the spaces made "error top-1" a space of 1.1 ems too wide.
+        var pdf = Page("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(top-1) -250 (err.) -3000 (top-5) -250 (err.)] TJ ET", fontText: "top-15err.");
+        // Each column's spaces are its own: 0.25 ems, not the average with the 3 ems to the next column.
+        using var doc = PdfObj.Open(pdf, null, PdfDocumentOpenMode.Modify, "x");
+        var columns = ContentEditor.ReadRaw(doc.Pages[0], 0, default).Runs.Where(q => q.Text.Trim().Length > 0).OrderBy(q => q.Box.X).ToList();
+        Assert.Equal(["top-1 err.", "top-5 err."], columns.Select(q => q.Text.Trim()));
+        Assert.All(columns, q => Assert.Equal(0.25, q.GapEms, 3));
+        var (_, r) = Translate(pdf, t => t == "top-1 err." ? "err. top-1" : t);
+        var run = ContentEditor.Read(r.Data!, null, 0).Runs.First(q => q.Text.StartsWith("err.", StringComparison.Ordinal));
+        Assert.Equal(10, run.FontSize, 2);
+    }
+
+    [Fact]
     public void Text_the_editor_cant_rewrite_stays_and_gets_a_comment()
     {
         // /ActualText says what it reads as: rewriting it would leave that wrong.

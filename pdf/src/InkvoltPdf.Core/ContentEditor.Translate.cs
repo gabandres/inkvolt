@@ -379,11 +379,13 @@ public static partial class ContentEditor
     /// </summary>
     /// <param name="fills">Rectangles the page fills, with their place in its content: one filled after the paragraph is drawn would paint over text that grows into it.</param>
     /// <param name="paints">Everything the page's own content paints, in order (null: not known); what the text sits on is the last before it.</param>
-    internal static (TextParagraph Paragraph, double Bottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
+    /// <returns>The paragraph framed, how far down it may go, and for a centered one with more room on one side the room it may move into (null: none).</returns>
+    internal static (TextParagraph Paragraph, double Bottom, TextParagraph? Wide) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
         IReadOnlyList<(RectD Box, int Id)>? fills = null, IReadOnlyList<Paint>? paints = null)
     {
         var p = slot.Paragraph;
         var framed = p with { };
+        TextParagraph? wide = null;
         var mine = new HashSet<TextRun>(p.Runs, ReferenceEqualityComparer.Instance);
 
         // A panel the text sits in (a shaded box, a callout) holds it unless it is about the whole page.
@@ -443,6 +445,14 @@ public static partial class ContentEditor
                     framed.Left = p.Box.CenterX - half;
                     framed.Right = p.Box.CenterX + half;
                     framed.Center = p.Box.CenterX;
+                    // More room on one side than the other: what it may move into rather than shrink (FitText).
+                    if (reachRight - reachLeft > 2 * half + 1)
+                    {
+                        wide = framed with { };
+                        wide.Left = reachLeft;
+                        wide.Right = reachRight;
+                        wide.Center = p.Box.CenterX;
+                    }
                     break;
                 case ParagraphAlign.Right:
                     framed.Left = reachLeft;
@@ -482,10 +492,13 @@ public static partial class ContentEditor
         if (drawnAt.All(r => r.Info?.Clip is not null) && drawnAt.Select(r => r.Info!.Clip!.Value).Aggregate((a, b) => a.Union(b)) is var clip)
         {
             bottom = Math.Min(bottom, Math.Max(clip.Bottom, p.Box.Bottom)); // a font's descent may reach past a tight clip: its own text was shown there
-            framed.Right = Math.Max(Math.Min(framed.Right, clip.Right), Math.Min(p.Right, framed.Right));
-            framed.Left = Math.Min(Math.Max(framed.Left, clip.X), Math.Max(p.Left, framed.Left));
+            foreach (var f in wide is null ? [framed] : new[] { framed, wide })
+            {
+                f.Right = Math.Max(Math.Min(f.Right, clip.Right), Math.Min(p.Right, f.Right));
+                f.Left = Math.Min(Math.Max(f.Left, clip.X), Math.Max(p.Left, f.Left));
+            }
         }
-        return (framed, bottom);
+        return (framed, bottom, wide);
     }
 
     /// <summary>How light a color looks, 0 to 255.</summary>
@@ -514,10 +527,24 @@ public static partial class ContentEditor
 
     /// <summary>
     /// The new text laid out at the largest size that fits its room (steps of 5%); at the smallest allowed when none does.
-    /// Characters no font here has are left out and named.
+    /// Characters no font here has are left out and named. At each size, a centered paragraph that doesn't fit centered
+    /// in its room may move off center into <paramref name="wide"/> (<see cref="Room"/>), just as far as it must.
     /// </summary>
-    internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text)
+    internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text,
+        TextParagraph? wide = null)
     {
+        bool Inside(ParagraphLayout l, TextParagraph f) =>
+            l.Check.Box is var box && box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(f.Right, f.Box.Right) + 1 && box.X >= Math.Min(f.Left, f.Box.X) - 1;
+        // Laid out in the wide room's width, centered where it was, then moved back inside it.
+        ParagraphLayout Moved(TextParagraph f, string t, double size)
+        {
+            var l = LayOut(f, f.Runs, t, [], size);
+            var shift = l.Check.Box.Right > f.Right ? f.Right - l.Check.Box.Right : l.Check.Box.X < f.Left ? f.Left - l.Check.Box.X : 0;
+            if (Math.Abs(shift) < 0.01 || !double.IsFinite(shift)) return l;
+            var moved = f with { };
+            moved.Center = f.Center + shift;
+            return LayOut(moved, moved.Runs, t, [], size);
+        }
         var dropped = new List<string>();
         var smallest = SmallestFit(framed.Lead.FontSize); // of the size it is written in: its first run may be a mark or a big initial
         ParagraphLayout? best = null;
@@ -539,7 +566,8 @@ public static partial class ContentEditor
                 if (best.Check.Missing.Count > 0) return (best, 1, false, dropped);
             }
             var box = best.Check.Box;
-            if (box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(framed.Right, framed.Box.Right) + 1 && box.X >= Math.Min(framed.Left, framed.Box.X) - 1) return (best, fit, true, dropped);
+            if (Inside(best, framed)) return (best, fit, true, dropped);
+            if (wide is not null && Moved(wide, text, fit) is { } off && Inside(off, wide)) return (off, fit, true, dropped);
             if (fit <= smallest || tries > 2 / FitStep) return (best, fit, false, dropped);
             // Far too tall: text takes room with the square of its size, so jump near where it will fit.
             var ratio = (bottom - framed.Box.Y) / Math.Max(1, box.Bottom - framed.Box.Y);
@@ -904,8 +932,8 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_TooLongForBox));
                 continue;
             }
-            var (framed, bottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
-            var (layout, fit, fits, dropped) = FitText(framed, bottom, text);
+            var (framed, bottom, wide) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
+            var (layout, fit, fits, dropped) = FitText(framed, bottom, text, wide);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));

@@ -1149,8 +1149,9 @@ public static partial class ContentEditor
         {
             var start = at == 0 ? tm : new Mat(1, 0, 0, 1, at, 0).Times(tm);
             var place = new Mat(1, 0, 0, 1, 0, gs.Rise).Times(start).Times(gs.Ctm);
-            double low = 0, high = 0, end = 0, gaps = 0; // end: where the last glyph's ink ends (before its spacing); low, high: how far its glyphs reach (right-to-left text written in logical order moves back as it goes)
-            var gapCount = 0;
+            double low = 0, high = 0, end = 0, gaps = 0, pending = 0; // end: where the last glyph's ink ends (before its spacing); low, high: how far its glyphs reach (right-to-left text written in logical order moves back as it goes)
+            int gapCount = 0, pendingCount = 0;
+            var inked = false;
             for (var k = from; k < to; k++)
             {
                 var item = items[k];
@@ -1160,11 +1161,14 @@ public static partial class ContentEditor
                     low = Math.Min(low, item.At - at);
                     end = item.InkEnd - at;
                     high = Math.Max(high, end);
+                    // Word spaces are those between its glyphs: not the gap after its last (to the next column).
+                    if (inked) (gaps, gapCount) = (gaps + pending, gapCount + pendingCount);
+                    (pending, pendingCount, inked) = (0, 0, true);
                 }
                 else if (item.Text == " ")
                 {
-                    gaps += -item.Number / 1000;
-                    gapCount++;
+                    pending += -item.Number / 1000;
+                    pendingCount++;
                 }
             }
             var (ox, oy) = Project(page, place, 0, 0);
