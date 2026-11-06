@@ -466,8 +466,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   has been scanned through a real WIA or TWAIN driver (no USB scanner, no TWAIN manager here), so the acceptance test (a WIA
   flatbed and a WIA feeder scanner, 10 pages each) is still to run. Scans are straightened and cleaned (2.2) before OCR
   reads them; the scan itself is kept as scanned (only Recognize Text writes the cleaned page back). Mac: File › Scan uses
-  ImageCaptureCore with the feeder, both sides and OCR; leaving out blank pages, scan presets and the scanners Inkvolt Print
-  remembers are still to do there.
+  ImageCaptureCore with the feeder, both sides and OCR, and leaves out blank pages (2026-11-06, PrintCore's `ScanRun`); scan
+  presets and the scanners Inkvolt Print remembers are still to do there.
 - **Beat it when:** WIA 2 scanners (and 64-bit TWAIN sources) are listed beside eSCL ones in the same dialog with feeder,
   duplex, color and dpi; blank pages are dropped on request; every scan goes through 2.2's cleanup and OCR; scan presets
   are saved. Test: a WIA flatbed and a WIA feeder scanner each scan a 10-page stack into one PDF, OCR included.

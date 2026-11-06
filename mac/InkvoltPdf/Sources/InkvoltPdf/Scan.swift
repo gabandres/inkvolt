@@ -9,7 +9,9 @@ import PrintMac
 /// from the scanner's capabilities (`ScanChoices`). Pages arrive as JPEGs and become PDF pages as they are (PdfCore's
 /// `ImageImport`, at the scan's resolution); Create PDF opens them as a new, unsaved document, and with "Make the text
 /// searchable" runs Recognize Text on it (one undo step) with its choices: suspect words marked and kept in the text
-/// layer, their count said and the Suspect Words pane opened on them. Local Network denied is said, with the way to allow it.
+/// layer, their count said and the Suspect Words pane opened on them. "Leave out blank pages" (on by default) checks each page
+/// as it arrives (`ScanRun`, `BlankPage` on a small grey copy) and leaves blank ones out, counted in the message. Local
+/// Network denied is said, with the way to allow it.
 @MainActor
 final class ScanWindowController: NSWindowController, NSWindowDelegate {
     static var shared: ScanWindowController?
@@ -41,6 +43,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     let resolutionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let sizePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let ocr = NSButton(checkboxWithTitle: "Make the text searchable (OCR)", target: nil, action: nil)
+    let skipBlank = NSButton(checkboxWithTitle: "Leave out blank pages", target: nil, action: nil)
     let scannerState = NSTextField(wrappingLabelWithString: "")
     let pageCount = NSTextField(labelWithString: "")
     let message = NSTextField(wrappingLabelWithString: "")
@@ -70,6 +73,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private var device: (any ScanDevice)?
     private var connectTask: Task<Void, Never>?
     private(set) var scanTask: Task<Void, Never>?
+    /// The last job's blank pages left out (the self-test reads it).
+    private(set) var lastBlank = 0
     private var discovery: BonjourDiscovery?
     private var systemScanners: SystemScanners?
     private let localNetwork = LocalNetworkSignal()
@@ -114,6 +119,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         stopButton.isHidden = true
         settingsButton.isHidden = true
         ocr.state = AppSettings.defaults.object(forKey: AppSettings.Key.scanOcr) as? Bool == false ? .off : .on
+        skipBlank.state = AppSettings.defaults.object(forKey: AppSettings.Key.scanSkipBlank) as? Bool == false ? .off : .on
+        skipBlank.toolTip = "Pages with almost no ink (the empty back of a one-sided sheet) aren't added. A page with as little as a short word is kept."
         scannerState.textColor = .secondaryLabelColor
         scannerState.preferredMaxLayoutWidth = 520
         message.preferredMaxLayoutWidth = 520
@@ -150,7 +157,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let placeRow = NSStackView(views: [placeLabel, placePopup])
         placePopup.isHidden = true
         placeLabel.isHidden = true
-        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, placeRow, pagesRow, thumbScroll, message, progress, buttons])
+        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, skipBlank, placeRow, pagesRow, thumbScroll, message, progress, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -364,6 +371,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         d.set(request.resolution, forKey: AppSettings.Key.scanResolution)
         if sizes.indices.contains(sizePopup.indexOfSelectedItem) { d.set(sizes[sizePopup.indexOfSelectedItem].key, forKey: AppSettings.Key.scanPageSize) }
         d.set(ocr.state == .on, forKey: AppSettings.Key.scanOcr)
+        d.set(skipBlank.state == .on, forKey: AppSettings.Key.scanSkipBlank)
     }
 
     // MARK: Scanning
@@ -371,6 +379,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private func refresh() {
         let ready = caps != nil && device != nil
         scanButton.isEnabled = ready && !isScanning
+        scanButton.title = pages.isEmpty ? "Scan" : currentSource == .platen ? "Scan Another Page" : "Scan More Pages"
+        skipBlank.isEnabled = !isScanning
         scanButton.isHidden = isScanning
         stopButton.isHidden = !isScanning
         createButton.isEnabled = !pages.isEmpty && !isScanning
@@ -385,27 +395,35 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         guard let device, caps != nil, !isScanning else { return NSSound.beep() }
         rememberChoices()
         let request = request
+        let glass = request.source == .platen
+        let analysis: ScanRun.Analysis? = skipBlank.state == .on ? { @Sendable jpeg in try ScanImaging.analysis(jpeg) } : nil
         isScanning = true
         message.stringValue = "Scanning… (the first page takes longer if the scanner was asleep)"
         refresh()
         scanTask = Task { [weak self] in
+            var (kept, blank, unreadable) = (0, 0, 0)
             var failure: Error?
             do {
-                for try await jpeg in device.scan(request) {
-                    self?.added(jpeg, dpi: request.resolution)
+                for try await page in ScanRun.pages(device, request, analysis: analysis) {
+                    guard let self else { break }
+                    switch page.fate {
+                    case .blank: blank += 1
+                    case .unreadable: unreadable += 1
+                    case .kept:
+                        kept += 1
+                        self.added(page.jpeg, dpi: request.resolution)
+                    }
+                    self.message.stringValue = ScanRun.progressText(self.pages.count, blank: blank)
                 }
             } catch {
                 failure = error
             }
-            self?.scanEnded(failure)
+            let stopped = Task.isCancelled || failure is CancellationError
+            self?.scanEnded(stopped ? nil : failure, stopped: stopped, kept: kept, blank: blank, unreadable: unreadable, glass: glass)
         }
     }
 
     private func added(_ jpeg: [UInt8], dpi: Int) {
-        guard jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else {
-            message.stringValue = "The scanner sent a page that can't be read; it was left out."
-            return
-        }
         pages.append(Page(jpeg: jpeg, dpi: dpi))
         if let image = NSImage(data: Data(jpeg)) {
             let view = NSImageView(image: image)
@@ -418,13 +436,17 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         refresh()
     }
 
-    private func scanEnded(_ error: Error?) {
+    private func scanEnded(_ error: Error?, stopped: Bool, kept: Int, blank: Int, unreadable: Int, glass: Bool) {
         isScanning = false
         scanTask = nil
-        if let error, !(error is CancellationError) {
-            message.stringValue = "The scan stopped: \(Self.describe(error))"
+        lastBlank = blank
+        if let error {
+            message.stringValue = kept == 0 ? "The scan stopped: \(Self.describe(error))"
+                : "The scan stopped after \(ScanRun.pages(kept)), which are kept: \(Self.describe(error))"
+        } else if stopped {
+            message.stringValue = kept == 0 ? "Scanning stopped." : "Scanning stopped; the \(ScanRun.pages(kept)) scanned are kept."
         } else {
-            message.stringValue = pages.isEmpty ? "" : "Scan more pages, or Create PDF."
+            message.stringValue = ScanRun.doneText(kept: kept, blank: blank, unreadable: unreadable, glass: glass, finish: createButton.title)
         }
         refresh()
     }

@@ -24,6 +24,7 @@ enum AppSettings {
         static let scanResolution = "ScanResolution"
         static let scanPageSize = "ScanPageSize"
         static let scanOcr = "ScanOcr"
+        static let scanSkipBlank = "ScanSkipBlank"
         static let ocrLanguage = "OcrLanguage"
         static let ocrClean = "OcrClean"
         static let ocrSuspects = "OcrSuspects"

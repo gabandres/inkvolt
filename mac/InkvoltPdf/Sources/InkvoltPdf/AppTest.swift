@@ -403,24 +403,31 @@ struct AppTest {
         let connected = await wait(5) { s.caps != nil }
         check(connected && s.scanners.count == 2 && s.scanButton.isEnabled,
               "Scan: \(s.scanners.count) scanners listed, the first one's capabilities read (\(s.sourcePopup.numberOfItems) sources)")
-        // The feeder: three pages; the last one removed; then one more from the glass.
+        // The feeder: three pages, the third blank and left out; then one from the glass, removed, and one more.
         if let feeder = (0..<s.sourcePopup.numberOfItems).first(where: { s.sourcePopup.item(at: $0)?.title.contains("feeder") == true }) {
             s.sourcePopup.selectItem(at: feeder)
             s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
         }
         s.ocr.state = .on
+        let skipsBlank = s.skipBlank.state == .on
         s.scanButton.performClick(nil)
         _ = await wait(1) { s.isScanning }
         _ = await wait(20) { !s.isScanning }
-        let fed = s.pages.count
-        s.removeLastButton.performClick(nil)
+        let fed = s.pages.count, fedText = s.message.stringValue
+        check(skipsBlank && fed == 2 && s.lastBlank == 1 && fedText == "Done: 2 pages from the feeder (1 blank page left out)."
+              && s.scanButton.title == "Scan More Pages",
+              "Leave out blank pages (on by default): the feeder's blank third page left out, “\(fedText)”")
         s.sourcePopup.selectItem(at: 0)
         s.sourcePopup.sendAction(s.sourcePopup.action, to: s.sourcePopup.target)
-        s.scanButton.performClick(nil)
-        _ = await wait(1) { s.isScanning }
-        _ = await wait(20) { !s.isScanning }
-        check(fed == 3 && s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled,
-              "Scan: 3 pages from the feeder, the last removed, 1 from the glass: \(s.pages.count) pages")
+        for remove in [true, false] {
+            s.scanButton.performClick(nil)
+            _ = await wait(1) { s.isScanning }
+            _ = await wait(20) { !s.isScanning }
+            if remove { s.removeLastButton.performClick(nil) }
+        }
+        check(s.pages.count == 3 && s.thumbs.arrangedSubviews.count == 3 && s.createButton.isEnabled && s.scanButton.title == "Scan Another Page"
+              && s.message.stringValue.hasPrefix("Done. For another page, put it on the glass"),
+              "Scan: 2 pages from the feeder, 1 from the glass removed, 1 more: \(s.pages.count) pages")
         snapshot(s.window, "scan.png")
         let page = s.pages.first
         let pixels = page.flatMap { NSBitmapImageRep(data: Data($0.jpeg))?.pixelsWide } ?? 0
