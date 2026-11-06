@@ -26,8 +26,9 @@ then Mac items go through the PC and the `mac` CI job (push a branch for CI, del
 **Small follow-ups (S):** ~~TWAIN when WIA fails, Windows' job-alert twins, the no-paper-edge count~~ (done 11-05,
 `00e4ed7`; an unsure read now leaves a held stuck alert on both platforms); CI timing on the slow macOS runner, seen
 11-05: `aHugePageIsCleaned…` (now off CI), `A_printer_that_answers_gives_its_health` (60 s budget),
-`snmpStopsWaitingWhenCancelled` (28 s once, passed on rerun: give it CI slack like `ConnectionTests`); PdfCore's `Ocr/ScanCleanup.swift` to use PrintCore's `CleanupParts` (Mac lane); the Mac
-self-test's four redaction checks that failed once and passed alone; SNMPv3 on the Mac needs SHA-256/AES (CryptoKit is
+`snmpStopsWaitingWhenCancelled` (28 s once, passed on rerun: give it CI slack like `ConnectionTests`); ~~PdfCore's `Ocr/ScanCleanup.swift` to use PrintCore's `CleanupParts`~~ (done 11-06); the Mac
+self-test's four redaction checks that failed once and passed alone (not reproduced 11-06: the full `--edit --synthetic`
+run passed 531 checks, its 16 redaction ones too; watch for it); SNMPv3 on the Mac needs SHA-256/AES (CryptoKit is
 Mac-only: do it in PrintMac, or a package by the owner's word).
 - **Lane 1, the Mac (one agent at a time):** ~~2.4 Batch print + 32 MB limit + CI flake~~, ~~PDF for Mac 2.4
   additions~~, ~~Snapshot, printer status~~, ~~Print 3.6, 3.4~~ (done 11-05) → Print for Mac 1.2 build to TestFlight once

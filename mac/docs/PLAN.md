@@ -193,8 +193,10 @@ sheet's buttons were cut off (it's wider now) |
   shared), one whose `job-originating-host-name` is localhost (PrintMac's reader may ask for it) is yours on any queue,
   and a domain or computer this Mac can't compare with is never a match (Windows names the job then). A job counts as
   having left only once two reads in a row miss it (as of the first miss; a read that misses a job decides nothing
-  stuck), where Windows takes the first miss as the queue moving, so one missed read restarts no stuck wait.
-  `pendingUntil` also asks for a read when a failed job's hold runs out (Windows' asks only for the stuck wait).
+  stuck), so one missed read restarts no stuck wait; `pendingUntil` also asks for a read when a failed job's hold runs
+  out; over the 256 remembered jobs the newest are kept. Windows does all three the same way since 2026-11-05
+  (`00e4ed7`, JobAlertTests.cs with the Mac's test names), and on both a read that misses a job leaves a stuck alert held
+  by quiet hours as it is.
 - The print queue card (jobs of the printer's CUPS queue, read every 3 s while on screen; Cancel for the user's own jobs,
   Cancel My Jobs) shows for a queue printer and for a network printer macOS has a queue for. Job states are IPP's
   (`JobState`), not Windows' status bits; CUPS gives no page counts through `cupsGetJobs2`, so pages show only when known.

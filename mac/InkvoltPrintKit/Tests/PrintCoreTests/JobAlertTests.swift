@@ -513,7 +513,7 @@ struct JobAlertTests {
         #expect(Self.minutes(t, Self.at(5), 5, Self.queue(Self.job(7,.stopped))).isEmpty)
     }
 
-    /// The Mac's own (Windows counts the first read without a job as the queue moving): a job missing from one read hasn't
+    /// The Mac's first, Windows' too since 2026-11-05 (the same name in JobAlertTests.cs): a job missing from one read hasn't
     /// left, so neither its own wait nor the wait of a job behind it starts again; missing from two reads in a row, it left
     /// when it was first missed.
     @Test func aJobOneReadMissesDoesntStartTheStuckWaitAgain() {
