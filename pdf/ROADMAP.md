@@ -650,11 +650,30 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   How good it reads: for a 4B model, good. The meaning is carried and a reader can follow it, with care on technical terms.
   Wording faults are the model's, not bugs: "Cuartil cuarto", "Las ingresos", "Errata" as "Errores", "GUIAS" without its
   accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
-  **Still wrong.** A table row or a label with its figures drawn by one operator goes as one text, so its figures can leave
-  their columns (attn-v7's "Transformer (base model) 27.3 38.1"; the census's "income inequality 0.488 0.485"). Tables turned on
-  the page, like the census's appendix, stay in English (named in the summary). A link's underline and area stay where they
-  were while the text moves (NIST p. 14, 47). A bold word or a subscript in a paragraph loses its look ("dmodel"). White text on
-  a band stays in its old box, so a longer word shrinks though the band has room ("Propósito", NIST p. 14).
+  **Fixed (2026-11-06).** A row whose label and figures one operator draws (a TJ with wide adjustments: attn-v7's "Transformer
+  (base model) 27.3 38.1", the census's "income inequality 0.488 0.485", resnet's tables) comes apart at its columns: the
+  walk makes a run of each column from the glyph advances it computes (`ContentEditor.ColumnStarts`), told apart by the one
+  rule `SplitAtColumns` also uses between operators (`ColumnGap`: over 1.5 ems, or over 0.6 ems beside figures and
+  well beyond the operator's own word spacing, so pdfTeX's justified "results from 1999" stays one sentence). Only the label
+  is sent; the other columns are drawn again as they were, each from where the one before it left the text position. In
+  the corpus's first pages: table rows, author lists, numbered headings ("3.1 | Encoder and Decoder Stacks") and a list of
+  figures ("Figure 1. | Median Household…"); a sentence's "]." before a stretched space doesn't split.
+  White text on a dark band filled right under it (nothing painted between) uses the band's width (NIST p. 14's
+  "Propósito" keeps its size); on a light card, a picture or a stroke it stays in its box.
+  Checked again with the real model (Qwen3 4B Q4, llama-server, 8,192 tokens) on attn-v7 p. 8, census-p60 p. 12, NIST p. 14
+  and resnet p. 6, in 8-100 seconds a page: every figure of the four tables is in its column, model names and "90th/10th"
+  come back unchanged, nothing of the model's own reached a copy.
+  **Still wrong.** Tables turned on the page, like the census's appendix, stay in English (named in the summary). A link's
+  underline and area stay where they were while the text moves (NIST p. 14: "complementarios, el Documento Especial" is
+  underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A label that ends in a colon
+  joins the row label under it (the census's second "Income percentile ratios:" goes with "90th/10th", and that row's label
+  moves up), and a short label with little room around it shrinks to the floor (the census's first "Income percentile
+  ratios:", resnet Table 3's "top-1 err." as "error top-1", squeezed by the next column's half-gap). Paragraphs shrink by
+  as much as each needs, so one column can show body text in two or three sizes (attn-v7 p. 8, resnet p. 6). The model's,
+  not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
+  "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
+  translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
+  (the source's own missing space) kept.
   **Checked.** `TranslationTests`, including the test below on 100 made-up pages through a real
   socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
   written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
