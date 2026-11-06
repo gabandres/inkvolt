@@ -68,5 +68,5 @@ measures and checks the corpus is byte-for-byte the same twice, so the generator
 at a corpus file; `one file.pdf word` prints one measurement as JSON (what `run` spawns). `INKVOLTPDF_BENCH_WORKERS=n` on
 `one` sets how many find workers it may use (0: none), and `INKVOLTPDF_BENCH_WORKERS_NOW=1` starts them at once, whatever the
 search's pace says. Pages are checked first as the app checks them (`PageChecks`: drawn small in a check process the first
-time an engine uses them); `INKVOLTPDF_BENCH_CHECKS=0` on `one` measures without, as before. To compare with an earlier build, keep a copy of its `bin` folder and run its `Bench.exe run --app none
+time an engine uses them, then at the render's scale for the render waiting for it, the next two pages ahead); `INKVOLTPDF_BENCH_CHECKS=0` on `one` measures without, as before. To compare with an earlier build, keep a copy of its `bin` folder and run its `Bench.exe run --app none
 --md other.md` straight after, and copy `results.json` back.
