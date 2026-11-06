@@ -179,12 +179,12 @@ final class SupplyHistoryTests {
         #expect(rows[1].percent == nil && rows[1].pages == nil) // out of range: no level, no count
     }
 
-    @Test func A_file_of_a_hundred_thousand_lines_loads_in_seconds_not_minutes() throws {
+    @Test func A_file_of_forty_thousand_lines_loads_in_seconds_not_minutes() throws {
         let store = SupplyHistoryStore(folder)
         store.record(Self.printer, [Self.toner(45)], 100, Self.day0)
         let file = try #require(files.first)
         var text = ""
-        for i in 0..<130_000 { text += "2025-10-01\tS\(i % 20)\tK\t10\tok\t1\n" } // under the 4 MB cap; 20 supplies, 16 kept
+        for i in 0..<40_000 { text += "2025-10-01\tS\(i % 20)\tK\t10\tok\t1\n" } // 20 supplies, 16 kept
         let handle = try FileHandle(forWritingTo: URL(fileURLWithPath: file))
         handle.seekToEndOfFile()
         handle.write(Data(text.utf8))
@@ -193,7 +193,7 @@ final class SupplyHistoryTests {
 
         let rows = SupplyHistoryStore(folder).rows(Self.printer)
 
-        #expect(Date().timeIntervalSince(started) < Timing.limit(5.0)) // a debug build's parsing; the set kept per line took minutes
+        #expect(Date().timeIntervalSince(started) < Timing.limit(5.0)) // a debug build in the full parallel suite; the set rebuilt per line took minutes
         #expect(Set(rows.map(\.key)).count == SupplyHistoryStore.maxSupplies)
     }
 

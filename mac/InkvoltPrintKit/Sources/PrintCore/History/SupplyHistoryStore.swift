@@ -218,6 +218,10 @@ public final class SupplyHistoryStore: @unchecked Sendable {
 
     /// What a printer reports, fit for one cell: no control characters (tabs, line ends), cut to length.
     static func clean(_ text: String?, _ max: Int) -> String {
+        // Printable ASCII has no control characters: no filtering (a long file's every cell goes through here).
+        if let text, text.utf8.allSatisfy({ $0 >= 0x20 && $0 < 0x7F }), text.first != " ", text.last != " " {
+            return text.utf8.count <= max ? text : String(text.prefix(max))
+        }
         let clean = String(String.UnicodeScalarView((text ?? "").unicodeScalars.filter { !CharacterSet.controlCharacters.contains($0) }))
             .trimmingCharacters(in: .whitespaces)
         return clean.count <= max ? clean : String(clean.prefix(max))
