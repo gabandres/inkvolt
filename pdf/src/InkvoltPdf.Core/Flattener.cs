@@ -79,7 +79,7 @@ public static class Flattener
             for (var i = annots.Elements.Count - 1; i >= 0; i--)
                 if (PdfObj.Dict(annots.Elements[i]) is { } a && removed.Contains(a)) annots.Elements.RemoveAt(i);
             if (annots.Elements.Count == 0) page.Elements.Remove("/Annots");
-            if (ops.Length > 0) AppendContent(doc, page, ops.ToString());
+            if (ops.Length > 0) PdfObj.AppendContent(doc, page, ops.ToString());
         }
         if (!pagesTouched) return data;
 
@@ -212,17 +212,5 @@ public static class Flattener
         var name = $"/{prefix}{i}";
         dict.Elements[name] = value;
         return name;
-    }
-
-    /// <summary>Appends <paramref name="ops"/> after the page's content, which is wrapped in q/Q so its graphics state can't leak.</summary>
-    private static void AppendContent(PdfDocument doc, PdfPage page, string ops)
-    {
-        var contents = new PdfArray(doc);
-        contents.Elements.Add(PdfObj.AddStream(doc, "q\n"u8.ToArray()).Reference!);
-        var existing = page.Elements["/Contents"];
-        if (PdfObj.Array(existing) is { } arr) foreach (var e in arr.Elements) contents.Elements.Add(e);
-        else if (existing is PdfReference) contents.Elements.Add(existing);
-        contents.Elements.Add(PdfObj.AddStream(doc, Encoding.ASCII.GetBytes("Q\n" + ops)).Reference!);
-        page.Elements["/Contents"] = contents;
     }
 }

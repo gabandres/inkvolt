@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Translate with AI moves a link and its underline onto the link's words when the translation keeps them (a document number, a name), and takes off a link whose words were translated, so no underline starts in the middle of a word any more.
 - Translate with AI translates tables and text set sideways on a page (a landscape table on a portrait page) cell by cell too, and the translation reads the same way the original did.
 - A paragraph with check marks, arrows or other symbols in the standard ZapfDingbats font, as older software and forms wrote them, edits as a whole paragraph too, and they stay in ZapfDingbats.
 - Large drawings (sheets with tens of thousands of lines) show up and scroll faster: each sheet is read and drawn once instead of twice, and the next two sheets are drawn while you look at one.

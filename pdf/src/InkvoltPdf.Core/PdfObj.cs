@@ -162,6 +162,18 @@ internal static class PdfObj
         return Xmp.Patch(ms, doc.Info, xmp, bareXmp);
     }
 
+    /// <summary>Appends <paramref name="ops"/> after the page's content, which is wrapped in q/Q so its graphics state can't leak.</summary>
+    public static void AppendContent(PdfDocument doc, PdfPage page, string ops)
+    {
+        var contents = new PdfArray(doc);
+        contents.Elements.Add(AddStream(doc, "q\n"u8.ToArray()).Reference!);
+        var existing = page.Elements["/Contents"];
+        if (Array(existing) is { } arr) foreach (var e in arr.Elements) contents.Elements.Add(e);
+        else if (existing is PdfReference) contents.Elements.Add(existing);
+        contents.Elements.Add(AddStream(doc, Encoding.ASCII.GetBytes("Q\n" + ops)).Reference!);
+        page.Elements["/Contents"] = contents;
+    }
+
     /// <summary>Adds an indirect stream object (a form XObject when <paramref name="bbox"/> is given).</summary>
     public static PdfDictionary AddStream(PdfDocument doc, byte[] content, bool compress = true)
     {

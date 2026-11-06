@@ -688,9 +688,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   census-p60 p. 31 and 33 (stand-in answers) every label, heading and note is translated, figures stay in their columns,
   nothing is named as turned. A multi-line row label in such a table ("AMERICAN INDIAN / AND ALASKA / NATIVE ALONE OR / IN
   COMBINATION") goes as one paragraph a line, upright or turned alike (its lines sit on the figures' rows).
-  **Still wrong.** A link's
-  underline and area stay where they were while the text moves (NIST p. 14: "complementarios, el Documento Especial" is
-  underlined from mid-word). A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
+  **Links and underlines (2026-11-06).** A link on a translated paragraph's lines moves onto its words where the
+  translation keeps them as they were (an identifier, a document number: "(SP) 800-63A,", "SP 800-63C,"; spaces don't
+  count, so a line's "800-" "63A," finds "800-63A,"), a copy of the link for each further line they reach, and its
+  underline is drawn again under them (its distance from the baseline and thickness scaled with the text, its color); a
+  link whose words were translated is taken off the page and out of the structure tree (what they became can't be
+  told), and a thin stroke or filled rectangle under the old words, no wider than their line, goes (its painting
+  operator ends the path unpainted) (`ContentEditor.TranslateLinks.cs`: `LinksOfWritten`, `Follow`, `FixLinks`, run by
+  `TranslationWriter.Finish` once the copy's fonts are in it, so the new words can be read). A turned paragraph's links
+  are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`, `A_link_whose_words…`;
+  NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a line's end and "800-"
+  on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
+  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). A long translation of a
   label in a narrow cell with a row right under it still shrinks to the floor (the census's first "Income percentile
   ratios:" as "Proporciones de percentiles de ingresos:"): its cell has neither the width nor the height. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as

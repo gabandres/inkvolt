@@ -945,12 +945,33 @@ public static partial class ContentEditor
             if (_seen.Add(owner)) _owners.Add(owner);
         }
 
-        /// <summary>The installed fonts drawn from go into the document and the resources of everything that uses them.</summary>
+        private readonly List<(int Page, List<LinkFix> Links)> _links = [];
+
+        /// <summary>A page's links to move onto their words or drop, once its fonts are in the document (<see cref="FixLinks"/>).</summary>
+        public void LinksAfter(int page, List<LinkFix> links) => _links.Add((page, links));
+
+        /// <summary>
+        /// The installed fonts drawn from go into the document and the resources of everything that uses them; then the
+        /// translated paragraphs' links are moved or dropped (their new words can be read only once the fonts are there).
+        /// </summary>
         public void Finish()
         {
-            if (Fonts.IsEmpty) return;
-            var fonts = Fonts.BuildFonts(_doc);
-            foreach (var owner in _owners) AddFonts(_doc, owner, fonts);
+            if (!Fonts.IsEmpty)
+            {
+                var fonts = Fonts.BuildFonts(_doc);
+                foreach (var owner in _owners) AddFonts(_doc, owner, fonts);
+            }
+            foreach (var (page, links) in _links)
+            {
+                try
+                {
+                    FixLinks(_doc, page, links);
+                }
+                catch (Exception ex) when (ex is ContentEditException or InvalidOperationException or ArgumentException)
+                {
+                    // The page's new content can't be read again: its links stay as they were.
+                }
+            }
         }
 
         /// <summary>Forms reachable from more than one page's resources, found once: asking per form and per page would take page count squared.</summary>
@@ -1012,6 +1033,8 @@ public static partial class ContentEditor
         var paints = walk.PaintsCut ? null : walk.Paints;
         // A turned part's surroundings in its frame, worked out once it has a paragraph to lay out.
         var framed = new Dictionary<int, (PageThings Things, List<RectD> Obstacles, List<(RectD, int)> Fills, List<Paint>? Paints)>();
+        // Where each upright paragraph's new text went, and how far it shrank: its links follow it (LinksOfWritten).
+        var placed = new Dictionary<int, (RectD Box, double Fit)>();
         // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
         // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
@@ -1139,6 +1162,7 @@ public static partial class ContentEditor
             foreach (var name in layout.Check.StandIns)
                 if (!writer.FontNames.Contains(name)) writer.FontNames.Add(name);
             written.Add(new TranslationWritten(i, fit, fits, dropped));
+            if (slots[i].Part is null) placed[i] = (layout.Check.Box, fit);
         }
 
         if (columned.Count > 0)
@@ -1148,11 +1172,14 @@ public static partial class ContentEditor
             foreach (var (edits, op, id, parts) in columned.Values)
                 edits.Add((op.Start, op.End, string.Join(' ', columnsOf[id].OrderBy(r => r.Info!.Column).Select(r => parts[r.Info!.Column] ?? Kept(op, r)))));
         }
+        // Underlines under the old words go with them; links are moved once the page and its fonts are written.
+        var links = written.Count > 0 ? LinksOfWritten(page, slots, written, placed, ops, paints, pageEdits) : [];
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);
         if (pageEdits.Count > 0) WriteTarget(doc, page, pageTarget, pageEdits);
         foreach (var owner in owners) writer.NeedsFonts(owner);
+        if (links.Count > 0) writer.LinksAfter(pageIndex, links);
         SignedEdits.NoteRemoval();
         return (slots, written, refused);
     }

@@ -1219,6 +1219,91 @@ public class TranslationCopyTests
         foreach (var figure in new[] { "12", "345", "6,789" }) Assert.Contains(figure, text, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A paragraph of three lines whose second has a link drawn in blue (<paramref name="link"/>), underlined by a thin
+    /// blue rectangle filled after the text, and a /Link annotation over it. Returns the page and the underline's box (page as shown).
+    /// </summary>
+    private static (byte[] Pdf, RectD Underline) LinkedParagraph(string link)
+    {
+        string Content(string extra) =>
+            $"BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the) Tj " +
+            $"1 0 0 1 72 686 Tm (fox goes on over ) Tj 0 0 1 rg ({link}) Tj 0 g ( and a lazy dog until the) Tj " +
+            $"1 0 0 1 72 672 Tm (end of the day.) Tj ET " + extra;
+        var first = Page(Content(""), fontText: Letters);
+        var box = ContentEditor.Read(first, null, 0).Runs.Single(r => r.Text == link).Box;
+        // Under the baseline (y 686 in PDF space), half a point thick.
+        var underline = RectD.FromEdges(box.X, 792 - 686 + 1.5, box.Right, 792 - 686 + 2);
+        var pdf = Page(Content($"0 0 1 rg {N(box.X)} {N(686 - 2)} {N(box.Width)} 0.5 re f"), fontText: Letters);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify);
+        var annot = new PdfDictionary(doc);
+        annot.Elements["/Type"] = new PdfName("/Annot");
+        annot.Elements["/Subtype"] = new PdfName("/Link");
+        annot.Elements["/Rect"] = PdfObj.Reals(doc, box.X, 792 - box.Bottom, box.Right, 792 - box.Y);
+        annot.Elements["/Border"] = new PdfArray(doc, new PdfInteger(0), new PdfInteger(0), new PdfInteger(0));
+        var action = new PdfDictionary(doc);
+        action.Elements["/S"] = new PdfName("/URI");
+        action.Elements["/URI"] = new PdfString("https://example.com/");
+        annot.Elements["/A"] = action;
+        doc.Internals.AddObject(annot);
+        doc.Pages[0].Elements["/Annots"] = new PdfArray(doc, annot.Reference!);
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        return (ms.ToArray(), underline);
+    }
+
+    private static RectD Taller(RectD r) => RectD.FromEdges(r.X, r.Y - 1, r.Right, r.Bottom + 1);
+
+    private static string N(double v) => v.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Blue pixels (a link's underline) in a box of the page as shown, at 4 px a point.</summary>
+    private static int BluePixels(byte[] pdf, RectD box)
+    {
+        using var engine = PdfEngine.Open(pdf, MuPDFCore.InputFileTypes.PDF, null);
+        var image = engine.Render(0, 4, annotations: false);
+        var count = 0;
+        for (var y = (int)(box.Y * 4); y < (int)Math.Ceiling(box.Bottom * 4) && y < image.Height; y++)
+            for (var x = (int)(box.X * 4); x < (int)Math.Ceiling(box.Right * 4) && x < image.Width; x++)
+            {
+                var i = y * image.Stride + 3 * x;
+                if (image.Pixels[i] > 180 && image.Pixels[i + 1] < 90 && image.Pixels[i + 2] < 90) count++; // BGR
+            }
+        return count;
+    }
+
+    [Fact]
+    public void A_links_area_and_underline_follow_its_words_when_the_translation_keeps_them()
+    {
+        var (pdf, underline) = LinkedParagraph("QUICK FOX 42");
+        Assert.True(BluePixels(pdf, Taller(underline)) > 0);
+        var (_, r) = Translate(pdf, _ => "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 sits there until the end of the day.");
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        var hit = text.Find("QUICK FOX 42", matchCase: true, wholeWord: false).Single();
+        var words = text.GetRects(hit.Start, hit.End).Aggregate((a, b) => a.Union(b));
+        Assert.True(Math.Abs(words.X - underline.X) > 5, "the words moved"); // else the test shows nothing
+        // The link covers the words where they are now, not where they were.
+        var area = engine.GetLinks(0).Single().Area;
+        Assert.InRange(area.X, words.X - 1.5, words.X + 1.5);
+        Assert.InRange(area.Right, words.Right - 1.5, words.Right + 1.5);
+        Assert.True(area.Y < words.CenterY && area.Bottom > words.CenterY, $"{area} {words}");
+        // The underline is under them now, and gone from where they were.
+        Assert.True(BluePixels(r.Data!, RectD.FromEdges(words.X + 1, words.CenterY, words.Right - 1, words.Bottom + 6)) > 0);
+        if (Taller(underline).Intersect(RectD.FromEdges(words.X, words.Y, words.Right, words.Bottom + 6)) is not { Width: > 0, Height: > 0 })
+            Assert.Equal(0, BluePixels(r.Data!, Taller(underline)));
+    }
+
+    [Fact]
+    public void A_link_whose_words_the_translation_doesnt_keep_is_dropped_with_its_underline()
+    {
+        var (pdf, underline) = LinkedParagraph("QUICK FOX 42");
+        var (_, r) = Translate(pdf, _ => "Now a lazy dog jumps over the brown fox, and the quick one sits there until the end of the day.");
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        Assert.Empty(engine.GetLinks(0));
+        using (var doc = PdfReader.Open(new MemoryStream(r.Data!), PdfDocumentOpenMode.Import))
+            Assert.Equal(0, PdfObj.Array(doc.Pages[0].Elements["/Annots"])?.Elements.Count ?? 0);
+        Assert.Equal(0, BluePixels(r.Data!, new RectD(0, 0, 612, 792)));
+    }
+
     [Fact]
     public void A_protected_file_keeps_its_protection_and_a_copys_language_is_the_new_one()
     {
