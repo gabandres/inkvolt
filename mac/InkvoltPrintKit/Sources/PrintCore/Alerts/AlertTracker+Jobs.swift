@@ -71,7 +71,7 @@ final class JobQueueTrack {
 ///   `AlertRules.jobStuckAfter` with the printer saying it's ready, or `jobHungAfter` with it saying it's printing (worded
 ///   "may be stuck": with no page counts from CUPS a long job looks the same). Moving means `JobProgress` going forward on
 ///   any job in the queue, or a job leaving (missing from `jobGoneAfterReads` reads in a row, as of the first: one read
-///   that misses a job decides nothing stuck, and doesn't start a wait again; Windows counts the first miss as leaving), so
+///   that misses a job decides nothing stuck, and doesn't start a wait again; Windows does the same since 2026-11-05), so
 ///   a job waiting its turn isn't stuck, and flicker doesn't count. Jobs behind
 ///   your first one wait for it. The clock starts when the job is first seen, so a restart gives it the full time again.
 /// - **Told again**: a job told stuck is told again only after real progress since its last alert, at most

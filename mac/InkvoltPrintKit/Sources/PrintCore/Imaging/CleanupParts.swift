@@ -1,8 +1,9 @@
 import Foundation
 
 // The pieces `PageCleanup` builds on, from the Windows app's `ScanCleanup.cs` (`ToGray`, `Smooth`, `PaperLevel.Map`,
-// `Despeckle`). Inkvolt PDF's PdfCore has its own public copies (Ocr/ScanCleanup.swift, ported before these, for its
-// recognizer); these stay internal so a file that imports both modules sees one of each. Colour pixels are RGB on the Mac.
+// `Despeckle`). Public because Inkvolt PDF's PdfCore cleans pages for its recognizer with the same four
+// (Ocr/ScanCleanup.swift), as Windows' InkvoltPdf.Core uses this project's ScanCleanup.cs; their names don't clash with
+// PdfCore's. Colour pixels are RGB on the Mac.
 
 /// Runs `body` for each of `count` rows, spread over the cores (.NET's `Parallel.For`). Rows left when `stop` fires are
 /// skipped, and it throws `CancellationError` once all have returned.
@@ -51,9 +52,9 @@ private struct CleanupChunkBody: @unchecked Sendable {
 @inline(__always)
 func cleanupByte(_ v: Float) -> UInt8 { v >= 255 ? 255 : v > 0 ? UInt8(v) : 0 }
 
-enum CleanupGray {
-    /// Luma of RGB pixels (the weights Rec. 601 uses, in integers).
-    static func of(_ rgb: [UInt8], _ width: Int, _ height: Int, _ stop: BatchStop?) throws -> [UInt8] {
+public enum CleanupGray {
+    /// Luma of RGB pixels (the weights Rec. 601 uses, in integers). Throws only when `stop` fires.
+    public static func of(_ rgb: [UInt8], _ width: Int, _ height: Int, _ stop: BatchStop?) throws -> [UInt8] {
         var g = [UInt8](repeating: 0, count: width * height)
         try rgb.withUnsafeBufferPointer { src in
             try g.withUnsafeMutableBufferPointer { dst in
@@ -75,8 +76,9 @@ enum CleanupGray {
 }
 
 /// A 3 × 3 median: takes out the paper's grain and single-pixel noise, keeps the edges of letters.
-enum CleanupSmooth {
-    static func median3(_ gray: [UInt8], _ width: Int, _ height: Int, _ stop: BatchStop?) throws -> [UInt8] {
+public enum CleanupSmooth {
+    /// Throws only when `stop` fires.
+    public static func median3(_ gray: [UInt8], _ width: Int, _ height: Int, _ stop: BatchStop?) throws -> [UInt8] {
         var result = [UInt8](repeating: 0, count: gray.count)
         try gray.withUnsafeBufferPointer { src in
             try result.withUnsafeMutableBufferPointer { dst in
@@ -112,14 +114,15 @@ enum CleanupSmooth {
 }
 
 /// The paper's own level across a page, one value per block, read bilinearly between block centres (`PaperLevel.Map`).
-struct PaperMap: Sendable {
-    let width: Int, height: Int, block: Int, columns: Int, rows: Int
-    let levels: [Float]
-    /// Each pixel column's two block columns and its weight between them, the same on every row (PdfCore's
-    /// `PaperLevel.XWeights`).
+public struct PaperMap: Sendable {
+    public let width: Int, height: Int, block: Int, columns: Int, rows: Int
+    public let levels: [Float]
+    /// Each pixel column's two block columns and its weight between them, the same on every row.
     private let x0: [Int], x1: [Int], ax: [Float]
 
-    init(width: Int, height: Int, block: Int, columns: Int, rows: Int, levels: [Float]) {
+    /// `levels`: `columns` × `rows` paper levels (at least one), a block of `block` pixels each, over a `width` × `height`
+    /// page.
+    public init(width: Int, height: Int, block: Int, columns: Int, rows: Int, levels: [Float]) {
         (self.width, self.height, self.block, self.columns, self.rows, self.levels) = (width, height, block, columns, rows, levels)
         var (x0, x1, ax) = ([Int](), [Int](), [Float]())
         x0.reserveCapacity(width)
@@ -136,7 +139,7 @@ struct PaperMap: Sendable {
     }
 
     /// The paper level at each pixel of row `y`, bilinear between block centres, into `out` (width values).
-    func row(_ y: Int, into out: UnsafeMutableBufferPointer<Float>) {
+    public func row(_ y: Int, into out: UnsafeMutableBufferPointer<Float>) {
         let fy = min(max((Float(y) + 0.5) / Float(block) - 0.5, 0), Float(rows - 1))
         let y0 = Int(fy)
         let y1 = min(y0 + 1, rows - 1)
@@ -162,16 +165,18 @@ struct PaperMap: Sendable {
 /// Removes specks: small dark spots (dust, toner, a hole's shadow) with no other ink near them. Small means at most
 /// `maxArea` pixels at 300 dpi (a 9 × 9 dot, scaled with the resolution); near means within `isolation` of an inch. A full
 /// stop, a comma, the dot of an i or an accent is always near its letters, so it stays.
-enum CleanupDespeckle {
+public enum CleanupDespeckle {
     static let maxArea = 80
     static let isolation = 1 / 20.0
     private static let ink: UInt8 = 160
 
-    /// Turns lone specks white (in place); returns how many went. `dpi` is a scan's (1 to 9600, as `PageCleanup` gives it).
-    static func remove(_ gray: inout [UInt8], _ width: Int, _ height: Int, _ dpi: Int, _ stop: BatchStop?) throws -> Int {
+    /// Turns lone specks white (in place); returns how many went. `dpi` is a scan's (1 to 9600 from `PageCleanup`, at
+    /// most 300 from PdfCore's `ScanText`).
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func remove(_ gray: inout [UInt8], _ width: Int, _ height: Int, _ dpi: Int, _ stop: BatchStop?) throws -> Int {
         let scale = Double(dpi) / 300
         let maxArea = max(2, Int(Double(self.maxArea) * scale * scale))
-        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven))) // bounded: dpi is 1 to 9600 (PageCleanup.scanDpi), isolation 1/20
+        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven))) // bounded: dpi is 1 to 9600 (PageCleanup.scanDpi) or at most 300 (ScanText), isolation 1/20
         let stride = width + 1
 
         // Ink counts summed over the rectangle above and left of each pixel, to count the ink around a speck at once.

@@ -1,7 +1,7 @@
 # Inkvolt for macOS
 
 Native Swift versions of the Inkvolt apps. Inkvolt PDF for Mac (notarized download, AGPL because of MuPDF) is released,
-1.7.0 the latest; Inkvolt Print for Mac (MIT) is in the [Mac App Store](https://apps.apple.com/app/id6827219248) (1.0, approved 2026-11-04), and its further
+1.7.0 the latest; Inkvolt Print for Mac (MIT) is in the [Mac App Store](https://apps.apple.com/app/id6827219248) (1.0, approved 2026-11-04; 1.1, build 5, live since 2026-11-06), and its further
 work is on hold (owner, 2026-11-02). Plan and status: [`docs/PLAN.md`](docs/PLAN.md).
 
 | Folder | What |
@@ -66,7 +66,7 @@ authenticated by the App Store Connect API key in `mac/InkvoltPrint/.env.local` 
 certificate in its keychain. Run on the Mac, detached; each upload needs a new build number:
 
 ```sh
-nohup mac/InkvoltPrint/release.sh 2 --upload > ~/build-artifacts/inkvolt-print-mac.log 2>&1 &
+nohup zsh -l mac/InkvoltPrint/release.sh 2 --upload > ~/build-artifacts/inkvolt-print-mac.log 2>&1 &   # git keeps it not executable
 cat ~/build-artifacts/inkvolt-print-mac/status          # RUNNING, then DONE 0 or FAILED <step>
 node mac/InkvoltPrint/asc-builds.mjs 2 --wait            # until App Store Connect says the build is VALID
 ```

@@ -21,8 +21,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
 items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04) and 1.1 in App Review; the Mac's 1.6 Pro
-key was built on 2026-11-04 and ships in the next build, the rest waits for the owner's plan (2026-11-04). Each item names its
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
+2026-11-06: the Mac halves above and the 1.6 Pro key) is on TestFlight, for the owner to submit; the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
 

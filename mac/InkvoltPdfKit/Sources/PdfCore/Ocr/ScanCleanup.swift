@@ -1,10 +1,13 @@
 import Foundation
+import PrintCore
 
 // Cleaning a scanned page before text recognition (roadmap 2.2, E14): the Windows app's shared
 // `InkvoltPrint.Core/Imaging/ScanCleanup.cs` and `Deskew.Measure` in `PageImage.cs`, ported as is (plain loops over grey
-// bytes) so the decisions (skew, sideways, upside down, specks) are the same on both platforms. PdfCore doesn't depend
-// on PrintCore, so these live here; Inkvolt Print's own `Deskew` (PrintCore) is the older ±10° one without the line
-// strength. Colour pixels are RGB on the Mac (Windows renders BGR).
+// bytes) so the decisions (skew, sideways, upside down, specks) are the same on both platforms. The grey, the 3 × 3
+// median, the paper map's reading and the specks are PrintCore's (`CleanupParts`, which Inkvolt Print's scan cleanup
+// uses too); the rest lives here: Inkvolt Print's own `Deskew` (PrintCore) is the older ±10° one without the line
+// strength, and its paper estimate and whitening keep strokes `PageCleanup`'s way. Colour pixels are RGB on the Mac
+// (Windows renders BGR).
 
 /// An 8-bit greyscale image, row by row with no padding (0 black, 255 white).
 public struct GrayImage: Sendable, Equatable {
@@ -54,6 +57,15 @@ private func eachRow(_ count: Int, _ body: (Int) -> Void) {
 
 private struct RowBody: @unchecked Sendable {
     let run: (Int) -> Void
+}
+
+/// Runs `body` with a stop for PrintCore's cleanup parts that fires when `cancel` does (nil without a token).
+private func withStop<T>(_ cancel: CancelToken?, _ body: (BatchStop?) throws -> T) throws -> T {
+    guard let cancel else { return try body(nil) }
+    let stop = BatchStop()
+    let id = cancel.register { stop.stop() }
+    defer { cancel.unregister(id) }
+    return try body(stop)
 }
 
 /// Skew detection by projection profile (the Windows app's `Deskew.Measure`): the ink is projected onto lines at each
@@ -207,7 +219,7 @@ public struct CleanedScan: Sendable {
 }
 
 /// Cleans a scanned page before text recognition (Recognize Text, roadmap 2.2): `Deskew` (up to ±15° here),
-/// `PageRotate`, `Upright`, `Smooth`, `PaperLevel`, `Despeckle`, each its own type as on Windows.
+/// `PageRotate`, `Upright`, PrintCore's `CleanupSmooth`, `PaperLevel`, `Despeckle`, each its own type as on Windows.
 public enum ScanCleanup {
     /// The largest skew straightened (a sheet laid on the glass by hand, a feeder that grabbed it crooked).
     public static let maxSkew = 15.0
@@ -217,17 +229,22 @@ public enum ScanCleanup {
     /// - Throws: `CancellationError` when `cancel` fires.
     public static func clean(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, _ dpi: Int, keepColor: Bool = false,
                              cancel: CancelToken? = nil) throws -> CleanedScan {
-        var gray = channels == 1 ? pixels : toGray(pixels, width, height)
+        try withStop(cancel) { stop in try clean(pixels, width, height, channels, dpi, keepColor, cancel, stop) }
+    }
+
+    private static func clean(_ pixels: [UInt8], _ width: Int, _ height: Int, _ channels: Int, _ dpi: Int, _ keepColor: Bool,
+                              _ cancel: CancelToken?, _ stop: BatchStop?) throws -> CleanedScan {
+        var gray = channels == 1 ? pixels : try CleanupGray.of(pixels, width, height, stop)
         let factor = max(1, Int((Double(dpi) / 100).rounded(.toNearestOrEven))) // bounded: dpi is an Int
         let (skew, sideways, axisSure) = lines(downscale(GrayImage(width, height, gray), factor))
         try cancel.check()
 
         if skew != 0 { gray = PageRotate.rotate(gray, width, height, width, 1, -skew) }
-        var smooth = Smooth.median3(gray, width, height)
+        var smooth = try CleanupSmooth.median3(gray, width, height, stop)
         try cancel.check()
         let paper = PaperLevel.estimate(smooth, width, height, dpi)
         PaperLevel.whiten(&smooth, paper)
-        let specks = try Despeckle.remove(&smooth, width, height, dpi, cancel: cancel)
+        let specks = try CleanupDespeckle.remove(&smooth, width, height, dpi, stop)
         try cancel.check()
 
         // Lines that run down the page are turned a quarter to run across; then which way up is told by the letters.
@@ -268,24 +285,7 @@ public enum ScanCleanup {
 
     /// Luma of RGB pixels (the weights Rec. 601 uses, in integers).
     public static func toGray(_ rgb: [UInt8], _ width: Int, _ height: Int) -> [UInt8] {
-        var g = [UInt8](repeating: 0, count: width * height)
-        rgb.withUnsafeBufferPointer { src in
-            g.withUnsafeMutableBufferPointer { dst in
-                let out = dst
-                eachRow(height) { y in
-                    var j = y * width * 3
-                    for i in (y * width)..<(y * width + width) {
-                        // In steps: CI's Xcode gives up type-checking the sum written as one expression.
-                        let r: Int = Int(src[j]) * 77
-                        let gr: Int = Int(src[j + 1]) * 150
-                        let b: Int = Int(src[j + 2]) * 29
-                        out[i] = UInt8((r + gr + b) >> 8)
-                        j += 3
-                    }
-                }
-            }
-        }
-        return g
+        (try? CleanupGray.of(rgb, width, height, nil)) ?? [] // throws only when a stop fires, and there is none
     }
 
     /// Averages `factor` × `factor` blocks (a smaller copy for measuring).
@@ -342,42 +342,6 @@ public enum ScanCleanup {
     }
 }
 
-/// A 3 × 3 median: takes out the paper's grain and single-pixel noise, keeps the edges of letters.
-public enum Smooth {
-    public static func median3(_ gray: [UInt8], _ width: Int, _ height: Int) -> [UInt8] {
-        var result = [UInt8](repeating: 0, count: gray.count)
-        gray.withUnsafeBufferPointer { src in
-            result.withUnsafeMutableBufferPointer { dst in
-                let out = dst
-                eachRow(height) { y in
-                    let ys = (max(0, y - 1), y, min(height - 1, y + 1))
-                    for x in 0..<width {
-                        let xa = max(0, x - 1), xb = min(width - 1, x + 1)
-                        var p = (src[ys.0 * width + xa], src[ys.0 * width + x], src[ys.0 * width + xb],
-                                 src[ys.1 * width + xa], src[ys.1 * width + x], src[ys.1 * width + xb],
-                                 src[ys.2 * width + xa], src[ys.2 * width + x], src[ys.2 * width + xb])
-                        out[y * width + x] = median9(&p)
-                    }
-                }
-            }
-        }
-        return result
-    }
-
-    /// The median of nine values by a sorting network (19 compare-exchanges).
-    private static func median9(_ p: inout (UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8)) -> UInt8 {
-        withUnsafeMutableBytes(of: &p) { raw in
-            let a = raw.bindMemory(to: UInt8.self)
-            func s(_ i: Int, _ j: Int) {
-                if a[i] > a[j] { a.swapAt(i, j) }
-            }
-            s(1, 2); s(4, 5); s(7, 8); s(0, 1); s(3, 4); s(6, 7); s(1, 2); s(4, 5); s(7, 8)
-            s(0, 3); s(5, 8); s(4, 7); s(3, 6); s(1, 4); s(2, 5); s(4, 7); s(4, 2); s(6, 4); s(4, 2)
-            return a[4]
-        }
-    }
-}
-
 /// The paper's own level across the page (grey recycled paper, a lid's shadow, yellowed edges), so it can be evened out:
 /// each pixel is divided by the paper behind it, and what is then nearly white becomes white. The paper is the bright end
 /// (90th percentile) of each block about a sixth of an inch square; a dark block (a photo, a black bar) takes its
@@ -386,22 +350,8 @@ public enum PaperLevel {
     /// After evening out, levels at or above this share of white become white.
     public static let white = 0.92
 
-    public struct Map: Sendable {
-        public let width: Int, height: Int, block: Int, columns: Int, rows: Int
-        public let levels: [Float]
-
-        /// The paper level at a pixel, bilinear between block centres.
-        public func at(_ x: Int, _ y: Int) -> Float {
-            let fx = min(max((Float(x) + 0.5) / Float(block) - 0.5, 0), Float(columns - 1))
-            let fy = min(max((Float(y) + 0.5) / Float(block) - 0.5, 0), Float(rows - 1))
-            let (x0, y0) = (Int(fx), Int(fy))
-            let (x1, y1) = (min(x0 + 1, columns - 1), min(y0 + 1, rows - 1))
-            let (ax, ay) = (fx - Float(x0), fy - Float(y0))
-            let top = levels[y0 * columns + x0] * (1 - ax) + levels[y0 * columns + x1] * ax
-            let bottom = levels[y1 * columns + x0] * (1 - ax) + levels[y1 * columns + x1] * ax
-            return top * (1 - ay) + bottom * ay
-        }
-    }
+    /// One level per block, read bilinearly between block centres (PrintCore's, which Inkvolt Print's cleanup reads too).
+    public typealias Map = PaperMap
 
     public static func estimate(_ gray: [UInt8], _ width: Int, _ height: Int, _ dpi: Int) -> Map {
         let block = max(8, dpi / 6)
@@ -454,50 +404,16 @@ public enum PaperLevel {
         return Map(width: width, height: height, block: block, columns: cols, rows: rows, levels: grown)
     }
 
-    /// The paper level across one row, bilinear between block centres (what `Map.at` gives for each pixel of row `y`),
-    /// worked out a row at a time so the per-pixel loop is plain arithmetic.
-    fileprivate static func row(_ paper: Map, _ y: Int, _ xs: XWeights, into out: UnsafeMutableBufferPointer<Float>) {
-        let fy = min(max((Float(y) + 0.5) / Float(paper.block) - 0.5, 0), Float(paper.rows - 1))
-        let y0 = Int(fy)
-        let y1 = min(y0 + 1, paper.rows - 1)
-        let ay = fy - Float(y0)
-        let c = paper.columns
-        paper.levels.withUnsafeBufferPointer { l in
-            for x in 0..<paper.width {
-                let (x0, x1, ax) = (xs.x0[x], xs.x1[x], xs.ax[x])
-                let top = l[y0 * c + x0] * (1 - ax) + l[y0 * c + x1] * ax
-                let bottom = l[y1 * c + x0] * (1 - ax) + l[y1 * c + x1] * ax
-                out[x] = top * (1 - ay) + bottom * ay
-            }
-        }
-    }
-
-    /// Each column's two block columns and its weight between them.
-    fileprivate struct XWeights: @unchecked Sendable {
-        var x0: [Int] = [], x1: [Int] = [], ax: [Float] = []
-
-        init(_ paper: Map) {
-            for x in 0..<paper.width {
-                let fx = min(max((Float(x) + 0.5) / Float(paper.block) - 0.5, 0), Float(paper.columns - 1))
-                let a = Int(fx)
-                x0.append(a)
-                x1.append(min(a + 1, paper.columns - 1))
-                ax.append(fx - Float(a))
-            }
-        }
-    }
-
     /// Divides each pixel by the paper behind it and turns the nearly white to white (in place).
     public static func whiten(_ gray: inout [UInt8], _ paper: Map, white: Double = PaperLevel.white) {
         let (width, height) = (paper.width, paper.height)
         let whiteF = Float(white), limit = 255 * Float(white)
-        let xs = XWeights(paper)
         gray.withUnsafeMutableBufferPointer { buf in
             let g = buf
             eachRow(height) { y in
                 let levels = UnsafeMutableBufferPointer<Float>.allocate(capacity: width)
                 defer { levels.deallocate() }
-                row(paper, y, xs, into: levels)
+                paper.row(y, into: levels)
                 let base = y * width
                 for x in 0..<width {
                     let even = Float(g[base + x]) * 255 / levels[x]
@@ -511,14 +427,13 @@ public enum PaperLevel {
     public static func whitenColor(_ rgb: inout [UInt8], _ cleanedGray: [UInt8], _ paper: Map) {
         let (width, height) = (paper.width, paper.height)
         let whiteF = Float(white)
-        let xs = XWeights(paper)
         cleanedGray.withUnsafeBufferPointer { cg in
             rgb.withUnsafeMutableBufferPointer { buf in
                 let c = buf
                 eachRow(height) { y in
                     let levels = UnsafeMutableBufferPointer<Float>.allocate(capacity: width)
                     defer { levels.deallocate() }
-                    row(paper, y, xs, into: levels)
+                    paper.row(y, into: levels)
                     for x in 0..<width {
                         let i = y * width + x
                         if cg[i] == 255 {
@@ -536,87 +451,13 @@ public enum PaperLevel {
     }
 }
 
-/// Removes specks: small dark spots (dust, toner, a hole's shadow) with no other ink near them. Small means at most
-/// `maxArea` pixels at 300 dpi (a 9 × 9 dot, scaled with the resolution); near means within `isolation` of an inch. A full
-/// stop, a comma, the dot of an i or an accent is always near its letters, so it stays.
+/// Removes specks: small dark spots (dust, toner, a hole's shadow) with no other ink near them, a full stop, comma, dot
+/// or accent kept beside its letters. PrintCore's `CleanupDespeckle` (Inkvolt Print's scan cleanup), with a `CancelToken`.
 public enum Despeckle {
-    public static let maxArea = 80
-    public static let isolation = 1 / 20.0
-    private static let ink: UInt8 = 160
-
     /// Turns lone specks white (in place); returns how many went.
     /// - Throws: `CancellationError` when `cancel` fires.
     public static func remove(_ gray: inout [UInt8], _ width: Int, _ height: Int, _ dpi: Int, cancel: CancelToken? = nil) throws -> Int {
-        let scale = Double(dpi) / 300
-        let maxArea = max(2, Int(Double(self.maxArea) * scale * scale))
-        let reach = max(2, Int((Double(dpi) * isolation).rounded(.toNearestOrEven))) // bounded: dpi is an Int, isolation 1/20
-        let stride = width + 1
-
-        // Ink counts summed over the rectangle above and left of each pixel, to count the ink around a speck at once.
-        var sums = [Int32](repeating: 0, count: (width + 1) * (height + 1))
-        try gray.withUnsafeBufferPointer { g in
-            for y in 0..<height {
-                if y & 255 == 0 { try cancel.check() }
-                var row: Int32 = 0
-                for x in 0..<width {
-                    row += g[y * width + x] < ink ? 1 : 0
-                    sums[(y + 1) * stride + x + 1] = sums[y * stride + x + 1] + row
-                }
-            }
-        }
-
-        var seen = [Bool](repeating: false, count: gray.count)
-        var stack: [Int] = []
-        var pixels: [Int] = []
-        var removed = 0
-        try seen.withUnsafeMutableBufferPointer { seenBuf in
-            let seen = seenBuf
-            try sums.withUnsafeBufferPointer { sumBuf in
-                let sums = sumBuf
-                func inkIn(_ ax: Int, _ ay: Int, _ bx: Int, _ by: Int) -> Int {
-                    let (x0, y0, x1, y1) = (max(0, ax), max(0, ay), min(width, bx), min(height, by))
-                    return Int(sums[y1 * stride + x1] - sums[y0 * stride + x1] - sums[y1 * stride + x0] + sums[y0 * stride + x0])
-                }
-                try gray.withUnsafeMutableBufferPointer { g in
-                    for start in 0..<g.count {
-                        if start % width == 0 && (start / width) & 255 == 0 { try cancel.check() }
-                        if seen[start] || g[start] >= ink { continue }
-                        // One spot of ink (8-connected), given up on as soon as it is too big to be a speck.
-                        pixels.removeAll(keepingCapacity: true)
-                        stack.append(start)
-                        seen[start] = true
-                        var (minX, minY, maxX, maxY) = (Int.max, Int.max, -1, -1)
-                        var big = false
-                        while let p = stack.popLast() {
-                            let (px, py) = (p % width, p / width)
-                            if !big {
-                                pixels.append(p)
-                                (minX, minY, maxX, maxY) = (min(minX, px), min(minY, py), max(maxX, px), max(maxY, py))
-                                big = pixels.count > maxArea
-                            }
-                            for ny in max(0, py - 1)...min(height - 1, py + 1) {
-                                for nx in max(0, px - 1)...min(width - 1, px + 1) {
-                                    let n = ny * width + nx
-                                    if seen[n] || g[n] >= ink { continue }
-                                    seen[n] = true
-                                    stack.append(n)
-                                }
-                            }
-                        }
-                        if big { continue }
-                        let own = inkIn(minX, minY, maxX + 1, maxY + 1)
-                        if inkIn(minX - reach, minY - reach, maxX + 1 + reach, maxY + 1 + reach) > own { continue }
-                        for p in pixels { g[p] = 255 }
-                        // Its soft edge (lighter than ink) goes too.
-                        for y in max(0, minY - 1)...min(height - 1, maxY + 1) {
-                            for x in max(0, minX - 1)...min(width - 1, maxX + 1) { g[y * width + x] = 255 }
-                        }
-                        removed += 1
-                    }
-                }
-            }
-        }
-        return removed
+        try withStop(cancel) { stop in try CleanupDespeckle.remove(&gray, width, height, dpi, stop) }
     }
 }
 
