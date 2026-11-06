@@ -10,6 +10,8 @@ public struct FlattenOptions: Equatable, Sendable {
     public var links = false
     /// Draw only annotations meant to print (/F Print flag); the others are removed without a trace.
     public var printableOnly = false
+    /// Signature fields are drawn and removed too (the print copy only: their signatures no longer verify).
+    var signatureFields = false
 
     public init(annotations: Bool = true, formFields: Bool = true, links: Bool = false, printableOnly: Bool = false) {
         self.annotations = annotations
@@ -32,6 +34,20 @@ public enum Flattener {
     /// - Throws: `SignaturesWouldBreak` when the document is signed and the rewrite wasn't allowed; `OwnerPasswordRequired`.
     public static func flatten(_ data: [UInt8], _ password: String?, _ options: FlattenOptions = FlattenOptions()) throws -> [UInt8] {
         let doc = try PdfEdit.open(data, password)
+        let touched = try flattenPages(doc, options) {
+            try SignedEdits.requireRewrite(data, reason: "flattening changes page content, which no signature permits")
+        }
+        if !touched { return data }
+        InfoDict.setDate(doc, "ModDate", Date())
+        try doc.checkFailure()
+        return try PdfEdit.save(doc, original: data, password: password, rewrite: true)
+    }
+
+    /// Flattens `doc` in place (what `flatten` does before saving it; `PrintCopy` too). `beforeChange` runs once, before
+    /// the first page changes; `appearancesReady`: the form fields already have their appearances. False when nothing
+    /// was flattened.
+    static func flattenPages(_ doc: MuDoc, _ options: FlattenOptions, appearancesReady: Bool = false,
+                             beforeChange: () throws -> Void = {}) throws -> Bool {
         let catalog = doc.catalog
         let acro = catalog.dict("AcroForm")
         var removed = Set<UInt>()
@@ -47,7 +63,8 @@ public enum Flattener {
             for a in annots.elements where a.isDict {
                 let flatten: Bool
                 switch a.name("Subtype") {
-                case "Widget": flatten = options.formFields && FormEditor.inherited(a, "FT")?.name != "Sig"
+                case "Widget":
+                    flatten = options.formFields && (options.signatureFields || FormEditor.inherited(a, "FT")?.name != "Sig")
                 case "Link": flatten = options.links
                 default: flatten = options.annotations
                 }
@@ -55,8 +72,8 @@ public enum Flattener {
             }
             if take.isEmpty { continue }
             if !pagesTouched {
-                try SignedEdits.requireRewrite(data, reason: "flattening changes page content, which no signature permits")
-                if options.formFields, let acro { try FormEditor.ensureAppearances(doc, acro) }
+                try beforeChange()
+                if options.formFields, !appearancesReady, let acro { try FormEditor.ensureAppearances(doc, acro) }
                 pagesTouched = true
             }
 
@@ -73,7 +90,7 @@ public enum Flattener {
             if annots.count == 0 { page.remove("Annots") }
             if !ops.isEmpty { appendContent(doc, page, ops) }
         }
-        if !pagesTouched { return data }
+        if !pagesTouched { return false }
 
         // Annotations that stay must not point at removed ones (a popup's /Parent, a reply's /IRT, a markup's /Popup).
         for page in pages {
@@ -86,9 +103,25 @@ public enum Flattener {
 
         if !widgets.isEmpty, let acro { removeFields(catalog, acro, widgets, &removed) }
         if !removed.isEmpty { StructTree.prune(doc, gonePages: [], goneKeys: removedKeys) { removed.contains($0.identity) } }
-        InfoDict.setDate(doc, "ModDate", Date())
-        try doc.checkFailure()
-        return try PdfEdit.save(doc, original: data, password: password, rewrite: true)
+        return true
+    }
+
+    /// Whether MuPDF shows `annot` but flattening has no appearance of its own to draw (MuPDF makes one up for it, or
+    /// draws nothing): a page carrying one prints as a picture (`PrintCopy`). Links and popups never show; hidden ones
+    /// neither.
+    static func showsWithoutAppearance(_ annot: PObj) -> Bool {
+        guard shows(annot) else { return false }
+        guard let form = appearance(annot), form.isRef, let bb = form.array("BBox"), bb.count >= 4,
+              let r = annot.array("Rect"), r.count >= 4 else { return true }
+        return false
+    }
+
+    /// Whether MuPDF shows `annot` on screen: not a link or popup, not hidden.
+    static func shows(_ annot: PObj) -> Bool {
+        switch annot.name("Subtype") {
+        case "Link", "Popup": return false
+        default: return (annot.int("F") ?? 0) & (flagHidden | flagNoView) == 0
+        }
     }
 
     /// Takes the flattened widgets out of the form; a form left without fields goes entirely.

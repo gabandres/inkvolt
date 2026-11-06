@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when
 collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Printing sends pages as they are, not as pictures: text and lines stay sharp at any size, and print jobs are many times smaller and faster to send. Comments, form fields, the layers shown and poster tiles print as before.
 - Scan lists the scanners Inkvolt Print knows straight away, with their addresses, before the network search finds the rest; one that moved to a new address is found there.
 - Scan presets: Save as Preset… keeps the source, color, resolution, page size, text recognition and blank page choices under a name. Choosing one sets them for whichever scanner is chosen, and says what that scanner can't do.
 - Scan leaves out blank pages (on by default): the empty back of a one-sided sheet isn't added, and the message says how many were left out. A page with as little as a short word is kept.

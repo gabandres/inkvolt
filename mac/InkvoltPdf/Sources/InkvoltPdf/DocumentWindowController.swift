@@ -71,6 +71,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var layerChoice: [String: Bool] = [:]
     var layerTicket = 0
     var layerEngine: PdfEngine?
+    /// The bytes `layerEngine` draws (printing makes its vector copy from them).
+    var layerData: [UInt8]?
     var layersApplied = 0
     var lastSavedAttachment: URL?
     var lastProblem: String?
