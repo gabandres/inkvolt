@@ -99,48 +99,56 @@ public static partial class ContentEditor
     /// Where a link's words are in the new text: each place (its first word, how many) the new words have the longest
     /// stretch of them, in their order, as they were (not already taken by another link), worth following
     /// (<see cref="Telling"/>); none when there is none. Spaces don't count, so "800-" "63A," (a line's gaps fall where
-    /// its maker spaced it) is "800-63A," as one word. Only new words whose first letter starts the stretch are tried.
+    /// its maker spaced it) is "800-63A," as one word. A place starts at a new word whose bare form begins the stretch:
+    /// the new words are indexed by their bare forms, looked up by the stretch's beginnings.
     /// </summary>
     internal static List<(int Start, int Count)> Follow(IReadOnlyList<string> linkWords, IReadOnlyList<string> newWords, ISet<int> taken)
     {
         var found = new List<(int Start, int Count)>();
         var placesFound = new HashSet<int>();
         var telling = linkWords.Select(w => Telling(Bare(w))).ToArray();
-        var bare = new string[newWords.Count];
-        var startsWith = new Dictionary<char, List<int>>();
+        var byBare = new Dictionary<string, List<int>>(StringComparer.Ordinal);
+        var longest = 0;
         for (var i = 0; i < newWords.Count; i++)
         {
-            bare[i] = Bare(newWords[i]);
-            if (bare[i].Length == 0) continue;
-            if (!startsWith.TryGetValue(bare[i][0], out var list)) startsWith[bare[i][0]] = list = [];
+            var bare = Bare(newWords[i]);
+            if (bare.Length == 0) continue;
+            if (!byBare.TryGetValue(bare, out var list)) byBare[bare] = list = [];
             list.Add(i);
+            longest = Math.Max(longest, bare.Length);
         }
+        var lookup = byBare.GetAlternateLookup<ReadOnlySpan<char>>();
         for (var len = linkWords.Count; len >= 1 && found.Count == 0; len--)
             for (var from = 0; from + len <= linkWords.Count; from++)
             {
                 if (Array.IndexOf(telling, true, from, len) < 0) continue;
                 var want = Bare(string.Concat(linkWords.Skip(from).Take(len)));
-                if (want.Length < 2 || !startsWith.TryGetValue(want[0], out var starts)) continue;
-                foreach (var at in starts)
+                if (want.Length < 2) continue;
+                // The stretch, without the punctuation before it, starts with its first word's bare form.
+                for (var k = 1; k <= Math.Min(want.Length, longest); k++)
                 {
-                    // The stretch, without the punctuation before it, starts with the first word's bare form.
-                    if (taken.Contains(at) || placesFound.Contains(at) || !want.StartsWith(bare[at], StringComparison.Ordinal)) continue;
-                    var joined = "";
-                    for (var end = at; end < newWords.Count && !taken.Contains(end); end++)
+                    if (!lookup.TryGetValue(want.AsSpan(0, k), out var starts)) continue;
+                    foreach (var at in starts)
                     {
-                        joined += newWords[end];
-                        var got = joined.AsSpan().TrimStart(AroundWords);
-                        if (got.TrimEnd(AroundWords).SequenceEqual(want))
+                        if (taken.Contains(at) || placesFound.Contains(at)) continue;
+                        var joined = "";
+                        for (var end = at; end < newWords.Count && !taken.Contains(end); end++)
                         {
-                            found.Add((at, end - at + 1));
-                            placesFound.Add(at);
-                            break;
+                            joined += newWords[end];
+                            var got = joined.AsSpan().TrimStart(AroundWords);
+                            if (got.TrimEnd(AroundWords).SequenceEqual(want))
+                            {
+                                found.Add((at, end - at + 1));
+                                placesFound.Add(at);
+                                break;
+                            }
+                            // More words only add to the end: once it isn't how the stretch begins, it never is.
+                            if (!want.AsSpan().StartsWith(got, StringComparison.Ordinal)) break;
                         }
-                        // More words only add to the end: once it isn't how the stretch begins, it never is.
-                        if (!want.AsSpan().StartsWith(got, StringComparison.Ordinal)) break;
                     }
                 }
             }
+        found.Sort((a, b) => a.Start.CompareTo(b.Start));
         return found;
     }
 
