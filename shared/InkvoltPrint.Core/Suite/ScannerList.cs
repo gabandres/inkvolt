@@ -20,6 +20,12 @@ public static class ScannerList
         _ => id,
     };
 
+    /// <summary>A driver scanner as <see cref="DriverScanners"/> lists it: a TWAIN source's id already carries its "twain:".</summary>
+    public static string Key(WiaDeviceInfo driver) => driver.IsTwain ? driver.Id : Key(ScannerKind.Wia, driver.Id);
+
+    /// <summary>A driver scanner's kind: <see cref="ScannerKind.Twain"/> for a TWAIN source, else <see cref="ScannerKind.Wia"/>.</summary>
+    public static ScannerKind Kind(WiaDeviceInfo driver) => driver.IsTwain ? ScannerKind.Twain : ScannerKind.Wia;
+
     /// <summary>"Name  (host)", "Name  (USB · Windows driver)", "Name  (TWAIN driver)".</summary>
     public static string Label(ScannerKind kind, string name, string? host = null, bool remembered = true, string? connection = null) => kind switch
     {
