@@ -86,6 +86,36 @@ public class FlattenTests
     }
 
     [Fact]
+    public void WhatTheScreenDoesntDrawIsntDrawnIntoThePage()
+    {
+        // MuPDF 1.25's rule, as on the Mac (Flattener.Look): every one of these has a black appearance of its own.
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [8 0 R] >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R 5 0 R 6 0 R 7 0 R 8 0 R 10 0 R] >>",
+            // A popup (never drawn).
+            "<< /Type /Annot /Subtype /Popup /Rect [100 600 200 650] /F 4 /AP << /N 9 0 R >> >>",
+            // A square marked Invisible.
+            "<< /Type /Annot /Subtype /Square /Rect [250 600 350 650] /F 5 /AP << /N 9 0 R >> >>",
+            // A square marked NoView.
+            "<< /Type /Annot /Subtype /Square /Rect [400 600 500 650] /F 36 /AP << /N 9 0 R >> >>",
+            // A widget of no field (no /FT, no /T).
+            "<< /Type /Annot /Subtype /Widget /Rect [100 400 200 450] /F 4 /AP << /N 9 0 R >> >>",
+            // A text field squeezed to no height.
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Flat) /Rect [250 400 350 400] /F 4 /P 3 0 R /AP << /N 9 0 R >> >>",
+            Core2Pdf.Stream("0 g 0 0 100 50 re f", "/Type /XObject /Subtype /Form /BBox [0 0 100 50]"),
+            // A link with an appearance, flattened when asked.
+            "<< /Type /Annot /Subtype /Link /Rect [400 400 500 450] /F 4 /AP << /N 9 0 R >> >>",
+        ]);
+        var flat = Flattener.Flatten(pdf, null, new FlattenOptions { Links = true });
+        Assert.Empty(Subtypes(flat));
+        foreach (var region in new[] { new RectD(100, 142, 100, 50), new RectD(250, 142, 100, 50), new RectD(400, 142, 100, 50),
+                     new RectD(100, 342, 100, 50), new RectD(250, 342, 100, 50), new RectD(400, 342, 100, 50) })
+            Assert.True(Core2Pdf.Ink(flat, 0, region) < 0.01, $"{region}: {Core2Pdf.Ink(flat, 0, region)}");
+    }
+
+    [Fact]
     public void InheritedResourcesAndSharedAnnotsSurvive()
     {
         // Both pages take their font from the page tree and share one /Annots array.
