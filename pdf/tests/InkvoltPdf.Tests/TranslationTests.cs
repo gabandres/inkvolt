@@ -792,6 +792,39 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void A_paragraph_that_fits_nowhere_doesnt_shrink_its_column()
+    {
+        // One paragraph far too long for its room is written at the smallest size and flagged; the rest of its column
+        // keep the size they need, not the floor it would drag them to.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(72, 700, 10, 12, "Hello " + line, line) + Lines(72, 670, 10, 12, "World " + line, line) +
+            Lines(72, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        var words = string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", 2));
+        var tooMuch = string.Join(' ', Enumerable.Repeat("The lazy dog jumps over a quick brown fox.", 40));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? tooMuch : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : words);
+        Assert.Equal(1, r.Report.DoNotFit);
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(2, sizes.Count);
+        Assert.All(sizes, s => Assert.True(s > 8.4, $"{s}"));
+        Assert.Equal(sizes[0], sizes[1], 2);
+    }
+
+    [Fact]
+    public void A_columns_left_edge_is_the_same_a_fraction_of_a_point_apart()
+    {
+        // 73.4 and 73.6 pt are one column's left edge, though they round to different 3 pt steps.
+        const string line = "Hello World draft, 2024! Hello World draft, 2024!";
+        var pdf = Page(Lines(73.4, 700, 10, 12, "Hello " + line, line) + Lines(73.6, 670, 10, 12, "World " + line, line) +
+            Lines(73.6, 640, 10, 12, "Draft " + line, line) + Lines(72, 610, 10, 12, "2024 draft!"), fontText: Letters);
+        string Longer(int times) => string.Join(' ', Enumerable.Repeat("The quick brown fox jumps over a lazy dog.", times));
+        var (_, r) = Translate(pdf, t => t.StartsWith("Hello", StringComparison.Ordinal) ? Longer(3) : t.StartsWith("2024", StringComparison.Ordinal) ? "THE DOG" : Longer(2));
+        var sizes = ContentEditor.Read(r.Data!, null, 0).Paragraphs.Where(q => q.Text.StartsWith("The quick", StringComparison.Ordinal)).Select(q => q.FontSize).ToList();
+        Assert.Equal(3, sizes.Count);
+        Assert.True(sizes[0] < 10, $"{sizes[0]}");
+        Assert.All(sizes, s => Assert.Equal(sizes[0], s, 2));
+    }
+
+    [Fact]
     public void A_shorter_room_with_too_much_text_is_written_small_and_flagged()
     {
         var pdf = Page(Lines(72, 700, 10, 12, "Hello World draft, 2024!") + Lines(72, 688, 10, 12, "2024 draft! Hello World draft, 2024! Hello"), fontText: Letters);
@@ -967,6 +1000,25 @@ public class TranslationCopyTests
         Assert.Equal(10, run.FontSize, 2);
         Assert.True(run.Box.X > label.X - 6, $"{run.Box}");
         Assert.True(run.Box.Bottom < 652, $"{run.Box}");
+    }
+
+    [Fact]
+    public void A_centered_label_moved_into_free_room_stays_above_the_text_under_that_room()
+    {
+        // The room beside the label has text right under it; under the label itself there is room for two lines. Moved
+        // over, two lines would run into that text: it may go only as low as the room it moves into allows.
+        string Content(double ruleX, double x) => Lines(72, 700, 10, 12, "The quick brown fox") + Lines(470, 700, 10, 12, "lazy dog") +
+            $"0 G 0.4 w {ruleX} 680 m {ruleX} 640 l S " + Lines(x, 660, 10, 12, "THE DOG") +
+            Lines(420, 648, 10, 12, "lazy dog jumps") + Lines(250, 630, 10, 12, "The quick brown fox jumps");
+        var width = ContentEditor.Read(Page(Content(100, 290), fontText: Letters), null, 0).Runs.Single(r => r.Text == "THE DOG").Box.Width;
+        var pdf = Page(Content(306 - width / 2 - 6, 306 - width / 2), fontText: Letters);
+        var under = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "lazy dog jumps").Box;
+        var (_, r) = Translate(pdf, t => t == "THE DOG" ? "THE QUICK BROWN DOG JUMPS OVER THE LAZY FOX AND THE QUICK DOG" : t);
+        var after = ContentEditor.Read(r.Data!, null, 0);
+        Assert.Equal(under, after.Runs.Single(q => q.Text == "lazy dog jumps").Box);
+        var moved = after.Runs.Where(q => q.Text.Contains("QUICK", StringComparison.Ordinal) || q.Text.Contains("FOX", StringComparison.Ordinal)).ToList();
+        Assert.NotEmpty(moved);
+        Assert.All(moved, q => Assert.True(q.Box.Intersect(under).IsEmpty, $"{q.Text} {q.Box} over {under}"));
     }
 
     [Fact]

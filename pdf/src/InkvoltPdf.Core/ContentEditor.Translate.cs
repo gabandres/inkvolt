@@ -379,8 +379,8 @@ public static partial class ContentEditor
     /// </summary>
     /// <param name="fills">Rectangles the page fills, with their place in its content: one filled after the paragraph is drawn would paint over text that grows into it.</param>
     /// <param name="paints">Everything the page's own content paints, in order (null: not known); what the text sits on is the last before it.</param>
-    /// <returns>The paragraph framed, how far down it may go, and for a centered one with more room on one side the room it may move into (null: none).</returns>
-    internal static (TextParagraph Paragraph, double Bottom, TextParagraph? Wide) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
+    /// <returns>The paragraph framed, how far down it may go, for a centered one with more room on one side the room it may move into (null: none), and how far down it may go there.</returns>
+    internal static (TextParagraph Paragraph, double Bottom, TextParagraph? Wide, double WideBottom) Room(TranslationSlot slot, PageThings page, IReadOnlyList<RectD> obstacles, double pageWidth, double pageHeight,
         IReadOnlyList<(RectD Box, int Id)>? fills = null, IReadOnlyList<Paint>? paints = null)
     {
         var p = slot.Paragraph;
@@ -466,39 +466,50 @@ public static partial class ContentEditor
         }
 
         // Down: to the next thing below it across its width, and no lower than what holds it or the page's foot.
-        var bottom = light ? p.Box.Bottom : slot.Cell?.Bottom ?? panel?.Bottom ?? Math.Max(p.Box.Bottom, pageHeight - 36);
-        for (var i = page.FirstBelow(p.Box.Bottom - 1); i < page.Boxes.Count; i++)
+        double Down(TextParagraph f)
         {
-            var (b, run) = page.Boxes[i];
-            if (b.Y >= bottom) break; // sorted: nothing later comes nearer
-            if (b.Right <= framed.Left + 1 || b.X >= framed.Right - 1 || (run is not null && mine.Contains(run))) continue;
-            // Some of the gap the page left stays, so a paragraph doesn't read as part of the next.
-            bottom = b.Y - Math.Max(0.1 * p.FontSize, Math.Min(b.Y - p.Box.Bottom, 0.35 * p.FontSize));
-            break;
+            var bottom = light ? p.Box.Bottom : slot.Cell?.Bottom ?? panel?.Bottom ?? Math.Max(p.Box.Bottom, pageHeight - 36);
+            for (var i = page.FirstBelow(p.Box.Bottom - 1); i < page.Boxes.Count; i++)
+            {
+                var (b, run) = page.Boxes[i];
+                if (b.Y >= bottom) break; // sorted: nothing later comes nearer
+                if (b.Right <= f.Left + 1 || b.X >= f.Right - 1 || (run is not null && mine.Contains(run))) continue;
+                // Some of the gap the page left stays, so a paragraph doesn't read as part of the next.
+                bottom = b.Y - Math.Max(0.1 * p.FontSize, Math.Min(b.Y - p.Box.Bottom, 0.35 * p.FontSize));
+                break;
+            }
+            // Filled after this paragraph is written: a band under some later line reaches across, even where no text is.
+            if (fills is { Count: > 0 } && p.Runs.All(r => r.Info?.Form is null))
+            {
+                var last = p.Runs.Max(DrawOrder);
+                foreach (var (box, id) in fills)
+                    if (id > last && box.Y >= p.Box.Bottom - 1 && box.Y < bottom && box.Right > f.Left + 1 && box.X < f.Right - 1) bottom = box.Y;
+            }
+            return Math.Max(bottom, p.Box.Bottom);
         }
-        // Filled after this paragraph is written: a band under some later line reaches across, even where no text is.
-        if (fills is { Count: > 0 } && p.Runs.All(r => r.Info?.Form is null))
-        {
-            var last = p.Runs.Max(DrawOrder);
-            foreach (var (box, id) in fills)
-                if (id > last && box.Y >= p.Box.Bottom - 1 && box.Y < bottom && box.Right > framed.Left + 1 && box.X < framed.Right - 1) bottom = box.Y;
-        }
-        bottom = Math.Max(bottom, p.Box.Bottom);
+        var bottom = Down(framed);
+        // Moved into the wider room, it goes only as low as that room allows: text under it there is overdrawn otherwise.
+        var wideBottom = wide is null ? bottom : Math.Min(bottom, Down(wide));
         // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
         // where one of the old lines was drawn, so what counts is what they clip to together.
         var drawnAt = LineRuns(p, PlainRun(p.Runs));
         // Lines below the old ones are written with the last: whatever clips that clips them, whatever the others do.
-        if (drawnAt[^1].Info?.Clip is { } lowest) bottom = Math.Min(bottom, Math.Max(lowest.Bottom, p.Box.Bottom));
+        if (drawnAt[^1].Info?.Clip is { } lowest)
+        {
+            bottom = Math.Min(bottom, Math.Max(lowest.Bottom, p.Box.Bottom));
+            wideBottom = Math.Min(wideBottom, bottom);
+        }
         if (drawnAt.All(r => r.Info?.Clip is not null) && drawnAt.Select(r => r.Info!.Clip!.Value).Aggregate((a, b) => a.Union(b)) is var clip)
         {
             bottom = Math.Min(bottom, Math.Max(clip.Bottom, p.Box.Bottom)); // a font's descent may reach past a tight clip: its own text was shown there
+            wideBottom = Math.Min(wideBottom, bottom);
             foreach (var f in wide is null ? [framed] : new[] { framed, wide })
             {
                 f.Right = Math.Max(Math.Min(f.Right, clip.Right), Math.Min(p.Right, f.Right));
                 f.Left = Math.Min(Math.Max(f.Left, clip.X), Math.Max(p.Left, f.Left));
             }
         }
-        return (framed, bottom, wide);
+        return (framed, bottom, wide, wideBottom);
     }
 
     /// <summary>How light a color looks, 0 to 255.</summary>
@@ -528,19 +539,24 @@ public static partial class ContentEditor
     /// <summary>
     /// The new text laid out at the largest size that fits its room (steps of 5%); at the smallest allowed when none does.
     /// Characters no font here has are left out and named. At each size, a centered paragraph that doesn't fit centered
-    /// in its room may move off center into <paramref name="wide"/> (<see cref="Room"/>), just as far as it must.
+    /// in its room may move off center into <paramref name="wide"/> (<see cref="Room"/>), just as far as it must, and as
+    /// low as <paramref name="wideBottom"/>.
     /// </summary>
     /// <param name="most">The largest size tried, of its own (<see cref="OneSizePerColumn"/>).</param>
     internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text,
-        TextParagraph? wide = null, double most = 1)
+        TextParagraph? wide = null, double wideBottom = double.NaN, double most = 1)
     {
-        bool Inside(ParagraphLayout l, TextParagraph f) =>
+        if (double.IsNaN(wideBottom)) wideBottom = bottom;
+        static bool Inside(ParagraphLayout l, TextParagraph f, double bottom) =>
             l.Check.Box is var box && box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(f.Right, f.Box.Right) + 1 && box.X >= Math.Min(f.Left, f.Box.X) - 1;
-        // Laid out in the wide room's width, centered where it was, then moved back inside it.
-        ParagraphLayout Moved(TextParagraph f, string t, double size)
+        // Laid out in the wide room's width, centered where it was, then moved back inside it. Moving it doesn't change its
+        // lines, so a layout too tall or too wide for the room isn't laid out again (null: it doesn't fit there).
+        ParagraphLayout? Moved(TextParagraph f, string t, double size)
         {
             var l = LayOut(f, f.Runs, t, [], size);
-            var shift = l.Check.Box.Right > f.Right ? f.Right - l.Check.Box.Right : l.Check.Box.X < f.Left ? f.Left - l.Check.Box.X : 0;
+            var box = l.Check.Box;
+            if (box.Bottom > wideBottom + 0.5 || box.Width > Math.Max(f.Right, f.Box.Right) - Math.Min(f.Left, f.Box.X) + 2) return null;
+            var shift = box.Right > f.Right ? f.Right - box.Right : box.X < f.Left ? f.Left - box.X : 0;
             if (Math.Abs(shift) < 0.01 || !double.IsFinite(shift)) return l;
             var moved = f with { };
             moved.Center = f.Center + shift;
@@ -567,8 +583,10 @@ public static partial class ContentEditor
                 if (best.Check.Missing.Count > 0) return (best, 1, false, dropped);
             }
             var box = best.Check.Box;
-            if (Inside(best, framed)) return (best, fit, true, dropped);
-            if (wide is not null && Moved(wide, text, fit) is { } off && Inside(off, wide)) return (off, fit, true, dropped);
+            if (Inside(best, framed, bottom)) return (best, fit, true, dropped);
+            // Only when it wraps or runs past its room: one line that is only too tall is as tall in the wider room.
+            if (wide is not null && (best.Lines.Count > 1 || box.Right > Math.Max(framed.Right, framed.Box.Right) + 1 || box.X < Math.Min(framed.Left, framed.Box.X) - 1)
+                && Moved(wide, text, fit) is { } off && Inside(off, wide, wideBottom)) return (off, fit, true, dropped);
             if (fit <= smallest || tries > 2 / FitStep) return (best, fit, false, dropped);
             // Far too tall: text takes room with the square of its size, so jump near where it will fit.
             var ratio = (bottom - framed.Box.Y) / Math.Max(1, box.Bottom - framed.Box.Y);
@@ -577,7 +595,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>A paragraph's new text laid out in its room (<see cref="Room"/>, <see cref="FitText"/>), before it is written.</summary>
-    private sealed record Laid(string Text, TextParagraph Framed, double Bottom, TextParagraph? Wide, ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped);
+    private sealed record Laid(string Text, TextParagraph Framed, double Bottom, TextParagraph? Wide, double WideBottom, ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped);
 
     /// <summary>A column's body text shrinks no further than this (of its size) to take the size another of its paragraphs needs.</summary>
     private const double ColumnFloor = 0.8;
@@ -585,32 +603,45 @@ public static partial class ContentEditor
     /// <summary>
     /// Body text in one column comes out in one size: its paragraphs (two lines or more, not in a table cell, in the same
     /// font, size and color, starting at the same left edge) all take the size the one that shrank most needs, but no smaller
-    /// than <see cref="ColumnFloor"/>; one that needs less keeps its own. A paragraph that wouldn't fit at that size keeps its own too.
+    /// than <see cref="ColumnFloor"/>; one that needs less keeps its own. A paragraph that fits nowhere (written at the
+    /// smallest size and flagged) sets no size for the rest; one that wouldn't fit at the column's size keeps its own.
     /// </summary>
     private static void OneSizePerColumn(List<TranslationSlot> slots, Laid?[] laid, CancellationToken cancel)
     {
-        // Grouped by the column's left edge (to 3 pt) and the text's look: no paragraph is compared with every other.
-        var columns = new Dictionary<(double, double, int, string), List<int>>();
+        // Grouped by the text's look, then by left edge: no paragraph is compared with every other.
+        var looks = new Dictionary<(double, int, string), List<int>>();
         for (var i = 0; i < slots.Count; i++)
         {
             var p = slots[i].Paragraph;
             if (laid[i] is null || slots[i].Cell is not null || p.Lines.Count < 2 || p.Upright is not null) continue;
             if (!double.IsFinite(p.Left) || !(p.Lead.FontSize > 0) || !double.IsFinite(p.Lead.FontSize)) continue;
-            var key = (Math.Floor(p.Left / 3 + 0.5), Math.Round(p.Lead.FontSize * 20), p.Lead.Color, FontNames.Family(p.Lead.FontName));
-            if (!columns.TryGetValue(key, out var list)) columns[key] = list = [];
+            var key = (Math.Round(p.Lead.FontSize * 20), p.Lead.Color, FontNames.Family(p.Lead.FontName));
+            if (!looks.TryGetValue(key, out var list)) looks[key] = list = [];
             list.Add(i);
         }
-        foreach (var column in columns.Values)
+        foreach (var look in looks.Values)
         {
-            cancel.ThrowIfCancellationRequested();
-            if (column.Count < 2) continue;
-            var size = Math.Max(ColumnFloor, column.Min(i => laid[i]!.Fit));
-            foreach (var i in column)
+            // A column: left edges each within 3 pt of the one before, from left to right (73.4 and 73.6 pt are one).
+            look.Sort((a, b) => slots[a].Paragraph.Left.CompareTo(slots[b].Paragraph.Left));
+            for (int from = 0, to = 1; from < look.Count; from = to++)
+            {
+                while (to < look.Count && slots[look[to]].Paragraph.Left - slots[look[to - 1]].Paragraph.Left <= 3) to++;
+                cancel.ThrowIfCancellationRequested();
+                OneSize(look.GetRange(from, to - from));
+            }
+        }
+
+        void OneSize(List<int> column)
+        {
+            var fitting = column.Where(i => laid[i]!.Fits).ToList();
+            if (column.Count < 2 || fitting.Count == 0) return;
+            var size = Math.Max(ColumnFloor, fitting.Min(i => laid[i]!.Fit));
+            foreach (var i in fitting)
             {
                 var was = laid[i]!;
                 if (was.Fit <= size + 1e-6) continue;
-                var (layout, fit, fits, dropped) = FitText(was.Framed, was.Bottom, was.Text, was.Wide, size);
-                if (fits && layout.Check.Missing.Count == 0 && layout.Lines.Count > 0) laid[i] = was with { Layout = layout, Fit = fit, Fits = true, Dropped = dropped };
+                var (layout, fit, fits, dropped) = FitText(was.Framed, was.Bottom, was.Text, was.Wide, was.WideBottom, size);
+                if (fits && fit >= size - 1e-6 && layout.Check.Missing.Count == 0 && layout.Lines.Count > 0) laid[i] = was with { Layout = layout, Fit = fit, Fits = true, Dropped = dropped };
             }
         }
     }
@@ -974,14 +1005,14 @@ public static partial class ContentEditor
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_TooLongForBox));
                 continue;
             }
-            var (framed, bottom, wide) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
-            var (layout, fit, fits, dropped) = FitText(framed, bottom, text, wide);
+            var (framed, bottom, wide, wideBottom) = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, walk.PaintsCut ? null : walk.Paints);
+            var (layout, fit, fits, dropped) = FitText(framed, bottom, text, wide, wideBottom);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));
                 continue;
             }
-            laid[i] = new Laid(text, framed, bottom, wide, layout, fit, fits, dropped);
+            laid[i] = new Laid(text, framed, bottom, wide, wideBottom, layout, fit, fits, dropped);
         }
         OneSizePerColumn(slots, laid, cancel);
 
