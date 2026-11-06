@@ -148,6 +148,17 @@ struct TransportTests {
         #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
     }
 
+    /// CI's busy runner read a listening port as closed (2026-11-06): the connection's `.ready` waited for a thread of
+    /// GCD's pool and the timeout, on Swift's clock, came first. With the pool held, the port is still found in time.
+    @Test func aListeningPortIsFoundWhileThePoolIsBusy() async throws {
+        let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n" }
+        defer { server.stop() }
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        #expect(try await SocketNetworkScanner().isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
+    }
+
     @Test func theScannerSearchesNoLoopbackOrTunnel() {
         for net in SocketNetworkScanner().localNetworks() {
             #expect(!net.address.hasPrefix("127."))
