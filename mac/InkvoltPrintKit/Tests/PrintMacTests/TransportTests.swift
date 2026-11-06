@@ -27,6 +27,18 @@ struct TransportTests {
         #expect(ContinuousClock.now - started < .seconds(2))
     }
 
+    /// 21.9 s once on CI's busy runner for a 300 ms timeout (2026-11-06, the test above): the exchange waited for a thread
+    /// of GCD's pool before its clock started. With the pool held, no reply still ends at the timeout.
+    @Test func snmpsNoReplyTimeoutDoesntWaitForABusyPool() async throws {
+        let hold = PoolHold(atMost: 4)
+        defer { hold.release() }
+        try await Task.sleep(for: .milliseconds(300)) // GCD takes a moment to give the hold its threads
+        let started = ContinuousClock.now
+        let reply = try await PortSnmp(port: 9).send([0x30, 0x00], to: "127.0.0.1", timeout: .milliseconds(300))
+        #expect(reply == nil)
+        #expect(ContinuousClock.now - started < .seconds(2), "took \(ContinuousClock.now - started)")
+    }
+
     @Test func snmpStopsWaitingWhenCancelled() async throws {
         let server = try UdpServer { _ in nil } // never answers
         defer { server.stop() }
