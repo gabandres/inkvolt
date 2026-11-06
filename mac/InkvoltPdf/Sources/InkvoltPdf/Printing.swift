@@ -8,19 +8,66 @@ import PrintCore
 /// (`PrinterStatusLookup`; a warning in red when it is offline or has an error) with a button that opens Inkvolt Print.
 /// Windows asks "Print anyway?" after its dialog closes; AppKit's print operation runs the panel and the job in one call
 /// with no step between them, so here the warning is in the panel, before Print is pressed. The sheets are laid out by
-/// `PrintPlan` and drawn by `PrintSheetView`, each page rendered by the engine for the paper (300 dpi; the panel's preview
-/// at the screen's).
+/// `PrintPlan` and drawn by `PrintSheetView`: on paper each page as vectors from the core's `PrintCopy` (text stays text,
+/// jobs stay small), a page the copy can't draw as MuPDF shows it as a picture the engine renders (300 dpi); the panel's
+/// preview is always the engine's pictures (at the screen's resolution). The copy is made before the panel opens, off
+/// the main thread (`preparePrint`: a sheet with Cancel when it takes a while), never by the preview or the job.
 extension DocumentWindowController {
-    /// The print operation for this window's document (the panel shown by NSDocument's printDocument).
-    func printOperation(_ info: NSPrintInfo) -> NSPrintOperation {
+    /// The print copy made for the next print operation, and the engine whose bytes it was made from.
+    struct PreparedPrint {
+        let engine: PdfEngine
+        let copy: PrintSheetView.Prepared?
+    }
+
+    /// Makes the print copy for the next print operation off the main thread, with a sheet and Cancel when it takes
+    /// over 0.3 s (`progress`); false when cancelled (nothing prints). A copy that can't be made prints pictures.
+    func preparePrint(progress: Bool = true) async -> Bool {
+        let printed = layerEngine ?? engine
+        guard let session = pdf.session else {
+            preparedPrint = PreparedPrint(engine: printed, copy: nil)
+            return true
+        }
+        // The layers chosen in the Layers pane print as they show (E9), as on Windows: the copy is made from the bytes
+        // the layer engine draws, made again here rather than kept beside the document's.
+        let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layerEngine == nil ? [:] : layerVisibility)
+        let shown = PrintSheetView.shownSizes(printed)
+        let sheet = ProgressSheet(title: "Print", text: "Getting the pages ready for the printer…")
+        let token = sheet.token
+        let work = Task.detached { PrintSheetView.prepare(source, shown: shown, cancel: token) }
+        let reveal = Task { @MainActor [weak self] in
+            try await Task.sleep(for: .milliseconds(300))
+            guard progress, let self, self.progressSheet == nil else { return }
+            self.progressSheet = sheet
+            sheet.begin(on: self.window)
+        }
+        let copy = await work.value
+        reveal.cancel()
+        if progressSheet === sheet {
+            sheet.end()
+            progressSheet = nil
+        }
+        if sheet.cancelled { return false }
+        preparedPrint = PreparedPrint(engine: printed, copy: copy)
+        return true
+    }
+
+    /// The copy `preparePrint` made, once (nil when there is none, or it was made from other bytes than `printed`'s).
+    func takePreparedPrint(_ printed: PdfEngine) -> PrintSheetView.Prepared? {
+        defer { preparedPrint = nil }
+        guard let preparedPrint, preparedPrint.engine === printed else { return nil }
+        return preparedPrint.copy
+    }
+
+    /// The print operation for this window's document (the panel shown by NSDocument's printDocument), drawing on
+    /// paper from `copy` (none: every page a picture).
+    func printOperation(_ info: NSPrintInfo, copy: PrintSheetView.Prepared? = nil) -> NSPrintOperation {
         info.topMargin = 0
         info.bottomMargin = 0
         info.leftMargin = 0
         info.rightMargin = 0
-        // The layers chosen in the Layers pane print as they show (E9), as on Windows.
         let printed = layerEngine ?? engine
         let options = PrintOptions(pageCount: printed.pageCount, preset: printPreset())
-        let view = PrintSheetView(engine: printed, options: options, info: info)
+        let view = PrintSheetView(engine: printed, options: options, info: info, copy: copy)
         let operation = NSPrintOperation(view: view, printInfo: info)
         operation.jobTitle = pdf.name
         operation.showsPrintPanel = true
@@ -37,20 +84,36 @@ extension DocumentWindowController {
         return chosen.count > 1 || organizerShown ? PageRange.format(chosen) : ""
     }
 
-    /// Prints to a PDF file instead of a printer (the self-test: never a real printer job), with these options; the
-    /// number of sheets laid out comes back.
-    func printToFile(_ url: URL, setup: PrintSetup, range: String) -> Int {
+    /// What `printToFile` printed: sheets laid out (-1 when the job failed), and pages drawn as vectors or as pictures.
+    struct PrintedToFile {
+        var sheets = -1
+        var vectors = 0
+        var pictures = 0
+        /// Why pages printed as pictures (page index → reason).
+        var reasons: [Int: String] = [:]
+    }
+
+    /// Prints to a PDF file instead of a printer (the self-test: never a real printer job), with these options;
+    /// `pictures`: every page as a picture, as before vector printing (to compare).
+    func printToFile(_ url: URL, setup: PrintSetup, range: String, pictures: Bool = false) async -> PrintedToFile {
         let info = (pdf.printInfo.copy() as! NSPrintInfo)
         info.jobDisposition = .save
         info.dictionary().setObject(url, forKey: NSPrintInfo.AttributeKey.jobSavingURL.rawValue as NSString)
-        let operation = printOperation(info)
-        guard let view = operation.view as? PrintSheetView else { return -1 }
+        var copy: PrintSheetView.Prepared?
+        if !pictures {
+            guard await preparePrint(progress: false) else { return PrintedToFile() }
+            copy = takePreparedPrint(layerEngine ?? engine)
+        }
+        let operation = printOperation(info, copy: copy)
+        guard let view = operation.view as? PrintSheetView else { return PrintedToFile() }
         view.options.setup = setup
         view.options.range = range
+        view.picturesOnly = pictures
         operation.showsPrintPanel = false
         operation.showsProgressPanel = false
-        guard operation.run() else { return -1 }
-        return view.plan.sheetCount
+        guard operation.run() else { return PrintedToFile() }
+        return PrintedToFile(sheets: view.plan.sheetCount, vectors: view.drawnAsVectors, pictures: view.drawnAsPictures,
+                             reasons: view.pictureReasons)
     }
 }
 
@@ -88,22 +151,67 @@ final class PrintOptions {
     }
 }
 
+/// The print copy's bytes, held for Core Graphics' data provider while its document lives (read-only).
+private final class PrintCopyBytes: @unchecked Sendable {
+    let bytes: [UInt8]
+    init(_ bytes: [UInt8]) { self.bytes = bytes }
+}
+
 /// The sheets of a print job, one under the other (flipped: y down, as the core's paper coordinates): AppKit asks how
 /// many there are and draws each one in its rectangle.
 final class PrintSheetView: NSView {
+    /// What the print copy is made from: the document's bytes and password, and the layers the Layers pane shows
+    /// differently (by object number; empty: the document's own), so the copy has the bytes `engine` draws.
+    struct Source: Sendable {
+        var data: [UInt8]
+        var password: String?
+        var layers: [Int: Bool]
+    }
+
+    /// The print copy as Core Graphics opened it (nil when no page prints as vectors), and how each page prints.
+    struct Prepared: @unchecked Sendable {
+        let document: CGPDFDocument?
+        let pages: [PrintedPage]
+    }
+
+    /// Where a placed page is in the job (its sheet and its place on it), so a page AppKit draws in parts counts once.
+    private struct Slot: Hashable {
+        let sheet: Int
+        let index: Int
+    }
+
     let engine: PdfEngine
     let options: PrintOptions
     private let fallbackInfo: NSPrintInfo
     private(set) var plan: PrintPlan
     private var paper = NSSize(width: 612, height: 792)
     private let sizes: [(Double, Double)]
+    /// Made before the job (`DocumentWindowController.preparePrint`); nil: every page prints as a picture.
+    private let copy: Prepared?
+    var hasCopy: Bool { copy != nil }
+    /// Every page as a picture (the self-test's comparison with how pages printed before).
+    var picturesOnly = false
+    /// Pages (or poster tiles) drawn on paper as vectors and as pictures in this job, each once.
+    private(set) var drawnAsVectors = 0
+    private(set) var drawnAsPictures = 0
+    private var counted = Set<Slot>()
+    /// Why pages this job drew on paper are pictures (page index → reason), for the self-test.
+    private(set) var pictureReasons: [Int: String] = [:]
+    /// The reason when the job had no print copy at all.
+    static let noCopy = "no print copy"
+
+    /// Each page's size as `engine` shows it (rotation applied): what the copy's pages must match.
+    static func shownSizes(_ engine: PdfEngine) -> [(Double, Double)] {
+        (0..<engine.pageCount).map { (engine.page($0).width, engine.page($0).height) }
+    }
 
     @MainActor
-    init(engine: PdfEngine, options: PrintOptions, info: NSPrintInfo) {
+    init(engine: PdfEngine, options: PrintOptions, info: NSPrintInfo, copy: Prepared? = nil) {
         self.engine = engine
         self.options = options
+        self.copy = copy
         fallbackInfo = info
-        let sizes: [(Double, Double)] = (0..<engine.pageCount).map { (engine.page($0).width, engine.page($0).height) }
+        let sizes = Self.shownSizes(engine)
         self.sizes = sizes
         plan = PrintPlan([], { i in sizes[i] }, RectD(0, 0, 612, 792), PrintSetup())
         super.init(frame: NSRect(x: 0, y: 0, width: 612, height: 792))
@@ -146,8 +254,8 @@ final class PrintSheetView: NSView {
         let top: CGFloat = CGFloat(index) * paper.height
         let sheet = plan.sheet(index)
         let screen = ctx.isDrawingToScreen
-        for placed in sheet.pages where placed.page >= 0 {
-            draw(placed, top: top, screen: screen, cg: ctx.cgContext)
+        for (i, placed) in sheet.pages.enumerated() where placed.page >= 0 {
+            draw(placed, Slot(sheet: index, index: i), top: top, screen: screen, cg: ctx.cgContext)
         }
         if sheet.borders {
             NSColor.black.setStroke()
@@ -173,8 +281,111 @@ final class PrintSheetView: NSView {
         NSRect(x: box.x, y: Double(top) + box.y, width: box.width, height: box.height)
     }
 
-    /// One page (or part of one) in its box, turned a quarter clockwise when the layout says so.
-    private func draw(_ placed: PlacedPage, top: CGFloat, screen: Bool, cg: CGContext) {
+    /// The print copy for a job (off the main thread, before it starts): the core's `PrintCopy` of `source`, opened by
+    /// Core Graphics (MuPDF's rewrite of it when it can't open the document's own bytes), each page checked against
+    /// how Core Graphics reads its box and turn. Nil when cancelled, or when it couldn't be made or read (every page
+    /// prints as a picture).
+    nonisolated static func prepare(_ source: Source, shown: [(Double, Double)], cancel: CancelToken?) -> Prepared? {
+        do {
+            var bytes = source.data, password = source.password
+            if !source.layers.isEmpty {
+                let layered = try Layers.withVisibility(bytes, password, source.layers)
+                if layered != bytes { (bytes, password) = (layered, nil) } // written decrypted
+            }
+            var made = try PrintCopy.make(bytes, password, shown: shown, cancel: cancel)
+            guard made.hasVectors else { return Prepared(document: nil, pages: made.pages) }
+            var document = open(made.data)
+            if document == nil && !made.rewritten {
+                made = try made.rewrittenByMuPDF()
+                document = open(made.data)
+            }
+            if cancel?.isCancelled == true { return nil }
+            guard let document, document.numberOfPages == shown.count else {
+                NSLog("Inkvolt PDF printing: Core Graphics couldn't read the print copy; pages print as pictures")
+                return nil
+            }
+            return Prepared(document: document, pages: made.checked { i in box(document.page(at: i + 1)) })
+        } catch is CancellationError {
+            return nil
+        } catch {
+            NSLog("Inkvolt PDF printing: no print copy (%@); pages print as pictures", String(describing: error))
+            return nil
+        }
+    }
+
+    /// A page's visible box (its crop box clipped to its media box) and turn as Core Graphics reads them.
+    nonisolated private static func box(_ page: CGPDFPage?) -> PageBox? {
+        guard let page else { return nil }
+        let visible = page.getBoxRect(.cropBox).intersection(page.getBoxRect(.mediaBox))
+        guard !visible.isNull, visible.width > 0, visible.height > 0 else { return nil }
+        let x1 = Double(visible.minX), y1 = Double(visible.minY)
+        return PageBox(x1, y1, Double(visible.maxX), Double(visible.maxY), rotation: Int(page.rotationAngle))
+    }
+
+    /// Core Graphics opens the copy reading its bytes where they are (`Data(bytes)` would hold a second copy of them).
+    nonisolated private static func open(_ bytes: [UInt8]) -> CGPDFDocument? {
+        guard !bytes.isEmpty else { return nil }
+        let info = Unmanaged.passRetained(PrintCopyBytes(bytes))
+        var callbacks = CGDataProviderDirectCallbacks(
+            version: 0, getBytePointer: nil, releaseBytePointer: nil,
+            getBytesAtPosition: { info, buffer, position, count in
+                guard let info else { return 0 }
+                let bytes = Unmanaged<PrintCopyBytes>.fromOpaque(info).takeUnretainedValue().bytes
+                guard position >= 0, position < off_t(bytes.count) else { return 0 }
+                let start = Int(position)
+                let n = min(count, bytes.count - start)
+                bytes.withUnsafeBytes { all in buffer.copyMemory(from: all.baseAddress! + start, byteCount: n) }
+                return n
+            },
+            releaseInfo: { info in
+                if let info { Unmanaged<PrintCopyBytes>.fromOpaque(info).release() }
+            })
+        guard let provider = CGDataProvider(directInfo: info.toOpaque(), size: off_t(bytes.count), callbacks: &callbacks) else {
+            info.release()
+            return nil
+        }
+        guard let document = CGPDFDocument(provider) else { return nil }
+        return document.isUnlocked ? document : nil
+    }
+
+    /// Why a page drawn on paper is a picture: the copy's reason, or that Core Graphics had no page or no copy.
+    private func pictureReason(_ page: Int) -> String {
+        guard let copy, page < copy.pages.count else { return Self.noCopy }
+        if case .picture(let why) = copy.pages[page] { return why }
+        return "Core Graphics couldn't read the page"
+    }
+
+    /// One page (or part of one) in its box: on paper as vectors when the copy has it so, else as a picture.
+    private func draw(_ placed: PlacedPage, _ slot: Slot, top: CGFloat, screen: Bool, cg: CGContext) {
+        let first = !screen && counted.insert(slot).inserted
+        if !screen, !picturesOnly, let copy, let document = copy.document, placed.page < copy.pages.count,
+           case .vector(let toPage) = copy.pages[placed.page], let page = document.page(at: placed.page + 1) {
+            drawVector(page, toPage, placed, top: top, cg: cg)
+            if first { drawnAsVectors += 1 }
+            return
+        }
+        if first {
+            drawnAsPictures += 1
+            if !picturesOnly { pictureReasons[placed.page] = pictureReason(placed.page) }
+        }
+        drawPicture(placed, top: top, screen: screen, cg: cg)
+    }
+
+    /// The copy's page drawn by Core Graphics through the core's matrices (its PDF space → page space → the paper),
+    /// clipped to its box (a poster tile shows only its part).
+    private func drawVector(_ page: CGPDFPage, _ toPage: Affine, _ placed: PlacedPage, top: CGFloat, cg: CGContext) {
+        let size = sizes[placed.page]
+        let onSheet = Affine(1, 0, 0, 1, 0, Double(top))
+        let m = toPage.then(PrintLayout.toPaper(placed, size.0, size.1)).then(onSheet)
+        cg.saveGState()
+        cg.clip(to: rect(placed.box, top))
+        cg.concatenate(CGAffineTransform(a: m.a, b: m.b, c: m.c, d: m.d, tx: m.tx, ty: m.ty))
+        cg.drawPDFPage(page)
+        cg.restoreGState()
+    }
+
+    /// One page (or part of one) rendered by the engine in its box, turned a quarter clockwise when the layout says so.
+    private func drawPicture(_ placed: PlacedPage, top: CGFloat, screen: Bool, cg: CGContext) {
         let size = sizes[placed.page]
         let source = placed.source ?? RectD(0, 0, size.0, size.1)
         let turned = placed.turns % 2 == 1

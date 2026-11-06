@@ -10,6 +10,8 @@ public struct FlattenOptions: Equatable, Sendable {
     public var links = false
     /// Draw only annotations meant to print (/F Print flag); the others are removed without a trace.
     public var printableOnly = false
+    /// Signature fields are drawn and removed too (the print copy only: their signatures no longer verify).
+    var signatureFields = false
 
     public init(annotations: Bool = true, formFields: Bool = true, links: Bool = false, printableOnly: Bool = false) {
         self.annotations = annotations
@@ -22,16 +24,31 @@ public struct FlattenOptions: Equatable, Sendable {
 /// Flattening (the Windows app's `Flattener`): each annotation's normal appearance (/AP /N, the /AS state for check
 /// boxes and radios) is drawn into its page's content as a form XObject, mapped onto the annotation's /Rect the way
 /// viewers do (ISO 32000-2 12.5.5: the /BBox transformed by the /Matrix, fitted to the /Rect), with its opacity (/CA)
-/// and layer (/OC); then the annotation is removed. Hidden annotations (Hidden, NoView flags) are removed without being
-/// drawn. Text and choice fields without an appearance (or with /NeedAppearances) get one generated first. Pages change,
+/// and layer (/OC); then the annotation is removed. What the screen doesn't show (`Look.nothing`: popups, the Invisible,
+/// Hidden and NoView flags, a widget of no field, a /Rect without area) is removed without being drawn, as is what has
+/// no appearance of its own to draw. Text and choice fields without an appearance (or with /NeedAppearances) get one generated first. Pages change,
 /// which no signature permits, so a signed document needs the caller's consent (`SignedEdits.run` with the rewrite
 /// allowed).
 public enum Flattener {
-    private static let flagHidden = 2, flagPrint = 4, flagNoView = 32
+    private static let flagInvisible = 1, flagHidden = 2, flagPrint = 4, flagNoView = 32
 
     /// - Throws: `SignaturesWouldBreak` when the document is signed and the rewrite wasn't allowed; `OwnerPasswordRequired`.
     public static func flatten(_ data: [UInt8], _ password: String?, _ options: FlattenOptions = FlattenOptions()) throws -> [UInt8] {
         let doc = try PdfEdit.open(data, password)
+        let touched = try flattenPages(doc, options) {
+            try SignedEdits.requireRewrite(data, reason: "flattening changes page content, which no signature permits")
+        }
+        if !touched { return data }
+        InfoDict.setDate(doc, "ModDate", Date())
+        try doc.checkFailure()
+        return try PdfEdit.save(doc, original: data, password: password, rewrite: true)
+    }
+
+    /// Flattens `doc` in place (what `flatten` does before saving it; `PrintCopy` too). `beforeChange` runs once, before
+    /// the first page changes; `appearancesReady`: the form fields already have their appearances. False when nothing
+    /// was flattened.
+    static func flattenPages(_ doc: MuDoc, _ options: FlattenOptions, appearancesReady: Bool = false, cancel: CancelToken? = nil,
+                             beforeChange: () throws -> Void = {}) throws -> Bool {
         let catalog = doc.catalog
         let acro = catalog.dict("AcroForm")
         var removed = Set<UInt>()
@@ -41,13 +58,15 @@ public enum Flattener {
         let pages = try doc.pages()
 
         for page in pages {
+            try cancel.check()
             guard page.array("Annots") != nil else { continue }
             let annots = doc.annots(page) // the page's own array, if pages share one
             var take: [PObj] = []
             for a in annots.elements where a.isDict {
                 let flatten: Bool
                 switch a.name("Subtype") {
-                case "Widget": flatten = options.formFields && FormEditor.inherited(a, "FT")?.name != "Sig"
+                case "Widget":
+                    flatten = options.formFields && (options.signatureFields || FormEditor.inherited(a, "FT")?.name != "Sig")
                 case "Link": flatten = options.links
                 default: flatten = options.annotations
                 }
@@ -55,8 +74,8 @@ public enum Flattener {
             }
             if take.isEmpty { continue }
             if !pagesTouched {
-                try SignedEdits.requireRewrite(data, reason: "flattening changes page content, which no signature permits")
-                if options.formFields, let acro { try FormEditor.ensureAppearances(doc, acro) }
+                try beforeChange()
+                if options.formFields, !appearancesReady, let acro { try FormEditor.ensureAppearances(doc, acro) }
                 pagesTouched = true
             }
 
@@ -73,7 +92,7 @@ public enum Flattener {
             if annots.count == 0 { page.remove("Annots") }
             if !ops.isEmpty { appendContent(doc, page, ops) }
         }
-        if !pagesTouched { return data }
+        if !pagesTouched { return false }
 
         // Annotations that stay must not point at removed ones (a popup's /Parent, a reply's /IRT, a markup's /Popup).
         for page in pages {
@@ -86,9 +105,63 @@ public enum Flattener {
 
         if !widgets.isEmpty, let acro { removeFields(catalog, acro, widgets, &removed) }
         if !removed.isEmpty { StructTree.prune(doc, gonePages: [], goneKeys: removedKeys) { removed.contains($0.identity) } }
-        InfoDict.setDate(doc, "ModDate", Date())
-        try doc.checkFailure()
-        return try PdfEdit.save(doc, original: data, password: password, rewrite: true)
+        return true
+    }
+
+    /// How an annotation shows on screen, read the way MuPDF 1.25 draws it (pdf_process_annot after the appearances it
+    /// makes up when a page loads), and so how flattening draws it: one rule for both, so a flattened page shows what
+    /// the screen does, never more or less.
+    enum Look {
+        /// MuPDF draws nothing, and neither does flattening: a link or popup; marked Invisible, Hidden or NoView; a
+        /// widget of no field (no /FT or /T); a /Rect without width or height.
+        case nothing
+        /// Its own appearance (a form XObject), mapped onto its /Rect by `toRect` (ISO 32000-2 12.5.5's matrix A).
+        case own(PObj, toRect: Affine)
+        /// MuPDF draws something flattening can't: an appearance it makes up (none of the annotation's own, an
+        /// /AS state its appearances lack, an unsigned signature's "sign here" box), or one that can't be fitted to
+        /// the /Rect (a box without width or height, numbers that aren't).
+        case madeUp
+    }
+
+    static func look(_ annot: PObj) -> Look {
+        let subtype = annot.name("Subtype")
+        if subtype == "Link" || subtype == "Popup" { return .nothing }
+        if (annot.int("F") ?? 0) & (flagInvisible | flagHidden | flagNoView) != 0 { return .nothing }
+        let widget = subtype == "Widget"
+        if widget && (FormEditor.inherited(annot, "FT") == nil || FormEditor.inherited(annot, "T") == nil) { return .nothing }
+        guard let r = annot.array("Rect"), r.count >= 4 else { return .madeUp }
+        let rx1 = min(r.num(0), r.num(2)), ry1 = min(r.num(1), r.num(3))
+        let rx2 = max(r.num(0), r.num(2)), ry2 = max(r.num(1), r.num(3))
+        guard rx1.isFinite, ry1.isFinite, rx2.isFinite, ry2.isFinite else { return .madeUp }
+        if rx2 - rx1 <= 1e-6 || ry2 - ry1 <= 1e-6 { return .nothing }
+        if widget && FormEditor.inherited(annot, "FT")?.name == "Sig" && !signed(annot) { return .madeUp }
+        guard let form = appearance(annot), form.isRef, let bb = form.array("BBox"), bb.count >= 4 else { return .madeUp }
+        let (bx1, by1, bx2, by2) = transformedBox(form, bb)
+        guard bx1.isFinite, by1.isFinite, bx2.isFinite, by2.isFinite, bx2 - bx1 > 1e-6, by2 - by1 > 1e-6 else { return .madeUp }
+        let sx: Double = (rx2 - rx1) / (bx2 - bx1)
+        let sy: Double = (ry2 - ry1) / (by2 - by1)
+        return .own(form, toRect: Affine(sx, 0, 0, sy, rx1 - bx1 * sx, ry1 - by1 * sy))
+    }
+
+    /// A signature field with a signature in it (MuPDF's pdf_signature_is_signed: its value a dictionary, of /Type
+    /// /Sig when it says).
+    private static func signed(_ widget: PObj) -> Bool {
+        guard let v = FormEditor.inherited(widget, "V"), v.isDict else { return false }
+        guard let type = v["Type"] else { return true }
+        return type.name == "Sig"
+    }
+
+    /// Whether MuPDF shows `annot` with an appearance flattening can't draw: a page carrying one prints as a picture
+    /// (`PrintCopy`).
+    static func showsWithoutAppearance(_ annot: PObj) -> Bool {
+        if case .madeUp = look(annot) { return true }
+        return false
+    }
+
+    /// Whether MuPDF shows anything for `annot` on screen.
+    static func shows(_ annot: PObj) -> Bool {
+        if case .nothing = look(annot) { return false }
+        return true
     }
 
     /// Takes the flattened widgets out of the form; a form left without fields goes entirely.
@@ -104,20 +177,10 @@ public enum Flattener {
         if (acro.array("Fields")?.count ?? 0) == 0 { catalog.remove("AcroForm") }
     }
 
-    /// Appends the drawing of `annot`'s normal appearance to `ops`, if it shows.
+    /// Appends the drawing of `annot`'s normal appearance to `ops`, if it shows as its own (`look`).
     private static func draw(_ doc: MuDoc, _ page: PObj, _ annot: PObj, _ options: FlattenOptions, _ ops: inout String) {
-        let flags = annot.int("F") ?? 0
-        if flags & (flagHidden | flagNoView) != 0 || (options.printableOnly && flags & flagPrint == 0) { return }
-        guard let form = appearance(annot), form.isRef, let r = annot.array("Rect"), r.count >= 4,
-              let bb = form.array("BBox"), bb.count >= 4 else { return }
-
-        let rx1 = min(r.num(0), r.num(2)), ry1 = min(r.num(1), r.num(3))
-        let rx2 = max(r.num(0), r.num(2)), ry2 = max(r.num(1), r.num(3))
-        let (bx1, by1, bx2, by2) = transformedBox(form, bb)
-        if bx2 - bx1 <= 1e-6 || by2 - by1 <= 1e-6 || rx2 - rx1 <= 1e-6 || ry2 - ry1 <= 1e-6 { return }
-        // Matrix A of 12.5.5: maps the transformed bounding box onto the rectangle.
-        let sx = (rx2 - rx1) / (bx2 - bx1)
-        let sy = (ry2 - ry1) / (by2 - by1)
+        if options.printableOnly && (annot.int("F") ?? 0) & flagPrint == 0 { return }
+        guard case .own(let form, let m) = look(annot) else { return }
 
         form.set("Type", doc.name("XObject"))
         form.set("Subtype", doc.name("Form"))
@@ -134,7 +197,7 @@ public enum Flattener {
             let gs = doc.dict([("Type", doc.name("ExtGState")), ("CA", doc.real(v)), ("ca", doc.real(v))])
             ops += "/\(add(doc, resources, "ExtGState", "FlatGS", gs)) gs\n"
         }
-        ops += "\(PdfNum.f(sx)) 0 0 \(PdfNum.f(sy)) \(PdfNum.f(rx1 - bx1 * sx)) \(PdfNum.f(ry1 - by1 * sy)) cm /\(name) Do\nQ\n"
+        ops += "\(PdfNum.f(m.a)) 0 0 \(PdfNum.f(m.d)) \(PdfNum.f(m.tx)) \(PdfNum.f(m.ty)) cm /\(name) Do\nQ\n"
         if oc != nil { ops += "EMC\n" }
     }
 

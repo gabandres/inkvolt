@@ -168,13 +168,37 @@ final class PdfDocument: NSDocument {
 
     // MARK: Printing
 
-    /// File › Print…: the window's print operation (its pages through the core's print layout).
+    /// Every print request (File › Print…, a form's print action, Finder's Print): the print copy is made first, off the
+    /// main thread (`preparePrint`, with a sheet and Cancel when it takes a while), then the panel opens as NSDocument
+    /// does it; Cancel prints nothing.
+    override func print(withSettings printSettings: [NSPrintInfo.AttributeKey: Any], showPrintPanel: Bool, delegate: Any?,
+                        didPrint didPrintSelector: Selector?, contextInfo: UnsafeMutableRawPointer?) {
+        let controller = MainActor.assumeIsolated { windowControllers.first as? DocumentWindowController }
+        guard let controller else {
+            return super.print(withSettings: printSettings, showPrintPanel: showPrintPanel, delegate: delegate,
+                               didPrint: didPrintSelector, contextInfo: contextInfo)
+        }
+        nonisolated(unsafe) let settings = printSettings
+        nonisolated(unsafe) let target = delegate
+        nonisolated(unsafe) let info = contextInfo
+        Task { @MainActor in
+            guard await controller.preparePrint() else { return }
+            self.printPrepared(settings, showPrintPanel, target, didPrintSelector, info)
+        }
+    }
+
+    private func printPrepared(_ settings: [NSPrintInfo.AttributeKey: Any], _ showPanel: Bool, _ delegate: Any?,
+                               _ didPrint: Selector?, _ contextInfo: UnsafeMutableRawPointer?) {
+        super.print(withSettings: settings, showPrintPanel: showPanel, delegate: delegate, didPrint: didPrint, contextInfo: contextInfo)
+    }
+
+    /// The window's print operation (its pages through the core's print layout), on paper from the copy `print` made.
     override func printOperation(withSettings printSettings: [NSPrintInfo.AttributeKey: Any]) throws -> NSPrintOperation {
         try MainActor.assumeIsolated {
             guard let controller = windowControllers.first as? DocumentWindowController else { throw CocoaError(.featureUnsupported) }
             let info = printInfo.copy() as! NSPrintInfo
             for (key, value) in printSettings { info.dictionary().setObject(value, forKey: key.rawValue as NSString) }
-            return controller.printOperation(info)
+            return controller.printOperation(info, copy: controller.takePreparedPrint(controller.layerEngine ?? controller.engine))
         }
     }
 

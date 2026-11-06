@@ -71,6 +71,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var layerChoice: [String: Bool] = [:]
     var layerTicket = 0
     var layerEngine: PdfEngine?
+    /// The layer states `layerEngine` was made with (printing makes its bytes again from them, not keeping a copy).
+    var layerVisibility: [Int: Bool] = [:]
+    /// The print copy `preparePrint` made for the print operation that follows.
+    var preparedPrint: PreparedPrint?
     var layersApplied = 0
     var lastSavedAttachment: URL?
     var lastProblem: String?

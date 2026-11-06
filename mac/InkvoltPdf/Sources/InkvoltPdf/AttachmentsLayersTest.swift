@@ -207,6 +207,23 @@ struct AttachmentsLayersTest {
         return Double(dark) / Double(max(1, img.width * img.height))
     }
 
+    /// Pixels of the layers' blue, red and green on page 1 of `engine` (closed after), at a quarter of its size.
+    private static func colors(_ engine: PdfEngine?) -> (blue: Int, red: Int, green: Int) {
+        guard let engine else { return (-1, -1, -1) }
+        defer { engine.close() }
+        guard engine.pageCount > 0, let img = try? engine.render(0, scale: 0.25) else { return (-1, -1, -1) }
+        var blue = 0, red = 0, green = 0
+        var i = 0
+        while i + 2 < img.pixels.count {
+            let r = Int(img.pixels[i]), g = Int(img.pixels[i + 1]), b = Int(img.pixels[i + 2])
+            if b > 180 && r < 90 && g < 90 { blue += 1 }
+            if r > 180 && g < 90 && b < 90 { red += 1 }
+            if g > 110 && r < 90 && b < 90 { green += 1 }
+            i += 3
+        }
+        return (blue, red, green)
+    }
+
     private mutating func layers() async {
         check(!controller.sidebar.showsLayers && menuItem("Show Layers") != nil, "a document without layers: the Layers segment is off")
         guard let doc = NewDocuments.open(Self.layeredPdf(), name: "Layered"),
@@ -236,6 +253,12 @@ struct AttachmentsLayersTest {
               "the file and its undo history are untouched; Reset and Save as Default turn on")
         let printed = (window.printOperation(NSPrintInfo()).view as? PrintSheetView)?.engine
         check(printed != nil && printed === window.layerEngine, "printing uses the layers shown")
+        // On paper as vectors (Core Graphics draws the copy made from the layer engine's bytes): blue gone, red there.
+        let paper = folder.appendingPathComponent("layers-printed.pdf")
+        let job = await window.printToFile(paper, setup: PrintSetup(), range: "")
+        let colors = Self.colors((try? Data(contentsOf: paper)).flatMap { try? PdfEngine.open([UInt8]($0)) })
+        check(job.sheets == 1 && job.vectors == 1 && job.pictures == 0 && colors.blue == 0 && colors.red > 0 && colors.green > 0,
+              "printed as vectors with the layers shown (pixels on paper: blue \(colors.blue), red \(colors.red), green \(colors.green))")
         // Export reads the same: the document with the layers as shown (Windows exports from its view engine).
         if let s = window.pdf.session {
             let exported = try? DocumentWindowController.exportEngine(s.data, s.password, window.shownLayerVisibility)

@@ -126,7 +126,7 @@ struct PagesTest {
         trace("document properties")
         await documentProperties()
         trace("print")
-        printing()
+        await printing()
         trace("printer status")
         await printerStatus()
         trace("close question")
@@ -134,6 +134,16 @@ struct PagesTest {
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("pages took \(Int(Date().timeIntervalSince(started))) s")
+    }
+
+    /// Printing alone (`--only-print`): to PDF files, as vectors and as pictures, and the panel's printer status.
+    mutating func runPrinting() async {
+        guard session != nil else { return Report.write("== \(name): print\nRESULT: FAIL (no session)") }
+        lines.append("== \(name): print (\(count) pages)")
+        await printing()
+        await printerStatus()
+        lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
+        Report.write(lines.joined(separator: "\n"))
     }
 
     // MARK: Links
@@ -623,7 +633,7 @@ struct PagesTest {
 
     // MARK: Print
 
-    private mutating func printing() {
+    private mutating func printing() async {
         let n = count
         let range = n <= 8 ? "" : "1-8"
         let chosen = min(n, 8)
@@ -638,9 +648,12 @@ struct PagesTest {
         ]
         var results: [String] = []
         var allOk = true
+        var pictured: [String] = []
+        var unexplained = false
         for (i, (label, setup, pagesTyped, expected)) in layouts.enumerated() {
             let url = path("print-\(i).pdf")
-            let sheets = controller.printToFile(url, setup: setup, range: pagesTyped)
+            let printed = await controller.printToFile(url, setup: setup, range: pagesTyped)
+            let sheets = printed.sheets
             var ok = false
             if let data = try? Data(contentsOf: url), let e = try? PdfEngine.open([UInt8](data)) {
                 let g = e.pageCount > 0 ? e.page(0) : PageGeometry(0, 0, 0, 0)
@@ -649,13 +662,114 @@ struct PagesTest {
                 ok = e.pageCount == sheets && sheets > 0 && sized && inked && (expected.map { $0 == sheets } ?? (sheets >= 4))
                 e.close()
             }
-            results.append("\(label): \(sheets) sheets")
+            results.append("\(label): \(sheets) sheets, \(printed.vectors) pages as vectors, \(printed.pictures) as pictures")
+            if printed.pictures > 0 {
+                let why = Set(printed.reasons.values).sorted()
+                pictured.append("\(label): \(why.joined(separator: "; "))")
+                if why.isEmpty || why.contains(PrintSheetView.noCopy) { unexplained = true }
+            }
             if !ok { allOk = false }
         }
         let operation = controller.printOperation(controller.pdf.printInfo.copy() as! NSPrintInfo)
         let accessory = operation.printPanel.accessoryControllers.contains { $0 is PrintAccessory }
         check(allOk && accessory, "printed to PDF files (no printer) on \(Int(paper.width))×\(Int(paper.height)) pt paper: "
               + results.joined(separator: "; ") + "; the print panel carries the Inkvolt options")
+        check(!unexplained, pictured.isEmpty ? "every page printed as vectors"
+              : "pages printed as vectors but where the print copy says why not (\(pictured.joined(separator: ", ")))")
+        // The copy is made before the panel (off the main thread), taken once by the operation that follows; an
+        // operation made without one (the panel's preview drawing) never makes it.
+        let unprepared = (operation.view as? PrintSheetView)?.hasCopy == false
+        let printed = controller.layerEngine ?? controller.engine
+        let prepared = await controller.preparePrint(progress: false)
+        let taken = controller.takePreparedPrint(printed)
+        let once = controller.takePreparedPrint(printed) == nil
+        check(unprepared && prepared && taken?.document != nil && once,
+              "the print copy is made before the print panel opens and taken once; an operation without it draws pictures")
+        await vectorsAgainstPictures(range: range)
+    }
+
+    /// The same pages printed as vectors (one per sheet, `print-0.pdf`) and as pictures, as before: the words of the
+    /// first page are text on paper only in the vector job, and it is much smaller.
+    private mutating func vectorsAgainstPictures(range: String) async {
+        let pictures = path("print-pictures.pdf")
+        let asPictures = await controller.printToFile(pictures, setup: PrintSetup(), range: range, pictures: true)
+        let size = { (url: URL) -> Int in ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int) ?? 0 }
+        let vectorBytes = size(path("print-0.pdf")), pictureBytes = size(pictures)
+        let source = (try? controller.engine.text(0))?.text ?? ""
+        let words = Array(Set(source.split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count >= 4 }).sorted().prefix(6))
+        func text(_ url: URL) -> String {
+            guard let data = try? Data(contentsOf: url), let e = try? PdfEngine.open([UInt8](data)) else { return "" }
+            defer { e.close() }
+            return (try? e.text(0))?.text ?? ""
+        }
+        let vectorText = text(path("print-0.pdf")), pictureText = text(pictures)
+        let found = words.filter { vectorText.contains($0) }
+        let wordsOk = words.isEmpty || (found.count == words.count && !words.contains { pictureText.contains($0) })
+        let smaller = vectorBytes > 0 && pictureBytes > 0 && vectorBytes * 3 <= pictureBytes
+        let look = Self.difference(path("print-0.pdf"), pictures)
+        check(asPictures.sheets > 0 && asPictures.vectors == 0 && wordsOk && smaller && look < 0.005,
+              "vector printing: \(vectorBytes / 1024) KB on paper against \(pictureBytes / 1024) KB as 300 dpi pictures; words of page 1 "
+              + (words.isEmpty ? "(none: it has no text)" : "found as text: \(found.count) of \(words.count) (\(words.joined(separator: ", ")))")
+              + String(format: "; sheet 1 inked where the pictures are (off by %.2f %% of the sheet)", look * 100))
+        // A poster tile and a page turned by Rotate (then undone) land where the pictures do.
+        let poster = PrintSetup(handling: .poster, posterScale: 2, overlap: 18, cutMarks: true)
+        let tile = await comparePictures(poster, "1", "poster")
+        var turned = -1.0
+        if await controller.rotatePages([0], degrees: 90) {
+            turned = await comparePictures(PrintSetup(), "1", "turned")
+            controller.pdf.undo()
+        }
+        check(tile >= 0 && tile < 0.005 && turned >= 0 && turned < 0.005,
+              String(format: "as vectors where the pictures are: a poster's first tile (off by %.2f %%), a page turned a quarter (off by %.2f %%)",
+                     tile * 100, turned * 100))
+    }
+
+    /// Prints `range` with `setup` as vectors (a page the print copy keeps a picture as one) and as pictures; how far their first sheets' ink lies apart (`difference`; -1: a job failed
+    /// or had pictures in the vector run).
+    private func comparePictures(_ setup: PrintSetup, _ range: String, _ name: String) async -> Double {
+        let vectors = path("print-\(name).pdf"), pictures = path("print-\(name)-pictures.pdf")
+        let a = await controller.printToFile(vectors, setup: setup, range: range)
+        let b = await controller.printToFile(pictures, setup: setup, range: range, pictures: true)
+        guard a.sheets > 0, a.vectors + a.pictures > 0, !a.reasons.values.contains(PrintSheetView.noCopy), b.sheets == a.sheets else { return -1 }
+        return Self.difference(vectors, pictures)
+    }
+
+    /// How far the ink of two printed files' first sheets lies apart (at twice their size): the shift of its centre, as
+    /// a fraction of the sheet's size (1 when one has less than 40 % of the other's ink, or a file can't be read).
+    /// Glyphs drawn by two renderers differ in weight, and a light gray line is dark enough in one only, so the ink's
+    /// amount and bounds differ; a page put in the wrong place, size or turn moves its centre.
+    private static func difference(_ a: URL, _ b: URL) -> Double {
+        func image(_ url: URL) -> RenderedImage? {
+            guard let data = try? Data(contentsOf: url), let e = try? PdfEngine.open([UInt8](data)) else { return nil }
+            defer { e.close() }
+            return e.pageCount > 0 ? try? e.render(0, scale: 2) : nil
+        }
+        struct Ink {
+            var count = 0, sumX = 0.0, sumY = 0.0
+        }
+        func ink(_ img: RenderedImage) -> Ink {
+            var found = Ink()
+            for y in 0..<img.height {
+                for x in 0..<img.width {
+                    let i = (y * img.width + x) * 3
+                    let sum = Int(img.pixels[i]) + Int(img.pixels[i + 1]) + Int(img.pixels[i + 2])
+                    guard sum < 384 else { continue }
+                    found.count += 1
+                    found.sumX += Double(x)
+                    found.sumY += Double(y)
+                }
+            }
+            return found
+        }
+        guard let x = image(a), let y = image(b), x.width == y.width, x.height == y.height, x.width > 0 else { return 1 }
+        let p = ink(x), q = ink(y)
+        guard p.count > 0, q.count > 0 else { return p.count == q.count ? 0 : 1 }
+        let ratio = Double(p.count) / Double(q.count)
+        if ratio < 0.4 || ratio > 2.5 { return 1 }
+        let w = Double(x.width), h = Double(x.height)
+        let dx: Double = abs(p.sumX / Double(p.count) - q.sumX / Double(q.count)) / w
+        let dy: Double = abs(p.sumY / Double(p.count) - q.sumY / Double(q.count)) / h
+        return max(dx, dy)
     }
 
     /// The print panel's printer status: a hand-off from Inkvolt Print in a folder of the test's own (never the app group),

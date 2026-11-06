@@ -310,6 +310,7 @@ extension DocumentWindowController {
         // A content change has drawn the pages from the document's new engine: the old layer view is stale (and must
         // not print), so a new one is made from the new bytes.
         layerEngine = nil
+        layerVisibility = [:]
         applyLayers()
     }
 
@@ -538,23 +539,23 @@ extension DocumentWindowController {
         }
         let data = session.data, password = session.password, pageCount = engine.pageCount
         Task {
-            let made: PdfEngine?
+            let made: PdfEngine
             do {
                 made = try await Task.detached {
-                    let bytes = try Layers.withVisibility(data, password, visibility)
-                    return try PdfEngine.open(bytes)
+                    try PdfEngine.open(try Layers.withVisibility(data, password, visibility))
                 }.value
             } catch {
                 if ticket == layerTicket { notify("Couldn't change the layers: \((error as? PdfEditError)?.message ?? error.localizedDescription)") }
                 return
             }
-            guard ticket == layerTicket, pdf.session?.data == data, let made, made.pageCount == pageCount else { return }
-            setLayerEngine(made)
+            guard ticket == layerTicket, pdf.session?.data == data, made.pageCount == pageCount else { return }
+            setLayerEngine(made, visibility)
         }
     }
 
-    private func setLayerEngine(_ other: PdfEngine?) {
+    private func setLayerEngine(_ other: PdfEngine?, _ visibility: [Int: Bool] = [:]) {
         layerEngine = other
+        layerVisibility = other == nil ? [:] : visibility
         pages.draw(with: other)
         secondPages?.draw(with: other)
         sidebar.drawThumbnails(with: other)

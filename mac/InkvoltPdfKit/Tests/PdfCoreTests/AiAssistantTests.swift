@@ -443,6 +443,17 @@ struct AiLoopbackTests {
         #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
     }
 
+    @Test func aPlainServerResettingTheTlsGreetingFailsSecurely() async throws {
+        // A plain server that hangs up with the greeting unread resets the connection: under load that reset can come
+        // before its answer is read, and it means the same.
+        let server = try #require(AiLoopbackServer(answersFirstBytes: true) { _ in AiLoopbackServer.Answer(pieces: [], resets: true) })
+        defer { server.stop() }
+        let secure = parsed("https://127.0.0.1:\(server.port)/v1")
+        let client = AiClient(secure, "m", apiKey: "k", handler: AiClient.createHandler(secure, Self.patient))
+        let message = await aiMessage { _ = try await client.chat([.user("private text")]) }
+        #expect(message?.contains("secure connection") == true, "\(message ?? "no message")")
+    }
+
     @Test func happyEyeballsSkipsAnAddressThatRefuses() async throws {
         // localhost as ::1 (nothing listens there on this port) and 127.0.0.1.
         let server = try #require(AiLoopbackServer { _ in .sse(["ok"]) })
