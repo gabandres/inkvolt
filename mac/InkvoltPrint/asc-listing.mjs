@@ -7,7 +7,9 @@
 //   node mac/InkvoltPrint/asc-listing.mjs submit                  sends the version to App Review (Waiting for Review)
 // The App Privacy answers ("Data Not Collected") can't be set through the API: publish them in App Store Connect first.
 // The review contact is copied from another app of the team (listing.json's reviewContactFrom), so no phone number or
-// address is kept in the repo.
+// address is kept in the repo. listing.json's `localizations` ({"es-MX": {"whatsNew": [...]}}) gives other languages their
+// What's New; each goes only to a localization the version already has (add the language in App Store Connect first, with
+// its description and keywords: the API can't make one from What's New alone), and a missing one is named and skipped.
 import { createHash } from "node:crypto";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -44,6 +46,10 @@ if (marketing && version.attributes.versionString !== marketing) {
 const isUpdate = versions.some((v) => v.id !== version.id && v.attributes.appStoreState === "READY_FOR_SALE");
 if (isUpdate && !L.whatsNew) throw new Error("listing.json needs whatsNew for an update");
 if (L.whatsNew && text(L.whatsNew).length > 4000) throw new Error("whatsNew is longer than 4000 characters");
+for (const [locale, other] of Object.entries(L.localizations ?? {})) {
+  if (isUpdate && !other.whatsNew) throw new Error(`listing.json's ${locale} needs whatsNew for an update`);
+  if (other.whatsNew && text(other.whatsNew).length > 4000) throw new Error(`${locale}'s whatsNew is longer than 4000 characters`);
+}
 const step = (what) => console.log(`- ${what}`);
 
 if (command === "apply") await apply();
@@ -103,6 +109,7 @@ async function apply() {
     },
   });
   step(`description, keywords, promotional text, support and marketing URLs${isUpdate ? ", What's New" : ""}`);
+  if (isUpdate) await otherWhatsNew();
 
   await price();
   await availability();
@@ -114,6 +121,22 @@ async function apply() {
   await api("PATCH", `/v1/appStoreVersions/${version.id}/relationships/build`, { data: { type: "builds", id: build.id } });
   step(`build ${buildNumber}`);
   console.log("Applied. Next: App Privacy on the web (Data Not Collected), then `asc-listing.mjs submit`.");
+}
+
+/** What's New in the other languages listing.json names, each into the version's localization of that language. */
+async function otherWhatsNew() {
+  const localizations = (await get(`/v1/appStoreVersions/${version.id}/appStoreVersionLocalizations`)).data;
+  for (const [locale, other] of Object.entries(L.localizations ?? {})) {
+    const loc = localizations.find((l) => l.attributes.locale === locale);
+    if (!loc) {
+      console.log(`- ${locale}: the version has no such localization in App Store Connect; What's New skipped`);
+      continue;
+    }
+    await api("PATCH", `/v1/appStoreVersionLocalizations/${loc.id}`, {
+      data: { type: "appStoreVersionLocalizations", id: loc.id, attributes: { whatsNew: text(other.whatsNew) } },
+    });
+    step(`${locale}: What's New`);
+  }
 }
 
 /** Free, in every territory, from now on. */

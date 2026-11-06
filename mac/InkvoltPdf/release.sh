@@ -10,7 +10,8 @@
 # --appcast: signs the DMG with Sparkle's sign_update and the EdDSA private key in ~/.inkvolt-sparkle/ed25519.key
 # (SPARKLE_KEY_FILE names another; never in the repo, back it up: without it no installed copy can be updated), then adds
 # the release to appcast.xml beside the DMG (appcast.py): version, the DMG's URL on the pdf-mac-v<version> GitHub
-# release, length, signature, macOS 15.0 or later, and the notes from --notes (default release-notes/<version>.md).
+# release, length, signature, macOS 15.0 or later, and the notes from --notes (default release-notes/<version>.md), with
+# their Spanish beside them (release-notes/<version>.es.md, or the --notes file's .es twin) when it exists.
 # --publish (implies --appcast) creates the GitHub release with the DMG (never marked Latest: the Windows releases own
 # that) and puts appcast.xml on the appcast branch, the feed in Info.plist's SUFeedURL. It refuses to run unless
 # INKVOLT_PUBLISH=yes. For tests: INKVOLT_OUT replaces ~/build-artifacts/inkvolt-pdf-mac, INKVOLT_FEED_URL the built
@@ -45,6 +46,10 @@ if (( APPCAST )); then
   [ -f "$NOTES" ] || { echo "no release notes at $NOTES (--notes <file>)"; exit 2; }
   [ -f "$KEY" ] || { echo "no EdDSA private key at $KEY"; exit 2; }
   NOTES="${NOTES:A}"
+  # The Spanish notes beside them (1.7.0.md → 1.7.0.es.md), for the appcast's xml:lang="es" description.
+  NOTES_ES=()
+  spanish="${NOTES:r}.es.${NOTES:e}"
+  [ -f "$spanish" ] && NOTES_ES=(--notes-es "$spanish")
 fi
 OUT="${INKVOLT_OUT:-$HOME/build-artifacts/inkvolt-pdf-mac}"
 mkdir -p $OUT
@@ -87,6 +92,7 @@ sign() { codesign --force --timestamp --keychain "$KEYCHAIN" --sign "$IDENTITY" 
 sh ./assemble.sh "$APP" || exit 92
 # What's New: each release has its notes (a heading for 1.0 is "## 1.0.0").
 case "$VERSION" in *.*.*) notes="$VERSION" ;; *) notes="$VERSION.0" ;; esac
+grep -q "^## $notes\$" WHATS-NEW.es.md || echo "warning: WHATS-NEW.es.md has no '## $notes' heading: What's New in Spanish will show nothing for this version" >&2
 grep -q "^## $notes\$" WHATS-NEW.md || echo "warning: WHATS-NEW.md has no '## $notes' heading: What's New will show nothing for this version" >&2
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist" || exit 92
 plutil -replace CFBundleVersion -string "$VERSION" "$APP/Contents/Info.plist" || exit 92
@@ -149,7 +155,7 @@ if (( APPCAST )); then
   signature="$($SPARKLE_BIN/sign_update --ed-key-file "$KEY" -p "$DMG")" && [ -n "$signature" ] || exit 101
   $SPARKLE_BIN/sign_update --verify --ed-key-file "$KEY" "$DMG" "$signature" || exit 101
   url="${INKVOLT_DOWNLOAD_BASE:-https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v$VERSION}/${DMG:t}"
-  python3 appcast.py $OUT/appcast.xml --version "$VERSION" --url "$url" --length "$(stat -f%z "$DMG")"     --signature "$signature" --notes "$NOTES" --minimum-system 15.0 || exit 101
+  python3 appcast.py $OUT/appcast.xml --version "$VERSION" --url "$url" --length "$(stat -f%z "$DMG")"     --signature "$signature" --notes "$NOTES" "${NOTES_ES[@]}" --minimum-system 15.0 || exit 101
   echo "APPCAST $OUT/appcast.xml $VERSION $url"
 fi
 

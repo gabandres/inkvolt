@@ -2,7 +2,8 @@
 
 The App Store's "What's New in This Version" for each update is made from these notes (`assets/store/listing.json`'s
 `whatsNew`, which `asc-listing.mjs apply` sends). Each release gets a `## x.y` heading before it's submitted; `## Next`
-collects what's done since the last release. Short lines, in the user's words.
+collects what's done since the last release. Short lines, in the user's words. `WHATS-NEW.es.md` is their Spanish, line
+for line, for the es-MX listing (`listing.json`'s `localizations`): an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
 - Inkvolt Print speaks Spanish: the whole app, its alerts and messages follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.

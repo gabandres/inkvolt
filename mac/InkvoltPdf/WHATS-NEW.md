@@ -2,7 +2,8 @@
 
 Shown in the app once after an update (Help › What's New any time) and used for the release notes of each download.
 Each release gets a `## x.y.z` heading before it's made (`release.sh` warns when the version has none); `## Next`
-collects what's done since the last release and is never shown. Short lines, in the user's words.
+collects what's done since the last release and is never shown. Short lines, in the user's words. `WHATS-NEW.es.md` is
+their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
 - Printing sends pages as they are, not as pictures: text and lines stay sharp at any size, and print jobs are many times smaller and faster to send. Comments, form fields, the layers shown and poster tiles print as before.

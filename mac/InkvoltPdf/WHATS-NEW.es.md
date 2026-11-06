@@ -1,0 +1,129 @@
+# Novedades de Inkvolt PDF para Mac
+
+El español de WHATS-NEW.md: la app lo muestra en lugar de WHATS-NEW.md cuando funciona en español (Ayuda › Novedades de
+Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada línea en inglés: cada línea que se agregue a
+WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
+
+## Next
+- Al imprimir, las páginas se envían tal como son, no como imágenes: el texto y las líneas se ven nítidos a cualquier tamaño, y los trabajos de impresión son muchas veces más pequeños y rápidos de enviar. Los comentarios, los campos de formulario, las capas que se muestran y los mosaicos de póster se imprimen como antes.
+- Escanear muestra enseguida los escáneres que Inkvolt Print ya conoce, con sus direcciones, antes de que la búsqueda en la red encuentre los demás; uno que cambió de dirección se encuentra en la nueva.
+- Ajustes predefinidos de escaneo: Guardar como ajuste predefinido… guarda con un nombre el origen, el color, la resolución, el tamaño de página, el reconocimiento de texto y las opciones de páginas en blanco. Al elegir uno, se aplican al escáner que esté elegido, y te dice lo que ese escáner no puede hacer.
+- Escanear omite las páginas en blanco (activado de forma predeterminada): el reverso vacío de una hoja impresa por una sola cara no se agrega, y el mensaje dice cuántas se omitieron. Una página con apenas una palabra corta se conserva.
+- Captura (Herramientas › Captura, ⌥⌘C, o la cámara de la barra de herramientas de marcación): arrastra sobre parte de una página para copiarla como imagen, con la nitidez suficiente para pegarla en un documento o un correo electrónico. Esc cancela.
+- Al imprimir en una impresora que Inkvolt Print conoce, el panel de impresión (en la sección de Inkvolt PDF) muestra su estado y su tóner, y avisa en rojo si está apagada o tiene un problema, como un atasco de papel, antes de que presiones Imprimir.
+- Archivo › Configuración de la impresora (Inkvolt Print), y un botón en el panel de impresión, abren Inkvolt Print.
+- Hacer accesible da texto a las fuentes de mapa de bits de los artículos antiguos hechos con TeX (Computer Modern dibujada como imágenes), para que los lectores de pantalla puedan leerlo.
+- Hacer accesible etiqueta pieza por pieza el texto que hay dentro de un dibujo colocado en la página (una página entera colocada como una sola imagen, un membrete): cada encabezado y cada párrafo recibe su propia etiqueta.
+- Hacer accesible lee como una sola celda la celda de una tabla con líneas que abarca varias filas, esté donde esté su texto, para que un lector de pantalla indique qué filas abarca un encabezado como "Norte".
+- El panel Orden de lectura puede cambiar qué es una pieza: elige su Tipo (un encabezado y su nivel, párrafo, leyenda, nota al pie, fórmula o imagen; una lista puede convertirse en un índice) y luego Aplicar cambios.
+- Reconocer texto en En lote (la ventana En lote, las carpetas vigiladas y `--batch`) lee los escaneos como Herramientas › Reconocer texto, con su idioma y sus opciones: las palabras de las que no estaba seguro se guardan para revisarlas, las notas del archivo dicen cuántas son, y al abrir el archivo aparecen en Palabras dudosas, en la barra lateral.
+- Las exportaciones a Word, Excel, PowerPoint, HTML y texto que leen páginas escaneadas dicen cuántas palabras dudosas había, para comprobarlas con el PDF.
+
+## 1.7.0
+- Exportar e importar comentarios (Herramientas › Anotar): XFDF para Acrobat y otras aplicaciones de PDF, FDF o un CSV para hojas de cálculo. Las respuestas, los colores, los autores y las formas se incluyen; al importar se agrega solo lo que el documento aún no tiene, y un solo Deshacer lo revierte.
+- Datos del formulario también como CSV y JSON (Archivo › Datos del formulario): los valores se comprueban con sus campos, y los que el formulario no acepta aparecen en una lista.
+- Llenar formularios desde CSV (Archivo › Datos del formulario): una copia llena del formulario por cada fila de una hoja de cálculo, con el nombre que quieras (cualquier columna puede ir en el nombre); las filas que el formulario rechaza aparecen en un informe. También desde Terminal: `--fill`.
+- Resumir comentarios (Herramientas › Anotar): un PDF con cada página junto a su lista numerada de comentarios y respuestas, listo para imprimir o enviar.
+- En lote puede exportar comentarios (XFDF, FDF, CSV), datos de formulario (XFDF, FDF, CSV, JSON) y resúmenes de comentarios de muchos archivos a la vez.
+- Reconocer texto solo gira una página cuando se lee claramente mejor así, de modo que una página escaneada con números, que se lee casi igual en cualquier sentido, se queda como está.
+- Una sola clave de Inkvolt Pro para las dos aplicaciones para Mac: una clave escrita en Inkvolt PDF cuenta en Inkvolt Print, y al revés (Ayuda › Inkvolt Pro…). Una clave que escribiste antes se pasa sola.
+
+## 1.6.1
+- Escribir "inf" o un número enorme como ancho de la imagen de una marca de agua ya no hace que Agregar marca de agua cierre la app la próxima vez; Recortar páginas también lo rechaza.
+- Propiedades del documento se queda en pantalla con un PDF cuyo texto de productor o de creador es muy largo: se acorta en una sola línea.
+- Ir a la página ya no se bloquea con un PDF que tiene miles de estilos de número de página o un prefijo de etiqueta de página muy largo.
+
+## 1.6.0
+- Cuadros de diálogo más simples: las opciones que la mayoría necesita están a la vista, y el resto en Más opciones (lo recuerda). Firmar, encabezados y pies de página, marcas de agua, reconocimiento de texto, Eliminar por patrón, Reducir tamaño del archivo y En lote son más cortos, con palabras más sencillas.
+- Las herramientas de marcación están justo debajo de la barra de herramientas, en el mismo vidrio, como en Vista previa; el color es el selector de colores del propio Mac.
+- El subtítulo de la ventana muestra el zoom junto al número de página (Página 2 de 14 · 125%).
+- Los mensajes de error dicen lo que pasó en palabras sencillas, e Ir a la página te dice qué páginas hay.
+- Limpiar documento muestra solo lo que tu documento contiene de verdad; En lote te dice qué agregar cuando sus listas están vacías.
+- Cada control de los cuadros de diálogo tiene un nombre que VoiceOver puede leer.
+- La lista de comentarios de la barra lateral sigue el tamaño de texto de la barra lateral del Mac.
+- Una ventana más tranquila: una barra de herramientas como la de Vista previa (barra lateral, zoom, Resaltar, Marcación, Llenar y firmar, Compartir, Buscar), y las herramientas de marcación en una barra propia que aparece cuando la quieres (el botón Marcación, Visualización › Mostrar barra de herramientas de marcación ⇧⌘A, o cualquier herramienta que elijas). Agrega o quita botones con Visualización › Personalizar barra de herramientas….
+- El menú Herramientas está agrupado según lo que estás haciendo: Anotar, Llenar y firmar, Eliminar información confidencial, Formularios, Medir, Accesibilidad, Asistente de IA. Cada herramienta conserva su tecla.
+- La página de inicio muestra primero tus archivos recientes y cuatro herramientas; Mostrar todas las herramientas tiene el resto.
+- La barra lateral muestra solo los paneles que tiene tu documento (Firmas, Capas y Palabras dudosas aparecen cuando hay algo en ellos).
+- La configuración se aplica en cuanto la cambias, como en otras aplicaciones del Mac.
+- Las ventanas de documento pueden hacerse mucho más estrechas, para ponerlas junto a otra aplicación.
+- Archivo › Compartir… envía el PDF por Mail, Mensajes o AirDrop.
+- Comparar archivos: acerca y aleja (⌘= y ⌘-, ⌘0 ajusta a la ventana), y una tarjeta Comparar archivos en la página de inicio.
+- Las exportaciones a Word, Excel, texto, PowerPoint y HTML siguen las capas que muestras u ocultas en el panel Capas, igual que la impresión.
+- Editar texto e imágenes: cambia el tamaño de una imagen con sus controladores (Mayúsculas conserva sus proporciones) y muévela con las teclas de flecha (Mayúsculas: 10 puntos).
+- Un PDF adjunto que tiene su propia contraseña ahora se abre: Inkvolt PDF te pide su contraseña.
+- Los formularios cuyos campos reaccionan cuando el puntero pasa sobre ellos (un texto de ayuda, un cambio de aspecto) ahora lo hacen.
+- Extraer páginas… puede crear un documento nuevo, un archivo o un archivo por página, y después eliminar las páginas. Dividir documento… (menú Páginas) divide un PDF en archivos por número de páginas, por intervalos de páginas o en sus marcadores.
+- Invertir el orden de las páginas (menú Páginas): la última página primero, en un solo paso que puedes deshacer.
+- Propiedades del documento… (menú Archivo, ⇧⌘I): el tamaño del archivo, las páginas, el tamaño de página, la versión de PDF, la protección y la aplicación que lo creó; cambia su título, autor, asunto y palabras clave.
+- Ir a la página… (menú Ir, ⌥⌘G): escribe un número de página, o la etiqueta de la página tal como la numera el documento (como iv).
+- Ayuda › Informar un problema…: los detalles que ayudan a encontrar un problema (versión, macOS, algunas opciones; nombres y rutas ocultos), para copiarlos en una incidencia de GitHub o en un correo electrónico. No se envía nada.
+- Insertar desde el escáner (menú Páginas): escanea páginas directamente en el documento abierto, después o antes de la página actual o en cualquiera de los extremos, y haz que tengan texto buscable.
+- Modos de lectura (menú Visualización): Una sola página (⌘4), Continuo (⌘5), Dos páginas (⌘6) y Dos páginas con portada (⌘7), con la portada sola a la derecha como en un libro impreso. Las ventanas nuevas se abren en el último modo que elegiste.
+- Arrastra miniaturas en la barra lateral para mover páginas, o sobre las miniaturas de otra ventana para copiarlas allí. Suelta archivos PDF o imágenes desde el Finder sobre las miniaturas para insertarlos donde los sueltes.
+- Páginas oscuras para leer de noche (Visualización › Páginas oscuras, o Configuración): el papel blanco se vuelve gris oscuro y el texto negro gris claro, mientras los colores conservan su tono. Las miniaturas también; el archivo no cambia.
+- Girar la vista (Visualización › Girar la vista a la derecha ⇧⌘R, Girar la vista a la izquierda ⇧⌘L): gira las páginas solo en pantalla, sin cambiar el archivo. Cada ventana y cada panel dividido tiene su propio giro; los enlaces, la selección, los campos y los comentarios siguen el giro, y un archivo se vuelve a abrir como lo dejaste.
+- Llenar y firmar conserva tus firmas e iniciales entre una sesión y otra: hasta tres firmas y un juego de iniciales, con sus imágenes en el menú Firma (y en Herramientas › Colocar firma guardada). Elimina una desde el mismo menú.
+- Preparar formulario: cerrar un documento justo después de mover un campo con las teclas de flecha conserva el movimiento (antes se perdía).
+
+## 1.5.0
+- Buscar es varias veces más rápido en documentos largos (lee las páginas en todos los núcleos del Mac menos uno, y las recuerda para tu próxima búsqueda), y una búsqueda nueva detiene la anterior. Los archivos grandes ocupan aproximadamente la mitad de la memoria que antes.
+- Exportar a PowerPoint y HTML (Archivo › Exportar a, y En lote): una diapositiva por página con cuadros de texto editables, los encabezados como títulos de diapositiva, tablas, imágenes y formas sencillas; o una sola página web que se adapta a cualquier pantalla, con el texto alternativo que dan las etiquetas del PDF, y sin scripts ni nada cargado de otro sitio.
+- Reconocer texto (OCR) limpia primero las páginas escaneadas: las endereza (hasta 15°), pone derechas las páginas de lado y al revés, quita manchas y empareja el papel gris, y puede reemplazar los escaneos por las páginas limpias. Elige el idioma o deja que lo detecte. Las palabras que merecen una segunda mirada (que no están en el diccionario, con letras y dígitos mezclados, con caracteres raros) aparecen en Palabras dudosas, en la barra lateral, con su imagen de la página: corrígelas o déjalas como se leyeron (Herramientas › Revisar palabras dudosas).
+- Vista dividida (Visualización › Vista dividida): el mismo documento en dos paneles, arriba y abajo o lado a lado, cada uno con su página y su zoom, para leer dos lugares a la vez. Una edición en uno se ve en el otro al instante. Haz clic en un panel, o presiona ⌘', para cambiar; la × cierra el segundo panel.
+- Archivos adjuntos y Capas en la barra lateral (Visualización › Mostrar archivos adjuntos ⌥⌘5, Mostrar capas ⌥⌘6): ve, guarda y quita los archivos adjuntos a un PDF, adjunta los tuyos y abre un PDF adjunto como un documento propio; muestra u oculta las capas de un documento para verlo e imprimirlo sin cambiarlo, o guarda lo que ves como su vista predeterminada. Los botones de la barra lateral ahora son íconos, con sus nombres al pasar el puntero sobre ellos.
+- Leer en voz alta (menú Visualización, ⇧⌘Y): lee desde el principio de la página que se ve, o solo la selección, con una voz de macOS; la oración y la palabra que se leen se resaltan y se siguen. Una barra sobre las páginas tiene pausa, detener, párrafo anterior y siguiente, la voz y la velocidad (0.75×-2×).
+- PDF nuevo desde un archivo de Office… y desde una página web… (menú Archivo, y la tarjeta Crear un PDF de la página de inicio): los archivos de Word, Excel y PowerPoint se convierten en PDF mediante LibreOffice cuando está instalado (gratis, en libreoffice.org); una dirección web o una página guardada se imprime en un PDF con tu papel, tus márgenes y los fondos. Los archivos de Office y las páginas guardadas también se abren directamente desde el Finder o desde Archivo › Abrir. El resultado se abre como un PDF nuevo; el original no cambia.
+
+## 1.4.1
+- Corregido: una firma podía seguir mostrándose como válida después de que un cambio posterior pusiera algo sobre su página, mediante un campo que solo decía ser una marca de tiempo o un comentario escrito directamente en la lista de la página. Ahora ambos cuentan como cambios hechos después de firmar.
+- Comprobación de accesibilidad ya no da por aprobado un archivo cuando parte de él no se pudo comprobar (una página muy larga, formularios anidados a demasiada profundidad, una cantidad enorme de anotaciones o etiquetas): dice "No se comprobó por completo" y enumera lo que no se comprobó, en el panel, en el informe y en En lote, donde ese archivo cuenta como no aprobado.
+
+## 1.4.0
+- Asistente de IA (Herramientas › Asistente de IA), desactivado hasta que lo actives: conecta una IA que elijas, Ollama o LM Studio en este Mac o un servicio con tu propia clave (guardada en tu llavero). Resume páginas, pregunta sobre el documento en un panel a la derecha, o haz Control-clic en el texto seleccionado › Explicar con IA. Antes de enviar nada, una ventana muestra adónde va y qué va exactamente; las respuestas se marcan como generadas por IA y sus citas de página llevan a las páginas. El panel Orden de lectura de Hacer accesible puede pedirle que sugiera el texto alternativo de una imagen. Inkvolt PDF no tiene IA propia y Bermudez Systems no recibe nada
+- Hacer accesible (menú Herramientas): etiqueta un PDF para lectores de pantalla en este Mac, sin enviar nada a ningún lado: encabezados, párrafos, listas, tablas, índices, notas al pie, fórmulas e imágenes leídos de las páginas, los encabezados de página y los números de página apartados, el título y el idioma establecidos. Puedes deshacerlo hasta que guardes.
+- Orden de lectura y texto alternativo (menú Herramientas): el orden que sigue un lector de pantalla, como una lista y como cuadros numerados en las páginas. Mueve una pieza arrastrándola, con los botones o con ⌥↑ ⌥↓, incluso a la página anterior o siguiente; escribe el texto alternativo de una imagen o márcala como decorativa; Aplicar cambios vuelve a etiquetar el documento.
+- Guardar como PDF/A-2a (menú Archivo): la copia de archivo que conserva las etiquetas y declara que es accesible. En lote tiene Hacer accesible y Guardar como PDF/A-2a como acciones.
+- Corregido: Ayuda › Inkvolt Pro… no se abría.
+- Guardar como PDF/A ahora convierte documentos con marcas de verificación de Llenar y firmar y formularios como los del IRS (sus derechos de uso se quitan, y la lista de cambios lo dice), y sus copias quitan los metadatos propios de las imágenes y las páginas, para que pasen una comprobación formal.
+- Preparar formulario (menú Herramientas, ⌥⌘F): haz que un PDF se pueda llenar. Arrastra a la página campos de texto, casillas de verificación, botones de opción, listas desplegables, cuadros de lista, campos de firma y botones, y luego establece sus nombres, valores predeterminados, formatos y orden en el panel de la derecha. Detectar campos de formulario encuentra por ti las líneas, los cuadros y los guiones bajos que hay que llenar. El formulario también se llena en Acrobat, en los navegadores y en los teléfonos.
+- Medir (menú Herramientas): haz clic para medir una distancia, un perímetro o un área en dibujos y planos, con el valor junto al puntero mientras avanzas. Establecer la escala de medición… ("1 in = 10 ft", esta página o todas) o Calibrar con una longitud que conoces guarda la escala en el PDF, y las escalas que un dibujo ya tiene se usan donde corresponden. Cada medida es un comentario rotulado con su valor, escrito como lo escriben Acrobat e Inkvolt PDF para Windows, así que allí se lee igual.
+- Comprobación de accesibilidad… (menú Herramientas): comprueba un PDF con PDF/UA-1. Cada problema indica su número de Matterhorn, dónde está, qué está mal y qué lo corrige, y al elegirlo te lleva allí; una lista de verificación cubre lo que solo una persona puede juzgar; Guardar informe… lo escribe todo como una sola página web accesible. En lote la tiene como acción.
+- Guardar como PDF/A-2b… (menú Archivo): una copia de archivo del documento tal como está ahora, para registros que deben abrirse igual dentro de muchos años; el documento abierto no cambia. La copia recibe un perfil de color y metadatos PDF/A, pierde lo que el archivado no permite (scripts, archivos adjuntos, protección con contraseña, comentarios ocultos), y las fuentes estándar que usa se incrustan. Cuando algo no se puede conservar sin cambiar el aspecto del documento (otra fuente que no está incrustada, color CMYK, una firma digital), no se guarda nada y se enumera cada motivo. En lote también la tiene, como su último cambio.
+
+## 1.3.0
+- Comparar archivos… (menú Archivo): elige el original y la versión modificada (un documento abierto o cualquier PDF) y míralos uno junto al otro, página por página, con cada palabra insertada, eliminada y cambiada marcada en ambos lados y en una lista para recorrerlas. El texto que solo pasó a la página siguiente no es un cambio; una página eliminada o agregada es un cambio. Visual superpone las páginas (solo en el original: rojo; solo en el archivo modificado: azul) para dibujos y escaneos. Copia anotada crea una copia del archivo modificado con cada cambio como comentario, para guardarla y compartirla.
+- Firmas digitales: el panel Firmas de la barra lateral (Visualización › Mostrar firmas) comprueba cada firma al abrir un PDF y después de cada cambio: válida, cambiada después de firmar, cambiada de formas que la firma no permite, o no válida, con el firmante, la hora, el certificado y si tu Mac confía en él. Inkvolt PDF avisa antes de que una edición invalide una firma.
+- Firmar digitalmente… (menú Herramientas, la herramienta Firma o un clic en un campo de firma vacío): firma con una identificación digital de tu llavero (también tarjetas inteligentes), un archivo .p12 o una identificación personal creada para ti; arrastra hasta donde va la firma, elige lo que muestra (tu firma manuscrita al lado, si quieres), agrega una marca de tiempo de confianza o certifica el documento, y luego guarda la copia firmada.
+- En lote (menú Archivo y la página de inicio): las mismas acciones en muchos PDF e imágenes, guardados en una carpeta con nombres según una plantilla: reducir el tamaño del archivo, proteger o desproteger, limpiar, eliminar patrones, comprobar la eliminación, informar qué hay en cada archivo, marca de agua, encabezado y pie de página con numeración Bates, girar, acoplar, reconocer texto, exportar a Word, Excel, texto, imágenes de página o datos de formulario. Guarda la lista como ajuste predefinido, exporta e importa ajustes predefinidos (los mismos archivos que en Windows) y vigila carpetas: un archivo que se suelta en una pasa por un ajuste predefinido en cuanto termina de copiarse.
+- La línea de comandos: `InkvoltPdf --batch preset.json files…` y `--watch folder --preset preset.json` ejecutan un ajuste predefinido sin ventana, desde una terminal o launchd (`--help` lo explica).
+- Reducir tamaño del archivo… (menú Archivo): las imágenes se reducen a la resolución elegida, los duplicados se combinan, los flujos se comprimen y los objetos sin usar se descartan.
+- Agregar encabezado y pie de página… y Agregar marca de agua… (menú Páginas): números de página, fechas, números Bates, un texto o una imagen en las páginas, escritos en ellas para que se impriman en todas partes; Quitar los elimina de nuevo.
+- Acoplar… (menú Páginas): los comentarios y los campos de formulario pasan a formar parte de las páginas.
+- Ayuda › Inkvolt Pro…: escribe una clave de licencia de Inkvolt Pro, mira a nombre de quién está la licencia, o quítala. Todo en Inkvolt PDF para Mac es gratis durante su lanzamiento, incluidas las funciones Pro; una licencia ($19, un solo pago, sin cuenta, comprobada en tu Mac y nunca enviada a ningún lado) apoya el proyecto y te conserva esas funciones cuando empiecen a pedir una clave. Una sola clave funciona en Windows y en el Mac.
+
+## 1.2.0
+- Qué hay en este PDF (menú Herramientas, y Ver qué contiene… en Limpiar documento): un solo informe de todo lo que un PDF lleva además de sus páginas: scripts y lo que hacen, acciones que se ejecutan solas, cada dirección web, archivo y programa al que puede llegar (marcados cuando no hace falta un clic), archivos adjuntos, metadatos y autores de comentarios, firmas, versiones anteriores, capas y texto ocultos, valores de formulario y cubiertas que no ocultan nada. Dice lo que Limpiar documento quita, y se guarda como página web o JSON. No se contacta nada de lo que hay en el archivo.
+- Editar texto e imágenes: hacer clic en un texto que está sobre una imagen edita el texto.
+- Eliminar por patrón: un error en tu propio patrón se describe en palabras sencillas.
+
+## 1.1.0
+- Eliminar información confidencial: tapa áreas, texto seleccionado o cada coincidencia de la búsqueda, o busca números de seguro social, de teléfono y de tarjeta, direcciones de correo electrónico, fechas, números de cuenta bancaria (IBAN), direcciones IP, tus propias palabras o tu propio patrón, comprueba las marcas y luego aplícalas. Lo que hay debajo desaparece del archivo, no solo queda cubierto.
+- Comprobación de la eliminación: después de aplicar las eliminaciones, Inkvolt PDF comprueba que no quede nada de lo eliminado en ninguna parte del archivo y ofrece corregir lo que encuentre. Herramientas › Comprobar eliminación… revisa cualquier PDF en busca de texto que siga bajo recuadros negros o resaltados, marcas de eliminación sin aplicar y más.
+- Limpiar documento (menú Herramientas): quita metadatos, capas ocultas, comentarios y campos ocultos, scripts, enlaces, archivos adjuntos y versiones anteriores de un PDF antes de compartirlo.
+
+## 1.0.0
+- Lee archivos PDF en pestañas: desplazamiento y zoom fluidos, miniaturas, el esquema, búsqueda (coincidir mayúsculas y minúsculas, palabras completas), seleccionar y copiar texto, enlaces en los que se puede hacer clic, pantalla completa.
+- Comentarios: resaltar, subrayar, tachar, notas, cuadros de texto, llamadas, dibujo (pluma, rotulador, formas, líneas, flechas, polígonos), sellos, imágenes y enlaces; respuestas, colores y una lista de todos los comentarios.
+- Formularios: llena campos de texto, casillas de verificación, botones de opción y listas, con sus cálculos y formatos; importa y exporta datos de formulario.
+- Llenar y firmar: escribe en cualquier lugar, agrega marcas de verificación, fechas y tu firma o tus iniciales, dibujadas o escritas.
+- Editar texto e imágenes: cambia las palabras que ya están en una página con su propia fuente; mueve, reemplaza o elimina imágenes.
+- Reconocer texto (OCR): haz que las páginas escaneadas tengan texto buscable y que su texto se pueda copiar, con el reconocimiento de texto de Apple en tu Mac.
+- Exporta a Word, Excel o texto sin formato.
+- Organiza páginas: gira, elimina, duplica, mueve, inserta (desde un PDF, imágenes o páginas en blanco), extrae y recorta; marcadores.
+- Combina archivos en un PDF, crea un PDF desde imágenes o el portapapeles, o escanea páginas directamente a un PDF nuevo (escáneres de red y escáneres USB).
+- Protege un PDF con contraseña, o quita su protección.
+- Imprime con varias páginas por hoja, folletos y pósteres.
+- Deshaz y rehaz cada cambio; al guardar, las firmas anteriores se conservan intactas; las copias de recuperación recuperan el trabajo sin guardar después de un cierre inesperado.
+- Una página de inicio con las herramientas principales, una paleta de comandos (⇧⌘K) que encuentra cualquier comando, y Configuración (⌘,).
+- Nada de lo que abres sale de tu Mac: sin cuenta, sin rastreo.

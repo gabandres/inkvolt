@@ -2,10 +2,12 @@
 """Adds one release to Inkvolt PDF's Sparkle appcast (release.sh --appcast runs it).
 
     python3 appcast.py <appcast.xml> --version 1.0 --url <dmg url> --length <bytes> --signature <edSignature>
-                       --notes <file.md|file.html|file.txt> [--minimum-system 15.0]
+                       --notes <file.md|file.html|file.txt> [--notes-es <file>] [--minimum-system 15.0]
 
 Creates the appcast if it doesn't exist; an item with the same version is replaced, the new one goes first. The notes are
-embedded in the item: Markdown (.md, Sparkle 2.9+), HTML (.html) or plain text (anything else).
+embedded in the item: Markdown (.md, Sparkle 2.9+), HTML (.html) or plain text (anything else). --notes-es adds the
+Spanish as a second description marked xml:lang="es", which Sparkle shows when the app runs in Spanish (the English one,
+without a language, is shown otherwise).
 """
 import argparse
 import email.utils
@@ -30,6 +32,7 @@ def main():
     p.add_argument("--length", required=True, type=int)
     p.add_argument("--signature", required=True)
     p.add_argument("--notes", required=True)
+    p.add_argument("--notes-es")
     p.add_argument("--minimum-system", default="15.0")
     a = p.parse_args()
 
@@ -56,12 +59,17 @@ def main():
     ET.SubElement(item, s("version")).text = a.version
     ET.SubElement(item, s("shortVersionString")).text = a.version
     ET.SubElement(item, s("minimumSystemVersion")).text = a.minimum_system
-    with open(a.notes, encoding="utf-8") as f:
-        notes = f.read().strip()
-    ext = os.path.splitext(a.notes)[1].lower()
-    fmt = {".md": "markdown", ".html": None, ".htm": None}.get(ext, "plain-text")
-    description = ET.SubElement(item, "description", {s("format"): fmt} if fmt else {})
-    description.text = notes
+    for path, lang in ((a.notes, None), (a.notes_es, "es")):
+        if not path:
+            continue
+        with open(path, encoding="utf-8") as f:
+            notes = f.read().strip()
+        ext = os.path.splitext(path)[1].lower()
+        fmt = {".md": "markdown", ".html": None, ".htm": None}.get(ext, "plain-text")
+        attributes = {s("format"): fmt} if fmt else {}
+        if lang:
+            attributes["{http://www.w3.org/XML/1998/namespace}lang"] = lang
+        ET.SubElement(item, "description", attributes).text = notes
     ET.SubElement(item, "enclosure", {
         "url": a.url,
         "length": str(a.length),
