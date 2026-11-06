@@ -232,6 +232,20 @@ struct CoreStringsTests {
         #expect(table.untranslated == ["{0} is offline"])
     }
 
+    /// A page the interface writes (a web report) declares the table's language and writes dates in its locale; without
+    /// a table, English with fixed month names, as the command lines write them.
+    @Test func A_written_page_takes_the_tables_language_and_locale() {
+        CoreLanguage.withTable(nil) {
+            #expect(CoreLanguage.page.language == "en")
+            #expect(CoreLanguage.page.locale.identifier == "en_US_POSIX")
+        }
+        let table = CoreLanguage.Table(language: "es", sentences: [:], locale: Locale(identifier: "es_PR"))
+        CoreLanguage.withTable(table) {
+            #expect(CoreLanguage.page.language == "es")
+            #expect(CoreLanguage.page.locale.identifier == "es_PR")
+        }
+    }
+
     /// The language is the task's own: a test (or a window) in Spanish leaves the suites running beside it in English.
     @Test func A_table_for_one_task_leaves_the_others_English() async {
         let table = CoreLanguage.Table(language: "es", sentences: ["Paper jam": "Atasco de papel"])

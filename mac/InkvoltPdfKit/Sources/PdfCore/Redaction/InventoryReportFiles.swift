@@ -12,16 +12,17 @@ public enum InventoryReportFiles {
 
     /// - Parameter fileName: the file's name, for the title.
     public static func html(_ report: InventoryReport, _ fileName: String, madeAt: Date) -> String {
-        let f = DateFormatter()
         // The page's words in the interface's language (English on the command line), its dates' month names too.
-        f.locale = CoreLanguage.language == "en" ? Locale(identifier: "en_US_POSIX") : CoreLanguage.locale
+        let page = CoreLanguage.page
+        let f = DateFormatter()
+        f.locale = page.locale
         f.dateFormat = loc("d MMMM yyyy, HH:mm")
         let date = f.string(from: madeAt)
         let pages = report.pages == 1
             ? loc("{0} page. Everything the file carries besides what its pages show, and what it does when it is opened.", DocumentInventory.n0(1))
             : loc("{0} pages. Everything the file carries besides what its pages show, and what it does when it is opened.", DocumentInventory.n0(report.pages))
 
-        var sb = "<!DOCTYPE html>\n<html lang=\"" + CoreLanguage.language + "\">\n<head>\n<meta charset=\"utf-8\">\n"
+        var sb = "<!DOCTYPE html>\n<html lang=\"" + page.language + "\">\n<head>\n<meta charset=\"utf-8\">\n"
         sb += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         sb += "<meta name=\"generator\" content=\"Inkvolt PDF\">\n"
         sb += "<title>" + loc("What's in this PDF: {0}", encode(fileName)) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"

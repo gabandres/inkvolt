@@ -17260,17 +17260,6 @@
         }
       }
     },
-    "en": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "es"
-          }
-        }
-      }
-    },
     "encrypting rewrites the whole file": {
       "extractionState": "manual",
       "localizations": {

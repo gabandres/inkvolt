@@ -18,13 +18,14 @@ public enum AccessibilityReportHtml {
         func e(_ s: String) -> String { InventoryReportFiles.encode(s) }
         var counts: [String: Int] = [:]
         for f in report.failures { counts[f.condition, default: 0] += 1 }
+        let page = CoreLanguage.page
         let f = DateFormatter()
-        f.locale = CoreLanguage.table == nil ? Locale(identifier: "en_US_POSIX") : CoreLanguage.locale
+        f.locale = page.locale
         f.dateFormat = loc("d MMMM yyyy, HH:mm")
         let date = f.string(from: checkedAt)
         let checks = report.humanChecks
 
-        var sb = "<!DOCTYPE html>\n<html lang=\"" + loc("en") + "\">\n<head>\n<meta charset=\"utf-8\">\n"
+        var sb = "<!DOCTYPE html>\n<html lang=\"" + page.language + "\">\n<head>\n<meta charset=\"utf-8\">\n"
         sb += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         sb += "<meta name=\"generator\" content=\"Inkvolt PDF\">\n"
         sb += "<title>" + loc("Accessibility report: {0}", e(fileName)) + "</title>\n<style>\n" + css + "</style>\n</head>\n<body>\n"

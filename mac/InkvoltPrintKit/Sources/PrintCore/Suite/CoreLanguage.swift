@@ -71,6 +71,13 @@ public enum CoreLanguage {
 
     private static let english = Locale(identifier: "en_US")
 
+    /// A page the interface writes (Inkvolt PDF's web reports): the language its `<html lang>` declares and the locale its
+    /// dates are written in. The table's, else English with fixed month names (`en_US_POSIX`), as the command lines write.
+    public static var page: (language: String, locale: Locale) {
+        guard let table else { return ("en", Locale(identifier: "en_US_POSIX")) }
+        return (table.language, table.locale)
+    }
+
     /// A whole number as .NET's N0 writes it, grouped in `locale`'s way: 12,345 in English, 12.345 in Spain. The one
     /// formatter for every number in the interface's sentences.
     public static func number(_ n: Int) -> String {
