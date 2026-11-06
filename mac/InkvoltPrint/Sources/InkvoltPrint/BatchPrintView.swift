@@ -23,7 +23,7 @@ enum BatchPrintWindow {
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 600), styleMask: [.titled, .closable, .resizable, .miniaturizable],
                          backing: .buffered, defer: false)
         w.contentView = host
-        w.title = app.isDemo ? "Batch Print — Demo" : "Batch Print"
+        w.title = app.isDemo ? String(localized: "Batch Print — Demo") : String(localized: "Batch Print")
         w.isReleasedWhenClosed = false
         w.isRestorable = false
         w.contentMinSize = NSSize(width: 720, height: 480)
@@ -115,7 +115,7 @@ private struct BatchListButtons: View {
 
     private func pick(folders: Bool) {
         let panel = NSOpenPanel()
-        panel.title = folders ? "Add a folder of PDFs and pictures" : "Add PDFs and pictures"
+        panel.title = folders ? String(localized: "Add a folder of PDFs and pictures") : String(localized: "Add PDFs and pictures")
         panel.canChooseDirectories = folders
         panel.canChooseFiles = !folders
         panel.allowsMultipleSelection = true

@@ -15,8 +15,8 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     let details = NSTextView()
     let status = NSTextField(wrappingLabelWithString: "")
     let recordNote = NSTextField(wrappingLabelWithString: "")
-    let recordButton = NSButton(title: "Record This Printer", target: nil, action: nil)
-    let showButton = NSButton(title: "Show in Finder", target: nil, action: nil)
+    let recordButton = NSButton(title: String(localized: "Record This Printer"), target: nil, action: nil)
+    let showButton = NSButton(title: String(localized: "Show in Finder"), target: nil, action: nil)
     /// The issue address Copy and Open a GitHub Issue last opened (`--report` reads it instead of a browser opening).
     private(set) var openedIssue: URL?
     /// The last recording's .zip.
@@ -73,15 +73,13 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 680, height: 600), styleMask: [.titled, .closable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Report a Problem"
+        window.title = String(localized: "Report a Problem")
         window.isRestorable = false
         window.isReleasedWhenClosed = false // shown again by the next Report a Problem…
         window.minSize = NSSize(width: 520, height: 460)
         super.init(window: window)
         window.delegate = self
-        let intro = NSTextField(wrappingLabelWithString: "These details help find the problem: the version, macOS and a few settings. "
-            + "IP addresses, printer IDs and serial numbers, file paths and your names are masked. Nothing is sent: copy them, "
-            + "then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share.")
+        let intro = NSTextField(wrappingLabelWithString: String(localized: "These details help find the problem: the version, macOS and a few settings. IP addresses, printer IDs and serial numbers, file paths and your names are masked. Nothing is sent: copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share."))
         intro.preferredMaxLayoutWidth = 640
         details.isEditable = true // the user may delete what they'd rather not share before copying
         details.isRichText = false
@@ -103,8 +101,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         recordNote.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         recordButton.target = self
         recordButton.action = #selector(recordClicked)
-        recordButton.toolTip = "Asks the printer shown for everything Inkvolt Print reads from it, read only, and saves the replies "
-            + "with what identifies it taken out"
+        recordButton.toolTip = String(localized: "Asks the printer shown for everything Inkvolt Print reads from it, read only, and saves the replies with what identifies it taken out")
         showButton.target = self
         showButton.action = #selector(showClicked)
         showButton.isHidden = true
@@ -115,11 +112,11 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         recordRow.alignment = .top
         recordRow.spacing = 16
 
-        let issue = NSButton(title: "Copy and Open a GitHub Issue", target: self, action: #selector(issueClicked))
-        issue.toolTip = "Copies the details, then opens a new issue on GitHub in your browser to paste them in"
+        let issue = NSButton(title: String(localized: "Copy and Open a GitHub Issue"), target: self, action: #selector(issueClicked))
+        issue.toolTip = String(localized: "Copies the details, then opens a new issue on GitHub in your browser to paste them in")
         issue.keyEquivalent = "\r"
-        let copy = NSButton(title: "Copy", target: self, action: #selector(copyClicked))
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let copy = NSButton(title: String(localized: "Copy"), target: self, action: #selector(copyClicked))
+        let close = NSButton(title: String(localized: "Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -153,10 +150,9 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     }
 
     static func recordNote(_ printer: PrinterModel?) -> String {
-        guard let printer else { return "To record a printer, show it first and come back here." }
-        guard printer.recordHost != nil else { return "\(printer.name) has no network address, so there's nothing to record." }
-        return "Also useful: record \(printer.name). Every reply Inkvolt Print reads from it, read only, with serial numbers, addresses "
-            + "and names taken out, saved as a .zip file for you to read and attach. It can take a minute or two."
+        guard let printer else { return String(localized: "To record a printer, show it first and come back here.") }
+        guard printer.recordHost != nil else { return String(localized: "\(printer.name) has no network address, so there's nothing to record.") }
+        return String(localized: "Also useful: record \(printer.name). Every reply Inkvolt Print reads from it, read only, with serial numbers, addresses and names taken out, saved as a .zip file for you to read and attach. It can take a minute or two.")
     }
 
     private func say(_ text: String?) {
@@ -176,7 +172,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         let who = Diagnostics.Identity.current
         recordButton.isEnabled = false
         showButton.isHidden = true
-        say("Recording \(printer.name). Close this window to stop.")
+        say(String(localized: "Recording \(printer.name). Close this window to stop."))
         defer {
             if !Task.isCancelled {
                 recordButton.isEnabled = printer.recordHost != nil
@@ -191,8 +187,8 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
             }
             recording = done.zip
             details.string = details.string.trimmingCharacters(in: .whitespacesAndNewlines) + "\n\n" + ReportRecording.reportLine(done, who) + "\n"
-            say(model.isDemo ? "Demo: saved as \(done.zip.lastPathComponent) in a temporary folder, from the made-up printer."
-                : "Saved as \(done.zip.lastPathComponent) in Inkvolt Print's Recordings folder. Read it before you share it, then attach it to the issue.")
+            say(model.isDemo ? String(localized: "Demo: saved as \(done.zip.lastPathComponent) in a temporary folder, from the made-up printer.")
+                : String(localized: "Saved as \(done.zip.lastPathComponent) in Inkvolt Print's Recordings folder. Read it before you share it, then attach it to the issue."))
             showButton.isHidden = model.isDemo
         } catch {
             if Task.isCancelled { return } // closed: nothing left to say it in
@@ -216,7 +212,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
     func copy(to pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         let ok = pasteboard.setString(details.string, forType: .string)
-        say(ok ? "Copied." : "Couldn't copy: select the text and press ⌘C.")
+        say(ok ? String(localized: "Copied.") : String(localized: "Couldn't copy: select the text and press ⌘C."))
         return ok
     }
 
@@ -232,7 +228,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
         guard let url = URL(string: address) else { return }
         openedIssue = url
         if !Report.isRunning { NSWorkspace.shared.open(url) }
-        say("Copied. Paste the details into the issue under Details, then submit it.")
+        say(String(localized: "Copied. Paste the details into the issue under Details, then submit it."))
     }
 
     @objc func closeClicked() { window?.performClose(nil) }

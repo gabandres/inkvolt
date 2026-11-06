@@ -146,7 +146,7 @@ public enum CdmParsers {
             }
             guard let severity else { continue }
             var text = known?.text ?? LedmStatusText.humanize(category)
-            if let color = color(a) { text = "\(text) (\(color))" }
+            if let color = color(a) { text = "\(text) (\(SupplyNames.color(color)))" }
             alerts.append((PrinterAlert(id: category, severity: severity, message: text), known?.detail))
         }
 

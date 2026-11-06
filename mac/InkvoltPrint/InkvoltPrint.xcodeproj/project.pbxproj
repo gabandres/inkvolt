@@ -104,6 +104,7 @@
 			knownRegions = (
 				en,
 				Base,
+				es,
 			);
 			mainGroup = 1A0000000000000000000A02;
 			minimizedProjectReferenceProxies = 1;
@@ -214,7 +215,8 @@
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
 				PRODUCT_NAME = "Inkvolt Print";
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 			};
 			name = Debug;
@@ -235,7 +237,8 @@
 				MARKETING_VERSION = 1.2;
 				PRODUCT_BUNDLE_IDENTIFIER = com.bermudezsystems.InkvoltPrint;
 				PRODUCT_NAME = "Inkvolt Print";
-				SWIFT_EMIT_LOC_STRINGS = NO;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
 			};
 			name = Release;

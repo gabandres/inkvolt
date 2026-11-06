@@ -4081,7 +4081,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Redirigir"
+            "value": "Dirigir"
           }
         }
       }
@@ -6803,7 +6803,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No hay ninguna dirección a la que redirigirla."
+            "value": "No hay ninguna dirección a la que dirigirla."
           }
         }
       }
@@ -8641,6 +8641,24 @@
         }
       }
     },
+    "paused [queue problem]": {
+      "comment": "queue problem",
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "paused"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en pausa"
+          }
+        }
+      }
+    },
     "port {0}": {
       "extractionState": "manual",
       "localizations": {
@@ -10342,7 +10360,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "{0}Todavía imprime en {1}, la dirección antigua de la impresora. Inkvolt Print la redirige a {2}."
+            "value": "{0}Todavía imprime en {1}, la dirección antigua de la impresora. Inkvolt Print la dirige a {2}."
           }
         }
       }
@@ -10353,7 +10371,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "{0}¿Redirigir “{1}” a {2}? Sus trabajos de impresión van a la dirección que tenga ese nombre."
+            "value": "{0}¿Dirigir “{1}” a {2}? Sus trabajos de impresión van a la dirección que tenga ese nombre."
           }
         }
       }
@@ -10364,7 +10382,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "{0}¿Redirigir “{1}” a {2}? A partir de ahora, sus trabajos de impresión van a {3}."
+            "value": "{0}¿Dirigir “{1}” a {2}? A partir de ahora, sus trabajos de impresión van a {3}."
           }
         }
       }

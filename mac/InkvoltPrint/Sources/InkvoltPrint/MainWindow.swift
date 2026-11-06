@@ -116,9 +116,9 @@ struct PrinterRow: View {
         .confirmationDialog("Remove \(printer.name) from Inkvolt Print?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { model.remove(printer) }
         } message: {
-            Text(printer.isScannerOnly ? "It's listed again when it's connected again."
-                 : printer.isQueue ? "This doesn't remove it from macOS. It's listed again if it's set up in macOS again."
-                 : "This doesn't remove it from macOS. It won't be listed again when it's found on the network.")
+            Text(printer.isScannerOnly ? String(localized: "It's listed again when it's connected again.")
+                 : printer.isQueue ? String(localized: "This doesn't remove it from macOS. It's listed again if it's set up in macOS again.")
+                 : String(localized: "This doesn't remove it from macOS. It won't be listed again when it's found on the network."))
         }
     }
 }

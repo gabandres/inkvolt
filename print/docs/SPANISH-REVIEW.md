@@ -142,3 +142,50 @@ Each of these could reasonably go another way; the first word is what the app sa
 - Logs, the Report a problem details, export file columns, file-type names in the registry and print job names sent to Windows.
 - Whatever a printer sends: its name, its status messages, the supply names of IPP and SNMP printers.
 - Scan presets made before the change keep the names and folders they were saved with. New installs in Spanish start with Spanish ones (`Documentos\Escaneos`).
+
+## Inkvolt Print for Mac
+
+The Mac app's text is in `mac/InkvoltPrint/Resources/Localizable.xcstrings` (the app, 599 strings) and `CoreStrings.xcstrings` (what PrintCore and PrintMac show, 906); open either in Xcode, or change a `"value"` in the JSON and keep its `%@`, `%lld`, `{0}` (`check-strings.sh` and `CoreStringsTests` check them). Where Windows has the same English sentence, its Spanish above is used word for word; the strings below are the Mac's own, in the same voice (*tú*). macOS's own menus (Edit, Window, the app menu) and panels (Open, Save, Print) come from macOS in its language.
+
+### The Mac's own words
+
+| English | Español |
+|---|---|
+| Same as macOS | Igual que macOS |
+| Keep Inkvolt Print in the menu bar | Mantener Inkvolt Print en la barra de menús |
+| Open at login | Abrir al iniciar sesión |
+| Batch Print… | Imprimir en lote… |
+| Copy an ID Card… | Copiar un documento de identidad… |
+| Scan Front / Scan Back | Escanear frente / Escanear reverso |
+| Print Photos… | Imprimir fotos… |
+| SNMP Access… | Acceso SNMP… |
+| Fix It… / Fix All… | Resolver… / Resolver todo… |
+| This Is My Printer | Es mi impresora |
+| Keep My Cartridges Working… | Mantener mis cartuchos funcionando… |
+| Set Up in macOS | Configurar en macOS |
+| Save Anyway | Guardar de todos modos |
+| Watch Folder… / Stop Watching | Vigilar carpeta… / Dejar de vigilar |
+| Point It | Dirigir |
+| Record This Printer | Grabar esta impresora |
+| Copy and Open a GitHub Issue | Copiar y abrir una incidencia en GitHub |
+| Searchable PDF (text recognised on this Mac) | PDF con texto buscable (texto reconocido en este Mac) |
+| Paused in macOS | En pausa en macOS |
+| Shared from another computer | Compartida desde otra computadora |
+| No Local Network access | Sin acceso a la red local |
+| The printer refused its SNMP login | La impresora rechazó su acceso SNMP |
+
+### Word choices to check
+
+- **Names of macOS's screens**, quoted in the instructions: **Configuración del Sistema**, **Impresoras y escáneres**, **Agregar impresora, escáner o fax…**, **Cola de la impresora…**, **Eliminar impresora…**, **Reanudar**, **General › Ítems de inicio**, **Red local**, **Modo de datos reducidos**. Written from memory of Latin American Spanish macOS (Spain's says Ajustes del Sistema and Añadir): please compare them with a Mac in Spanish.
+- **Computadora** for another computer (a print queue shared from it), as Latin America says; Spain says ordenador. The Mac itself is **este Mac**.
+- **Frente** and **Reverso** for an ID card's sides (Windows' Frente; Anverso is the formal word).
+- **Dirigir** for Point It, as Windows says "Dirigir “…” a …" for the repair itself.
+- **Grabar** for Record (a printer recording for a bug report), as Windows' Grabando.
+- **Mayúsculas, Opción, Suprimir** for Shift, Option, Delete in the photo boxes' help, as macOS names its keys in Spanish (Windows keeps Shift in English).
+- **ppp** for dpi (puntos por pulgada) where the app writes it; **in** stays for inches in paper sizes, as on Windows.
+- **Tinta negra**, **Tóner negro**: supply names Inkvolt Print writes (LEDM, CDM, SNMP without a description) turn into Spanish where they're shown; a printer's own English name in the same words (an IPP printer's "Black Toner") does too. Other names a printer sends stay as sent.
+
+### What stays in English on the Mac
+
+- The same as Windows: what printers send, the command lines (`status --all`, `print`), logs, Report a Problem's details, recordings, export columns, What's New.
+- The `--report` check's own labels (a developer aid); the values it lists are in the app's language.

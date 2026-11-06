@@ -78,7 +78,7 @@ struct ScanView: View {
             }
             if scan.pages.isEmpty {
                 ContentUnavailableView("No pages yet", systemImage: "doc.viewfinder",
-                                       description: Text(scan.isScanning ? "The first page is on its way." : "Put a page on the glass or pages in the feeder, then click Scan."))
+                                       description: Text(scan.isScanning ? String(localized: "The first page is on its way.") : String(localized: "Put a page on the glass or pages in the feeder, then click Scan.")))
             } else {
                 PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning)
             }
@@ -108,7 +108,7 @@ private struct ScanSettings: View {
                 ForEach(scan.sources, id: \.self) { Text(ScanChoices.sourceLabel($0)).tag($0) }
             }
             Picker("Color", selection: $scan.color) {
-                ForEach(scan.colors, id: \.self) { Text($0 == .color ? "Color" : "Grayscale").tag($0) }
+                ForEach(scan.colors, id: \.self) { Text($0 == .color ? String(localized: "Color") : String(localized: "Grayscale")).tag($0) }
             }
             Picker("Resolution", selection: $scan.dpi) {
                 ForEach(scan.resolutions, id: \.self) { Text("\($0) dpi").tag($0) }
@@ -145,7 +145,7 @@ private struct ScanSettings: View {
                     ProgressView().controlSize(.small)
                     Button("Stop") { scan.stop() }
                 } else {
-                    Button(scan.pages.isEmpty ? "Scan" : "Scan More") { scan.scan() }
+                    Button(scan.pages.isEmpty ? String(localized: "Scan") : String(localized: "Scan More")) { scan.scan() }
                         .keyboardShortcut("r", modifiers: .command)
                         .buttonStyle(.borderedProminent)
                         .disabled(scan.caps == nil)
@@ -215,9 +215,15 @@ private struct RestoreBanner: View {
     let restore: () -> Void
     let discard: () -> Void
 
+    /// "3 scanned pages from 6 Nov 2026 at 10:05 weren't saved."
+    static func leftText(_ pages: Int, _ when: String) -> String {
+        pages == 1 ? String(localized: "1 scanned page from \(when) wasn't saved.")
+            : String(localized: "\(pages) scanned pages from \(when) weren't saved.")
+    }
+
     var body: some View {
         HStack {
-            Label("\(left.scan.pages.count) scanned \(left.scan.pages.count == 1 ? "page" : "pages") from \(left.scan.savedUtc.formatted(date: .abbreviated, time: .shortened)) weren't saved.",
+            Label(Self.leftText(left.scan.pages.count, left.scan.savedUtc.formatted(date: .abbreviated, time: .shortened)),
                   systemImage: "clock.arrow.circlepath")
             Spacer()
             Button("Restore") { restore() }
@@ -320,7 +326,7 @@ private struct PageTile: View {
             if page.isSeparator {
                 Button("Not a Separator") { scan.notSeparator(page.id) }
             } else {
-                Button(page.startsFile ? "Don't Start a New File Here" : "Start a New File Here") { scan.toggleStartsFile(page.id) }
+                Button(page.startsFile ? String(localized: "Don't Start a New File Here") : String(localized: "Start a New File Here")) { scan.toggleStartsFile(page.id) }
                     .disabled(number <= 1)
                 Button("Use as a Separator Sheet") { scan.useAsSeparator(page.id) }
             }
@@ -344,8 +350,8 @@ private struct PageTile: View {
 
 extension PageTile {
     fileprivate func label(_ number: Int) -> String {
-        let start = file > 0 ? ", starts file \(file)" : ""
-        return page.note.isEmpty ? "Page \(number)\(start)" : "Page \(number)\(start), \(page.note.lowercased())"
+        let start = file > 0 ? String(localized: ", starts file \(file)") : ""
+        return page.note.isEmpty ? String(localized: "Page \(number)\(start)") : String(localized: "Page \(number)\(start), \(page.note.lowercased())")
     }
 }
 
@@ -381,7 +387,7 @@ private struct SaveBar: View {
             if !scan.savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
                 Button("Open in Inkvolt PDF") { scan.openSavedInInkvoltPdf() }
                     .buttonStyle(.link)
-                    .help(scan.savedPdfs.count == 1 ? "Open the PDF just saved in Inkvolt PDF" : "Open the PDFs just saved in Inkvolt PDF")
+                    .help(scan.savedPdfs.count == 1 ? String(localized: "Open the PDF just saved in Inkvolt PDF") : String(localized: "Open the PDFs just saved in Inkvolt PDF"))
             }
             Spacer()
             if let name = scan.undoName, scan.canUndo {
@@ -416,8 +422,9 @@ private struct SaveBar: View {
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
-            panel.prompt = "Save Here"
-            panel.message = "Choose the folder for the \(files) \(scan.format == .jpeg ? "images" : "files")."
+            panel.prompt = String(localized: "Save Here")
+            panel.message = scan.format == .jpeg ? String(localized: "Choose the folder for the \(files) images.")
+                : String(localized: "Choose the folder for the \(files) files.")
             guard panel.runModal() == .OK, let url = panel.url else { return }
             Task { await scan.save(to: url) }
             return
@@ -512,7 +519,7 @@ private struct CleanSheet: View {
     @State private var filters: PageFilters
     @State private var asScanned = false
     @State private var image: NSImage?
-    @State private var note = "Working…"
+    @State private var note = String(localized: "Working…")
     @State private var applying = false
     /// All Pages' stop: the view's Cancel while it looks at the pages.
     @State private var stopAll: BatchStop?
@@ -532,7 +539,7 @@ private struct CleanSheet: View {
 
     private var title: String {
         let n = scan.pages.number(id) ?? 1
-        return photos ? "Clean up the photos on page \(n) (photo 1 shown)" : "Clean up page \(n)"
+        return photos ? String(localized: "Clean up the photos on page \(n) (photo 1 shown)") : String(localized: "Clean up page \(n)")
     }
 
     var body: some View {
@@ -575,7 +582,7 @@ private struct CleanSheet: View {
             if let image {
                 Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
                     .shadow(radius: 1)
-                    .accessibilityLabel(asScanned ? "The page as scanned" : "The page as it will be saved")
+                    .accessibilityLabel(asScanned ? String(localized: "The page as scanned") : String(localized: "The page as it will be saved"))
             } else {
                 ProgressView()
             }
@@ -587,7 +594,7 @@ private struct CleanSheet: View {
     private func draw() async {
         let stop = BatchStop()
         let wanted = asScanned ? PageFilters() : filters
-        note = "Working…"
+        note = String(localized: "Working…")
         let result = await withTaskCancellationHandler {
             await scan.cleanPreview(id, wanted, stop: stop)
         } onCancel: {
@@ -595,7 +602,7 @@ private struct CleanSheet: View {
         }
         guard !Task.isCancelled, let result else { return }
         image = result.image
-        note = asScanned ? "As scanned." : result.note
+        note = asScanned ? String(localized: "As scanned.") : result.note
         AccessibilityNotification.Announcement(note).post()
     }
 
@@ -603,7 +610,7 @@ private struct CleanSheet: View {
     /// their own.
     private func apply(all: Bool) {
         applying = true
-        note = "Working…"
+        note = String(localized: "Working…")
         let chosen = filters
         let stop = all ? BatchStop() : nil
         stopAll = stop
@@ -760,7 +767,7 @@ private struct PhotosSheet: View {
         Task {
             if let found = await scan.photosFound(id) {
                 editor.replaceAll(found)
-                announce(found.count == 1 ? "1 photo found" : "\(found.count) photos found")
+                announce(found.count == 1 ? String(localized: "1 photo found") : String(localized: "\(found.count) photos found"))
             }
             finding = false
         }

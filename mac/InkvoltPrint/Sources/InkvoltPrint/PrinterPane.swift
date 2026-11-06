@@ -55,8 +55,8 @@ struct PrinterPane: View {
                 } label: {
                     Label("Print", systemImage: "printer")
                 }
-                .help(printer.queueName == nil ? "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)"
-                      : "Print on \(printer.name)")
+                .help(printer.queueName == nil ? String(localized: "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)")
+                      : String(localized: "Print on \(printer.name)"))
             } }
             if printer.canScan || !leftOver.isEmpty || printer.hasDeviceSettings {
                 ToolbarItem(placement: .principal) {
@@ -131,19 +131,19 @@ struct PrinterPane: View {
             Text("Details").font(.headline)
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                 if let d = printer.destination {
-                    if let address = CupsQueues.address(d) { row("Address", address) }
-                    row("macOS queue", d.name)
+                    if let address = CupsQueues.address(d) { row(String(localized: "Address"), address) }
+                    row(String(localized: "macOS queue"), d.name)
                 } else {
-                    row("Address", printer.host)
+                    row(String(localized: "Address"), printer.host)
                 }
-                if !v.interfaces.isEmpty { row("Connected over", v.interfaces.joined(separator: ", ")) }
-                if let firmware = v.firmware, !firmware.display.isEmpty { row("Firmware", firmware.display) }
-                if let location = v.location { row("Location", location) }
+                if !v.interfaces.isEmpty { row(String(localized: "Connected over"), v.interfaces.joined(separator: ", ")) }
+                if let firmware = v.firmware, !firmware.display.isEmpty { row(String(localized: "Firmware"), firmware.display) }
+                if let location = v.location { row(String(localized: "Location"), location) }
                 if let u = v.usage {
-                    if let n = u.totalImpressions { row("Pages printed", n.formatted()) }
-                    if let n = u.duplexSheets { row("Two-sided sheets", n.formatted()) }
-                    if let n = u.scanImages { row("Pages scanned", n.formatted()) }
-                    if let n = u.jamEvents { row("Paper jams", n.formatted()) }
+                    if let n = u.totalImpressions { row(String(localized: "Pages printed"), n.formatted()) }
+                    if let n = u.duplexSheets { row(String(localized: "Two-sided sheets"), n.formatted()) }
+                    if let n = u.scanImages { row(String(localized: "Pages scanned"), n.formatted()) }
+                    if let n = u.jamEvents { row(String(localized: "Paper jams"), n.formatted()) }
                 }
             }
         }
@@ -243,8 +243,7 @@ struct StatusCard: View {
         .confirmationDialog("Use the device that now answers at \(printer.host) as \(printer.name)?", isPresented: $confirmAccept) {
             Button("This Is My Printer") { printer.acceptDevice() }
         } message: {
-            Text("Only do this if it really is this printer, for example after a repair, a reset or a new network board gave it a new ID. "
-                + "Otherwise it's another device that took the printer's address.")
+            Text("Only do this if it really is this printer, for example after a repair, a reset or a new network board gave it a new ID. Otherwise it's another device that took the printer's address.")
         }
     }
 
@@ -290,9 +289,8 @@ struct FirmwareNoticeView: View {
         .accessibilityLabel(notice.text)
     }
 
-    static let hintHp = "If it came from HP, cartridges with non-HP chips may stop working. Keep My Cartridges Working, under Firmware on the "
-        + "Settings tab, turns automatic updates off."
-    static let hintOther = "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings."
+    static let hintHp = String(localized: "If it came from HP, cartridges with non-HP chips may stop working. Keep My Cartridges Working, under Firmware on the Settings tab, turns automatic updates off.")
+    static let hintOther = String(localized: "Firmware updates can change which cartridges a printer accepts. The printer's web page has its update settings.")
 }
 
 /// One supply: its colour, level, how long it lasts, and what replaces it.

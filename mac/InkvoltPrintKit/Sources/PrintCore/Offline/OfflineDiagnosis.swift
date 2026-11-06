@@ -169,7 +169,7 @@ public enum OfflineDiagnosis {
         var failed = false
         for m in matched {
             var problems: [String] = []
-            if m.isPaused { problems.append("paused") }
+            if m.isPaused { problems.append(loc("paused", context: "queue problem")) }
             if !m.queue.isAcceptingJobs { problems.append(loc("not accepting jobs")) }
             let stuck = stuckJobs(m).count
             if stuck > 0 { problems.append(stuck == 1 ? loc("1 stuck job") : loc("{0} stuck jobs", stuck)) }

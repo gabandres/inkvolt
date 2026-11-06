@@ -142,7 +142,7 @@ struct ProView: View {
         Text("Pro licensed to \(licence.name)").font(.system(size: 16, weight: .semibold))
         Caption(Self.keyFor(licence))
         if !Pro.enforced {
-            Caption("Everything in Inkvolt Print is free while it launches; your licence will keep the Pro features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3) when they start asking for a key.")
+            Caption(String(localized: "Everything in Inkvolt Print is free while it launches; your licence will keep the Pro features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3) when they start asking for a key."))
         }
         Button("Remove Licence") { confirmingRemove = true }.padding(.top, 12)
     }
@@ -151,10 +151,10 @@ struct ProView: View {
     private var unlicensed: some View {
         if Pro.enforced {
             Text("Free").font(.system(size: 16, weight: .semibold))
-            Caption("Inkvolt Pro unlocks the office features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3), with one key for Inkvolt Print and Inkvolt PDF. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt Print is free and stays free.")
+            Caption(String(localized: "Inkvolt Pro unlocks the office features (supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3), with one key for Inkvolt Print and Inkvolt PDF. The key is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling. Everything else in Inkvolt Print is free and stays free."))
         } else {
             Text("Everything is free while Inkvolt Print launches").font(.system(size: 16, weight: .semibold))
-            Caption("That includes the Pro features to come: supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3. One Inkvolt Pro key serves Inkvolt Print and Inkvolt PDF, on Windows and on the Mac, and keeps the Pro features when they start asking for one.")
+            Caption(String(localized: "That includes the Pro features to come: supply history export, batch print lists and the command line, fleet export, scanner sharing, SNMPv3. One Inkvolt Pro key serves Inkvolt Print and Inkvolt PDF, on Windows and on the Mac, and keeps the Pro features when they start asking for one."))
         }
         if let problem = Pro.problem {
             Text(problem).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true).padding(.top, 8)
@@ -175,8 +175,8 @@ struct ProView: View {
     /// Windows' Pro_KeyFor and Pro_KeyForWithPdf, on this Mac.
     static func keyFor(_ licence: ProLicence) -> String {
         let issued = licence.issuedDate?.formatted(date: .long, time: .omitted) ?? licence.issued
-        let pdf = licence.covers(ProKeys.productPdf) ? "; Inkvolt PDF on this Mac finds it too" : ""
-        return "Key for \(licence.email), issued \(issued). It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling\(pdf). Thank you for supporting Inkvolt Print."
+        let pdf = licence.covers(ProKeys.productPdf) ? String(localized: "; Inkvolt PDF on this Mac finds it too") : ""
+        return String(localized: "Key for \(licence.email), issued \(issued). It is checked on this Mac, works offline, on Windows and on the Mac, and stays through reinstalling\(pdf). Thank you for supporting Inkvolt Print.")
     }
 }
 

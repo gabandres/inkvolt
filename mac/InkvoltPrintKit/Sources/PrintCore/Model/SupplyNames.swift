@@ -45,6 +45,12 @@ public enum SupplyNames {
         }
     }
 
+    /// A colour Inkvolt Print names ("Cyan", in a CDM alert) in the interface's language ("cian"); any other as it is.
+    public static func color(_ english: String) -> String {
+        guard CoreLanguage.table != nil else { return english }
+        return colorWord(english, feminine: false) ?? english
+    }
+
     // The longest first: "ink cartridge" before "ink".
     private static let knownKinds = ["ink cartridge", "ink tank", "printhead", "toner", "drum", "supply", "ink"]
 

@@ -36,7 +36,7 @@ final class DeviceSettingsModel {
         defer { loading = false }
         problem = nil
         guard let conn = await printer.connection(), let ledm = conn.ledm else {
-            problem = "Settings can be changed while the printer is connected (HP printers with LEDM)."
+            problem = String(localized: "Settings can be changed while the printer is connected (HP printers with LEDM).")
             return
         }
         do {
@@ -44,7 +44,7 @@ final class DeviceSettingsModel {
             firmware = offered(try? await ledm.firmwareUpdate())
             edits = [:]
         } catch {
-            problem = "The printer didn't send its settings. Try again in a moment."
+            problem = String(localized: "The printer didn't send its settings. Try again in a moment.")
         }
     }
 
@@ -58,7 +58,7 @@ final class DeviceSettingsModel {
             settings.items.first { $0.def.key == c.def.key }?.value != c.value
         }
         guard !changes.isEmpty else { return }
-        await write("Saved.") { ledm in try await ledm.save(changes, over: settings) }
+        await write(String(localized: "Saved.")) { ledm in try await ledm.save(changes, over: settings) }
     }
 
     /// Notify is left out for printers that don't keep it (unless one reads back Notify now).
@@ -79,8 +79,8 @@ final class DeviceSettingsModel {
 
     /// Under the button: what it does, or that it's done already.
     var keepCartridgesHint: String {
-        firmware?.mode == .off ? "Automatic updates are off: no update installs by itself."
-            : "Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it."
+        firmware?.mode == .off ? String(localized: "Automatic updates are off: no update installs by itself.")
+            : String(localized: "Turns automatic firmware updates off, so an HP update can't install by itself, and checks the printer kept it.")
     }
 
     /// Keep My Cartridges Working (the Windows app's `KeepCartridgesWorkingAsync`), once the user confirmed: automatic firmware
@@ -90,7 +90,7 @@ final class DeviceSettingsModel {
         await write(nil) { ledm in
             // Read now, not the section's copy: the setting may have changed on the printer since the tab was opened.
             guard let fw = try await ledm.firmwareUpdate() else {
-                self.message = "This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page."
+                self.message = String(localized: "This printer doesn't let apps see its firmware updates. Turn automatic updates off on its web page.")
                 self.messageIsError = true
                 return
             }
@@ -106,39 +106,39 @@ final class DeviceSettingsModel {
     private func checkFirmwareKept(_ ledm: LedmClient, before: FirmwareUpdateSettings, chosen: FirmwareUpdateMode) async -> String {
         let notify = DeviceSettingsView.label(.notify)
         guard let back = try? await ledm.firmwareUpdate() else {
-            return "Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. Check again in a moment."
+            return String(localized: "Saved, but the printer didn't say what it kept, so whether its automatic updates changed isn't known. Check again in a moment.")
         }
         switch FirmwareUpdateSettings.judge(chosen, back.mode) {
         case .kept:
-            return "Saved."
+            return String(localized: "Saved.")
         case .notifyInstalls:
             printer.store.setNoFirmwareNotify(printer.id)
             if back.mode == before.mode || back.configPath == nil {
-                return "This printer can't check for updates without installing them, so \u{201C}\(notify)\u{201D} is no longer offered for it."
+                return String(localized: "This printer can't check for updates without installing them, so \u{201C}\(notify)\u{201D} is no longer offered for it.")
             }
-            let tied = "This printer can't check for updates without installing them: it turned on automatic installs"
+            let tied = String(localized: "This printer can't check for updates without installing them: it turned on automatic installs")
             let previous = DeviceSettingsView.label(before.mode)
             do {
                 try await ledm.setFirmwareUpdate(before.mode, in: back)
             } catch {
-                return "\(tied). The printer kept automatic updates on and the previous setting (\u{201C}\(previous)\u{201D}) couldn't be restored. Change it here or on its web page."
+                return String(localized: "\(tied). The printer kept automatic updates on and the previous setting (\u{201C}\(previous)\u{201D}) couldn't be restored. Change it here or on its web page.")
             }
             guard let restored = try? await ledm.firmwareUpdate() else {
-                return "\(tied). The previous setting was sent back, but the printer didn't say whether it took it. Check it in a moment."
+                return String(localized: "\(tied). The previous setting was sent back, but the printer didn't say whether it took it. Check it in a moment.")
             }
             if restored.mode != before.mode {
-                return "\(tied), and it didn't take the previous setting back. Check automatic updates on its web page."
+                return String(localized: "\(tied), and it didn't take the previous setting back. Check automatic updates on its web page.")
             }
-            return "\(tied), so automatic updates were set back to \u{201C}\(previous)\u{201D}. \u{201C}\(notify)\u{201D} is no longer offered for it."
+            return String(localized: "\(tied), so automatic updates were set back to \u{201C}\(previous)\u{201D}. \u{201C}\(notify)\u{201D} is no longer offered for it.")
         case .other:
-            return "Saved, but the printer reads back automatic updates as \u{201C}\(DeviceSettingsView.label(back.mode))\u{201D}."
+            return String(localized: "Saved, but the printer reads back automatic updates as \u{201C}\(DeviceSettingsView.label(back.mode))\u{201D}.")
         }
     }
 
     /// Sends a change with the saved password (when there is one); asks for it when the printer wants one, then sends again.
     private func write(_ done: String?, _ body: @escaping (LedmClient) async throws -> Void) async {
         guard let conn = await printer.connection(), let ledm = conn.ledm else {
-            problem = "The printer isn't connected."
+            problem = String(localized: "The printer isn't connected.")
             return
         }
         saving = true
@@ -156,7 +156,7 @@ final class DeviceSettingsModel {
             pending = { await self.write(done, body) }
             askingPassword = true
         } catch {
-            problem = "The printer didn't take the change. Check it's still connected, then try again."
+            problem = String(localized: "The printer didn't take the change. Check it's still connected, then try again.")
         }
     }
 
@@ -172,7 +172,7 @@ final class DeviceSettingsModel {
 
     func forgetPassword() {
         PrinterPasswords.remove(for: printer.id)
-        message = "The saved password was removed."
+        message = String(localized: "The saved password was removed.")
     }
 }
 
@@ -225,7 +225,7 @@ struct DeviceSettingsView: View {
         .task { await model.load() }
         .sheet(isPresented: $model.askingPassword) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(model.passwordWasWrong ? "That password didn't work" : "\(printer.name) asks for its admin password").font(.headline)
+                Text(model.passwordWasWrong ? String(localized: "That password didn't work") : String(localized: "\(printer.name) asks for its admin password")).font(.headline)
                 Text("It's the password of the printer's web page (often on a label on the printer, or set when it was installed). Inkvolt Print keeps it in your keychain and sends it only to this printer, over HTTPS.")
                     .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 SecureField("Password", text: $password)
@@ -256,15 +256,15 @@ struct DeviceSettingsView: View {
         .confirmationDialog("Turn off automatic firmware updates on \(printer.name)?", isPresented: $confirmKeep) {
             Button("Turn Off Automatic Updates") { Task { await model.keepCartridgesWorking() } }
         } message: {
-            Text(model.hasChanges ? "Changes you haven't saved on this tab are undone." : "Inkvolt Print turns them off and checks the printer kept it.")
+            Text(model.hasChanges ? String(localized: "Changes you haven't saved on this tab are undone.") : String(localized: "Inkvolt Print turns them off and checks the printer kept it."))
         }
     }
 
     static func label(_ mode: FirmwareUpdateMode) -> String {
         switch mode {
         case .off: "Don't check"
-        case .notify: "Tell me when there's an update"
-        case .automatic: "Install updates automatically"
+        case .notify: String(localized: "Tell me when there's an update")
+        case .automatic: String(localized: "Install updates automatically")
         }
     }
 }
