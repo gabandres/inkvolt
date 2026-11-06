@@ -343,6 +343,28 @@ struct PageCheckTests {
         #expect(try budgeted.text(0).text.contains("A-103"))
     }
 
+    @Test func ADamagedFileIsRepairedThroughTheDocumentsOwnStream() throws {
+        // The engine reads every file through the shim's own stream (bytes in place, or a file read in chunks); MuPDF's
+        // repair reads it to its end. A file whose xref points nowhere, from memory and from a path.
+        var file = Self.threePages(Array("BT /F1 12 Tf 72 600 Td (Second) Tj ET".utf8), "")
+        let startxref = Array("startxref\n".utf8)
+        let at = (0...(file.count - startxref.count)).last { Array(file[$0..<$0 + startxref.count]) == startxref }!
+        file.replaceSubrange((at + startxref.count)..., with: Array("999999\n%%EOF\n".utf8))
+        let memory = try PdfEngine.open(file)
+        defer { memory.close() }
+        #expect(memory.pageCount == 3)
+        #expect(try memory.text(1).text.contains("Second"))
+
+        let path = NSTemporaryDirectory() + "inkvolt-repair-\(NewIds.hex().prefix(8)).pdf"
+        try Data(file).write(to: URL(fileURLWithPath: path))
+        defer { try? FileManager.default.removeItem(atPath: path) }
+        let preview = try #require(try PdfEngine.openPreview(path: path))
+        defer { preview.close() }
+        #expect(preview.pageCount == 3)
+        #expect(try preview.text(2).text.contains("Visit notes"))
+        #expect(try preview.render(1, scale: 0.25).pixels.contains { $0 < 128 })
+    }
+
     @Test func BatchsPageImagesLeaveOutARefusedPageAndSayWhich() async throws {
         let dir = NSTemporaryDirectory() + "inkvolt-check-batch-\(NewIds.hex().prefix(8))"
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

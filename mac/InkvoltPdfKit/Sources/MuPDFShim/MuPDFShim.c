@@ -72,7 +72,10 @@ typedef struct {
 static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     inkv_source *s = stm->state;
     (void)max;
-    size_t n = s->fd >= 0 ? INKV_CHUNK_MAX : SIZE_MAX;
+    if (s->pos >= s->length) return EOF;
+    // Between calls: the rest of the bytes in memory at once, as fz_open_buffer does; a file's buffer full.
+    size_t left = (size_t)(s->length - s->pos);
+    size_t n = s->fd >= 0 && left > INKV_CHUNK_MAX ? INKV_CHUNK_MAX : left;
     if (s->active) {
         inkv_watch(ctx, s->active, FZ_ERROR_TRYLATER);
         // Reading somewhere else (another object, another stream) starts small again: chunks grown on the page's
@@ -85,8 +88,6 @@ static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
         s->last = now;
         if (n > s->chunk) n = s->chunk;
     }
-    if (s->pos >= s->length) return EOF;
-    if ((int64_t)n > s->length - s->pos) n = (size_t)(s->length - s->pos);
     if (s->fd >= 0) {
         ssize_t got;
         do got = pread(s->fd, s->buffer, n, s->pos);
