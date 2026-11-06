@@ -703,7 +703,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
   column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
   answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.
-  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). The model's,
+  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). Looked at 2026-11-06 and left:
+  the request would have to carry the looks as markup (a bold stretch, a subscript), the reply's markup be checked and
+  turned into spans (a small model drops or moves tags, and a stretch's words move in translation), and the copy's
+  one-face fitting (`MixedText` with `oneFace`) learn spans, with a rise for subscripts; not small. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
@@ -990,6 +993,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   unsmoothed run before, at 25 to 30% load: smoothing back costs the check some 120 ms a sheet), frames with a blank
   page 216 to 174 of 240, pages still blank after the stop 2 to 1, the same pages again 579 to 919 ms, Find 35.0 to
   30.7 s; text first page 0.29 to 0.24 s, scan 0.25 to 0.23 s, comments 0.89 to 0.67 s. Still missed as above.
+  **Find on the drawing set, the options looked at (2026-11-06), none taken.** (a) MuPDF's text without the paths:
+  MuPDFWrapper.dll (MuPDFCore 2.0.1) exports 90 functions, and text comes only from `GetStructuredTextPage` on a display
+  list that `GetDisplayList` makes by running the whole page (no text device, no page run, no flags to leave paths or
+  pictures out). MuPDF's own text device run straight on the page (`fz_new_stext_page_from_page`, as PyMuPDF does) took
+  112 to 121 ms for one 4.4 MB sheet of drawings.pdf here, against 230 to 410 ms for list and text: about twice as fast,
+  but only with a wrapper built with that export, a native change for the owner to decide. (b) Our own reading of the
+  text operators as Find's first pass: `ContentLexer.Parse` takes 380 to 540 ms on that sheet's content (Debug build), no
+  faster than MuPDF; a byte scan for BT … ET could take tens of milliseconds, but a page left out on its word trusts a
+  second reader over MuPDF's (fonts without /ToUnicode, reading order across operators, forms, annotations), the
+  disagreement the review ruled out, and as a filter that only confirms it saves nothing (every page must still be read
+  to know it has no hit). (c) A page's text kept across Finds is already kept for the document's lifetime (a second Find
+  about a millisecond); keeping it across sessions would write the document's text to disk, which Find never does.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
