@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 extension AppSettings {
     enum AiKey {
@@ -185,23 +186,23 @@ final class AiSettingsSheet: AiSheet {
     /// Called once Test Connection has its answer (the self-test waits on it).
     var onTested: (() -> Void)?
 
-    let enabled = NSButton(checkboxWithTitle: "Use an AI assistant: Summarize, Ask about this document, Explain selection", target: nil, action: nil)
+    let enabled = NSButton(checkboxWithTitle: loc("Use an AI assistant: Summarize, Ask about this document, Explain selection"), target: nil, action: nil)
     let preset = NSPopUpButton(frame: .zero, pullsDown: false)
     let url = NSTextField()
     let reach = AiReachBox()
     let model = NSComboBox()
-    let test = NSButton(title: "Test Connection", target: nil, action: nil)
+    let test = NSButton(title: loc("Test Connection"), target: nil, action: nil)
     let testResult = note()
     let key = NSSecureTextField()
-    let forgetKey = NSButton(title: "Remove Saved Key", target: nil, action: nil)
+    let forgetKey = NSButton(title: loc("Remove Saved Key"), target: nil, action: nil)
     let keyNote = note()
     let context = NSComboBox()
     private let contextPanel = NSStackView()
     let ollamaContext = note(AiService.ollamaContextHelp)
     let trustNote = note()
-    let resetTrust = NSButton(title: "Ask Before Every Send Again", target: nil, action: nil)
+    let resetTrust = NSButton(title: loc("Ask Before Every Send Again"), target: nil, action: nil)
     let problem = note(bold: true)
-    private let saveButton = NSButton(title: "Save", target: nil, action: nil)
+    private let saveButton = NSButton(title: loc("Save"), target: nil, action: nil)
 
     private var settings = AppSettings.ai
     private var customUrl: String
@@ -215,7 +216,7 @@ final class AiSettingsSheet: AiSheet {
         trusted = s.noPreview
         draft = AiKeyDraft(AiEndpoint.tryParse(AiService.urlOf(s.preset, s.customUrl)).endpoint?.key)
         super.init(width: 600)
-        window?.title = "AI assistant"
+        window?.title = loc("AI assistant")
 
         if let why { addWide(note(why, bold: true)) }
         let intro = NSTextField(wrappingLabelWithString: AiService.intro)
@@ -224,19 +225,19 @@ final class AiSettingsSheet: AiSheet {
         enabled.state = s.enabled ? .on : .off
         enabled.target = self
         enabled.action = #selector(refreshClicked)
-        enabled.setAccessibilityLabel("Use an AI assistant")
+        enabled.setAccessibilityLabel(loc("Use an AI assistant"))
         addWide(enabled)
 
         preset.addItems(withTitles: AiService.presetLabels)
         preset.selectItem(at: max(AiService.presetNames.firstIndex(of: s.preset) ?? 0, 0))
         preset.target = self
         preset.action = #selector(presetChanged)
-        preset.setAccessibilityLabel("Endpoint")
+        preset.setAccessibilityLabel(loc("Endpoint"))
         url.stringValue = AiService.urlOf(s.preset, s.customUrl)
-        url.setAccessibilityLabel("Base URL")
-        url.toolTip = "The endpoint's base URL, usually ending in /v1"
+        url.setAccessibilityLabel(loc("Base URL"))
+        url.toolTip = loc("The endpoint's base URL, usually ending in /v1")
         url.delegate = self
-        let endpointRow = NSStackView(views: [NSTextField(labelWithString: "Endpoint:"), preset])
+        let endpointRow = NSStackView(views: [NSTextField(labelWithString: loc("Endpoint:")), preset])
         addWide(endpointRow)
         addWide(url)
         addWide(reach)
@@ -245,34 +246,34 @@ final class AiSettingsSheet: AiSheet {
         model.isEditable = true
         model.completes = false
         model.usesDataSource = false
-        model.setAccessibilityLabel("Model")
-        model.toolTip = "Pick one of the endpoint's models (Test Connection lists them) or type its name, as in \"ollama list\""
+        model.setAccessibilityLabel(loc("Model"))
+        model.toolTip = loc("Pick one of the endpoint's models (Test Connection lists them) or type its name, as in \"ollama list\"")
         model.setContentHuggingPriority(.defaultLow, for: .horizontal)
         test.target = self
         test.action = #selector(testClicked)
-        test.toolTip = "Asks the endpoint for its models: sends the API key (if any), no document text"
-        addWide(NSStackView(views: [NSTextField(labelWithString: "Model:"), model, test]))
+        test.toolTip = loc("Asks the endpoint for its models: sends the API key (if any), no document text")
+        addWide(NSStackView(views: [NSTextField(labelWithString: loc("Model:")), model, test]))
         testResult.isHidden = true
         addWide(testResult)
 
-        key.setAccessibilityLabel("API key")
+        key.setAccessibilityLabel(loc("API key"))
         key.delegate = self
         key.setContentHuggingPriority(.defaultLow, for: .horizontal)
         forgetKey.target = self
         forgetKey.action = #selector(forgetClicked)
-        addWide(NSStackView(views: [NSTextField(labelWithString: "API key (optional):"), key, forgetKey]))
+        addWide(NSStackView(views: [NSTextField(labelWithString: loc("API key (optional):")), key, forgetKey]))
         addWide(keyNote)
 
         context.isEditable = true
         context.completes = false
         context.addItems(withObjectValues: AiText.contextSizes.map { AiText.n0($0) })
         context.stringValue = AiText.n0(s.contextTokens)
-        context.setAccessibilityLabel("Context size in tokens")
+        context.setAccessibilityLabel(loc("Context size in tokens"))
         context.widthAnchor.constraint(equalToConstant: 140).isActive = true
         contextPanel.orientation = .vertical
         contextPanel.alignment = .leading
         contextPanel.spacing = 4
-        contextPanel.addArrangedSubview(NSStackView(views: [NSTextField(labelWithString: "Context size (tokens the model reads at once):"), context]))
+        contextPanel.addArrangedSubview(NSStackView(views: [NSTextField(labelWithString: loc("Context size (tokens the model reads at once):")), context]))
         let help = note(AiService.contextHelp)
         contextPanel.addArrangedSubview(help)
         addWide(contextPanel)
@@ -288,7 +289,7 @@ final class AiSettingsSheet: AiSheet {
         problem.textColor = .systemRed
         problem.isHidden = true
 
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         saveButton.target = self
         saveButton.action = #selector(saveClicked)
@@ -372,7 +373,7 @@ final class AiSettingsSheet: AiSheet {
         let token = CancelToken()
         testing = token
         test.isEnabled = false
-        testResult.stringValue = "Connecting to \(ep.host)…"
+        testResult.stringValue = loc("Connecting to {0}…", ep.host)
         let apiKey = draft.keyToUse { AppSettings.aiKeys.get($0) }
         let typed = AiText.trim(model.stringValue)
         let isOllama = preset.indexOfSelectedItem == 0
@@ -432,7 +433,7 @@ final class AiSettingsSheet: AiSheet {
                     try AppSettings.aiKeys.set(endpointKey, nil)
                 }
             } catch let e as AiError {
-                problem.stringValue = "API key not saved: \(e.message)"
+                problem.stringValue = loc("API key not saved: {0}", e.message)
                 problem.isHidden = false
                 return
             } catch {
@@ -467,11 +468,11 @@ final class AiConfirmSheet: AiSheet {
     let disclosure = NSButton(title: "", target: nil, action: nil)
     let previewScroll = NSScrollView()
     let preview = NSTextView()
-    let copyAll = NSButton(title: "Copy All", target: nil, action: nil)
+    let copyAll = NSButton(title: loc("Copy All"), target: nil, action: nil)
     let cloudOk: NSButton?
     let restrictedOk: NSButton?
     let dontAsk: NSButton?
-    let sendButton = NSButton(title: "Send", target: nil, action: nil)
+    let sendButton = NSButton(title: loc("Send"), target: nil, action: nil)
     let blockedNote = note()
 
     private let consent: AiConsent
@@ -488,15 +489,16 @@ final class AiConfirmSheet: AiSheet {
         restrictedOk = consent.restricted ? NSButton(checkboxWithTitle: AiConsent.restrictedTick, target: nil, action: nil) : nil
         dontAsk = consent.offersDontAsk ? NSButton(checkboxWithTitle: AiConsent.dontAskTick(ep.host), target: nil, action: nil) : nil
         super.init(width: 640)
-        let heading = title ?? "Send to the AI assistant?"
+        let heading = title ?? loc("Send to the AI assistant?")
         window?.title = heading
         let head = NSTextField(labelWithString: heading)
         head.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
         stack.addArrangedSubview(head)
 
         let server = config.serverLabel == ep.host ? "" : " (\(config.serverLabel))"
-        toBox.show("To \(ep.host)\(server), model \(config.model)\n\(ep.reachText).", ep.reach == .internet ? .caution : .calm)
-        toBox.setAccessibilityLabel("Where")
+        let to = loc("To {0}", ep.host + server) + loc(", model {0}\n{1}.", config.model, ep.reachText)
+        toBox.show(to, ep.reach == .internet ? .caution : .calm)
+        toBox.setAccessibilityLabel(loc("Where", context: "where text is sent"))
         addWide(toBox)
         whatLabel.stringValue = outgoing.summary
         whatLabel.isSelectable = false
@@ -509,8 +511,8 @@ final class AiConfirmSheet: AiSheet {
         disclosure.target = self
         disclosure.action = #selector(disclosureClicked)
         disclosure.state = .off
-        let disclosureTitle = NSTextField(labelWithString: "Show exactly what will be sent")
-        disclosure.setAccessibilityLabel("Show exactly what will be sent")
+        let disclosureTitle = NSTextField(labelWithString: loc("Show exactly what will be sent"))
+        disclosure.setAccessibilityLabel(loc("Show exactly what will be sent"))
         stack.addArrangedSubview(NSStackView(views: [disclosure, disclosureTitle]))
 
         preview.isEditable = false
@@ -520,7 +522,8 @@ final class AiConfirmSheet: AiSheet {
         preview.isHorizontallyResizable = false
         preview.autoresizingMask = [.width]
         preview.textContainer?.widthTracksTextView = true
-        preview.setAccessibilityLabel("Exactly what will be sent")
+        preview.setAccessibilityLabel(loc("Exactly what will be sent"))
+
         previewScroll.documentView = preview
         previewScroll.hasVerticalScroller = true
         previewScroll.borderType = .bezelBorder
@@ -549,7 +552,7 @@ final class AiConfirmSheet: AiSheet {
             addWide(dontAsk)
         }
         addWide(blockedNote)
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         sendButton.target = self
         sendButton.action = #selector(sendClicked)

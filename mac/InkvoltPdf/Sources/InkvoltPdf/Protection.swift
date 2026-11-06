@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Passwords (the Windows app's `SecurityActions`): File › Protect with Password… (Change Password Protection… on a
 /// protected file) encrypts the document with an open password, a permissions password and what it restricts (AES-256,
@@ -28,11 +29,11 @@ extension DocumentWindowController {
     @objc func removeProtection(_ sender: Any?) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Remove password protection?"
-        alert.informativeText = "The saved file opens without a password, and anyone can print, copy and change it."
+        alert.messageText = loc("Remove password protection?")
+        alert.informativeText = loc("The saved file opens without a password, and anyone can print, copy and change it.")
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Remove Protection")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Remove Protection"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }
@@ -46,12 +47,12 @@ extension DocumentWindowController {
     func protect(_ choice: ProtectionChoice) async -> Bool {
         let encrypted = currentSecurity?.isEncrypted == true
         let (user, owner, permissions, method) = (choice.userPassword, choice.ownerPassword, choice.permissions, choice.method)
-        let ok = await editor.run(encrypted ? "Change password protection" : "Protect with password",
+        let ok = await editor.run(encrypted ? loc("Change password protection") : loc("Protect with password"),
                                   newPasswords: (owner ?? user, user)) { d, pw in
             try PdfSecurity.protect(d, pw, userPassword: user, ownerPassword: owner, permissions: permissions, method: method)
         }
         if ok {
-            notify(user != nil ? "Protected: the saved file needs its password to open. Save to keep it." : "Restrictions set. Save to keep them.",
+            notify(user != nil ? loc("Protected: the saved file needs its password to open. Save to keep it.") : loc("Restrictions set. Save to keep them."),
                    canUndo: true)
         }
         return ok
@@ -59,8 +60,8 @@ extension DocumentWindowController {
 
     @discardableResult
     func removeProtectionNow() async -> Bool {
-        let ok = await editor.run("Remove password protection", newPasswords: (nil, nil)) { d, pw in try PdfSecurity.unprotect(d, pw) }
-        if ok { notify("Protection removed. Save to keep the change.", canUndo: true) }
+        let ok = await editor.run(loc("Remove password protection"), newPasswords: (nil, nil)) { d, pw in try PdfSecurity.unprotect(d, pw) }
+        if ok { notify(loc("Protection removed. Save to keep the change."), canUndo: true) }
         return ok
     }
 }
@@ -78,25 +79,25 @@ struct ProtectionChoice: Sendable, CustomStringConvertible {
 /// permissions password, and the encryption. Protect checks the answers and says what is wrong in the sheet.
 @MainActor
 final class ProtectSheet: NSWindowController {
-    let needOpen = NSButton(checkboxWithTitle: "Require a password to open the document", target: nil, action: nil)
+    let needOpen = NSButton(checkboxWithTitle: loc("Require a password to open the document"), target: nil, action: nil)
     let openField = NSSecureTextField()
     let openConfirm = NSSecureTextField()
     private let strength = NSTextField(labelWithString: "")
-    let restrict = NSButton(checkboxWithTitle: "Restrict printing, copying and editing", target: nil, action: nil)
+    let restrict = NSButton(checkboxWithTitle: loc("Restrict printing, copying and editing"), target: nil, action: nil)
     let ownerField = NSSecureTextField()
     let ownerConfirm = NSSecureTextField()
     let printing = NSPopUpButton(frame: .zero, pullsDown: false)
-    let copy = NSButton(checkboxWithTitle: "Copy text and images", target: nil, action: nil)
-    let modify = NSButton(checkboxWithTitle: "Change the document", target: nil, action: nil)
-    let annotate = NSButton(checkboxWithTitle: "Add comments", target: nil, action: nil)
-    let fill = NSButton(checkboxWithTitle: "Fill in form fields and sign", target: nil, action: nil)
-    let assemble = NSButton(checkboxWithTitle: "Insert, delete and rotate pages", target: nil, action: nil)
+    let copy = NSButton(checkboxWithTitle: loc("Copy text and images"), target: nil, action: nil)
+    let modify = NSButton(checkboxWithTitle: loc("Change the document"), target: nil, action: nil)
+    let annotate = NSButton(checkboxWithTitle: loc("Add comments"), target: nil, action: nil)
+    let fill = NSButton(checkboxWithTitle: loc("Fill in form fields and sign"), target: nil, action: nil)
+    let assemble = NSButton(checkboxWithTitle: loc("Insert, delete and rotate pages"), target: nil, action: nil)
     let method = NSPopUpButton(frame: .zero, pullsDown: false)
     let problem = NSTextField(labelWithString: "")
     private var openRows: [NSView] = []
     private var restrictRows: [NSView] = []
     private var encryptionRow: NSView?
-    let protectButton = NSButton(title: "Protect", target: nil, action: nil)
+    let protectButton = NSButton(title: loc("Protect"), target: nil, action: nil)
     var done: ((ProtectionChoice?) -> Void)?
 
     init(current: SecurityInfo?) {
@@ -104,35 +105,35 @@ final class ProtectSheet: NSWindowController {
         super.init(window: panel)
         let encrypted = current?.isEncrypted == true
         let perms = encrypted ? current?.permissions ?? .all : .all
-        let title = NSTextField(labelWithString: encrypted ? "Change Password Protection" : "Protect with Password")
+        let title = NSTextField(labelWithString: encrypted ? loc("Change Password Protection") : loc("Protect with Password"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
         let note = NSTextField(wrappingLabelWithString: encrypted
-            ? "Set new passwords and permissions. The old passwords stop working once you save."
-            : "Encrypts the document. Keep the passwords somewhere safe: a forgotten open password can't be recovered.")
+            ? loc("Set new passwords and permissions. The old passwords stop working once you save.")
+            : loc("Encrypts the document. Keep the passwords somewhere safe: a forgotten open password can't be recovered."))
         note.preferredMaxLayoutWidth = 440
         needOpen.state = current?.requiresOpenPassword == true ? .on : .off
         restrict.state = perms.isUnrestricted ? .off : .on
         for f in [openField, openConfirm, ownerField, ownerConfirm] { f.widthAnchor.constraint(equalToConstant: 220).isActive = true }
-        openField.setAccessibilityLabel("Open password")
-        openConfirm.setAccessibilityLabel("Confirm open password")
-        ownerField.setAccessibilityLabel("Permissions password")
-        ownerConfirm.setAccessibilityLabel("Confirm permissions password")
+        openField.setAccessibilityLabel(loc("Open password"))
+        openConfirm.setAccessibilityLabel(loc("Confirm open password"))
+        ownerField.setAccessibilityLabel(loc("Permissions password"))
+        ownerConfirm.setAccessibilityLabel(loc("Confirm permissions password"))
         openField.target = self
         openField.action = #selector(rate)
         NotificationCenter.default.addObserver(self, selector: #selector(rate), name: NSControl.textDidChangeNotification, object: openField)
         strength.textColor = .secondaryLabelColor
         strength.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        printing.addItems(withTitles: ["High resolution", "Low resolution (150 dpi)", "Not allowed"])
+        printing.addItems(withTitles: [loc("High resolution"), loc("Low resolution (150 dpi)"), loc("Not allowed")])
         printing.selectItem(at: perms.print == .highResolution ? 0 : perms.print == .lowResolution ? 1 : 2)
-        printing.setAccessibilityLabel("Printing")
+        printing.setAccessibilityLabel(loc("Printing"))
         copy.state = perms.copy ? .on : .off
         modify.state = perms.modify ? .on : .off
         annotate.state = perms.annotate ? .on : .off
         fill.state = perms.fillForms ? .on : .off
         assemble.state = perms.assemble ? .on : .off
-        method.addItems(withTitles: ["Strong (AES-256, recommended)", "For older PDF readers (AES-128)"])
+        method.addItems(withTitles: [loc("Strong (AES-256, recommended)"), loc("For older PDF readers (AES-128)")])
         method.selectItem(at: current?.method == .aes128 ? 1 : 0)
-        method.setAccessibilityLabel("Encryption")
+        method.setAccessibilityLabel(loc("Encryption"))
         problem.textColor = .systemRed
         problem.lineBreakMode = .byWordWrapping
         problem.preferredMaxLayoutWidth = 440
@@ -147,9 +148,9 @@ final class ProtectSheet: NSWindowController {
             l.widthAnchor.constraint(equalToConstant: 160).isActive = true
             return NSStackView(views: [l, control])
         }
-        let openRow = row("Open password:", openField), openConfirmRow = row("Confirm:", openConfirm)
-        let ownerRow = row("Permissions password:", ownerField), ownerConfirmRow = row("Confirm:", ownerConfirm)
-        let printRow = row("Printing:", printing)
+        let openRow = row(loc("Open password:"), openField), openConfirmRow = row(loc("Confirm:"), openConfirm)
+        let ownerRow = row(loc("Permissions password:"), ownerField), ownerConfirmRow = row(loc("Confirm:"), ownerConfirm)
+        let printRow = row(loc("Printing:"), printing)
         let allow = NSStackView(views: [copy, modify, annotate, fill, assemble])
         allow.orientation = .vertical
         allow.alignment = .leading
@@ -162,12 +163,12 @@ final class ProtectSheet: NSWindowController {
         protect.target = self
         protect.action = #selector(protectClicked)
         protect.keyEquivalent = "\r"
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [spacer, cancel, protect])
-        let encryption = row("Encryption:", method)
+        let encryption = row(loc("Encryption:"), method)
         encryptionRow = encryption
         let stack = NSStackView(views: [title, note, needOpen] + openRows + [restrict] + restrictRows + [encryption, problem, buttons])
         stack.orientation = .vertical
@@ -196,27 +197,27 @@ final class ProtectSheet: NSWindowController {
 
     @objc private func rate() {
         let r = PasswordStrength.rate(openField.stringValue)
-        strength.stringValue = r.label.isEmpty ? "" : "Strength: \(r.label)"
+        strength.stringValue = r.label.isEmpty ? "" : loc("Strength: {0}", r.label)
     }
 
     /// What is wrong with the answers (nil when Protect can go ahead).
     func validate() -> String? {
         let wantOpen = needOpen.state == .on, wantRestrict = restrict.state == .on
-        if !wantOpen && !wantRestrict { return "Choose an open password, restrictions, or both." }
+        if !wantOpen && !wantRestrict { return loc("Choose an open password, restrictions, or both.") }
         if wantOpen {
-            if openField.stringValue.isEmpty { return "Enter the open password." }
-            if openField.stringValue != openConfirm.stringValue { return "The open passwords don't match." }
+            if openField.stringValue.isEmpty { return loc("Enter the open password.") }
+            if openField.stringValue != openConfirm.stringValue { return loc("The open passwords don't match.") }
         }
         if wantRestrict {
-            if ownerField.stringValue.isEmpty { return "Enter a permissions password: it is needed to lift the restrictions later." }
-            if ownerField.stringValue != ownerConfirm.stringValue { return "The permissions passwords don't match." }
+            if ownerField.stringValue.isEmpty { return loc("Enter a permissions password: it is needed to lift the restrictions later.") }
+            if ownerField.stringValue != ownerConfirm.stringValue { return loc("The permissions passwords don't match.") }
             if wantOpen && ownerField.stringValue == openField.stringValue {
-                return "Use a permissions password different from the open password, or anyone who can open the document could lift the restrictions."
+                return loc("Use a permissions password different from the open password, or anyone who can open the document could lift the restrictions.")
             }
         }
         // MuPDF's write options are separated by commas.
         if (wantOpen && openField.stringValue.contains(",")) || (wantRestrict && ownerField.stringValue.contains(",")) {
-            return "Inkvolt PDF for Mac can't use a comma in a password. Choose one without a comma."
+            return loc("Inkvolt PDF for Mac can't use a comma in a password. Choose one without a comma.")
         }
         return nil
     }

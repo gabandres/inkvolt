@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// The bar over the pages that says what just happened (the Windows app's notifications): a recognition's counts, an
@@ -7,7 +8,7 @@ import UniformTypeIdentifiers
 @MainActor
 final class NoticeBar: NSView {
     private let label = NSTextField(labelWithString: "")
-    private let undo = NSButton(title: "Undo", target: nil, action: nil)
+    private let undo = NSButton(title: loc("Undo"), target: nil, action: nil)
     private var hideTimer: Timer?
     var onUndo: (() -> Void)?
     /// What it says now (the self-test reads it).
@@ -17,11 +18,11 @@ final class NoticeBar: NSView {
 
     init() {
         super.init(frame: .zero)
-        let icon = NSImageView(image: NSImage(systemSymbolName: "info.circle", accessibilityDescription: "Note")!)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "info.circle", accessibilityDescription: loc("Note"))!)
         icon.contentTintColor = .secondaryLabelColor
         label.lineBreakMode = .byTruncatingTail
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close")!, target: self, action: #selector(closeClicked))
+        let close = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: loc("Close"))!, target: self, action: #selector(closeClicked))
         close.bezelStyle = .accessoryBarAction
         close.isBordered = false
         undo.bezelStyle = .rounded
@@ -40,7 +41,7 @@ final class NoticeBar: NSView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Notice")
+        setAccessibilityLabel(loc("Notice"))
     }
 
     @available(*, unavailable)
@@ -78,7 +79,7 @@ final class ProgressSheet: NSWindowController {
     let token = CancelToken()
     private let label = NSTextField(wrappingLabelWithString: "")
     private let bar = NSProgressIndicator()
-    let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+    let cancelButton = NSButton(title: loc("Cancel"), target: nil, action: nil)
     private(set) var cancelled = false
 
     init(title: String, text: String) {
@@ -132,7 +133,7 @@ final class ProgressSheet: NSWindowController {
     @objc func cancelClicked() {
         cancelled = true
         token.cancel()
-        label.stringValue = "Cancelling…"
+        label.stringValue = loc("Cancelling…")
         cancelButton.isEnabled = false
     }
 
@@ -183,17 +184,15 @@ final class CheckToggle: NSObject {
 }
 
 extension DocumentWindowController {
-    private static func pages(_ n: Int) -> String { n == 1 ? "1 page" : "\(n) pages" }
-
     /// A page choice for a dialog: all, the current page, or a range typed in.
     func pageChoice(allTitle: String) -> (view: NSView, read: () -> (pages: [Int]?, error: String?)) {
         let count = engine.pageCount, current = pages.currentPage
         let popup = NSPopUpButton(frame: .zero, pullsDown: false)
-        popup.addItems(withTitles: [allTitle, "Current page (\(current + 1))", "Page range"])
-        popup.setAccessibleName("Pages")
+        popup.addItems(withTitles: [allTitle, loc("Current page ({0})", current + 1), loc("Page range")])
+        popup.setAccessibleName(loc("Pages"))
         let range = NSTextField(string: "\(current + 1)")
-        range.placeholderString = "e.g. 1-3, 5"
-        range.setAccessibleName("Page range")
+        range.placeholderString = loc("e.g. 1-3, 5")
+        range.setAccessibleName(loc("Page range"))
         range.widthAnchor.constraint(equalToConstant: 120).isActive = true
         // The range box only when a range is chosen (it showed "1" beside "All pages"; UX review, round 2).
         range.isHidden = true
@@ -210,7 +209,7 @@ extension DocumentWindowController {
             case 1: return ([current], nil)
             default:
                 let parsed = PageRange.tryParse(range.stringValue, count)
-                return parsed.ok ? (parsed.pages, nil) : (nil, parsed.error ?? "That page range isn't valid.")
+                return parsed.ok ? (parsed.pages, nil) : (nil, parsed.error ?? loc("That page range isn't valid."))
             }
         })
     }
@@ -220,27 +219,25 @@ extension DocumentWindowController {
     @objc func recognizeText(_ sender: Any?) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Recognize Text (OCR)"
-        alert.informativeText = "Finds the words on scanned pages, so you can search, select and copy them. It runs on this Mac; "
-            + "check important text."
-        let choice = pageChoice(allTitle: "All pages without text")
+        alert.messageText = loc("Recognize Text (OCR)")
+        alert.informativeText = loc("Finds the words on scanned pages, so you can search, select and copy them. It runs on this Mac; check important text.")
+        let choice = pageChoice(allTitle: loc("All pages without text"))
         let languages = Self.ocrLanguages()
         let language = NSPopUpButton(frame: .zero, pullsDown: false)
-        language.addItems(withTitles: ["Detect the language"] + languages.map(\.name))
+        language.addItems(withTitles: [loc("Detect the language")] + languages.map(\.name))
         language.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrLanguage }).map { $0 + 1 } ?? 0)
-        language.setAccessibilityLabel("Language")
-        language.toolTip = "The language of the text. Vision detects it when you don't choose one."
-        let clean = NSButton(checkboxWithTitle: "Straighten and clean the pages first", target: nil, action: nil)
+        language.setAccessibilityLabel(loc("Language"))
+        language.toolTip = loc("The language of the text. Vision detects it when you don't choose one.")
+        let clean = NSButton(checkboxWithTitle: loc("Straighten and clean the pages first"), target: nil, action: nil)
         clean.state = AppSettings.ocrClean ? .on : .off
-        clean.toolTip = "Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing."
-        let suspects = NSButton(checkboxWithTitle: "List the words to check", target: nil, action: nil)
+        clean.toolTip = loc("Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.")
+        let suspects = NSButton(checkboxWithTitle: loc("List the words to check"), target: nil, action: nil)
         suspects.state = AppSettings.ocrSuspects ? .on : .off
-        suspects.toolTip = "Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. "
-            + "Tools › Review Suspect Words lists them."
-        let replace = NSButton(checkboxWithTitle: "Keep the cleaned pages (instead of the scans)", target: nil, action: nil)
+        suspects.toolTip = loc("Words the dictionary doesn't know, letters and digits mixed, odd characters, or words read differently before cleaning. Tools › Review Suspect Words lists them.")
+        let replace = NSButton(checkboxWithTitle: loc("Keep the cleaned pages (instead of the scans)"), target: nil, action: nil)
         replace.state = .off
         replace.isEnabled = clean.state == .on
-        replace.toolTip = "The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save."
+        replace.toolTip = loc("The pages then look straightened and cleaned, and upside-down or sideways pages are turned upright. Undo puts the scans back until you save.")
         let toggle = CheckToggle {
             replace.isEnabled = clean.state == .on
             if clean.state == .off { replace.state = .off }
@@ -248,24 +245,24 @@ extension DocumentWindowController {
         clean.target = toggle
         clean.action = #selector(CheckToggle.changed)
         let form = SheetForm("RecognizeText")
-        form.row("Pages", choice.view)
-        form.row("Language", language)
-        form.note("Pages that already have text are skipped.")
+        form.row(loc("Pages"), choice.view)
+        form.row(loc("Language"), language)
+        form.note(loc("Pages that already have text are skipped."))
         form.row(nil, clean, advanced: true)
-        form.note("Turns pages upright, straightens them (up to 15°) and removes specks and grey paper before reading.", advanced: true)
+        form.note(loc("Turns pages upright, straightens them (up to 15°) and removes specks and grey paper before reading."), advanced: true)
         form.row(nil, replace, advanced: true)
         form.row(nil, suspects, advanced: true)
-        form.note("Words it wasn't sure of are listed in Tools › Review Suspect Words.", advanced: true)
+        form.note(loc("Words it wasn't sure of are listed in Tools › Review Suspect Words."), advanced: true)
         form.install(in: alert)
-        alert.addButton(withTitle: "Recognize")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Recognize"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 withExtendedLifetime(toggle) {}
                 guard response == .alertFirstButtonReturn else { return }
                 let read = choice.read()
                 guard let chosen = read.pages, !chosen.isEmpty else {
-                    self.pdf.showError(read.error ?? "No pages chosen.", nil)
+                    self.pdf.showError(read.error ?? loc("No pages chosen."), nil)
                     return
                 }
                 let index = language.indexOfSelectedItem
@@ -294,8 +291,8 @@ extension DocumentWindowController {
     @discardableResult
     func runRecognize(pages chosen: [Int], recognizer: Recognizer? = nil, options: RecognizeOptions? = nil,
                       ocr: (any TextRecognizer)? = nil, spelling: (any Spelling)? = nil) async -> (outcome: EditOutcome?, report: RecognizeTextReport?) {
-        let sheet = ProgressSheet(title: "Recognizing text",
-                                  text: "Starting text recognition… The first time on this Mac, macOS loads it, which can take about a minute.")
+        let sheet = ProgressSheet(title: loc("Recognizing text"),
+                                  text: loc("Starting text recognition… The first time on this Mac, macOS loads it, which can take about a minute."))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -304,8 +301,8 @@ extension DocumentWindowController {
         }
         let progress: @Sendable (Int, Int) -> Void = { done, total in
             onMain {
-                guard done < total else { return sheet.update("Adding the text layer…", 1) }
-                sheet.update("Recognizing text: page \(done + 1) of \(total)…", Double(done) / Double(max(total, 1)))
+                guard done < total else { return sheet.update(loc("Adding the text layer…"), 1) }
+                sheet.update(loc("{0}: page {1} of {2}…", loc("Recognizing text"), done + 1, total), Double(done) / Double(max(total, 1)))
             }
         }
         let outcome: EditOutcome?, report: RecognizeTextReport?
@@ -323,25 +320,30 @@ extension DocumentWindowController {
         case .done?:
             let words = report?.words ?? 0, hadText = report?.hadText ?? 0, pagesWithWords = report?.pagesWithWords ?? 0
             let suspect = report?.suspect ?? 0, replaced = report?.replaced ?? 0
-            let had = hadText > 0 ? " (\(hadText) already had text)" : ""
-            let cleaned = replaced > 0 ? " \(Self.pages(replaced)) \(replaced == 1 ? "was" : "were") replaced with the cleaned image\(replaced == 1 ? "" : "s")." : ""
+            let cleaned = replaced == 0 ? ""
+                : " " + (replaced == 1 ? loc("{0} page was replaced with the cleaned image.", replaced) : loc("{0} pages were replaced with the cleaned images.", replaced))
+            let recognized = words == 1 ? loc("Recognized {0} word on {1} page", words, pagesWithWords)
+                : pagesWithWords == 1 ? loc("Recognized {1} words on {0} page", pagesWithWords, words)
+                : loc("Recognized {1} words on {0} pages", pagesWithWords, words)
             if words == 0 {
-                notify("No text was recognized on these pages.\(cleaned)", canUndo: true)
+                notify(loc("No text was recognized on these pages.") + cleaned, canUndo: true)
             } else if suspect > 0 {
-                notify("Recognized \(words) word\(words == 1 ? "" : "s") on \(Self.pages(pagesWithWords)); \(suspect) suspect word\(suspect == 1 ? "" : "s") "
-                    + "to check in the sidebar's Suspect Words.\(cleaned)", canUndo: true)
+                let found = suspect == 1 ? loc("{0}; {1} suspect word to check in the sidebar's Suspect Words.", recognized, suspect)
+                    : loc("{0}; {1} suspect words to check in the sidebar's Suspect Words.", recognized, suspect)
+                notify(found + cleaned, canUndo: true)
                 reviewSuspectWords(nil)
             } else {
-                notify("Recognized \(words) word\(words == 1 ? "" : "s") on \(Self.pages(pagesWithWords))\(had). They can be searched and selected now.\(cleaned)",
-                       canUndo: true)
+                let done = hadText > 0 ? loc("{0} ({1} already had text). They can be searched and selected now.", recognized, hadText)
+                    : loc("{0}. They can be searched and selected now.", recognized)
+                notify(done + cleaned, canUndo: true)
             }
         case .noChange?:
             let had = report?.hadText ?? 0
-            notify(had == chosen.count ? (chosen.count == 1 ? "This page already has text: nothing to recognize."
-                                                             : "These pages already have text: nothing to recognize.")
-                                       : "No text was recognized on these pages.")
+            notify(had == chosen.count ? (chosen.count == 1 ? loc("This page already has text: nothing to recognize.")
+                                                             : loc("These pages already have text: nothing to recognize."))
+                                       : loc("No text was recognized on these pages."))
         case .declined?:
-            notify("Text recognition cancelled. Nothing was changed.")
+            notify(loc("Text recognition cancelled. Nothing was changed."))
         default:
             break
         }
@@ -358,21 +360,21 @@ extension DocumentWindowController {
 
     static func exportTitle(_ format: ExportFormat) -> String {
         switch format {
-        case .word: "Export to Word"
-        case .excel: "Export Tables to Excel"
-        case .text: "Export as Plain Text"
-        case .powerPoint: "Export to PowerPoint"
-        case .html: "Export to HTML"
+        case .word: loc("Export to Word")
+        case .excel: loc("Export Tables to Excel")
+        case .text: loc("Export as Plain Text")
+        case .powerPoint: loc("Export to PowerPoint")
+        case .html: loc("Export to HTML")
         }
     }
 
     private static func exportNote(_ format: ExportFormat) -> String {
         switch format {
-        case .word: "An editable Word document: paragraphs, headings, lists, tables and pictures. Complex layouts may need tidying."
-        case .excel: "Each table becomes a sheet, named after its page. Numbers stay numbers."
-        case .text: "The text in reading order, one paragraph per line (UTF-8)."
-        case .powerPoint: "One slide per page, with editable text boxes, tables and pictures."
-        case .html: "A web page that fits any screen, in reading order. The pages' look isn't kept."
+        case .word: loc("An editable Word document: paragraphs, headings, lists, tables and pictures. Complex layouts may need tidying.")
+        case .excel: loc("Each table becomes a sheet, named after its page. Numbers stay numbers.")
+        case .text: loc("The text in reading order, one paragraph per line (UTF-8).")
+        case .powerPoint: loc("One slide per page, with editable text boxes, tables and pictures.")
+        case .html: loc("A web page that fits any screen, in reading order. The pages' look isn't kept.")
         }
     }
 
@@ -381,24 +383,24 @@ extension DocumentWindowController {
         let alert = NSAlert()
         alert.messageText = Self.exportTitle(format)
         alert.informativeText = Self.exportNote(format)
-        let choice = pageChoice(allTitle: "All pages")
-        let ocr = NSButton(checkboxWithTitle: "Read the text of scanned pages too", target: nil, action: nil)
+        let choice = pageChoice(allTitle: loc("All pages"))
+        let ocr = NSButton(checkboxWithTitle: loc("Read the text of scanned pages too"), target: nil, action: nil)
         ocr.state = UserDefaults.standard.object(forKey: "ExportOcr") as? Bool == false ? .off : .on
-        let open = NSButton(checkboxWithTitle: "Open the file when done", target: nil, action: nil)
+        let open = NSButton(checkboxWithTitle: loc("Open the file when done"), target: nil, action: nil)
         open.state = UserDefaults.standard.bool(forKey: "ExportOpen") ? .on : .off
         let form = SheetForm("Export")
-        form.row("Pages", choice.view)
+        form.row(loc("Pages"), choice.view)
         form.row(nil, ocr)
         form.row(nil, open)
         form.install(in: alert)
-        alert.addButton(withTitle: "Export…")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Export…"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }
                 let read = choice.read()
                 guard let chosen = read.pages, !chosen.isEmpty else {
-                    self.pdf.showError(read.error ?? "No pages chosen.", nil)
+                    self.pdf.showError(read.error ?? loc("No pages chosen."), nil)
                     return
                 }
                 UserDefaults.standard.set(ocr.state == .on, forKey: "ExportOcr")
@@ -434,9 +436,9 @@ extension DocumentWindowController {
 
     private func confirmUnprotected() -> Bool {
         let alert = NSAlert()
-        alert.messageText = "The exported file is saved without its password protection: anyone can open it."
-        alert.addButton(withTitle: "Export Anyway")
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("The exported file is saved without its password protection: anyone can open it.")
+        alert.addButton(withTitle: loc("Export Anyway"))
+        alert.addButton(withTitle: loc("Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
     }
 
@@ -457,7 +459,7 @@ extension DocumentWindowController {
     func runExport(_ format: ExportFormat, to url: URL, pages chosen: [Int], recognize: Bool, recognizer: Recognizer? = nil) async -> ExportReport? {
         guard let session = pdf.session else { return nil }
         let title = Self.exportTitle(format)
-        let sheet = ProgressSheet(title: title, text: "Reading the pages…")
+        let sheet = ProgressSheet(title: title, text: loc("Reading the pages…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -472,9 +474,9 @@ extension DocumentWindowController {
         let options = ExportOptions(pages: chosen, title: name, recognize: recognizeWith, source: source, sourcePassword: password) { at in
             let text: String
             switch at.stage {
-            case .reading: text = "Reading page \(at.page + 1) (\(at.index + 1) of \(at.count))…"
-            case .recognizing: text = "Recognizing text on page \(at.page + 1) (\(at.index + 1) of \(at.count))… The first time, macOS loads text recognition (about a minute)."
-            case .writing: text = "Writing the file…"
+            case .reading: text = loc("Reading page {0} ({1} of {2})…", at.page + 1, at.index + 1, at.count)
+            case .recognizing: text = loc("Recognizing text on page {0} ({1} of {2})… The first time, macOS loads text recognition (about a minute).", at.page + 1, at.index + 1, at.count)
+            case .writing: text = loc("Writing the file…")
             }
             let fraction = at.fraction
             onMain { sheet.update(text, fraction) }
@@ -496,36 +498,51 @@ extension DocumentWindowController {
         case .success(let report):
             lastExport = report
             if !report.saved {
-                let these = chosen.count == 1 ? "this page" : "these pages"
                 var why = ""
                 if report.noText > 0 {
-                    why = report.noText == chosen.count ? (chosen.count == 1 ? " The page has no text" : " None of the pages has text")
-                        : " \(Self.pages(report.noText)) had no text"
-                    why += recognize ? (report.recognitionFailed.isEmpty ? ", even after text recognition." : "; text recognition failed on some of them.")
-                        : ": turn on \"Recognize text on scanned pages\" to read scans."
+                    let none = report.noText == chosen.count ? (chosen.count == 1 ? loc("The page has no text") : loc("None of the pages has text"))
+                        : report.noText == 1 ? loc("{0} page had no text", 1) : loc("{0} pages had no text", report.noText)
+                    let reason = !recognize ? loc("{0}: turn on \"Recognize text on scanned pages\" to read scans.", none)
+                        : report.recognitionFailed.isEmpty ? loc("{0}, even after text recognition.", none)
+                        : loc("{0}; text recognition failed on some of them.", none)
+                    why = " " + reason
                 }
-                notify(format == .excel ? "No tables were found on \(these), so no workbook was saved.\(why)"
-                                        : "Nothing could be extracted from \(these), so no file was saved.\(why)")
+                let one = chosen.count == 1
+                if format == .excel {
+                    notify((one ? loc("No tables were found on this page, so no workbook was saved.") : loc("No tables were found on these pages, so no workbook was saved.")) + why)
+                } else {
+                    notify((one ? loc("Nothing could be extracted from this page, so no file was saved.") : loc("Nothing could be extracted from these pages, so no file was saved.")) + why)
+                }
                 return report
             }
             var notes: [String] = []
-            if format == .excel { notes.append(report.tables == 1 ? "1 table" : "\(report.tables) tables") }
-            if report.recognized > 0 { notes.append("\(Self.pages(report.recognized)) recognized with OCR") }
-            if report.noText > 0 { notes.append("\(Self.pages(report.noText)) without text") }
-            if report.suspectWords > 0 {
-                notes.append(report.suspectWords == 1 ? "1 suspect word (check it against the PDF)" : "\(report.suspectWords) suspect words (check them against the PDF)")
+            if format == .excel { notes.append(report.tables == 1 ? loc("1 table") : loc("{0} tables", report.tables)) }
+            if report.recognized > 0 {
+                notes.append(report.recognized == 1 ? loc("{0} page recognized with OCR", 1) : loc("{0} pages recognized with OCR", report.recognized))
             }
-            if !report.recognitionFailed.isEmpty { notes.append("text recognition failed on \(Self.pages(report.recognitionFailed.count))") }
-            if !report.unreadable.isEmpty { notes.append("\(Self.pages(report.unreadable.count)) couldn't be read") }
-            notify("Exported \(Self.pages(chosen.count)) to \(url.lastPathComponent)\(notes.isEmpty ? "" : " (\(notes.joined(separator: ", ")))").")
+            if report.noText > 0 { notes.append(report.noText == 1 ? loc("{0} page without text", 1) : loc("{0} pages without text", report.noText)) }
+            if report.suspectWords > 0 {
+                notes.append(report.suspectWords == 1 ? loc("1 suspect word (check it against the PDF)") : loc("{0} suspect words (check them against the PDF)", report.suspectWords))
+            }
+            let failed = report.recognitionFailed.count, unreadable = report.unreadable.count
+            if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", failed)) }
+            if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", unreadable)) }
+            let file = url.lastPathComponent, count = chosen.count
+            if notes.isEmpty {
+                notify(count == 1 ? loc("Exported {0} page to {1}.", count, file) : loc("Exported {0} pages to {1}.", count, file))
+            } else {
+                let list = notes.joined(separator: ", ")
+                notify(count == 1 ? loc("Exported {0} page to {1} ({2}).", count, file, list) : loc("Exported {0} pages to {1} ({2}).", count, file, list))
+            }
             return report
         case .failure(let error):
             lastExport = nil
             if error is CancellationError {
-                notify("Export cancelled. Nothing was saved.")
+                notify(loc("Export cancelled. Nothing was saved."))
             } else {
-                pdf.showError("“\(title)” didn't work.", error)
+                pdf.showError(loc("“{0}” didn't work.", title), error)
             }
+
             return nil
         }
     }

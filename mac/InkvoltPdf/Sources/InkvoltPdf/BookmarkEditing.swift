@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Bookmarks (the Windows app's bookmark pane): Pages › Add Bookmark (⌘D) adds one for the page shown, after the bookmark
 /// selected; the sidebar's Bookmarks list renames (Return, or its menu), deletes (Delete) and moves them (drag, also under
@@ -34,7 +35,7 @@ extension DocumentWindowController {
         let shownTop = pages.viewRotation == 0 ? Double(scrollView.contentView.bounds.minY - pages.pageRects[page].minY) : 0
         let top: Double? = shownTop > 1 ? min(shownTop, engine.page(page).height) : nil
         let after = sidebar.selectedBookmark
-        askTitle("Add Bookmark", initial: "Page \(page + 1)", button: "Add") { [weak self] title in
+        askTitle(loc("Add Bookmark"), initial: loc("Page {0}", page + 1), button: loc("Add")) { [weak self] title in
             guard let self else { return }
             Task { await self.addBookmark(title: title, page: page, top: top, after: after) }
         }
@@ -42,7 +43,7 @@ extension DocumentWindowController {
 
     func askRenameBookmark(_ path: [Int]) {
         guard let old = try? BookmarkTree.at(readBookmarks(), path) else { return }
-        askTitle("Rename Bookmark", initial: old.title, button: "Rename") { [weak self] title in
+        askTitle(loc("Rename Bookmark"), initial: old.title, button: loc("Rename")) { [weak self] title in
             guard let self, title != old.title else { return }
             Task { await self.renameBookmark(path, to: title) }
         }
@@ -59,10 +60,10 @@ extension DocumentWindowController {
         alert.messageText = heading
         let field = NSTextField(string: initial)
         field.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
-        field.setAccessibilityLabel("Bookmark title")
+        field.setAccessibilityLabel(loc("Bookmark title"))
         alert.accessoryView = field
         alert.addButton(withTitle: button)
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Cancel"))
         alert.window.initialFirstResponder = field
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
@@ -92,14 +93,14 @@ extension DocumentWindowController {
         let count = readBookmarks().count
         let path: [Int] = after.map { Array($0.dropLast()) + [$0[$0.count - 1] + 1] } ?? [count]
         let bookmark = Bookmark(title, page, top: top)
-        return await editBookmarks("Add bookmark “\(Self.short(title))”", select: path) { tree in
+        return await editBookmarks(loc("Add bookmark “{0}”", Self.short(title)), select: path) { tree in
             try BookmarkTree.insert(tree, Array(path.dropLast()), path[path.count - 1], bookmark)
         }
     }
 
     @discardableResult
     func renameBookmark(_ path: [Int], to title: String) async -> Bool {
-        await editBookmarks("Rename bookmark to “\(Self.short(title))”", select: path) { tree in
+        await editBookmarks(loc("Rename bookmark to “{0}”", Self.short(title)), select: path) { tree in
             try BookmarkTree.replace(tree, path) { b in
                 var b = b
                 b.title = title
@@ -112,7 +113,7 @@ extension DocumentWindowController {
     func deleteBookmark(_ path: [Int]) async -> Bool {
         guard let b = try? BookmarkTree.at(readBookmarks(), path) else { return false }
         let inside = b.children.reduce(0) { $0 + 1 + Self.descendants($1) }
-        let label = inside == 0 ? "Delete bookmark “\(Self.short(b.title))”" : "Delete bookmark “\(Self.short(b.title))” and \(inside) inside it"
+        let label = inside == 0 ? loc("Delete bookmark “{0}”", Self.short(b.title)) : loc("Delete bookmark “{0}” and {1} inside it", Self.short(b.title), inside)
         return await editBookmarks(label, select: nil) { tree in try BookmarkTree.remove(tree, path) }
     }
 
@@ -122,7 +123,7 @@ extension DocumentWindowController {
         guard let b = try? BookmarkTree.at(readBookmarks(), from) else { return false }
         let oldParent = Array(from.dropLast())
         if parent == oldParent && (index == from[from.count - 1] || index == from[from.count - 1] + 1) { return false } // stays put
-        return await editBookmarks("Move bookmark “\(Self.short(b.title))”", select: nil) { tree in
+        return await editBookmarks(loc("Move bookmark “{0}”", Self.short(b.title)), select: nil) { tree in
             try BookmarkTree.move(tree, from, parent, index)
         }
     }

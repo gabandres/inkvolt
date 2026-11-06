@@ -53,11 +53,11 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     let colorPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let resolutionPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let sizePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let ocr = NSButton(checkboxWithTitle: "Make the text searchable (OCR)", target: nil, action: nil)
-    let skipBlank = NSButton(checkboxWithTitle: "Leave out blank pages", target: nil, action: nil)
+    let ocr = NSButton(checkboxWithTitle: loc("Make the text searchable (OCR)"), target: nil, action: nil)
+    let skipBlank = NSButton(checkboxWithTitle: loc("Leave out blank pages"), target: nil, action: nil)
     let presetPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let savePresetButton = NSButton(title: "Save as Preset…", target: nil, action: nil)
-    let deletePresetButton = NSButton(title: "Delete Preset", target: nil, action: nil)
+    let savePresetButton = NSButton(title: loc("Save as Preset…"), target: nil, action: nil)
+    let deletePresetButton = NSButton(title: loc("Delete Preset"), target: nil, action: nil)
     /// The self-test's answer to Save as Preset…'s name (the sheet isn't shown while it runs).
     static var testPresetName: String?
     /// The presets listed after "No preset".
@@ -66,17 +66,17 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     let pageCount = NSTextField(labelWithString: "")
     let message = NSTextField(wrappingLabelWithString: "")
     let thumbs = NSStackView()
-    let scanButton = NSButton(title: "Scan", target: nil, action: nil)
-    let stopButton = NSButton(title: "Stop Scanning", target: nil, action: nil)
-    let createButton = NSButton(title: "Create PDF", target: nil, action: nil)
-    let removeLastButton = NSButton(title: "Remove Last Page", target: nil, action: nil)
-    private let settingsButton = NSButton(title: "Open Local Network Settings", target: nil, action: nil)
+    let scanButton = NSButton(title: loc("Scan"), target: nil, action: nil)
+    let stopButton = NSButton(title: loc("Stop Scanning"), target: nil, action: nil)
+    let createButton = NSButton(title: loc("Create PDF"), target: nil, action: nil)
+    let removeLastButton = NSButton(title: loc("Remove Last Page"), target: nil, action: nil)
+    private let settingsButton = NSButton(title: loc("Open Local Network Settings"), target: nil, action: nil)
     private let progress = NSProgressIndicator()
 
     /// Insert from Scanner: the document the pages go into (nil: Create PDF makes a new one), and where.
     private(set) weak var insertTarget: DocumentWindowController?
     let placePopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let placeLabel = NSTextField(labelWithString: "Insert:")
+    private let placeLabel = NSTextField(labelWithString: loc("Insert:"))
     /// The page count and current page of the document when the window opened for it (the places offered).
     private var insertInto: (count: Int, current: Int) = (0, 0)
     /// The pages Insert last put in (the self-test reads it).
@@ -122,13 +122,14 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 600, height: 520), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "Scan"
+        window.title = loc("Scan")
         window.isRestorable = false
         window.minSize = NSSize(width: 520, height: 440)
         super.init(window: window)
         window.delegate = self
-        for (popup, label) in [(scannerPopup, "Scanner"), (presetPopup, "Preset"), (sourcePopup, "Source"), (colorPopup, "Color"),
-                               (resolutionPopup, "Resolution"), (sizePopup, "Page size")] {
+        let named: [(NSPopUpButton, String)] = [(scannerPopup, loc("Scanner")), (presetPopup, loc("Preset")), (sourcePopup, loc("Source")),
+                                                (colorPopup, loc("Color")), (resolutionPopup, loc("Resolution")), (sizePopup, loc("Page size"))]
+        for (popup, label) in named {
             popup.target = self
             popup.setAccessibilityLabel(label)
         }
@@ -137,7 +138,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         presetPopup.action = #selector(presetChanged)
         savePresetButton.target = self
         savePresetButton.action = #selector(savePresetClicked)
-        savePresetButton.toolTip = "Saves the source, color, resolution, page size, OCR and blank page choices under a name, for any scanner."
+        savePresetButton.toolTip = loc("Saves the source, color, resolution, page size, OCR and blank page choices under a name, for any scanner.")
         deletePresetButton.target = self
         deletePresetButton.action = #selector(deletePresetClicked)
         for b in [scanButton, stopButton, createButton, removeLastButton, settingsButton] { b.target = self }
@@ -151,7 +152,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         settingsButton.isHidden = true
         ocr.state = AppSettings.defaults.object(forKey: AppSettings.Key.scanOcr) as? Bool == false ? .off : .on
         skipBlank.state = AppSettings.defaults.object(forKey: AppSettings.Key.scanSkipBlank) as? Bool == false ? .off : .on
-        skipBlank.toolTip = "Pages with almost no ink (the empty back of a one-sided sheet) aren't added. A page with as little as a short word is kept."
+        skipBlank.toolTip = loc("Pages with almost no ink (the empty back of a one-sided sheet) aren't added. A page with as little as a short word is kept.")
         scannerState.textColor = .secondaryLabelColor
         scannerState.preferredMaxLayoutWidth = 520
         message.preferredMaxLayoutWidth = 520
@@ -160,15 +161,15 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         progress.isIndeterminate = true
         progress.isHidden = true
         thumbs.spacing = 6
-        thumbs.setAccessibilityLabel("Scanned pages")
+        thumbs.setAccessibilityLabel(loc("Scanned pages"))
 
         let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "Scanner:"), scannerPopup],
-            [NSTextField(labelWithString: "Preset:"), NSStackView(views: [presetPopup, savePresetButton, deletePresetButton])],
-            [NSTextField(labelWithString: "Source:"), sourcePopup],
-            [NSTextField(labelWithString: "Color:"), colorPopup],
-            [NSTextField(labelWithString: "Resolution:"), resolutionPopup],
-            [NSTextField(labelWithString: "Page size:"), sizePopup],
+            [NSTextField(labelWithString: loc("Scanner:")), scannerPopup],
+            [NSTextField(labelWithString: loc("Preset:")), NSStackView(views: [presetPopup, savePresetButton, deletePresetButton])],
+            [NSTextField(labelWithString: loc("Source:")), sourcePopup],
+            [NSTextField(labelWithString: loc("Color:")), colorPopup],
+            [NSTextField(labelWithString: loc("Resolution:")), resolutionPopup],
+            [NSTextField(labelWithString: loc("Page size:")), sizePopup],
         ])
         grid.column(at: 0).xPlacement = .trailing
         grid.rowSpacing = 8
@@ -181,7 +182,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         thumbs.topAnchor.constraint(equalTo: thumbScroll.contentView.topAnchor).isActive = true
         thumbs.leadingAnchor.constraint(equalTo: thumbScroll.contentView.leadingAnchor).isActive = true
         let pagesRow = NSStackView(views: [pageCount, NSView(), removeLastButton])
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -221,11 +222,12 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         insertTarget = controller
         let count = controller?.engine.pageCount ?? 0, current = controller?.pages.currentPage ?? 0
         insertInto = (count, current)
-        window?.title = controller == nil ? "Scan" : "Insert from Scanner"
-        createButton.title = controller == nil ? "Create PDF" : "Insert Pages"
+        window?.title = controller == nil ? loc("Scan") : loc("Insert from Scanner")
+        createButton.title = controller == nil ? loc("Create PDF") : loc("Insert Pages")
         placePopup.removeAllItems()
-        placePopup.addItems(withTitles: ["After page \(current + 1)", "Before page \(current + 1)", "At the start", "At the end"])
-        placePopup.setAccessibilityLabel("Insert")
+        let page = current + 1
+        placePopup.addItems(withTitles: [loc("After page {0}", page), loc("Before page {0}", page), loc("At the start"), loc("At the end")])
+        placePopup.setAccessibilityLabel(loc("Insert"))
         placePopup.isHidden = controller == nil
         placeLabel.isHidden = controller == nil
     }
@@ -241,7 +243,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
             return
         }
         guard discovery == nil else { return }
-        scannerState.stringValue = "Looking for scanners…"
+        scannerState.stringValue = loc("Looking for scanners…")
         let root = ProKeyRoot.url?.path
         Task { [weak self] in
             let handed = await Task.detached { root.map { SuitePrinters.load(root: $0) } ?? .empty }.value
@@ -270,7 +272,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(8))
             guard let self, self.scanners.isEmpty, self.localNetwork.access != .denied else { return }
-            self.scannerState.stringValue = "No scanner found. Turn the scanner on and connect it to this network, or plug it into this Mac with USB."
+            self.scannerState.stringValue = loc("No scanner found. Turn the scanner on and connect it to this network, or plug it into this Mac with USB.")
         }
     }
 
@@ -278,10 +280,9 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let denied = access == .denied
         settingsButton.isHidden = !denied
         if denied {
-            scannerState.stringValue = "Inkvolt PDF isn't allowed to look for scanners on your network. Allow it in System Settings › Privacy & Security "
-                + "› Local Network (USB scanners still work)."
+            scannerState.stringValue = loc("Inkvolt PDF isn't allowed to look for scanners on your network. Allow it in System Settings › Privacy & Security › Local Network (USB scanners still work).")
         } else if scanners.isEmpty {
-            scannerState.stringValue = "Looking for scanners…"
+            scannerState.stringValue = loc("Looking for scanners…")
             discovery?.restart()
         }
     }
@@ -347,24 +348,24 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         guard let scanner = currentScanner else { return refresh() }
         if !fallbackChoice { AppSettings.defaults.set(scanner.id, forKey: AppSettings.Key.scanDevice) }
         guard let device = scanner.device() else {
-            message.stringValue = "\(scanner.name) can't be used now."
+            message.stringValue = loc("{0} can't be used now.", scanner.name)
             return refresh()
         }
         self.device = device
         deviceEndpoint = scanner.endpoint
-        message.stringValue = "Connecting to \(scanner.name)…"
+        message.stringValue = loc("Connecting to {0}…", scanner.name)
         refresh()
         connectTask = Task { [weak self] in
             do {
                 let caps = try await device.capabilities()
                 guard let self, !Task.isCancelled else { return }
                 self.caps = caps
-                self.message.stringValue = caps == nil ? "\(scanner.name) didn't say what it can scan; it may not be an eSCL scanner." : ""
+                self.message.stringValue = caps == nil ? loc("{0} didn't say what it can scan; it may not be an eSCL scanner.", scanner.name) : ""
                 self.fillChoices()
                 if caps != nil, let preset = self.selectedPreset { self.applyPreset(preset) }
             } catch {
                 guard let self, !Task.isCancelled else { return }
-                self.message.stringValue = "\(scanner.name) didn't answer: \(Self.describe(error))"
+                self.message.stringValue = loc("{0} didn't answer: {1}", scanner.name, Self.describe(error))
                 self.refresh()
             }
         }
@@ -390,12 +391,12 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let source = currentSource
         colors = ScanChoices.colors(caps, source)
         colorPopup.removeAllItems()
-        colorPopup.addItems(withTitles: colors.map { $0 == .color ? "Color" : "Grayscale" })
+        colorPopup.addItems(withTitles: colors.map { $0 == .color ? loc("Color") : loc("Grayscale") })
         let wantColor = wanted.map { $0.color == .color } ?? d.object(forKey: AppSettings.Key.scanColor) as? Bool ?? true
         colorPopup.selectItem(at: colors.firstIndex(of: wantColor ? .color : .grayscale) ?? 0)
         resolutions = ScanChoices.resolutions(caps, source)
         resolutionPopup.removeAllItems()
-        resolutionPopup.addItems(withTitles: resolutions.map { "\($0) dpi" })
+        resolutionPopup.addItems(withTitles: resolutions.map { loc("{0} dpi", $0) })
         let dpi = wanted?.resolution ?? d.object(forKey: AppSettings.Key.scanResolution) as? Int ?? 300
         let closest = resolutions.indices.min { abs(resolutions[$0] - dpi) < abs(resolutions[$1] - dpi) }
         let fallback = wanted == nil ? resolutions.firstIndex { $0 >= 300 } : closest
@@ -459,7 +460,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         presets = Self.loadPresets()
         filling = true
         defer { filling = false }
-        Self.fill(presetPopup, ["No preset"] + presets.map(\.name))
+        Self.fill(presetPopup, [loc("No preset")] + presets.map(\.name))
         presetPopup.selectItem(at: presets.firstIndex { $0.id == id }.map { $0 + 1 } ?? 0)
     }
 
@@ -482,7 +483,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         fillChoices(wanted: plan.request, sizeKey: plan.sizeKey)
         ocr.state = plan.ocr ? .on : .off
         skipBlank.state = preset.skipBlank ? .on : .off
-        message.stringValue = plan.notes.isEmpty ? "Preset \"\(preset.name)\" chosen." : plan.notes.joined(separator: " ")
+        message.stringValue = plan.notes.isEmpty ? loc("Preset \"{0}\" chosen.", preset.name) : plan.notes.joined(separator: " ")
         refresh()
     }
 
@@ -490,7 +491,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     @objc func savePresetClicked() {
         guard caps != nil, !isScanning else { return NSSound.beep() }
         let list = Self.loadPresets()
-        let suggested = ScanPresets.uniqueName(list.map(\.name), "My scan")
+        let suggested = ScanPresets.uniqueName(list.map(\.name), loc("My scan"))
         if Report.skipsDialogs { return savePreset(named: Self.testPresetName ?? suggested, list) }
         guard let window else { return }
         Task { [weak self] in
@@ -501,7 +502,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     private static func askName(_ suggested: String, _ list: [ScanPreset], _ window: NSWindow) async -> String? {
         let field = NSTextField(string: suggested)
-        field.setAccessibilityLabel("Name")
+        field.setAccessibilityLabel(loc("Name"))
         field.widthAnchor.constraint(equalToConstant: 300).isActive = true
         let problem = NSTextField(wrappingLabelWithString: "")
         problem.textColor = .systemRed
@@ -513,11 +514,10 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         stack.spacing = 6
         while true {
             let alert = NSAlert()
-            alert.messageText = "Save as Preset"
-            alert.informativeText = "Saves the source, color, resolution, page size, text recognition and blank page choices. "
-                + "A preset works with any scanner: what one can't do is matched as closely as it allows."
-            alert.addButton(withTitle: "Save")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Save as Preset")
+            alert.informativeText = loc("Saves the source, color, resolution, page size, text recognition and blank page choices. A preset works with any scanner: what one can't do is matched as closely as it allows.")
+            alert.addButton(withTitle: loc("Save"))
+            alert.addButton(withTitle: loc("Cancel"))
             stack.layoutSubtreeIfNeeded()
             stack.frame.size = stack.fittingSize
             alert.accessoryView = stack
@@ -543,7 +543,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                                              ocr: ocr.state == .on, skipBlank: skipBlank.state == .on)
         Self.savePresets(list + [preset])
         fillPresets(select: preset.id)
-        message.stringValue = "Saved the preset \"\(preset.name)\"."
+        message.stringValue = loc("Saved the preset \"{0}\".", preset.name)
         refresh()
     }
 
@@ -552,10 +552,10 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         if Report.skipsDialogs { return deletePreset(preset) }
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Delete the preset \"\(preset.name)\"?"
-        alert.informativeText = "Its choices are forgotten; pages already scanned stay."
-        alert.addButton(withTitle: "Delete").hasDestructiveAction = true
-        alert.addButton(withTitle: "Cancel")
+        alert.messageText = loc("Delete the preset \"{0}\"?", preset.name)
+        alert.informativeText = loc("Its choices are forgotten; pages already scanned stay.")
+        alert.addButton(withTitle: loc("Delete")).hasDestructiveAction = true
+        alert.addButton(withTitle: loc("Cancel"))
         Task { [weak self] in
             guard await alert.beginSheetModal(for: window) == .alertFirstButtonReturn else { return }
             self?.deletePreset(preset)
@@ -565,7 +565,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private func deletePreset(_ preset: ScanPreset) {
         Self.savePresets(Self.loadPresets().filter { $0.id != preset.id })
         fillPresets(select: nil)
-        message.stringValue = "Deleted the preset \"\(preset.name)\"."
+        message.stringValue = loc("Deleted the preset \"{0}\".", preset.name)
         refresh()
     }
 
@@ -574,7 +574,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private func refresh() {
         let ready = caps != nil && device != nil
         scanButton.isEnabled = ready && !isScanning
-        scanButton.title = pages.isEmpty ? "Scan" : currentSource == .platen ? "Scan Another Page" : "Scan More Pages"
+        scanButton.title = pages.isEmpty ? loc("Scan") : currentSource == .platen ? loc("Scan Another Page") : loc("Scan More Pages")
         skipBlank.isEnabled = !isScanning
         scanButton.isHidden = isScanning
         stopButton.isHidden = !isScanning
@@ -583,7 +583,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         for p in [scannerPopup, presetPopup, sourcePopup, colorPopup, resolutionPopup, sizePopup] { p.isEnabled = !isScanning && p.numberOfItems > 0 }
         savePresetButton.isEnabled = ready && !isScanning
         deletePresetButton.isEnabled = !isScanning && selectedPreset != nil
-        pageCount.stringValue = pages.isEmpty ? "No pages yet" : ScanRun.pages(pages.count)
+        pageCount.stringValue = pages.isEmpty ? loc("No pages yet") : ScanRun.pages(pages.count)
         progress.isHidden = !isScanning
         if isScanning { progress.startAnimation(nil) } else { progress.stopAnimation(nil) }
     }
@@ -601,7 +601,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let glass = request.source == .platen
         let analysis: ScanRun.Analysis? = skipBlank.state == .on ? { @Sendable jpeg in try ScanImaging.analysis(jpeg) } : nil
         isScanning = true
-        message.stringValue = "Scanning… (the first page takes longer if the scanner was asleep)"
+        message.stringValue = loc("Scanning… (the first page takes longer if the scanner was asleep)")
         refresh()
         scanTask = Task { [weak self] in
             var (kept, blank, unreadable) = (0, 0, 0)
@@ -633,7 +633,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
             view.imageScaling = .scaleProportionallyUpOrDown
             view.widthAnchor.constraint(equalToConstant: 76).isActive = true
             view.heightAnchor.constraint(equalToConstant: 100).isActive = true
-            view.setAccessibilityLabel("Page \(pages.count)")
+            view.setAccessibilityLabel(loc("Page {0}", pages.count))
             thumbs.addArrangedSubview(view)
         }
         refresh()
@@ -644,10 +644,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         scanTask = nil
         lastBlank = blank
         if let error {
-            message.stringValue = kept == 0 ? "The scan stopped: \(Self.describe(error))"
-                : "The scan stopped after \(ScanRun.pages(kept)), which are kept: \(Self.describe(error))"
+            let why = Self.describe(error)
+            message.stringValue = kept == 0 ? loc("The scan stopped: {0}", why)
+                : kept == 1 ? loc("The scan stopped after {0} page, which is kept: {1}", kept, why)
+                : loc("The scan stopped after {0} pages, which are kept: {1}", kept, why)
         } else if stopped {
-            message.stringValue = kept == 0 ? "Scanning stopped." : "Scanning stopped; the \(ScanRun.pages(kept)) scanned are kept."
+            message.stringValue = kept == 0 ? loc("Scanning stopped.")
+                : kept == 1 ? loc("Scanning stopped; the {0} page scanned is kept.", kept) : loc("Scanning stopped; the {0} pages scanned are kept.", kept)
         } else {
             message.stringValue = ScanRun.doneText(kept: kept, blank: blank, unreadable: unreadable, glass: glass, finish: createButton.title)
         }
@@ -655,7 +658,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     }
 
     @objc func stopClicked() {
-        message.stringValue = "Stopping the scan…"
+        message.stringValue = loc("Stopping the scan…")
         scanTask?.cancel()
     }
 
@@ -673,7 +676,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let images = pages.enumerated().map { (bytes: Self.withDensity($0.element.jpeg, dpi: $0.element.dpi), name: "Scan page \($0.offset + 1).jpg") }
         let count = pages.count
         let searchable = ocr.state == .on
-        message.stringValue = "Making the PDF…"
+        message.stringValue = loc("Making the PDF…")
         let target = insertTarget
         let place = placePopup.indexOfSelectedItem
         Task { [weak self] in
@@ -681,18 +684,18 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
             guard let self else { return }
             switch made {
             case .failure(let error):
-                self.message.stringValue = "The scan couldn't be made into a PDF: \((error as? PdfEditError)?.message ?? error.localizedDescription)"
+                self.message.stringValue = loc("The scan couldn't be made into a PDF: {0}", (error as? PdfEditError)?.message ?? error.localizedDescription)
             case .success(let bytes) where target != nil:
                 guard let c = target, c.pdf.session != nil else {
-                    self.message.stringValue = "The document to insert into has closed."
+                    self.message.stringValue = loc("The document to insert into has closed.")
                     return
                 }
                 // Where, from the document as it is now (it may have changed meanwhile), as Windows clamps it.
                 let n = c.engine.pageCount, current = min(self.insertInto.current, max(n - 1, 0))
                 let at = min(max([current + 1, current, 0, n][max(place, 0)], 0), n)
-                let label = "Insert \(ScanRun.pages(count)) from the scanner"
-                guard await c.insertPages(PdfSource(bytes, nil, NewDocuments.name("Scan")), at: at, pages: nil, label: label) else {
-                    self.message.stringValue = "The pages couldn't be inserted."
+                let label = count == 1 ? loc("Insert {0} page from the scanner", count) : loc("Insert {0} pages from the scanner", count)
+                guard await c.insertPages(PdfSource(bytes, nil, NewDocuments.name(loc("Scan", context: "file name"))), at: at, pages: nil, label: label) else {
+                    self.message.stringValue = loc("The pages couldn't be inserted.")
                     return
                 }
                 self.lastInserted = (c.pdf, at, count)
@@ -702,7 +705,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                 let (reader, spelling) = (Self.testReader, Self.testSpelling)
                 c.startLongTask { await c.runRecognize(pages: Array(at..<(at + count)), ocr: reader, spelling: spelling) }
             case .success(let bytes):
-                guard let document = NewDocuments.open(bytes, name: NewDocuments.name("Scan")) else { return }
+                guard let document = NewDocuments.open(bytes, name: NewDocuments.name(loc("Scan", context: "file name"))) else { return }
                 self.lastCreated = document
                 self.clearPages()
                 self.window?.orderOut(nil)
@@ -727,9 +730,9 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         if isScanning { scanTask?.cancel() }
         if !pages.isEmpty && !Report.isRunning {
             let alert = NSAlert()
-            alert.messageText = pages.count == 1 ? "Discard the scanned page?" : "Discard the \(pages.count) scanned pages?"
-            alert.addButton(withTitle: "Discard")
-            alert.addButton(withTitle: "Keep Scanning")
+            alert.messageText = pages.count == 1 ? loc("Discard the scanned page?") : loc("Discard the {0} scanned pages?", pages.count)
+            alert.addButton(withTitle: loc("Discard"))
+            alert.addButton(withTitle: loc("Keep Scanning"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         clearPages()
@@ -743,7 +746,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     private static func describe(_ error: Error) -> String {
         if let e = error as? ScanError { return e.description }
-        if LocalNetworkSignal.isDenied(error) { return "Local Network access is off for Inkvolt PDF (System Settings › Privacy & Security › Local Network)." }
+        if LocalNetworkSignal.isDenied(error) { return loc("Local Network access is off for Inkvolt PDF (System Settings › Privacy & Security › Local Network).") }
+
         return error.localizedDescription
     }
 

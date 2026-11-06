@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The measuring tools' state the window keeps: the scales of the version shown (read once per version), and the scale
 /// sheet while it is open (the self-test fills it in and presses its button).
@@ -22,20 +23,20 @@ final class ScaleSheet {
     let pages = NSPopUpButton(frame: .zero, pullsDown: false)
 
     init(unit: String, decimals current: Int, page: Int) {
-        for (popup, label) in [(pageUnit, "Unit on the page"), (realUnit, "Real unit")] {
+        for (popup, label) in [(pageUnit, loc("Unit on the page")), (realUnit, loc("Real unit"))] {
             popup.addItems(withTitles: MeasureScale.units)
             popup.setAccessibilityLabel(label)
         }
         pageUnit.selectItem(withTitle: "in")
         realUnit.selectItem(withTitle: MeasureScale.units.contains(unit) ? unit : "ft")
-        pageValue.setAccessibilityLabel("Length on the page")
-        realValue.setAccessibilityLabel("Real length")
+        pageValue.setAccessibilityLabel(loc("Length on the page"))
+        realValue.setAccessibilityLabel(loc("Real length"))
         for f in [pageValue, realValue] { f.widthAnchor.constraint(equalToConstant: 80).isActive = true }
         decimals.addItems(withTitles: ["0", "1", "2", "3", "4"])
         decimals.selectItem(at: min(max(current, 0), 4))
-        decimals.setAccessibilityLabel("Decimals")
-        pages.addItems(withTitles: ["This page (\(page + 1))", "All pages"])
-        pages.setAccessibilityLabel("Use it for")
+        decimals.setAccessibilityLabel(loc("Decimals"))
+        pages.addItems(withTitles: [loc("This page ({0})", page + 1), loc("All pages")])
+        pages.setAccessibilityLabel(loc("Use it for"))
     }
 
     var allPages: Bool { pages.indexOfSelectedItem == 1 }
@@ -73,8 +74,8 @@ extension DocumentWindowController {
     func addMeasurement(_ kind: MeasureKind, page: Int, points: [PointD]) async -> Bool {
         let scale = scaleAt(page, points[0])
         let author = editor.author
-        let name = kind == .distance ? "distance" : kind == .perimeter ? "perimeter" : "area"
-        let ok = await editor.run("Measure \(name)") { d, pw in
+        let label = kind == .distance ? loc("Measure distance") : kind == .perimeter ? loc("Measure perimeter") : loc("Measure area")
+        let ok = await editor.run(label) { d, pw in
             try Measurements.add(d, pw, page, kind, points, scale, author: author)
         }
         if ok { notify(scale.announcement(kind, points), canUndo: true) }
@@ -91,26 +92,26 @@ extension DocumentWindowController {
         let sheet = ScaleSheet(unit: current.unit == "units" ? "ft" : current.unit, decimals: current.decimals, page: page)
         sheet.realValue.stringValue = "1"
         let alert = sheet.alert
-        alert.messageText = "Set Measuring Scale"
-        alert.informativeText = "What a length on the page stands for, as drawings say it (1 in = 10 ft, 1 cm = 1 m). Now: \(current.ratio).\n\n"
-            + "The scale is saved in the document, as Acrobat does, so later measurements here or in other apps use it. Measurements already "
-            + "made keep theirs. Parts of a page with a scale of their own (a detail) keep it."
+        alert.messageText = loc("Set Measuring Scale")
+        let now = loc("What a length on the page stands for, as drawings say it (1 in = 10 ft, 1 cm = 1 m). Now: {0}.", current.ratio)
+        let kept = loc("The scale is saved in the document, as Acrobat does, so later measurements here or in other apps use it. Measurements already made keep theirs. Parts of a page with a scale of their own (a detail) keep it.")
+        alert.informativeText = now + "\n\n" + kept
         let equals = NSTextField(labelWithString: "=")
         equals.font = .systemFont(ofSize: 16)
         let lengths = NSStackView(views: [sheet.pageValue, sheet.pageUnit, equals, sheet.realValue, sheet.realUnit])
         lengths.spacing = 6
         let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "On the page = real:"), lengths],
-            [NSTextField(labelWithString: "Decimals:"), sheet.decimals],
-            [NSTextField(labelWithString: "Use it for:"), sheet.pages],
+            [NSTextField(labelWithString: loc("On the page = real:")), lengths],
+            [NSTextField(labelWithString: loc("Decimals:")), sheet.decimals],
+            [NSTextField(labelWithString: loc("Use it for:")), sheet.pages],
         ])
         grid.rowSpacing = 8
         grid.columnSpacing = 8
         grid.column(at: 0).xPlacement = .trailing
         grid.frame = NSRect(x: 0, y: 0, width: 440, height: 90)
         alert.accessoryView = grid
-        alert.addButton(withTitle: "Set Scale")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Set Scale"))
+        alert.addButton(withTitle: loc("Cancel"))
         measure.sheet = sheet
         alert.layout()
         alert.beginSheetModal(for: window) { response in
@@ -121,7 +122,7 @@ extension DocumentWindowController {
                       let rv = MeasureScale.number(sheet.realValue.stringValue, 1e-9, 1e12),
                       let pageUnit = sheet.pageUnit.titleOfSelectedItem, let realUnit = sheet.realUnit.titleOfSelectedItem,
                       let scale = try? MeasureScale.from(dv, pageUnit, rv, realUnit, decimals: sheet.decimals.indexOfSelectedItem) else {
-                    return self.pdf.showError("Type both lengths as numbers more than 0.", nil)
+                    return self.pdf.showError(loc("Type both lengths as numbers more than 0."), nil)
                 }
                 Task { await self.setScale(scale, page: sheet.allPages ? nil : page) }
             }
@@ -135,27 +136,27 @@ extension DocumentWindowController {
         let current = scaleAt(page, first)
         let length = MeasureGeometry.distance(first, last) * current.userUnit // in points, whatever the page's unit
         if length < 1 {
-            notify("That line is too short to calibrate from. Click two points further apart.")
+            notify(loc("That line is too short to calibrate from. Click two points further apart."))
             return
         }
         let sheet = ScaleSheet(unit: current.unit, decimals: current.decimals, page: page)
         let alert = sheet.alert
-        alert.messageText = "Calibrate Scale"
-        alert.informativeText = "The line you drew is \(MeasureScale.trimmedInches(length)) in long on the page. How long is it really?"
+        alert.messageText = loc("Calibrate Scale")
+        alert.informativeText = loc("The line you drew is {0} in long on the page. How long is it really?", MeasureScale.trimmedInches(length))
         let real = NSStackView(views: [sheet.realValue, sheet.realUnit])
         real.spacing = 6
         let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "Real length:"), real],
-            [NSTextField(labelWithString: "Decimals:"), sheet.decimals],
-            [NSTextField(labelWithString: "Use it for:"), sheet.pages],
+            [NSTextField(labelWithString: loc("Real length:")), real],
+            [NSTextField(labelWithString: loc("Decimals:")), sheet.decimals],
+            [NSTextField(labelWithString: loc("Use it for:")), sheet.pages],
         ])
         grid.rowSpacing = 8
         grid.columnSpacing = 8
         grid.column(at: 0).xPlacement = .trailing
         grid.frame = NSRect(x: 0, y: 0, width: 340, height: 90)
         alert.accessoryView = grid
-        alert.addButton(withTitle: "Set Scale")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Set Scale"))
+        alert.addButton(withTitle: loc("Cancel"))
         measure.sheet = sheet
         alert.layout()
         alert.beginSheetModal(for: window) { response in
@@ -164,7 +165,7 @@ extension DocumentWindowController {
                 guard response == .alertFirstButtonReturn else { return }
                 guard let rv = MeasureScale.number(sheet.realValue.stringValue, 1e-9, 1e12), let unit = sheet.realUnit.titleOfSelectedItem,
                       let scale = try? MeasureScale.calibrate(length, rv, unit, decimals: sheet.decimals.indexOfSelectedItem) else {
-                    return self.pdf.showError("Type the real length, a number more than 0.", nil)
+                    return self.pdf.showError(loc("Type the real length, a number more than 0."), nil)
                 }
                 Task { await self.setScale(scale, page: sheet.allPages ? nil : page) }
             }
@@ -177,10 +178,13 @@ extension DocumentWindowController {
     func setScale(_ scale: MeasureScale, page: Int?) async -> Bool {
         let all = Array(0..<engine.pageCount)
         let chosen = page.map { [$0] } ?? all
-        let ok = await editor.run("Set measuring scale") { d, pw in try Measurements.setPageScale(d, pw, chosen, scale) }
+        let ok = await editor.run(loc("Set measuring scale")) { d, pw in try Measurements.setPageScale(d, pw, chosen, scale) }
         if ok {
-            let which = page.map { "page \($0 + 1)" } ?? "all pages"
-            notify("Scale \(scale.ratio) set for \(which). Measure with Tools › Measure.", canUndo: true)
+            if let page {
+                notify(loc("Scale {0} set for page {1}. Measure with Tools › Measure.", scale.ratio, page + 1), canUndo: true)
+            } else {
+                notify(loc("Scale {0} set for all pages. Measure with Tools › Measure.", scale.ratio), canUndo: true)
+            }
         }
         return ok
     }

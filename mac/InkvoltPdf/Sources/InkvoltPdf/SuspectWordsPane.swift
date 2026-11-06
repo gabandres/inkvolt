@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The Mac's spelling dictionary for suspect words (the Windows app's spell checker through `ISpelling`):
 /// `NSSpellChecker` in the language the words were recognized in, its closest available dictionary. Asked from the
@@ -55,14 +56,14 @@ struct SuspectWordItem {
 
     var why: String {
         var why: [String] = []
-        if word.suspect.contains(.notInDictionary) { why.append("not in the dictionary") }
-        if word.suspect.contains(.lettersAndDigits) { why.append("letters and digits mixed") }
-        if word.suspect.contains(.oddCharacters) { why.append("odd characters") }
-        if word.suspect.contains(.readDifferently) { why.append("read differently before cleaning") }
+        if word.suspect.contains(.notInDictionary) { why.append(loc("not in the dictionary")) }
+        if word.suspect.contains(.lettersAndDigits) { why.append(loc("letters and digits mixed")) }
+        if word.suspect.contains(.oddCharacters) { why.append(loc("odd characters")) }
+        if word.suspect.contains(.readDifferently) { why.append(loc("read differently before cleaning")) }
         return why.joined(separator: ", ")
     }
 
-    var caption: String { "Page \(page + 1) · \(why)" }
+    var caption: String { loc("Page {0} · {1}", page + 1, why) }
 }
 
 /// The Suspect Words pane (the Windows app's): the words Recognize Text marked as suspect (`SuspectWords`), each beside
@@ -73,8 +74,8 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
     private let table = NSTableView()
     private let scroll = NSScrollView()
     let field = NSTextField(string: "")
-    let correctButton = NSButton(title: "Correct", target: nil, action: nil)
-    let keepButton = NSButton(title: "Keep as Read", target: nil, action: nil)
+    let correctButton = NSButton(title: loc("Correct"), target: nil, action: nil)
+    let keepButton = NSButton(title: loc("Keep as Read"), target: nil, action: nil)
     private let suggestions = NSStackView()
     private let editor = NSStackView()
     private(set) var items: [SuspectWordItem] = []
@@ -94,12 +95,12 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
         table.rowHeight = 58
         table.dataSource = self
         table.delegate = self
-        table.setAccessibilityLabel("Suspect words")
+        table.setAccessibilityLabel(loc("Suspect words"))
         scroll.documentView = table
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
-        field.placeholderString = "The word as it should read"
-        field.setAccessibilityLabel("Correction")
+        field.placeholderString = loc("The word as it should read")
+        field.setAccessibilityLabel(loc("Correction"))
         field.delegate = self
         for (button, action) in [(correctButton, #selector(correctClicked)), (keepButton, #selector(keepClicked))] {
             button.target = self
@@ -107,8 +108,8 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
             button.controlSize = .small
             button.bezelStyle = .push
         }
-        correctButton.toolTip = "Replace the recognized word with what is typed (search finds the correction)"
-        keepButton.toolTip = "The word is right as recognized: take it off the list"
+        correctButton.toolTip = loc("Replace the recognized word with what is typed (search finds the correction)")
+        keepButton.toolTip = loc("The word is right as recognized: take it off the list")
         suggestions.orientation = .horizontal
         suggestions.spacing = 4
         let buttons = NSStackView(views: [correctButton, keepButton])
@@ -132,7 +133,7 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
             summary.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
             field.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
         ])
-        setAccessibilityLabel("Suspect words")
+        setAccessibilityLabel(loc("Suspect words"))
     }
 
     @available(*, unavailable)
@@ -143,10 +144,16 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
         let keep = table.selectedRow
         self.items = items
         let pages = Set(items.map(\.page)).count
-        summary.stringValue = !items.isEmpty
-            ? "\(items.count) suspect word\(items.count == 1 ? "" : "s") on \(pages) page\(pages == 1 ? "" : "s"). Correct a word or keep it as read."
-            : hasLayers ? "No suspect words left: every recognized word has been checked or looked right."
-            : "No recognized text to check here. Use Recognize Text (OCR) on scanned pages first."
+        let count = items.count
+        if count == 0 {
+            summary.stringValue = hasLayers ? loc("No suspect words left: every recognized word has been checked or looked right.")
+                : loc("No recognized text to check here. Use Recognize Text (OCR) on scanned pages first.")
+        } else if pages > 1 {
+            summary.stringValue = loc("{0} suspect words on {1} pages. Correct a word or keep it as read.", count, pages)
+        } else {
+            summary.stringValue = count == 1 ? loc("{0} suspect word on 1 page. Correct a word or keep it as read.", count)
+                : loc("{0} suspect words on 1 page. Correct a word or keep it as read.", count)
+        }
         table.reloadData()
         if !items.isEmpty {
             table.selectRowIndexes([min(max(keep, 0), items.count - 1)], byExtendingSelection: false)
@@ -194,7 +201,7 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
         let row = NSStackView(views: [picture, text])
         row.spacing = 6
         row.setAccessibilityElement(true)
-        row.setAccessibilityLabel("\(item.word.text). Page \(item.page + 1). \(item.why)")
+        row.setAccessibilityLabel(loc("{0}. Page {1}. {2}", item.word.text, item.page + 1, item.why))
         return row
     }
 
@@ -215,7 +222,7 @@ final class SuspectWordsPane: NSView, NSTableViewDataSource, NSTableViewDelegate
             let b = NSButton(title: whole, target: self, action: #selector(suggestionClicked(_:)))
             b.controlSize = .small
             b.bezelStyle = .push
-            b.toolTip = "Correct to “\(whole)”"
+            b.toolTip = loc("Correct to “{0}”", whole)
             suggestions.addArrangedSubview(b)
         }
         suggestions.isHidden = suggestions.arrangedSubviews.isEmpty
@@ -333,12 +340,12 @@ extension DocumentWindowController {
 
     func correctSuspect(_ item: SuspectWordItem, _ typed: String) {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.isEmpty { return notify("A word can't be empty: type the correction, or choose Keep as Read.") }
-        if text.contains(where: \.isWhitespace) { return notify("Type one word: a correction replaces one recognized word.") }
+        if text.isEmpty { return notify(loc("A word can't be empty: type the correction, or choose Keep as Read.")) }
+        if text.contains(where: \.isWhitespace) { return notify(loc("Type one word: a correction replaces one recognized word.")) }
         let (page, index) = (item.page, item.index)
         Task { @MainActor in
-            if await self.editor.run("Correct recognized word", { d, pw in try TextLayer.correct(d, pw, page, index, text) }) {
-                self.notify("“\(item.word.text)” is now “\(text)” on page \(page + 1); search finds it.", canUndo: true)
+            if await self.editor.run(loc("Correct recognized word"), { d, pw in try TextLayer.correct(d, pw, page, index, text) }) {
+                self.notify(loc("“{0}” is now “{1}” on page {2}; search finds it.", item.word.text, text, page + 1), canUndo: true)
             }
         }
     }
@@ -346,7 +353,8 @@ extension DocumentWindowController {
     func keepSuspect(_ item: SuspectWordItem) {
         let (page, index) = (item.page, item.index)
         Task { @MainActor in
-            _ = await self.editor.run("Keep recognized word") { d, pw in try TextLayer.keep(d, pw, page, index) }
+            _ = await self.editor.run(loc("Keep recognized word")) { d, pw in try TextLayer.keep(d, pw, page, index) }
+
         }
     }
 }

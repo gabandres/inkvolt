@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The sidebar: page thumbnails, the document's bookmarks, or its comments. A click goes there. Several thumbnails can
 /// be chosen for the page commands (their context menu has them); bookmarks are added, renamed, deleted and dragged into
@@ -20,14 +21,14 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
         var title: String {
             switch self {
-            case .pages: "Pages"
-            case .bookmarks: "Bookmarks"
-            case .comments: "Comments"
-            case .signatures: "Signatures"
-            case .attachments: "Attachments"
-            case .layers: "Layers"
-            case .suspectWords: "Suspect Words"
-            case .accessibility: "Accessibility"
+            case .pages: loc("Pages")
+            case .bookmarks: loc("Bookmarks")
+            case .comments: loc("Comments")
+            case .signatures: loc("Signatures")
+            case .attachments: loc("Attachments")
+            case .layers: loc("Layers")
+            case .suspectWords: loc("Suspect Words")
+            case .accessibility: loc("Accessibility")
             }
         }
 
@@ -129,7 +130,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         table.delegate = self
         table.allowsMultipleSelection = true
         table.owner = self
-        table.setAccessibilityLabel("Page thumbnails")
+        table.setAccessibilityLabel(loc("Page thumbnails"))
         // Thumbnails dragged to move pages (to another window: copied), PDFs and pictures dropped on them to insert.
         table.registerForDraggedTypes([Self.pagesType, .fileURL])
         table.setDraggingSourceOperationMask([.move, .copy], forLocal: true)
@@ -149,7 +150,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         outlineView.action = #selector(outlineClicked)
         outlineView.registerForDraggedTypes([Self.bookmarkType])
         outlineView.setDraggingSourceOperationMask(.move, forLocal: true)
-        outlineView.setAccessibilityLabel("Bookmarks")
+        outlineView.setAccessibilityLabel(loc("Bookmarks"))
         outlineView.menu = bookmarkMenu()
         outlineView.onKey = { [weak self] event in
             guard let self, let path = self.clickedOrSelectedPath() else { return false }
@@ -170,7 +171,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
         picker.target = self
         picker.action = #selector(pick)
-        picker.setAccessibilityLabel("Sidebar shows")
+        picker.setAccessibilityLabel(loc("Sidebar shows"))
         picker.segmentDistribution = .fillEqually
         outlineScroll.isHidden = true
         comments.isHidden = true
@@ -431,7 +432,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
             cell.picture.image = nil
             thumbs.request(row, scale: scale)
         }
-        cell.setAccessibilityLabel("Page \(row + 1)")
+        cell.setAccessibilityLabel(loc("Page {0}", row + 1))
         return cell
     }
 
@@ -499,10 +500,10 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     }
 
     private func bookmarkMenu() -> NSMenu {
-        let menu = NSMenu(title: "Bookmarks")
-        let add = NSMenuItem(title: "Add Bookmark", action: #selector(addClicked), keyEquivalent: "")
-        let rename = NSMenuItem(title: "Rename…", action: #selector(renameClicked), keyEquivalent: "")
-        let delete = NSMenuItem(title: "Delete", action: #selector(deleteClicked), keyEquivalent: "")
+        let menu = NSMenu(title: loc("Bookmarks"))
+        let add = NSMenuItem(title: loc("Add Bookmark"), action: #selector(addClicked), keyEquivalent: "")
+        let rename = NSMenuItem(title: loc("Rename…"), action: #selector(renameClicked), keyEquivalent: "")
+        let delete = NSMenuItem(title: loc("Delete"), action: #selector(deleteClicked), keyEquivalent: "")
         for item in [add, rename, delete] { item.target = self }
         menu.addItem(add)
         menu.addItem(.separator())

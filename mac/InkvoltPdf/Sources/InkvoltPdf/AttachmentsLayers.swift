@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 // E9: the sidebar's Attachments and Layers panes (the Windows app's in DocumentTab.Review). Attachments are listed,
@@ -12,11 +13,11 @@ import UniformTypeIdentifiers
 @MainActor
 final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate {
     private let table = KeyTableView()
-    private let emptyLabel = NSTextField(wrappingLabelWithString: "No attached files. Attach… embeds a file in this PDF.")
-    let attachButton = NSButton(title: "Attach…", target: nil, action: nil)
-    let saveButton = NSButton(title: "Save…", target: nil, action: nil)
-    let openButton = NSButton(title: "Open", target: nil, action: nil)
-    let removeButton = NSButton(title: "Remove", target: nil, action: nil)
+    private let emptyLabel = NSTextField(wrappingLabelWithString: loc("No attached files. Attach… embeds a file in this PDF."))
+    let attachButton = NSButton(title: loc("Attach…"), target: nil, action: nil)
+    let saveButton = NSButton(title: loc("Save…"), target: nil, action: nil)
+    let openButton = NSButton(title: loc("Open"), target: nil, action: nil)
+    let removeButton = NSButton(title: loc("Remove"), target: nil, action: nil)
     private(set) var items: [(info: AttachmentInfo, page: String?)] = []
 
     var onAttach: (() -> Void)?
@@ -35,7 +36,7 @@ final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate 
         table.delegate = self
         table.target = self
         table.doubleAction = #selector(doubleClicked)
-        table.setAccessibilityLabel("Attached files")
+        table.setAccessibilityLabel(loc("Attached files"))
         table.onKey = { [weak self] event in
             guard let self, let a = self.selected else { return false }
             switch event.specialKey {
@@ -60,8 +61,8 @@ final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate 
             button.controlSize = .small
             button.bezelStyle = .push
         }
-        openButton.toolTip = "Open an attached PDF as a new document"
-        saveButton.toolTip = "Save the attached file (Inkvolt PDF never runs attachments)"
+        openButton.toolTip = loc("Open an attached PDF as a new document")
+        saveButton.toolTip = loc("Save the attached file (Inkvolt PDF never runs attachments)")
         let buttons = NSStackView(views: [attachButton, saveButton, openButton, removeButton])
         buttons.spacing = 4
         emptyLabel.textColor = .secondaryLabelColor
@@ -79,7 +80,7 @@ final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate 
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
             emptyLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
         ])
-        setAccessibilityLabel("Attachments")
+        setAccessibilityLabel(loc("Attachments"))
         updateButtons()
     }
 
@@ -118,7 +119,7 @@ final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate 
         let name = NSTextField(labelWithString: a.fileName)
         name.lineBreakMode = .byTruncatingMiddle
         var detail = [Self.sizeText(a.size)]
-        if let page { detail.append("on page \(page)") }
+        if let page { detail.append(loc("on page {0}", page)) }
         if let d = a.description, !d.isEmpty { detail.append(d) }
         let info = NSTextField(labelWithString: detail.joined(separator: " · "))
         info.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -134,7 +135,7 @@ final class AttachmentsPane: NSView, NSTableViewDataSource, NSTableViewDelegate 
         let row = NSStackView(views: [icon, texts])
         row.spacing = 6
         row.setAccessibilityElement(true)
-        row.setAccessibilityLabel("\(a.fileName), \(detail.joined(separator: ", "))")
+        row.setAccessibilityLabel(loc("{0}, {1}", a.fileName, detail.joined(separator: ", ")))
         return row
     }
 
@@ -183,9 +184,9 @@ final class LayerRow: NSObject {
 @MainActor
 final class LayersPane: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
     private let outline = NSOutlineView()
-    private let note = NSTextField(wrappingLabelWithString: "Showing or hiding a layer changes only what you see and print. Save as Default keeps it in the file.")
-    let resetButton = NSButton(title: "Reset", target: nil, action: nil)
-    let saveButton = NSButton(title: "Save as Default", target: nil, action: nil)
+    private let note = NSTextField(wrappingLabelWithString: loc("Showing or hiding a layer changes only what you see and print. Save as Default keeps it in the file."))
+    let resetButton = NSButton(title: loc("Reset"), target: nil, action: nil)
+    let saveButton = NSButton(title: loc("Save as Default"), target: nil, action: nil)
     private(set) var roots: [LayerRow] = []
 
     var onToggle: ((LayerInfo, Bool) -> Void)?
@@ -201,7 +202,7 @@ final class LayersPane: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
         outline.style = .sourceList
         outline.dataSource = self
         outline.delegate = self
-        outline.setAccessibilityLabel("Layers")
+        outline.setAccessibilityLabel(loc("Layers"))
         let scroll = NSScrollView()
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
@@ -212,8 +213,8 @@ final class LayersPane: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
             button.controlSize = .small
             button.bezelStyle = .push
         }
-        resetButton.toolTip = "Show the layers as the document opens with them"
-        saveButton.toolTip = "Make what is shown the document's default (an edit you can undo)"
+        resetButton.toolTip = loc("Show the layers as the document opens with them")
+        saveButton.toolTip = loc("Make what is shown the document's default (an edit you can undo)")
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         let buttons = NSStackView(views: [resetButton, saveButton])
@@ -231,7 +232,7 @@ final class LayersPane: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
             scroll.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
             note.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -16),
         ])
-        setAccessibilityLabel("Layers")
+        setAccessibilityLabel(loc("Layers"))
     }
 
     @available(*, unavailable)
@@ -272,7 +273,7 @@ final class LayersPane: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate {
         box.row = row
         box.state = row.visible ? .on : .off
         box.isEnabled = !layer.locked
-        box.toolTip = layer.locked ? "The document locks this layer" : nil
+        box.toolTip = layer.locked ? loc("The document locks this layer") : nil
         box.lineBreakMode = .byTruncatingTail
         return box
     }
@@ -368,8 +369,8 @@ extension DocumentWindowController {
 
     private func pickFileToAttach() -> URL? {
         let panel = NSOpenPanel()
-        panel.title = "Attach a File"
-        panel.prompt = "Attach"
+        panel.title = loc("Attach a File")
+        panel.prompt = loc("Attach")
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
         return panel.runModal() == .OK ? panel.url : nil
@@ -381,20 +382,20 @@ extension DocumentWindowController {
         let modified: Date?
         do {
             let values = try url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
-            if (values.fileSize ?? 0) > 512 * 1024 * 1024 { throw PdfEditError("Files over 512 MB can't be attached.") }
+            if (values.fileSize ?? 0) > 512 * 1024 * 1024 { throw PdfEditError(loc("Files over 512 MB can't be attached.")) }
             bytes = try await Task.detached { [UInt8](try Data(contentsOf: url)) }.value
             modified = values.contentModificationDate
         } catch {
-            presentProblem("Couldn't read the file", error)
+            presentProblem(loc("Couldn't read the file"), error)
             return false
         }
         let name = url.lastPathComponent
-        let ok = await editor.run("Attach \(name)", contentOnly: true) { d, pw in
+        let ok = await editor.run(loc("Attach {0}", name), contentOnly: true) { d, pw in
             try Attachments.add(d, pw, name, bytes, description: description, modified: modified)
         }
         if ok {
             sidebar.show(.attachments)
-            notify("Attached \(name).", canUndo: true)
+            notify(loc("Attached {0}.", name), canUndo: true)
         }
         return ok
     }
@@ -406,7 +407,7 @@ extension DocumentWindowController {
         var url = target
         if url == nil {
             let panel = NSSavePanel()
-            panel.title = "Save Attachment"
+            panel.title = loc("Save Attachment")
             panel.nameFieldStringValue = Self.safeFileName(a.fileName)
             guard panel.runModal() == .OK else { return }
             url = panel.url
@@ -414,7 +415,7 @@ extension DocumentWindowController {
         guard let url else { return }
         // Writing over a document open here would swap the file under it.
         if NSDocumentController.shared.documents.contains(where: { $0.fileURL?.standardizedFileURL == url.standardizedFileURL }) {
-            presentProblem("\(url.lastPathComponent) is open in Inkvolt PDF", PdfEditError("Choose a different name, or close that document first."))
+            presentProblem(loc("{0} is open in Inkvolt PDF", url.lastPathComponent), PdfEditError(loc("Choose a different name, or close that document first.")))
             return
         }
         let data = session.data, password = session.password, source = pdf.fileURL
@@ -424,9 +425,9 @@ extension DocumentWindowController {
                 try Data(bytes).write(to: url, options: .atomic)
                 Self.markDownloaded(url, from: source)
                 lastSavedAttachment = url
-                notify("Saved \(url.lastPathComponent).")
+                notify(loc("Saved {0}.", url.lastPathComponent))
             } catch {
-                presentProblem("Couldn't save the attachment", error)
+                presentProblem(loc("Couldn't save the attachment"), error)
             }
         }
     }
@@ -465,7 +466,7 @@ extension DocumentWindowController {
                 }
                 NewDocuments.open(bytes, name: Self.safeFileName(a.fileName), password: own)
             } catch {
-                presentProblem("Couldn't open \(a.fileName)", error)
+                presentProblem(loc("Couldn't open {0}", a.fileName), error)
             }
         }
     }
@@ -483,8 +484,8 @@ extension DocumentWindowController {
 
     func removeAttachment(_ a: AttachmentInfo) {
         Task {
-            if await editor.run("Remove attachment \(a.fileName)", contentOnly: true, { d, pw in try Attachments.remove(d, pw, a.key) }) {
-                notify("Removed \(a.fileName).", canUndo: true)
+            if await editor.run(loc("Remove attachment {0}", a.fileName), contentOnly: true, { d, pw in try Attachments.remove(d, pw, a.key) }) {
+                notify(loc("Removed {0}.", a.fileName), canUndo: true)
             }
         }
     }
@@ -545,7 +546,7 @@ extension DocumentWindowController {
                     try PdfEngine.open(try Layers.withVisibility(data, password, visibility))
                 }.value
             } catch {
-                if ticket == layerTicket { notify("Couldn't change the layers: \((error as? PdfEditError)?.message ?? error.localizedDescription)") }
+                if ticket == layerTicket { notify(loc("Couldn't change the layers: {0}", (error as? PdfEditError)?.message ?? error.localizedDescription)) }
                 return
             }
             guard ticket == layerTicket, pdf.session?.data == data, made.pageCount == pageCount else { return }
@@ -569,8 +570,9 @@ extension DocumentWindowController {
         let choice = layerChoice
         layerChoice = [:] // the saved defaults are what shows now
         Task {
-            if await editor.run("Save layer visibility", { d, pw in try Layers.setDefaultVisibility(d, pw, visibility) }) {
-                notify("The layers shown are now the document's default.", canUndo: true)
+            if await editor.run(loc("Save layer visibility"), { d, pw in try Layers.setDefaultVisibility(d, pw, visibility) }) {
+                notify(loc("The layers shown are now the document's default."), canUndo: true)
+
             } else {
                 layerChoice = choice
                 showLayerTree()

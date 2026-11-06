@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// A document's window (a tab when several are open): the sidebar (thumbnails, outline, comments) beside the pages, with
@@ -367,7 +368,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// The Signature menu, as Windows' Sign menu: the saved signatures and initials to place, ways to add them,
     /// deleting one, Sign Digitally.
     func signatureMenu() -> NSMenu {
-        let menu = NSMenu(title: "Signature")
+        let menu = NSMenu(title: loc("Signature"))
         menu.autoenablesItems = false
         let library = SignatureLibrary.shared
         let saved = library.saved
@@ -376,27 +377,27 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             item.target = self
             item.representedObject = s.path
             item.image = SignatureImages.thumbnail(s)
-            item.setAccessibilityLabel("Place \(s.name)")
+            item.setAccessibilityLabel(loc("Place {0}", s.name))
             menu.addItem(item)
         }
         if !saved.isEmpty { menu.addItem(.separator()) }
         let full = library.isFull
         let hasInitials = saved.contains { $0.initials }
         let entries: [(String, Selector, Bool)] = [
-            ("Draw Signature…", #selector(drawSignature(_:)), !full), ("Type Signature…", #selector(typeSignature(_:)), !full),
-            (hasInitials ? "Draw New Initials…" : "Draw Initials…", #selector(drawInitials(_:)), true),
-            (hasInitials ? "Type New Initials…" : "Type Initials…", #selector(typeInitials(_:)), true),
+            (loc("Draw Signature…"), #selector(drawSignature(_:)), !full), (loc("Type Signature…"), #selector(typeSignature(_:)), !full),
+            (hasInitials ? loc("Draw New Initials…") : loc("Draw Initials…"), #selector(drawInitials(_:)), true),
+            (hasInitials ? loc("Type New Initials…") : loc("Type Initials…"), #selector(typeInitials(_:)), true),
         ]
         for entry in entries {
             let item = NSMenuItem(title: entry.0, action: entry.1, keyEquivalent: "")
             item.target = self
             item.isEnabled = entry.2
-            if !entry.2 { item.toolTip = "Up to \(SavedSignatures.maxSignatures) signatures: delete one first." }
+            if !entry.2 { item.toolTip = loc("Up to {0} signatures: delete one first.", SavedSignatures.maxSignatures) }
             menu.addItem(item)
         }
         if !saved.isEmpty {
-            let delete = NSMenuItem(title: "Delete a Saved Signature", action: nil, keyEquivalent: "")
-            let sub = NSMenu(title: "Delete a Saved Signature")
+            let delete = NSMenuItem(title: loc("Delete a Saved Signature"), action: nil, keyEquivalent: "")
+            let sub = NSMenu(title: loc("Delete a Saved Signature"))
             for s in saved {
                 let item = NSMenuItem(title: s.name, action: #selector(deleteSavedSignature(_:)), keyEquivalent: "")
                 item.target = self
@@ -408,7 +409,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             menu.addItem(delete)
         }
         menu.addItem(.separator())
-        let sign = NSMenuItem(title: "Sign Digitally…", action: #selector(signDigitally(_:)), keyEquivalent: "")
+        let sign = NSMenuItem(title: loc("Sign Digitally…"), action: #selector(signDigitally(_:)), keyEquivalent: "")
         sign.target = self
         menu.addItem(sign)
         return menu
@@ -438,16 +439,16 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func deleteSaved(_ s: SavedSignature, ask: Bool) {
         if ask {
             let alert = NSAlert()
-            alert.messageText = "Delete \(s.name)?"
-            alert.informativeText = "It is removed from this Mac. Signatures already placed in documents stay."
-            alert.addButton(withTitle: "Delete")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Delete {0}?", s.name)
+            alert.informativeText = loc("It is removed from this Mac. Signatures already placed in documents stay.")
+            alert.addButton(withTitle: loc("Delete"))
+            alert.addButton(withTitle: loc("Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return }
         }
         do {
             try SignatureLibrary.shared.delete(s)
         } catch {
-            problemAlert("Couldn't delete it", error.localizedDescription)
+            problemAlert(loc("Couldn't delete it"), error.localizedDescription)
         }
     }
 
@@ -464,7 +465,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func showSignatureSheet(initials: Bool, typing: Bool) -> SignatureSheet? {
         guard let window, signatureSheet == nil else { return nil }
         if !initials && SignatureLibrary.shared.isFull {
-            problemAlert("No room for another signature", "Up to \(SavedSignatures.maxSignatures) signatures can be saved: delete one first.")
+            problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", SavedSignatures.maxSignatures))
             return nil
         }
         let sheet = SignatureSheet(initials: initials, typing: typing)
@@ -477,10 +478,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 if let saved = try SignatureLibrary.shared.save(image, initials: initials) {
                     self.armSignature(saved, image: image)
                 } else {
-                    self.problemAlert("No room for another signature", "Up to \(SavedSignatures.maxSignatures) signatures can be saved: delete one first.")
+                    self.problemAlert(loc("No room for another signature"), loc("Up to {0} signatures can be saved: delete one first.", SavedSignatures.maxSignatures))
                 }
             } catch {
-                self.problemAlert("Couldn't save the signature", error.localizedDescription)
+                self.problemAlert(loc("Couldn't save the signature"), error.localizedDescription)
             }
         }
         if let panel = sheet.window { window.beginSheet(panel) }
@@ -490,13 +491,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// The Signature tool with a saved signature (or initials): the next click on a page puts it there.
     func armSignature(_ saved: SavedSignature, image: StampImage? = nil) {
         guard let image = image ?? SignatureLibrary.shared.image(saved) else {
-            problemAlert("Couldn't read \(saved.name)", "Its picture can't be read. Delete it and add it again.")
+            problemAlert(loc("Couldn't read {0}", saved.name), loc("Its picture can't be read. Delete it and add it again."))
             return
         }
         pages.pendingSignature = (image, saved.initials)
         pages.tool = .signature
         window?.makeFirstResponder(pages)
-        notify("Click where the \(saved.initials ? "initials go" : "signature goes"). Drag it with the hand tool to move it; Delete removes it.")
+        notify(saved.initials ? loc("Click where the initials go. Drag them with the hand tool to move them; Delete removes them.")
+               : loc("Click where the signature goes. Drag it with the hand tool to move it; Delete removes it."))
     }
 
     func askSignature() {
@@ -544,7 +546,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
         if let id = pages.selectedId, let c = editor.comment(id), var style = c.style {
             if c.subtype == "FreeText" && style.color == nil { style.textColor = color } else { style.color = color }
-            Task { await editor.setStyle(id, style, label: "Change Color") }
+            Task { await editor.setStyle(id, style, label: loc("Change Color")) }
             return
         }
         var style = pages.styles.style(pages.tool)
@@ -557,7 +559,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func applyWidth(_ width: Double) {
         if let id = pages.selectedId, var style = editor.comment(id)?.style {
             style.width = width
-            Task { await editor.setStyle(id, style, label: "Change Width") }
+            Task { await editor.setStyle(id, style, label: loc("Change Width")) }
             return
         }
         var style = pages.styles.style(pages.tool)
@@ -573,15 +575,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         if tool == .stamp, let spot = toolStrip.frame(of: .stamp) { popUp(stampMenu(), spot.0, spot.1) }
         if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
         if tool == .signature && pages.pendingSignature == nil { askSignature() }
-        if tool == .editContent { notify("Click text to change it, or a picture to move, replace or delete it.") }
-        if tool.measureTool != nil { notify("\(tool.help).") }
+        if tool == .editContent { notify(loc("Click text to change it, or a picture to move, replace or delete it.")) }
+        if tool.measureTool != nil { notify("\(tool.help).") } // English: no words of its own (the tool's help, in loc)
     }
 
     func stampMenu() -> NSMenu {
-        let menu = NSMenu(title: "Stamp")
+        let menu = NSMenu(title: loc("Stamp"))
         let designs = RubberStamps.builtIn + [RubberStamps.approvedBy(editor.author, Date())]
         for (i, design) in designs.enumerated() {
-            let title = design.detail == nil ? design.label : "Approved by \(editor.author)"
+            let title = design.detail == nil ? design.label : "Approved by \(editor.author)" // English: the stamp's face, as it is drawn
             let item = NSMenuItem(title: title, action: #selector(stampPicked(_:)), keyEquivalent: "")
             item.tag = i
             item.target = self
@@ -600,10 +602,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func imageMenu() -> NSMenu {
-        let menu = NSMenu(title: "Image")
-        let file = NSMenuItem(title: "Choose Picture…", action: #selector(chooseImageFile(_:)), keyEquivalent: "")
+        let menu = NSMenu(title: loc("Image"))
+        let file = NSMenuItem(title: loc("Choose Picture…"), action: #selector(chooseImageFile(_:)), keyEquivalent: "")
         file.target = self
-        let paste = NSMenuItem(title: "Picture from Clipboard", action: #selector(imageFromClipboard(_:)), keyEquivalent: "")
+        let paste = NSMenuItem(title: loc("Picture from Clipboard"), action: #selector(imageFromClipboard(_:)), keyEquivalent: "")
         paste.target = self
         menu.addItem(file)
         menu.addItem(paste)
@@ -613,7 +615,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     @objc func chooseImageFile(_ sender: Any?) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]
-        panel.message = "Choose a picture, then click where it goes."
+        panel.message = loc("Choose a picture, then click where it goes.")
         guard let window else { return }
         panel.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
@@ -634,7 +636,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// The Image tool puts `image` down at the next click.
     func usePicture(_ image: NSImage) {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), let stamp = Pictures.stampImage(cg) else {
-            pdf.showError("That picture can't be used.", nil)
+            pdf.showError(loc("That picture can't be used."), nil)
             return
         }
         pages.pendingImage = stamp
@@ -666,7 +668,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             guard let self else { return }
             self.pages.clearSelection()
             self.pages.startEdit {
-                await self.editor.run("Add Link") { data, pw in
+                await self.editor.run(loc("Add Link")) { data, pw in
                     try Links.putOnText(data, pw, lines.page, lines.rects, uri: uri, targetPage: target)
                 }
             }
@@ -752,7 +754,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         markSplitItem(item)
         switch item.action {
         case #selector(toggleMarkup(_:)):
-            item.title = toolStrip.isHidden ? "Show Markup Toolbar" : "Hide Markup Toolbar"
+            item.title = toolStrip.isHidden ? loc("Show Markup Toolbar") : loc("Hide Markup Toolbar")
         case #selector(singlePageMode(_:)), #selector(continuousMode(_:)), #selector(twoPagesMode(_:)), #selector(coverMode(_:)):
             let modes: [Selector: PagesView.ReadingMode] = [#selector(singlePageMode(_:)): .single, #selector(continuousMode(_:)): .continuous,
                                                             #selector(twoPagesMode(_:)): .twoPages, #selector(coverMode(_:)): .cover]
@@ -772,7 +774,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
         case #selector(protectDocument(_:)):
-            item.title = pdf.session?.hasEncryption == true ? "Change Password Protection…" : "Protect with Password…"
+            item.title = pdf.session?.hasEncryption == true ? loc("Change Password Protection…") : loc("Protect with Password…")
         default:
             break
         }
@@ -848,7 +850,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         guard let f = pages.frame(of: id), f.page < pages.pageRects.count else { return }
         pages.select(id, reveal: true)
         let rect = pages.viewRect(f.rect, pages.pageRects[f.page])
-        askText("Reply", initial: "", at: rect) { [weak self] text in
+        askText(loc("Reply"), initial: "", at: rect) { [weak self] text in
             guard let self, let text, !text.isEmpty else { return }
             self.pages.startEdit { await self.editor.reply(to: id, text) }
         }
@@ -882,8 +884,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         let state = Self.diskState(path)
         guard state != ignoredDiskState, diskBar.isHidden else { return }
         let missing = session.isMissingOnDisk()
-        diskBar.show(missing ? "“\(session.displayName)” was moved or deleted by another program."
-                             : "“\(session.displayName)” was changed by another program.", canReload: !missing)
+        diskBar.show(missing ? loc("“{0}” was moved or deleted by another program.", session.displayName)
+                             : loc("“{0}” was changed by another program.", session.displayName), canReload: !missing)
         diskBar.onReload = { [weak self] in
             guard let self else { return }
             Task { await self.reloadFromDiskNow() }
@@ -914,10 +916,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         guard let session = pdf.session else { return false }
         if session.isDirty && !Report.isRunning {
             let alert = NSAlert()
-            alert.messageText = "Reload “\(session.displayName)” from disk?"
-            alert.informativeText = "Your unsaved changes to it will be lost."
-            alert.addButton(withTitle: "Reload")
-            alert.addButton(withTitle: "Cancel")
+            alert.messageText = loc("Reload “{0}” from disk?", session.displayName)
+            alert.informativeText = loc("Your unsaved changes to it will be lost.")
+            alert.addButton(withTitle: loc("Reload"))
+            alert.addButton(withTitle: loc("Cancel"))
             guard alert.runModal() == .alertFirstButtonReturn else { return false }
         }
         var password: String?
@@ -935,7 +937,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 password = given
                 wrong = true
             } catch {
-                pdf.showError("“\(session.displayName)” couldn't be read again.", error)
+                pdf.showError(loc("“{0}” couldn't be read again.", session.displayName), error)
                 return false
             }
         }
@@ -1041,11 +1043,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 allowed = testLinkAnswer
             } else {
                 let alert = NSAlert()
-                alert.messageText = "Open this link?"
-                alert.informativeText = "The document wants to open \(uri). Only continue if you trust the document."
+                alert.messageText = loc("Open this link?")
+                alert.informativeText = loc("The document wants to open {0}. Only continue if you trust the document.", uri)
                 alert.alertStyle = .warning
-                alert.addButton(withTitle: "Open Link")
-                alert.addButton(withTitle: "Cancel")
+                alert.addButton(withTitle: loc("Open Link"))
+                alert.addButton(withTitle: loc("Cancel"))
                 allowed = alert.runModal() == .alertFirstButtonReturn
             }
             guard allowed else { return }
@@ -1103,7 +1105,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             onFindFinished?()
             return
         }
-        findBar.status = "Searching…"
+        findBar.status = loc("Searching…")
         let engine = engine
         let from = activePages.currentPage
         // A new search (or the bar closed) stops the one under way (above): its pages aren't read for nothing.
@@ -1137,7 +1139,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         for r in results { byPage[r.page, default: []].append((r.start, r.end)) }
         for view in allPanes { view.matches = byPage }
         if results.isEmpty {
-            findBar.status = "Not found"
+            findBar.status = loc("Not found")
         } else {
             foundIndex = (results.firstIndex { $0.page >= page } ?? 0) - 1
             step(1)
@@ -1152,7 +1154,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         foundIndex = ((foundIndex + by) % found.count + found.count) % found.count
         let m = found[foundIndex]
         for view in allPanes { view.currentMatch = m }
-        findBar.status = "\(foundIndex + 1) of \(found.count)"
+        findBar.status = loc("{0} of {1}", foundIndex + 1, found.count)
         let pages = activePages
         pages.prepareToShow(m.page)
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {
@@ -1183,15 +1185,15 @@ final class FindBar: NSView, NSSearchFieldDelegate {
 
     init() {
         super.init(frame: .zero)
-        field.placeholderString = "Find in document"
+        field.placeholderString = loc("Find in document")
         field.sendsWholeSearchString = true
         field.target = self
         field.action = #selector(search)
         field.delegate = self
         label.textColor = .secondaryLabelColor
-        let previous = NSButton(image: NSImage(systemSymbolName: "chevron.up", accessibilityDescription: "Previous")!, target: self, action: #selector(previous))
-        let next = NSButton(image: NSImage(systemSymbolName: "chevron.down", accessibilityDescription: "Next")!, target: self, action: #selector(nextMatch))
-        let done = NSButton(title: "Done", target: self, action: #selector(done))
+        let previous = NSButton(image: NSImage(systemSymbolName: "chevron.up", accessibilityDescription: loc("Previous"))!, target: self, action: #selector(previous))
+        let next = NSButton(image: NSImage(systemSymbolName: "chevron.down", accessibilityDescription: loc("Next"))!, target: self, action: #selector(nextMatch))
+        let done = NSButton(title: loc("Done"), target: self, action: #selector(done))
         for b in [previous, next] { b.bezelStyle = .accessoryBarAction }
         let stack = NSStackView(views: [field, label, previous, next, done])
         stack.edgeInsets = NSEdgeInsets(top: 6, left: 10, bottom: 6, right: 10)
@@ -1236,15 +1238,15 @@ final class FindBar: NSView, NSSearchFieldDelegate {
 @MainActor
 final class DiskBar: NSView {
     private let label = NSTextField(labelWithString: "")
-    private let reload = NSButton(title: "Reload", target: nil, action: nil)
-    private let ignore = NSButton(title: "Ignore", target: nil, action: nil)
+    private let reload = NSButton(title: loc("Reload"), target: nil, action: nil)
+    private let ignore = NSButton(title: loc("Ignore"), target: nil, action: nil)
     var onReload: (() -> Void)?
     var onIgnore: (() -> Void)?
     var message: String { label.stringValue }
 
     init() {
         super.init(frame: .zero)
-        let icon = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: "Warning")!)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: loc("Warning"))!)
         icon.contentTintColor = .systemOrange
         label.lineBreakMode = .byTruncatingTail
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -1267,7 +1269,7 @@ final class DiskBar: NSView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("File changed on disk")
+        setAccessibilityLabel(loc("File changed on disk"))
     }
 
     @available(*, unavailable)

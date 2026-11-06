@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// Digital signatures in the window (the Windows app's `DocumentTab.Signing`, `MainWindow.Signing`, `SignDialog` and the
@@ -96,31 +97,33 @@ extension DocumentWindowController {
         }
         let text: String
         if signed.count == 1 {
-            text = "Signed by \(signed[0].signerName ?? signed[0].fieldName) — \(shortStatus(signed[0]))."
+            text = loc("Signed by {0} — {1}.", signed[0].signerName ?? signed[0].fieldName, shortStatus(signed[0]))
         } else if signed.allSatisfy(brokenByEdits) {
-            text = "\(signed.count) signatures were valid when opened; your edits invalidated them."
+            text = loc("{0} signatures were valid when opened; your edits invalidated them.", CoreLanguage.number(signed.count))
         } else {
             let problems = signed.filter { Self.severity($0, brokenByEdits($0)) != .ok }
-            text = problems.isEmpty ? "\(signed.count) signatures, all valid."
-                : "\(signed.count) signatures; \(problems.count) \(problems.count == 1 ? "has a problem" : "have problems"): "
-                + problems.prefix(3).map { "\($0.signerName ?? $0.fieldName) — \(shortStatus($0))" }.joined(separator: "; ") + "."
+            let listed = problems.prefix(3).map { "\($0.signerName ?? $0.fieldName) — \(shortStatus($0))" }.joined(separator: "; ")
+            let total = CoreLanguage.number(signed.count)
+            text = problems.isEmpty ? loc("{0} signatures, all valid.", total)
+                : problems.count == 1 ? loc("{1} signatures; {0} has a problem: {2}.", 1, total, listed)
+                : loc("{1} signatures; {0} have problems: {2}.", CoreLanguage.number(problems.count), total, listed)
         }
         sidebar.signatures.summary = text
         if text != signing.shownSummary {
             signing.shownSummary = text
-            notify(text + " Details: View › Show Signatures.")
+            notify(text + " " + loc("Details: View › Show Signatures."))
         }
     }
 
     private func shortStatus(_ s: SignatureInfo) -> String {
-        if brokenByEdits(s) { return "valid when opened, invalidated by your edits" }
+        if brokenByEdits(s) { return loc("valid when opened, invalidated by your edits") }
         switch s.status {
-        case .modifiedAfterSigning where appendedByEdits(s): return "intact; your changes were added after signing"
-        case .invalid: return "invalid"
-        case .disallowedChanges: return "invalid: changed in ways the signature doesn't allow"
-        case .unsupported: return "can't be checked"
-        case .modifiedAfterSigning: return "modified after signing"
-        default: return s.certificateTrusted ? "valid" : "certificate not trusted"
+        case .modifiedAfterSigning where appendedByEdits(s): return loc("intact; your changes were added after signing")
+        case .invalid: return loc("invalid")
+        case .disallowedChanges: return loc("invalid: changed in ways the signature doesn't allow")
+        case .unsupported: return loc("can't be checked")
+        case .modifiedAfterSigning: return loc("modified after signing")
+        default: return s.certificateTrusted ? loc("valid") : loc("certificate not trusted")
         }
     }
 
@@ -138,20 +141,20 @@ extension DocumentWindowController {
 
     static func summary(_ s: SignatureInfo, _ brokenByEdits: Bool) -> String {
         if brokenByEdits {
-            return "Valid when opened. Your edits changed the signed document, so this signature no longer verifies. Undo them, or keep the signed original by saving your changes as a copy."
+            return loc("Valid when opened. Your edits changed the signed document, so this signature no longer verifies. Undo them, or keep the signed original by saving your changes as a copy.")
         }
         switch s.status {
-        case .unsigned: return "Empty signature field."
-        case .invalid: return "Invalid: the signed content was altered, or the signature is damaged."
+        case .unsigned: return loc("Empty signature field.")
+        case .invalid: return loc("Invalid: the signed content was altered, or the signature is damaged.")
         case .disallowedChanges:
-            return "Invalid: the signed bytes are intact, but the document was later changed in ways this signature doesn't allow, so what you see may not be what was signed."
-        case .unsupported: return "Not checked: Inkvolt PDF can't verify this kind of signature."
+            return loc("Invalid: the signed bytes are intact, but the document was later changed in ways this signature doesn't allow, so what you see may not be what was signed.")
+        case .unsupported: return loc("Not checked: Inkvolt PDF can't verify this kind of signature.")
         case .modifiedAfterSigning:
-            return s.certificateTrusted ? "The signature is valid, but the document was modified after signing."
-                : "The signature is intact, but the document was modified after signing and the certificate isn't trusted on this Mac."
+            return s.certificateTrusted ? loc("The signature is valid, but the document was modified after signing.")
+                : loc("The signature is intact, but the document was modified after signing and the certificate isn't trusted on this Mac.")
         case .valid:
-            return s.certificateTrusted ? "Valid: the document hasn't changed since it was signed."
-                : "The signature is intact, but the certificate isn't trusted on this Mac (\(s.certificateStatus))."
+            return s.certificateTrusted ? loc("Valid: the document hasn't changed since it was signed.")
+                : loc("The signature is intact, but the certificate isn't trusted on this Mac ({0}).", s.certificateStatus)
         }
     }
 
@@ -179,7 +182,8 @@ extension DocumentWindowController {
     func signDigitally(field: String?, scripted: SignChoice? = nil, box: (page: Int, rect: RectD)? = nil, saveTo: URL? = nil) {
         guard !signing.signing, let session = pdf.session else { return NSSound.beep() }
         if session.hasEncryption {
-            info("Protected PDFs can't be signed", "Remove the protection first (File › Remove Password Protection…), then sign: the signed copy is saved as a new file.")
+            info(loc("Protected PDFs can't be signed"),
+                 loc("Remove the protection first (File › Remove Password Protection…), then sign: the signed copy is saved as a new file."))
             return
         }
         let widget = field.flatMap { name in form.widgets.first { $0.fieldName == name } }
@@ -192,7 +196,7 @@ extension DocumentWindowController {
             if field == nil && choice.visible && place == nil {
                 place = await self.pickSignatureBox()
                 if place == nil {
-                    self.notify("Signing cancelled.")
+                    self.notify(loc("Signing cancelled."))
                     return
                 }
             }
@@ -205,7 +209,7 @@ extension DocumentWindowController {
             request.look = choice.look
             request.certify = choice.certify
             if choice.timestamp, let url = URL(string: choice.timestampUrl) { request.timestamp = Self.timestampClient(url) }
-            self.notify(choice.timestamp ? "Signing and getting a timestamp…" : "Signing…")
+            self.notify(choice.timestamp ? loc("Signing and getting a timestamp…") : loc("Signing…"))
             guard await self.applySignature(request) else { return }
             await self.saveSigned(to: saveTo)
         }
@@ -221,17 +225,17 @@ extension DocumentWindowController {
         do {
             signed = try await Task.detached { try await Signing.sign(source, password, request) }.value
         } catch is CancellationError {
-            notify("Signing cancelled.")
+            notify(loc("Signing cancelled."))
             return false
         } catch let e as SigningError {
-            info("This document can't be signed", e.message)
+            info(loc("This document can't be signed"), e.message)
             return false
         } catch {
-            pdf.showError("The document couldn't be signed.", error)
+            pdf.showError(loc("The document couldn't be signed."), error)
             return false
         }
-        return await editor.run("Sign", contentOnly: true) { d, _ in
-            guard d == source else { throw PdfEditError("The document changed while it was being signed. Sign it again.") }
+        return await editor.run(loc("Sign"), contentOnly: true) { d, _ in
+            guard d == source else { throw PdfEditError(loc("The document changed while it was being signed. Sign it again.")) }
             return signed
         }
     }
@@ -247,21 +251,21 @@ extension DocumentWindowController {
             let panel = NSSavePanel()
             panel.allowedContentTypes = [.pdf]
             panel.nameFieldStringValue = name
-            panel.message = "Save the signed document. It is saved as it was signed: any change after this would come after the signature."
+            panel.message = loc("Save the signed document. It is saved as it was signed: any change after this would come after the signature.")
             if let dir = pdf.fileURL?.deletingLastPathComponent() { panel.directoryURL = dir }
             let response = await panel.beginSheetModal(for: window)
             url = response == .OK ? panel.url : nil
         }
         guard let url else {
-            if pdf.session?.undoLabel == "Sign" { pdf.undo() }
-            notify("Not signed: the signed copy wasn't saved.")
+            if pdf.session?.undoLabel == loc("Sign") { pdf.undo() }
+            notify(loc("Not signed: the signed copy wasn't saved."))
             return
         }
         let error = await withCheckedContinuation { (done: CheckedContinuation<Error?, Never>) in
             pdf.save(to: url, ofType: "com.adobe.pdf", for: .saveAsOperation) { done.resume(returning: $0) }
         }
         if let error {
-            pdf.showError("The signed copy couldn't be saved.", error)
+            pdf.showError(loc("The signed copy couldn't be saved."), error)
             return
         }
         // The signed copy is the document now: edits ask before they break its signature.
@@ -270,7 +274,7 @@ extension DocumentWindowController {
 
     /// Waits for a box dragged on a page (a click puts down one of the usual size); nil when Esc cancels.
     func pickSignatureBox() async -> (page: Int, rect: RectD)? {
-        notify("Drag a box on the page where the signature goes (Esc cancels).")
+        notify(loc("Drag a box on the page where the signature goes (Esc cancels)."))
         window?.makeFirstResponder(pages)
         return await withCheckedContinuation { (done: CheckedContinuation<(page: Int, rect: RectD)?, Never>) in
             pages.boxPicker = { page, rect in done.resume(returning: rect.map { (page, $0) }) }
@@ -286,7 +290,7 @@ extension DocumentWindowController {
             post.httpBody = Data(request)
             let (data, response) = try await URLSession.shared.data(for: post)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                throw SigningError("the server answered \(http.statusCode)")
+                throw SigningError(loc("the server answered {0}", http.statusCode))
             }
             return Array(data)
         }
@@ -315,33 +319,37 @@ struct SignatureCard {
     var page: Int?
     var brokenByEdits: Bool
 
-    var title: String { info.status == .unsigned ? "\(info.fieldName) (not signed)" : info.signerName ?? info.fieldName }
+    var title: String { info.status == .unsigned ? loc("{0} (not signed)", info.fieldName) : info.signerName ?? info.fieldName }
 
     var details: String {
-        var lines = ["Field: \(info.fieldName)" + (page.map { ", page \($0 + 1)" } ?? " (invisible)")]
+        var lines = [page.map { loc("Field: {0}, page {1}", info.fieldName, $0 + 1) } ?? loc("Field: {0} (invisible)", info.fieldName)]
         let full = DateFormatter()
         full.dateStyle = .full
         full.timeStyle = .medium
-        if let t = info.signingTime { lines.append("Signed: \(full.string(from: t))" + (info.hasTimestamp ? " (timestamped)" : " (the signer's clock)")) }
-        if let p = info.certificationLevel {
-            lines.append(p == 1 ? "Certified: no changes allowed" : p == 2 ? "Certified: filling in forms and signing allowed"
-                : "Certified: filling in forms, signing and comments allowed")
+        if let t = info.signingTime {
+            let when = full.string(from: t)
+            lines.append(info.hasTimestamp ? loc("Signed: {0} (timestamped)", when) : loc("Signed: {0} (the signer's clock)", when))
         }
-        if let r = info.reason, !r.trimmingCharacters(in: .whitespaces).isEmpty { lines.append("Reason: \(r)") }
-        if let l = info.location, !l.trimmingCharacters(in: .whitespaces).isEmpty { lines.append("Location: \(l)") }
-        if let f = info.subFilter { lines.append("Format: \(f)") }
+        if let p = info.certificationLevel {
+            lines.append(p == 1 ? loc("Certified: no changes allowed") : p == 2 ? loc("Certified: filling in forms and signing allowed")
+                : loc("Certified: filling in forms, signing and comments allowed"))
+        }
+        if let r = info.reason, !r.trimmingCharacters(in: .whitespaces).isEmpty { lines.append(loc("Reason: {0}", r)) }
+        if let l = info.location, !l.trimmingCharacters(in: .whitespaces).isEmpty { lines.append(loc("Location: {0}", l)) }
+        if let f = info.subFilter { lines.append(loc("Format: {0}", f)) }
         if info.status != .unsigned {
-            lines.append(info.coversWholeDocument ? "Covers the whole document" : "Doesn't cover the whole document (changed after signing)")
+            lines.append(info.coversWholeDocument ? loc("Covers the whole document") : loc("Doesn't cover the whole document (changed after signing)"))
         }
         if let c = info.certificate {
             let short = DateFormatter()
             short.dateStyle = .short
-            lines.append("Certificate: \(c.subject)")
-            lines.append("Issued by: \(c.issuerCommonName ?? "")")
-            lines.append("Valid: \(short.string(from: c.notBefore)) to \(short.string(from: c.notAfter))"
-                + (info.certificateValidAtSigningTime == false ? " (not valid at signing time)" : ""))
-            lines.append("Trust: \(info.certificateTrusted ? "trusted by this Mac" : info.certificateStatus)")
-            lines.append("SHA-1 fingerprint: \(c.fingerprint)")
+            let (from, to) = (short.string(from: c.notBefore), short.string(from: c.notAfter))
+            lines.append(loc("Certificate: {0}", c.subject))
+            lines.append(loc("Issued by: {0}", c.issuerCommonName ?? ""))
+            lines.append(info.certificateValidAtSigningTime == false ? loc("Valid: {0} to {1} (not valid at signing time)", from, to)
+                : loc("Valid: {0} to {1}", from, to))
+            lines.append(loc("Trust: {0}", info.certificateTrusted ? loc("trusted by this Mac") : info.certificateStatus))
+            lines.append(loc("SHA-1 fingerprint: {0}", c.fingerprint))
         }
         if let d = info.detail, !d.isEmpty { lines.append(d) }
         return lines.joined(separator: "\n")
@@ -385,7 +393,7 @@ final class SignaturesPane: NSView {
             stack.leadingAnchor.constraint(equalTo: flipped.leadingAnchor), stack.trailingAnchor.constraint(equalTo: flipped.trailingAnchor),
             stack.topAnchor.constraint(equalTo: flipped.topAnchor), stack.bottomAnchor.constraint(equalTo: flipped.bottomAnchor),
         ])
-        setAccessibilityLabel("Signatures")
+        setAccessibilityLabel(loc("Signatures"))
     }
 
     @available(*, unavailable)
@@ -401,7 +409,7 @@ final class SignaturesPane: NSView {
         summaryLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         stack.addArrangedSubview(summaryLabel)
         summaryLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
-        let sign = NSButton(title: "Sign Digitally…", target: self, action: #selector(signClicked))
+        let sign = NSButton(title: loc("Sign Digitally…"), target: self, action: #selector(signClicked))
         stack.addArrangedSubview(sign)
         for card in list { add(card) }
     }
@@ -430,16 +438,16 @@ final class SignaturesPane: NSView {
         details.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         details.textColor = .secondaryLabelColor
         details.isSelectable = true
-        details.setAccessibilityLabel("Signature details")
+        details.setAccessibilityLabel(loc("Signature details"))
         var views: [NSView] = [title, status, details]
         if card.page != nil {
-            let go = NSButton(title: "Go to Signature", target: self, action: #selector(goClicked(_:)))
+            let go = NSButton(title: loc("Go to Signature"), target: self, action: #selector(goClicked(_:)))
             go.identifier = NSUserInterfaceItemIdentifier(card.info.fieldName)
             go.bezelStyle = .inline
             views.append(go)
         }
         if card.info.status == .unsigned {
-            let sign = NSButton(title: "Sign This Field…", target: self, action: #selector(signFieldClicked(_:)))
+            let sign = NSButton(title: loc("Sign This Field…"), target: self, action: #selector(signFieldClicked(_:)))
             sign.identifier = NSUserInterfaceItemIdentifier(card.info.fieldName)
             sign.bezelStyle = .inline
             views.append(sign)
@@ -477,8 +485,11 @@ final class SignaturesPane: NSView {
 /// The Sign Digitally dialog (the Windows app's `SignDialog`): the choices are kept in the settings for next time.
 @MainActor
 enum SignDialog {
-    static let reasons = ["I am the author of this document", "I approve this document", "I have reviewed this document",
-                          "I agree to the terms defined by this document"]
+    /// The reasons offered, written into the signature as the signer's words, in the interface's language as Windows'.
+    static var reasons: [String] {
+        [loc("I am the author of this document"), loc("I approve this document"), loc("I have reviewed this document"),
+         loc("I agree to the terms defined by this document")]
+    }
     static let defaultTimestampUrl = "http://timestamp.digicert.com"
 
     @MainActor
@@ -490,11 +501,11 @@ enum SignDialog {
         func reload(select: Certificate? = nil) {
             ids = DigitalIds.keychain()
             popup.removeAllItems()
-            if ids.isEmpty { popup.addItem(withTitle: "No digital ID in the keychain") }
+            if ids.isEmpty { popup.addItem(withTitle: loc("No digital ID in the keychain")) }
             for id in ids { popup.addItem(withTitle: DigitalIds.describe(id.certificate)) }
             popup.menu?.addItem(.separator())
-            popup.addItem(withTitle: "Create a Personal Digital ID…")
-            popup.addItem(withTitle: "Import a Digital ID File (.p12)…")
+            popup.addItem(withTitle: loc("Create a Personal Digital ID…"))
+            popup.addItem(withTitle: loc("Import a Digital ID File (.p12)…"))
             if let select, let i = ids.firstIndex(where: { $0.certificate == select }) { popup.selectItem(at: i) } else { popup.selectItem(at: 0) }
             popup.target = self
             popup.action = #selector(picked)
@@ -502,11 +513,12 @@ enum SignDialog {
 
         var chosen: DigitalId? { ids.indices.contains(popup.indexOfSelectedItem) ? ids[popup.indexOfSelectedItem] : nil }
 
+        /// Create… and Import… are the last two items (by position: their titles are in the interface's language).
         @objc private func picked() {
-            let title = popup.titleOfSelectedItem ?? ""
-            if title.hasPrefix("Create") {
+            let i = popup.indexOfSelectedItem, n = popup.numberOfItems
+            if i == n - 2 {
                 reload(select: SignDialog.createPersonalId()?.certificate)
-            } else if title.hasPrefix("Import") {
+            } else if i == n - 1 {
                 reload(select: SignDialog.importId()?.certificate)
             }
         }
@@ -515,77 +527,77 @@ enum SignDialog {
     static func run(field: String?, fieldVisible: Bool, alreadySigned: Bool, window: NSWindow?) -> SignChoice? {
         let d = AppSettings.defaults
         let alert = NSAlert()
-        alert.messageText = field.map { "Sign “\($0)” Digitally" } ?? "Sign Digitally"
-        alert.informativeText = "Signs with a digital ID from your keychain, then saves the signed copy."
+        alert.messageText = field.map { loc("Sign “{0}” Digitally", $0) } ?? loc("Sign Digitally")
+        alert.informativeText = loc("Signs with a digital ID from your keychain, then saves the signed copy.")
         let picker = IdPicker()
         picker.reload()
-        picker.popup.setAccessibilityLabel("Digital ID")
+        picker.popup.setAccessibilityLabel(loc("Digital ID"))
         let reason = NSComboBox()
         reason.addItems(withObjectValues: reasons)
         reason.stringValue = d.string(forKey: "SignReason") ?? ""
-        reason.setAccessibilityLabel("Reason")
+        reason.setAccessibilityLabel(loc("Reason"))
         let location = NSTextField(string: d.string(forKey: "SignLocation") ?? "")
-        location.setAccessibilityLabel("Location")
+        location.setAccessibilityLabel(loc("Location"))
         func check(_ title: String, _ key: String, _ fallback: Bool) -> NSButton {
             let b = NSButton(checkboxWithTitle: title, target: nil, action: nil)
             b.state = (d.object(forKey: key) as? Bool ?? fallback) ? .on : .off
             return b
         }
-        let visible = check("Show the signature on the page", "SignVisible", true)
+        let visible = check(loc("Show the signature on the page"), "SignVisible", true)
         if field != nil {
             visible.state = fieldVisible ? .on : .off
             visible.isEnabled = false
         }
-        let showDate = check("Show the date", "SignShowDate", true)
-        let showReason = check("Show the reason", "SignShowReason", true)
-        let showDn = check("Show the signer's full certificate name", "SignShowDn", false)
+        let showDate = check(loc("Show the date"), "SignShowDate", true)
+        let showReason = check(loc("Show the reason"), "SignShowReason", true)
+        let showDn = check(loc("Show the signer's full certificate name"), "SignShowDn", false)
         let image = NSPopUpButton(frame: .zero, pullsDown: false)
-        image.addItem(withTitle: "No image")
+        image.addItem(withTitle: loc("No image"))
         let handwritten = SignatureLibrary.shared.saved.filter { !$0.initials }
-        for s in handwritten { image.addItem(withTitle: "Handwritten: \(s.name)") }
+        for s in handwritten { image.addItem(withTitle: loc("Handwritten: {0}", s.name)) }
         image.selectItem(at: (handwritten.firstIndex { $0.path == d.string(forKey: "SignImagePath") } ?? -1) + 1)
-        image.setAccessibilityLabel("Image beside the text")
-        let timestamp = check("Add a trusted timestamp", "SignTimestamp", false)
+        image.setAccessibilityLabel(loc("Image beside the text"))
+        let timestamp = check(loc("Add a trusted timestamp"), "SignTimestamp", false)
         let tsaUrl = NSTextField(string: d.string(forKey: "TimestampUrl") ?? defaultTimestampUrl)
-        tsaUrl.setAccessibilityLabel("Timestamp server")
+        tsaUrl.setAccessibilityLabel(loc("Timestamp server"))
         let certify = NSPopUpButton(frame: .zero, pullsDown: false)
-        certify.addItems(withTitles: ["Don't certify (approval signature)", "Certify: no changes allowed", "Certify: form filling allowed",
-                                      "Certify: form filling and comments allowed"])
+        certify.addItems(withTitles: [loc("Don't certify (approval signature)"), loc("Certify: no changes allowed"), loc("Certify: form filling allowed"),
+                                      loc("Certify: form filling and comments allowed")])
         if alreadySigned || field != nil {
             certify.isEnabled = false
-            certify.toolTip = "Only the first signature can certify a document."
+            certify.toolTip = loc("Only the first signature can certify a document.")
         }
-        certify.setAccessibilityLabel("Certify")
+        certify.setAccessibilityLabel(loc("Certify"))
 
         for v in [picker.popup, reason, location, tsaUrl] as [NSView] { v.widthAnchor.constraint(equalToConstant: 300).isActive = true }
         // What most signatures need in sight; the look, the timestamp and certifying behind More Options (UX review,
         // round 2: twelve rows at once).
         let form = SheetForm("SignDigitally", width: 440)
-        form.row("Digital ID", picker.popup)
-        if picker.ids.isEmpty { form.note("Your keychain has no digital ID yet: choose Create a Personal Digital ID or Import from this menu.") }
-        form.row("Reason", reason)
-        form.row("Location", location)
+        form.row(loc("Digital ID"), picker.popup)
+        if picker.ids.isEmpty { form.note(loc("Your keychain has no digital ID yet: choose Create a Personal Digital ID or Import from this menu.")) }
+        form.row(loc("Reason"), reason)
+        form.row(loc("Location"), location)
         form.row(nil, visible)
-        form.row("On the page", showDate, advanced: true)
+        form.row(loc("On the page"), showDate, advanced: true)
         form.row(nil, showReason, advanced: true)
         form.row(nil, showDn, advanced: true)
-        form.row("Image", image, advanced: true)
-        form.row("Timestamp", timestamp, advanced: true)
-        form.row("Server", tsaUrl, advanced: true)
-        form.note("The server receives only a code made from the signature, never the document.", advanced: true)
-        form.row("Certify", certify, advanced: true)
+        form.row(loc("Image"), image, advanced: true)
+        form.row(loc("Timestamp"), timestamp, advanced: true)
+        form.row(loc("Server"), tsaUrl, advanced: true)
+        form.note(loc("The server receives only a code made from the signature, never the document."), advanced: true)
+        form.row(loc("Certify"), certify, advanced: true)
         form.install(in: alert)
-        alert.addButton(withTitle: "Sign")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Sign"))
+        alert.addButton(withTitle: loc("Cancel"))
         while true {
             guard alert.runModal() == .alertFirstButtonReturn else { return nil }
             guard let id = picker.chosen else {
-                problem("Choose a digital ID.", "Create a personal digital ID, or import one from a .p12 file, if your keychain has none.")
+                problem(loc("Choose a digital ID."), loc("Create a personal digital ID, or import one from a .p12 file, if your keychain has none."))
                 continue
             }
             let url = tsaUrl.stringValue.trimmingCharacters(in: .whitespaces)
             if timestamp.state == .on, URL(string: url).map({ $0.scheme == "http" || $0.scheme == "https" }) != true {
-                problem("Enter the timestamp server's address.", "It starts with http:// or https://.")
+                problem(loc("Enter the timestamp server's address."), loc("It starts with http:// or https://."))
                 continue
             }
             d.set(reason.stringValue, forKey: "SignReason")
@@ -620,26 +632,26 @@ enum SignDialog {
     /// A new self-signed personal ID (RSA 3072, five years), made in the login keychain.
     static func createPersonalId() -> DigitalId? {
         let alert = NSAlert()
-        alert.messageText = "Create a Personal Digital ID"
-        alert.informativeText = "A self-signed ID, kept in your login keychain (Keychain Access can export it as a backup). Others see your signatures as intact, but not trusted until they trust your ID."
+        alert.messageText = loc("Create a Personal Digital ID")
+        alert.informativeText = loc("A self-signed ID, kept in your login keychain (Keychain Access can export it as a backup). Others see your signatures as intact, but not trusted until they trust your ID.")
         let name = NSTextField(string: AppSettings.author)
-        name.placeholderString = "Name"
+        name.placeholderString = loc("Name")
         let email = NSTextField(string: "")
-        email.placeholderString = "Email (optional)"
+        email.placeholderString = loc("Email (optional)")
         let org = NSTextField(string: "")
-        org.placeholderString = "Organization (optional)"
+        org.placeholderString = loc("Organization (optional)")
         let stack = NSStackView(views: [name, email, org])
         stack.orientation = .vertical
         for f in [name, email, org] { f.widthAnchor.constraint(equalToConstant: 300).isActive = true }
         stack.frame = NSRect(origin: .zero, size: stack.fittingSize)
         alert.accessoryView = stack
-        alert.addButton(withTitle: "Create")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Create"))
+        alert.addButton(withTitle: loc("Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         do {
             return try DigitalIds.createPersonal(name: name.stringValue, email: email.stringValue, organization: org.stringValue, inKeychain: true)
         } catch {
-            problem("The digital ID couldn't be made.", "\(error)")
+            problem(loc("The digital ID couldn't be made."), "\(error)")
             return nil
         }
     }
@@ -648,21 +660,21 @@ enum SignDialog {
     static func importId() -> DigitalId? {
         let open = NSOpenPanel()
         open.allowedContentTypes = [UTType(filenameExtension: "p12"), UTType(filenameExtension: "pfx")].compactMap { $0 }
-        open.message = "Choose a digital ID file (.p12 or .pfx)."
+        open.message = loc("Choose a digital ID file (.p12 or .pfx).")
         guard open.runModal() == .OK, let url = open.url, let data = try? Data(contentsOf: url) else { return nil }
         let alert = NSAlert()
-        alert.messageText = "The digital ID file's password"
+        alert.messageText = loc("The digital ID file's password")
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.setAccessibleName("Password")
+        field.setAccessibleName(loc("Password"))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Import")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Import"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
         do {
             return try DigitalIds.importP12(Array(data), password: field.stringValue)
         } catch {
-            problem("The digital ID couldn't be imported.", "\(error)")
+            problem(loc("The digital ID couldn't be imported."), "\(error)")
             return nil
         }
     }

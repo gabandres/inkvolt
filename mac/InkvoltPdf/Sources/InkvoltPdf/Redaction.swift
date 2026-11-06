@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Redaction, the redaction check and Sanitize Document (the Windows app's `DocumentTab.Review` redaction part,
 /// `RedactPatternActions`, `RedactionCheckActions` and `SanitizeActions`): areas are marked with the Redact tool, from the
@@ -32,14 +33,14 @@ final class RedactionState {
 @MainActor
 final class RedactBar: NSView {
     let label = NSTextField(labelWithString: "")
-    let matches = NSButton(title: "Mark Search Matches", target: nil, action: nil)
-    let clear = NSButton(title: "Clear Marks", target: nil, action: nil)
-    let apply = NSButton(title: "Apply Redactions…", target: nil, action: nil)
-    let done = NSButton(title: "Done", target: nil, action: nil)
+    let matches = NSButton(title: loc("Mark Search Matches"), target: nil, action: nil)
+    let clear = NSButton(title: loc("Clear Marks"), target: nil, action: nil)
+    let apply = NSButton(title: loc("Apply Redactions…"), target: nil, action: nil)
+    let done = NSButton(title: loc("Done"), target: nil, action: nil)
 
     init() {
         super.init(frame: .zero)
-        let icon = NSImageView(image: NSImage(systemSymbolName: "rectangle.fill", accessibilityDescription: "Redaction")!)
+        let icon = NSImageView(image: NSImage(systemSymbolName: "rectangle.fill", accessibilityDescription: loc("Redaction"))!)
         icon.contentTintColor = .labelColor
         label.lineBreakMode = .byTruncatingTail
         label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -48,7 +49,7 @@ final class RedactBar: NSView {
             b.controlSize = .small
         }
         apply.keyEquivalent = ""
-        matches.toolTip = "Marks every match of the current search for redaction"
+        matches.toolTip = loc("Marks every match of the current search for redaction")
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let stack = NSStackView(views: [icon, label, spacer, matches, clear, apply, done])
@@ -62,7 +63,7 @@ final class RedactBar: NSView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Redaction")
+        setAccessibilityLabel(loc("Redaction"))
     }
 
     @available(*, unavailable)
@@ -75,9 +76,12 @@ final class RedactBar: NSView {
 }
 
 extension DocumentWindowController {
-    private static func count(_ n: Int, _ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
+    /// "1 area", "12 areas" (a phrase the sentences below hold, as Windows' Redact_Areas_One/Many).
+    static func areaPhrase(_ n: Int) -> String { n == 1 ? loc("{0} area", 1) : loc("{0} areas", CoreLanguage.number(n)) }
+    static func pagePhrase(_ n: Int) -> String { n == 1 ? loc("{0} page", 1) : loc("{0} pages", CoreLanguage.number(n)) }
 
-    /// Says something that needs reading in an alert over the window (in the bar during the self-test).
+    /// Says something that needs reading in an alert over the window (in the bar during the self-test). `title` and
+    /// `text` are shown as given: pass them through `loc`.
     func inform(_ title: String, _ text: String) {
         if Report.skipsDialogs {
             notify("\(title): \(text)")
@@ -113,9 +117,8 @@ extension DocumentWindowController {
         guard shown else { return }
         let pageCount = Set(marks.map(\.page)).count
         redactBar.label.stringValue = marks.isEmpty
-            ? "Drag over the areas to black out. Nothing is removed until you apply the redactions."
-            : "\(Self.count(marks.count, "area", "areas")) on \(Self.count(pageCount, "page", "pages")) marked for redaction. "
-                + "Click a mark with the Redact tool to unmark it."
+            ? loc("Drag over the areas to black out. Nothing is removed until you apply the redactions.")
+            : loc("{0} on {1} marked for redaction. Click a mark with the Redact tool to unmark it.", Self.areaPhrase(marks.count), Self.pagePhrase(pageCount))
         redactBar.apply.isEnabled = !marks.isEmpty
         redactBar.clear.isEnabled = !marks.isEmpty
         redactBar.matches.isHidden = found.isEmpty
@@ -145,7 +148,8 @@ extension DocumentWindowController {
         }
         guard !marks.isEmpty else { return NSSound.beep() }
         pages.addRedactions(marks)
-        notify("Marked \(Self.count(found.count, "match", "matches")) for redaction. Check the marks, then apply them.")
+        notify(found.count == 1 ? loc("Marked 1 match for redaction. Check the mark, then apply it.")
+            : loc("Marked {0} matches for redaction. Check the marks, then apply them.", CoreLanguage.number(found.count)))
     }
 
     /// Tools › Redact by Pattern…: what to look for and where, in a sheet; the matches are then marked.
@@ -169,7 +173,7 @@ extension DocumentWindowController {
     /// mark can be clicked away before they are applied. The matches, nil when cancelled or stopped.
     @discardableResult
     func markPatternMatches(_ options: RedactionPatternOptions) async -> [RedactionMatch]? {
-        let sheet = ProgressSheet(title: "Redact by Pattern", text: "Searching the pages…")
+        let sheet = ProgressSheet(title: loc("Redact by Pattern"), text: loc("Searching the pages…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -179,7 +183,7 @@ extension DocumentWindowController {
         let engine = engine
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update("Searching page \(done) of \(total)…", Double(done) / Double(max(total, 1))) }
+            onMain { sheet.update(loc("Searching page {0} of {1}…", done, total), Double(done) / Double(max(total, 1))) }
         }
         let result = await Task.detached { () -> Result<[RedactionMatch], Error> in
             Result { try RedactionPatterns.find(engine, options, progress: progress, cancel: token) }
@@ -189,23 +193,26 @@ extension DocumentWindowController {
         switch result {
         case .success(let m): matches = m
         case .failure(let error as RedactionSearchTimeout):
-            inform("The search stopped", error.message)
+            inform(loc("The search stopped"), error.message)
             return nil
         case .failure(is CancellationError):
             return nil
         case .failure(let error):
-            pdf.showError("The pages couldn't be searched.", error)
+            pdf.showError(loc("The pages couldn't be searched."), error)
             return nil
         }
         if matches.isEmpty {
-            notify("Nothing matching was found on the pages searched.")
+            notify(loc("Nothing matching was found on the pages searched."))
             return matches
         }
         pages.addRedactions(matches.flatMap { m in m.rects.map { RedactMark(page: m.page, rect: $0.inflate(0.5)) } })
         pages.tool = .redact
         go(matches[0].page)
-        notify("Marked \(Self.count(matches.count, "match", "matches")) for redaction (\(RedactionPatterns.summary(matches))). "
-            + "Check the marks and click any you want to keep to unmark it, then apply them.")
+        let summary = RedactionPatterns.summary(matches)
+        notify(matches.count == 1
+            ? loc("Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.", summary)
+            : loc("Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.",
+                  CoreLanguage.number(matches.count), summary))
         return matches
     }
 
@@ -221,15 +228,16 @@ extension DocumentWindowController {
         let list = pageList.prefix(12).map { String($0 + 1) }.joined(separator: ", ") + (pageList.count > 12 ? "…" : "")
         if Report.isRunning { return startLongTask { await self.applyRedactionsNow() } }
         let alert = NSAlert()
-        alert.messageText = "Apply \(Self.count(marks.count, "redaction", "redactions"))?"
-        alert.informativeText = "The marked areas are blacked out and their content removed. \(pageList.count == 1 ? "Page" : "Pages") \(list) "
-            + "become pictures: their links, comments and form fields are flattened into them, and the text left on them is recognized again "
-            + "so it can still be searched." + (looksSigned ? "\n\nThis document is digitally signed: redaction rewrites the file, so its "
-                + "signatures will no longer verify." : "")
-            + "\n\nYou can undo this until you save. Once saved, the removed content can't be recovered."
+        alert.messageText = marks.count == 1 ? loc("Apply 1 redaction?") : loc("Apply {0} redactions?", CoreLanguage.number(marks.count))
+        var body = pageList.count == 1
+            ? loc("The marked areas are blacked out and their content removed. Page {0} becomes a picture: its links, comments and form fields are flattened into it, and the text left on it is recognized again so it can still be searched.", list)
+            : loc("The marked areas are blacked out and their content removed. Pages {0} become pictures: their links, comments and form fields are flattened into them, and the text left on them is recognized again so it can still be searched.", list)
+        if looksSigned { body += "\n\n" + loc("This document is digitally signed: redaction rewrites the file, so its signatures will no longer verify.") }
+        body += "\n\n" + loc("You can undo this until you save. Once saved, the removed content can't be recovered.")
+        alert.informativeText = body
         alert.alertStyle = .warning
-        alert.addButton(withTitle: "Apply Redactions")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Apply Redactions"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }
@@ -252,19 +260,19 @@ extension DocumentWindowController {
         // What is about to be redacted, for the check afterwards: the text under the marks, the document as it is.
         let before = session.data
         let values = check ? ((try? RedactionCheck.valuesUnder(engine, areasNow)) ?? []) : []
-        let sheet = ProgressSheet(title: "Applying redactions", text: "Blacking out the marked areas…")
+        let sheet = ProgressSheet(title: loc("Applying redactions"), text: loc("Blacking out the marked areas…"))
         progressSheet = sheet
         sheet.begin(on: window)
         let recognizer = redaction.testRecognizer ?? PageOcr.recognizer(VisionRecognizer())
         let token = sheet.token
         let skipped = EditBox<Bool>(), recognized = EditBox<Int>()
-        let label = "Redact \(Self.count(marks.count, "area", "areas"))"
+        let label = marks.count == 1 ? loc("Redact 1 area") : loc("Redact {0} areas", CoreLanguage.number(marks.count))
         let ok = await editor.run(label, signaturesWarned: true) { d, pw in
             let redacted = try Redaction.apply(d, pw, areasNow)
-            onMain { sheet.update("Recognizing the text left on the redacted pages…", nil) }
+            onMain { sheet.update(loc("Recognizing the text left on the redacted pages…"), nil) }
             do {
                 var (words, _) = try PageOcr.recognizePages(redacted, pw, pageList, recognizer, exclude: areasNow, cancel: token) { done, total in
-                    onMain { sheet.update("Recognizing the text left on the redacted pages: page \(min(done + 1, total)) of \(total)…",
+                    onMain { sheet.update(loc("Recognizing the text left on the redacted pages: page {0} of {1}…", min(done + 1, total), total),
                                           Double(done) / Double(max(total, 1))) }
                 }
                 // A word that reaches into a blacked-out area at all goes too (Windows drops only those mostly inside one):
@@ -287,11 +295,10 @@ extension DocumentWindowController {
         pages.clearRedactions()
         if pages.tool == .redact { pages.tool = .hand }
         if skipped.value == true {
-            notify("Redacted. Text recognition was cancelled, so the redacted pages can't be searched; use Recognize Text (OCR) to add it later.",
+            notify(loc("Redacted. Text recognition was cancelled, so the redacted pages can't be searched; use Recognize Text (OCR) to add it later."),
                    canUndo: true)
         } else {
-            notify("Redacted \(Self.count(marks.count, "area", "areas")) on \(Self.count(pageList.count, "page", "pages")). Save to keep it.",
-                   canUndo: true)
+            notify(loc("Redacted {0} on {1}. Save to keep it.", Self.areaPhrase(marks.count), Self.pagePhrase(pageList.count)), canUndo: true)
         }
         if check { checkAfterApply(RedactionCheckOptions(values: values, areas: areasNow, original: before)) }
         return true
@@ -308,7 +315,7 @@ extension DocumentWindowController {
             guard let report = result, self.pdf.session?.data == data else { return }
             self.redaction.lastReport = report
             if report.isClean {
-                self.notify("Redaction checked: nothing of what was redacted is left in the file.")
+                self.notify(loc("Redaction checked: nothing of what was redacted is left in the file."))
             } else {
                 self.showCheckReport(report, options)
             }
@@ -322,9 +329,9 @@ extension DocumentWindowController {
         startLongTask {
             guard let report = await self.runCheck(RedactionCheckOptions()) else { return }
             if report.isClean {
-                self.inform("Redaction check", "Nothing recoverable was found: no text under boxes, highlights or redaction marks, no pictures "
-                    + "under dark boxes, no text that doesn't show, and no earlier versions with text the pages no longer show."
-                    + report.notes.map { "\n\n" + $0 }.joined())
+                self.inform(loc("Redaction check"),
+                            loc("Nothing recoverable was found: no text under boxes, highlights or redaction marks, no pictures under dark boxes, no text that doesn't show, and no earlier versions with text the pages no longer show.")
+                                + report.notes.map { "\n\n" + $0 }.joined())
             } else {
                 self.showCheckReport(report, RedactionCheckOptions())
             }
@@ -335,7 +342,7 @@ extension DocumentWindowController {
     func runCheck(_ options: RedactionCheckOptions) async -> RedactionCheckReport? {
         guard let session = pdf.session else { return nil }
         let data = session.data, password = session.password
-        let sheet = ProgressSheet(title: "Check Redaction", text: "Looking at the pages…")
+        let sheet = ProgressSheet(title: loc("Check Redaction"), text: loc("Looking at the pages…"))
         progressSheet = sheet
         sheet.begin(on: window)
         defer {
@@ -344,7 +351,7 @@ extension DocumentWindowController {
         }
         let token = sheet.token
         let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update("Checking: step \(done) of \(total)…", Double(done) / Double(max(total, 1))) }
+            onMain { sheet.update(loc("Checking: step {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
         }
         let result = await Task.detached { () -> Result<RedactionCheckReport, Error> in
             Result { try RedactionCheck.run(data, password, options, progress: progress, cancel: token) }
@@ -357,7 +364,7 @@ extension DocumentWindowController {
         case .failure(is CancellationError):
             return nil
         case .failure(let error):
-            pdf.showError("The redaction check couldn't run.", error)
+            pdf.showError(loc("The redaction check couldn't run."), error)
             return nil
         }
     }
@@ -391,7 +398,7 @@ extension DocumentWindowController {
             guard await applyRedactionsNow(check: false) else { return }
         }
         if !items.isEmpty || findings.contains(where: { $0.fix == .rewrite }) {
-            let ok = await editor.run("Remove redaction leftovers", signaturesWarned: true) { d, pw in
+            let ok = await editor.run(loc("Remove redaction leftovers"), signaturesWarned: true) { d, pw in
                 try SignedEdits.run({ try Sanitizer.sanitize(d, pw, items).data }, allowRewrite: true).0
             }
             guard ok || editor.lastOutcome == .noChange else { return }
@@ -402,7 +409,7 @@ extension DocumentWindowController {
         again.original = nil
         guard let report = await runCheck(again) else { return }
         if report.isClean {
-            notify("Fixed: nothing of what was redacted is left in the file. Save to keep it.", canUndo: true)
+            notify(loc("Fixed: nothing of what was redacted is left in the file. Save to keep it."), canUndo: true)
         } else {
             showCheckReport(report, options)
         }
@@ -420,7 +427,7 @@ extension DocumentWindowController {
             guard self.pdf.session?.data == data else { return }
             switch result {
             case .success(let found): self.askSanitize(found)
-            case .failure(let error): self.pdf.showError("This document can't be sanitized.", error)
+            case .failure(let error): self.pdf.showError(loc("This document can't be sanitized."), error)
             }
         }
     }
@@ -447,7 +454,7 @@ extension DocumentWindowController {
     func sanitizeNow(_ items: Set<SanitizeItem>) async -> SanitizeResult? {
         let box = EditBox<SanitizeResult>()
         // The sheet said that a signed file's signatures stop verifying: no second question.
-        let ok = await editor.run("Sanitize document", signaturesWarned: true) { d, pw in
+        let ok = await editor.run(loc("Sanitize document"), signaturesWarned: true) { d, pw in
             try SignedEdits.run({
                 let r = try Sanitizer.sanitize(d, pw, items)
                 box.value = r
@@ -456,7 +463,7 @@ extension DocumentWindowController {
         }
         guard ok, let result = box.value else { return nil }
         redaction.lastSanitize = result
-        inform("Document sanitized", SanitizeSheet.describe(result))
+        inform(loc("Document sanitized"), SanitizeSheet.describe(result))
         return result
     }
 }
@@ -472,25 +479,25 @@ final class RedactPatternSheet: NSWindowController {
     var phrases: NSTextView { phrasesScroll.documentView as! NSTextView }
     let expression = NSTextField()
     let expressionNote = NSTextField(wrappingLabelWithString: "")
-    let wholeWord = NSButton(checkboxWithTitle: "Whole words only", target: nil, action: nil)
-    let matchCase = NSButton(checkboxWithTitle: "Match case", target: nil, action: nil)
-    let allPages = NSButton(radioButtonWithTitle: "All pages", target: nil, action: nil)
-    let somePages = NSButton(radioButtonWithTitle: "Pages:", target: nil, action: nil)
+    let wholeWord = NSButton(checkboxWithTitle: loc("Whole words only"), target: nil, action: nil)
+    let matchCase = NSButton(checkboxWithTitle: loc("Match case"), target: nil, action: nil)
+    let allPages = NSButton(radioButtonWithTitle: loc("All pages"), target: nil, action: nil)
+    let somePages = NSButton(radioButtonWithTitle: loc("Pages:"), target: nil, action: nil)
     let range = NSTextField()
     let problem = NSTextField(wrappingLabelWithString: "")
     let more = NSButton()
     private var advanced: [NSView] = []
     private let pageCount: Int
-    private static let hint = #"For example CASE-\d{4} finds CASE-0412. Line breaks read as spaces."#
+    private static var hint: String { loc("For example CASE-\\d{4} finds CASE-0412. Line breaks read as spaces.") }
     var done: ((RedactionPatternOptions?) -> Void)?
 
     init(_ current: RedactionPatternOptions, pageCount: Int, currentPage: Int) {
         self.pageCount = pageCount
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 520), styleMask: [.titled], backing: .buffered, defer: true)
         super.init(window: panel)
-        let title = NSTextField(labelWithString: "Redact by Pattern")
+        let title = NSTextField(labelWithString: loc("Redact by Pattern"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        let note = Self.wrapped("Marks every match for redaction. Nothing is removed yet: you check the marks, then apply them.")
+        let note = Self.wrapped(loc("Marks every match for redaction. Nothing is removed yet: you check the marks, then apply them."))
 
         let grid = NSGridView(numberOfColumns: 2, rows: 0)
         grid.rowSpacing = 6
@@ -509,23 +516,23 @@ final class RedactPatternSheet: NSWindowController {
             }
         }
         if !row.isEmpty { grid.addRow(with: row + [NSGridCell.emptyContentView]) }
-        let kindsNote = Self.caption("Point at a kind to see what it matches. Card numbers and IBANs count only when their check digits are right; "
-            + "ZIP codes match any five-digit number, so they are off unless you choose them.")
+        let kindsNote = Self.caption(
+            loc("Point at a kind to see what it matches. Card numbers and IBANs count only when their check digits are right; ZIP codes match any five-digit number, so they are off unless you choose them."))
 
         phrases.string = current.phrases.joined(separator: "\n")
         phrases.isRichText = false
         phrases.font = .systemFont(ofSize: NSFont.systemFontSize)
         phrases.isAutomaticQuoteSubstitutionEnabled = false
         phrases.isAutomaticDashSubstitutionEnabled = false
-        phrases.setAccessibilityLabel("Your words and phrases, one per line")
+        phrases.setAccessibilityLabel(loc("Your words and phrases, one per line"))
         phrasesScroll.borderType = .bezelBorder
         phrasesScroll.heightAnchor.constraint(equalToConstant: 56).isActive = true
         phrasesScroll.widthAnchor.constraint(equalToConstant: 500).isActive = true
 
         expression.stringValue = current.expression ?? ""
         expression.font = .monospacedSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
-        expression.placeholderString = #"CASE-\d{4}"#
-        expression.setAccessibilityLabel("Your own pattern, a regular expression")
+        expression.placeholderString = #"CASE-\d{4}"# // English: a regular expression's example
+        expression.setAccessibilityLabel(loc("Your own pattern, a regular expression"))
         expression.widthAnchor.constraint(equalToConstant: 500).isActive = true
         expressionNote.stringValue = Self.hint
         expressionNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -535,7 +542,7 @@ final class RedactPatternSheet: NSWindowController {
 
         wholeWord.state = current.wholeWord ? .on : .off
         matchCase.state = current.matchCase ? .on : .off
-        matchCase.toolTip = "For your words and your pattern"
+        matchCase.toolTip = loc("For your words and your pattern")
         let options = NSStackView(views: [wholeWord, matchCase])
         options.spacing = 24
 
@@ -545,19 +552,19 @@ final class RedactPatternSheet: NSWindowController {
         somePages.target = self
         somePages.action = #selector(pagesPicked(_:))
         range.stringValue = PageRange.format(Array(0..<pageCount))
-        range.placeholderString = "e.g. 1-3, 5, 8-"
-        range.setAccessibilityLabel("Pages to search")
+        range.placeholderString = loc("e.g. 1-3, 5, 8-")
+        range.setAccessibilityLabel(loc("Pages to search"))
         range.widthAnchor.constraint(equalToConstant: 120).isActive = true
         NotificationCenter.default.addObserver(self, selector: #selector(rangeTyped), name: NSControl.textDidChangeNotification, object: range)
-        let pagesRow = NSStackView(views: [allPages, somePages, range, Self.caption("of \(pageCount)")])
+        let pagesRow = NSStackView(views: [allPages, somePages, range, Self.caption(loc("of {0}", pageCount))])
         pagesRow.spacing = 8
 
         problem.textColor = .systemRed
         problem.preferredMaxLayoutWidth = 500
         problem.isHidden = true
-        let find = NSButton(title: "Find and Mark", target: self, action: #selector(findClicked))
+        let find = NSButton(title: loc("Find and Mark"), target: self, action: #selector(findClicked))
         find.keyEquivalent = "\r"
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -567,19 +574,22 @@ final class RedactPatternSheet: NSWindowController {
         more.bezelStyle = .disclosure
         more.setButtonType(.pushOnPushOff)
         more.title = ""
-        more.setAccessibilityLabel("More Options")
+        more.setAccessibilityLabel(loc("More Options"))
         more.target = self
         more.action = #selector(moreToggled)
         more.state = AppSettings.defaults.bool(forKey: "MoreOptions.RedactPattern") || !(current.expression ?? "").isEmpty
             || current.matchCase || !current.wholeWord ? .on : .off
-        let moreLabel = NSTextField(labelWithString: "More Options")
+        let moreLabel = NSTextField(labelWithString: loc("More Options"))
         moreLabel.textColor = .secondaryLabelColor
         let moreRow = NSStackView(views: [more, moreLabel])
         moreRow.spacing = 4
-        advanced = [kindsNote, Self.heading("Your own pattern (a regular expression)"), expression, expressionNote, options]
+        advanced = [kindsNote, Self.heading(loc("Your own pattern (a regular expression)")), expression, expressionNote, options]
 
-        let stack = NSStackView(views: [title, note, Self.heading("Look for"), grid, Self.heading("Your words and phrases (one per line)"),
-                                        phrasesScroll, Self.heading("Pages"), pagesRow, moreRow] + advanced + [problem, buttons])
+        var views: [NSView] = [title, note, Self.heading(loc("Look for")), grid, Self.heading(loc("Your words and phrases (one per line)"))]
+        views += [phrasesScroll, Self.heading(loc("Pages")), pagesRow, moreRow]
+        views += advanced
+        views += [problem, buttons]
+        let stack = NSStackView(views: views)
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -657,10 +667,10 @@ final class RedactPatternSheet: NSWindowController {
     func validate() -> (error: String?, options: RedactionPatternOptions?) {
         if let error = RedactionPatterns.validateExpression(expression.stringValue) { return (error, nil) }
         var o = options()
-        if o.isEmpty { return ("Choose something to look for: a kind of text, a word or phrase, or your own pattern.", nil) }
+        if o.isEmpty { return (loc("Choose something to look for: a kind of text, a word or phrase, or your own pattern."), nil) }
         if somePages.state == .on {
             let parsed = PageRange.tryParse(range.stringValue, pageCount)
-            guard parsed.ok else { return (parsed.error ?? "That page range isn't valid.", nil) }
+            guard parsed.ok else { return (parsed.error ?? loc("That page range isn't valid."), nil) }
             o.pages = parsed.pages
         }
         return (nil, o)
@@ -702,12 +712,13 @@ final class RedactionReportSheet: NSWindowController {
         self.report = report
         fixable = report.findings.filter { $0.fix != .none }
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 660, height: 560), styleMask: [.titled, .resizable], backing: .buffered, defer: true)
-        fixButton = NSButton(title: "Fix", target: nil, action: nil)
+        fixButton = NSButton(title: loc("Fix"), target: nil, action: nil)
         super.init(window: panel)
-        let title = NSTextField(labelWithString: "Redaction Check")
+        let title = NSTextField(labelWithString: loc("Redaction Check"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        let summary = RedactPatternSheet.wrapped(report.summary + (report.findings.count == 1 ? " It" : " Each")
-            + " can be recovered from the file: copied, searched, or read with other tools.")
+        let summary = RedactPatternSheet.wrapped(report.findings.count == 1
+            ? loc("{0} It can be recovered from the file: copied, searched, or read with other tools.", report.summary)
+            : loc("{0} Each can be recovered from the file: copied, searched, or read with other tools.", report.summary))
         summary.preferredMaxLayoutWidth = 620
 
         let list = NSStackView()
@@ -723,7 +734,7 @@ final class RedactionReportSheet: NSWindowController {
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
         scroll.documentView = document
-        scroll.setAccessibilityLabel("What was found")
+        scroll.setAccessibilityLabel(loc("What was found"))
         NSLayoutConstraint.activate([
             list.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: 8),
             list.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -8),
@@ -741,37 +752,39 @@ final class RedactionReportSheet: NSWindowController {
             var steps: [String] = []
             if !areas.isEmpty {
                 let n = areas.values.reduce(0) { $0 + $1.count }
-                steps.append("redacts \(n == 1 ? "1 area" : "\(n) areas") on \(areas.count == 1 ? "1 page" : "\(areas.count) pages") "
-                    + "(\(areas.count == 1 ? "it becomes a picture" : "they become pictures"))")
+                let (a, p) = (DocumentWindowController.areaPhrase(n), DocumentWindowController.pagePhrase(areas.count))
+                steps.append(areas.count == 1 ? loc("redacts {0} on {1} (it becomes a picture)", a, p) : loc("redacts {0} on {1} (they become pictures)", a, p))
             }
             if !items.isEmpty {
-                steps.append("removes " + SanitizeSheet.kinds.filter { items.contains($0.item) }.map { SanitizeSheet.lower($0.label) }.joined(separator: "; "))
+                let kinds = SanitizeSheet.kinds.filter { items.contains($0.item) }.map { SanitizeSheet.lower($0.label) }.joined(separator: "; ")
+                steps.append(loc("removes {0}", kinds))
             }
             if !items.isEmpty || fixable.contains(where: { $0.fix == .rewrite }) {
-                steps.append("rewrites the file as one version (earlier versions and unused data go)")
+                steps.append(loc("rewrites the file as one version (earlier versions and unused data go)"))
             }
-            notes.append(Self.note("Fix \(steps.joined(separator: "; ")), then checks again. You can undo it until you save."
-                + (signed ? " This document is digitally signed: fixing rewrites it, so its signatures will no longer verify." : "")))
+            var fixNote = loc("Fix {0}, then checks again. You can undo it until you save.", steps.joined(separator: "; "))
+            if signed { fixNote += " " + loc("This document is digitally signed: fixing rewrites it, so its signatures will no longer verify.") }
+            notes.append(Self.note(fixNote))
         }
         if fixable.count < report.findings.count {
-            notes.append(Self.note("What has no fix here (tags, data the document still uses) can be removed by redacting the page it belongs to, "
-                + "or by printing the document to a new PDF."))
+            notes.append(Self.note(
+                loc("What has no fix here (tags, data the document still uses) can be removed by redacting the page it belongs to, or by printing the document to a new PDF.")))
         }
         if !report.notes.isEmpty { notes.append(Self.note(report.notes.joined(separator: "\n\n"))) }
 
-        fixButton.title = fixable.isEmpty ? "Close" : "Fix \(fixable.count == 1 ? "1 Thing" : "\(fixable.count) Things")"
+        fixButton.title = fixable.isEmpty ? loc("Close") : fixable.count == 1 ? loc("Fix 1 Thing") : loc("Fix {0} Things", CoreLanguage.number(fixable.count))
         fixButton.target = self
         fixButton.action = #selector(fixClicked)
         fixButton.keyEquivalent = "\r"
-        let close = NSButton(title: "Close", target: self, action: #selector(closeClicked))
+        let close = NSButton(title: loc("Close"), target: self, action: #selector(closeClicked))
         close.keyEquivalent = "\u{1b}"
         close.isHidden = fixable.isEmpty
-        let copy = NSButton(title: "Copy Report", target: self, action: #selector(copyClicked))
+        let copy = NSButton(title: loc("Copy Report"), target: self, action: #selector(copyClicked))
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [copy, spacer, close, fixButton])
 
-        let stack = NSStackView(views: [title, summary, RedactPatternSheet.heading("What was found"), scroll] + notes + [buttons])
+        let stack = NSStackView(views: [title, summary, RedactPatternSheet.heading(loc("What was found")), scroll] + notes + [buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -813,19 +826,19 @@ final class RedactionReportSheet: NSWindowController {
 
     static func fixText(_ f: RedactionFinding) -> String {
         switch f.fix {
-        case .redact where f.kind == .hiddenText: "Fix: the page is drawn again as a picture, without what doesn't show (nothing is blacked out)."
-        case .redact: "Fix: redact this area."
+        case .redact where f.kind == .hiddenText: loc("Fix: the page is drawn again as a picture, without what doesn't show (nothing is blacked out).")
+        case .redact: loc("Fix: redact this area.")
         case .sanitize:
-            "Fix: Sanitize removes \(SanitizeSheet.lower(SanitizeSheet.kinds.first { $0.item == f.sanitize }?.label ?? "it"))."
-        case .rewrite: "Fix: rewrite the file as one version."
+            loc("Fix: Sanitize removes {0}.", SanitizeSheet.lower(SanitizeSheet.kinds.first { $0.item == f.sanitize }?.label ?? loc("it", context: "what Sanitize removes")))
+        case .rewrite: loc("Fix: rewrite the file as one version.")
         case .none:
-            f.kind == .structureTree ? "No fix here: tags stay through Sanitize. Redacting the page they describe drops its part of them." : "No fix here."
+            f.kind == .structureTree ? loc("No fix here: tags stay through Sanitize. Redacting the page they describe drops its part of them.") : loc("No fix here.")
         }
     }
 
-    /// The report as text (Copy Report).
+    /// The report as text (Copy Report), its title in the interface's language as Windows'.
     static func text(_ report: RedactionCheckReport) -> String {
-        var s = "Redaction check\n\(report.summary)\n\n"
+        var s = loc("Redaction check") + "\n\(report.summary)\n\n"
         for f in report.findings { s += "- \(RedactionCheck.name(f.kind)) · \(f.place): \(f.text) (\(fixText(f)))\n" }
         for n in report.notes { s += "\n\(n)\n" }
         return s
@@ -853,40 +866,43 @@ final class RedactionReportSheet: NSWindowController {
 /// dimmed), what the rewrite also drops, the signatures' warning; Sanitize removes the chosen kinds.
 @MainActor
 final class SanitizeSheet: NSWindowController {
-    static let kinds: [(item: SanitizeItem, label: String, group: String?)] = [
-        (.metadata, "Document properties, XMP metadata, comment authors and dates, other apps' private data", "Document details"),
-        (.hiddenLayers, "Hidden layers, with what they draw", "Hidden data"),
-        (.hiddenAnnotations, "Hidden comments and form fields", nil),
-        (.comments, "Comments, markup, stamps and drawings", nil),
-        (.formValues, "Form field values (the fields stay, empty)", nil),
-        (.bookmarks, "Bookmarks", nil),
-        (.thumbnails, "Embedded page thumbnails", nil),
-        (.activeContent, "JavaScript, actions that run programs or send data, multimedia", "Active content"),
-        (.externalLinks, "Links to web pages and other files", nil),
-        (.embeddedFiles, "Attached files", "Attachments"),
-        (.signatures, "Digital signatures (the signature fields stay, empty)", "Signatures"),
-    ]
+    /// The kinds in order, with their labels and group headings in the interface's language.
+    static var kinds: [(item: SanitizeItem, label: String, group: String?)] {
+        [
+            (.metadata, loc("Document properties, XMP metadata, comment authors and dates, other apps' private data"), loc("Document details")),
+            (.hiddenLayers, loc("Hidden layers, with what they draw"), loc("Hidden data")),
+            (.hiddenAnnotations, loc("Hidden comments and form fields"), nil),
+            (.comments, loc("Comments, markup, stamps and drawings"), nil),
+            (.formValues, loc("Form field values (the fields stay, empty)"), nil),
+            (.bookmarks, loc("Bookmarks"), nil),
+            (.thumbnails, loc("Embedded page thumbnails"), nil),
+            (.activeContent, loc("JavaScript, actions that run programs or send data, multimedia"), loc("Active content")),
+            (.externalLinks, loc("Links to web pages and other files"), nil),
+            (.embeddedFiles, loc("Attached files"), loc("Attachments")),
+            (.signatures, loc("Digital signatures (the signature fields stay, empty)"), loc("Signatures")),
+        ]
+    }
 
     /// A kind in the one line of what the document doesn't hold.
     static func absentName(_ item: SanitizeItem) -> String {
         switch item {
-        case .metadata: "document details"
-        case .hiddenLayers: "hidden layers"
-        case .hiddenAnnotations: "hidden comments or fields"
-        case .comments: "comments or drawings"
-        case .formValues: "form values"
-        case .bookmarks: "bookmarks"
-        case .thumbnails: "page thumbnails"
-        case .activeContent: "scripts or actions"
-        case .externalLinks: "links to other files or the web"
-        case .embeddedFiles: "attachments"
-        case .signatures: "digital signatures"
+        case .metadata: loc("document details")
+        case .hiddenLayers: loc("hidden layers")
+        case .hiddenAnnotations: loc("hidden comments or fields")
+        case .comments: loc("comments or drawings")
+        case .formValues: loc("form values")
+        case .bookmarks: loc("bookmarks")
+        case .thumbnails: loc("page thumbnails")
+        case .activeContent: loc("scripts or actions")
+        case .externalLinks: loc("links to other files or the web")
+        case .embeddedFiles: loc("attachments")
+        case .signatures: loc("digital signatures")
         }
     }
 
     /// The checkbox's words: the metadata line without "XMP" (plain words, UX review round 2).
     static func plainLabel(_ item: SanitizeItem, _ label: String) -> String {
-        item == .metadata ? "Document details: title, author, comment authors and dates, other apps' private data" : label
+        item == .metadata ? loc("Document details: title, author, comment authors and dates, other apps' private data") : label
     }
 
     static func lower(_ s: String) -> String { s.isEmpty ? s : s.prefix(1).lowercased() + s.dropFirst() }
@@ -897,20 +913,19 @@ final class SanitizeSheet: NSWindowController {
     var done: ((Set<SanitizeItem>?) -> Void)?
     /// See What's in It…: What's in This PDF over this sheet.
     var seeContents: (() -> Void)?
-    let seeButton = NSButton(title: "See What's in It…", target: nil, action: nil)
+    let seeButton = NSButton(title: loc("See What's in It…"), target: nil, action: nil)
 
     init(_ found: SanitizeReport) {
         self.found = found
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 540, height: 520), styleMask: [.titled], backing: .buffered, defer: true)
         super.init(window: panel)
-        let title = NSTextField(labelWithString: "Sanitize Document")
+        let title = NSTextField(labelWithString: loc("Sanitize Document"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        var views: [NSView] = [title, Self.note("Removes what the file carries besides its pages: hidden information, scripts, attachments, "
-            + "authors and dates. You can undo this until you save.")]
+        var views: [NSView] = [title, Self.note(
+            loc("Removes what the file carries besides its pages: hidden information, scripts, attachments, authors and dates. You can undo this until you save."))]
         if found[.signatures] > 0 {
-            views.append(Self.note("This document is digitally signed. Sanitizing rewrites it, so its signatures will no longer verify. Removing them "
-                + "takes the signers' names and certificates out too; kept, they show as invalid. To keep the signed original, save the result "
-                + "as a copy (Save As)."))
+            views.append(Self.note(
+                loc("This document is digitally signed. Sanitizing rewrites it, so its signatures will no longer verify. Removing them takes the signers' names and certificates out too; kept, they show as invalid. To keep the signed original, save the result as a copy (Save As).")))
         }
         // Only what this document holds gets a checkbox; the rest is one line (UX review, round 2: eleven greyed-out
         // "(none found)" boxes in five groups on a plain file).
@@ -919,10 +934,10 @@ final class SanitizeSheet: NSWindowController {
         for (item, label, group) in Self.kinds {
             let n = found[item]
             if let group { lastGroup = group }
-            let box = NSButton(checkboxWithTitle: "\(Self.plainLabel(item, label)) (\(n))", target: nil, action: nil)
+            let box = NSButton(checkboxWithTitle: "\(Self.plainLabel(item, label)) (\(CoreLanguage.number(n)))", target: nil, action: nil)
             box.state = n > 0 ? .on : .off
             box.isEnabled = n > 0
-            box.setAccessibilityLabel(n > 0 ? "\(label): \(n) found" : "\(label): none found")
+            box.setAccessibilityLabel(n > 0 ? loc("{0}: {1} found", label, CoreLanguage.number(n)) : loc("{0}: none found", label))
             checks.append((item, box))
             guard n > 0 else {
                 if item != .signatures { absent.append(Self.absentName(item)) }
@@ -935,24 +950,26 @@ final class SanitizeSheet: NSWindowController {
             views.append(box)
         }
         if checks.allSatisfy({ found[$0.item] == 0 }) {
-            views.append(RedactPatternSheet.heading("Nothing hidden found"))
+            views.append(RedactPatternSheet.heading(loc("Nothing hidden found")))
         }
-        if !absent.isEmpty { views.append(Self.note("Not in this document: " + absent.joined(separator: ", ") + ".")) }
-        var rewrite: [String] = []
-        if found.earlierRevisions > 0 {
-            rewrite.append(found.earlierRevisions == 1 ? "1 earlier version of the file" : "\(found.earlierRevisions) earlier versions of the file")
+        if !absent.isEmpty { views.append(Self.note(loc("Not in this document: {0}.", absent.joined(separator: ", ")))) }
+        let earlier = found.earlierRevisions == 1 ? loc("{0} earlier version of the file", 1)
+            : loc("{0} earlier versions of the file", CoreLanguage.number(found.earlierRevisions))
+        switch (found.earlierRevisions > 0, found.unusedObjects > 0) {
+        case (true, true): views.append(Self.note(loc("Saving it afresh also drops {0} and leftover pieces of earlier edits.", earlier)))
+        case (true, false): views.append(Self.note(loc("Saving it afresh also drops {0}.", earlier)))
+        case (false, true): views.append(Self.note(loc("Saving it afresh also drops leftover pieces of earlier edits.")))
+        case (false, false): break
         }
-        if found.unusedObjects > 0 { rewrite.append("leftover pieces of earlier edits") }
-        if !rewrite.isEmpty { views.append(Self.note("Saving it afresh also drops " + rewrite.joined(separator: " and ") + ".")) }
         for n in found.notes { views.append(Self.note(n)) }
-        views.append(Self.note("Text drawn in white or outside the page stays: See What's in It… lists it, and redacting its area removes it."))
+        views.append(Self.note(loc("Text drawn in white or outside the page stays: See What's in It… lists it, and redacting its area removes it.")))
         problem.textColor = .systemRed
         problem.preferredMaxLayoutWidth = 500
         problem.isHidden = true
         views.append(problem)
-        let sanitize = NSButton(title: "Sanitize", target: self, action: #selector(sanitizeClicked))
+        let sanitize = NSButton(title: loc("Sanitize"), target: self, action: #selector(sanitizeClicked))
         sanitize.keyEquivalent = "\r"
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
@@ -986,7 +1003,7 @@ final class SanitizeSheet: NSWindowController {
 
     @objc func sanitizeClicked() {
         guard !chosen.isEmpty || found.earlierRevisions > 0 || found.unusedObjects > 0 else {
-            problem.stringValue = "Nothing to remove: this document holds none of these."
+            problem.stringValue = loc("Nothing to remove: this document holds none of these.")
             problem.isHidden = false
             return
         }
@@ -1009,32 +1026,37 @@ final class SanitizeSheet: NSWindowController {
         let removed = result.removed
         var lines = kinds.filter { removed[$0.item] > 0 }.map { "• " + short($0.item, removed[$0.item]) }
         if removed.earlierRevisions > 0 {
-            lines.append("• " + (removed.earlierRevisions == 1 ? "1 earlier version" : "\(removed.earlierRevisions) earlier versions") + " of the file")
+            lines.append("• " + (removed.earlierRevisions == 1 ? loc("{0} earlier version of the file", 1)
+                : loc("{0} earlier versions of the file", CoreLanguage.number(removed.earlierRevisions))))
         }
-        if removed.unusedObjects > 0 { lines.append("• " + (removed.unusedObjects == 1 ? "1 unused object" : "\(removed.unusedObjects) unused objects")) }
-        var s = lines.isEmpty ? "The file was rewritten as a single version; there was nothing else to remove." : "Removed:\n" + lines.joined(separator: "\n")
+        if removed.unusedObjects > 0 {
+            lines.append("• " + (removed.unusedObjects == 1 ? loc("{0} unused object", 1) : loc("{0} unused objects", CoreLanguage.number(removed.unusedObjects))))
+        }
+        var s = lines.isEmpty ? loc("The file was rewritten as a single version; there was nothing else to remove.")
+            : loc("Removed:") + "\n" + lines.joined(separator: "\n")
         if let left = result.remaining {
             let still = kinds.filter { removed[$0.item] > 0 && left[$0.item] > 0 }.map { short($0.item, left[$0.item]) }
-            if !still.isEmpty { s += "\n\nStill in the file: " + still.joined(separator: "; ") + "." }
+            if !still.isEmpty { s += "\n\n" + loc("Still in the file: {0}.", still.joined(separator: "; ")) }
         }
         for n in removed.notes { s += "\n\n" + n }
-        return s + "\n\nSave to keep it (Save As keeps the original as it was)."
+        return s + "\n\n" + loc("Save to keep it (Save As keeps the original as it was).")
     }
 
+    /// "3 comments": Windows' Sanitize_*_One/Many.
     private static func short(_ item: SanitizeItem, _ n: Int) -> String {
-        func c(_ one: String, _ many: String) -> String { n == 1 ? "1 \(one)" : "\(n) \(many)" }
+        let one = n == 1, count = CoreLanguage.number(n)
         switch item {
-        case .metadata: return c("metadata entry", "metadata entries")
-        case .hiddenLayers: return n == 1 ? "1 hidden layer with its content" : "\(n) hidden layers with their content"
-        case .hiddenAnnotations: return c("hidden comment or field", "hidden comments and fields")
-        case .comments: return c("comment", "comments")
-        case .formValues: return c("field value", "field values")
-        case .bookmarks: return c("bookmark", "bookmarks")
-        case .thumbnails: return c("page thumbnail", "page thumbnails")
-        case .activeContent: return c("script or active item", "scripts and active items")
-        case .externalLinks: return c("external link", "external links")
-        case .embeddedFiles: return c("attached file", "attached files")
-        case .signatures: return c("digital signature", "digital signatures")
+        case .metadata: return one ? loc("{0} metadata entry", 1) : loc("{0} metadata entries", count)
+        case .hiddenLayers: return one ? loc("{0} hidden layer with its content", 1) : loc("{0} hidden layers with their content", count)
+        case .hiddenAnnotations: return one ? loc("{0} hidden comment or field", 1) : loc("{0} hidden comments and fields", count)
+        case .comments: return one ? loc("{0} comment", 1) : loc("{0} comments", count)
+        case .formValues: return one ? loc("{0} field value", 1) : loc("{0} field values", count)
+        case .bookmarks: return one ? loc("{0} bookmark", 1) : loc("{0} bookmarks", count)
+        case .thumbnails: return one ? loc("{0} page thumbnail", 1) : loc("{0} page thumbnails", count)
+        case .activeContent: return one ? loc("{0} script or active item", 1) : loc("{0} scripts and active items", count)
+        case .externalLinks: return one ? loc("{0} external link", 1) : loc("{0} external links", count)
+        case .embeddedFiles: return one ? loc("{0} attached file", 1) : loc("{0} attached files", count)
+        case .signatures: return one ? loc("{0} digital signature", 1) : loc("{0} digital signatures", count)
         }
     }
 }

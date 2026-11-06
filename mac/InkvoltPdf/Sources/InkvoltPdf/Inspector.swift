@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The inspector popover for the selected comment or link: what it is and who made it; for drawings, its color (eight
 /// swatches, or any through the color panel), line width, opacity and text size; a comment's text, its replies and a
@@ -36,7 +37,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         stack.alignment = .leading
         stack.spacing = 8
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 14, bottom: 12, right: 14)
-        stack.setAccessibilityLabel("Inspector")
+        stack.setAccessibilityLabel(loc("Inspector"))
         view = stack
         build()
     }
@@ -56,23 +57,22 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         } else if let l = editor.link(id) {
             buildLink(l)
         } else {
-            header.stringValue = "This comment is no longer in the document."
+            header.stringValue = loc("This comment is no longer in the document.")
             return
         }
-        let delete = NSButton(title: "Delete", target: self, action: #selector(deleteClicked))
+        let delete = NSButton(title: loc("Delete"), target: self, action: #selector(deleteClicked))
         delete.bezelStyle = .rounded
-        delete.setAccessibilityLabel("Delete this comment")
+        delete.setAccessibilityLabel(loc("Delete this comment"))
         stack.addArrangedSubview(delete)
         view.layoutSubtreeIfNeeded()
         preferredContentSize = view.fittingSize
     }
 
     private func buildComment(_ c: AnnotationInfo) {
-        var title = DocumentEditor.kindName(c)
-        if let a = c.author, !a.isEmpty { title += " by \(a)" }
-        header.stringValue = title
+        let kind = DocumentEditor.kindName(c)
+        if let a = c.author, !a.isEmpty { header.stringValue = loc("{0} by {1}", kind, a) } else { header.stringValue = kind }
         if let m = c.modified {
-            let date = NSTextField(labelWithString: m.formatted(date: .abbreviated, time: .shortened) + " · page \(c.pageIndex + 1)")
+            let date = NSTextField(labelWithString: loc("{0} · page {1}", m.formatted(date: .abbreviated, time: .shortened), c.pageIndex + 1))
             date.textColor = .secondaryLabelColor
             date.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
             stack.addArrangedSubview(date)
@@ -83,7 +83,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             buildColors()
         }
         if c.subtype != "Stamp" && !c.isInkvoltPdfStamp {
-            let label = NSTextField(labelWithString: c.subtype == "FreeText" ? "Text" : "Comment")
+            let label = NSTextField(labelWithString: c.subtype == "FreeText" ? loc("Text") : loc("Comment", context: "noun")) // English: a subtype compared
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
             stack.addArrangedSubview(label)
             let scroll = NSTextView.scrollableTextView()
@@ -93,37 +93,37 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             tv.font = .systemFont(ofSize: NSFont.systemFontSize)
             tv.isRichText = false
             tv.allowsUndo = true
-            tv.setAccessibilityLabel(c.subtype == "FreeText" ? "Text" : "Comment text")
+            tv.setAccessibilityLabel(c.subtype == "FreeText" ? loc("Text") : loc("Comment text")) // English: a subtype compared
             textView = tv
             scroll.translatesAutoresizingMaskIntoConstraints = false
             scroll.widthAnchor.constraint(equalToConstant: 260).isActive = true
             scroll.heightAnchor.constraint(equalToConstant: 70).isActive = true
             stack.addArrangedSubview(scroll)
-            let save = NSButton(title: "Save Text", target: self, action: #selector(saveText))
+            let save = NSButton(title: loc("Save Text"), target: self, action: #selector(saveText))
             save.bezelStyle = .rounded
             stack.addArrangedSubview(save)
         }
         // Replies, and a field for another.
         let replies = editor.replies(to: c.id)
         if !replies.isEmpty {
-            let label = NSTextField(labelWithString: replies.count == 1 ? "1 reply" : "\(replies.count) replies")
+            let label = NSTextField(labelWithString: replies.count == 1 ? loc("1 reply") : loc("{0} replies", replies.count))
             label.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .medium)
             stack.addArrangedSubview(label)
             for r in replies.prefix(6) {
-                let line = NSTextField(wrappingLabelWithString: "\(r.author ?? "Someone"): \(r.contents)")
+                let line = NSTextField(wrappingLabelWithString: "\(r.author ?? loc("Someone")): \(r.contents)") // English: no words of its own
                 line.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
                 line.preferredMaxLayoutWidth = 260
                 stack.addArrangedSubview(line)
             }
         }
         let field = NSTextField(string: "")
-        field.placeholderString = "Reply"
-        field.setAccessibilityLabel("Reply")
+        field.placeholderString = loc("Reply")
+        field.setAccessibilityLabel(loc("Reply"))
         field.target = self
         field.action = #selector(replyClicked)
         field.widthAnchor.constraint(equalToConstant: 200).isActive = true
         replyField = field
-        let send = NSButton(title: "Reply", target: self, action: #selector(replyClicked))
+        let send = NSButton(title: loc("Reply", context: "undo"), target: self, action: #selector(replyClicked))
         send.bezelStyle = .rounded
         stack.addArrangedSubview(NSStackView(views: [field, send]))
     }
@@ -137,7 +137,7 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
     private func buildColors() {
         let colors = NSStackView()
         colors.spacing = 4
-        colors.setAccessibilityLabel("Color")
+        colors.setAccessibilityLabel(loc("Color"))
         for (i, entry) in Palette.colors.enumerated() {
             let b = NSButton(image: Palette.swatch(entry.color, size: 18), target: self, action: #selector(swatchClicked(_:)))
             b.isBordered = false
@@ -146,12 +146,12 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             b.toolTip = entry.name
             colors.addArrangedSubview(b)
         }
-        let other = NSButton(image: NSImage(systemSymbolName: "paintpalette", accessibilityDescription: "Other color")!,
+        let other = NSButton(image: NSImage(systemSymbolName: "paintpalette", accessibilityDescription: loc("Other color"))!,
                              target: self, action: #selector(otherColor))
         other.isBordered = false
-        other.toolTip = "Other Color…"
+        other.toolTip = loc("Other Color…")
         colors.addArrangedSubview(other)
-        stack.addArrangedSubview(row("Color", colors))
+        stack.addArrangedSubview(row(loc("Color"), colors))
     }
 
     private func buildLooks(_ c: AnnotationInfo, _ style: AnnotStyle) {
@@ -159,17 +159,17 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         if !(isText && style.color == nil) {
             let width = NSSlider(value: style.width, minValue: 0.5, maxValue: 20, target: self, action: #selector(widthChanged(_:)))
             width.isContinuous = false
-            width.setAccessibilityLabel(isText ? "Border width" : "Line width")
+            width.setAccessibilityLabel(isText ? loc("Border width") : loc("Line width"))
             width.widthAnchor.constraint(equalToConstant: 160).isActive = true
             widthSlider = width
-            stack.addArrangedSubview(row(isText ? "Border" : "Width", width))
+            stack.addArrangedSubview(row(isText ? loc("Border") : loc("Width"), width))
         }
         let opacity = NSSlider(value: style.opacity, minValue: 0.1, maxValue: 1, target: self, action: #selector(opacityChanged(_:)))
         opacity.isContinuous = false
-        opacity.setAccessibilityLabel("Opacity")
+        opacity.setAccessibilityLabel(loc("Opacity"))
         opacity.widthAnchor.constraint(equalToConstant: 160).isActive = true
         opacitySlider = opacity
-        stack.addArrangedSubview(row("Opacity", opacity))
+        stack.addArrangedSubview(row(loc("Opacity"), opacity))
         if isText {
             let stepper = NSStepper()
             stepper.minValue = 6
@@ -178,28 +178,28 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             stepper.doubleValue = style.fontSize
             stepper.target = self
             stepper.action = #selector(sizeChanged(_:))
-            stepper.setAccessibilityLabel("Text size")
+            stepper.setAccessibilityLabel(loc("Text size"))
             sizeStepper = stepper
-            let value = NSTextField(labelWithString: "\(Int(style.fontSize)) pt")
-            stack.addArrangedSubview(row("Text size", NSStackView(views: [value, stepper])))
+            let value = NSTextField(labelWithString: loc("{0} pt", Int(style.fontSize)))
+            stack.addArrangedSubview(row(loc("Text size"), NSStackView(views: [value, stepper])))
         }
     }
 
     private func buildLink(_ l: LinkInfo) {
-        header.stringValue = "Link to \(l.describe())"
+        header.stringValue = loc("Link to {0}", l.describe())
         let url = NSTextField(string: l.uri ?? "")
-        url.placeholderString = "Web or email address"
-        url.setAccessibilityLabel("Web or email address")
+        url.placeholderString = loc("Web or email address")
+        url.setAccessibilityLabel(loc("Web or email address"))
         url.widthAnchor.constraint(equalToConstant: 220).isActive = true
         urlField = url
-        stack.addArrangedSubview(row("Address", url))
+        stack.addArrangedSubview(row(loc("Address"), url))
         let page = NSTextField(string: l.targetPage >= 0 ? "\(l.targetPage + 1)" : "")
         page.placeholderString = "1–\(pageCount)"
-        page.setAccessibilityLabel("Page number")
+        page.setAccessibilityLabel(loc("Page number"))
         page.widthAnchor.constraint(equalToConstant: 60).isActive = true
         pageField = page
-        stack.addArrangedSubview(row("or page", page))
-        let apply = NSButton(title: "Change Link", target: self, action: #selector(applyLink))
+        stack.addArrangedSubview(row(loc("or page"), page))
+        let apply = NSButton(title: loc("Change Link"), target: self, action: #selector(applyLink))
         apply.bezelStyle = .rounded
         stack.addArrangedSubview(apply)
     }
@@ -230,28 +230,28 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
         if let c = editor.comment(id), DocumentEditor.recolorable(c) { return await editor.setColor(id, color) }
         guard let c = editor.comment(id), var style = c.style else { return false }
         if c.subtype == "FreeText" && style.color == nil { style.textColor = color } else { style.color = color }
-        return await editor.setStyle(id, style, label: "Change Color")
+        return await editor.setStyle(id, style, label: loc("Change Color"))
     }
 
     @discardableResult
     func apply(width: Double) async -> Bool {
         guard var style = editor.comment(id)?.style else { return false }
         style.width = width
-        return await editor.setStyle(id, style, label: "Change Width")
+        return await editor.setStyle(id, style, label: loc("Change Width"))
     }
 
     @discardableResult
     func apply(opacity: Double) async -> Bool {
         guard var style = editor.comment(id)?.style else { return false }
         style.opacity = opacity
-        return await editor.setStyle(id, style, label: "Change Opacity")
+        return await editor.setStyle(id, style, label: loc("Change Opacity"))
     }
 
     @discardableResult
     func apply(fontSize: Double) async -> Bool {
         guard var style = editor.comment(id)?.style else { return false }
         style.fontSize = fontSize
-        return await editor.setStyle(id, style, label: "Change Text Size")
+        return await editor.setStyle(id, style, label: loc("Change Text Size"))
     }
 
     @discardableResult
@@ -359,24 +359,24 @@ final class AskController: NSViewController {
         switch kind {
         case .text(let t):
             title = t
-            field.placeholderString = t == "Note" ? "Note text" : "Text"
+            field.placeholderString = t == loc("Note") ? loc("Note text") : loc("Text")
             field.usesSingleLineMode = false
             field.cell?.wraps = true
             field.heightAnchor.constraint(greaterThanOrEqualToConstant: 54).isActive = true
         case .link:
-            title = "Link to"
-            field.placeholderString = "Web or email address"
-            pageField.placeholderString = "or page 1–\(pageCount)"
-            pageField.setAccessibilityLabel("Page number")
+            title = loc("Link to")
+            field.placeholderString = loc("Web or email address")
+            pageField.placeholderString = loc("or page 1–{0}", pageCount)
+            pageField.setAccessibilityLabel(loc("Page number"))
         }
         field.setAccessibilityLabel(title)
         field.widthAnchor.constraint(equalToConstant: 240).isActive = true
         let label = NSTextField(labelWithString: title)
         label.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
-        let ok = NSButton(title: "OK", target: self, action: #selector(okClicked))
+        let ok = NSButton(title: loc("OK"), target: self, action: #selector(okClicked))
         ok.keyEquivalent = "\r"
         ok.bezelStyle = .rounded
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         cancel.bezelStyle = .rounded
         let buttons = NSStackView(views: [cancel, ok])

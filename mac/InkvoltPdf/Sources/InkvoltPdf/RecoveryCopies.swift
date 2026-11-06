@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Recovery copies of unsaved work (the core's `RecoveryStore`, as on Windows): every document with unsaved changes gets
 /// a copy at most every 20 seconds after a change, written in the background as Save would write it; the copy goes when
@@ -52,12 +53,12 @@ final class RecoveryCopies {
         guard ask else { return }
         let alert = NSAlert()
         alert.messageText = left.count == 1
-            ? "Inkvolt PDF closed before “\(left[0].info.displayName)” was saved."
-            : "Inkvolt PDF closed before \(left.count) documents were saved."
-        alert.informativeText = "Restore opens them with their changes. Discard deletes the copies; Not Now asks again next time."
-        alert.addButton(withTitle: "Restore")
-        alert.addButton(withTitle: "Discard")
-        alert.addButton(withTitle: "Not Now")
+            ? loc("Inkvolt PDF closed before “{0}” was saved.", left[0].info.displayName)
+            : loc("Inkvolt PDF closed before {0} documents were saved.", left.count)
+        alert.informativeText = loc("Restore opens them with their changes. Discard deletes the copies; Not Now asks again next time.")
+        alert.addButton(withTitle: loc("Restore"))
+        alert.addButton(withTitle: loc("Discard"))
+        alert.addButton(withTitle: loc("Not Now"))
         switch alert.runModal() {
         case .alertFirstButtonReturn: restore(left)
         case .alertSecondButtonReturn: RecoveryStore.discard(left)

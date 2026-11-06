@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// A question box: Return sends, Shift-Return starts a new line, with a hint while it is empty.
 @MainActor
@@ -43,7 +44,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
 
     private let body = AiAnswerText()
     let noteLabel = NSTextField(wrappingLabelWithString: "")
-    let copyButton = NSButton(image: NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: "Copy the answer")!, target: nil, action: nil)
+    let copyButton = NSButton(image: NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: loc("Copy the answer"))!, target: nil, action: nil)
     private let label: NSTextField
     private let warn = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)!)
     private let model: String
@@ -70,7 +71,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         warn.setContentHuggingPriority(.required, for: .horizontal)
         copyButton.bezelStyle = .accessoryBarAction
         copyButton.isBordered = false
-        copyButton.toolTip = "Copy the answer"
+        copyButton.toolTip = loc("Copy the answer")
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
         copyButton.isEnabled = false
@@ -91,7 +92,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         body.delegate = self
         body.font = .systemFont(ofSize: NSFont.systemFontSize)
         body.string = "…"
-        body.setAccessibilityLabel("AI answer")
+        body.setAccessibilityLabel(loc("AI answer"))
         noteLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         noteLabel.textColor = .secondaryLabelColor
         noteLabel.isHidden = true
@@ -166,7 +167,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         render()
         body.isHidden = raw.isEmpty && note != nil
         if error && text.isEmpty {
-            label.stringValue = "No answer · \(model)"
+            label.stringValue = loc("No answer · {0}", model)
             warn.image = NSImage(systemSymbolName: "exclamationmark.octagon", accessibilityDescription: nil)
             warn.contentTintColor = .systemRed
         }
@@ -176,21 +177,21 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
             if error { noteLabel.textColor = .systemRed }
         }
         copyButton.isEnabled = !text.isEmpty
-        setAccessibilityLabel("AI answer, may be wrong: " + (text.isEmpty ? (note ?? "") : text))
+        setAccessibilityLabel(loc("AI answer, may be wrong: {0}", text.isEmpty ? (note ?? "") : text))
         scrolled()
     }
 
     @objc func copyClicked() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(AiAnswerMarkup.copied(text), forType: .string)
-        copyButton.toolTip = "Copied"
+        copyButton.toolTip = loc("Copied")
     }
 
     private func render() {
         let parts = AiText.withoutThinking(raw)
         let shown = AiText.trim(parts.text)
         if parts.thinking || shown.isEmpty {
-            body.string = parts.thinking ? "Thinking…" : "…"
+            body.string = parts.thinking ? loc("Thinking…") : "…"
             return
         }
         let plain = NSFont.systemFont(ofSize: NSFont.systemFontSize)
@@ -200,7 +201,7 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
             var attributes: [NSAttributedString.Key: Any] = [.font: run.bold ? bold : plain, .foregroundColor: NSColor.labelColor]
             if let page = run.page, let url = URL(string: "\(Self.pageScheme)://\(page)") {
                 attributes[.link] = url
-                attributes[.toolTip] = "Go to page \(page + 1)"
+                attributes[.toolTip] = loc("Go to page {0}", page + 1)
             }
             out.append(NSAttributedString(string: run.text, attributes: attributes))
         }
@@ -239,13 +240,13 @@ private final class AiListView: NSStackView {
 final class AiPane: NSViewController, NSTextViewDelegate {
     let whereBox = AiReachBox(fontSize: NSFont.smallSystemFontSize)
     let statusLabel = NSTextField(wrappingLabelWithString: "")
-    let scopeField = NSTextField(string: "All")
-    let summarizeButton = NSButton(title: "Summarize…", target: nil, action: nil)
-    let askButton = NSButton(title: "Ask", target: nil, action: nil)
-    let stopButton = NSButton(title: "Stop", target: nil, action: nil)
-    let clearButton = NSButton(image: NSImage(systemSymbolName: "trash", accessibilityDescription: "Clear the conversation")!, target: nil, action: nil)
-    let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: "AI assistant settings")!, target: nil, action: nil)
-    let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: "Close the AI assistant")!, target: nil, action: nil)
+    let scopeField = NSTextField(string: "All") // English: the word the scope's parser reads in every language, as on Windows
+    let summarizeButton = NSButton(title: loc("Summarize…"), target: nil, action: nil)
+    let askButton = NSButton(title: loc("Ask"), target: nil, action: nil)
+    let stopButton = NSButton(title: loc("Stop"), target: nil, action: nil)
+    let clearButton = NSButton(image: NSImage(systemSymbolName: "trash", accessibilityDescription: loc("Clear the conversation"))!, target: nil, action: nil)
+    let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: loc("AI assistant settings"))!, target: nil, action: nil)
+    let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: loc("Close the AI assistant"))!, target: nil, action: nil)
     private let question = AiQuestionView()
     private let list = AiListView()
     private let scroll = NSScrollView()
@@ -275,13 +276,14 @@ final class AiPane: NSViewController, NSTextViewDelegate {
 
     override func loadView() {
         let root = AiPaneView()
-        let title = NSTextField(labelWithString: "AI assistant")
+        let title = NSTextField(labelWithString: loc("AI assistant"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
-        for (button, tip, action) in [
-            (settingsButton, "AI assistant settings", #selector(settingsClicked)),
-            (clearButton, "Clear the conversation", #selector(clearClicked)),
-            (closeButton, "Close the AI assistant", #selector(closeClicked)),
-        ] {
+        let tips: [(NSButton, String, Selector)] = [
+            (settingsButton, loc("AI assistant settings"), #selector(settingsClicked)),
+            (clearButton, loc("Clear the conversation"), #selector(clearClicked)),
+            (closeButton, loc("Close the AI assistant"), #selector(closeClicked)),
+        ]
+        for (button, tip, action) in tips {
             button.bezelStyle = .accessoryBarAction
             button.isBordered = false
             button.toolTip = tip
@@ -318,9 +320,9 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         statusLabel.textColor = .secondaryLabelColor
         statusLabel.isHidden = true
         statusLabel.isSelectable = false
-        let pagesLabel = NSTextField(labelWithString: "Pages")
-        scopeField.setAccessibilityLabel("Pages the questions are about")
-        scopeField.toolTip = "All, or pages such as 1-3, 5"
+        let pagesLabel = NSTextField(labelWithString: loc("Pages"))
+        scopeField.setAccessibilityLabel(loc("Pages the questions are about"))
+        scopeField.toolTip = loc("All, or pages such as 1-3, 5")
         scopeField.widthAnchor.constraint(equalToConstant: 90).isActive = true
         summarizeButton.bezelStyle = .accessoryBarAction
         summarizeButton.target = self
@@ -329,7 +331,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         scopeSpacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let scopeRow = NSStackView(views: [pagesLabel, scopeField, scopeSpacer, summarizeButton])
 
-        question.hint = "Ask about this document… (Return sends)"
+        question.hint = loc("Ask about this document… (Return sends)")
         question.font = .systemFont(ofSize: NSFont.systemFontSize)
         question.delegate = self
         question.isRichText = false
@@ -340,8 +342,8 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         question.autoresizingMask = [.width]
         question.textContainer?.widthTracksTextView = true
         question.textContainerInset = NSSize(width: 2, height: 4)
-        question.setAccessibilityLabel("Question about this document")
-        question.setAccessibilityHelp("Return sends, Shift-Return starts a new line")
+        question.setAccessibilityLabel(loc("Question about this document"))
+        question.setAccessibilityHelp(loc("Return sends, Shift-Return starts a new line"))
         let questionScroll = NSScrollView()
         questionScroll.documentView = question
         questionScroll.hasVerticalScroller = true
@@ -379,7 +381,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         ])
         root.setAccessibilityElement(true)
         root.setAccessibilityRole(.group)
-        root.setAccessibilityLabel("AI assistant")
+        root.setAccessibilityLabel(loc("AI assistant"))
         view = root
     }
 
@@ -428,7 +430,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
     /// Shows where answers come from: model, host, and whether text leaves this Mac (amber when it does).
     func showDestination(_ config: AiConfig?, problem: String?) {
         guard let config else {
-            whereBox.show(problem ?? "Not set up", .info)
+            whereBox.show(problem ?? loc("Not set up"), .info)
             return
         }
         whereBox.show("\(config.model) · \(config.endpoint.reachText)", config.endpoint.reach == .internet ? .caution : .calm)
@@ -524,7 +526,8 @@ final class AiBubble: NSView {
         ])
         setAccessibilityElement(true)
         setAccessibilityRole(.staticText)
-        setAccessibilityLabel("You: " + text)
+        setAccessibilityLabel(loc("You: {0}", text))
+
     }
 
     @available(*, unavailable)

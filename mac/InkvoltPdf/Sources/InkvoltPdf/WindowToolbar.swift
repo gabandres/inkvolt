@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The document window's toolbar (UX review, 2026-11-03): a short set by default, as Preview's (the sidebar, zoom,
 /// Highlight, Markup, Fill & Sign, Share, Search; `ToolbarLayout.defaults`), the rest in View › Customize Toolbar….
@@ -36,56 +37,56 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
         switch identifier.rawValue {
         case ToolbarLayout.sidebar:
-            return button(identifier, "Sidebar", "sidebar.leading", "Show or hide the sidebar (⌃⌘S)",
+            return button(identifier, loc("Sidebar"), "sidebar.leading", loc("Show or hide the sidebar (⌃⌘S)"),
                           #selector(NSSplitViewController.toggleSidebar(_:)), target: split)
         case ToolbarLayout.trackingSeparator:
             return NSTrackingSeparatorToolbarItem(identifier: identifier, splitView: split.splitView, dividerIndex: 0)
         case ToolbarLayout.zoom:
             let group = NSToolbarItemGroup(itemIdentifier: identifier, images: [
-                symbol("minus.magnifyingglass", "Zoom Out"), symbol("plus.magnifyingglass", "Zoom In"),
-            ], selectionMode: .momentary, labels: ["Zoom Out", "Zoom In"], target: self, action: #selector(zoomGroupClicked(_:)))
-            group.label = "Zoom"
-            group.toolTip = "Zoom out (⌘−) or in (⌘+)"
+                symbol("minus.magnifyingglass", loc("Zoom Out")), symbol("plus.magnifyingglass", loc("Zoom In")),
+            ], selectionMode: .momentary, labels: [loc("Zoom Out"), loc("Zoom In")], target: self, action: #selector(zoomGroupClicked(_:)))
+            group.label = loc("Zoom")
+            group.toolTip = loc("Zoom out (⌘−) or in (⌘+)")
             return group
         case ToolbarLayout.pageNumber:
-            return button(identifier, "Go to Page", "number", "Go to a page (⌥⌘G)", #selector(goToPage(_:)))
+            return button(identifier, loc("Go to Page"), "number", loc("Go to a page (⌥⌘G)"), #selector(goToPage(_:)))
         case ToolbarLayout.highlight:
-            return button(identifier, "Highlight", "highlighter", "Highlight the selected text, or pick the highlighter (Y)",
+            return button(identifier, loc("Highlight"), "highlighter", loc("Highlight the selected text, or pick the highlighter (Y)"),
                           #selector(highlightClicked(_:)))
         case ToolbarLayout.markup:
-            let item = button(identifier, "Markup", "pencil.tip.crop.circle", "Show or hide the markup tools (⇧⌘A)",
+            let item = button(identifier, loc("Markup"), "pencil.tip.crop.circle", loc("Show or hide the markup tools (⇧⌘A)"),
                               #selector(toggleMarkup(_:)))
             (item.view as? NSButton)?.setButtonType(.pushOnPushOff)
             (item.view as? NSButton)?.state = AppSettings.markupShown ? .on : .off
             return item
         case ToolbarLayout.fillSign:
-            return button(identifier, "Fill & Sign", "signature", "Type on the form, add check marks and your signature (A)",
+            return button(identifier, loc("Fill & Sign"), "signature", loc("Type on the form, add check marks and your signature (A)"),
                           #selector(fillSignClicked(_:)))
         case ToolbarLayout.editContent:
-            return button(identifier, "Edit", "pencil.line", "Edit text and images (J)", #selector(editContentClicked(_:)))
+            return button(identifier, loc("Edit", context: "toolbar"), "pencil.line", loc("Edit text and images (J)"), #selector(editContentClicked(_:)))
         case ToolbarLayout.redact:
-            return button(identifier, "Redact", "rectangle.fill.badge.xmark", "Mark text or areas to remove for good (F)",
+            return button(identifier, loc("Redact", context: "toolbar"), "rectangle.fill.badge.xmark", loc("Mark text or areas to remove for good (F)"),
                           #selector(redactClicked(_:)))
         case ToolbarLayout.organize:
-            return button(identifier, "Organize", "square.grid.2x2", "Organize pages (⌥⌘O)", #selector(toggleOrganizer(_:)))
+            return button(identifier, loc("Organize"), "square.grid.2x2", loc("Organize pages (⌥⌘O)"), #selector(toggleOrganizer(_:)))
         case ToolbarLayout.rotate:
-            return button(identifier, "Rotate", "rotate.right", "Rotate the chosen pages right (⌘R)", #selector(rotatePagesRight(_:)))
+            return button(identifier, loc("Rotate"), "rotate.right", loc("Rotate the chosen pages right (⌘R)"), #selector(rotatePagesRight(_:)))
         case ToolbarLayout.inspector:
-            return button(identifier, "Inspector", "info.circle", "Show the selected comment's settings (⌘I)",
+            return button(identifier, loc("Inspector"), "info.circle", loc("Show the selected comment's settings (⌘I)"),
                           #selector(openInspector(_:)))
         case ToolbarLayout.print:
-            return button(identifier, "Print", "printer", "Print (⌘P)", #selector(NSDocument.printDocument(_:)), target: nil)
+            return button(identifier, loc("Print"), "printer", loc("Print (⌘P)"), #selector(NSDocument.printDocument(_:)), target: nil)
         case ToolbarLayout.commands:
-            return button(identifier, "Commands", "command", "Search every command (⇧⌘K)",
+            return button(identifier, loc("Commands"), "command", loc("Search every command (⇧⌘K)"),
                           #selector(AppDelegate.showCommandPalette(_:)), target: nil)
         case ToolbarLayout.share:
             let item = NSSharingServicePickerToolbarItem(itemIdentifier: identifier)
-            item.label = "Share"
-            item.toolTip = "Send this PDF by Mail, Messages, AirDrop…"
+            item.label = loc("Share")
+            item.toolTip = loc("Send this PDF by Mail, Messages, AirDrop…")
             item.delegate = self
             return item
         case ToolbarLayout.search:
-            return button(identifier, "Search", "magnifyingglass", "Find in this document (⌘F)", #selector(showFind(_:)))
+            return button(identifier, loc("Search"), "magnifyingglass", loc("Find in this document (⌘F)"), #selector(showFind(_:)))
         default:
             return nil
         }

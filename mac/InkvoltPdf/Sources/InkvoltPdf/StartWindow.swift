@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// The start page (the Windows app's, as a window of its own): shown when no document is open (at launch, after the last
@@ -19,31 +20,31 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
         var title: String {
             switch self {
-            case .fillSign: "Fill & sign"
-            case .editContent: "Edit text & images"
-            case .exportWord: "Export to Word"
-            case .combine: "Combine files"
-            case .compare: "Compare files"
-            case .protect: "Protect"
-            case .ocr: "Recognize text (OCR)"
-            case .organize: "Organize pages"
-            case .create: "Create a PDF"
-            case .batch: "Batch"
+            case .fillSign: loc("Fill & sign")
+            case .editContent: loc("Edit text & images")
+            case .exportWord: loc("Export to Word")
+            case .combine: loc("Combine files")
+            case .compare: loc("Compare files")
+            case .protect: loc("Protect")
+            case .ocr: loc("Recognize text (OCR)")
+            case .organize: loc("Organize pages")
+            case .create: loc("Create a PDF")
+            case .batch: loc("Batch")
             }
         }
 
         var detail: String {
             switch self {
-            case .fillSign: "Type on any form, add check marks and your signature"
-            case .editContent: "Change the words and pictures already on a page"
-            case .exportWord: "Turn a PDF into an editable .docx"
-            case .combine: "Merge several files into one PDF, in your order"
-            case .compare: "See what changed between two versions"
-            case .protect: "Require a password to open, print or change it"
-            case .ocr: "Make a scan searchable and its text copyable"
-            case .organize: "Reorder, rotate, delete, insert or extract pages"
-            case .create: "From Office files, a web page, images, the clipboard or a scanner"
-            case .batch: "The same actions on many files; presets and watched folders"
+            case .fillSign: loc("Type on any form, add check marks and your signature")
+            case .editContent: loc("Change the words and pictures already on a page")
+            case .exportWord: loc("Turn a PDF into an editable .docx")
+            case .combine: loc("Merge several files into one PDF, in your order")
+            case .compare: loc("See what changed between two versions")
+            case .protect: loc("Require a password to open, print or change it")
+            case .ocr: loc("Make a scan searchable and its text copyable")
+            case .organize: loc("Reorder, rotate, delete, insert or extract pages")
+            case .create: loc("From Office files, a web page, images, the clipboard or a scanner")
+            case .batch: loc("The same actions on many files; presets and watched folders")
             }
         }
 
@@ -126,7 +127,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         cards = ToolCard.allCases.map { CardButton(title: $0.title, detail: $0.detail, symbol: $0.symbol, height: 66) }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 640), styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Inkvolt PDF"
+        window.title = "Inkvolt PDF" // English: the app's name
         window.minSize = NSSize(width: 640, height: 480)
         window.isRestorable = false
         window.tabbingMode = .disallowed
@@ -149,9 +150,9 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         let icon = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
         icon.widthAnchor.constraint(equalToConstant: 56).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 56).isActive = true
-        let name = NSTextField(labelWithString: "Inkvolt PDF")
+        let name = NSTextField(labelWithString: "Inkvolt PDF") // English: the app's name
         name.font = .systemFont(ofSize: 24, weight: .semibold)
-        let caption = NSTextField(labelWithString: "Nothing you open leaves this Mac unless you send it.")
+        let caption = NSTextField(labelWithString: loc("Nothing you open leaves this Mac unless you send it."))
         caption.textColor = .secondaryLabelColor
         let titles = NSStackView(views: [name, caption])
         titles.orientation = .vertical
@@ -160,12 +161,12 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         let header = NSStackView(views: [icon, titles])
         header.spacing = 16
 
-        let open = CardButton(title: "Open a file", detail: "A PDF, or drop files here or on Inkvolt PDF in the Dock", symbol: "folder", height: 64)
+        let open = CardButton(title: loc("Open a file"), detail: loc("A PDF, or drop files here or on Inkvolt PDF in the Dock"), symbol: "folder", height: 64)
         open.target = self
         open.action = #selector(openClicked)
 
         // Four tools in sight, the other six one click away (UX review: the ten cards made the first glance busy).
-        let toolsTitle = sectionTitle("Tools")
+        let toolsTitle = sectionTitle(loc("Tools"))
         let primary = ToolCard.primary.map { cards[$0.rawValue] as NSView }
         let others = ToolCard.allCases.filter { !ToolCard.primary.contains($0) }.map { cards[$0.rawValue] as NSView }
         let rows = [primary] + stride(from: 0, to: others.count, by: 4).map { start -> [NSView] in
@@ -186,18 +187,18 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         toolsSpacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let toolsHeader = NSStackView(views: [toolsTitle, toolsSpacer, moreButton])
 
-        let clear = NSButton(title: "Clear List", target: self, action: #selector(clearRecent))
+        let clear = NSButton(title: loc("Clear List"), target: self, action: #selector(clearRecent))
         clear.bezelStyle = .accessoryBarAction
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        recentHeader.setViews([sectionTitle("Recent"), spacer, clear], in: .leading)
+        recentHeader.setViews([sectionTitle(loc("Recent")), spacer, clear], in: .leading)
         recentStack.orientation = .vertical
         recentStack.alignment = .leading
         recentStack.spacing = 8
-        let empty = NSTextField(labelWithString: "Files you open will appear here.")
+        let empty = NSTextField(labelWithString: loc("Files you open will appear here."))
         empty.textColor = .secondaryLabelColor
-        let tip = NSTextField(wrappingLabelWithString: "New here? Press ⇧⌘K and type what you want to do: fill, sign, edit text, export to Word, "
-            + "protect, scan. Every command is in the menus too.")
+        let tip = NSTextField(wrappingLabelWithString:
+            loc("New here? Press ⇧⌘K and type what you want to do: fill, sign, edit text, export to Word, protect, scan. Every command is in the menus too."))
         tip.preferredMaxLayoutWidth = 640
         noRecent.setViews([empty, tip], in: .leading)
         noRecent.orientation = .vertical
@@ -255,7 +256,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     func showMoreTools(_ show: Bool) {
         moreButton.state = show ? .on : .off
-        moreButton.title = show ? "Show Fewer" : "Show All Tools"
+        moreButton.title = show ? loc("Show Fewer") : loc("Show All Tools")
         moreButton.setAccessibleName(moreButton.title)
         for row in moreRows { row.isHidden = !show }
     }
@@ -328,8 +329,8 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     private func recentMenu(_ url: URL) -> NSMenu {
         let menu = NSMenu()
-        let open = NSMenuItem(title: "Open", action: #selector(recentMenuOpen(_:)), keyEquivalent: "")
-        let show = NSMenuItem(title: "Show in Finder", action: #selector(recentMenuShow(_:)), keyEquivalent: "")
+        let open = NSMenuItem(title: loc("Open"), action: #selector(recentMenuOpen(_:)), keyEquivalent: "")
+        let show = NSMenuItem(title: loc("Show in Finder"), action: #selector(recentMenuShow(_:)), keyEquivalent: "")
         for item in [open, show] {
             item.target = self
             item.representedObject = url
@@ -411,11 +412,11 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
             BatchWindowController.show()
         case .create:
             let menu = NSMenu()
-            for (title, action) in [("From an Office File (Word, Excel, PowerPoint)…", #selector(AppDelegate.newFromOfficeFile(_:))),
-                                    ("From a Web Page…", #selector(AppDelegate.newFromWebPage(_:))),
-                                    ("From Images…", #selector(AppDelegate.newFromImages(_:))),
-                                    ("From the Clipboard", #selector(AppDelegate.newFromClipboard(_:))),
-                                    ("From a Scanner…", #selector(AppDelegate.scan(_:)))] {
+            for (title, action) in [(loc("From an Office File (Word, Excel, PowerPoint)…"), #selector(AppDelegate.newFromOfficeFile(_:))),
+                                    (loc("From a Web Page…"), #selector(AppDelegate.newFromWebPage(_:))),
+                                    (loc("From Images…"), #selector(AppDelegate.newFromImages(_:))),
+                                    (loc("From the Clipboard"), #selector(AppDelegate.newFromClipboard(_:))),
+                                    (loc("From a Scanner…"), #selector(AppDelegate.scan(_:)))] {
                 menu.addItem(NSMenuItem(title: title, action: action, keyEquivalent: ""))
             }
             menu.popUp(positioning: nil, at: NSPoint(x: 0, y: sender.bounds.height + 4), in: sender)
@@ -428,7 +429,7 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
     func runOnFile(_ card: ToolCard) {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
-        panel.message = "Choose a PDF: \(card.title)"
+        panel.message = loc("Choose a PDF: {0}", card.title)
         guard let url = Self.pick(panel)?.first else { return }
         Self.open(url) { [weak self] controller in
             self?.lastToolWindow = controller

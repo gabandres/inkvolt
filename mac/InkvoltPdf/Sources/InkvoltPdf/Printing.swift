@@ -31,7 +31,7 @@ extension DocumentWindowController {
         // the layer engine draws, made again here rather than kept beside the document's.
         let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layerEngine == nil ? [:] : layerVisibility)
         let shown = PrintSheetView.shownSizes(printed)
-        let sheet = ProgressSheet(title: "Print", text: "Getting the pages ready for the printer…")
+        let sheet = ProgressSheet(title: loc("Print"), text: loc("Getting the pages ready for the printer…"))
         let token = sheet.token
         let work = Task.detached { PrintSheetView.prepare(source, shown: shown, cancel: token) }
         let reveal = Task { @MainActor [weak self] in
@@ -147,7 +147,7 @@ final class PrintOptions {
         let typed = range.trimmingCharacters(in: .whitespaces)
         guard !typed.isEmpty else { return nil }
         let parsed = PageRange.tryParse(typed, pageCount)
-        return parsed.ok ? nil : parsed.error ?? "That page range isn't valid."
+        return parsed.ok ? nil : parsed.error ?? loc("That page range isn't valid.")
     }
 }
 
@@ -422,14 +422,14 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
     private let sizing = NSPopUpButton(frame: .zero, pullsDown: false)
     private let perSheet = NSPopUpButton(frame: .zero, pullsDown: false)
     private let order = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let borders = NSButton(checkboxWithTitle: "Page borders", target: nil, action: nil)
+    private let borders = NSButton(checkboxWithTitle: loc("Page borders"), target: nil, action: nil)
     private let binding = NSPopUpButton(frame: .zero, pullsDown: false)
     private let posterScale = NSPopUpButton(frame: .zero, pullsDown: false)
     private let overlap = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let cutMarks = NSButton(checkboxWithTitle: "Cut marks", target: nil, action: nil)
+    private let cutMarks = NSButton(checkboxWithTitle: loc("Cut marks"), target: nil, action: nil)
     /// The panel's printer's state, when it is one Inkvolt Print knows (`PrinterStatusLookup`).
     let printerStatus = NSTextField(wrappingLabelWithString: "")
-    private let printerSettings = NSButton(title: "Printer Settings (Inkvolt Print)", target: nil, action: nil)
+    private let printerSettings = NSButton(title: loc("Printer Settings (Inkvolt Print)"), target: nil, action: nil)
     private var watchedPrinter: String?
     private var watch: Timer?
     private var lookupTask: Task<Void, Never>?
@@ -443,7 +443,7 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
     init(options: PrintOptions) {
         self.options = options
         super.init(nibName: nil, bundle: nil)
-        title = "Inkvolt PDF"
+        title = "Inkvolt PDF" // English: the app's name
     }
 
     @available(*, unavailable)
@@ -451,21 +451,21 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
 
     override func loadView() {
         range.stringValue = options.range
-        range.placeholderString = "All \(options.pageCount) pages (or e.g. 1-3, 5)"
-        range.setAccessibilityLabel("Pages to print")
+        range.placeholderString = loc("All {0} pages (or e.g. 1-3, 5)", options.pageCount)
+        range.setAccessibilityLabel(loc("Pages to print"))
         range.target = self
         range.action = #selector(changed)
         range.widthAnchor.constraint(equalToConstant: 220).isActive = true
         rangeNote.textColor = .systemRed
         rangeNote.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
-        handling.addItems(withTitles: ["One page per sheet", "Several pages per sheet", "Booklet", "Poster"])
-        sizing.addItems(withTitles: ["Actual size (only larger pages shrink)", "Fit to paper (small pages grow too)"])
-        perSheet.addItems(withTitles: PrintSetup.pagesPerSheetChoices.map { "\($0) pages" })
-        order.addItems(withTitles: ["Across, then down", "Down, then across"])
-        binding.addItems(withTitles: ["Bound on the left", "Bound on the right"])
+        handling.addItems(withTitles: [loc("One page per sheet"), loc("Several pages per sheet"), loc("Booklet"), loc("Poster")])
+        sizing.addItems(withTitles: [loc("Actual size (only larger pages shrink)"), loc("Fit to paper (small pages grow too)")])
+        perSheet.addItems(withTitles: PrintSetup.pagesPerSheetChoices.map { loc("{0} pages", $0) })
+        order.addItems(withTitles: [loc("Across, then down"), loc("Down, then across")])
+        binding.addItems(withTitles: [loc("Bound on the left"), loc("Bound on the right")])
         posterScale.addItems(withTitles: Self.scales.map { "\(Int($0 * 100)) %" })
         posterScale.selectItem(at: 1)
-        overlap.addItems(withTitles: ["No overlap", "⅛ inch overlap", "¼ inch overlap", "½ inch overlap"])
+        overlap.addItems(withTitles: [loc("No overlap"), loc("⅛ inch overlap"), loc("¼ inch overlap"), loc("½ inch overlap")])
         cutMarks.state = .on
         for control in [handling, sizing, perSheet, order, binding, posterScale, overlap] as [NSPopUpButton] {
             control.target = self
@@ -475,13 +475,13 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
             b.target = self
             b.action = #selector(changed)
         }
-        handling.setAccessibilityLabel("Layout")
-        sizing.setAccessibilityLabel("Size")
-        perSheet.setAccessibilityLabel("Pages per sheet")
-        order.setAccessibilityLabel("Page order")
-        binding.setAccessibilityLabel("Binding")
-        posterScale.setAccessibilityLabel("Poster size")
-        overlap.setAccessibilityLabel("Overlap")
+        handling.setAccessibilityLabel(loc("Layout"))
+        sizing.setAccessibilityLabel(loc("Size"))
+        perSheet.setAccessibilityLabel(loc("Pages per sheet"))
+        order.setAccessibilityLabel(loc("Page order"))
+        binding.setAccessibilityLabel(loc("Binding"))
+        posterScale.setAccessibilityLabel(loc("Poster size"))
+        overlap.setAccessibilityLabel(loc("Overlap"))
 
         func label(_ s: String) -> NSTextField {
             let l = NSTextField(labelWithString: s)
@@ -489,26 +489,26 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
             return l
         }
         let grid = NSGridView(views: [
-            [label("Pages:"), range],
+            [label(loc("Pages:")), range],
             [NSGridCell.emptyContentView, rangeNote],
-            [label("Layout:"), handling],
-            [label("Size:"), sizing],
-            [label("Pages per sheet:"), perSheet],
-            [label("Order:"), order],
+            [label(loc("Layout:", context: "print panel")), handling],
+            [label(loc("Size:")), sizing],
+            [label(loc("Pages per sheet:")), perSheet],
+            [label(loc("Order:")), order],
             [NSGridCell.emptyContentView, borders],
-            [label("Binding:"), binding],
-            [label("Poster size:"), posterScale],
-            [label("Overlap:"), overlap],
+            [label(loc("Binding:")), binding],
+            [label(loc("Poster size:")), posterScale],
+            [label(loc("Overlap:")), overlap],
             [NSGridCell.emptyContentView, cutMarks],
-            [label("Printer:"), printerStatus],
+            [label(loc("Printer:")), printerStatus],
             [NSGridCell.emptyContentView, printerSettings],
         ])
         printerStatus.preferredMaxLayoutWidth = 320
-        printerStatus.setAccessibilityLabel("Printer status")
+        printerStatus.setAccessibilityLabel(loc("Printer status"))
         printerSettings.bezelStyle = .push
         printerSettings.target = self
         printerSettings.action = #selector(openPrinterSettings)
-        printerSettings.toolTip = "Opens Inkvolt Print: the printers' status, ink and toner, and their settings"
+        printerSettings.toolTip = loc("Opens Inkvolt Print: the printers' status, ink and toner, and their settings")
         grid.rowSpacing = 6
         grid.column(at: 0).xPlacement = .trailing
         let container = NSView()
@@ -639,17 +639,18 @@ final class PrintAccessory: NSViewController, NSPrintPanelAccessorizing {
         s.cutMarks = cutMarks.state == .on
         options.setup = s
         options.range = range.stringValue
-        rangeNote.stringValue = options.rangeError.map { "\($0) All pages will print." } ?? ""
+        rangeNote.stringValue = options.rangeError.map { loc("{0} All pages will print.", $0) } ?? ""
         showRows()
         revision += 1 // the panel redraws its preview
     }
 
     nonisolated func localizedSummaryItems() -> [[NSPrintPanel.AccessorySummaryKey: String]] {
         MainActor.assumeIsolated {
-            let pages = options.range.trimmingCharacters(in: .whitespaces).isEmpty ? "All" : options.range
+            let pages = options.range.trimmingCharacters(in: .whitespaces).isEmpty ? loc("All", context: "pages") : options.range
             return [
-                [.itemName: "Pages", .itemDescription: pages],
-                [.itemName: "Layout", .itemDescription: handling.titleOfSelectedItem ?? ""],
+                [.itemName: loc("Pages"), .itemDescription: pages],
+                [.itemName: loc("Layout"), .itemDescription: handling.titleOfSelectedItem ?? ""],
+
             ]
         }
     }

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// File › Batch… (the Windows app's `BatchWindow`): one list of actions run on many files (PDFs, and images made into
@@ -19,19 +20,19 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     let actionTable = NSTableView()
     let folderField = NSTextField(string: "")
     let namesField = NSTextField(string: BatchNames.defaultTemplate)
-    let neverOverwrite = NSButton(checkboxWithTitle: "Never replace a file (a taken name gets a number)", target: nil, action: nil)
-    let keepSubfolders = NSButton(checkboxWithTitle: "Keep subfolders below the results folder", target: nil, action: nil)
+    let neverOverwrite = NSButton(checkboxWithTitle: loc("Never replace a file (a taken name gets a number)"), target: nil, action: nil)
+    let keepSubfolders = NSButton(checkboxWithTitle: loc("Keep subfolders below the results folder"), target: nil, action: nil)
     let signedFiles = NSPopUpButton(frame: .zero, pullsDown: false)
     let passwords = NSPopUpButton(frame: .zero, pullsDown: false)
     let imagePages = NSPopUpButton(frame: .zero, pullsDown: false)
     let presetPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    let runButton = NSButton(title: "Run", target: nil, action: nil)
-    let stopButton = NSButton(title: "Stop", target: nil, action: nil)
+    let runButton = NSButton(title: loc("Run"), target: nil, action: nil)
+    let stopButton = NSButton(title: loc("Stop"), target: nil, action: nil)
     let summary = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
     /// What an empty list says to do (UX review, round 2: two blank tables and a disabled Run, nothing said why).
-    private let noFiles = BatchWindowController.emptyNote("No files yet. Drop PDFs or folders here, or choose Add Files…")
-    private let noActions = BatchWindowController.emptyNote("No actions yet. Choose Add Action to pick what happens to each file.")
+    private let noFiles = BatchWindowController.emptyNote(loc("No files yet. Drop PDFs or folders here, or choose Add Files…"))
+    private let noActions = BatchWindowController.emptyNote(loc("No actions yet. Choose Add Action to pick what happens to each file."))
     private let more = NSButton()
     private var advancedRows: [NSGridRow] = []
     private var task: Task<Void, Never>?
@@ -58,13 +59,13 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 700), styleMask: [.titled, .closable, .resizable, .miniaturizable],
                               backing: .buffered, defer: false)
-        window.title = "Batch"
+        window.title = loc("Batch")
         window.isRestorable = false
         window.minSize = NSSize(width: 720, height: 600)
         super.init(window: window)
         window.delegate = self
 
-        for (id, title, width) in [("file", "File", 240.0), ("result", "Result", 300.0), ("folder", "Folder", 220.0)] {
+        for (id, title, width) in [("file", loc("File", context: "column"), 240.0), ("result", loc("Result"), 300.0), ("folder", loc("Folder"), 220.0)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             column.title = title
             column.width = width
@@ -74,7 +75,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         fileTable.delegate = self
         fileTable.allowsMultipleSelection = true
         fileTable.registerForDraggedTypes([.fileURL])
-        fileTable.setAccessibilityLabel("Files")
+        fileTable.setAccessibilityLabel(loc("Files"))
         fileTable.doubleAction = #selector(openResult)
         fileTable.target = self
         let fileScroll = NSScrollView()
@@ -82,10 +83,10 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         fileScroll.hasVerticalScroller = true
         fileScroll.borderType = .bezelBorder
         fileScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 180).isActive = true
-        let addFiles = NSButton(title: "Add Files…", target: self, action: #selector(addFilesClicked))
-        let addFolder = NSButton(title: "Add Folder…", target: self, action: #selector(addFolderClicked))
-        let removeFiles = NSButton(title: "Remove", target: self, action: #selector(removeFilesClicked))
-        let clearFiles = NSButton(title: "Clear", target: self, action: #selector(clearFilesClicked))
+        let addFiles = NSButton(title: loc("Add Files…"), target: self, action: #selector(addFilesClicked))
+        let addFolder = NSButton(title: loc("Add Folder…"), target: self, action: #selector(addFolderClicked))
+        let removeFiles = NSButton(title: loc("Remove"), target: self, action: #selector(removeFilesClicked))
+        let clearFiles = NSButton(title: loc("Clear"), target: self, action: #selector(clearFilesClicked))
         let fileButtons = NSStackView(views: [addFiles, addFolder, removeFiles, clearFiles])
         fileButtons.orientation = .vertical
         fileButtons.alignment = .leading
@@ -93,12 +94,12 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         filesRow.alignment = .top
 
         let actionColumn = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("action"))
-        actionColumn.title = "Actions, in order"
+        actionColumn.title = loc("Actions, in order")
         actionTable.addTableColumn(actionColumn)
         actionTable.dataSource = self
         actionTable.delegate = self
         actionTable.registerForDraggedTypes([Self.rowType])
-        actionTable.setAccessibilityLabel("Actions")
+        actionTable.setAccessibilityLabel(loc("Actions"))
         actionTable.doubleAction = #selector(editActionClicked)
         actionTable.target = self
         let actionScroll = NSScrollView()
@@ -107,10 +108,11 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         actionScroll.borderType = .bezelBorder
         actionScroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
         let addAction = NSPopUpButton(frame: .zero, pullsDown: true)
-        addAction.addItem(withTitle: "Add Action")
-        for (i, step) in Self.offered.enumerated() {
+        addAction.addItem(withTitle: loc("Add Action"))
+        let offered = Self.offered
+        for (i, step) in offered.enumerated() {
             // Groups: the actions on the PDF, the exports of its pages, the comments and form data.
-            if i > 0, (Self.offered[i - 1].exportFormat == nil) != (step.exportFormat == nil) || Self.offered[i - 1].isReviewExport != step.isReviewExport {
+            if i > 0, (offered[i - 1].exportFormat == nil) != (step.exportFormat == nil) || offered[i - 1].isReviewExport != step.isReviewExport {
                 addAction.menu?.addItem(.separator())
             }
             let item = NSMenuItem(title: step.title, action: #selector(addActionPicked(_:)), keyEquivalent: "")
@@ -118,34 +120,35 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             item.tag = i
             addAction.menu?.addItem(item)
         }
-        let editAction = NSButton(title: "Edit…", target: self, action: #selector(editActionClicked))
-        let upAction = NSButton(title: "Move Up", target: self, action: #selector(moveActionUp))
-        let downAction = NSButton(title: "Move Down", target: self, action: #selector(moveActionDown))
-        let removeAction = NSButton(title: "Remove", target: self, action: #selector(removeActionClicked))
+        let editAction = NSButton(title: loc("Edit…"), target: self, action: #selector(editActionClicked))
+        let upAction = NSButton(title: loc("Move Up"), target: self, action: #selector(moveActionUp))
+        let downAction = NSButton(title: loc("Move Down"), target: self, action: #selector(moveActionDown))
+        let removeAction = NSButton(title: loc("Remove"), target: self, action: #selector(removeActionClicked))
         let actionButtons = NSStackView(views: [addAction, editAction, upAction, downAction, removeAction])
         actionButtons.orientation = .vertical
         actionButtons.alignment = .leading
         let actionsRow = NSStackView(views: [Self.overlay(actionScroll, noActions), actionButtons])
         actionsRow.alignment = .top
 
-        folderField.placeholderString = "Where the results go"
-        folderField.setAccessibilityLabel("Results folder")
-        let chooseFolder = NSButton(title: "Choose…", target: self, action: #selector(chooseFolderClicked))
-        namesField.setAccessibilityLabel("Result names")
-        namesField.toolTip = "<<name>> the file's name, <<n>> or <<n:3>> its number, <<date>>, <<folder>>"
+        folderField.placeholderString = loc("Where the results go")
+        folderField.setAccessibilityLabel(loc("Results folder"))
+        let chooseFolder = NSButton(title: loc("Choose…"), target: self, action: #selector(chooseFolderClicked))
+        namesField.setAccessibilityLabel(loc("Result names"))
+        namesField.toolTip = loc("<<name>> the file's name, <<n>> or <<n:3>> its number, <<date>>, <<folder>>")
         neverOverwrite.state = .on
         keepSubfolders.state = .on
-        signedFiles.addItems(withTitles: ["Leave signed files as they are (exports still read them)", "Change signed files too (their signatures may stop verifying)"])
-        passwords.addItems(withTitles: ["Ask for passwords as files need them", "Skip files that need a password"])
-        imagePages.addItems(withTitles: ["Images on pages their own size", "Images on Letter pages", "Images on A4 pages"])
+        signedFiles.addItems(withTitles: [loc("Leave signed files as they are (exports still read them)"),
+                                          loc("Change signed files too (their signatures may stop verifying)")])
+        passwords.addItems(withTitles: [loc("Ask for passwords as files need them"), loc("Skip files that need a password")])
+        imagePages.addItems(withTitles: [loc("Images on pages their own size"), loc("Images on Letter pages"), loc("Images on A4 pages")])
         let grid = NSGridView(views: [
-            [NSTextField(labelWithString: "Results folder:"), stackOf(folderField, chooseFolder)],
-            [NSTextField(labelWithString: "Names:"), namesField],
+            [NSTextField(labelWithString: loc("Results folder:")), stackOf(folderField, chooseFolder)],
+            [NSTextField(labelWithString: loc("Names:")), namesField],
             [NSTextField(labelWithString: ""), neverOverwrite],
             [NSTextField(labelWithString: ""), keepSubfolders],
-            [NSTextField(labelWithString: "Signed files:"), signedFiles],
-            [NSTextField(labelWithString: "Passwords:"), passwords],
-            [NSTextField(labelWithString: "Images:"), imagePages],
+            [NSTextField(labelWithString: loc("Signed files:")), signedFiles],
+            [NSTextField(labelWithString: loc("Passwords:")), passwords],
+            [NSTextField(labelWithString: loc("Images:")), imagePages],
         ])
         grid.rowSpacing = 4
         grid.columnSpacing = 8
@@ -154,11 +157,11 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         more.bezelStyle = .disclosure
         more.setButtonType(.pushOnPushOff)
         more.title = ""
-        more.setAccessibilityLabel("More Options")
+        more.setAccessibilityLabel(loc("More Options"))
         more.target = self
         more.action = #selector(moreToggled)
         more.state = AppSettings.defaults.bool(forKey: "MoreOptions.Batch") ? .on : .off
-        let moreLabel = NSTextField(labelWithString: "More Options")
+        let moreLabel = NSTextField(labelWithString: loc("More Options"))
         moreLabel.textColor = .secondaryLabelColor
         grid.insertRow(at: 2, with: [NSGridCell.emptyContentView, stackOf(more, moreLabel)])
         advancedRows = (3..<grid.numberOfRows).map { grid.row(at: $0) }
@@ -166,14 +169,14 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         folderField.widthAnchor.constraint(greaterThanOrEqualToConstant: 360).isActive = true
         namesField.widthAnchor.constraint(equalToConstant: 300).isActive = true
 
-        presetPopup.setAccessibilityLabel("Preset")
+        presetPopup.setAccessibilityLabel(loc("Preset"))
         presetPopup.target = self
         presetPopup.action = #selector(presetPicked)
-        let savePreset = NSButton(title: "Save Preset…", target: self, action: #selector(savePresetClicked))
-        let exportPreset = NSButton(title: "Export…", target: self, action: #selector(exportPresetClicked))
-        let importPreset = NSButton(title: "Import…", target: self, action: #selector(importPresetClicked))
-        let watched = NSButton(title: "Watched Folders…", target: self, action: #selector(watchedFoldersClicked))
-        let presetsRow = NSStackView(views: [NSTextField(labelWithString: "Preset:"), presetPopup, savePreset, exportPreset, importPreset, NSView(), watched])
+        let savePreset = NSButton(title: loc("Save Preset…"), target: self, action: #selector(savePresetClicked))
+        let exportPreset = NSButton(title: loc("Export…"), target: self, action: #selector(exportPresetClicked))
+        let importPreset = NSButton(title: loc("Import…"), target: self, action: #selector(importPresetClicked))
+        let watched = NSButton(title: loc("Watched Folders…"), target: self, action: #selector(watchedFoldersClicked))
+        let presetsRow = NSStackView(views: [NSTextField(labelWithString: loc("Preset:")), presetPopup, savePreset, exportPreset, importPreset, NSView(), watched])
         presetPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
 
         runButton.target = self
@@ -212,20 +215,24 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    /// The actions as the Add Action menu offers them, with their default settings.
-    static let offered: [BatchStep] = [
-        .optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect, .sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })),
-        .redactPatterns(RedactionPatternOptions()), .checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: "DRAFT")),
-        .headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions()), .ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a,
-        .export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150),
-        .export(.png, dpi: 150), .export(.jpeg, dpi: 150),
-        .export(.commentsXfdf, dpi: 150), .export(.commentsFdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150),
-        .export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150), .export(.formDataCsv, dpi: 150), .export(.formDataJson, dpi: 150),
-    ]
+    /// The actions as the Add Action menu offers them, with their default settings (the watermark's and the footer's
+    /// default text in the interface's language: words the person edits first, as Windows').
+    static var offered: [BatchStep] {
+        var steps: [BatchStep] = [.optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect]
+        steps += [.sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })), .redactPatterns(RedactionPatternOptions())]
+        steps += [.checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: loc("DRAFT")))]
+        steps += [.headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions())]
+        steps += [.ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a]
+        steps += [.export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150)]
+        steps += [.export(.png, dpi: 150), .export(.jpeg, dpi: 150)]
+        steps += [.export(.commentsXfdf, dpi: 150), .export(.commentsFdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150)]
+        steps += [.export(.formDataXfdf, dpi: 150), .export(.formDataFdf, dpi: 150), .export(.formDataCsv, dpi: 150), .export(.formDataJson, dpi: 150)]
+        return steps
+    }
 
     private static var defaultHeaderFooter: HeaderFooterOptions {
         var o = HeaderFooterOptions()
-        o.footerCenter = "Page <<page>> of <<pages>>"
+        o.footerCenter = loc("Page <<page>> of <<pages>>")
         return o
     }
 
@@ -246,7 +253,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             status.append("")
         }
         if folderField.stringValue.isEmpty, let first = found.first {
-            folderField.stringValue = ((first.path as NSString).deletingLastPathComponent as NSString).appendingPathComponent("Inkvolt PDF results")
+            folderField.stringValue = ((first.path as NSString).deletingLastPathComponent as NSString).appendingPathComponent(loc("Inkvolt PDF results"))
         }
         refresh()
     }
@@ -258,7 +265,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             files.append(f)
             status.append("")
         }
-        if folderField.stringValue.isEmpty { folderField.stringValue = (path as NSString).appendingPathComponent("Inkvolt PDF results") }
+        if folderField.stringValue.isEmpty { folderField.stringValue = (path as NSString).appendingPathComponent(loc("Inkvolt PDF results")) }
         refresh()
     }
 
@@ -272,8 +279,15 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         noActions.isHidden = !steps.isEmpty
         progress.isHidden = !running && lastSummary == nil
         if !running {
-            summary.stringValue = lastSummary?.text ?? (files.isEmpty ? "Add files and actions." : "\(files.count) file\(files.count == 1 ? "" : "s"), \(steps.count) action\(steps.count == 1 ? "" : "s")")
+            summary.stringValue = lastSummary?.text ?? (files.isEmpty ? loc("Add files and actions.") : Self.counts(files.count, steps.count))
         }
+    }
+
+    /// "3 files, 2 actions": each count's own word, whole for Spanish (archivo/archivos, acción/acciones).
+    private static func counts(_ files: Int, _ actions: Int) -> String {
+        let f = files == 1 ? loc("1 file") : loc("{0} files", CoreLanguage.number(files))
+        let a = actions == 1 ? loc("1 action") : loc("{0} actions", CoreLanguage.number(actions))
+        return "\(f), \(a)"
     }
 
     func numberOfRows(in tableView: NSTableView) -> Int { tableView === fileTable ? files.count : steps.count }
@@ -326,15 +340,29 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     /// An action with its main setting, for the list.
     static func describe(_ step: BatchStep) -> String {
         switch step {
-        case .watermark(let o): step.title + (o.text.map { ": \($0)" } ?? ": a picture")
-        case .headerFooter(let o, let c):
-            step.title + ": " + HeaderFooterSlot.allCases.map { o.text($0) }.filter { !$0.isEmpty }.joined(separator: " · ") + (c ? " (numbers continue)" : "")
+        case .watermark(let o): "\(step.title): \(o.text ?? loc("a picture"))"
+        case .headerFooter(let o, let c): "\(step.title): \(headerFooterTexts(o, continues: c))"
         case .rotate(let d): step.title + ": \(d)°"
-        case .export(let f, let dpi): step.title + (f == .png || f == .jpeg ? " at \(dpi) dpi" : "")
-        case .protect(let p): step.title + ": " + [p.userPassword != nil ? "open password" : nil, p.ownerPassword != nil ? "permissions password" : nil].compactMap { $0 }.joined(separator: " and ")
-        case .sanitize(let items): step.title + ": \(items.count) kinds"
+        case .export(let f, let dpi): f == .png || f == .jpeg ? loc("{0} at {1} dpi", step.title, dpi) : step.title
+        case .protect(let p): "\(step.title): \(passwordsNamed(p))"
+        case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", items.count))"
         case .redactPatterns(let r): step.title + ": " + (r.patterns.map { RedactionPatterns.name($0) } + r.phrases).joined(separator: ", ")
         default: step.title
+        }
+    }
+
+    private static func headerFooterTexts(_ o: HeaderFooterOptions, continues: Bool) -> String {
+        let texts = HeaderFooterSlot.allCases.map { o.text($0) }.filter { !$0.isEmpty }.joined(separator: " · ")
+        return continues ? texts + " " + loc("(numbers continue)") : texts
+    }
+
+    /// Which passwords a Protect action sets, in words.
+    private static func passwordsNamed(_ p: ProtectStep) -> String {
+        switch (p.userPassword != nil, p.ownerPassword != nil) {
+        case (true, true): loc("open password and permissions password")
+        case (true, false): loc("open password")
+        case (false, true): loc("permissions password")
+        case (false, false): ""
         }
     }
 
@@ -371,7 +399,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf, .image]
         panel.allowsMultipleSelection = true
-        panel.message = "Choose PDFs or pictures for the batch."
+        panel.message = loc("Choose PDFs or pictures for the batch.")
         guard let urls = StartWindowController.pick(panel) else { return }
         add(urls.map(\.path))
     }
@@ -380,8 +408,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "Choose a folder: its PDFs and pictures are added."
-        let recursive = NSButton(checkboxWithTitle: "Subfolders too", target: nil, action: nil)
+        panel.message = loc("Choose a folder: its PDFs and pictures are added.")
+        let recursive = NSButton(checkboxWithTitle: loc("Subfolders too"), target: nil, action: nil)
         panel.accessoryView = recursive
         panel.isAccessoryViewDisclosed = true
         guard let url = StartWindowController.pick(panel)?.first else { return }
@@ -414,7 +442,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.message = "Where the results go."
+        panel.message = loc("Where the results go.")
         guard let url = StartWindowController.pick(panel)?.first else { return }
         folderField.stringValue = url.path
     }
@@ -493,14 +521,17 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         guard task == nil else { return }
         let plan = plan
         if let error = plan.validate(ocrAvailable: true) { return show(error) }
-        for case .protect(let p) in plan.steps where p.needsPasswords { return show("Protect with a password needs its passwords: choose it and Edit… to type them.") }
+        for case .protect(let p) in plan.steps where p.needsPasswords {
+            return show(loc("Protect with a password needs its passwords: choose it and Edit… to type them."))
+        }
         AppSettings.defaults.set(plan.outputFolder, forKey: "BatchFolder")
-        status = Array(repeating: "Waiting…", count: files.count)
+        // Ends in "…" in every language: a row's text ending so is still under way (`progressed`).
+        status = Array(repeating: loc("Waiting…"), count: files.count)
         lastSummary = nil
         let token = CancelToken()
         cancel = token
         progress.doubleValue = 0
-        summary.stringValue = "Running…"
+        summary.stringValue = loc("Running…")
         let files = files
         let host = SavedOcr.batchHost(askPassword: { [weak self] request, _ in await self?.askPassword(request) })
         let onProgress: @Sendable (BatchProgress) -> Void = { [weak self] p in
@@ -512,7 +543,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
                 lastSummary = result
                 Report.note("batch: \(result.text)")
             } catch {
-                show("The batch couldn't run: \(NSAlert.plainText(error))")
+                show(loc("The batch couldn't run: {0}", NSAlert.plainText(error)))
             }
             task = nil
             cancel = nil
@@ -538,7 +569,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
 
     @objc private func stopClicked() {
         cancel?.cancel()
-        summary.stringValue = "Stopping after the current actions…"
+        summary.stringValue = loc("Stopping after the current actions…")
         stopButton.isEnabled = false
     }
 
@@ -549,16 +580,16 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             let alert = NSAlert()
             let name = (request.file.path as NSString).lastPathComponent
             switch request.kind {
-            case .open: alert.messageText = request.wrong ? "That isn't the password of \(name)." : "\(name) needs a password to open."
-            case .permissions: alert.messageText = request.wrong ? "That isn't the permissions password of \(name)." : "Changing \(name) needs its permissions password."
+            case .open: alert.messageText = request.wrong ? loc("That isn't the password of {0}.", name) : loc("{0} needs a password to open.", name)
+            case .permissions:
+                alert.messageText = request.wrong ? loc("That isn't the permissions password of {0}.", name) : loc("Changing {0} needs its permissions password.", name)
             }
-            alert.informativeText = "Type it, or Skip to leave this file out."
+            alert.informativeText = loc("Type it, or Skip to leave this file out.")
             let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-            field.setAccessibleName("Password")
-        field.setAccessibleName("Password")
+            field.setAccessibleName(loc("Password"))
             alert.accessoryView = field
-            alert.addButton(withTitle: "Continue")
-            alert.addButton(withTitle: "Skip")
+            alert.addButton(withTitle: loc("Continue"))
+            alert.addButton(withTitle: loc("Skip"))
             alert.window.initialFirstResponder = field
             alert.beginSheetModal(for: window) { response in
                 cont.resume(returning: response == .alertFirstButtonReturn ? field.stringValue : nil)
@@ -566,6 +597,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         }
     }
 
+    /// An alert over the window: `message` is shown as given (pass it through `loc`).
     private func show(_ message: String) {
         Report.note("ERROR batch: \(message)")
         guard let window, !Report.isRunning else { return }
@@ -576,7 +608,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if task != nil {
-            show("The batch is running: Stop it first.")
+            show(loc("The batch is running: Stop it first."))
             return false
         }
         return true
@@ -588,7 +620,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
 
     private func reloadPresets() {
         presetPopup.removeAllItems()
-        presetPopup.addItem(withTitle: "Choose a preset…")
+        presetPopup.addItem(withTitle: loc("Choose a preset…"))
         presetPaths = ((try? FileManager.default.contentsOfDirectory(atPath: Self.presetsFolder)) ?? [])
             .filter { $0.lowercased().hasSuffix(".json") }.sorted { $0.lowercased() < $1.lowercased() }
             .map { (Self.presetsFolder as NSString).appendingPathComponent($0) }
@@ -620,27 +652,27 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
 
     @objc private func savePresetClicked() {
         guard proAllows(.batchPresets), let window else { return }
-        guard !steps.isEmpty else { return show("Add at least one action to save as a preset.") }
+        guard !steps.isEmpty else { return show(loc("Add at least one action to save as a preset.")) }
         let alert = NSAlert()
-        alert.messageText = "Save Preset"
-        alert.informativeText = "The actions with their settings, the names and the choices, under a name. Passwords are never kept."
+        alert.messageText = loc("Save Preset")
+        alert.informativeText = loc("The actions with their settings, the names and the choices, under a name. Passwords are never kept.")
         let name = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        name.placeholderString = "Preset name"
-        let keepFolder = NSButton(checkboxWithTitle: "Keep the results folder in the preset", target: nil, action: nil)
+        name.placeholderString = loc("Preset name")
+        let keepFolder = NSButton(checkboxWithTitle: loc("Keep the results folder in the preset"), target: nil, action: nil)
         keepFolder.state = .on
         let stack = NSStackView(views: [name, keepFolder])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.frame = NSRect(x: 0, y: 0, width: 300, height: 56)
         alert.accessoryView = stack
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Save"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.window.initialFirstResponder = name
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }
                 let title = name.stringValue.trimmingCharacters(in: .whitespaces)
-                guard !title.isEmpty else { return self.show("Type a name for the preset.") }
+                guard !title.isEmpty else { return self.show(loc("Type a name for the preset.")) }
                 self.savePreset(title, keepFolder: keepFolder.state == .on)
             }
         }
@@ -654,7 +686,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             reloadPresets()
             if let i = presetPaths.firstIndex(of: path) { presetPopup.selectItem(at: i + 1) }
         } catch {
-            show("The preset couldn't be saved: \(error.localizedDescription)")
+            show(loc("The preset couldn't be saved: {0}", error.localizedDescription))
         }
     }
 
@@ -663,13 +695,14 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.json]
         let selected = presetPopup.indexOfSelectedItem - 1
-        let name = selected >= 0 && selected < presetPaths.count ? presetPopup.titleOfSelectedItem ?? "Batch preset" : "Batch preset"
+        let fallback = loc("Batch preset")
+        let name = selected >= 0 && selected < presetPaths.count ? presetPopup.titleOfSelectedItem ?? fallback : fallback
         panel.nameFieldStringValue = BatchPresets.fileName(name)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try BatchPresets.save(BatchPreset.from(name, plan, keepFolder: true), url.path)
         } catch {
-            show("The preset couldn't be saved: \(error.localizedDescription)")
+            show(loc("The preset couldn't be saved: {0}", error.localizedDescription))
         }
     }
 
@@ -677,7 +710,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         guard proAllows(.batchPresets) else { return }
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
-        panel.message = "Choose a batch preset (JSON)."
+        panel.message = loc("Choose a batch preset (JSON).")
         guard let url = StartWindowController.pick(panel)?.first else { return }
         do {
             let preset = try BatchPresets.load(url.path)
@@ -711,11 +744,12 @@ enum ActionSheet {
         case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .makeAccessible, .saveAsPdfA, .saveAsPdfA2a:
             return done(step)
         case .optimize(let o):
-            alert.informativeText = "Pictures shown larger than the chosen resolution are downsampled and stored as JPEG; identical streams merged, uncompressed ones compressed."
-            let quality = popup(["High quality (200 dpi)", "Medium (150 dpi)", "Low (96 dpi)", "Keep pictures as they are"], o.maxImageDpi == 200 ? 0 : o.maxImageDpi == 96 ? 2 : o.maxImageDpi == nil ? 3 : 1)
-            let thumbs = check("Remove embedded page thumbnails", o.removeThumbnails)
-            let piece = check("Remove other apps' private data", o.removePieceInfo)
-            let meta = check("Remove XMP metadata (the title and author stay)", o.removeMetadata)
+            alert.informativeText = loc("Pictures shown larger than the chosen resolution are downsampled and stored as JPEG; identical streams merged, uncompressed ones compressed.")
+            let qualities = [loc("High quality (200 dpi)"), loc("Medium (150 dpi)"), loc("Low (96 dpi)"), loc("Keep pictures as they are")]
+            let quality = popup(qualities, o.maxImageDpi == 200 ? 0 : o.maxImageDpi == 96 ? 2 : o.maxImageDpi == nil ? 3 : 1)
+            let thumbs = check(loc("Remove embedded page thumbnails"), o.removeThumbnails)
+            let piece = check(loc("Remove other apps' private data"), o.removePieceInfo)
+            let meta = check(loc("Remove XMP metadata (the title and author stay)"), o.removeMetadata)
             alert.accessoryView = column([quality, thumbs, piece, meta], width: 360)
             read = {
                 var n = o
@@ -726,18 +760,19 @@ enum ActionSheet {
                 return .optimize(n)
             }
         case .protect(let p):
-            alert.informativeText = "AES-256 (AES-128 for old readers). Passwords are asked here and never kept in a preset."
+            alert.informativeText = loc("AES-256 (AES-128 for old readers). Passwords are asked here and never kept in a preset.")
             let open = NSSecureTextField(string: p.userPassword ?? "")
-            open.placeholderString = "Password to open (optional)"
+            open.placeholderString = loc("Password to open (optional)")
             let owner = NSSecureTextField(string: p.ownerPassword ?? "")
-            owner.placeholderString = "Permissions password (optional)"
-            let print = popup(["Printing allowed", "Low-resolution printing only", "No printing"], p.permissions.print == .highResolution ? 0 : p.permissions.print == .lowResolution ? 1 : 2)
-            let copy = check("Allow copying text and pictures", p.permissions.copy)
-            let modify = check("Allow changing the pages", p.permissions.modify)
-            let annotate = check("Allow comments", p.permissions.annotate)
-            let fill = check("Allow filling forms", p.permissions.fillForms)
-            let assemble = check("Allow rearranging pages", p.permissions.assemble)
-            let method = popup(["AES-256", "AES-128 (old readers)"], p.method == .aes128 ? 1 : 0)
+            owner.placeholderString = loc("Permissions password (optional)")
+            let printings = [loc("Printing allowed"), loc("Low-resolution printing only"), loc("No printing")]
+            let print = popup(printings, p.permissions.print == .highResolution ? 0 : p.permissions.print == .lowResolution ? 1 : 2)
+            let copy = check(loc("Allow copying text and pictures"), p.permissions.copy)
+            let modify = check(loc("Allow changing the pages"), p.permissions.modify)
+            let annotate = check(loc("Allow comments"), p.permissions.annotate)
+            let fill = check(loc("Allow filling forms"), p.permissions.fillForms)
+            let assemble = check(loc("Allow rearranging pages"), p.permissions.assemble)
+            let method = popup(["AES-256", loc("AES-128 (old readers)")], p.method == .aes128 ? 1 : 0)
             for f in [open, owner] { f.widthAnchor.constraint(equalToConstant: 300).isActive = true }
             alert.accessoryView = column([open, owner, print, copy, modify, annotate, fill, assemble, method], width: 360)
             read = {
@@ -748,19 +783,19 @@ enum ActionSheet {
                 return .protect(ProtectStep(user, ownerPassword, ownerPassword == nil ? .all : perms, method.indexOfSelectedItem == 1 ? .aes128 : .aes256))
             }
         case .sanitize(let items):
-            alert.informativeText = "What to remove from each file."
+            alert.informativeText = loc("What to remove from each file.")
             let boxes = SanitizeItem.allCases.map { check(sanitizeLabel($0), items.contains($0)) }
             alert.accessoryView = column(boxes, width: 420)
             read = { .sanitize(Set(zip(SanitizeItem.allCases, boxes).filter { $0.1.state == .on }.map(\.0))) }
         case .redactPatterns(let r):
-            alert.informativeText = "Found on every page and blacked out at once; the pages with matches become pictures with their text recognized again."
+            alert.informativeText = loc("Found on every page and blacked out at once; the pages with matches become pictures with their text recognized again.")
             let boxes = RedactionPatterns.builtIn.map { check(RedactionPatterns.name($0), r.patterns.contains($0)) }
             let phrases = NSTextField(string: r.phrases.joined(separator: ", "))
-            phrases.placeholderString = "Words or phrases, comma-separated"
+            phrases.placeholderString = loc("Words or phrases, comma-separated")
             let expression = NSTextField(string: r.expression ?? "")
-            expression.placeholderString = "Your own pattern (ICU regular expression)"
-            let whole = check("Whole words only", r.wholeWord)
-            let caseBox = check("Match case", r.matchCase)
+            expression.placeholderString = loc("Your own pattern (ICU regular expression)")
+            let whole = check(loc("Whole words only"), r.wholeWord)
+            let caseBox = check(loc("Match case"), r.matchCase)
             for f in [phrases, expression] { f.widthAnchor.constraint(equalToConstant: 380).isActive = true }
             alert.accessoryView = column(boxes + [phrases, expression, whole, caseBox], width: 420)
             read = {
@@ -773,18 +808,18 @@ enum ActionSheet {
                 return .redactPatterns(n)
             }
         case .watermark(let o):
-            alert.informativeText = "A text turned and see-through (a preset's picture stays as it is)."
+            alert.informativeText = loc("A text turned and see-through (a preset's picture stays as it is).")
             let text = NSTextField(string: o.text ?? "")
-            text.placeholderString = "DRAFT, CONFIDENTIAL, …"
+            text.placeholderString = loc("DRAFT, CONFIDENTIAL, …")
             let size = NSTextField(string: PdfNum.f2(o.fontSize))
             let opacity = NSTextField(string: String(Int(o.opacity * 100)))
             let rotation = NSTextField(string: PdfNum.f2(o.rotation))
-            let layout = popup(["Once, in the middle", "Tiled across the page"], o.layout == .tiled ? 1 : 0)
-            let behind = check("Behind the page's content", o.behind)
+            let layout = popup([loc("Once, in the middle"), loc("Tiled across the page")], o.layout == .tiled ? 1 : 0)
+            let behind = check(loc("Behind the page's content"), o.behind)
             text.widthAnchor.constraint(equalToConstant: 300).isActive = true
-            alert.accessoryView = grid([
-                ["Text:", text], ["Font size:", size], ["Opacity (%):", opacity], ["Angle:", rotation], ["Layout:", layout], ["", behind],
-            ], width: 420)
+            var rows: [[Any]] = [[loc("Text:"), text], [loc("Font size:"), size], [loc("Opacity (%):"), opacity]]
+            rows += [[loc("Angle:"), rotation], [loc("Layout:"), layout], ["", behind]]
+            alert.accessoryView = grid(rows, width: 420)
             read = {
                 var n = o
                 let typed = text.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -800,29 +835,30 @@ enum ActionSheet {
                 return .watermark(n)
             }
         case .headerFooter(let o, let continues):
-            alert.informativeText = "Tokens: <<page>>, <<pages>>, <<date>>, <<time>>, <<file>>, <<bates>>."
+            alert.informativeText = loc("Tokens: <<page>>, <<pages>>, <<date>>, <<time>>, <<file>>, <<bates>>.")
             let slots = HeaderFooterSlot.allCases.map { s -> NSTextField in
                 let f = NSTextField(string: o.text(s))
                 f.widthAnchor.constraint(equalToConstant: 130).isActive = true
                 return f
             }
             let size = NSTextField(string: PdfNum.f2(o.fontSize))
-            let batesOn = check("Bates numbers (<<bates>>)", o.bates != nil)
+            let batesOn = check(loc("Bates numbers (<<bates>>)"), o.bates != nil)
             let prefix = NSTextField(string: o.bates?.prefix ?? "")
-            prefix.placeholderString = "Prefix"
+            prefix.placeholderString = loc("Prefix")
             let start = NSTextField(string: String(o.bates?.start ?? 1))
             let digits = NSTextField(string: String(o.bates?.digits ?? 6))
             let suffix = NSTextField(string: o.bates?.suffix ?? "")
-            suffix.placeholderString = "Suffix"
-            let cont = check("Numbers continue from one file to the next", continues)
+            suffix.placeholderString = loc("Suffix")
+            let cont = check(loc("Numbers continue from one file to the next"), continues)
             for f in [size, start, digits] { f.widthAnchor.constraint(equalToConstant: 60).isActive = true }
             for f in [prefix, suffix] { f.widthAnchor.constraint(equalToConstant: 90).isActive = true }
+            let columns = [NSTextField(labelWithString: loc("Left")), NSTextField(labelWithString: loc("Center")), NSTextField(labelWithString: loc("Right"))]
             let g = NSGridView(views: [
-                [NSTextField(labelWithString: ""), NSTextField(labelWithString: "Left"), NSTextField(labelWithString: "Center"), NSTextField(labelWithString: "Right")],
-                [NSTextField(labelWithString: "Header:"), slots[0], slots[1], slots[2]],
-                [NSTextField(labelWithString: "Footer:"), slots[3], slots[4], slots[5]],
-                [NSTextField(labelWithString: "Font size:"), size, batesOn, NSGridCell.emptyContentView],
-                [NSTextField(labelWithString: "Bates:"), prefix, start, digits],
+                [NSTextField(labelWithString: "")] + columns,
+                [NSTextField(labelWithString: loc("Header:")), slots[0], slots[1], slots[2]],
+                [NSTextField(labelWithString: loc("Footer:")), slots[3], slots[4], slots[5]],
+                [NSTextField(labelWithString: loc("Font size:")), size, batesOn, NSGridCell.emptyContentView],
+                [NSTextField(labelWithString: loc("Bates:")), prefix, start, digits],
                 [NSTextField(labelWithString: ""), suffix, cont, NSGridCell.emptyContentView],
             ])
             g.rowSpacing = 6
@@ -840,27 +876,27 @@ enum ActionSheet {
                 return .headerFooter(n, continueBates: cont.state == .on)
             }
         case .rotate(let d):
-            let turn = popup(["Right (90°)", "Upside down (180°)", "Left (−90°)"], d == 180 ? 1 : d < 0 || d == 270 ? 2 : 0)
+            let turn = popup([loc("Right (90°)"), loc("Upside down (180°)"), loc("Left (−90°)")], d == 180 ? 1 : d < 0 || d == 270 ? 2 : 0)
             alert.accessoryView = column([turn], width: 300)
             read = { .rotate([90, 180, -90][max(turn.indexOfSelectedItem, 0)]) }
         case .flatten(let f):
-            let annotations = check("Comments and drawings", f.annotations)
-            let fields = check("Form fields (the form is removed)", f.formFields)
-            let links = check("Links (removed)", f.links)
-            let printable = check("Only what prints", f.printableOnly)
+            let annotations = check(loc("Comments and drawings"), f.annotations)
+            let fields = check(loc("Form fields (the form is removed)"), f.formFields)
+            let links = check(loc("Links (removed)"), f.links)
+            let printable = check(loc("Only what prints"), f.printableOnly)
             alert.accessoryView = column([annotations, fields, links, printable], width: 360)
             read = { .flatten(FlattenOptions(annotations: annotations.state == .on, formFields: fields.state == .on, links: links.state == .on, printableOnly: printable.state == .on)) }
         case .export(let format, let dpi):
             if format == .png || format == .jpeg {
-                let resolution = popup(["72 dpi", "150 dpi", "300 dpi", "600 dpi"], dpi == 72 ? 0 : dpi == 300 ? 2 : dpi == 600 ? 3 : 1)
+                let resolution = popup([72, 150, 300, 600].map { loc("{0} dpi", $0) }, dpi == 72 ? 0 : dpi == 300 ? 2 : dpi == 600 ? 3 : 1)
                 alert.accessoryView = column([resolution], width: 300)
                 read = { .export(format, dpi: [72, 150, 300, 600][max(resolution.indexOfSelectedItem, 0)]) }
             } else {
                 return done(step)
             }
         }
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("OK"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated { done(response == .alertFirstButtonReturn ? read() : nil) }
         }
@@ -868,17 +904,17 @@ enum ActionSheet {
 
     static func sanitizeLabel(_ item: SanitizeItem) -> String {
         switch item {
-        case .metadata: "Document properties and metadata"
-        case .hiddenLayers: "Hidden layers"
-        case .hiddenAnnotations: "Hidden comments and fields"
-        case .comments: "Comments, markup, stamps and drawings"
-        case .formValues: "Form values"
-        case .bookmarks: "Bookmarks"
-        case .thumbnails: "Page thumbnails"
-        case .activeContent: "Scripts and active content"
-        case .externalLinks: "Links to the web and other files"
-        case .embeddedFiles: "Attached files"
-        case .signatures: "Digital signatures"
+        case .metadata: loc("Document properties and metadata")
+        case .hiddenLayers: loc("Hidden layers")
+        case .hiddenAnnotations: loc("Hidden comments and fields")
+        case .comments: loc("Comments, markup, stamps and drawings")
+        case .formValues: loc("Form values")
+        case .bookmarks: loc("Bookmarks")
+        case .thumbnails: loc("Page thumbnails")
+        case .activeContent: loc("Scripts and active content")
+        case .externalLinks: loc("Links to the web and other files")
+        case .embeddedFiles: loc("Attached files")
+        case .signatures: loc("Digital signatures")
         }
     }
 
@@ -931,7 +967,7 @@ final class FolderWatches {
         var enabled: Bool
         var task: Task<Void, Never>?
         var cancel: CancelToken?
-        var status = "Stopped"
+        var status = loc("Stopped")
         init(folder: String, preset: String, enabled: Bool) {
             self.folder = folder
             self.preset = preset
@@ -982,7 +1018,7 @@ final class FolderWatches {
         do {
             preset = try BatchPresets.load(w.preset)
         } catch {
-            w.status = "The preset can't be read: \((error as? BatchPresetError)?.message ?? "\(error)")"
+            w.status = loc("The preset can't be read: {0}", (error as? BatchPresetError)?.message ?? "\(error)")
             w.enabled = false
             changed?()
             return
@@ -992,21 +1028,25 @@ final class FolderWatches {
         let token = CancelToken()
         w.cancel = token
         w.enabled = true
-        w.status = "Watching"
+        w.status = loc("Watching")
         let folder = w.folder
         let host = SavedOcr.batchHost()
         w.task = Task { @MainActor in
             do {
                 let onProgress: @Sendable (WatchProgress) -> Void = { p in
                     onMain {
-                        if let e = p.finished { w.status = "\(e.state.rawValue): \(e.fileName)" } else if p.working > 0 { w.status = "Working on \(p.working) file\(p.working == 1 ? "" : "s")" }
+                        if let e = p.finished {
+                            w.status = "\(Self.stateText(e.state)): \(e.fileName)"
+                        } else if p.working > 0 {
+                            w.status = p.working == 1 ? loc("Working on 1 file") : loc("Working on {0} files", CoreLanguage.number(p.working))
+                        }
                         self.changed?()
                     }
                 }
                 let summary = try await WatchedFolder.run(folder, plan, host, WatchOptions(), progress: onProgress, cancel: token)
-                w.status = "Stopped (\(summary.done) done, \(summary.failed) failed)"
+                w.status = loc("Stopped ({0} done, {1} failed)", CoreLanguage.number(summary.done), CoreLanguage.number(summary.failed))
             } catch {
-                w.status = "Stopped: \(NSAlert.plainText(error))"
+                w.status = loc("Stopped: {0}", NSAlert.plainText(error))
                 w.enabled = false
             }
             w.task = nil
@@ -1019,8 +1059,20 @@ final class FolderWatches {
     func stop(_ w: Watch) {
         w.cancel?.cancel()
         w.enabled = false
-        w.status = "Stopping…"
+        w.status = loc("Stopping…")
         changed?()
+    }
+
+    /// A file's state as the Status column shows it (the raw value stays the log's).
+    nonisolated static func stateText(_ state: BatchItemState) -> String {
+        switch state {
+        case .waiting: loc("waiting", context: "batch state")
+        case .running: loc("working", context: "batch state")
+        case .done: loc("done", context: "batch state")
+        case .skipped: loc("skipped", context: "batch state")
+        case .failed: loc("failed", context: "batch state")
+        case .cancelled: loc("cancelled", context: "batch state")
+        }
     }
 }
 
@@ -1040,10 +1092,10 @@ final class WatchedFoldersWindowController: NSWindowController, NSTableViewDataS
 
     init() {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 720, height: 360), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
-        window.title = "Watched Folders"
+        window.title = loc("Watched Folders")
         window.isRestorable = false
         super.init(window: window)
-        for (id, title, width) in [("folder", "Folder", 260.0), ("preset", "Preset", 180.0), ("status", "Status", 220.0)] {
+        for (id, title, width) in [("folder", loc("Folder"), 260.0), ("preset", loc("Preset"), 180.0), ("status", loc("Status"), 220.0)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
             column.title = title
             column.width = width
@@ -1051,16 +1103,16 @@ final class WatchedFoldersWindowController: NSWindowController, NSTableViewDataS
         }
         table.dataSource = self
         table.delegate = self
-        table.setAccessibilityLabel("Watched folders")
+        table.setAccessibilityLabel(loc("Watched folders"))
         let scroll = NSScrollView()
         scroll.documentView = table
         scroll.hasVerticalScroller = true
         scroll.borderType = .bezelBorder
-        let note = NSTextField(wrappingLabelWithString: "Each PDF or picture put in a watched folder runs through its preset once it has stopped growing; the original moves to \"done\" or \"failed\" below the folder, and inkvolt-watch.log there gets a line per file. Folders are watched while Inkvolt PDF is open. For one watched without the app, see the command line (--help).")
+        let note = NSTextField(wrappingLabelWithString: loc("Each PDF or picture put in a watched folder runs through its preset once it has stopped growing; the original moves to \"done\" or \"failed\" below the folder, and inkvolt-watch.log there gets a line per file. Folders are watched while Inkvolt PDF is open. For one watched without the app, see the command line (--help)."))
         note.preferredMaxLayoutWidth = 680
-        let add = NSButton(title: "Add…", target: self, action: #selector(addClicked))
-        let startStop = NSButton(title: "Start / Stop", target: self, action: #selector(startStopClicked))
-        let remove = NSButton(title: "Remove", target: self, action: #selector(removeClicked))
+        let add = NSButton(title: loc("Add…"), target: self, action: #selector(addClicked))
+        let startStop = NSButton(title: loc("Start / Stop"), target: self, action: #selector(startStopClicked))
+        let remove = NSButton(title: loc("Remove"), target: self, action: #selector(removeClicked))
         let buttons = NSStackView(views: [add, startStop, remove])
         let stack = NSStackView(views: [note, scroll, buttons])
         stack.orientation = .vertical
@@ -1096,12 +1148,12 @@ final class WatchedFoldersWindowController: NSWindowController, NSTableViewDataS
         let folderPanel = NSOpenPanel()
         folderPanel.canChooseDirectories = true
         folderPanel.canChooseFiles = false
-        folderPanel.message = "Choose the folder to watch."
+        folderPanel.message = loc("Choose the folder to watch.")
         guard let folder = StartWindowController.pick(folderPanel)?.first else { return }
         let presetPanel = NSOpenPanel()
         presetPanel.allowedContentTypes = [.json]
         presetPanel.directoryURL = URL(fileURLWithPath: BatchWindowController.presetsFolder)
-        presetPanel.message = "Choose the preset to run on each file (a batch preset, JSON)."
+        presetPanel.message = loc("Choose the preset to run on each file (a batch preset, JSON).")
         guard let preset = StartWindowController.pick(presetPanel)?.first else { return }
         FolderWatches.shared.add(folder: folder.path, preset: preset.path)
     }

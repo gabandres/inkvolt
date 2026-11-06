@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import ImageIO
 
 /// Fill & Sign's handwritten signatures and initials (pictures placed as stamps, not digital signatures; the Windows
@@ -53,7 +54,7 @@ final class SavedSignaturesMenu: NSObject, NSMenuDelegate {
     static let shared = SavedSignaturesMenu()
 
     static func make() -> NSMenu {
-        let menu = NSMenu(title: "Place Saved Signature")
+        let menu = NSMenu(title: loc("Place Saved Signature"))
         menu.delegate = shared
         return menu
     }
@@ -68,7 +69,7 @@ final class SavedSignaturesMenu: NSObject, NSMenuDelegate {
             menu.addItem(item)
         }
         if saved.isEmpty {
-            let none = NSMenuItem(title: "No Saved Signatures", action: nil, keyEquivalent: "")
+            let none = NSMenuItem(title: loc("No Saved Signatures"), action: nil, keyEquivalent: "")
             none.isEnabled = false
             menu.addItem(none)
         }
@@ -199,7 +200,7 @@ final class SignaturePad: NSView {
         super.init(frame: frame)
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Signature pad: draw with the mouse or trackpad")
+        setAccessibilityLabel(loc("Signature pad: draw with the mouse or trackpad"))
     }
 
     @available(*, unavailable)
@@ -261,38 +262,38 @@ final class SignatureSheet: NSWindowController, NSTextFieldDelegate {
     let initials: Bool
     let pad = SignaturePad(frame: NSRect(x: 0, y: 0, width: 420, height: 150))
     let typed = NSTextField(string: "")
-    let mode = NSSegmentedControl(labels: ["Draw", "Type"], trackingMode: .selectOne, target: nil, action: nil)
+    let mode = NSSegmentedControl(labels: [loc("Draw"), loc("Type", context: "draw or type")], trackingMode: .selectOne, target: nil, action: nil)
     private let preview = NSTextField(labelWithString: "")
-    private let use = NSButton(title: "Use", target: nil, action: nil)
+    private let use = NSButton(title: loc("Use"), target: nil, action: nil)
     var done: ((StampImage?) -> Void)?
 
     init(initials: Bool, typing: Bool) {
         self.initials = initials
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 300), styleMask: [.titled], backing: .buffered, defer: false)
         super.init(window: panel)
-        let title = NSTextField(labelWithString: initials ? "Your initials" : "Your signature")
+        let title = NSTextField(labelWithString: initials ? loc("Your initials") : loc("Your signature"))
         title.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
         mode.selectedSegment = typing ? 1 : 0
         mode.target = self
         mode.action = #selector(modeChanged)
-        mode.setAccessibilityLabel("Draw or type")
+        mode.setAccessibilityLabel(loc("Draw or type"))
         pad.translatesAutoresizingMaskIntoConstraints = false
         pad.widthAnchor.constraint(equalToConstant: 420).isActive = true
         pad.heightAnchor.constraint(equalToConstant: 150).isActive = true
         pad.onChange = { [weak self] in self?.validate() }
-        typed.placeholderString = initials ? "Type your initials" : "Type your name"
+        typed.placeholderString = initials ? loc("Type your initials") : loc("Type your name")
         typed.delegate = self
-        typed.setAccessibilityLabel(initials ? "Initials" : "Name")
+        typed.setAccessibilityLabel(initials ? loc("Initials") : loc("Name"))
         preview.font = SignatureImages.font(size: 36)
         preview.textColor = SignatureImages.ink
         preview.setAccessibilityElement(false)
-        let clear = NSButton(title: "Clear", target: self, action: #selector(clearClicked))
-        let cancel = NSButton(title: "Cancel", target: self, action: #selector(cancelClicked))
+        let clear = NSButton(title: loc("Clear"), target: self, action: #selector(clearClicked))
+        let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
         use.target = self
         use.action = #selector(useClicked)
         use.keyEquivalent = "\r"
-        let note = NSTextField(wrappingLabelWithString: "This puts a picture of your signature on the page. It isn't a digital signature.")
+        let note = NSTextField(wrappingLabelWithString: loc("This puts a picture of your signature on the page. It isn't a digital signature."))
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         note.preferredMaxLayoutWidth = 420

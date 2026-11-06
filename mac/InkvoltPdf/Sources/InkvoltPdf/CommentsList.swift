@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The sidebar's Comments list: every comment of the document by page, replies under their comment, filtered by kind and
 /// author. Clicking one goes to it and selects it on the page; Reply… and Delete act on the one selected (Delete and
@@ -10,9 +11,9 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     private let scroll = NSScrollView()
     private let kindFilter = NSPopUpButton(frame: .zero, pullsDown: false)
     private let authorFilter = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let empty = NSTextField(labelWithString: "No comments")
-    private let replyButton = NSButton(title: "Reply…", target: nil, action: nil)
-    private let deleteButton = NSButton(title: "Delete", target: nil, action: nil)
+    private let empty = NSTextField(labelWithString: loc("No comments"))
+    private let replyButton = NSButton(title: loc("Reply…"), target: nil, action: nil)
+    private let deleteButton = NSButton(title: loc("Delete"), target: nil, action: nil)
     private var top: [CommentItem] = []
     private var all: [AnnotationInfo] = []
     private var following = false
@@ -37,7 +38,7 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         outline.delegate = self
         outline.target = self
         outline.doubleAction = #selector(doubleClicked)
-        outline.setAccessibilityLabel("Comments")
+        outline.setAccessibilityLabel(loc("Comments"))
         outline.onKey = { [weak self] key in self?.key(key) ?? false }
         scroll.documentView = outline
         scroll.hasVerticalScroller = true
@@ -49,8 +50,8 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
             b.target = self
             b.action = #selector(filtered)
         }
-        kindFilter.setAccessibilityLabel("Show comments of kind")
-        authorFilter.setAccessibilityLabel("Show comments by")
+        kindFilter.setAccessibilityLabel(loc("Show comments of kind"))
+        authorFilter.setAccessibilityLabel(loc("Show comments by"))
         for b in [replyButton, deleteButton] {
             b.controlSize = .small
             b.bezelStyle = .rounded
@@ -90,8 +91,8 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     /// Shows `comments` (keeping the filters, the selection and what is expanded where they still apply).
     func show(_ comments: [AnnotationInfo], selected: String?) {
         all = comments
-        let kinds = ["All Kinds"] + Array(Set(comments.filter { $0.replyTo == nil }.map(DocumentEditor.kindName))).sorted()
-        let authors = ["All Authors"] + Array(Set(comments.compactMap { $0.author }.filter { !$0.isEmpty })).sorted()
+        let kinds = [loc("All Kinds")] + Array(Set(comments.filter { $0.replyTo == nil }.map(DocumentEditor.kindName))).sorted()
+        let authors = [loc("All Authors")] + Array(Set(comments.compactMap { $0.author }.filter { !$0.isEmpty })).sorted()
         refill(kindFilter, kinds)
         refill(authorFilter, authors)
         rebuild()
@@ -137,7 +138,7 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         outline.reloadData()
         outline.expandItem(nil, expandChildren: true)
         empty.isHidden = !top.isEmpty
-        empty.stringValue = all.isEmpty ? "No comments" : "No comments match"
+        empty.stringValue = all.isEmpty ? loc("No comments") : loc("No comments match")
         updateButtons()
     }
 
@@ -308,7 +309,7 @@ final class CommentCell: NSTableCellView {
         icon.contentTintColor = c.color.map(Palette.ns) ?? .secondaryLabelColor
         var parts = [DocumentEditor.kindName(c)]
         if let a = c.author, !a.isEmpty { parts.append(a) }
-        parts.append("p. \(c.pageIndex + 1)")
+        parts.append(loc("p. {0}", c.pageIndex + 1))
         title.stringValue = parts.joined(separator: " · ")
         let text = c.contents.trimmingCharacters(in: .whitespacesAndNewlines)
         detail.stringValue = text

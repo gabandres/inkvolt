@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 import UniformTypeIdentifiers
 
 /// One side of a comparison: a document's bytes (an open document's, or a file's) and the password that opens it.
@@ -49,16 +50,16 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     let rowsView = CompareRowsView()
     private let scroll = NSScrollView()
     private let table = NSTableView()
-    let summary = NSTextField(wrappingLabelWithString: "Reading both documents…")
-    let mode = NSSegmentedControl(labels: ["Text", "Visual"], trackingMode: .selectOne, target: nil, action: nil)
-    private let previous = NSButton(title: "Previous", target: nil, action: nil)
-    private let next = NSButton(title: "Next", target: nil, action: nil)
-    let copyButton = NSButton(title: "Annotated Copy", target: nil, action: nil)
+    let summary = NSTextField(wrappingLabelWithString: loc("Reading both documents…"))
+    let mode = NSSegmentedControl(labels: [loc("Text"), loc("Visual")], trackingMode: .selectOne, target: nil, action: nil)
+    private let previous = NSButton(title: loc("Previous"), target: nil, action: nil)
+    private let next = NSButton(title: loc("Next"), target: nil, action: nil)
+    let copyButton = NSButton(title: loc("Annotated Copy"), target: nil, action: nil)
     private let position = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
     /// Zoom out, Fit and zoom in (Windows' Compare window: Ctrl+-, Ctrl+0, Ctrl+=); the pages fit the width at first.
     let zoomOut = NSButton(title: "−", target: nil, action: nil)
-    let zoomFit = NSButton(title: "Fit", target: nil, action: nil)
+    let zoomFit = NSButton(title: loc("Fit"), target: nil, action: nil)
     let zoomIn = NSButton(title: "+", target: nil, action: nil)
     static let minZoom = 0.1, maxZoom = 8.0
 
@@ -77,7 +78,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         newSide = new
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1200, height: 820), styleMask: [.titled, .closable, .miniaturizable, .resizable],
                               backing: .buffered, defer: false)
-        window.title = "Compare: \(old.name) and \(new.name)"
+        window.title = loc("Compare: {0} and {1}", old.name, new.name)
         window.minSize = NSSize(width: 700, height: 420)
         window.isRestorable = false
         super.init(window: window)
@@ -94,7 +95,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         mode.selectedSegment = 0
         mode.target = self
         mode.action = #selector(modeChanged)
-        mode.setAccessibilityLabel("Compare by")
+        mode.setAccessibilityLabel(loc("Compare by"))
         mode.isEnabled = false
         for (b, action) in [(previous, #selector(previousChange)), (next, #selector(nextChange)), (copyButton, #selector(annotatedCopy))] {
             b.target = self
@@ -102,8 +103,10 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             b.bezelStyle = .rounded
             b.isEnabled = false
         }
-        for (b, action, key, tip) in [(zoomOut, #selector(zoomOutClicked), "-", "Zoom out (⌘-)"), (zoomFit, #selector(zoomFitClicked), "0", "Fit the pages to the window (⌘0)"),
-                                      (zoomIn, #selector(zoomInClicked), "=", "Zoom in (⌘=)")] {
+        let zooms: [(NSButton, Selector, String, String)] = [(zoomOut, #selector(zoomOutClicked), "-", loc("Zoom out (⌘-)")),
+                                                             (zoomFit, #selector(zoomFitClicked), "0", loc("Fit the pages to the window (⌘0)")),
+                                                             (zoomIn, #selector(zoomInClicked), "=", loc("Zoom in (⌘=)"))]
+        for (b, action, key, tip) in zooms {
             b.target = self
             b.action = action
             b.bezelStyle = .rounded
@@ -111,21 +114,21 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             b.keyEquivalentModifierMask = .command
             b.toolTip = tip
         }
-        zoomOut.setAccessibilityLabel("Zoom out")
-        zoomIn.setAccessibilityLabel("Zoom in")
-        zoomFit.setAccessibilityLabel("Fit to window")
+        zoomOut.setAccessibilityLabel(loc("Zoom out"))
+        zoomIn.setAccessibilityLabel(loc("Zoom in"))
+        zoomFit.setAccessibilityLabel(loc("Fit to window"))
         previous.keyEquivalent = "["
         previous.keyEquivalentModifierMask = .command
         next.keyEquivalent = "]"
         next.keyEquivalentModifierMask = .command
-        copyButton.toolTip = "A copy of the changed document with every change as a comment"
+        copyButton.toolTip = loc("A copy of the changed document with every change as a comment")
         progress.style = .spinning
         progress.controlSize = .small
         progress.startAnimation(nil)
         summary.setContentHuggingPriority(.defaultLow, for: .horizontal)
         summary.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
-        let legend = NSTextField(labelWithString: "Original: \(oldSide.name)   Changed: \(newSide.name)")
+        let legend = NSTextField(labelWithString: loc("Original: {0}", oldSide.name) + "   " + loc("Changed: {0}", newSide.name))
         legend.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         legend.textColor = .secondaryLabelColor
         legend.lineBreakMode = .byTruncatingMiddle
@@ -134,14 +137,14 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         bar.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 4, right: 12)
 
         let column = NSTableColumn(identifier: .init("change"))
-        column.title = "Changes"
+        column.title = loc("Changes")
         table.addTableColumn(column)
         table.headerView = nil
         table.dataSource = self
         table.delegate = self
         table.style = .sourceList
         table.usesAutomaticRowHeights = true
-        table.setAccessibilityLabel("Changes")
+        table.setAccessibilityLabel(loc("Changes"))
         let listScroll = NSScrollView()
         listScroll.documentView = table
         listScroll.hasVerticalScroller = true
@@ -192,10 +195,10 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
                 self.showResult()
                 await self.checkScans()
             } catch is CancellationError {
-                self.summary.stringValue = "Stopped."
+                self.summary.stringValue = loc("Stopped.")
             } catch {
                 self.failure = "\(error)"
-                self.summary.stringValue = "The documents couldn't be compared: \((error as? PdfEngineError)?.message ?? "\(error)")"
+                self.summary.stringValue = loc("The documents couldn't be compared: {0}", (error as? PdfEngineError)?.message ?? "\(error)")
             }
             self.progress.stopAnimation(nil)
             self.progress.isHidden = true
@@ -208,11 +211,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         summary.stringValue = result.summary()
         items = result.changes.enumerated().map { i, c in
             let (kind, text): (String, String) = switch c.kind {
-            case .inserted: ("Inserted", c.newText)
-            case .deleted: ("Removed", c.oldText)
-            case .changed: ("Changed", "\(c.oldText) → \(c.newText)")
-            case .pageInserted: ("Page inserted", c.newText.isEmpty ? "(no text)" : c.newText)
-            case .pageRemoved: ("Page removed", c.oldText.isEmpty ? "(no text)" : c.oldText)
+            case .inserted: (loc("Inserted"), c.newText)
+            case .deleted: (loc("Removed"), c.oldText)
+            case .changed: (loc("Changed", context: "a change"), "\(c.oldText) → \(c.newText)")
+            case .pageInserted: (loc("Page inserted"), c.newText.isEmpty ? loc("(no text)") : c.newText)
+            case .pageRemoved: (loc("Page removed"), c.oldText.isEmpty ? loc("(no text)") : c.oldText)
             }
             return Item(change: i, row: c.row, kind: kind, text: text, color: CompareRowsView.markColor(c.kind))
         }
@@ -240,14 +243,16 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             }.value) ?? false
             if differs {
                 visuallyDifferent.append(r)
-                items.append(Item(change: nil, row: r, kind: "Looks different", text: "Page \(o + 1) and page \(n + 1) have no text to compare; their pictures differ (see Visual)",
-                                  color: .systemPurple))
+                let text = loc("Page {0} and page {1} have no text to compare; their pictures differ (see Visual)", o + 1, n + 1)
+                items.append(Item(change: nil, row: r, kind: loc("Looks different"), text: text, color: .systemPurple))
             }
         }
         items.sort { $0.row < $1.row }
         table.reloadData()
         if !visuallyDifferent.isEmpty {
-            summary.stringValue = result.summary() + "; \(visuallyDifferent.count) page\(visuallyDifferent.count == 1 ? "" : "s") without text look different"
+            let n = visuallyDifferent.count
+            summary.stringValue = n == 1 ? loc("{0}; {1} page without text looks different", result.summary(), n)
+                : loc("{0}; {1} pages without text look different", result.summary(), n)
         }
         updateButtons()
     }
@@ -281,7 +286,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let anchor = rowsView.place(at: y)
         rowsView.zoom = zoom
         relayout()
-        zoomFit.title = zoom > 0 ? "\(Int((zoom * 100).rounded())) %" : "Fit" // bounded: the zoom buttons keep it within minZoom...maxZoom
+        zoomFit.title = zoom > 0 ? "\(Int((zoom * 100).rounded())) %" : loc("Fit") // bounded: the zoom buttons keep it within minZoom...maxZoom
         zoomOut.isEnabled = zoom == 0 || zoom > Self.minZoom + 0.0001
         zoomIn.isEnabled = zoom == 0 || zoom < Self.maxZoom - 0.0001
         if let anchor {
@@ -331,7 +336,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private func updateButtons() {
         previous.isEnabled = !items.isEmpty
         next.isEnabled = !items.isEmpty
-        position.stringValue = items.isEmpty ? "" : "\(selected.map { $0 + 1 } ?? 0) of \(items.count)"
+        position.stringValue = items.isEmpty ? "" : loc("{0} of {1}", selected.map { $0 + 1 } ?? 0, items.count)
     }
 
     // MARK: The list
@@ -342,8 +347,9 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let item = items[row]
         let where_ = result.map { r -> String in
             let x = r.rows[item.row]
-            let pages = [x.oldPage.map { "page \($0 + 1)" }, x.newPage.map { "page \($0 + 1)" }].compactMap { $0 }
-            return pages.count == 2 && pages[0] == pages[1] ? pages[0].capitalizedFirst : pages.joined(separator: " → ").capitalizedFirst
+            let o = x.oldPage.map { $0 + 1 }, n = x.newPage.map { $0 + 1 }
+            if let o, let n, o != n { return loc("Page {0} → page {1}", o, n) }
+            return (o ?? n).map { loc("Page {0}", $0) } ?? ""
         } ?? ""
         let chip = NSView()
         chip.wantsLayer = true
@@ -351,7 +357,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         chip.layer?.cornerRadius = 4
         chip.widthAnchor.constraint(equalToConstant: 8).isActive = true
         chip.heightAnchor.constraint(equalToConstant: 28).isActive = true
-        let title = NSTextField(labelWithString: "\(item.kind), \(where_)")
+        let title = NSTextField(labelWithString: loc("{0}, {1}", item.kind, where_))
         title.font = .boldSystemFont(ofSize: NSFont.smallSystemFontSize)
         let text = NSTextField(wrappingLabelWithString: item.text.count > 160 ? String(item.text.prefix(160)) + "…" : item.text)
         text.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -363,7 +369,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let cell = NSStackView(views: [chip, col])
         cell.alignment = .top
         cell.edgeInsets = NSEdgeInsets(top: 3, left: 2, bottom: 3, right: 4)
-        cell.setAccessibilityLabel("\(item.kind), \(where_): \(item.text)")
+        cell.setAccessibilityLabel(loc("{0}, {1}: {2}", item.kind, where_, item.text))
         return cell
     }
 
@@ -383,18 +389,18 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         guard let result else { return nil }
         do {
             let bytes = try CompareReport.annotate(newSide.data, newSide.password, result, newText, oldName: oldSide.name,
-                                                   summary: "Compared with \(oldSide.name): \(result.summary())")
+                                                   summary: loc("Compared with {0}: {1}", oldSide.name, result.summary()))
             let stem = (newSide.name as NSString).deletingPathExtension
-            let session = try DocumentSession.recover(bytes, originalPath: nil, "\(stem) (compared).pdf", password: newSide.password)
+            let session = try DocumentSession.recover(bytes, originalPath: nil, loc("{0} (compared).pdf", stem), password: newSide.password)
             let document = PdfDocument(recovered: session, page: 0, fileDate: nil)
             NSDocumentController.shared.addDocument(document)
             document.makeWindowControllers()
             document.showWindows()
             return document
         } catch is OwnerPasswordRequired {
-            NewDocuments.present("The annotated copy needs the changed document's permissions password.", nil)
+            NewDocuments.present(loc("The annotated copy needs the changed document's permissions password."), nil)
         } catch {
-            NewDocuments.present("The annotated copy couldn't be made.", error)
+            NewDocuments.present(loc("The annotated copy couldn't be made."), error)
         }
         return nil
     }
@@ -421,19 +427,19 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         if Report.skipsDialogs { return picksAsked += 1 }
         let documents = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0.session != nil }
         let alert = NSAlert()
-        alert.messageText = "Compare Files"
-        alert.informativeText = "Pick the original and the changed version. An open document is compared as it is now, unsaved changes included."
+        alert.messageText = loc("Compare Files")
+        alert.informativeText = loc("Pick the original and the changed version. An open document is compared as it is now, unsaved changes included.")
         func popup(_ select: Int) -> NSPopUpButton {
             let p = NSPopUpButton(frame: .zero, pullsDown: false)
             for d in documents { p.addItem(withTitle: d.name) }
             p.menu?.addItem(.separator())
-            p.addItem(withTitle: "Choose a File…")
+            p.addItem(withTitle: loc("Choose a File…"))
             p.selectItem(at: min(select, max(documents.count - 1, 0)))
             return p
         }
         let original = popup(documents.count > 1 ? 1 : 0), changed = popup(0)
-        original.setAccessibilityLabel("Original")
-        changed.setAccessibilityLabel("Changed version")
+        original.setAccessibilityLabel(loc("Original"))
+        changed.setAccessibilityLabel(loc("Changed version"))
         var files: [ObjectIdentifier: URL] = [:]
         let chooser = FileChooser { popup in
             let panel = NSOpenPanel()
@@ -452,15 +458,15 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             p.action = #selector(FileChooser.picked(_:))
             p.widthAnchor.constraint(equalToConstant: 300).isActive = true
         }
-        let swap = NSButton(title: "Swap", target: chooser, action: #selector(FileChooser.swap))
+        let swap = NSButton(title: loc("Swap"), target: chooser, action: #selector(FileChooser.swap))
         chooser.pair = (original, changed)
-        let grid = NSGridView(views: [[NSTextField(labelWithString: "Original:"), original], [NSTextField(labelWithString: "Changed:"), changed],
+        let grid = NSGridView(views: [[NSTextField(labelWithString: loc("Original:")), original], [NSTextField(labelWithString: loc("Changed:")), changed],
                                       [NSGridCell.emptyContentView, swap]])
         grid.column(at: 0).xPlacement = .trailing
         grid.frame = NSRect(origin: .zero, size: grid.fittingSize)
         alert.accessoryView = grid
-        alert.addButton(withTitle: "Compare")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Compare"))
+        alert.addButton(withTitle: loc("Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         func side(_ p: NSPopUpButton) -> CompareSide? {
@@ -477,7 +483,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     /// A PDF file as a side, its password asked when it has one.
     static func fileSide(_ url: URL) -> CompareSide? {
         guard let data = try? Data(contentsOf: url) else {
-            NewDocuments.present("\(url.lastPathComponent) couldn't be read.", nil)
+            NewDocuments.present(loc("{0} couldn't be read.", url.lastPathComponent), nil)
             return nil
         }
         let bytes = Array(data)
@@ -490,7 +496,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
                 guard let p = askPassword(url.lastPathComponent, wrong: e.wrongPassword) else { return nil }
                 password = p
             } catch {
-                NewDocuments.present("\(url.lastPathComponent) isn't a PDF Inkvolt PDF can read.", error)
+                NewDocuments.present(loc("{0} isn't a PDF Inkvolt PDF can read.", url.lastPathComponent), error)
                 return nil
             }
         }
@@ -499,12 +505,12 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private static func askPassword(_ name: String, wrong: Bool) -> String? {
         if Report.skipsDialogs { return nil }
         let alert = NSAlert()
-        alert.messageText = wrong ? "That password doesn't open \(name)." : "\(name) is protected with a password."
+        alert.messageText = wrong ? loc("That password doesn't open {0}.", name) : loc("{0} is protected with a password.", name)
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.setAccessibleName("Password")
+        field.setAccessibleName(loc("Password"))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Open")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Open"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
     }
@@ -517,7 +523,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         init(_ choose: @escaping (NSPopUpButton) -> Void) { self.choose = choose }
 
         @objc func picked(_ sender: NSPopUpButton) {
-            if sender.titleOfSelectedItem == "Choose a File…" { choose(sender) }
+            if sender.titleOfSelectedItem == loc("Choose a File…") { choose(sender) }
         }
 
         @objc func swap() {
@@ -530,10 +536,6 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             if let ta { b.selectItem(withTitle: ta) } else { b.selectItem(at: ia) }
         }
     }
-}
-
-private extension String {
-    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
 
 /// The rows of lined-up pages: the original on the left, the changed version on the right, each scaled to its half of
@@ -721,7 +723,7 @@ final class CompareRowsView: NSView {
             }
             for (part, box) in [(0, l.oldBox), (1, l.newBox)] {
                 guard let box else {
-                    drawMissing(part == 0 ? "Not in the original" : "Not in the changed version", l, part)
+                    drawMissing(part == 0 ? loc("Not in the original") : loc("Not in the changed version"), l, part)
                     continue
                 }
                 wanted.insert(r * 3 + part)
@@ -757,13 +759,22 @@ final class CompareRowsView: NSView {
     private func drawHeader(_ r: Int, _ row: CompareRow, _ l: RowLayout) {
         let what: String
         switch row.text {
-        case .compared: what = row.changes == 0 ? "no changes" : row.changes == 1 ? "1 change" : "\(row.changes) changes"
-        case .noTextOld, .noTextNew, .noTextBoth: what = "no text to compare: see Visual"
-        case .onlyOld: what = "removed page"
-        case .onlyNew: what = "inserted page"
+        case .compared: what = row.changes == 0 ? loc("no changes") : row.changes == 1 ? loc("1 change") : loc("{0} changes", row.changes)
+        case .noTextOld, .noTextNew, .noTextBoth: what = loc("no text to compare: see Visual")
+        case .onlyOld: what = loc("removed page")
+        case .onlyNew: what = loc("inserted page")
         }
-        let label = [row.oldPage.map { "Original page \($0 + 1)" }, row.newPage.map { "changed page \($0 + 1)" }].compactMap { $0 }.joined(separator: ", ")
-        let text = "\(label.prefix(1).uppercased() + label.dropFirst()): \(what)" as NSString
+        let o = row.oldPage.map { $0 + 1 }, n = row.newPage.map { $0 + 1 }
+        let label: String
+        if let o, let n {
+            label = loc("Original page {0}, changed page {1}", o, n)
+        } else if let o {
+            label = loc("Original page {0}", o)
+        } else {
+            label = loc("Changed page {0}", n ?? 0)
+        }
+        let text = loc("{0}: {1}", label, what) as NSString
+
         text.draw(at: NSPoint(x: Self.side, y: l.top + 5), withAttributes: [.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
                                                                              .foregroundColor: NSColor.secondaryLabelColor])
     }

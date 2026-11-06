@@ -90,7 +90,7 @@ enum MainMenu {
         let main = NSMenu()
         for spec in DocumentCommands.menuBar {
             let menu = build(spec, updates)
-            main.addItem(holder(spec.title, menu))
+            main.addItem(holder(spec.shownTitle, menu))
             if spec.role == .windows { NSApp.windowsMenu = menu }
             if spec.role == .help { NSApp.helpMenu = menu }
         }
@@ -107,9 +107,9 @@ enum MainMenu {
         let menu: NSMenu
         switch spec.role {
         // Leaves bare keys to the focused view (the tools' single keys).
-        case .tools: menu = ToolsMenu(title: spec.title)
+        case .tools: menu = ToolsMenu(title: spec.shownTitle)
         case .savedSignatures: menu = SavedSignaturesMenu.make()
-        default: menu = NSMenu(title: spec.title)
+        default: menu = NSMenu(title: spec.shownTitle)
         }
         if spec.role == .services { NSApp.servicesMenu = menu }
         if spec.role == .recentDocuments {
@@ -121,7 +121,7 @@ enum MainMenu {
             switch entry {
             case .separator: menu.addItem(.separator())
             case .command(let command): menu.addItem(item(command))
-            case .submenu(let sub): menu.addItem(holder(sub.title, build(sub, updates)))
+            case .submenu(let sub): menu.addItem(holder(sub.shownTitle, build(sub, updates)))
             case .tools(let slot): for item in tools(slot) { menu.addItem(item) }
             case .checkForUpdates: menu.addItem(updates.menuItem())
             }
@@ -130,7 +130,7 @@ enum MainMenu {
     }
 
     private static func item(_ command: DocumentCommand) -> NSMenuItem {
-        let item = NSMenuItem(title: command.title, action: NSSelectorFromString(command.action), keyEquivalent: command.key)
+        let item = NSMenuItem(title: command.shownTitle, action: NSSelectorFromString(command.action), keyEquivalent: command.key)
         item.keyEquivalentModifierMask = flags(command.modifiers)
         // The jargon the Windows names keep, said plainly on the item (UX review, round 2; renames are proposed).
         item.toolTip = command.note
@@ -163,7 +163,7 @@ enum MainMenu {
         }
         let keyed = slot != .measuring
         return chosen.map { t in
-            let item = NSMenuItem(title: t.title, action: #selector(DocumentWindowController.chooseTool(_:)), keyEquivalent: keyed ? t.key : "")
+            let item = NSMenuItem(title: t.shownTitle, action: #selector(DocumentWindowController.chooseTool(_:)), keyEquivalent: keyed ? t.key : "")
             item.keyEquivalentModifierMask = keyed ? [] : .command
             item.toolTip = PlainWords.note(for: t.title)
             item.tag = t.rawValue

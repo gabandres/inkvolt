@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// One open PDF: a `DocumentSession` (its bytes, the MuPDF engine over them, undo and redo of edits). Open, Open
 /// Recent, Finder's Open With, window tabs, Save, Save As, Revert and the questions on close and quit come from
@@ -46,7 +47,7 @@ final class PdfDocument: NSDocument {
     override class var autosavesInPlace: Bool { false }
 
     /// The name shown for the document.
-    var name: String { session?.displayName ?? displayName ?? "This document" }
+    var name: String { session?.displayName ?? displayName ?? loc("This document") }
 
     override var displayName: String! {
         get {
@@ -206,12 +207,12 @@ final class PdfDocument: NSDocument {
 
     func undo() {
         guard let session, session.canUndo, !session.isEditing else { return }
-        do { try session.undo() } catch { showError("That couldn't be undone.", error) }
+        do { try session.undo() } catch { showError(loc("That couldn't be undone."), error) }
     }
 
     func redo() {
         guard let session, session.canRedo, !session.isEditing else { return }
-        do { try session.redo() } catch { showError("That couldn't be redone.", error) }
+        do { try session.redo() } catch { showError(loc("That couldn't be redone."), error) }
     }
 
     // MARK: Saving
@@ -231,7 +232,7 @@ final class PdfDocument: NSDocument {
                 try session.saveAs(url.path)
             }
         } catch let e as PdfEditError {
-            throw NSError(domain: "InkvoltPdf", code: 1, userInfo: [NSLocalizedDescriptionKey: e.message])
+            throw NSError(domain: "InkvoltPdf", code: 1, userInfo: [NSLocalizedDescriptionKey: e.message]) // English: a domain name; the message is PdfCore's (loc)
         }
         if operation != .saveToOperation { RecoveryCopies.shared.changed(self) }
     }
@@ -244,7 +245,7 @@ final class PdfDocument: NSDocument {
                 try session.reloadFromDisk()
             } catch is PasswordRequired {
                 throw NSError(domain: "InkvoltPdf", code: 2, userInfo: [NSLocalizedDescriptionKey:
-                    "The file on disk now needs another password. Use the bar over the pages to reload it."])
+                    loc("The file on disk now needs another password. Use the bar over the pages to reload it.")])
             }
             self.syncFileDate()
         }
@@ -286,7 +287,7 @@ final class PdfDocument: NSDocument {
         let shown = openURL?.lastPathComponent ?? name
         Report.failed(shown, error)
         let alert = NSAlert()
-        alert.messageText = "\(shown) couldn't be opened."
+        alert.messageText = loc("{0} couldn't be opened.", shown)
         alert.informativeText = NSAlert.plainText(error)
         if !Report.skipsDialogs { alert.runModal() }
     }
@@ -343,13 +344,13 @@ enum PasswordPrompt {
     static func ask(file: String, wrong: Bool) -> String? {
         if Report.skipsDialogs { return nil }
         let alert = NSAlert()
-        alert.messageText = wrong ? "That password doesn't open \(file)." : "\(file) is protected with a password."
-        alert.informativeText = "Type its password to open it."
+        alert.messageText = wrong ? loc("That password doesn't open {0}.", file) : loc("{0} is protected with a password.", file)
+        alert.informativeText = loc("Type its password to open it.")
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
-        field.setAccessibleName("Password")
+        field.setAccessibleName(loc("Password"))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Open")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: loc("Open"))
+        alert.addButton(withTitle: loc("Cancel"))
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
     }
@@ -357,5 +358,5 @@ enum PasswordPrompt {
 
 /// A file that opened (MuPDF repaired it) with no page to show.
 struct NoPages: Error, CustomStringConvertible {
-    var description: String { "The file is damaged: no page of it could be read." }
+    var description: String { loc("The file is damaged: no page of it could be read.") }
 }

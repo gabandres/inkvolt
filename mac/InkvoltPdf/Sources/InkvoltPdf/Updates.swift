@@ -1,4 +1,5 @@
 import AppKit
+import PrintCore
 import Sparkle
 
 /// Updates through Sparkle 2: the standard updater, started at launch, with Check for Updates… in the app menu.
@@ -50,7 +51,7 @@ final class Updates {
     }
 
     func menuItem() -> NSMenuItem {
-        let item = NSMenuItem(title: "Check for Updates…", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
+        let item = NSMenuItem(title: loc("Check for Updates…"), action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "")
         item.target = controller
         return item
     }

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// What the pages view asks of its window: text for a note or text box, where a link leads, the inspector.
 @MainActor
@@ -205,7 +206,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
-        setAccessibilityLabel("Pages")
+        setAccessibilityLabel(loc("Pages"))
         NotificationCenter.default.addObserver(self, selector: #selector(darkPagesChanged), name: PageRenderer.darkPagesChanged, object: nil)
         // The pointer's moves, for the measuring tools' value so far (AppKit keeps the area on the visible part).
         // The pointer's moves, entering and leaving also run form fields' hover actions.
@@ -1045,7 +1046,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         host?.selectionChanged()
         if let id, let c = editor?.comment(id) {
             NSAccessibility.post(element: self, notification: .announcementRequested,
-                                 userInfo: [.announcement: "Selected " + DocumentEditor.spoken(c)])
+                                 userInfo: [.announcement: loc("Selected {0}", DocumentEditor.spoken(c))])
         }
         NSAccessibility.post(element: self, notification: .layoutChanged)
     }
@@ -1358,14 +1359,14 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard abs(by.x) + abs(by.y) >= 0.5 else { return }
             ghost = finished
             let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
-            startEdit { await editor.setFrame(id, page: page, frame: moved, label: "Move") }
+            startEdit { await editor.setFrame(id, page: page, frame: moved, label: loc("Move")) }
         case .resize(let id, let page, _, let frame, let now):
             guard now != frame else { return }
             ghost = finished
-            startEdit { await editor.setFrame(id, page: page, frame: now, label: "Resize") }
+            startEdit { await editor.setFrame(id, page: page, frame: now, label: loc("Resize")) }
         case .lineEnd(let id, _, _, let points):
             ghost = finished
-            startEdit { await editor.setGeometry(id, AnnotGeometry(paths: [points]), label: "Reshape") }
+            startEdit { await editor.setGeometry(id, AnnotGeometry(paths: [points]), label: loc("Reshape")) }
         case .box(let page, let a, let b):
             let dragged = abs(b.x - a.x) > 3 || abs(b.y - a.y) > 3
             let box = DrawingGeometry.dragBox(a, b, square: shiftDown && (tool == .rectangle || tool == .ellipse))
@@ -1384,7 +1385,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 let typewriter = !dragged
                 let boxStyle = typewriter ? AnnotStyle.typewriter(fontSize: style.fontSize, textColor: style.textColor) : style
                 let anchor = viewRect(dragged ? box : RectD(b.x, b.y, 1, 1), pageRects[page])
-                host?.askText("Text", initial: "", at: anchor) { [weak self] text in
+                host?.askText(loc("Text"), initial: "", at: anchor) { [weak self] text in
                     guard let self, let text, !text.isEmpty else { return }
                     let target = typewriter ? editor.typewriterBox(text, at: b, style: boxStyle, pageWidth: size.width) : box
                     self.startEdit { await editor.addFreeText(page: page, box: target, text: text, style: boxStyle) }
@@ -1398,7 +1399,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 }
             case .note:
                 let at = PointD(min(b.x, size.width - 20), min(b.y, size.height - 20))
-                host?.askText("Note", initial: "", at: viewRect(RectD(at.x, at.y, 20, 20), pageRects[page])) { [weak self] text in
+                host?.askText(loc("Note"), initial: "", at: viewRect(RectD(at.x, at.y, 20, 20), pageRects[page])) { [weak self] text in
                     guard let self, let text else { return }
                     self.startEdit { await editor.addNote(page: page, at: at, text: text, color: style.color) }
                 }
@@ -1529,7 +1530,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         guard let editor else { return }
         let g = engine.page(page)
         let anchor = viewRect(RectD(end?.x ?? tip.x + 36, end?.y ?? tip.y - 36, 1, 1), pageRects[page])
-        host?.askText("Callout", initial: "", at: anchor) { [weak self] text in
+        host?.askText(loc("Callout"), initial: "", at: anchor) { [weak self] text in
             guard let self, let text, !text.isEmpty else { return }
             let height = Annotations.freeTextHeight(text, width: width, style)
             var x: Double, y: Double
@@ -1556,7 +1557,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if let s = existing {
             if s.kind == .text {
-                host?.askText("Text", initial: s.text, at: viewRect(s.rect, pageRects[page])) { [weak self] text in
+                host?.askText(loc("Text"), initial: s.text, at: viewRect(s.rect, pageRects[page])) { [weak self] text in
                     guard let self, let text, text != s.text else { return }
                     let rect = DocumentEditor.fillTextBox(text, at: PointD(s.rect.x, s.rect.y), fontSize: s.fontSize)
                     self.startEdit { await editor.putFillText(page: page, rect: rect, text: text, fontSize: s.fontSize, replacing: s.id) }
@@ -1579,7 +1580,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         default:
             // The text's top-left at the pointer, nudged up so its baseline sits where the click was.
             let top = PointD(b.x, max(b.y - fontSize * 0.6, 0))
-            host?.askText("Text", initial: "", at: viewRect(RectD(top.x, top.y, 1, fontSize), pageRects[page])) { [weak self] text in
+            host?.askText(loc("Text"), initial: "", at: viewRect(RectD(top.x, top.y, 1, fontSize), pageRects[page])) { [weak self] text in
                 guard let self, let text, !text.isEmpty else { return }
                 let rect = DocumentEditor.fillTextBox(text, at: top, fontSize: fontSize)
                 self.startEdit { await editor.putFillText(page: page, rect: rect, text: text, fontSize: fontSize, replacing: nil) }
@@ -1684,9 +1685,9 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let menu = NSMenu()
         if tool == .editContent, let content, let spot = page(at: point), let image = content.image(page: spot.page, pagePoint(point, on: spot.page)) {
             content.select(image)
-            let replace = NSMenuItem(title: "Replace Picture…", action: #selector(ContentEditing.replaceSelected(_:)), keyEquivalent: "")
+            let replace = NSMenuItem(title: loc("Replace Picture…"), action: #selector(ContentEditing.replaceSelected(_:)), keyEquivalent: "")
             replace.target = content
-            let delete = NSMenuItem(title: "Delete Picture", action: #selector(ContentEditing.deleteSelected(_:)), keyEquivalent: "")
+            let delete = NSMenuItem(title: loc("Delete Picture"), action: #selector(ContentEditing.deleteSelected(_:)), keyEquivalent: "")
             delete.target = content
             menu.addItem(replace)
             menu.addItem(delete)
@@ -1694,26 +1695,26 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         if let spot = page(at: point), let id = hit(page: spot.page, pagePoint(point, on: spot.page)) ?? linkAt(spot.page, pagePoint(point, on: spot.page)) {
             select(id)
-            menu.addItem(withTitle: "Inspector…", action: #selector(DocumentWindowController.openInspector(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Inspector…"), action: #selector(DocumentWindowController.openInspector(_:)), keyEquivalent: "")
             if editor?.comment(id) != nil {
-                menu.addItem(withTitle: "Reply…", action: #selector(DocumentWindowController.replyToSelected(_:)), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Reply…"), action: #selector(DocumentWindowController.replyToSelected(_:)), keyEquivalent: "")
             }
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Delete", action: #selector(delete(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Delete"), action: #selector(delete(_:)), keyEquivalent: "")
             return menu
         }
         if selectedText != nil {
-            menu.addItem(withTitle: "Copy", action: #selector(copy(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Copy"), action: #selector(copy(_:)), keyEquivalent: "")
             if AppSettings.ai.enabled {
-                menu.addItem(withTitle: "Explain with AI", action: #selector(DocumentWindowController.aiExplain(_:)), keyEquivalent: "")
+                menu.addItem(withTitle: loc("Explain with AI"), action: #selector(DocumentWindowController.aiExplain(_:)), keyEquivalent: "")
             }
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Highlight", action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
-            menu.addItem(withTitle: "Underline", action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
-            menu.addItem(withTitle: "Strike Out", action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
-            menu.addItem(withTitle: "Link Selected Text…", action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Highlight"), action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Underline"), action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Strike Out"), action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Link Selected Text…"), action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
             menu.addItem(.separator())
-            menu.addItem(withTitle: "Redact", action: #selector(DocumentWindowController.redactSelectedText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Redact"), action: #selector(DocumentWindowController.redactSelectedText(_:)), keyEquivalent: "")
             return menu
         }
         return nil
@@ -1846,7 +1847,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             let g = engine.page(f.page)
             let d = DrawingGeometry.clampMove(f.rect, dx, dy, g.width, g.height)
             let moved = RectD(f.rect.x + d.dx, f.rect.y + d.dy, f.rect.width, f.rect.height)
-            if let editor { startEdit { await editor.setFrame(id, page: f.page, frame: moved, label: "Move") } }
+            if let editor { startEdit { await editor.setFrame(id, page: f.page, frame: moved, label: loc("Move")) } }
             return true
         default:
             return false
