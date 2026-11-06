@@ -204,6 +204,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             guard let self, page < self.pageRects.count else { return }
             self.setNeedsDisplay(self.viewRect(rect, self.pageRects[page]))
         }
+        renderer.onRefused = { [weak self] page in
+            guard let self, page < self.pageRects.count else { return }
+            self.setNeedsDisplay(self.pageRects[page])
+        }
         setAccessibilityElement(true)
         setAccessibilityRole(.group)
         setAccessibilityLabel(loc("Pages"))
@@ -452,6 +456,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 let whole = unturned(r)
                 drawPicture(image.image, RectD(0, 0, whole.width, whole.height), r, operation: .sourceOver,
                             hints: [.interpolation: NSImageInterpolation.high.rawValue])
+            } else if let refusal = renderer.refusal(i) {
+                drawRefusal(refusal, r)
             }
             if let scale = tileScale(for: i) {
                 for tile in renderer.tiles(i, scale: scale) {
@@ -473,6 +479,18 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         }
         requestVisible()
+    }
+
+    /// A refused page's place (Windows' `PaintFailed`): why it isn't shown, centered in gray on the paper.
+    private func drawRefusal(_ text: String, _ r: NSRect) {
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let size = max(9, min(15, r.width / 30))
+        let label = NSAttributedString(string: text, attributes: [.font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.darkGray,
+                                                                   .paragraphStyle: style])
+        let width = r.width * 0.8
+        let height = label.boundingRect(with: NSSize(width: width, height: r.height), options: [.usesLineFragmentOrigin]).height
+        label.draw(with: NSRect(x: r.midX - width / 2, y: r.midY - height / 2, width: width, height: height), options: [.usesLineFragmentOrigin])
     }
 
     /// The reading order's boxes on a page (the Windows viewer's `PaintReadingOrder`): each piece outlined with its number in

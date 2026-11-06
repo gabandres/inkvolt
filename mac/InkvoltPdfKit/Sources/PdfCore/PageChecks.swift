@@ -1,4 +1,5 @@
 import Foundation
+import MuPDFShim
 import PrintCore
 
 /// A page that isn't drawn or read (Windows' `PageRefusedException`): reading it took longer than its engine's
@@ -37,11 +38,15 @@ public enum PageVerdict: Sendable, Equatable {
     var refuses: Bool { self == .tooSlow || self == .failed }
 }
 
-/// An engine's verdicts on its pages and its budget, shared by its instances and Find's threads.
+/// An engine's verdicts on its pages, its budget, and the cookies of the calls reading its pages now (all its
+/// instances and Find's threads), so closing the engine stops them at once.
 final class PageVerdicts: @unchecked Sendable {
     private let lock = NSLock()
     private var found: [Int: PageVerdict] = [:]
     private var seconds = PdfEngine.defaultPageBudget
+    private var live: [Int: OpaquePointer] = [:]
+    private var nextId = 0
+    private var closedNow = false
 
     var budget: Double {
         get { lock.withLock { seconds } }
@@ -49,4 +54,33 @@ final class PageVerdicts: @unchecked Sendable {
     }
 
     subscript(page: Int) -> PageVerdict { lock.withLock { found[page] ?? .unknown } }
+
+    /// Keeps what a reading found: a refusal for good, `fine` only over `unknown`.
+    func set(_ page: Int, _ verdict: PageVerdict) {
+        lock.withLock {
+            if verdict.refuses || found[page] == nil { found[page] = verdict }
+        }
+    }
+
+    var closed: Bool { lock.withLock { closedNow } }
+
+    /// Watches a call's cookie until `unwatch`: aborted now if the engine is closed, else when it closes.
+    func watch(_ cookie: OpaquePointer) -> Int {
+        lock.withLock {
+            if closedNow { inkv_cookie_abort(cookie) }
+            nextId += 1
+            live[nextId] = cookie
+            return nextId
+        }
+    }
+
+    func unwatch(_ id: Int) { lock.withLock { live[id] = nil } }
+
+    /// The engine is closing: every reading stops (their calls return at once and let go of the engine's locks).
+    func close() {
+        lock.withLock {
+            closedNow = true
+            for cookie in live.values { inkv_cookie_abort(cookie) }
+        }
+    }
 }

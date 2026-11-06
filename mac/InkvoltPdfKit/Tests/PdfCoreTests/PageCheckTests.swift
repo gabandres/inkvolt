@@ -316,10 +316,11 @@ struct PageCheckTests {
     @Test func ARealDrawingSheetStillDrawsInFull() throws {
         // A sheet like the bench's drawing set: 72,000 paths on ARCH D, Flate content, a title; drawn at the app's budget
         // as without one.
-        var content = "1 w 0 0 0 RG\n"
+        var content = "0.5 w 0 0 0 RG\n"
         var rng = SplitMix(seed: 3)
         for _ in 0..<72_000 {
-            content += "\(rng.next(2592)) \(rng.next(1728)) m \(rng.next(2592)) \(rng.next(1728)) l S\n"
+            let x = rng.next(2560), y = rng.next(1700)
+            content += "\(x) \(y) m \(x + rng.next(30)) \(y + rng.next(30)) l S\n" // hatching's short strokes
         }
         content += "BT /F2 24 Tf 2200 60 Td (A-103 FLOOR PLAN) Tj ET"
         let file = Self.build([

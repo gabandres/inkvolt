@@ -217,6 +217,12 @@ public enum DocumentExport {
                 readable = false
                 let g = engine.page(p)
                 page = ExportPage(g.width, g.height, [], [], [])
+            } catch let refused as PageRefused {
+                // Too costly to read (Windows' page check): the same, an empty page reported.
+                unreadable.append(ExportProblem(p, refused.message))
+                readable = false
+                let g = engine.page(p)
+                page = ExportPage(g.width, g.height, [], [], [])
             }
             if readable && !page.hasText, let recognize = options.recognize {
                 options.progress?(ExportProgress(.recognizing, p, i, pages.count))

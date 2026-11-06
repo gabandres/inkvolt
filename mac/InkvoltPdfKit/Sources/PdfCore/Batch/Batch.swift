@@ -896,9 +896,14 @@ public enum BatchRunner {
                     try cancel.check()
                     report(loc("Saving page {0} of {1}…", CoreLanguage.number(p + 1), CoreLanguage.number(engine.pageCount)), Double(p) / Double(engine.pageCount))
                     let resolution = PageImages.clampDpi(engine.page(p), Double(dpi))
-                    outputs.append(try names.place(folder, "\(baseName) - page \(p + 1).\(jpeg ? "jpg" : "png")") { temp in
-                        try engine.saveImage(p, dpi: resolution, path: temp, jpeg: jpeg, cancel: cancel)
-                    })
+                    do {
+                        outputs.append(try names.place(folder, "\(baseName) - page \(p + 1).\(jpeg ? "jpg" : "png")") { temp in
+                            try engine.saveImage(p, dpi: resolution, path: temp, jpeg: jpeg, cancel: cancel)
+                        })
+                    } catch is PageRefused {
+                        // Too costly to read (a decompression bomb): left out, the other pages saved (Windows' Batch).
+                        notes.append(loc("Page {0} couldn't be read", CoreLanguage.number(p + 1)))
+                    }
                 }
                 return
             }

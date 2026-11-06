@@ -70,10 +70,20 @@ int inkv_page_bounds(void *ctx, inkv_doc *doc, int page, float out[4], char *err
 /// Test hook: pages and display lists the document holds loaded right now.
 void inkv_loaded(inkv_doc *doc, int *pages, int *lists);
 
-/// A cookie to stop a render midway: inkv_cookie_abort may be called from another thread while it runs.
+/// A cookie to stop a call that reads a page's content midway: inkv_cookie_abort may be called from another thread while
+/// it runs. Every such call takes one (NULL: unbounded) and returns 2 when it was stopped, nothing kept of the page.
 inkv_cookie *inkv_new_cookie(void);
 void inkv_cookie_abort(inkv_cookie *cookie);
 void inkv_drop_cookie(inkv_cookie *cookie);
+
+/// Bounds the calls made with the cookie: `seconds` for reading the page's content, and again for drawing what was read
+/// (0: no limit), however much the file's bytes inflate to; pictures of at most `max_samples` width x height x
+/// components (0: no limit), refused before anything decodes them.
+void inkv_cookie_limit(inkv_cookie *cookie, double seconds, double max_samples);
+
+/// Why the last call made with the cookie stopped: 0 it didn't; 1 inkv_cookie_abort; 2 its time ran out; 3 a picture on
+/// the page is larger than the limit.
+int inkv_cookie_stopped(inkv_cookie *cookie);
 
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
@@ -86,18 +96,17 @@ int inkv_render_rgb(void *ctx, inkv_doc *doc, int page, float scale, float x0, f
 int inkv_render_rgb_contents(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
                              inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err);
 
-/// The whole page at `scale`, with its annotations, written as a PNG or a JPEG (quality 90). 0 on failure.
-int inkv_save_image(void *ctx, inkv_doc *doc, int page, float scale, const char *path, int jpeg, char *err);
+/// The whole page at `scale`, with its annotations, written as a PNG or a JPEG (quality 90). 1: written; 2: stopped by
+/// the cookie (nothing written); 0: failed.
+int inkv_save_image(void *ctx, inkv_doc *doc, int page, float scale, const char *path, int jpeg, inkv_cookie *cookie, char *err);
 
-/// The page's text without its annotations: lines and characters (malloc'ed; inkv_free each). 0 on failure.
+/// The page's text without its annotations: lines and characters (malloc'ed; inkv_free each). 1: read; 2: stopped by
+/// the cookie; 0: failed.
 int inkv_page_chars(void *ctx, inkv_doc *doc, int page, inkv_line **lines, int *line_count, inkv_char **chars,
-                    int *char_count, char *err);
+                    int *char_count, inkv_cookie *cookie, char *err);
 /// The same with the page's annotations and widgets drawn in (their appearances' text too).
 int inkv_page_chars_annots(void *ctx, inkv_doc *doc, int page, inkv_line **lines, int *line_count, inkv_char **chars,
-                           int *char_count, char *err);
-
-/// The page's text as UTF-8 (malloc'ed; inkv_free), lines separated by '\n'. NULL on failure.
-char *inkv_page_text(void *ctx, inkv_doc *doc, int page, char *err);
+                           int *char_count, inkv_cookie *cookie, char *err);
 
 /// The page's links (inkv_free_links). 0 on failure.
 int inkv_page_links(void *ctx, inkv_doc *doc, int page, inkv_link **links, int *count, char *err);
@@ -107,7 +116,7 @@ void inkv_free_links(inkv_link *links, int count);
 int inkv_outline(void *ctx, inkv_doc *doc, inkv_outline_item **items, int *count, char *err);
 void inkv_free_outline(inkv_outline_item *items, int count);
 
-/// The PDF written out whole with MuPDF's write options ("garbage,compress", "encrypt=aes-256,user-password=…");
+/// The PDF written out whole with MuPDF's write options ("garbage,compress", "encrypt=aes-256,user-password=â¦");
 /// the bytes are malloc'ed for the caller (inkv_free). 0 on failure.
 int inkv_write_pdf(void *ctx, inkv_doc *doc, const char *options, uint8_t **out, size_t *length, char *err);
 
@@ -276,16 +285,17 @@ typedef struct {
 } inkv_export;
 
 /// Reads a page for export, with its annotations drawn in: pictures (encoded, when `images`; JPEG for those of more than
-/// `jpeg_above` pixels) and vector paths are collected too. 0 on failure.
-int inkv_export_page(void *ctx, inkv_doc *doc, int page, int images, long long jpeg_above, inkv_export *out, char *err);
+/// `jpeg_above` pixels) and vector paths are collected too. 1: read; 2: stopped by the cookie; 0: failed.
+int inkv_export_page(void *ctx, inkv_doc *doc, int page, int images, long long jpeg_above, inkv_export *out, inkv_cookie *cookie,
+                     char *err);
 void inkv_free_export(inkv_export *e);
 
 /// Draws an area of the page (MuPDF page space) at `scale`, with its annotations, on transparency, as straight (not
-/// premultiplied) RGBA; malloc'ed (inkv_free). 0 on failure.
+/// premultiplied) RGBA; malloc'ed (inkv_free). 1: drawn; 2: stopped by the cookie; 0: failed.
 int inkv_render_region_rgba(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
-                            uint8_t **pixels, int *width, int *height, char *err);
+                            uint8_t **pixels, int *width, int *height, inkv_cookie *cookie, char *err);
 
-/// The PDF version a whole write puts in the file's header (10 � major + minor: 17 for 1.7), the catalog's /Version
+/// The PDF version a whole write puts in the file's header (10 × major + minor: 17 for 1.7), the catalog's /Version
 /// included; 0 on failure.
 int inkv_pdf_version(void *ctx, inkv_doc *doc);
 

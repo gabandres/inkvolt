@@ -1,15 +1,336 @@
 #include "MuPDFShim.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <math.h>
 #include <mupdf/fitz.h>
 #include <mupdf/pdf.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <unistd.h>
+
+// ---- Bounds on a page's reading (roadmap: "A hostile file's time", the Mac's half) ----
+//
+// MuPDF's cookie is looked at between a content stream's operators and a display list's nodes, not while it inflates:
+// 4 GB of zeros Flate-encoded twice into a 7 KB page is one lexer call that skips white space for a minute. So a call
+// that reads a page's content gives its cookie a time budget and a largest picture, and two places look at them:
+// - the document's own stream (`inkv_source`), which hands MuPDF the file's bytes in small chunks while a call reads, so
+//   however much they inflate to, MuPDF asks again within milliseconds; past the budget, or once cancelled, it throws
+//   FZ_ERROR_TRYLATER, which MuPDF passes up through its filters and object loading as "not available yet" (its
+//   progressive loading) without repairing the file or keeping anything half read;
+// - a device between the page and its target (`inkv_guard`), which looks at the time at each drawing call (nested
+//   forms drawn a billion times read nothing) and refuses a picture larger than the cap before anything decodes it
+//   (MuPDF inflates all of a picture's samples for every draw, whatever the zoom: 1.2 GB for a 20,000 x 20,000 one).
+
+#define INKV_STOP_CANCELLED 1
+#define INKV_STOP_SLOW 2
+#define INKV_STOP_LARGE 3
+
+struct inkv_cookie {
+    fz_cookie cookie;
+    double seconds;     // a part's reading budget (the reading, then the drawing); 0: none
+    double max_samples; // the largest picture, width x height x components; 0: none
+    double deadline;    // when the current part's time is up; 0: none
+    int cancelled;      // set from any thread by inkv_cookie_abort
+    int stopped;        // INKV_STOP_*: why the call stopped, once it did
+};
+
+static double inkv_now(void) { return (double)clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9; }
+
+/// Stops the call (throws `code`, the cookie aborted) once it was cancelled or its time is up; nothing otherwise.
+static void inkv_watch(fz_context *ctx, inkv_cookie *c, int code) {
+    if (!c) return;
+    if (!c->stopped) {
+        if (c->cancelled) c->stopped = INKV_STOP_CANCELLED;
+        else if (c->deadline > 0 && inkv_now() > c->deadline) c->stopped = INKV_STOP_SLOW;
+        else return;
+    }
+    c->cookie.abort = 1;
+    fz_throw(ctx, code, "The page's reading was stopped.");
+}
+
+/// The bytes a document reads: in place in memory, or from a file. While a call reads (`active`), at most `chunk`
+/// bytes at a time, starting at 16 and growing while MuPDF asks again quickly.
+typedef struct {
+    const unsigned char *data; // NULL for a file
+    fz_buffer *owned;          // the copy `data` points into, if the document has its own
+    int fd;                    // -1 for bytes in memory
+    int64_t length;
+    int64_t pos;               // where the next chunk starts
+    int64_t next_at;           // where the last chunk ended: reading on from there keeps the chunk's size
+    inkv_cookie *active;
+    size_t chunk;
+    double last;
+    unsigned char buffer[16384];
+} inkv_source;
+
+#define INKV_CHUNK_MAX 16384
+
+static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
+    inkv_source *s = stm->state;
+    (void)max;
+    size_t n = s->fd >= 0 ? INKV_CHUNK_MAX : SIZE_MAX;
+    if (s->active) {
+        inkv_watch(ctx, s->active, FZ_ERROR_TRYLATER);
+        // Reading somewhere else (another object, another stream) starts small again: chunks grown on the page's
+        // quick objects would hand MuPDF a whole 7 KB bomb at once. A chunk used up slowly may have inflated a lot: the
+        // next ones are smaller, so the time is looked at often.
+        double now = inkv_now();
+        if (s->pos != s->next_at) s->chunk = 16;
+        else if (now - s->last > 0.004) s->chunk = s->chunk > 16 ? s->chunk / 16 : 1;
+        else if (s->chunk < INKV_CHUNK_MAX) s->chunk *= 2;
+        s->last = now;
+        if (n > s->chunk) n = s->chunk;
+    }
+    if (s->pos >= s->length) return EOF;
+    if ((int64_t)n > s->length - s->pos) n = (size_t)(s->length - s->pos);
+    if (s->fd >= 0) {
+        ssize_t got;
+        do got = pread(s->fd, s->buffer, n, s->pos);
+        while (got < 0 && errno == EINTR);
+        if (got < 0) fz_throw(ctx, FZ_ERROR_SYSTEM, "The file couldn't be read: %s", strerror(errno));
+        if (got == 0) return EOF;
+        n = (size_t)got;
+        stm->rp = s->buffer;
+    } else {
+        stm->rp = (unsigned char *)s->data + s->pos;
+    }
+    stm->wp = stm->rp + n;
+    s->pos += (int64_t)n;
+    s->next_at = s->pos;
+    stm->pos = s->pos;
+    return *stm->rp++;
+}
+
+static void inkv_source_seek(fz_context *ctx, fz_stream *stm, int64_t offset, int whence) {
+    inkv_source *s = stm->state;
+    (void)ctx;
+    int64_t at = whence == 2 ? s->length + offset : whence == 1 ? stm->pos - (stm->wp - stm->rp) + offset : offset;
+    if (at < 0) at = 0;
+    if (at > s->length) at = s->length;
+    s->pos = at;
+    stm->pos = at;
+    stm->rp = stm->wp = s->fd >= 0 ? s->buffer : (unsigned char *)s->data + at;
+}
+
+static void inkv_source_drop(fz_context *ctx, void *state) {
+    inkv_source *s = state;
+    if (s->fd >= 0) close(s->fd);
+    fz_drop_buffer(ctx, s->owned);
+    fz_free(ctx, s);
+}
+
+/// A stream over bytes (`owned` kept while it lives, when given) or a file descriptor (closed with it, or here when
+/// the stream can't be made). Throws.
+static fz_stream *inkv_new_source(fz_context *ctx, const unsigned char *data, int64_t length, fz_buffer *owned, int fd,
+                                  inkv_source **out) {
+    inkv_source *s = NULL;
+    fz_try(ctx) s = fz_malloc_struct(ctx, inkv_source);
+    fz_catch(ctx) {
+        if (fd >= 0) close(fd);
+        fz_rethrow(ctx);
+    }
+    s->data = data;
+    s->owned = fz_keep_buffer(ctx, owned);
+    s->fd = fd;
+    s->length = length;
+    s->chunk = INKV_CHUNK_MAX;
+    fz_stream *stm = fz_new_stream(ctx, s, inkv_source_next, inkv_source_drop); // drops s if it throws
+    stm->seek = inkv_source_seek;
+    *out = s;
+    return stm;
+}
+
+/// A device in front of another: the call's time looked at with each drawing call, every picture's size checked.
+typedef struct {
+    fz_device super;
+    fz_device *target;
+    inkv_cookie *cookie;
+} inkv_guard;
+
+#define TARGET(dev) (((inkv_guard *)(dev))->target)
+
+static void guard_check(fz_context *ctx, fz_device *dev) { inkv_watch(ctx, ((inkv_guard *)dev)->cookie, FZ_ERROR_ABORT); }
+
+/// Refuses a picture (or its soft mask) of more samples than the cookie allows, before MuPDF decodes any of it.
+static void guard_picture(fz_context *ctx, fz_device *dev, fz_image *image) {
+    inkv_cookie *c = ((inkv_guard *)dev)->cookie;
+    guard_check(ctx, dev);
+    for (int depth = 0; image && depth < 4 && c->max_samples > 0; depth++, image = image->mask) {
+        double samples = (double)image->w * (double)image->h * (double)(image->n > 0 ? image->n : 1);
+        if (samples > c->max_samples) {
+            c->stopped = INKV_STOP_LARGE;
+            c->cookie.abort = 1;
+            fz_throw(ctx, FZ_ERROR_ABORT, "A picture on the page is too large.");
+        }
+    }
+}
+
+static void guard_fill_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_colorspace *cs,
+                            const float *color, float alpha, fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_fill_path(ctx, TARGET(dev), path, even_odd, ctm, cs, color, alpha, cp);
+}
+
+static void guard_stroke_path(fz_context *ctx, fz_device *dev, const fz_path *path, const fz_stroke_state *stroke, fz_matrix ctm,
+                              fz_colorspace *cs, const float *color, float alpha, fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_stroke_path(ctx, TARGET(dev), path, stroke, ctm, cs, color, alpha, cp);
+}
+
+static void guard_clip_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_rect scissor) {
+    guard_check(ctx, dev);
+    fz_clip_path(ctx, TARGET(dev), path, even_odd, ctm, scissor);
+}
+
+static void guard_clip_stroke_path(fz_context *ctx, fz_device *dev, const fz_path *path, const fz_stroke_state *stroke, fz_matrix ctm,
+                                   fz_rect scissor) {
+    guard_check(ctx, dev);
+    fz_clip_stroke_path(ctx, TARGET(dev), path, stroke, ctm, scissor);
+}
+
+static void guard_fill_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_colorspace *cs, const float *color,
+                            float alpha, fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_fill_text(ctx, TARGET(dev), text, ctm, cs, color, alpha, cp);
+}
+
+static void guard_stroke_text(fz_context *ctx, fz_device *dev, const fz_text *text, const fz_stroke_state *stroke, fz_matrix ctm,
+                              fz_colorspace *cs, const float *color, float alpha, fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_stroke_text(ctx, TARGET(dev), text, stroke, ctm, cs, color, alpha, cp);
+}
+
+static void guard_clip_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_rect scissor) {
+    guard_check(ctx, dev);
+    fz_clip_text(ctx, TARGET(dev), text, ctm, scissor);
+}
+
+static void guard_clip_stroke_text(fz_context *ctx, fz_device *dev, const fz_text *text, const fz_stroke_state *stroke, fz_matrix ctm,
+                                   fz_rect scissor) {
+    guard_check(ctx, dev);
+    fz_clip_stroke_text(ctx, TARGET(dev), text, stroke, ctm, scissor);
+}
+
+static void guard_ignore_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm) {
+    guard_check(ctx, dev);
+    fz_ignore_text(ctx, TARGET(dev), text, ctm);
+}
+
+static void guard_fill_shade(fz_context *ctx, fz_device *dev, fz_shade *shade, fz_matrix ctm, float alpha, fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_fill_shade(ctx, TARGET(dev), shade, ctm, alpha, cp);
+}
+
+static void guard_fill_image(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, float alpha, fz_color_params cp) {
+    guard_picture(ctx, dev, image);
+    fz_fill_image(ctx, TARGET(dev), image, ctm, alpha, cp);
+}
+
+static void guard_fill_image_mask(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, fz_colorspace *cs, const float *color,
+                                  float alpha, fz_color_params cp) {
+    guard_picture(ctx, dev, image);
+    fz_fill_image_mask(ctx, TARGET(dev), image, ctm, cs, color, alpha, cp);
+}
+
+static void guard_clip_image_mask(fz_context *ctx, fz_device *dev, fz_image *image, fz_matrix ctm, fz_rect scissor) {
+    guard_picture(ctx, dev, image);
+    fz_clip_image_mask(ctx, TARGET(dev), image, ctm, scissor);
+}
+
+static void guard_pop_clip(fz_context *ctx, fz_device *dev) { fz_pop_clip(ctx, TARGET(dev)); }
+
+static void guard_begin_mask(fz_context *ctx, fz_device *dev, fz_rect area, int luminosity, fz_colorspace *cs, const float *bc,
+                             fz_color_params cp) {
+    guard_check(ctx, dev);
+    fz_begin_mask(ctx, TARGET(dev), area, luminosity, cs, bc, cp);
+}
+
+static void guard_end_mask(fz_context *ctx, fz_device *dev, fz_function *fn) { fz_end_mask_tr(ctx, TARGET(dev), fn); }
+
+static void guard_begin_group(fz_context *ctx, fz_device *dev, fz_rect area, fz_colorspace *cs, int isolated, int knockout, int blendmode,
+                              float alpha) {
+    guard_check(ctx, dev);
+    fz_begin_group(ctx, TARGET(dev), area, cs, isolated, knockout, blendmode, alpha);
+}
+
+static void guard_end_group(fz_context *ctx, fz_device *dev) { fz_end_group(ctx, TARGET(dev)); }
+
+static int guard_begin_tile(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id) {
+    guard_check(ctx, dev);
+    return fz_begin_tile_id(ctx, TARGET(dev), area, view, xstep, ystep, ctm, id);
+}
+
+static void guard_end_tile(fz_context *ctx, fz_device *dev) { fz_end_tile(ctx, TARGET(dev)); }
+
+static void guard_render_flags(fz_context *ctx, fz_device *dev, int set, int clear) { fz_render_flags(ctx, TARGET(dev), set, clear); }
+
+static void guard_set_default_colorspaces(fz_context *ctx, fz_device *dev, fz_default_colorspaces *cs) {
+    fz_set_default_colorspaces(ctx, TARGET(dev), cs);
+}
+
+static void guard_begin_layer(fz_context *ctx, fz_device *dev, const char *name) { fz_begin_layer(ctx, TARGET(dev), name); }
+static void guard_end_layer(fz_context *ctx, fz_device *dev) { fz_end_layer(ctx, TARGET(dev)); }
+
+static void guard_begin_structure(fz_context *ctx, fz_device *dev, fz_structure standard, const char *raw, int idx) {
+    fz_begin_structure(ctx, TARGET(dev), standard, raw, idx);
+}
+
+static void guard_end_structure(fz_context *ctx, fz_device *dev) { fz_end_structure(ctx, TARGET(dev)); }
+
+static void guard_begin_metatext(fz_context *ctx, fz_device *dev, fz_metatext meta, const char *text) {
+    fz_begin_metatext(ctx, TARGET(dev), meta, text);
+}
+
+static void guard_end_metatext(fz_context *ctx, fz_device *dev) { fz_end_metatext(ctx, TARGET(dev)); }
+
+/// A guard in front of `target` (which the caller closes and drops after the guard). Throws.
+static fz_device *inkv_new_guard(fz_context *ctx, fz_device *target, inkv_cookie *cookie) {
+    inkv_guard *g = fz_new_derived_device(ctx, inkv_guard);
+    g->target = target;
+    g->cookie = cookie;
+    // What the interpreter asks of its device (skip pictures, no caching) is the target's.
+    g->super.hints = target->hints;
+    g->super.flags = target->flags;
+    g->super.fill_path = guard_fill_path;
+    g->super.stroke_path = guard_stroke_path;
+    g->super.clip_path = guard_clip_path;
+    g->super.clip_stroke_path = guard_clip_stroke_path;
+    g->super.fill_text = guard_fill_text;
+    g->super.stroke_text = guard_stroke_text;
+    g->super.clip_text = guard_clip_text;
+    g->super.clip_stroke_text = guard_clip_stroke_text;
+    g->super.ignore_text = guard_ignore_text;
+    g->super.fill_shade = guard_fill_shade;
+    g->super.fill_image = guard_fill_image;
+    g->super.fill_image_mask = guard_fill_image_mask;
+    g->super.clip_image_mask = guard_clip_image_mask;
+    g->super.pop_clip = guard_pop_clip;
+    g->super.begin_mask = guard_begin_mask;
+    g->super.end_mask = guard_end_mask;
+    g->super.begin_group = guard_begin_group;
+    g->super.end_group = guard_end_group;
+    g->super.begin_tile = guard_begin_tile;
+    g->super.end_tile = guard_end_tile;
+    g->super.render_flags = guard_render_flags;
+    g->super.set_default_colorspaces = guard_set_default_colorspaces;
+    g->super.begin_layer = guard_begin_layer;
+    g->super.end_layer = guard_end_layer;
+    g->super.begin_structure = guard_begin_structure;
+    g->super.end_structure = guard_end_structure;
+    g->super.begin_metatext = guard_begin_metatext;
+    g->super.end_metatext = guard_end_metatext;
+    return &g->super;
+}
 
 /// An open document and the pages it keeps loaded: at most `capacity`, the least recently used freed first (with
 /// their display lists), so memory stays bounded however far a long document is scrolled.
 struct inkv_doc {
     fz_document *doc;
+    inkv_source *src; // the stream it reads, NULL for a document made here
     int count;
     int capacity;
     int loaded;
@@ -19,9 +340,34 @@ struct inkv_doc {
     unsigned clock;
 };
 
-struct inkv_cookie {
-    fz_cookie cookie;
-};
+/// Starts a call that reads a page's content with `c` (NULL: unbounded): its first part's time from now.
+static void inkv_begin(inkv_doc *d, inkv_cookie *c) {
+    if (c) {
+        c->stopped = c->cancelled ? INKV_STOP_CANCELLED : 0;
+        c->cookie.abort = c->cancelled;
+        c->deadline = c->seconds > 0 ? inkv_now() + c->seconds : 0;
+    }
+    if (d->src) {
+        d->src->active = c;
+        d->src->chunk = 16;
+        d->src->last = inkv_now();
+    }
+}
+
+/// The call's next part (drawing what was read) gets a budget of its own.
+static void inkv_next_part(inkv_cookie *c) {
+    if (c && c->seconds > 0) c->deadline = inkv_now() + c->seconds;
+}
+
+static void inkv_end(inkv_doc *d) {
+    if (d->src) {
+        d->src->active = NULL;
+        d->src->chunk = INKV_CHUNK_MAX;
+    }
+}
+
+/// Whether the call that used `c` was stopped (its time, a picture, Cancel).
+static int inkv_halted(inkv_cookie *c) { return c && (c->stopped || c->cancelled); }
 
 /// Copies the caught error's message for Swift and marks it handled (MuPDF warns of errors a catch leaves unreported).
 static void inkv_error(fz_context *ctx, char *err) {
@@ -102,19 +448,49 @@ static fz_page *inkv_page(fz_context *ctx, inkv_doc *d, int i) {
     return d->pages[i];
 }
 
-/// The page's display list (made once while the page stays loaded). Throws.
-static fz_display_list *inkv_list(fz_context *ctx, inkv_doc *d, int i) {
+/// A display list of the page (its own content only, or with its annotations and widgets), read under the cookie's
+/// bounds through a guard. A list whose reading was stopped is dropped, never kept: it throws. Throws.
+static fz_display_list *inkv_new_list(fz_context *ctx, fz_page *page, int contents_only, inkv_cookie *c) {
+    fz_display_list *list = fz_new_display_list(ctx, fz_bound_page(ctx, page));
+    fz_device *dev = NULL, *guard = NULL;
+    fz_var(dev);
+    fz_var(guard);
+    fz_try(ctx) {
+        dev = fz_new_list_device(ctx, list);
+        guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
+        fz_device *run = guard ? guard : dev;
+        fz_cookie *cookie = c ? &c->cookie : NULL;
+        if (contents_only) fz_run_page_contents(ctx, page, run, fz_identity, cookie);
+        else fz_run_page(ctx, page, run, fz_identity, cookie);
+        if (guard) fz_close_device(ctx, guard);
+        fz_close_device(ctx, dev);
+        if (inkv_halted(c)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's reading was stopped.");
+    }
+    fz_always(ctx) {
+        fz_drop_device(ctx, guard);
+        fz_drop_device(ctx, dev);
+    }
+    fz_catch(ctx) {
+        fz_drop_display_list(ctx, list);
+        fz_rethrow(ctx);
+    }
+    return list;
+}
+
+/// The page's display list (made once while the page stays loaded, unless its reading was stopped). Throws.
+static fz_display_list *inkv_list(fz_context *ctx, inkv_doc *d, int i, inkv_cookie *c) {
     fz_page *page = inkv_page(ctx, d, i);
-    if (!d->lists[i]) d->lists[i] = fz_new_display_list_from_page(ctx, page);
+    if (!d->lists[i]) d->lists[i] = inkv_new_list(ctx, page, 0, c);
     return d->lists[i];
 }
 
-static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *magic, const char *path, int cache, char *err) {
+static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, inkv_source *src, const char *magic, int cache, char *err) {
     inkv_doc *result = NULL;
     fz_var(result);
     fz_try(ctx) {
         result = fz_malloc_struct(ctx, inkv_doc);
-        result->doc = stream ? fz_open_document_with_stream(ctx, magic, stream) : fz_open_document(ctx, path);
+        result->doc = fz_open_document_with_stream(ctx, magic, stream);
+        result->src = src; // kept alive by the document, which holds the stream
         inkv_setup(ctx, result, cache);
     }
     fz_catch(ctx) {
@@ -131,19 +507,27 @@ static inkv_doc *inkv_open(fz_context *ctx, fz_stream *stream, const char *magic
 static inkv_doc *inkv_open_bytes(fz_context *ctx, const uint8_t *data, size_t length, const char *magic, int cache, int shared, char *err) {
     fz_buffer *buffer = NULL;
     fz_stream *stream = NULL;
+    inkv_source *src = NULL;
     inkv_doc *result = NULL;
     fz_var(buffer);
     fz_var(stream);
+    fz_var(src);
     fz_try(ctx) {
-        buffer = shared ? fz_new_buffer_from_shared_data(ctx, data, length) : fz_new_buffer_from_copied_data(ctx, data, length);
-        stream = fz_open_buffer(ctx, buffer);
+        const unsigned char *bytes = data;
+        if (!shared) {
+            buffer = fz_new_buffer_from_copied_data(ctx, data, length);
+            unsigned char *copy = NULL;
+            fz_buffer_storage(ctx, buffer, &copy);
+            bytes = copy;
+        }
+        stream = inkv_new_source(ctx, bytes, (int64_t)length, buffer, -1, &src);
     }
     fz_catch(ctx) {
         fz_drop_buffer(ctx, buffer);
         inkv_error(ctx, err);
         return NULL;
     }
-    result = inkv_open(ctx, stream, magic, NULL, cache, err);
+    result = inkv_open(ctx, stream, src, magic, cache, err);
     fz_drop_stream(ctx, stream);
     fz_drop_buffer(ctx, buffer);
     return result;
@@ -158,7 +542,27 @@ inkv_doc *inkv_open_pdf_shared(void *vctx, const uint8_t *data, size_t length, i
 }
 
 inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
-    return inkv_open((fz_context *)vctx, NULL, NULL, path, cache, err);
+    fz_context *ctx = vctx;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    struct stat st;
+    if (fd < 0 || fstat(fd, &st) != 0) {
+        if (err) snprintf(err, INKV_ERR_SIZE, "cannot open %s: %s", path, strerror(errno));
+        if (fd >= 0) close(fd);
+        return NULL;
+    }
+    fz_stream *stream = NULL;
+    inkv_source *src = NULL;
+    fz_var(stream);
+    fz_var(src);
+    fz_try(ctx) stream = inkv_new_source(ctx, NULL, (int64_t)st.st_size, NULL, fd, &src); // closes fd if it throws
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    // The file's name tells MuPDF its type, as fz_open_document did.
+    inkv_doc *result = inkv_open(ctx, stream, src, path, cache, err);
+    fz_drop_stream(ctx, stream);
+    return result;
 }
 
 void inkv_drop_doc(void *vctx, inkv_doc *d) {
@@ -249,9 +653,22 @@ void inkv_loaded(inkv_doc *d, int *pages, int *lists) {
 
 inkv_cookie *inkv_new_cookie(void) { return calloc(1, sizeof(inkv_cookie)); }
 void inkv_cookie_abort(inkv_cookie *c) {
-    if (c) c->cookie.abort = 1;
+    if (!c) return;
+    c->cancelled = 1;
+    c->cookie.abort = 1;
 }
 void inkv_drop_cookie(inkv_cookie *c) { free(c); }
+
+void inkv_cookie_limit(inkv_cookie *c, double seconds, double max_samples) {
+    if (!c) return;
+    c->seconds = seconds > 0 ? seconds : 0;
+    c->max_samples = max_samples > 0 ? max_samples : 0;
+}
+
+int inkv_cookie_stopped(inkv_cookie *c) {
+    if (!c) return 0;
+    return c->stopped ? c->stopped : c->cancelled ? INKV_STOP_CANCELLED : 0;
+}
 
 static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, float scale, float x0, float y0, float x1, float y1,
                       inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
@@ -265,10 +682,12 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
     fz_var(own);
     fz_var(aborted);
     *pixels = NULL;
+    inkv_begin(d, cookie);
     fz_try(ctx) {
         // The page's own content only (no annotations): a list of its own, not the cached one.
-        fz_display_list *list = contents_only ? (own = fz_new_display_list_from_page_contents(ctx, inkv_page(ctx, d, index)))
-                                              : inkv_list(ctx, d, index);
+        fz_display_list *list = contents_only ? (own = inkv_new_list(ctx, inkv_page(ctx, d, index), 1, cookie))
+                                              : inkv_list(ctx, d, index, cookie);
+        inkv_next_part(cookie);
         fz_matrix ctm = fz_scale(scale, scale);
         fz_rect area = fz_make_rect(x0, y0, x1, y1);
         fz_irect box = fz_round_rect(fz_transform_rect(area, ctm));
@@ -277,7 +696,7 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         dev = fz_new_draw_device(ctx, fz_identity, pix);
         fz_run_display_list(ctx, list, dev, ctm, fz_transform_rect(area, ctm), cookie ? &cookie->cookie : NULL);
         fz_close_device(ctx, dev);
-        if (cookie && cookie->cookie.abort) {
+        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) {
             aborted = 1;
         } else {
             int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
@@ -295,9 +714,10 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
         fz_drop_display_list(ctx, own);
+        inkv_end(d);
     }
     fz_catch(ctx) {
-        if (cookie && cookie->cookie.abort) {
+        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) {
             fz_ignore_error(ctx);
             return 2;
         }
@@ -317,26 +737,61 @@ int inkv_render_rgb_contents(void *vctx, inkv_doc *d, int index, float scale, fl
     return render_rgb(vctx, d, index, 1, scale, x0, y0, x1, y1, cookie, pixels, width, height, err);
 }
 
-int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char *path, int jpeg, char *err) {
+int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char *path, int jpeg, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
+    fz_device *dev = NULL;
     fz_var(pix);
+    fz_var(dev);
+    inkv_begin(d, cookie);
     fz_try(ctx) {
-        fz_display_list *list = inkv_list(ctx, d, index);
-        pix = fz_new_pixmap_from_display_list(ctx, list, fz_scale(scale, scale), fz_device_rgb(ctx), 0);
+        fz_display_list *list = inkv_list(ctx, d, index, cookie);
+        inkv_next_part(cookie);
+        // fz_new_pixmap_from_display_list, with the cookie: no file is written for a drawing that was stopped.
+        fz_matrix ctm = fz_scale(scale, scale);
+        pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(fz_transform_rect(fz_bound_display_list(ctx, list), ctm)), NULL, 0);
+        fz_clear_pixmap_with_value(ctx, pix, 255);
+        dev = fz_new_draw_device(ctx, ctm, pix);
+        fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
+        fz_close_device(ctx, dev);
+        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
         if (jpeg) fz_save_pixmap_as_jpeg(ctx, pix, path, 90);
         else fz_save_pixmap_as_png(ctx, pix, path);
     }
-    fz_always(ctx) fz_drop_pixmap(ctx, pix);
+    fz_always(ctx) {
+        fz_drop_device(ctx, dev);
+        fz_drop_pixmap(ctx, pix);
+        inkv_end(d);
+    }
     fz_catch(ctx) {
+        if (inkv_halted(cookie)) {
+            fz_ignore_error(ctx);
+            return 2;
+        }
         inkv_error(ctx, err);
         return 0;
     }
     return 1;
 }
 
+/// Runs the page (its own content, or with its annotations and widgets) into a text device, under the cookie's
+/// bounds; throws when the reading was stopped. Throws.
+static void inkv_run_text(fz_context *ctx, fz_page *page, int annotations, fz_device *dev, inkv_cookie *c) {
+    fz_device *guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
+    fz_try(ctx) {
+        fz_device *run = guard ? guard : dev;
+        fz_cookie *cookie = c ? &c->cookie : NULL;
+        if (annotations) fz_run_page(ctx, page, run, fz_identity, cookie);
+        else fz_run_page_contents(ctx, page, run, fz_identity, cookie);
+        if (guard) fz_close_device(ctx, guard);
+        if (inkv_halted(c)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's reading was stopped.");
+    }
+    fz_always(ctx) fz_drop_device(ctx, guard);
+    fz_catch(ctx) fz_rethrow(ctx);
+}
+
 static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_line **lines, int *line_count,
-                      inkv_char **chars, int *char_count, char *err) {
+                      inkv_char **chars, int *char_count, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_stext_page *text = NULL;
     fz_device *dev = NULL;
@@ -350,13 +805,13 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
     *chars = NULL;
     *line_count = 0;
     *char_count = 0;
+    inkv_begin(d, cookie);
     fz_try(ctx) {
         fz_page *page = inkv_page(ctx, d, index);
         fz_stext_options options = { 0 };
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        if (annotations) fz_run_page(ctx, page, dev, fz_identity, NULL);
-        else fz_run_page_contents(ctx, page, dev, fz_identity, NULL);
+        inkv_run_text(ctx, page, annotations, dev, cookie);
         fz_close_device(ctx, dev);
         int nl = 0, nc = 0;
         for (fz_stext_block *b = text->first_block; b; b = b->next) {
@@ -398,10 +853,15 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
     fz_always(ctx) {
         fz_drop_device(ctx, dev);
         fz_drop_stext_page(ctx, text);
+        inkv_end(d);
     }
     fz_catch(ctx) {
         free(ls);
         free(cs);
+        if (inkv_halted(cookie)) {
+            fz_ignore_error(ctx);
+            return 2;
+        }
         inkv_error(ctx, err);
         return 0;
     }
@@ -409,43 +869,13 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
 }
 
 int inkv_page_chars(void *ctx, inkv_doc *d, int index, inkv_line **lines, int *line_count, inkv_char **chars,
-                    int *char_count, char *err) {
-    return page_chars(ctx, d, index, 0, lines, line_count, chars, char_count, err);
+                    int *char_count, inkv_cookie *cookie, char *err) {
+    return page_chars(ctx, d, index, 0, lines, line_count, chars, char_count, cookie, err);
 }
 
 int inkv_page_chars_annots(void *ctx, inkv_doc *d, int index, inkv_line **lines, int *line_count, inkv_char **chars,
-                           int *char_count, char *err) {
-    return page_chars(ctx, d, index, 1, lines, line_count, chars, char_count, err);
-}
-
-char *inkv_page_text(void *vctx, inkv_doc *d, int index, char *err) {
-    fz_context *ctx = vctx;
-    fz_stext_page *text = NULL;
-    fz_buffer *buffer = NULL;
-    char *result = NULL;
-    fz_var(text);
-    fz_var(buffer);
-    fz_var(result);
-    fz_try(ctx) {
-        text = fz_new_stext_page_from_page(ctx, inkv_page(ctx, d, index), NULL);
-        buffer = fz_new_buffer_from_stext_page(ctx, text);
-        unsigned char *bytes = NULL;
-        size_t length = fz_buffer_storage(ctx, buffer, &bytes);
-        result = malloc(length + 1);
-        if (!result) fz_throw(ctx, FZ_ERROR_SYSTEM, "There isn't enough memory for the page's text.");
-        if (length) memcpy(result, bytes, length);
-        result[length] = 0;
-    }
-    fz_always(ctx) {
-        fz_drop_buffer(ctx, buffer);
-        fz_drop_stext_page(ctx, text);
-    }
-    fz_catch(ctx) {
-        free(result);
-        inkv_error(ctx, err);
-        return NULL;
-    }
-    return result;
+                           int *char_count, inkv_cookie *cookie, char *err) {
+    return page_chars(ctx, d, index, 1, lines, line_count, chars, char_count, cookie, err);
 }
 
 void inkv_free_links(inkv_link *links, int count) {
@@ -781,7 +1211,7 @@ int inkv_render_rgba(void *vctx, inkv_doc *d, int index, float scale, uint8_t **
     fz_var(pix);
     *pixels = NULL;
     fz_try(ctx) {
-        pix = fz_new_pixmap_from_display_list(ctx, inkv_list(ctx, d, index), fz_scale(scale, scale), fz_device_rgb(ctx), 1);
+        pix = fz_new_pixmap_from_display_list(ctx, inkv_list(ctx, d, index, NULL), fz_scale(scale, scale), fz_device_rgb(ctx), 1);
         int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
         size_t stride = (size_t)fz_pixmap_stride(ctx, pix), row = (size_t)w * 4;
         uint8_t *out = malloc(row * (size_t)(h > 0 ? h : 1));
@@ -1341,7 +1771,7 @@ static int inkv_export_font(fz_context *ctx, inkv_export *out, fz_font ***seen, 
     return k;
 }
 
-int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long jpeg_above, inkv_export *out, char *err) {
+int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long jpeg_above, inkv_export *out, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_stext_page *text = NULL;
     fz_device *dev = NULL;
@@ -1350,14 +1780,16 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
     fz_var(dev);
     fz_var(seen);
     memset(out, 0, sizeof(*out));
+    inkv_begin(d, cookie);
     fz_try(ctx) {
         fz_page *page = inkv_page(ctx, d, index);
         fz_stext_options options = { 0 };
         options.flags = FZ_STEXT_COLLECT_VECTORS | (images ? FZ_STEXT_PRESERVE_IMAGES : 0);
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        fz_run_page(ctx, page, dev, fz_identity, NULL);
+        inkv_run_text(ctx, page, 1, dev, cookie);
         fz_close_device(ctx, dev);
+        inkv_next_part(cookie); // the pictures' encoding below
         int nl = 0, nc = 0, ni = 0, nv = 0;
         for (fz_stext_block *b = text->first_block; b; b = b->next) {
             if (b->type == FZ_STEXT_BLOCK_TEXT) {
@@ -1433,9 +1865,14 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
         free(seen);
         fz_drop_device(ctx, dev);
         fz_drop_stext_page(ctx, text);
+        inkv_end(d);
     }
     fz_catch(ctx) {
         inkv_free_export(out);
+        if (inkv_halted(cookie)) {
+            fz_ignore_error(ctx);
+            return 2;
+        }
         inkv_error(ctx, err);
         return 0;
     }
@@ -1443,22 +1880,25 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
 }
 
 int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
-                            uint8_t **pixels, int *width, int *height, char *err) {
+                            uint8_t **pixels, int *width, int *height, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_pixmap *pix = NULL;
     fz_device *dev = NULL;
     fz_var(pix);
     fz_var(dev);
     *pixels = NULL;
+    inkv_begin(d, cookie);
     fz_try(ctx) {
-        fz_display_list *list = inkv_list(ctx, d, index);
+        fz_display_list *list = inkv_list(ctx, d, index, cookie);
+        inkv_next_part(cookie);
         fz_matrix ctm = fz_scale(scale, scale);
         fz_rect area = fz_transform_rect(fz_make_rect(x0, y0, x1, y1), ctm);
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(area), NULL, 1);
         fz_clear_pixmap(ctx, pix);
         dev = fz_new_draw_device(ctx, fz_identity, pix);
-        fz_run_display_list(ctx, list, dev, ctm, area, NULL);
+        fz_run_display_list(ctx, list, dev, ctm, area, cookie ? &cookie->cookie : NULL);
         fz_close_device(ctx, dev);
+        if (inkv_halted(cookie) || (cookie && cookie->cookie.abort)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
         int w = fz_pixmap_width(ctx, pix), h = fz_pixmap_height(ctx, pix);
         size_t stride = (size_t)fz_pixmap_stride(ctx, pix), row = (size_t)w * 4;
         uint8_t *px = malloc(row * (size_t)(h > 0 ? h : 1));
@@ -1481,8 +1921,13 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
     fz_always(ctx) {
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
+        inkv_end(d);
     }
     fz_catch(ctx) {
+        if (inkv_halted(cookie)) {
+            fz_ignore_error(ctx);
+            return 2;
+        }
         inkv_error(ctx, err);
         return 0;
     }
