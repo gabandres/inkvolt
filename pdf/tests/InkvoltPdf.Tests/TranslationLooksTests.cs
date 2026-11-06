@@ -51,6 +51,61 @@ public class TranslationLooksTests
     {
         var (plan, _) = Translate(BoldAndSubscript(), t => t);
         Assert.Equal(Source, Assert.Single(plan.Texts).Text);
+        Assert.Equal([Source], plan.Marked);
+        Assert.True(Assert.Single(Translation.Jobs(plan, Translation.PieceTokens(4096))).Marked);
+    }
+
+    [Fact]
+    public void A_paragraphs_own_tags_are_not_taken_for_markup()
+    {
+        const string own = "Write <b> before a bold word and </b> after it.";
+        Assert.DoesNotContain("<sup>", TranslationText.Request(own, "Spanish")[0].Content, StringComparison.Ordinal);
+        var text = string.Join(' ', Enumerable.Repeat(own, 200));
+        var plan = new TranslationPlan { Data = [], Pages = [], Texts = [(text, 0)] };
+        var job = Assert.Single(Translation.Jobs(plan, Translation.PieceTokens(4096)));
+        Assert.False(job.Marked);
+        Assert.True(job.Pieces.Count > 1);
+        Assert.All(job.Pieces, p => Assert.Contains("<b>", p, StringComparison.Ordinal));
+        Assert.All(Translation.Requests([job], "Spanish"), r => Assert.DoesNotContain("<sup>", r[0].Content, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_hyphen_joined_at_a_line_end_leaves_the_bold_stretch_before_it_its_own_letters()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over a lazy dog and the quick fox is ) Tj /FB 12 Tf (respon-) Tj ET " +
+            "BT /FA 12 Tf 1 0 0 1 72 686 Tm (sible for the lazy dog and the brown fox.) Tj ET",
+            faces: true, fontText: Letters + "-");
+        Assert.Equal("The quick brown fox jumps over a lazy dog and the quick fox is <b>respon</b>sible for the lazy dog and the brown fox.",
+            Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text);
+    }
+
+    [Fact]
+    public void Two_superscripts_with_a_letter_between_stay_two_stretches()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over a) Tj /FA 8 Tf 4 Ts (2) Tj 0 Ts /FA 12 Tf (b) Tj /FA 8 Tf 4 Ts (3) Tj 0 Ts /FA 12 Tf ( and the lazy dog.) Tj ET",
+            fontText: Letters);
+        Assert.Contains("over a<sup>2</sup>b<sup>3</sup> and", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Two_bold_words_with_a_plain_letter_between_leave_it_plain()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (Bold) Tj /FA 12 Tf (x) Tj /FB 12 Tf (Face) Tj /FA 12 Tf ( fox jumps over the lazy dog.) Tj ET",
+            faces: true, fontText: Letters);
+        Assert.Contains("<b>Bold</b>x<b>Face</b>", Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Small_words_beside_a_big_raised_name_are_not_taken_for_subscripts()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The man named ) Tj /FA 16 Tf 3 Ts (Bartholomew-Fitzwilliam) Tj 0 Ts /FA 12 Tf ( was born in a) Tj ( small town by) Tj ( the sea.) Tj ET",
+            fontText: Letters + "-");
+        var text = Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts).Text;
+        Assert.DoesNotContain("<", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -85,7 +140,7 @@ public class TranslationLooksTests
     [Fact]
     public void A_marked_text_asks_the_model_to_keep_its_tags_and_a_plain_one_doesnt()
     {
-        var marked = TranslationText.Request(Source, "Spanish");
+        var marked = TranslationText.Request(Source, "Spanish", marked: true);
         Assert.Contains("<b>", marked[0].Content, StringComparison.Ordinal);
         Assert.Equal(Source, marked[1].Content);
         Assert.DoesNotContain("<b>", TranslationText.Request("The quick brown fox.", "Spanish")[0].Content, StringComparison.Ordinal);
@@ -95,9 +150,10 @@ public class TranslationLooksTests
     public void A_marked_paragraph_too_long_for_one_request_goes_in_plain_pieces()
     {
         var text = string.Join(' ', Enumerable.Repeat("A <b>sentence</b> of the long paragraph goes here.", 200));
-        var plan = new TranslationPlan { Data = [], Pages = [], Texts = [(text, 0)] };
+        var plan = new TranslationPlan { Data = [], Pages = [], Texts = [(text, 0)], Marked = new HashSet<string> { text } };
         var job = Assert.Single(Translation.Jobs(plan, Translation.PieceTokens(4096)));
         Assert.True(job.Pieces.Count > 1);
+        Assert.False(job.Marked);
         Assert.Equal(text, job.Text);
         Assert.All(job.Pieces, p => Assert.DoesNotContain("<", p, StringComparison.Ordinal));
     }
@@ -117,7 +173,7 @@ public class TranslationLooksTests
         });
         Assert.True(AiEndpoint.TryParse("http://127.0.0.1:11434/v1", out var ep, out _));
         using var client = new AiClient(ep!, "m", null, handler, new AiTimeouts(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(1)));
-        var a = await Translation.TranslateAsync([new TranslationJob(text, 0, [text])], "Spanish", (m, t, c) => client.ChatAsync(m, t, c),
+        var a = await Translation.TranslateAsync([new TranslationJob(text, 0, [text], Marked: true)], "Spanish", (m, t, c) => client.ChatAsync(m, t, c),
             new TranslationSettings { RetryWaits = [TimeSpan.Zero], ReplyDeadline = TimeSpan.FromSeconds(45) });
         Assert.True(sent.Count > 2);
         Assert.All(sent.Skip(1), s => Assert.DoesNotContain("<", s, StringComparison.Ordinal));
@@ -127,9 +183,17 @@ public class TranslationLooksTests
     [Fact]
     public void A_reply_keeps_the_markup_it_was_sent_and_loses_any_other_tag()
     {
-        var (text, problem) = TranslationText.CleanReply("Una <b>palabra</b> <span>y</span> <sub>otra</sub>", "A <b>word</b> and d<sub>another</sub>");
+        var (text, problem) = TranslationText.CleanReply("Una <b>palabra</b> <span>y</span> <sub>otra</sub>", "A <b>word</b> and d<sub>another</sub>", marked: true);
         Assert.Null(problem);
         Assert.Equal("Una <b>palabra</b> y <sub>otra</sub>", text);
+    }
+
+    [Fact]
+    public void A_quoted_paragraph_all_in_italic_keeps_its_quotes()
+    {
+        var (text, problem) = TranslationText.CleanReply("\"<i>Hola, amigo mío</i>\"", "<i>\"Hello, my friend\"</i>", marked: true);
+        Assert.Null(problem);
+        Assert.Equal("\"<i>Hola, amigo mío</i>\"", text);
     }
 
     // ---- Markup back ----
@@ -194,6 +258,48 @@ public class TranslationLooksTests
         Assert.DoesNotContain("sub", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("span", text, StringComparison.Ordinal);
         Assert.DoesNotContain("  ", text, StringComparison.Ordinal);
+        Assert.Contains("zorro", text, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("El <b>negrita/b> palabra.", "El negrita palabra.")]
+    [InlineData("El zorro x /sub> y el perro.", "El zorro x y el perro.")]
+    [InlineData("El zorro word i> next.", "El zorro word next.")]
+    [InlineData("El zorro <b>marrón</b> salta sobre d<sub>model/SUB > y el perro.", "El zorro marrón salta sobre dmodel y el perro.")]
+    [InlineData("El zorro < sup>marrón</b salta.", "El zorro marrón salta.")]
+    public void Every_broken_piece_of_our_tags_is_taken_out(string reply, string plain)
+    {
+        var (text, spans) = TranslationMarkup.Read(reply, Text, Looks);
+        Assert.Equal(plain, text);
+        Assert.Empty(spans);
+    }
+
+    [Fact]
+    public void An_arrow_or_a_comparison_in_a_reply_stays_as_text_and_the_looks_are_kept()
+    {
+        var (text, spans) = TranslationMarkup.Read("El zorro -> <b>marrón</b> salta sobre d<sub>model</sub> y x < y >= 2.", Text, Looks);
+        Assert.Equal("El zorro -> marrón salta sobre dmodel y x < y >= 2.", text);
+        Assert.Equal([Span(text, "marrón", B), Span(text, "model", Sub)], spans);
+    }
+
+    [Fact]
+    public void An_arrow_in_a_reply_whose_markup_cant_be_trusted_stays_as_text()
+    {
+        var (text, spans) = TranslationMarkup.Read("El zorro -> <b>marrón salta <span>sobre</span> a <= b.", Text, Looks);
+        Assert.Equal("El zorro -> marrón salta sobre a <= b.", text);
+        Assert.Empty(spans);
+    }
+
+    [Theory]
+    [InlineData("El zorro <script>marrón</script> salta.")]
+    [InlineData("El zorro <!-- marrón --> salta.")]
+    [InlineData("El zorro <b>marrón</b> <a href=x>salta</a>.")]
+    public void Another_tag_beside_bare_brackets_still_never_reaches_the_page(string reply)
+    {
+        var (text, spans) = TranslationMarkup.Read(reply, Text, Looks);
+        Assert.Empty(spans);
+        Assert.DoesNotContain("<", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(">", text, StringComparison.Ordinal);
         Assert.Contains("zorro", text, StringComparison.Ordinal);
     }
 
@@ -307,6 +413,48 @@ public class TranslationLooksTests
         var (_, r) = Translate(pdf, t => t);
         Assert.Equal(0, r.Report.Translated);
         Assert.Equal(1, r.Report.Unchanged);
+    }
+
+    [Theory]
+    [InlineData("The quick brown fox jumps over dmodel and the lazy dog.")] // sent in plain pieces, or every tag dropped
+    [InlineData("The quick brown fox jumps over d<sub>model</sub> and the lazy dog.")] // one tag dropped
+    public void An_answer_the_same_as_the_paragraphs_text_without_its_markup_leaves_it_as_it_was(string answer)
+    {
+        var (_, r) = Translate(BoldAndSubscript(), _ => answer);
+        Assert.Equal(0, r.Report.Translated);
+        Assert.Equal(1, r.Report.Unchanged);
+        Assert.Equal(0, r.Report.NotTranslated);
+        Assert.Empty(r.Report.Flags);
+    }
+
+    [Fact]
+    public void A_subscript_an_edit_drew_reads_back_as_one_and_stays_one_when_edited_again()
+    {
+        var (_, r) = Translate(BoldAndSubscript(), _ => "a fox over d<sub>model</sub> and a dog.");
+        Assert.Equal(1, r.Report.Translated);
+        var q = Assert.Single(ContentEditor.Read(r.Data!, null, 0).Paragraphs, p => p.Text.Contains("dog", StringComparison.Ordinal));
+        Assert.Equal("a fox over dmodel and a dog.", q.Text);
+        Assert.Equal([Span(q.Text, "model", Sub)], q.Spans);
+
+        var edited = ContentEditor.ReplaceParagraph(r.Data!, null, q, "the fox over dmodel and a dog.");
+        var runs = Runs(edited);
+        var plain = runs.First(x => x.Text.Contains("dog", StringComparison.Ordinal));
+        var sub = Assert.Single(runs, x => x.Text.Trim() == "model");
+        Assert.Equal(0.7 * plain.FontSize, sub.FontSize, 1);
+        Assert.Equal(plain.Origin.Y + 0.15 * plain.FontSize, sub.Origin.Y, 1);
+    }
+
+    [Fact]
+    public void A_superscript_on_the_first_line_and_a_subscript_on_the_last_are_inside_the_checked_box()
+    {
+        var pdf = ContentEditPdf.Make("BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog.) Tj ET", fontText: Letters);
+        var p = Assert.Single(ContentEditor.Read(pdf, null, 0).Paragraphs);
+        const string text = "x2 and H2";
+        var layout = ContentEditor.LayOut(p, p.Runs, text, [new TextSpan(1, 1, Sup), new TextSpan(8, 1, Sub)], fit: 1);
+        var (origin, _) = Assert.Single(layout.Lines);
+        var box = layout.Check.Box;
+        Assert.True(box.Y <= origin.Y - ContentEditor.SuperRise * p.FontSize - ContentEditor.ScriptScale * p.Ascent + 0.01, $"{box.Y} {origin.Y}");
+        Assert.True(box.Bottom >= origin.Y - ContentEditor.SubRise * p.FontSize + ContentEditor.ScriptScale * p.Descent - 0.01, $"{box.Bottom} {origin.Y}");
     }
 
     [Fact]

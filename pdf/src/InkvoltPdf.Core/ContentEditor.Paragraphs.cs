@@ -464,22 +464,31 @@ public static partial class ContentEditor
                 // A hyphen typed into the word ("respon-sible") stays as typed; the lines join without a space.
                 var hyphen = text.Length >= 2 && text[^1] == '-' && char.IsLetter(text[^2]) && t.Length > 0 && char.IsLower(t[0]);
                 if (!hyphen) text.Append(' ');
-                else if (translating) text.Length--; // for a translator the line break's hyphen would be part of the word
+                else if (translating)
+                {
+                    // For a translator the line break's hyphen would be part of the word; the stretch it ended goes without it.
+                    text.Length--;
+                    if (looks is { Count: > 0 } && looks[^1].End > text.Length) looks[^1] = looks[^1] with { Length = text.Length - looks[^1].Start };
+                    if (looks is { Count: > 0 } && looks[^1].Length <= 0) looks.RemoveAt(looks.Count - 1);
+                }
             }
             // A soft hyphen (U+00AD) ending a line was added by the line break: it goes, and the word joins the next line's.
             soft = l != lines[^1] && t.EndsWith('­');
             if (soft) t = t[..^1];
             var lead = l.Text.Length - l.Text.TrimStart().Length;
+            var baseline = looks is not null ? LineBaseline(l) : default;
             for (var i = 0; i < l.Runs.Count; i++)
             {
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, l, l.Runs[i]) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, baseline, l.Runs[i]) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
-                    if (looks.Count > 0 && looks[^1].Look == look && looks[^1].End >= text.Length + from - 1) looks[^1] = looks[^1] with { Length = text.Length + to - looks[^1].Start };
-                    else looks.Add(new TextSpan(text.Length + from, to - from, look));
+                    var start = text.Length + from;
+                    if (looks.Count > 0 && looks[^1].Look == look && JoinsAcrossSpace(looks[^1].End, start, k => k < text.Length ? text[k] : t[k - text.Length]))
+                        looks[^1] = looks[^1] with { Length = text.Length + to - looks[^1].Start };
+                    else looks.Add(new TextSpan(start, to - from, look));
                 }
             }
             text.Append(t);
@@ -517,7 +526,7 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = looks ?? SpansOf(plain, at),
+            Spans = looks ?? SpansOf(plain, text.ToString(), at),
             Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
@@ -612,13 +621,23 @@ public static partial class ContentEditor
         var placed = new List<(PointD, List<Part>)>();
         var maxRight = p.Box.Right;
         var minLeft = p.Box.X;
-        double baseline = 0, scale = 1;
+        double baseline = 0, scale = 1, below = 0;
         for (var i = 0; i < lines.Count; i++)
         {
             var (parts, spaces, last) = lines[i];
             // A line with bigger text sits lower: the step to it grows with its biggest text, the step after it with its depth.
             var s = Math.Max(1, parts.Where(q => q.Code is not null || q.StandIn is not null).Select(q => q.Look?.Scale ?? 1).DefaultIfEmpty(1).Max());
-            baseline = i == 0 ? p.Box.Y + p.Ascent * shrink * s : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
+            // A superscript's top and a subscript's foot reach past the line's own height and depth: the first line
+            // sits low enough for the one, the box ends low enough for the other.
+            double above = 0;
+            below = 0;
+            foreach (var q in parts)
+                if ((q.Code is not null || q.StandIn is not null) && q.Look is { Rise: not 0 } look)
+                {
+                    above = Math.Max(above, (look.Rise * p.FontSize + look.Scale * p.Ascent) * shrink);
+                    below = Math.Max(below, (-look.Rise * p.FontSize + look.Scale * p.Descent) * shrink);
+                }
+            baseline = i == 0 ? p.Box.Y + Math.Max(p.Ascent * shrink * s, above) : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
             scale = s;
             var w = W(parts);
             var x0 = p.Left + (i == 0 ? p.FirstIndent : 0);
@@ -645,7 +664,7 @@ public static partial class ContentEditor
             maxRight = Math.Max(maxRight, x + w);
             minLeft = Math.Min(minLeft, x);
         }
-        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + p.Descent * shrink * scale;
+        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + Math.Max(p.Descent * shrink * scale, below);
         var box = RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1));
         RectD? overlaps = p.Below is { } b && box.Bottom > b.Y + 0.5 && b.Right > box.X && b.X < box.Right ? b : null;
         var problem = enc.Colored && anchor.Info?.FillOp is null

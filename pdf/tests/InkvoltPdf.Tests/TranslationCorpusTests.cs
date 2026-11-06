@@ -41,7 +41,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
             output.WriteLine($"{Path.GetFileName(file)}: {pages.Length} pages, {plan.ParagraphCount} paragraphs ({plan.Texts.Count} texts), {r.Translated} written, {r.Shrunk} shrunk, {r.DoNotFit} don't fit, {r.NotTranslated} not translated, " +
                              $"{plan.Blocked.Count} blocked, scans {plan.ScanPages.Count}, turned {plan.TurnedTextPages.Count}, failed {r.FailedPages.Count}; fonts {string.Join("/", r.Fonts)}; read {read.TotalSeconds:0.0}s write {sw.Elapsed.TotalSeconds:0.0}s; {pdf.Length / 1024} KB → {(result.Data?.Length ?? 0) / 1024} KB");
             foreach (var g in plan.Blocked.GroupBy(b => b.Why).OrderByDescending(g => g.Count()).Take(3)) output.WriteLine($"  blocked {g.Count()}: {g.Key}");
-            var marked = plan.Texts.Where(t => TranslationMarkup.IsMarked(t.Text)).ToList();
+            var marked = plan.Texts.Where(t => plan.Marked.Contains(t.Text)).ToList();
             output.WriteLine($"  {marked.Count} texts sent with markup");
             foreach (var t in marked.Take(4)) output.WriteLine($"    p{t.Page + 1}: {(t.Text.Length > 160 ? t.Text[..160] + "…" : t.Text)}");
             if (result.Data is null) continue;

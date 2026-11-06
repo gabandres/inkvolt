@@ -43,7 +43,7 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             output.WriteLine($"{Path.GetFileName(file)} p{page + 1}: {jobs.Count} texts in {took.TotalSeconds:0}s; {r.Translated} written, {r.Shrunk} shrunk, {r.DoNotFit} don't fit, {r.Unchanged} unchanged, {r.NotTranslated} left");
             foreach (var (source, text) in answers.Done.Where(a => a.Key == a.Value)) output.WriteLine($"  unchanged: \"{source}\"");
             foreach (var (source, why) in answers.Failed) output.WriteLine($"  not used: \"{source}\": {why}; said \"{(raw.TryGetValue(source, out var said) ? AiProtocol.Shorten(said, 200) : "")}\"");
-            foreach (var (source, reply) in raw.Where(kv => TranslationText.CleanReply(kv.Value, kv.Key).Text != kv.Value.Trim()))
+            foreach (var (source, reply) in raw.Where(kv => TranslationText.CleanReply(kv.Value, kv.Key, plan.Marked.Contains(kv.Key)).Text != kv.Value.Trim()))
                 output.WriteLine($"  cleaned: \"{AiProtocol.Shorten(reply, 120)}\"");
             foreach (var text in answers.Done.Values)
             {

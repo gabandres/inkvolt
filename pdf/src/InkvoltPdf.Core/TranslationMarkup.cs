@@ -87,8 +87,17 @@ internal static partial class TranslationMarkup
     /// <summary>The text of marked text with its tags taken out (what goes to a model when the markup can't go whole).</summary>
     public static string Plain(string marked) => Stripped(marked);
 
-    /// <summary>Whether text is markup <see cref="Mark"/> wrote: our tags, and no other angle bracket.</summary>
-    public static bool IsMarked(string text) => text.Contains('<') && Markable(OurTag().Replace(text, ""));
+    /// <summary>
+    /// Whether <paramref name="answer"/> to a paragraph's <paramref name="text"/> (sent as <paramref name="sent"/>, its
+    /// markup if it had looks) is the text itself: the markup echoed, or the plain text, or the markup with tags dropped.
+    /// </summary>
+    public static bool Echoes(string answer, string text, string sent)
+    {
+        if (answer == sent || answer == text) return true;
+        return sent != text && Collapsed(Stripped(answer)) == Collapsed(text);
+    }
+
+    private static string Collapsed(string s) => string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
     /// <summary>A reply with every tag but ours taken out (for text sent with markup).</summary>
     public static string WithoutOtherTags(string reply) => AnyTag().Replace(reply, m => IsOurs(m.ValueSpan) ? m.Value : "");
@@ -144,9 +153,16 @@ internal static partial class TranslationMarkup
     /// <summary>Text read from markup: its characters (spaces collapsed, ends trimmed), each one's looks, and per look its stretches' lengths (not counting spaces).</summary>
     private sealed record Parsed(string Text, Kind[] Kinds, Dictionary<Kind, List<int>> Stretches, int Letters, Kind Opened);
 
-    /// <summary>Markup read in one pass; null when it isn't well formed (another tag, one unclosed or crossed, a tag inside itself, sub and sup together).</summary>
+    /// <summary>Whether '&lt;' followed by <paramref name="next"/> opens a tag ("&lt;b", "&lt;/", "&lt;!--"), not a bare bracket ("a &lt; b", "&lt;-").</summary>
+    private static bool OpensTag(char next) => char.IsAsciiLetter(next) || next is '/' or '!' or '?';
+
+    /// <summary>
+    /// Markup read in one pass; null when it isn't well formed (another tag, one unclosed or crossed, a tag inside itself,
+    /// sub and sup together, a piece of one of ours). A bare '&lt;' or '&gt;' ("-&gt;", "a &lt; b") is text.
+    /// </summary>
     private static Parsed? Parse(string s)
     {
+        if (BrokenEnd().IsMatch(s)) return null;
         var text = new StringBuilder(s.Length);
         var kinds = new List<Kind>(s.Length);
         var stack = new List<(Kind Kind, int Letters)>(3);
@@ -156,8 +172,7 @@ internal static partial class TranslationMarkup
         for (var i = 0; i < s.Length;)
         {
             var c = s[i];
-            if (c == '>') return null;
-            if (c == '<')
+            if (c == '<' && i + 1 < s.Length && OpensTag(s[i + 1]))
             {
                 var end = s.IndexOf('>', i + 1, Math.Min(6, s.Length - i - 1));
                 if (end < 0) return null;
@@ -229,22 +244,30 @@ internal static partial class TranslationMarkup
         return true;
     }
 
-    /// <summary>A reply with every tag, and every piece of one of ours, taken out; then any angle bracket left (the text sent had none); spaces collapsed.</summary>
+    /// <summary>
+    /// A reply with every tag, and every piece of one of ours, taken out; then any '&lt;' left that opens a tag; spaces
+    /// collapsed. A bare '&lt;' or '&gt;' ("-&gt;", "a &lt; b") stays.
+    /// </summary>
     private static string Stripped(string reply)
     {
         var s = AnyTag().Replace(reply, "");
         s = TagPiece().Replace(s, "");
-        s = s.Replace("<", "", StringComparison.Ordinal).Replace(">", "", StringComparison.Ordinal);
-        return string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+        s = TagOpening().Replace(s, "");
+        return Collapsed(s);
     }
 
-    [GeneratedRegex(@"</?(b|i|sub|sup)>", RegexOptions.IgnoreCase)]
-    private static partial Regex OurTag();
-
-    [GeneratedRegex(@"</?[A-Za-z][^<>]{0,60}>")]
+    [GeneratedRegex(@"</?[A-Za-z][^<>]{0,60}>|<[!?][^<>]{0,60}>")]
     private static partial Regex AnyTag();
 
-    // What is left of one of ours cut short or garbled: "<b", "</sub", "sup>".
-    [GeneratedRegex(@"<\s*/?\s*(b|i|sub|sup)\b|\b/?(sub|sup)\s*>", RegexOptions.IgnoreCase)]
+    // What is left of one of ours cut short or garbled: "<b", "</sub", "< sup>", "/b>", "/SUB >", "sup>", " i>".
+    [GeneratedRegex(@"<\s*/?\s*(?:b|i|sub|sup)\b(?:\s*>)?|/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}])(?:b|i|sub|sup)\s*>", RegexOptions.IgnoreCase)]
     private static partial Regex TagPiece();
+
+    // The end of one of ours whose '<' is gone ("negrita/b>", "x /sub>", "word i>"); a whole tag ("<b>", "</b>") isn't one.
+    [GeneratedRegex(@"(?<!<)/\s*(?:b|i|sub|sup)\s*>|(?<![\p{L}\p{N}</])(?:b|i|sub|sup)\s*>", RegexOptions.IgnoreCase)]
+    private static partial Regex BrokenEnd();
+
+    // A '<' that opens a tag never closed ("<span", "</").
+    [GeneratedRegex(@"<(?=[A-Za-z/!?])")]
+    private static partial Regex TagOpening();
 }

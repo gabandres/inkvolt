@@ -35,14 +35,18 @@ public static partial class ContentEditor
     /// <summary>The marked-content tag a paragraph edit puts around text it gave a look of its own.</summary>
     internal const string LookTagName = "InkvoltLook";
 
-    /// <summary>What the tag around styled text says: the font family, bold and italic that were asked for (size and color are read from the text).</summary>
-    internal sealed record LookTag(string? Font, bool? Bold, bool? Italic)
+    /// <summary>
+    /// What the tag around styled text says: the font family, bold, italic and subscript or superscript that were asked
+    /// for (size and color are read from the text: a script's size is <see cref="ScriptScale"/> of its look's).
+    /// </summary>
+    internal sealed record LookTag(string? Font, bool? Bold, bool? Italic, TextScript? Script = null)
     {
         public static LookTag Read(CObj props)
         {
             var font = props["Font"] is { Kind: CKind.String } f ? Encoding.UTF8.GetString(f.Bytes) : null;
             bool? Flag(string key) => props[key] is { Kind: CKind.Bool } b ? b.Name == "true" : null;
-            return new LookTag(font, Flag("Bold"), Flag("Italic"));
+            var script = props["Script"] is { Kind: CKind.Name } s ? s.Name switch { "Sub" => TextScript.Sub, "Super" => TextScript.Super, _ => (TextScript?)null } : null;
+            return new LookTag(font, Flag("Bold"), Flag("Italic"), script);
         }
 
         public static string Write(TextLook look)
@@ -51,6 +55,7 @@ public static partial class ContentEditor
             if (look.Font is { } f) sb.Append(" /Font ").Append(ContentLexer.Literal(Encoding.UTF8.GetBytes(f)));
             if (look.Bold is { } b) sb.Append(" /Bold ").Append(b ? "true" : "false");
             if (look.Italic is { } i) sb.Append(" /Italic ").Append(i ? "true" : "false");
+            if (look.Script is { } s) sb.Append(" /Script ").Append(s == TextScript.Sub ? "/Sub" : "/Super");
             return sb.Append(" >> BDC ").ToString();
         }
     }
@@ -82,24 +87,26 @@ public static partial class ContentEditor
     /// <paramref name="text"/> (where <paramref name="at"/> says each run starts), its size and color as drawn, its font,
     /// bold and italic as its tag says; a run in another face of the paragraph's family (a bold word as the page's
     /// generator drew it) as bold or italic; a run in another family as that family (with bold or italic where its
-    /// face differs); spans of one look next to each other merged.
+    /// face differs); a subscript or superscript as its tag says, at the size of the look it is in; spans of one look
+    /// next to each other or a space apart merged.
     /// </summary>
-    private static List<TextSpan> SpansOf(TextRun lead, IEnumerable<(TextRun Run, int Start, int Length)> at)
+    private static List<TextSpan> SpansOf(TextRun lead, string text, IEnumerable<(TextRun Run, int Start, int Length)> at)
     {
         var spans = new List<TextSpan>();
         foreach (var (r, start, length) in at)
         {
             if (length <= 0) continue;
-            var size = Math.Abs(r.FontSize - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(r.FontSize, 1) : (double?)null;
+            var drawn = r.Tag?.Script is not null ? r.FontSize / ScriptScale : r.FontSize;
+            var size = Math.Abs(drawn - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(drawn, 1) : (double?)null;
             TextLook look;
-            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic);
+            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic, tag.Script);
             else if (!r.StandIn && r.Font is not null && !SameFamily(r, lead))
                 look = new TextLook(FontNames.Family(r.FontName), size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
                 look = new TextLook(null, size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else continue;
             if (look.IsPlain) continue;
-            if (spans.Count > 0 && spans[^1].Look == look && spans[^1].End >= start - 1)
+            if (spans.Count > 0 && spans[^1].Look == look && JoinsAcrossSpace(spans[^1].End, start, i => text[i]))
                 spans[^1] = spans[^1] with { Length = start + length - spans[^1].Start };
             else spans.Add(new TextSpan(start, length, look));
         }
@@ -107,21 +114,46 @@ public static partial class ContentEditor
     }
 
     /// <summary>
+    /// Whether a stretch starting at <paramref name="start"/> carries on one ending at <paramref name="end"/> of the same
+    /// look: right after it, or with a space between ("brown fox"); not across a letter ("a²b³", "BoldxFace").
+    /// </summary>
+    private static bool JoinsAcrossSpace(int end, int start, Func<int, char> at) => start <= end || start == end + 1 && at(end) == ' ';
+
+    /// <summary>A line's own baseline and size, as most of its characters sit on it (not a big name set higher, nor a script).</summary>
+    private static (double Y, double Size) LineBaseline(PLine line)
+    {
+        var chars = new Dictionary<double, (int Count, Dictionary<double, int> Sizes)>();
+        foreach (var r in line.Runs)
+        {
+            var n = r.Text.Trim().Length;
+            if (n == 0) continue;
+            var y = Math.Round(r.Origin.Y * 4) / 4;
+            if (!chars.TryGetValue(y, out var at)) at = (0, []);
+            var size = Math.Round(r.FontSize, 1);
+            at.Sizes[size] = at.Sizes.GetValueOrDefault(size) + n;
+            chars[y] = (at.Count + n, at.Sizes);
+        }
+        if (chars.Count == 0) return (line.Lead.Origin.Y, line.Lead.FontSize);
+        var (baseline, most) = chars.MaxBy(kv => kv.Value.Count);
+        return (baseline, most.Sizes.MaxBy(kv => kv.Value).Key);
+    }
+
+    /// <summary>
     /// For a translated copy, the look a run of a paragraph's line has that its translation keeps (<see cref="TranslationMarkup"/>):
     /// bold or italic where the paragraph's own text (<paramref name="own"/>) isn't (with its family when that is another,
     /// so the page's face for it is found again: LaTeX's bold and italic are families of their own); a subscript or a
-    /// superscript where it is smaller than its line's text and below or above its baseline. Null: the paragraph's own.
+    /// superscript where it is smaller than its line's text and below or above its baseline (<see cref="LineBaseline"/>).
+    /// Null: the paragraph's own.
     /// </summary>
-    private static TextLook? TranslationLook(TextRun own, PLine line, TextRun r)
+    private static TextLook? TranslationLook(TextRun own, (double Y, double Size) line, TextRun r)
     {
         if (r.Text.Trim().Length == 0) return null;
-        var main = line.Lead;
         TextScript? script = null;
-        if (main.FontSize > 0 && r.FontSize <= 0.85 * main.FontSize)
+        if (line.Size > 0 && r.FontSize <= 0.85 * line.Size)
         {
-            var drop = r.Origin.Y - main.Origin.Y; // page space: down is positive
-            if (drop >= 0.08 * main.FontSize) script = TextScript.Sub;
-            else if (drop <= -0.12 * main.FontSize) script = TextScript.Super;
+            var drop = r.Origin.Y - line.Y; // page space: down is positive
+            if (drop >= 0.08 * line.Size) script = TextScript.Sub;
+            else if (drop <= -0.12 * line.Size) script = TextScript.Super;
         }
         // A stand-in an earlier edit drew says its look only by its tag.
         bool bold = r.Tag?.Bold ?? (r.StandIn ? own.Bold : r.Bold), italic = r.Tag?.Italic ?? (r.StandIn ? own.Italic : r.Italic);
