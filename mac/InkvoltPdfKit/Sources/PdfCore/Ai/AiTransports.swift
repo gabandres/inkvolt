@@ -365,7 +365,7 @@ final class AiSocketTransport: AiTransport {
                             race.ready(connection)
                         case .waiting(let error), .failed(let error):
                             // Waiting means retrying later (macOS waits on a refused port): one answer is enough here.
-                            race.failed(Self.meaning(error))
+                            race.failed(Self.meaningBeforeReady(error, tls: tlsName != nil))
                             connection.cancel()
                         default:
                             break
@@ -406,6 +406,15 @@ final class AiSocketTransport: AiTransport {
             ? .ipv4(IPv4Address(Data(address.bytes))!)
             : .ipv6(IPv6Address(Data(address.bytes))!)
         return NWConnection(host: host, port: NWEndpoint.Port(rawValue: UInt16(clamping: port)) ?? .http, using: parameters)
+    }
+
+    /// What an error that ends a connection before it is ready means. With TLS, ready comes after the handshake, and a
+    /// connection closed or reset there is a server that didn't take https: a plain one answers the greeting it can't
+    /// read and hangs up, and its reset can come before the answer is read (which fails TLS the same way).
+    static func meaningBeforeReady(_ error: NWError, tls: Bool) -> AiNetError {
+        let meant = meaning(error)
+        if tls, case .closedEarly = meant { return .secureConnection }
+        return meant
     }
 
     /// What a Network.framework error means for the user.
@@ -721,16 +730,18 @@ public final class AiLoopbackServer: @unchecked Sendable {
     }
 
     /// One answer: raw bytes written in pieces, with an optional pause between them, then the connection closed
-    /// (`holdOpen`: kept open until `stop`).
+    /// (`holdOpen`: kept open until `stop`; `resets`: reset, as a server closing with what was sent unread does).
     public struct Answer: Sendable {
         public var pieces: [[UInt8]]
         public var pause: Double
         public var holdOpen: Bool
+        public var resets: Bool
 
-        public init(pieces: [[UInt8]], pause: Double = 0, holdOpen: Bool = false) {
+        public init(pieces: [[UInt8]], pause: Double = 0, holdOpen: Bool = false, resets: Bool = false) {
             self.pieces = pieces
             self.pause = pause
             self.holdOpen = holdOpen
+            self.resets = resets
         }
 
         public static func raw(_ text: String) -> Answer { Answer(pieces: [Array(text.utf8)]) }
@@ -864,6 +875,10 @@ public final class AiLoopbackServer: @unchecked Sendable {
         }
         if reply.holdOpen { // until the other side closes, or stop()
             while recv(client, &buffer, size, 0) > 0 {}
+        }
+        if reply.resets {
+            var linger = Darwin.linger(l_onoff: 1, l_linger: 0) // closing sends a reset
+            setsockopt(client, SOL_SOCKET, SO_LINGER, &linger, socklen_t(MemoryLayout<Darwin.linger>.size))
         }
         finish(client)
     }
