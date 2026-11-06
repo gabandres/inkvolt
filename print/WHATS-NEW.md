@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.4.0
 - Scanners with only a TWAIN driver (film scanners, older flatbeds and document scanners) now show on the printer list, with their printer or on their own, and scan in the Scan tab like any other: glass or feeder, both sides, color, grey or black and white, and the same review, clean up and presets. The driver's own window doesn't open. A scanner with a Windows driver too is listed once.
 - Scan in black and white: the Color choice in the Scan tab now offers it when the scanner does.
 - TWAIN scanners still show when Windows' own scanner service isn't answering, and the scanners it listed before stay on the list.
