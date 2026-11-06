@@ -184,10 +184,10 @@ public struct SnmpAccessError: Error, Equatable, CustomStringConvertible {
 
     public var description: String {
         switch reason {
-        case .unknownUser: "The printer doesn't know this SNMPv3 user name."
-        case .wrongAuthKey: "The printer refused the SNMPv3 authentication passphrase."
-        case .wrongPrivKey: "The printer couldn't read the request: check the SNMPv3 privacy passphrase."
-        case .securityLevel: "The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user."
+        case .unknownUser: loc("The printer doesn't know this SNMPv3 user name.")
+        case .wrongAuthKey: loc("The printer refused the SNMPv3 authentication passphrase.")
+        case .wrongPrivKey: loc("The printer couldn't read the request: check the SNMPv3 privacy passphrase.")
+        case .securityLevel: loc("The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.")
         }
     }
 }

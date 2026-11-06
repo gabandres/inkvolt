@@ -11,6 +11,7 @@ enum Launch {
         let args = Array(CommandLine.arguments.dropFirst())
         if FleetCommand.isFor(args) { exit(MainActor.assumeIsolated { StatusCommand.run(args) }) }
         if BatchPrintCommandLine.isCommand(args) { exit(MainActor.assumeIsolated { PrintCommand.run(args) }) }
+        AppLanguage.apply(args) // the commands above stay English
         InkvoltPrintApp.main()
     }
 }

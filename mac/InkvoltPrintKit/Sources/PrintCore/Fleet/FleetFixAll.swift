@@ -50,16 +50,20 @@ public struct FixAllReport: Equatable, Sendable {
     public var summary: String {
         if locked { return Pro.locked(.fleetExport) }
         if let stopped, steps.isEmpty { return stopped }
-        if steps.isEmpty { return left.isEmpty ? "Every queue is fine: nothing to fix." : "No safe repair to make. What's left needs each printer's own Fix It…" }
+        if steps.isEmpty {
+            return left.isEmpty ? loc("Every queue is fine: nothing to fix.") : loc("No safe repair to make. What's left needs each printer's own Fix It…")
+        }
         func count(_ kinds: FixAllKind...) -> Int { steps.filter { kinds.contains($0.kind) }.count }
-        let parts: [(Int, String)] = [
-            (count(.fixed), "Fixed %d"),
-            (count(.declined), "%d you said no to"),
-            (count(.manual), "%d to do by hand"),
-            (count(.failed), "%d didn't work"),
-            (count(.gone, .alreadyFine), "%d no longer needed"),
-        ]
-        let said = parts.filter { $0.0 > 0 }.map { $0.1.replacingOccurrences(of: "%d", with: String($0.0)) }.joined(separator: ", ")
+        func part(_ n: Int, _ one: String, _ many: String) -> String? { n == 0 ? nil : n == 1 ? one : many }
+        let fixed = count(.fixed), declined = count(.declined), manual = count(.manual), failed = count(.failed)
+        let moot = count(.gone, .alreadyFine)
+        var parts: [String?] = []
+        parts.append(part(fixed, loc("Fixed {0}", context: "one", fixed), loc("Fixed {0}", context: "many", fixed)))
+        parts.append(part(declined, loc("{0} you said no to", context: "one", declined), loc("{0} you said no to", context: "many", declined)))
+        parts.append(part(manual, loc("{0} to do by hand", context: "one", manual), loc("{0} to do by hand", context: "many", manual)))
+        parts.append(part(failed, loc("{0} didn't work", context: "one", failed), loc("{0} didn't work", context: "many", failed)))
+        parts.append(part(moot, loc("{0} no longer needed", context: "one", moot), loc("{0} no longer needed", context: "many", moot)))
+        let said = parts.compactMap { $0 }.joined(separator: ", ")
         return said + "." + (stopped.map { " \($0)" } ?? "")
     }
 }
@@ -83,8 +87,8 @@ public enum FleetFixAll {
     /// How long a read of cupsd's queues is waited for (the Windows app's `QueueReadLimit`).
     public static let readLimit: Duration = .seconds(10)
 
-    static let noAnswer = "macOS's printing system didn't answer"
-    static let stoppedText = "Stopped: the rest wasn't changed."
+    static var noAnswer: String { loc("macOS's printing system didn't answer") }
+    static var stoppedText: String { loc("Stopped: the rest wasn't changed.") }
 
     public static func run(_ targets: [FixAllTarget], queues: any PrintQueues, control: any QueueControl,
                            confirm: @escaping @Sendable (Repair) async -> Bool, progress: (@Sendable (FixAllStep) -> Void)? = nil,
@@ -92,7 +96,7 @@ public enum FleetFixAll {
         guard Pro.allows(.fleetExport) else { return FixAllReport([], [], locked: true) }
         // What's wrong, first: nothing is asked while the rest is still being read.
         guard let destinations = await read(queues, limit) else {
-            return FixAllReport([], [], stopped: "\(noAnswer), so nothing was changed. Try again in a moment.")
+            return FixAllReport([], [], stopped: loc("{0}, so nothing was changed. Try again in a moment.", noAnswer))
         }
         var matched: [(target: FixAllTarget, queue: MatchedQueue)] = []
         var seen = Set<String>()
@@ -150,7 +154,7 @@ public enum FleetFixAll {
 
     /// A queue's name (`printer-info`, which a driverless printer fills itself) or a line holding it, cleaned and bounded as
     /// the page's text is (`FleetText`): it goes into a question and onto the page.
-    static func shown(_ text: String) -> String { FleetText.clean(text, FleetPrinter.maxText) ?? "Printer with no name" }
+    static func shown(_ text: String) -> String { FleetText.clean(text, FleetPrinter.maxText) ?? loc("Printer with no name") }
 
     /// The question asked before a safe repair, by the printer's name.
     private static func asked(_ repair: Repair, _ name: String) -> Repair {
@@ -158,11 +162,11 @@ public enum FleetFixAll {
         var r = repair
         r.title = Self.shown(r.title)
         if r.kind == .resumeQueue {
-            r.question = "Resume “\(shown)”? The jobs waiting in it start printing."
-            r.confirm = "Resume"
+            r.question = loc("Resume “{0}”? The jobs waiting in it start printing.", shown)
+            r.confirm = loc("Resume")
         } else {
-            r.question = "Let “\(shown)” accept print jobs again?"
-            r.confirm = "Accept Jobs"
+            r.question = loc("Let “{0}” accept print jobs again?", shown)
+            r.confirm = loc("Accept Jobs")
         }
         return r
     }
@@ -171,17 +175,17 @@ public enum FleetFixAll {
     private static func one(_ repair: Repair, _ queues: any PrintQueues, _ control: any QueueControl,
                             _ confirm: @Sendable (Repair) async -> Bool, _ limit: Duration) async -> FixAllStep? {
         let name = repair.queue ?? ""
-        guard await confirm(repair) else { return Task.isCancelled ? nil : FixAllStep(name, repair.title, .declined, "You said no: not changed.") }
+        guard await confirm(repair) else { return Task.isCancelled ? nil : FixAllStep(name, repair.title, .declined, loc("You said no: not changed.")) }
         if Task.isCancelled { return nil }
         guard let destinations = await read(queues, limit) else {
-            return FixAllStep(name, repair.title, .failed, "Couldn't check it first, so it wasn't changed: \(noAnswer).")
+            return FixAllStep(name, repair.title, .failed, loc("Couldn't check it first, so it wasn't changed: {0}.", noAnswer))
         }
         if Task.isCancelled { return nil }
         guard let now = destinations.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
-            return FixAllStep(name, repair.title, .gone, "macOS no longer has this printer: nothing changed.")
+            return FixAllStep(name, repair.title, .gone, loc("macOS no longer has this printer: nothing changed."))
         }
         let fine = repair.kind == .resumeQueue ? now.state != 5 : now.isAcceptingJobs
-        if fine { return FixAllStep(name, repair.title, .alreadyFine, "Already fixed: nothing more to do.") }
+        if fine { return FixAllStep(name, repair.title, .alreadyFine, loc("Already fixed: nothing more to do.")) }
         let outcome = await RepairRunner.run(repair, queues: queues, control: control)
         let kind: FixAllKind = switch outcome.kind {
         case .fixed: .fixed

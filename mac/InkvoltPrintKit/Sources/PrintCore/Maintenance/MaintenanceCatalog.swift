@@ -43,7 +43,7 @@ public struct MaintenanceAction: Equatable, Sendable {
     public var label: String { brand.map { "\(title) (\($0))" } ?? title }
 
     public var confirmText: String {
-        "\(label)?\n\n\(uses)" + (printsPage ? "\n\nThe printer needs to be on and free, with plain paper loaded." : "")
+        "\(label)?\n\n\(uses)" + (printsPage ? loc("\n\nThe printer needs to be on and free, with plain paper loaded.") : "")
     }
 }
 
@@ -121,23 +121,23 @@ public enum MaintenanceCatalog {
     public static func detect(_ s: MaintenanceSources) -> MaintenanceOptions {
         var actions: [MaintenanceAction] = []
         let supply = switch s.marking {
-        case .toner: "toner"
-        case .ink: "ink"
-        case .unknown: "ink or toner"
+        case .toner: loc("toner", context: "supply kind")
+        case .ink: loc("ink", context: "supply kind")
+        case .unknown: loc("ink or toner")
         }
         if let jobs = s.ledmJobTypes, let dyn = s.ledmDynPath {
             let listed = Set(jobs)
             for job in reports where listed.contains(job) { actions.append(report(job, supply, dyn)) }
             for (i, job) in cleanings.filter(listed.contains).enumerated() { actions.append(cleaning(job, i + 1, s.marking, dyn)) }
             if listed.contains("cleaningVerificationPage") {
-                actions.append(hp("cleaningVerificationPage", .cleaningCheck, "Print cleaning check page", dyn, "1 page · plain paper",
-                                  "Prints 1 page on plain paper with test patterns, to see whether a cleaning helped. Uses a little \(supply).",
-                                  "Print", "Sent. The printer will print the cleaning check page."))
+                actions.append(hp("cleaningVerificationPage", .cleaningCheck, loc("Print cleaning check page"), dyn, loc("1 page · plain paper"),
+                                  loc("Prints 1 page on plain paper with test patterns, to see whether a cleaning helped. Uses a little {0}.", supply),
+                                  loc("Print"), loc("Sent. The printer will print the cleaning check page.")))
             }
             if listed.contains("ribSmearCleaningPage") && s.marking != .toner {
-                actions.append(hp("ribSmearCleaningPage", .smearCleaning, "Clean page smears", dyn, "1 sheet · a few minutes · a little ink",
-                                  "Feeds a sheet of plain paper through the printer to clean ink smears off the rollers. Takes a few minutes; uses a little ink.",
-                                  "Clean", "Sent. The printer will feed a sheet to clean its rollers."))
+                actions.append(hp("ribSmearCleaningPage", .smearCleaning, loc("Clean page smears"), dyn, loc("1 sheet · a few minutes · a little ink"),
+                                  loc("Feeds a sheet of plain paper through the printer to clean ink smears off the rollers. Takes a few minutes; uses a little ink."),
+                                  loc("Clean"), loc("Sent. The printer will feed a sheet to clean its rollers.")))
             }
         }
         if let mode = s.alignmentMode { actions.append(alignment(mode)) }
@@ -147,17 +147,15 @@ public enum MaintenanceCatalog {
         let hpActions = actions.contains { $0.brand != nil }
         let note: String?
         if !s.hasLedm && s.hasCdm {
-            note = "This newer HP printer uses HP's CDM interface, whose maintenance requests aren't publicly documented, so "
-                + "Inkvolt Print doesn't start them: use its control panel or its web page."
+            note = loc("This newer HP printer uses HP's CDM interface, whose maintenance requests aren't publicly documented, so Inkvolt Print doesn't start them: use its control panel or its web page.")
         } else if s.hasLedm && !hpActions {
-            note = "This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it "
-                + "from its control panel or its web page."
+            note = loc("This printer doesn't offer its maintenance pages to other apps. Print a configuration page, clean or align it from its control panel or its web page.")
         } else if !s.hasLedm && s.hasSnmp {
-            note = "Inkvolt Print reads this printer over SNMP, which has no maintenance requests, so it can't start "
-                + "cleaning, nozzle checks or alignment: use its control panel or its web page."
+            note = loc("Inkvolt Print reads this printer over SNMP, which has no maintenance requests, so it can't start cleaning, nozzle checks or alignment: use its control panel or its web page.")
         } else if !s.hasLedm {
-            note = "Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start "
-                + "them on this printer: use its control panel" + (supplyPage == nil ? " or its web page." : " or its maintenance page.")
+            note = supplyPage == nil
+                ? loc("Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start them on this printer: use its control panel or its web page.")
+                : loc("Head cleaning, nozzle checks and alignment aren't part of the IPP printing standard, so Inkvolt Print can't start them on this printer: use its control panel or its maintenance page.")
         } else {
             note = nil
         }
@@ -167,25 +165,25 @@ public enum MaintenanceCatalog {
     private static func report(_ job: String, _ supply: String, _ dyn: String) -> MaintenanceAction {
         switch job {
         case "configurationPage":
-            hp(job, .configurationPage, "Print configuration page", dyn, "1 or 2 pages · plain paper · a little \(supply)",
-               "Prints 1 or 2 pages on plain paper with the printer's settings, network address and supply status. Uses a little \(supply).",
-               "Print", "Sent. The printer will print its configuration page.")
+            hp(job, .configurationPage, loc("Print configuration page"), dyn, loc("1 or 2 pages · plain paper · a little {0}", supply),
+               loc("Prints 1 or 2 pages on plain paper with the printer's settings, network address and supply status. Uses a little {0}.", supply),
+               loc("Print"), loc("Sent. The printer will print its configuration page."))
         case "pqDiagnosticsPage":
-            hp(job, .qualityReport, "Print quality report", dyn, "1 page · plain paper · some \(supply)",
-               "Prints 1 page on plain paper with color blocks and patterns that show streaks, faded colors or misalignment. Uses some \(supply).",
-               "Print", "Sent. The printer will print its print quality report.")
+            hp(job, .qualityReport, loc("Print quality report"), dyn, loc("1 page · plain paper · some {0}", supply),
+               loc("Prints 1 page on plain paper with color blocks and patterns that show streaks, faded colors or misalignment. Uses some {0}.", supply),
+               loc("Print"), loc("Sent. The printer will print its print quality report."))
         case "diagnosticsPage":
-            hp(job, .diagnosticsPage, "Print diagnostics page", dyn, "Usually 1 page · plain paper",
-               "Prints the printer's diagnostics page on plain paper (usually 1 page). Uses a little \(supply).",
-               "Print", "Sent. The printer will print its diagnostics page.")
+            hp(job, .diagnosticsPage, loc("Print diagnostics page"), dyn, loc("Usually 1 page · plain paper"),
+               loc("Prints the printer's diagnostics page on plain paper (usually 1 page). Uses a little {0}.", supply),
+               loc("Print"), loc("Sent. The printer will print its diagnostics page."))
         case "networkSummary":
-            hp(job, .networkPage, "Print network configuration page", dyn, "1 page · plain paper",
-               "Prints 1 page on plain paper with the printer's network settings and addresses. Uses a little \(supply).",
-               "Print", "Sent. The printer will print its network configuration page.")
+            hp(job, .networkPage, loc("Print network configuration page"), dyn, loc("1 page · plain paper"),
+               loc("Prints 1 page on plain paper with the printer's network settings and addresses. Uses a little {0}.", supply),
+               loc("Print"), loc("Sent. The printer will print its network configuration page."))
         default:
-            hp(job, .wirelessTest, "Print wireless test report", dyn, "Tests Wi-Fi · 1 page · plain paper",
-               "The printer tests its Wi-Fi connection and prints the result on 1 page of plain paper. Uses a little \(supply).",
-               "Print", "Sent. The printer will test its Wi-Fi and print the report.")
+            hp(job, .wirelessTest, loc("Print wireless test report"), dyn, loc("Tests Wi-Fi · 1 page · plain paper"),
+               loc("The printer tests its Wi-Fi connection and prints the result on 1 page of plain paper. Uses a little {0}.", supply),
+               loc("Print"), loc("Sent. The printer will test its Wi-Fi and print the report."))
         }
     }
 
@@ -193,19 +191,16 @@ public enum MaintenanceCatalog {
         var action: MaintenanceAction
         if marking == .toner {
             // A LaserJet's cleaning page cleans the paper path (fuser), not a printhead.
-            action = hp(job, .cleaning, level == 1 ? "Print cleaning page" : "Print cleaning page, level \(level)", dyn,
-                        "1 sheet · plain paper · a little toner",
-                        "Runs the printer's cleaning page: feeds a sheet of plain paper through to clean the paper path. Uses a little toner "
-                            + "and takes a minute or two.", "Print", "Sent. The printer will run its cleaning page.")
+            action = hp(job, .cleaning, level == 1 ? loc("Print cleaning page") : loc("Print cleaning page, level {0}", level), dyn,
+                        loc("1 sheet · plain paper · a little toner"),
+                        loc("Runs the printer's cleaning page: feeds a sheet of plain paper through to clean the paper path. Uses a little toner and takes a minute or two."), loc("Print"), loc("Sent. The printer will run its cleaning page."))
         } else {
             let uses = level == 1
-                ? "Cleans the printhead's nozzles and may print a test page on plain paper. Uses some ink; try it when prints are "
-                    + "streaky or a color is missing."
-                : "A deeper cleaning than level \(level - 1); uses more ink. Try it only when level \(level - 1) didn't fix the prints, "
-                    + "and let the printer rest a few minutes in between."
-            action = hp(job, .cleaning, level == 1 ? "Clean printhead" : "Clean printhead, level \(level)", dyn,
-                        level == 1 ? "A few minutes · uses some ink" : "Deeper · uses more ink", uses, "Clean",
-                        "Sent. The printer is cleaning its printhead; this takes a few minutes.")
+                ? loc("Cleans the printhead's nozzles and may print a test page on plain paper. Uses some ink; try it when prints are streaky or a color is missing.")
+                : loc("A deeper cleaning than level {0}; uses more ink. Try it only when level {0} didn't fix the prints, and let the printer rest a few minutes in between.", level - 1)
+            action = hp(job, .cleaning, level == 1 ? loc("Clean printhead") : loc("Clean printhead, level {0}", level), dyn,
+                        level == 1 ? loc("A few minutes · uses some ink") : loc("Deeper · uses more ink"), uses, loc("Clean"),
+                        loc("Sent. The printer is cleaning its printhead; this takes a few minutes."))
         }
         action.level = level
         return action
@@ -214,20 +209,25 @@ public enum MaintenanceCatalog {
     private static func alignment(_ mode: String) -> MaintenanceAction {
         let semi = mode == "semiAutomatic"
         var a = MaintenanceAction(
-            id: "ledm:align", kind: .alignment, title: "Align printhead", brand: "HP",
+            id: "ledm:align", kind: .alignment, title: loc("Align printhead"), brand: "HP",
             uses: semi
-                ? "Prints an alignment page on plain paper (uses a little ink). Then place the page face down on the scanner glass and "
-                    + "follow the printer's control panel to scan it."
-                : "Prints an alignment page on plain paper and adjusts the printhead from it. Uses a little ink and takes a few minutes.",
-            summary: semi ? "1 page · plain paper · then scanned on the glass" : "1 page · plain paper · a few minutes",
-            confirmButton: "Align",
+                ? loc("Prints an alignment page on plain paper (uses a little ink). Then place the page face down on the scanner glass and follow the printer's control panel to scan it.")
+                : loc("Prints an alignment page on plain paper and adjusts the printhead from it. Uses a little ink and takes a few minutes."),
+            summary: semi ? loc("1 page · plain paper · then scanned on the glass") : loc("1 page · plain paper · a few minutes"),
+            confirmButton: loc("Align"),
             sent: semi
-                ? "Sent. When the alignment page is out, put it face down on the scanner glass and follow the printer's control panel."
-                : "Sent. The printer will print its alignment page and adjust itself.")
+                ? loc("Sent. When the alignment page is out, put it face down on the scanner glass and follow the printer's control panel.")
+                : loc("Sent. The printer will print its alignment page and adjust itself."))
         a.printsPage = true
         a.target = MaintenanceRequests.calibrationSessionPath
-        a.unavailable = mode == "automatic" || semi ? nil : "This printer aligns by hand (choosing patterns): use its control panel or its web page."
+        a.unavailable = mode == "automatic" || semi ? nil : loc("This printer aligns by hand (choosing patterns): use its control panel or its web page.")
         return a
+    }
+
+    /// "a, b and c", in the interface's language.
+    static func and(_ parts: [String]) -> String {
+        guard parts.count > 1, let last = parts.last else { return parts.first ?? "" }
+        return loc("{0} and {1}", parts.dropLast().joined(separator: ", "), last)
     }
 
     private static func identify(_ ipp: IppResponse) -> MaintenanceAction {
@@ -235,25 +235,24 @@ public enum MaintenanceCatalog {
         let chosen = identifyOrder.filter(supported.contains)
         let what = chosen.map { a in
             switch a {
-            case "flash": "flashes its lights"
-            case "sound": "makes a sound"
-            default: "shows a message on its control panel"
+            case "flash": loc("flashes its lights")
+            case "sound": loc("makes a sound")
+            default: loc("shows a message on its control panel")
             }
         }
-        var signal = chosen.isEmpty ? "Its usual signal"
-            : chosen.map { a in
+        var signal = chosen.isEmpty ? loc("Its usual signal")
+            : Self.and(chosen.map { a in
                 switch a {
-                case "flash": "lights"
-                case "sound": "sound"
-                default: "a message"
+                case "flash": loc("lights")
+                case "sound": loc("sound")
+                default: loc("a message")
                 }
-            }.joined(separator: " and ")
+            })
         signal = signal.prefix(1).uppercased() + signal.dropFirst()
-        let does = what.isEmpty ? "shows where it is the way it's set to (lights, a sound or a message)"
-            : what.count == 1 ? what[0] : what.dropLast().joined(separator: ", ") + " and " + what[what.count - 1]
-        var a = MaintenanceAction(id: "ipp:identify", kind: .identify, title: "Identify printer",
-                                  uses: "The printer \(does), so you can tell which one it is. Uses no paper, ink or toner.",
-                                  summary: "\(signal) · no paper or ink", confirmButton: "Identify", sent: "Sent. The printer \(does).")
+        let does = what.isEmpty ? loc("shows where it is the way it's set to (lights, a sound or a message)") : Self.and(what)
+        var a = MaintenanceAction(id: "ipp:identify", kind: .identify, title: loc("Identify printer"),
+                                  uses: loc("The printer {0}, so you can tell which one it is. Uses no paper, ink or toner.", does),
+                                  summary: loc("{0} · no paper or ink", signal), confirmButton: loc("Identify"), sent: loc("Sent. The printer {0}.", does))
         a.identifyActions = chosen
         return a
     }
@@ -281,12 +280,12 @@ public enum MaintenanceCatalog {
 public enum MaintenanceAvailability {
     public static func whyNot(_ action: MaintenanceAction, online: Bool, status: PrinterStatus?, busy: Bool) -> String? {
         if let reason = action.unavailable { return reason }
-        if !online { return "The printer isn't answering." }
-        if busy { return "Waiting for the printer to answer the last request." }
+        if !online { return loc("The printer isn't answering.") }
+        if busy { return loc("Waiting for the printer to answer the last request.") }
         guard action.printsPage, let status else { return nil }
-        if status.severity == .error { return "Fix this first: \(trimmedPeriods(status.message))." }
-        if status.code == "processing" || status.code == "printing" { return "The printer is printing; try again when it's done." }
-        if busyStates.contains(status.code) { return "The printer is busy (\(trimmedPeriods(status.message))); try again when it's ready." }
+        if status.severity == .error { return loc("Fix this first: {0}.", trimmedPeriods(status.message)) }
+        if status.code == "processing" || status.code == "printing" { return loc("The printer is printing; try again when it's done.") }
+        if busyStates.contains(status.code) { return loc("The printer is busy ({0}); try again when it's ready.", trimmedPeriods(status.message)) }
         return nil
     }
 

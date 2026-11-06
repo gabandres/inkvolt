@@ -32,32 +32,31 @@ public enum CartridgeGuard {
                                              withAuth: (@Sendable () async throws -> Void) async throws -> Void) async throws -> CartridgeGuardResult {
         if settings.mode == .off {
             return CartridgeGuardResult(outcome: .alreadyOff, readBack: .off,
-                                        text: "Automatic firmware updates are already off on this printer, so no update installs by itself. Nothing was changed.")
+                                        text: loc("Automatic firmware updates are already off on this printer, so no update installs by itself. Nothing was changed."))
         }
         guard settings.canChange, settings.choices.contains(.off), settings.configPath != nil else {
             return CartridgeGuardResult(outcome: .cantChange, readBack: settings.mode,
-                                        text: "This printer doesn't let apps change its automatic firmware updates. Turn them off on its web page, under the firmware update settings.")
+                                        text: loc("This printer doesn't let apps change its automatic firmware updates. Turn them off on its web page, under the firmware update settings."))
         }
         try await withAuth { try await ledm.setFirmwareUpdate(.off, in: settings) }
         let back = try await ledm.firmwareUpdate()
         switch back?.mode {
         case .off?:
             return CartridgeGuardResult(outcome: .done, readBack: .off,
-                                        text: "Done: automatic firmware updates are off, and the printer confirms it. A firmware update now installs only if you "
-                                            + "install it yourself, from the printer's web page or its control panel.")
+                                        text: loc("Done: automatic firmware updates are off, and the printer confirms it. A firmware update now installs only if you install it yourself, from the printer's web page or its control panel."))
         case let other?:
             return CartridgeGuardResult(outcome: .notKept, readBack: other,
-                                        text: "The printer was asked to turn automatic updates off, but it reads back \"\(words(other))\". Turn them off on its web page.")
+                                        text: loc("The printer was asked to turn automatic updates off, but it reads back \"{0}\". Turn them off on its web page.", words(other)))
         case nil:
             return CartridgeGuardResult(outcome: .notKept, readBack: nil,
-                                        text: "The printer took the change but didn't say what it kept. Check its firmware update settings on its web page.")
+                                        text: loc("The printer took the change but didn't say what it kept. Check its firmware update settings on its web page."))
         }
     }
 
     private static func words(_ mode: FirmwareUpdateMode) -> String {
         switch mode {
-        case .automatic: "install automatically"
-        case .notify: "check, don't install"
+        case .automatic: loc("install automatically")
+        case .notify: loc("check, don't install")
         case .off: "off"
         }
     }

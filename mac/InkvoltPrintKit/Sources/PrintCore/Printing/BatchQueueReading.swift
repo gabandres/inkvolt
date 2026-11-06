@@ -9,8 +9,8 @@ public enum BatchQueueReading {
     /// batch; a warning (toner low) doesn't, nor does a paused queue, which takes the jobs.
     public static func problem(state: Int?, accepting: Bool?, reasons: [String]) -> String? {
         // A paused queue (5, stopped) takes the jobs and prints them when it's resumed, as Windows' paused queue does.
-        guard state != nil else { return "macOS has no such print queue now." }
-        if accepting == false { return "The printer's queue isn't taking jobs: resume it in System Settings › Printers & Scanners." }
+        guard state != nil else { return loc("macOS has no such print queue now.") }
+        if accepting == false { return loc("The printer's queue isn't taking jobs: resume it in System Settings › Printers & Scanners.") }
         for raw in reasons where raw != "none" && !raw.hasSuffix("-warning") {
             var bare = raw
             for suffix in ["-error", "-report"] where bare.hasSuffix(suffix) { bare = String(bare.dropLast(suffix.count)) }

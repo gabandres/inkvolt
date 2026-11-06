@@ -64,9 +64,9 @@ public enum CupsQueues {
     public static func connectionText(_ d: CupsDestination) -> String {
         switch connection(d) {
         case .usb: "USB"
-        case .network: "Network"
-        case .shared: server(d).map { "Shared from \($0)" } ?? "Shared from another computer"
-        case .other: "Set up on this Mac"
+        case .network: loc("Network")
+        case .shared: server(d).map { loc("Shared from {0}", $0) } ?? loc("Shared from another computer")
+        case .other: loc("Set up on this Mac")
         }
     }
 
@@ -216,8 +216,8 @@ public enum CupsStatus {
     public static func jobsNote(_ d: CupsDestination) -> String? {
         switch d.jobs ?? 0 {
         case ...0: nil
-        case 1: "1 job is waiting."
-        case let n: "\(n) jobs are waiting."
+        case 1: loc("1 job is waiting.")
+        case let n: loc("{0} jobs are waiting.", n)
         }
     }
 
@@ -226,13 +226,13 @@ public enum CupsStatus {
         let reasons = d.reasons.map { IppClient.splitReason($0).id }
         if reasons.contains("offline") || reasons.contains("offline-report") && d.state != 4 {
             let check = switch CupsQueues.connection(d) {
-            case .usb: "Check that it's turned on and its USB cable is plugged in."
-            case .shared: "Check that the computer sharing it is on and the printer is turned on."
-            case .network: "Check that it's turned on and on the same network as this Mac."
-            case .other: "Check that it's turned on and connected."
+            case .usb: loc("Check that it's turned on and its USB cable is plugged in.")
+            case .shared: loc("Check that the computer sharing it is on and the printer is turned on.")
+            case .network: loc("Check that it's turned on and on the same network as this Mac.")
+            case .other: loc("Check that it's turned on and connected.")
             }
-            return QueueReading(status: PrinterStatus(code: "offline", message: "Offline", severity: .error, alerts: [],
-                                                      detail: "macOS can't reach the printer. \(check)\(waiting)"), offline: true)
+            return QueueReading(status: PrinterStatus(code: "offline", message: loc("Offline"), severity: .error, alerts: [],
+                                                      detail: loc("macOS can't reach the printer. {0}{1}", check, waiting)), offline: true)
         }
 
         var attributes = d.asIpp.attributes
@@ -250,13 +250,13 @@ public enum CupsStatus {
                 return QueueReading(status: PrinterStatus(code: "error", message: error.message, severity: .error, alerts: status.alerts,
                                                           detail: join(IppStatusText.explain(error.id), jobs)), offline: false)
             }
-            return QueueReading(status: PrinterStatus(code: "paused", message: "Paused in macOS", severity: .warning, alerts: status.alerts,
-                                                      detail: "macOS holds print jobs until the printer is resumed (Printers & Scanners › Printer Queue › Resume).\(waiting)"),
+            return QueueReading(status: PrinterStatus(code: "paused", message: loc("Paused in macOS"), severity: .warning, alerts: status.alerts,
+                                                      detail: loc("macOS holds print jobs until the printer is resumed (Printers & Scanners › Printer Queue › Resume).{0}", waiting)),
                                 offline: false)
         }
         if !d.isAcceptingJobs && status.severity != .error {
-            return QueueReading(status: PrinterStatus(code: "rejecting", message: "Not accepting jobs", severity: .warning, alerts: status.alerts,
-                                                      detail: "macOS turns new print jobs away for this printer until it accepts them again.\(waiting)"),
+            return QueueReading(status: PrinterStatus(code: "rejecting", message: loc("Not accepting jobs"), severity: .warning, alerts: status.alerts,
+                                                      detail: loc("macOS turns new print jobs away for this printer until it accepts them again.{0}", waiting)),
                                 offline: false)
         }
         status.detail = join(status.detail, jobs)
@@ -364,8 +364,8 @@ public final class FixedQueues: PrintQueues {
         let user = user
         let refused: PrintJobCancelError? = held.withLock { h in
             guard let key = h.keys.first(where: { $0.caseInsensitiveCompare(queue) == .orderedSame }),
-                  let i = h[key]?.firstIndex(where: { $0.id == job }) else { return PrintJobCancelError("It has already finished.") }
-            guard QueueJobText.isOwner(h[key]![i].owner, user) else { return PrintJobCancelError("Only an administrator can cancel someone else's job.") }
+                  let i = h[key]?.firstIndex(where: { $0.id == job }) else { return PrintJobCancelError(loc("It has already finished.")) }
+            guard QueueJobText.isOwner(h[key]![i].owner, user) else { return PrintJobCancelError(loc("Only an administrator can cancel someone else's job.")) }
             h[key]!.remove(at: i)
             return nil
         }

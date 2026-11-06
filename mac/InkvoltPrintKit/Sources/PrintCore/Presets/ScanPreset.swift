@@ -231,14 +231,14 @@ public enum ScanPresets {
     public static func builtIns() -> [ScanPreset] {
         var document = ScanPreset()
         document.id = "document"
-        document.name = "Document to PDF"
+        document.name = loc("Document to PDF")
         document.color = false
-        document.subfolder = "Scans"
-        document.fileName = "Document {date} {time}"
+        document.subfolder = loc("Scans")
+        document.fileName = loc("Document {date} {time}")
 
         var photo = ScanPreset()
         photo.id = "photo"
-        photo.name = "Photo"
+        photo.name = loc("Photo")
         photo.source = .glass
         photo.resolution = 600
         photo.pageSize = "full"
@@ -247,17 +247,17 @@ public enum ScanPresets {
         photo.skipBlank = false
         photo.straighten = false
         photo.folder = .pictures
-        photo.subfolder = "Scans"
-        photo.fileName = "Photo {date} {time}"
+        photo.subfolder = loc("Scans")
+        photo.fileName = loc("Photo {date} {time}")
 
         var receipt = ScanPreset()
         receipt.id = "receipt"
-        receipt.name = "Receipt"
+        receipt.name = loc("Receipt")
         receipt.source = .glass
         receipt.color = false
         receipt.pageSize = "full"
-        receipt.subfolder = "Scans/Receipts/{date:yyyy}"
-        receipt.fileName = "Receipt {date} {n:000}"
+        receipt.subfolder = loc("Scans/Receipts/{date:yyyy}")
+        receipt.fileName = loc("Receipt {date} {n:000}")
         return [document, photo, receipt]
     }
 
@@ -271,7 +271,7 @@ public enum ScanPresets {
             guard var p = raw else { continue }
             if !isValidId(p.id) || ids.contains(p.id) { p.id = newId() }
             let trimmed = p.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            p.name = trimmed.isEmpty ? "Scan preset" : String(trimmed.prefix(maxNameLength))
+            p.name = trimmed.isEmpty ? loc("Scan preset") : String(trimmed.prefix(maxNameLength))
             if !p.source.isKnown { p.source = .auto }
             if !p.fileType.isKnown { p.fileType = .pdf }
             if !p.after.isKnown { p.after = .none }
@@ -340,7 +340,7 @@ public enum ScanPresets {
     public static func create(_ existing: [ScanPreset]) -> ScanPreset {
         var p = ScanPreset()
         p.id = newId()
-        p.name = uniqueName(existing.map(\.name), "New preset")
+        p.name = uniqueName(existing.map(\.name), loc("New preset"))
         return p
     }
 
@@ -348,7 +348,7 @@ public enum ScanPresets {
     public static func duplicate(_ existing: [ScanPreset], _ preset: ScanPreset) -> ScanPreset {
         var p = preset
         p.id = newId()
-        p.name = uniqueName(existing.map(\.name), "\(preset.name) copy")
+        p.name = uniqueName(existing.map(\.name), loc("{0} copy", context: "preset name", preset.name))
         p.nextNumber = 1
         return p
     }
@@ -356,10 +356,10 @@ public enum ScanPresets {
     /// Why `name` can't be the name of preset `id`; nil when it can.
     public static func nameProblem(_ existing: [ScanPreset], _ id: String, _ name: String?) -> String? {
         let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if trimmed.isEmpty { return "Give the preset a name." }
-        if trimmed.count > maxNameLength { return "Names can be up to \(maxNameLength) characters." }
+        if trimmed.isEmpty { return loc("Give the preset a name.") }
+        if trimmed.count > maxNameLength { return loc("Names can be up to {0} characters.", maxNameLength) }
         if let other = existing.first(where: { $0.id != id && $0.name.trimmingCharacters(in: .whitespaces).caseInsensitiveCompare(trimmed) == .orderedSame }) {
-            return "Another preset is already called \"\(other.name)\"."
+            return loc("Another preset is already called \"{0}\".", other.name)
         }
         return nil
     }
@@ -388,34 +388,34 @@ public enum ScanPresets {
 public enum ScanPresetText {
     public static func fileType(_ t: PresetFileType) -> String {
         switch t {
-        case .searchablePdf: "Searchable PDF"
-        case .jpeg: "JPEG images"
+        case .searchablePdf: loc("Searchable PDF")
+        case .jpeg: loc("JPEG images")
         default: "PDF"
         }
     }
 
     public static func source(_ s: PresetSource, twoSided: Bool) -> String {
         switch s {
-        case .glass: "glass"
-        case .feeder: twoSided ? "feeder, both sides" : "feeder"
-        default: twoSided ? "feeder (both sides) or glass" : "feeder or glass"
+        case .glass: loc("glass")
+        case .feeder: twoSided ? loc("feeder, both sides") : loc("feeder")
+        default: twoSided ? loc("feeder (both sides) or glass") : loc("feeder or glass")
         }
     }
 
     public static func after(_ a: PresetAfter) -> String {
         switch a {
-        case .openInInkvoltPdf: "open in Inkvolt PDF"
-        case .print: "print a copy"
-        case .email: "email it"
-        default: "nothing else"
+        case .openInInkvoltPdf: loc("open in Inkvolt PDF")
+        case .print: loc("print a copy")
+        case .email: loc("email it")
+        default: loc("nothing else")
         }
     }
 
     /// The folder as the user knows it: Documents, Pictures, or the chosen folder's name; then the subfolder template.
     public static func folder(_ p: ScanPreset) -> String {
-        var root = "Documents"
+        var root = loc("Documents")
         if p.folder == .pictures {
-            root = "Pictures"
+            root = loc("Pictures")
         } else if p.folder == .custom, let path = p.folderPath, !path.isEmpty {
             let leaf = path.split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? ""
             root = leaf.isEmpty ? path : leaf
@@ -427,21 +427,21 @@ public enum ScanPresetText {
     /// "patch code sheet", "blank page", "patch code sheet or blank page".
     public static func splitText(_ s: SplitAt) -> String {
         switch s {
-        case .blankPage: "blank page"
-        case .patchCodeOrBlankPage: "patch code sheet or blank page"
-        default: "patch code sheet"
+        case .blankPage: loc("blank page")
+        case .patchCodeOrBlankPage: loc("patch code sheet or blank page")
+        default: loc("patch code sheet")
         }
     }
 
     /// "Searchable PDF · feeder or glass · grey, 300 dpi · Documents/Scans", plus the review step and what happens after saving.
     public static func summary(_ p: ScanPreset) -> String {
-        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), "\(p.color ? "color" : "grey"), \(p.resolution) dpi", folder(p)]
-        if p.splitAt != .none { parts.append("a new file at each \(splitText(p.splitAt))") }
-        if p.findPhotos { parts.append("each photo on the glass by itself") }
+        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution), folder(p)]
+        if p.splitAt != .none { parts.append(loc("a new file at each {0}", splitText(p.splitAt))) }
+        if p.findPhotos { parts.append(loc("each photo on the glass by itself")) }
         let cleanup = PageCleanup.describe(p.cleanup)
         if !cleanup.isEmpty { parts.append(cleanup) }
-        if p.review { parts.append("review first") }
-        if p.after != .none { parts.append("then \(after(p.after))") }
+        if p.review { parts.append(loc("review first")) }
+        if p.after != .none { parts.append(loc("then {0}", after(p.after))) }
         return parts.joined(separator: " · ")
     }
 }

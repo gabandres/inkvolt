@@ -99,7 +99,7 @@ final class FleetPageModel {
             return
         }
         let panel = NSSavePanel()
-        panel.title = "Export the printer list"
+        panel.title = String(localized: "Export the printer list")
         panel.allowedContentTypes = [.commaSeparatedText, .json]
         panel.allowsOtherFileTypes = false
         panel.nameFieldStringValue = "Printers \(Day(Date())).csv"
@@ -125,10 +125,10 @@ final class FleetPageModel {
         let bytes = exportBytes(json: url.pathExtension.lowercased() == "json")
         do {
             try await Task.detached { try bytes.write(to: url, options: .atomic) }.value
-            exportMessage = "Saved \(url.lastPathComponent)"
+            exportMessage = String(localized: "Saved \(url.lastPathComponent)")
             return true
         } catch {
-            exportMessage = "Could not save the list: \(error.localizedDescription)"
+            exportMessage = String(localized: "Could not save the list: \(error.localizedDescription)")
             return false
         }
     }
@@ -148,7 +148,7 @@ final class FleetPageModel {
         fixRun += 1
         fixSteps = []
         fixLeft = []
-        fixSummary = "Looking at this Mac's printers…"
+        fixSummary = String(localized: "Looking at this Mac's printers…")
         let targets = fixTargets, queues = app.queues, control = app.queueControl, run = fixRun
         let ask = confirm ?? { repair in await MainActor.run { Self.ask(repair) } }
         let progress: @Sendable (FixAllStep) -> Void = { [weak self] step in

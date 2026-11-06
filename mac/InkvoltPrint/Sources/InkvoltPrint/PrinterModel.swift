@@ -143,7 +143,7 @@ final class PrinterModel: Identifiable {
     /// Report a Problem's recording of this printer (Windows' `RecordForReportAsync`): as `record`, through this Mac's
     /// network with each reply bounded (demo mode's: made-up printers), into the app's recordings folder.
     func recordForReport() async throws -> ReportRecordingDone {
-        guard let host = recordHost else { throw DeviceNetworkError.failed("This printer has no address to record.") }
+        guard let host = recordHost else { throw DeviceNetworkError.failed(String(localized: "This printer has no address to record.")) }
         var options = RecordOptions(transport: app.recordingTransport(), snmp: app.snmpTransport)
         options.login = app.snmpLogins.usable(id) // asked as its readings are; never written into the recording
         options.esclHint = await monitor?.target.esclHint // Windows' EsclRoot: the eSCL root DNS-SD or a connection found
@@ -391,7 +391,7 @@ final class PrinterModel: Identifiable {
     /// `status --all` says (`FleetReader.scanner`).
     func fleetFacts(_ known: FleetLastKnown?, now: Date) -> FleetFacts {
         let kind: FleetKind = isScannerOnly ? .scanner : isQueue ? .queue : .network
-        let connection: String? = if isScannerOnly { "USB scanner" }
+        let connection: String? = if isScannerOnly { String(localized: "USB scanner") }
             else if let d = destination { FleetReader.connectionWord(CupsQueues.connection(d)) }
             else { FleetConnection.interfaces(view.interfaces) }
         let shown = view.firmware.map(\.display).flatMap { $0.isEmpty ? nil : $0 }
@@ -447,8 +447,8 @@ enum Notifier {
 
     /// The job notification's buttons; once, at launch.
     static func registerCategories() {
-        let open = UNNotificationAction(identifier: openQueueAction, title: "Open the Queue", options: [.foreground])
-        let pause = UNNotificationAction(identifier: pauseAction, title: "Pause Alerts", options: [])
+        let open = UNNotificationAction(identifier: openQueueAction, title: String(localized: "Open the Queue"), options: [.foreground])
+        let pause = UNNotificationAction(identifier: pauseAction, title: String(localized: "Pause Alerts"), options: [])
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: jobCategory, actions: [open, pause], intentIdentifiers: []),
         ])

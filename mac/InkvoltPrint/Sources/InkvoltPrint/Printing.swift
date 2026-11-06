@@ -13,18 +13,18 @@ enum Printing {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
-        panel.message = "Choose a PDF to print on \(printer.name)."
-        panel.prompt = "Print…"
+        panel.message = String(localized: "Choose a PDF to print on \(printer.name).")
+        panel.prompt = String(localized: "Print…")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let document = PDFDocument(url: url) else {
-            alert("This file couldn't be opened as a PDF.")
+            alert(String(localized: "This file couldn't be opened as a PDF."))
             return
         }
         if document.isLocked {
             guard let password = askPassword(url.lastPathComponent), document.unlock(withPassword: password) else {
-                if document.isLocked { alert("That password doesn't open \(url.lastPathComponent).") }
+                if document.isLocked { alert(String(localized: "That password doesn't open \(url.lastPathComponent).")) }
                 return
             }
         }
@@ -44,7 +44,7 @@ enum Printing {
         info.verticalPagination = .fit
         guard let operation = document.printOperation(for: info, scalingMode: actualSize ? .pageScaleNone : .pageScaleToFit,
                                                       autoRotate: !actualSize) else {
-            alert("macOS couldn't prepare the pages for printing.")
+            alert(String(localized: "macOS couldn't prepare the pages for printing."))
             return
         }
         operation.jobTitle = name
@@ -62,12 +62,12 @@ enum Printing {
 
     private static func askPassword(_ file: String) -> String? {
         let alert = NSAlert()
-        alert.messageText = "\(file) is protected with a password."
-        alert.informativeText = "Type its password to print it."
+        alert.messageText = String(localized: "\(file) is protected with a password.")
+        alert.informativeText = String(localized: "Type its password to print it.")
         let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Print")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: String(localized: "Print"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
         alert.window.initialFirstResponder = field
         return alert.runModal() == .alertFirstButtonReturn ? field.stringValue : nil
     }

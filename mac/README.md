@@ -51,6 +51,8 @@ open "/Applications/Inkvolt Print.app" --args --report fix --wait 3 --demo --fix
 open "/Applications/Inkvolt Print.app" --args --report fl --wait 2 --demo --fleet fix status  # the Fleet page's rows, Export…'s CSV and JSON, Fix All, status --all
 "/Applications/Inkvolt Print.app/Contents/MacOS/Inkvolt Print" --demo status --all --json   # every printer read once (Inkvolt Pro); no window
 open "/Applications/Inkvolt Print.app" --args --report bp --wait 2 --demo --batch-print  # Batch Print: the window, a list saved and opened, a watched folder, print --list
+open "/Applications/Inkvolt Print.app" --args --report es --wait 15 --demo --strings --fleet -AppleLanguages "(es)"  # in Spanish (roadmap 3.7): the language, both tables complete, formats
+sh InkvoltPrint/check-strings.sh                                                # every string Xcode extracts from the app has its Spanish (fails naming the rest); ShownStringsTests (PrintCore) finds English handed to the interface unwrapped
 open "/Applications/Inkvolt Print.app" --args --report bq --wait 2 --batch-print queue <test queue>  # the same files held in a queue, read back, cancelled
 "/Applications/Inkvolt Print.app/Contents/MacOS/Inkvolt Print" print --help   # print a batch without a window (Inkvolt Pro); exit codes as Inkvolt PDF's
 open "/Applications/Inkvolt Print.app" --args --report b --wait 2 --demo --batch      # a feeder batch split at its Patch T sheet

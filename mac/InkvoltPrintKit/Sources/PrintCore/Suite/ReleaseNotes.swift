@@ -69,7 +69,7 @@ public enum ReleaseNotes {
     }
 
     public static func format(_ notes: [ReleaseNote]) -> String {
-        notes.map { note in (["Version \(note.version)"] + note.items.map { "• " + $0 }).joined(separator: "\n") }.joined(separator: "\n\n")
+        notes.map { note in ([loc("Version {0}", note.version)] + note.items.map { "• " + $0 }).joined(separator: "\n") }.joined(separator: "\n\n")
     }
 
     /// "1.0.3", "1.0.3.0", "1.0" → 1.0.3, 1.0.3, 1.0.0 (as .NET's `Version.TryParse`: two to four numbers); else nil.

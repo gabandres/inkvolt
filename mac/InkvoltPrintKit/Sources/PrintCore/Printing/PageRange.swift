@@ -9,7 +9,7 @@ public enum PageRange {
         public init(_ message: String) { self.message = message }
     }
 
-    private static let hint = "Use page numbers like 1-3, 5"
+    private static var hint: String { loc("Use page numbers like 1-3, 5") }
 
     /// The pages `text` names in a document of `pageCount` pages; empty text means all pages. (The Windows app's
     /// `TryParse` with its out parameters.)
@@ -36,8 +36,8 @@ public enum PageRange {
                 (from, to) = (n, n)
             }
             if from > to { (from, to) = (to, from) }
-            if from < 1 { return .failure(Invalid("Pages start at 1")) }
-            if to > pageCount { return .failure(Invalid("This document has \(pageCount) page\(pageCount == 1 ? "" : "s")")) }
+            if from < 1 { return .failure(Invalid(loc("Pages start at 1"))) }
+            if to > pageCount { return .failure(Invalid(pageCount == 1 ? loc("This document has {0} page", pageCount) : loc("This document has {0} pages", pageCount))) }
             for p in from...to { set.insert(p) }
         }
         if set.isEmpty { return .failure(Invalid(hint)) }

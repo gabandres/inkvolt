@@ -114,13 +114,13 @@ public struct FirmwareUpdateSettings: Equatable, Sendable {
     public var statusMessage: String? {
         switch status {
         case nil, "idle": nil
-        case "available": "A firmware update is available."
-        case "notAvailable": "The firmware is up to date."
-        case "checkFailed": "The printer's last update check failed."
-        case "checking": "Checking for updates…"
-        case "downloadPreparation", "downloading": "Downloading an update…"
-        case "installing": "Installing an update…"
-        case "cancelling": "Cancelling the update…"
+        case "available": loc("A firmware update is available.")
+        case "notAvailable": loc("The firmware is up to date.")
+        case "checkFailed": loc("The printer's last update check failed.")
+        case "checking": loc("Checking for updates…")
+        case "downloadPreparation", "downloading": loc("Downloading an update…")
+        case "installing": loc("Installing an update…")
+        case "cancelling": loc("Cancelling the update…")
         case let other?: LedmStatusText.humanize(other)
         }
     }
@@ -167,7 +167,7 @@ extension LedmClient {
     /// Writes `mode` to the printer's Config (`settings.configPath`). Read `firmwareUpdate()` back and `judge` it: a printer
     /// may store something else. Throws `LedmAuthRequiredError` when it wants the admin password.
     public func setFirmwareUpdate(_ mode: FirmwareUpdateMode, in settings: FirmwareUpdateSettings) async throws {
-        guard let path = settings.configPath else { throw LedmNotOffered(what: "a firmware update configuration") }
+        guard let path = settings.configPath else { throw LedmNotOffered(what: loc("a firmware update configuration")) }
         try await put(path: path, settings.buildPut(mode))
     }
 }

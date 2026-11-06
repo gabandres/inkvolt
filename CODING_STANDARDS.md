@@ -43,5 +43,7 @@ A PDF, a scanner's or printer's reply, a file on disk and a number the user type
 
 - **New interface text in Inkvolt PDF and Inkvolt Print for Windows has its Spanish** in the `.es.resx` next to it, with
   the same placeholders and access key (`LocalizationTests` checks placeholders, not the wording). The voice is the one in
-  `print/docs/SPANISH-REVIEW.md`.
+  `print/docs/SPANISH-REVIEW.md`. Inkvolt Print for Mac: through `loc`/`LocKey` (PrintCore, PrintMac; Spanish in
+  `CoreStrings.xcstrings`) or `String(localized:)`/a SwiftUI literal (the app; `Localizable.xcstrings`), never a bare
+  literal given to shown text (`ShownStringsTests`; `// English: <why>` where it stays English on purpose).
 - **A message says what happened and what to do, in plain words**: no exception text, codes or stack traces.

@@ -1,15 +1,5 @@
 import Foundation
 
-/// Whole numbers as people read them in their locale (.NET's "N0": 1500 → "1,500").
-enum NumberText {
-    static func n0(_ n: Int) -> String {
-        let f = NumberFormatter()
-        f.numberStyle = .decimal
-        f.maximumFractionDigits = 0
-        return f.string(from: NSNumber(value: n)) ?? String(n)
-    }
-}
-
 /// What the supplies card shows from a printer's history after a reading: the chart, each supply's line ("About 34 days left ·
 /// 1,240 pages since this cartridge went in") and the days left the low-supply alert names.
 public struct SupplyHistoryView: Equatable, Sendable {
@@ -42,7 +32,7 @@ public struct SupplyHistoryView: Equatable, Sendable {
     public func chartNote(_ supplies: [Consumable]) -> String? {
         if chart.hasEnoughToDraw { return nil }
         return supplies.contains { !$0.isWaste && ($0.percentRemaining.map { (0...100).contains($0) } ?? false) }
-            ? "The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this Mac."
+            ? loc("The level chart fills in as days pass: Inkvolt Print keeps one reading a day on this Mac.")
             : nil
     }
 }

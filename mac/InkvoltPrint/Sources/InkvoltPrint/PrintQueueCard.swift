@@ -40,7 +40,7 @@ final class PrintJobsModel {
         let ticket = gate.begin()
         guard let read = await app.queues.jobs(queue) else {
             if gate.failed(ticket) {
-                loadError = "macOS's printing system isn't answering about this queue. Trying again every few seconds."
+                loadError = String(localized: "macOS's printing system isn't answering about this queue. Trying again every few seconds.")
                 isLoaded = true
                 jobs = []
             }
@@ -62,7 +62,7 @@ final class PrintJobsModel {
             message = "\"\(j.name)\": \(e.message)"
             cancelling.remove(j.id)
         } catch {
-            message = "\"\(j.name)\" couldn't be cancelled."
+            message = String(localized: "\"\(j.name)\" couldn't be cancelled.")
             cancelling.remove(j.id)
         }
         await refresh()
@@ -81,7 +81,7 @@ final class PrintJobsModel {
                 cancelling.remove(j.id)
             }
         }
-        if failed > 0 { message = "\(failed) of \(list.count) jobs couldn't be cancelled. They may have just finished." }
+        if failed > 0 { message = String(localized: "\(failed) of \(list.count) jobs couldn't be cancelled. They may have just finished.") }
         await refresh()
     }
 }
@@ -101,7 +101,7 @@ struct PrintQueueCard: View {
                 }
                 Spacer()
                 if !model.mine.isEmpty {
-                    Button(model.mine.count == 1 ? "Cancel My Job…" : "Cancel My Jobs…") { confirmMine = true }
+                    Button(model.mine.count == 1 ? String(localized: "Cancel My Job…") : String(localized: "Cancel My Jobs…")) { confirmMine = true }
                 }
                 Button("Open Printers & Scanners") { NSWorkspace.shared.open(SystemSettings.printers) }
             }
@@ -118,7 +118,7 @@ struct PrintQueueCard: View {
         .background(.background.secondary, in: .rect(cornerRadius: 10))
         .task { await model.poll() }
         .confirmationDialog(confirmText, isPresented: $confirmMine) {
-            Button(model.mine.count == 1 ? "Cancel Job" : "Cancel Jobs", role: .destructive) { Task { await model.cancelMine() } }
+            Button(model.mine.count == 1 ? String(localized: "Cancel Job") : String(localized: "Cancel Jobs"), role: .destructive) { Task { await model.cancelMine() } }
             Button("Keep", role: .cancel) {}
         }
     }
@@ -126,9 +126,12 @@ struct PrintQueueCard: View {
     private var confirmText: String {
         let mine = model.mine
         guard !mine.isEmpty else { return "" }
-        var text = mine.count == 1 ? "Cancel \"\(mine[0].name)\"?" : "Cancel your \(mine.count) print jobs?"
+        var text = mine.count == 1 ? String(localized: "Cancel \"\(mine[0].name)\"?") : String(localized: "Cancel your \(mine.count) print jobs?")
         let others = model.jobs.count - mine.count
-        if others > 0 { text += " \(others == 1 ? "1 job" : "\(others) jobs") from other people stay in the queue." }
+        if others > 0 {
+            text += " " + (others == 1 ? String(localized: "1 job from other people stays in the queue.")
+                : String(localized: "\(others) jobs from other people stay in the queue."))
+        }
         return text
     }
 }

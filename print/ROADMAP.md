@@ -20,8 +20,8 @@ imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 we
 
 **Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
 when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2 and 3.5 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3 and 3.2 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
+items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2, 3.5 and 3.7 are done on the Mac
+too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3, 3.2 and 3.7 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
 2026-11-06: the Mac halves above and the 1.6 Pro key) is on TestFlight, for the owner to submit; the rest waits for the owner's plan (2026-11-04). Each item names its
 Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
 Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
@@ -532,7 +532,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 
 ### 3.7 Spanish interface
 - **Built (Windows, 2026-11-03):** every string of the app and of what the shared library shows moved to resources (`Strings`, `CoreStrings`; 2,209 strings) and translated, the language following Windows or Settings › Language, 0 UIA findings on 20 Spanish screens, the shots in `docs/ux-review/spanish/`. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in `LocalizationTests`), a real printer in Spanish.
-- **Next:** the owner reviews the wording (`print/docs/SPANISH-REVIEW.md`); the Store listing loses "La aplicación está en inglés." when it ships; What's New in Spanish; Inkvolt PDF's Spanish interface and the Mac apps' (each its own project).
+- **Built (Inkvolt Print for Mac, 2026-11-06):** PrintCore's and PrintMac's sentences through `CoreLanguage` (`CoreStrings.xcstrings`, Windows' Spanish word for word where the sentence is the same), the app's in `Localizable.xcstrings`; the language follows macOS's per-app choice or Settings › Language (next launch); `--report --demo --strings` in Spanish complete, `check-strings.sh` and `CoreStringsTests` fail on an untranslated string (mac/docs/PLAN.md, P12). The Mac-only wording: `print/docs/SPANISH-REVIEW.md`, "Inkvolt Print for Mac".
+- **Next:** the owner reviews the wording (`print/docs/SPANISH-REVIEW.md`); the Store listings lose "La aplicación está en inglés." when it ships (the Mac listing's Spanish is the owner's call); What's New in Spanish; Inkvolt PDF's Spanish interface on both platforms (its own project).
 
 ## Where we already win
 

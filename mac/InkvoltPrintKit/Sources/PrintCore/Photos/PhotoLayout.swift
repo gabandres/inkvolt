@@ -20,9 +20,9 @@ public enum PhotoSizes {
     public static let in8x10 = PhotoSize("8 × 10 in", 8, 10)
     public static let cm10x15 = PhotoSize("10 × 15 cm", 100 / 25.4, 150 / 25.4)
     public static let cm13x18 = PhotoSize("13 × 18 cm", 130 / 25.4, 180 / 25.4)
-    public static let wallet = PhotoSize("Wallet (2.5 × 3.5 in)", 2.5, 3.5)
+    public static var wallet: PhotoSize { PhotoSize(loc("Wallet (2.5 × 3.5 in)"), 2.5, 3.5) }
 
-    public static let all = [in4x6, in5x7, in8x10, cm10x15, cm13x18, wallet]
+    public static var all: [PhotoSize] { [in4x6, in5x7, in8x10, cm10x15, cm13x18, wallet] }
 }
 
 public enum PhotoLayoutKind: Sendable {

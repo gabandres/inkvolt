@@ -76,9 +76,9 @@ public enum QueueSetup {
     /// What to tell the user after asking.
     public static func outcome(_ error: QueueControlError?, info: String) -> String {
         switch error {
-        case nil: "Ready to print from any app."
-        case .refused?: "Only an administrator can add printers to this Mac. In Printers & Scanners, click Add Printer, Scanner, or Fax…, then pick \u{201C}\(info)\u{201D}."
-        case .failed(let why)?: "macOS couldn't set up the printer: \(why) You can add it in Printers & Scanners instead."
+        case nil: loc("Ready to print from any app.")
+        case .refused?: loc("Only an administrator can add printers to this Mac. In Printers & Scanners, click Add Printer, Scanner, or Fax…, then pick \u{201C}{0}\u{201D}.", info)
+        case .failed(let why)?: loc("macOS couldn't set up the printer: {0} You can add it in Printers & Scanners instead.", why)
         }
     }
 }

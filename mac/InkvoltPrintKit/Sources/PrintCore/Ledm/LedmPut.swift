@@ -8,7 +8,7 @@ public struct LedmAuthRequiredError: Error, Equatable, CustomStringConvertible {
     public init(credentialsWereSent: Bool) { self.credentialsWereSent = credentialsWereSent }
 
     public var description: String {
-        credentialsWereSent ? "The printer rejected the admin password." : "The printer requires its admin password."
+        credentialsWereSent ? loc("The printer rejected the admin password.") : loc("The printer requires its admin password.")
     }
 }
 
@@ -114,5 +114,5 @@ extension LedmClient {
 public struct LedmNotOffered: Error, CustomStringConvertible {
     public let what: String
 
-    public var description: String { "The printer does not expose \(what)." }
+    public var description: String { loc("The printer does not expose {0}.", what) }
 }

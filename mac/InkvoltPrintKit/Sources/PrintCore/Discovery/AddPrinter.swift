@@ -41,7 +41,7 @@ public enum AddPrinter {
     /// A printer removed from the list earlier that discovery sees now.
     public static func removed(_ d: DiscoveredPrinter) -> FoundPrinter? {
         guard let host = d.host else { return nil }
-        return FoundPrinter(name: d.name, host: host, detail: "\(host) · Removed from your list earlier", removed: d)
+        return FoundPrinter(name: d.name, host: host, detail: loc("{0} · Removed from your list earlier", host), removed: d)
     }
 
     /// What answered at `host`, as the window lists it; nil when it isn't a printer (something else takes connections on a
@@ -126,24 +126,24 @@ public enum AddPrinter {
 
 /// What the Add a printer window says.
 public enum AddPrinterText {
-    public static let looking = "Looking for printers on your network…"
-    public static let checking = "Checking what answered…"
-    public static let stopped = "Search stopped."
-    public static let failed = "The search didn't work. You can still add a printer by its address."
+    public static var looking: String { loc("Looking for printers on your network…") }
+    public static var checking: String { loc("Checking what answered…") }
+    public static var stopped: String { loc("Search stopped.") }
+    public static var failed: String { loc("The search didn't work. You can still add a printer by its address.") }
 
-    public static func looking(_ p: SearchProgress) -> String { "\(looking) \(p.checked) of \(p.total) addresses" }
+    public static func looking(_ p: SearchProgress) -> String { loc("{0} {1} of {2} addresses", looking, p.checked, p.total) }
 
     /// The search is over: what it found. `total` is how many addresses it asked.
     public static func done(total: Int, found: [FoundPrinter]) -> String {
         let listed = found.count(where: { $0.state == .listed })
         let others = found.count - listed
-        if total == 0 { return "This Mac isn't on a home or office network that can be searched." }
+        if total == 0 { return loc("This Mac isn't on a home or office network that can be searched.") }
         switch (others, listed) {
-        case (0, 0): return "No printers answered on your network."
-        case (0, 1): return "The printer that answered is in your list already."
-        case (0, _): return "The \(listed) printers that answered are in your list already."
-        case (1, _): return "Found a printer you can add."
-        default: return "Found \(others) printers you can add."
+        case (0, 0): return loc("No printers answered on your network.")
+        case (0, 1): return loc("The printer that answered is in your list already.")
+        case (0, _): return loc("The {0} printers that answered are in your list already.", listed)
+        case (1, _): return loc("Found a printer you can add.")
+        default: return loc("Found {0} printers you can add.", others)
         }
     }
 
@@ -151,6 +151,6 @@ public enum AddPrinterText {
     public static func nothingFound(_ found: [FoundPrinter]) -> Bool { !found.contains { $0.state != .listed } }
 
     public static func noAnswer(_ host: String) -> String {
-        "No printer answered at \(host). Check the address, and that the printer is on and on this network."
+        loc("No printer answered at {0}. Check the address, and that the printer is on and on this network.", host)
     }
 }

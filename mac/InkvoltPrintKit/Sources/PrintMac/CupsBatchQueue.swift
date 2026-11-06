@@ -89,10 +89,10 @@ public final class CupsBatchQueue: BatchQueue {
 
     public func send(_ document: any BatchDocument, _ job: BatchPrintJob, progress: (@Sendable (String) -> Void)?, onSpooling: @escaping @Sendable () -> Void,
                      _ stop: BatchStop) async throws -> BatchReceipt {
-        guard let info = try await read() else { throw BatchQueueError("macOS has no print queue \(queue) now.", mayHaveSent: false) }
+        guard let info = try await read() else { throw BatchQueueError(loc("macOS has no print queue {0} now.", queue), mayHaveSent: false) }
         var asked: (width: Double, height: Double)?
         if let paper = job.paper {
-            guard info.papers.contains(where: { $0.key == paper }) else { throw BatchSettingRefused("\(info.name) doesn't offer that paper now.") }
+            guard info.papers.contains(where: { $0.key == paper }) else { throw BatchSettingRefused(loc("{0} doesn't offer that paper now.", info.name)) }
             asked = BatchQueueReading.size(paper)
             if asked == nil { asked = await Self.mediaSize(queue, paper) }
         }
@@ -104,20 +104,20 @@ public final class CupsBatchQueue: BatchQueue {
         try stop.check()
 
         // Handed over held: nothing prints until the job's options are read back and kept.
-        progress?("Handing it to macOS…")
+        progress?(loc("Handing it to macOS…"))
         let options = Self.options(job, document.sizing)
         let id: Int
         do {
             id = try await Self.holdJob(queue, file, title: job.name, options)
         } catch let e as PrintJobSendError {
-            throw BatchQueueError("macOS's print queue didn't take it: \(e.message)", mayHaveSent: false)
+            throw BatchQueueError(loc("macOS's print queue didn't take it: {0}", e.message), mayHaveSent: false)
         }
         jobIds.append(id)
         let cups = LibCups()
         func cancel() async { try? await cups.cancel(queue, job: id) }
         guard let ticket = await Self.ticket(id) else {
             await cancel()
-            throw BatchQueueError("macOS's print queue doesn't say what it took: the job was cancelled before printing.", mayHaveSent: false)
+            throw BatchQueueError(loc("macOS's print queue doesn't say what it took: the job was cancelled before printing."), mayHaveSent: false)
         }
         let gotPaper = ticket.mediaCol.flatMap(BatchQueueReading.mediaColSize) ?? ticket.media.flatMap(BatchQueueReading.size)
         if let problem = BatchTicketCheck.problem(job.copies, job.twoSided, asked, ticket.copies, BatchQueueReading.twoSided(ticket.sides), gotPaper) {
@@ -135,9 +135,9 @@ public final class CupsBatchQueue: BatchQueue {
 
         // From here the job belongs to cupsd.
         onSpooling()
-        progress?("Sending it to the printer…")
+        progress?(loc("Sending it to the printer…"))
         if let refused = await Self.release(queue, id) {
-            throw BatchQueueError("macOS's print queue didn't let the job go: \(refused)", mayHaveSent: true)
+            throw BatchQueueError(loc("macOS's print queue didn't let the job go: {0}", refused), mayHaveSent: true)
         }
         return BatchReceipt(pages: pages, sheets: BatchPrintSettings.sheets(pages, job.copies, job.twoSided))
     }
@@ -160,7 +160,7 @@ public final class CupsBatchQueue: BatchQueue {
         let folder = file.deletingLastPathComponent()
         if let free = try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]).volumeAvailableCapacityForImportantUsage,
            free < Int64(pages) * (2 << 20) {
-            throw BatchFileError("This Mac's disk has no room to prepare the file's pages.")
+            throw BatchFileError(loc("This Mac's disk has no room to prepare the file's pages."))
         }
     }
 
@@ -168,17 +168,17 @@ public final class CupsBatchQueue: BatchQueue {
     private static func draw(_ document: any BatchDocument, _ job: BatchPrintJob, into file: URL, progress: (@Sendable (String) -> Void)?,
                              _ stop: BatchStop) async throws -> Int {
         guard let consumer = CGDataConsumer(url: file as CFURL), let pdf = CGContext(consumer: consumer, mediaBox: nil, nil) else {
-            throw BatchFileError("The file's pages can't be prepared on this Mac's disk.")
+            throw BatchFileError(loc("The file's pages can't be prepared on this Mac's disk."))
         }
         var written = 0
         var closed = false
         defer { if !closed { pdf.closePDF() } }
         for (i, number) in job.pages.enumerated() {
             try stop.check()
-            progress?("Getting page \(i + 1) of \(job.pages.count) ready…")
+            progress?(loc("Getting page {0} of {1} ready…", i + 1, job.pages.count))
             let page = try await document.render(number, stop)
             guard let source = CGImageSourceCreateWithData(Data(page.jpeg) as CFData, nil),
-                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw BatchFileError("Page \(number) can't be drawn.") }
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw BatchFileError(loc("Page {0} can't be drawn.", number)) }
             var box = CGRect(x: 0, y: 0, width: page.widthInches * 72, height: page.heightInches * 72)
             pdf.beginPage(mediaBox: &box)
             pdf.draw(image, in: box)
@@ -187,7 +187,7 @@ public final class CupsBatchQueue: BatchQueue {
         }
         pdf.closePDF()
         closed = true
-        if written != job.pages.count { throw BatchFileError("Fewer pages were drawn than the file has: not printed.") }
+        if written != job.pages.count { throw BatchFileError(loc("Fewer pages were drawn than the file has: not printed.")) }
         return written
     }
 
@@ -200,7 +200,7 @@ public final class CupsBatchQueue: BatchQueue {
     private static func holdJob(_ queue: String, _ file: URL, title: String, _ options: [(name: String, value: String)]) async throws -> Int {
         let sent: Result<Int, PrintJobSendError> = await LibCups.run {
             cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
-            let words = { cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused the job." }
+            let words = { cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system refused the job.") }
             var list: UnsafeMutablePointer<cups_option_t>?
             var count: Int32 = 0
             for o in options + [("job-hold-until", "indefinite")] { count = cupsAddOption(o.name, o.value, count, &list) }
@@ -268,7 +268,7 @@ public final class CupsBatchQueue: BatchQueue {
     private static func release(_ queue: String, _ job: Int) async -> String? {
         await LibCups.run {
             cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
-            guard let request = ippNewRequest(IPP_OP_RELEASE_JOB) else { return "macOS's printing system couldn't be asked." }
+            guard let request = ippNewRequest(IPP_OP_RELEASE_JOB) else { return loc("macOS's printing system couldn't be asked.") }
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "job-uri", nil, "ipp://localhost/jobs/\(job)")
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, cupsUser())
             let response = cupsDoRequest(nil, request, "/")

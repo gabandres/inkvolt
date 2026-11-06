@@ -65,7 +65,7 @@ public struct Day: Hashable, Comparable, Sendable, Codable, CustomStringConverti
         f.calendar = calendar
         f.timeZone = calendar.timeZone
         f.locale = .current
-        f.dateFormat = "d MMMM yyyy"
+        f.dateFormat = loc("d MMMM yyyy", context: "date format")
         return f.string(from: date)
     }
 
@@ -114,7 +114,7 @@ public struct FirmwareChange: Equatable, Sendable {
         self.on = on
     }
 
-    public var text: String { "Firmware changed from \(from) to \(to) on \(on.longText)." }
+    public var text: String { loc("Firmware changed from {0} to {1} on {2}.", from, to, on.longText) }
 
     /// The alert's key: one per change, so the same change never alerts twice.
     public var key: String { "\(from)→\(to)" }

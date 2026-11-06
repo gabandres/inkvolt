@@ -30,7 +30,7 @@ final class SnmpAccessModel {
     }
 
     /// SNMPv3 waits for Inkvolt Pro: the fields say so.
-    var proNote: String? { Pro.allows(.snmpV3) ? nil : "\(Pro.locked(.snmpV3)) Help › Inkvolt Pro… enters a key." }
+    var proNote: String? { Pro.allows(.snmpV3) ? nil : String(localized: "\(Pro.locked(.snmpV3)) Help › Inkvolt Pro… enters a key.") }
 
     /// The login entered, or nil with the reason in `error` (and, for SNMPv3 without Inkvolt Pro, its window opened).
     func read() -> SnmpLogin? {
@@ -82,7 +82,7 @@ struct SnmpAccessFields: View {
             TextField("Community", text: $model.community, prompt: Text("public"))
                 .textFieldStyle(.roundedBorder)
                 .onChange(of: model.community) { model.edited() }
-            caption("Leave it blank for public, the community most printers ship with.")
+            caption(String(localized: "Leave it blank for public, the community most printers ship with."))
         }
     }
 
@@ -91,7 +91,7 @@ struct SnmpAccessFields: View {
             TextField("User name", text: $model.userName).textFieldStyle(.roundedBorder)
             SecureField("Authentication passphrase (SHA-256)", text: $model.authPassphrase).textFieldStyle(.roundedBorder)
             SecureField("Privacy passphrase (AES-128)", text: $model.privPassphrase).textFieldStyle(.roundedBorder)
-            caption("The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads.")
+            caption(String(localized: "The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads."))
             if let note = model.proNote { caption(note) }
         }
         .onChange(of: model.userName) { model.edited() }
@@ -134,7 +134,7 @@ struct SnmpAccessSheet: View {
                 if checking { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(unanswered == nil ? "Save" : "Save Anyway") { save() }.keyboardShortcut(.defaultAction).disabled(checking)
+                Button(unanswered == nil ? String(localized: "Save") : String(localized: "Save Anyway")) { save() }.keyboardShortcut(.defaultAction).disabled(checking)
             }
         }
         .padding(20)
@@ -171,26 +171,25 @@ struct SnmpAccessSheet: View {
 }
 
 enum SnmpAccessText {
-    static let explanation = "Inkvolt Print reads this printer's status and supplies over SNMP, with the read community or SNMPv3 user "
-        + "the printer's administrator set. It's kept in your keychain, used only to read the printer, and never changes anything on it."
-    static let keychainRefused = "The keychain didn't keep it, so it isn't used. Try again, or restart your Mac."
-    static let notAdded = "The keychain didn't keep its SNMP access, so the printer wasn't added. Try again, or restart your Mac."
-    static let anotherDevice = "Another device answers at this printer's address with it, so it wasn't kept."
+    static let explanation = String(localized: "Inkvolt Print reads this printer's status and supplies over SNMP, with the read community or SNMPv3 user the printer's administrator set. It's kept in your keychain, used only to read the printer, and never changes anything on it.")
+    static let keychainRefused = String(localized: "The keychain didn't keep it, so it isn't used. Try again, or restart your Mac.")
+    static let notAdded = String(localized: "The keychain didn't keep its SNMP access, so the printer wasn't added. Try again, or restart your Mac.")
+    static let anotherDevice = String(localized: "Another device answers at this printer's address with it, so it wasn't kept.")
 
     /// The printer refused the login: which part, and that nothing was kept.
-    static func refusedHint(_ why: SnmpRefusal) -> String { "\(SnmpAccessError(why)) Nothing was changed." }
+    static func refusedHint(_ why: SnmpRefusal) -> String { String(localized: "\(SnmpAccessError(why).description) Nothing was changed.") }
 
     /// Nothing answered with the login: what may be wrong, and that Save Anyway keeps it.
     static func unansweredHint(_ login: SnmpLogin) -> String {
-        let what = login.user != nil ? "The printer didn't answer over SNMPv3: check that it's on and that SNMPv3 is turned on in it."
-            : "The printer didn't answer with this community: check it, and that the printer is on."
-        return what + " Save Anyway keeps it as it is."
+        let what = login.user != nil ? String(localized: "The printer didn't answer over SNMPv3: check that it's on and that SNMPv3 is turned on in it.")
+            : String(localized: "The printer didn't answer with this community: check it, and that the printer is on.")
+        return String(localized: "\(what) Save Anyway keeps it as it is.")
     }
 
     /// What may be wrong when nothing answered at an address, about SNMP: the agent's refusal when it said why.
     static func noAnswerHint(_ login: SnmpLogin, refused: SnmpRefusal?) -> String {
-        if let refused { return "\(SnmpAccessError(refused)) Check SNMP access below." }
-        if login.isDefault { return "A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below." }
-        return login.user != nil ? "Check the SNMPv3 user name and passphrases too." : "Check the SNMP community too."
+        if let refused { return String(localized: "\(SnmpAccessError(refused).description) Check SNMP access below.") }
+        if login.isDefault { return String(localized: "A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below.") }
+        return login.user != nil ? String(localized: "Check the SNMPv3 user name and passphrases too.") : String(localized: "Check the SNMP community too.")
     }
 }

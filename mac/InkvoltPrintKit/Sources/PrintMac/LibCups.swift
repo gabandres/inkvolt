@@ -46,7 +46,7 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
             guard let list else { return [] }
             return (0..<Int(count)).map { i in
                 let j = list[i]
-                return QueueJob(id: Int(j.id), name: j.title.map { String(cString: $0) } ?? "Untitled",
+                return QueueJob(id: Int(j.id), name: j.title.map { String(cString: $0) } ?? loc("Untitled"),
                                 state: JobState(rawValue: Int(j.state.rawValue)) ?? .pending,
                                 submitted: Date(timeIntervalSince1970: TimeInterval(j.creation_time)), owner: j.user.map { String(cString: $0) } ?? "")
             }
@@ -61,11 +61,11 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
             if status.rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue { return nil }
             switch status {
             case IPP_STATUS_ERROR_NOT_AUTHORIZED, IPP_STATUS_ERROR_FORBIDDEN, IPP_STATUS_ERROR_CUPS_AUTHENTICATION_CANCELED:
-                return PrintJobCancelError("Only an administrator can cancel someone else's job.")
+                return PrintJobCancelError(loc("Only an administrator can cancel someone else's job."))
             case IPP_STATUS_ERROR_NOT_FOUND, IPP_STATUS_ERROR_NOT_POSSIBLE:
-                return PrintJobCancelError("It has already finished.")
+                return PrintJobCancelError(loc("It has already finished."))
             default:
-                return PrintJobCancelError(cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused.")
+                return PrintJobCancelError(cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system refused."))
             }
         }
         if let refused { throw refused }
@@ -91,20 +91,20 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
     private static func protected(_ operation: ipp_op_t, _ queue: String) async throws {
         let failure: QueueControlError? = await run {
             cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
-            guard let request = ippNewRequest(operation) else { return .failed("macOS's printing system couldn't be asked.") }
+            guard let request = ippNewRequest(operation) else { return .failed(loc("macOS's printing system couldn't be asked.")) }
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, "ipp://localhost/printers/" + queue)
             ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, cupsUser())
             guard let response = cupsDoRequest(nil, request, "/admin/") else {
                 let status = cupsLastError()
                 return status == IPP_STATUS_ERROR_FORBIDDEN || status == IPP_STATUS_ERROR_NOT_AUTHORIZED
                     || status == IPP_STATUS_ERROR_CUPS_AUTHENTICATION_CANCELED ? .refused
-                    : .failed(cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system didn't answer.")
+                    : .failed(cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system didn't answer."))
             }
             defer { ippDelete(response) }
             let status = ippGetStatusCode(response)
             if status.rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue { return nil }
             if status == IPP_STATUS_ERROR_FORBIDDEN || status == IPP_STATUS_ERROR_NOT_AUTHORIZED { return .refused }
-            return .failed(cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused.")
+            return .failed(cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system refused."))
         }
         if let failure { throw failure }
     }
@@ -128,10 +128,10 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
         for _ in 0..<70 {
             try await Task.sleep(for: .milliseconds(500))
             let state = await Self.run { Self.printerState(plan.queueName) }
-            guard let state else { throw QueueControlError.failed("The printer didn't tell macOS what it can do.") }
+            guard let state else { throw QueueControlError.failed(loc("The printer didn't tell macOS what it can do.")) }
             if state != 5 { ready = true; break } // 5: stopped, still being set up
         }
-        guard ready else { throw QueueControlError.failed("The printer didn't tell macOS what it can do in time.") }
+        guard ready else { throw QueueControlError.failed(loc("The printer didn't tell macOS what it can do in time.")) }
         let kept: QueueControlError? = await Self.run {
             Self.ask(IPP_OP_CUPS_ADD_MODIFY_PRINTER, "ipp://localhost/printers/" + plan.queueName, path: "/admin/") { r in
                 ippAddBoolean(r, IPP_TAG_PRINTER, "printer-is-temporary", 0)
@@ -146,11 +146,11 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
     private static func ask(_ op: ipp_op_t, _ printerUri: String, path: String, _ fill: (OpaquePointer?) -> Void) -> QueueControlError? {
         // libcups keeps the callback per thread, and the queue's blocks may run on any: set it for each request.
         cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
-        guard let request = ippNewRequest(op) else { return .failed("macOS's printing system couldn't be asked.") }
+        guard let request = ippNewRequest(op) else { return .failed(loc("macOS's printing system couldn't be asked.")) }
         ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, printerUri)
         ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, cupsUser())
         fill(request)
-        let words = { cupsLastErrorString().map { String(cString: $0) } ?? "macOS's printing system refused." }
+        let words = { cupsLastErrorString().map { String(cString: $0) } ?? loc("macOS's printing system refused.") }
         guard let response = cupsDoRequest(nil, request, path) else {
             let status = cupsLastError()
             return status == IPP_STATUS_ERROR_FORBIDDEN || status == IPP_STATUS_ERROR_NOT_AUTHORIZED

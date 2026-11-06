@@ -60,10 +60,10 @@ public enum Pro {
     /// The feature's name as the window shows it.
     public static func title(_ feature: ProFeature) -> String {
         switch feature {
-        case .supplyHistoryExport: "Supply history export"
-        case .batchPrintAutomation: "Batch print automation"
-        case .fleetExport: "Fleet export and command line"
-        case .scannerSharing: "Scanner sharing"
+        case .supplyHistoryExport: loc("Supply history export")
+        case .batchPrintAutomation: loc("Batch print automation")
+        case .fleetExport: loc("Fleet export and command line")
+        case .scannerSharing: loc("Scanner sharing")
         case .snmpV3: "SNMPv3"
         }
     }
@@ -71,28 +71,28 @@ public enum Pro {
     /// What the feature does, for a person who hasn't unlocked it.
     public static func describe(_ feature: ProFeature) -> String {
         switch feature {
-        case .supplyHistoryExport: "Export one CSV of every printer's ink and toner levels over time, with the pages each cartridge printed."
-        case .batchPrintAutomation: "Save a batch-print list, print a folder as files land in it, run a list from the command line, and keep the results as CSV."
-        case .fleetExport: "Export the fleet page as CSV or JSON, read every printer from a script with status --all, and fix every queue at once."
-        case .scannerSharing: "Share a USB or driver-only scanner on the network, so phones, Macs and PCs scan from it."
-        case .snmpV3: "Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community."
+        case .supplyHistoryExport: loc("Export one CSV of every printer's ink and toner levels over time, with the pages each cartridge printed.")
+        case .batchPrintAutomation: loc("Save a batch-print list, print a folder as files land in it, run a list from the command line, and keep the results as CSV.")
+        case .fleetExport: loc("Export the fleet page as CSV or JSON, read every printer from a script with status --all, and fix every queue at once.")
+        case .scannerSharing: loc("Share a USB or driver-only scanner on the network, so phones, Macs and PCs scan from it.")
+        case .snmpV3: loc("Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community.")
         }
     }
 
     /// What a person is told when a feature isn't unlocked.
     public static func locked(_ feature: ProFeature) -> String {
         switch feature {
-        case .supplyHistoryExport: "Exporting the supply history is part of Inkvolt Pro."
-        case .batchPrintAutomation: "Batch print lists, folders and the command line are part of Inkvolt Pro."
-        case .fleetExport: "Fleet export, status --all and Fix all are part of Inkvolt Pro."
-        case .scannerSharing: "Scanner sharing is part of Inkvolt Pro."
-        case .snmpV3: "SNMPv3 is part of Inkvolt Pro."
+        case .supplyHistoryExport: loc("Exporting the supply history is part of Inkvolt Pro.")
+        case .batchPrintAutomation: loc("Batch print lists, folders and the command line are part of Inkvolt Pro.")
+        case .fleetExport: loc("Fleet export, status --all and Fix all are part of Inkvolt Pro.")
+        case .scannerSharing: loc("Scanner sharing is part of Inkvolt Pro.")
+        case .snmpV3: loc("SNMPv3 is part of Inkvolt Pro.")
         }
     }
 
     /// Where a key is entered (after `locked` on the command line). Mac difference (PLAN.md P12 1.6): Inkvolt Print for Mac is
     /// the App Store's, so no refusal names a price or a shop (guidelines 3.1.1(a), 3.1.3(b)), as the Pro window names none.
     public static var howToGet: String {
-        "Help › Inkvolt Pro… in Inkvolt Print enters an Inkvolt Pro key, and a key entered in Inkvolt PDF counts here too."
+        loc("Help › Inkvolt Pro… in Inkvolt Print enters an Inkvolt Pro key, and a key entered in Inkvolt PDF counts here too.")
     }
 }

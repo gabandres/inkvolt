@@ -25,33 +25,31 @@ public struct OfflineReport: Equatable, Sendable {
     /// The question for `.ask`.
     public var adoptionQuestion: String? {
         guard adoption == .ask, let found else { return nil }
-        return "\(OfflineDiagnosis.caution(device, found, oldAddressAnswers))Use \(found.address) for \(device.name)? Choose this only if that's the "
-            + "printer's address (its control panel or a network configuration page shows it)."
+        return loc("{0}Use {1} for {2}? Choose this only if that's the printer's address (its control panel or a network configuration page shows it).", OfflineDiagnosis.caution(device, found, oldAddressAnswers), found.address, device.name)
     }
 
     public var answers: Bool { reach?.answers == true }
 
     public var headline: String {
         let n = repairs.count(where: { !$0.isAlternative })
-        if n > 0 { return "Found \(n == 1 ? "one thing" : "\(n) things") to fix" }
-        if !answers { return "The printer isn't answering" }
-        if queues.isEmpty { return "The printer answers, but this Mac has no printer for it" }
-        return "No problems found"
+        if n > 0 { return n == 1 ? loc("Found one thing to fix") : loc("Found {0} things to fix", n) }
+        if !answers { return loc("The printer isn't answering") }
+        if queues.isEmpty { return loc("The printer answers, but this Mac has no printer for it") }
+        return loc("No problems found")
     }
 
     public var advice: String {
-        if !repairs.isEmpty && answers { return "Fix each one below, then check again." }
+        if !repairs.isEmpty && answers { return loc("Fix each one below, then check again.") }
         if !repairs.isEmpty {
-            return "Fix what's listed below. The printer itself isn't answering yet: check that it's on and connected to the same network as this Mac."
+            return loc("Fix what's listed below. The printer itself isn't answering yet: check that it's on and connected to the same network as this Mac.")
         }
         if !answers {
-            return "Check that it's switched on and awake, and connected to the same Wi-Fi or network as this Mac (its control panel or a "
-                + "network configuration page shows its address). Turning the printer off and on, then the router, fixes most of these."
+            return loc("Check that it's switched on and awake, and connected to the same Wi-Fi or network as this Mac (its control panel or a network configuration page shows its address). Turning the printer off and on, then the router, fixes most of these.")
         }
         if queues.isEmpty {
-            return "Add it in System Settings › Printers & Scanners (Add Printer, Scanner, or Fax…) so every app lists it."
+            return loc("Add it in System Settings › Printers & Scanners (Add Printer, Scanner, or Fax…) so every app lists it.")
         }
-        return "The printer answers and macOS's printer for it is ready. If a job still won't print, turn the printer off and on, then try again."
+        return loc("The printer answers and macOS's printer for it is ready. If a job still won't print, turn the printer off and on, then try again.")
     }
 }
 
@@ -95,7 +93,7 @@ public enum OfflineDiagnosis {
             reach = r
             report(connectionCheck(r))
         } else {
-            report(CheckResult(.connection, .skipped, "Its address isn't known."))
+            report(CheckResult(.connection, .skipped, loc("Its address isn't known.")))
         }
 
         // 3 and 4. macOS's queues for it, and their state.
@@ -109,7 +107,7 @@ public enum OfflineDiagnosis {
             start(.queueState)
             report(queueStateCheck(matched, user: queues.user))
         } else {
-            report(CheckResult(.queues, .warning, "Couldn't read this Mac's printers: macOS's printing system didn't answer."))
+            report(CheckResult(.queues, .warning, loc("Couldn't read this Mac's printers: macOS's printing system didn't answer.")))
             report(CheckResult(.queueState, .skipped))
         }
 
@@ -123,8 +121,8 @@ public enum OfflineDiagnosis {
     static func caution(_ device: OfflineDevice, _ found: Rediscovery?, _ oldAnswers: Bool) -> String {
         guard let found else { return "" }
         var parts = ""
-        if found.isAmbiguous { parts += "More than one device announces this printer's ID: \(Reachability.join(Rediscovery.distinct(found.addresses))). " }
-        if oldAnswers, let old = device.host { parts += "Something still answers at its old address, \(old). " }
+        if found.isAmbiguous { parts += loc("More than one device announces this printer's ID: {0}. ", Reachability.join(Rediscovery.distinct(found.addresses))) }
+        if oldAnswers, let old = device.host { parts += loc("Something still answers at its old address, {0}. ", old) }
         return parts
     }
 
@@ -138,49 +136,49 @@ public enum OfflineDiagnosis {
 
     private static func networkCheck(_ device: OfflineDevice, _ found: Rediscovery?, _ oldAnswers: Bool, _ error: String?) -> CheckResult {
         guard let found else {
-            return CheckResult(.network, .warning, error.map { "Couldn't look for it: \($0)" }
-                ?? "It didn't announce itself on the network. It may be off or asleep, on another network, or not announce itself at all.")
+            return CheckResult(.network, .warning, error.map { loc("Couldn't look for it: {0}", $0) }
+                ?? loc("It didn't announce itself on the network. It may be off or asleep, on another network, or not announce itself at all."))
         }
         guard let old = device.host, !IpText.same(found.address, old) else {
-            return CheckResult(.network, .passed, "Found at \(found.address), the address Inkvolt Print uses.")
+            return CheckResult(.network, .passed, loc("Found at {0}, the address Inkvolt Print uses.", found.address))
         }
         let caution = caution(device, found, oldAnswers)
         if !caution.isEmpty {
-            return CheckResult(.network, .warning, "Found at \(found.address) (it was \(old)). \(caution)Inkvolt Print asks before using the new address.")
+            return CheckResult(.network, .warning, loc("Found at {0} (it was {1}). {2}Inkvolt Print asks before using the new address.", found.address, old, caution))
         }
         return CheckResult(.network, .warning,
-                           "Found at a new address, \(found.address) (it was \(old)). The router gave it a new one; Inkvolt Print uses the new address now.")
+                           loc("Found at a new address, {0} (it was {1}). The router gave it a new one; Inkvolt Print uses the new address now.", found.address, old))
     }
 
     private static func connectionCheck(_ r: Reachability) -> CheckResult {
-        if r.answers { return CheckResult(.connection, .passed, "Answers at \(r.host): \(r.portsText).") }
-        return CheckResult(.connection, .failed, "No answer at \(r.host). Check that it's switched on and awake, and on the same network as this Mac.")
+        if r.answers { return CheckResult(.connection, .passed, loc("Answers at {0}: {1}.", r.host, r.portsText)) }
+        return CheckResult(.connection, .failed, loc("No answer at {0}. Check that it's switched on and awake, and on the same network as this Mac.", r.host))
     }
 
     private static func queuesCheck(_ matched: [MatchedQueue]) -> CheckResult {
-        if matched.isEmpty { return CheckResult(.queues, .warning, "None: this Mac has no printer for this device yet.") }
+        if matched.isEmpty { return CheckResult(.queues, .warning, loc("None: this Mac has no printer for this device yet.")) }
         let lines = matched.map { m in
-            "“\(m.queue.displayName)”: \(m.portText)" + (m.portIsStale ? ", an old address" : "") + (m.reason == .name ? " (matched by its name)" : "")
+            "“\(m.queue.displayName)”: \(m.portText)" + (m.portIsStale ? loc(", an old address") : "") + (m.reason == .name ? loc(" (matched by its name)") : "")
         }
         return CheckResult(.queues, matched.contains(where: \.portIsStale) ? .failed : .passed, lines.joined(separator: "\n"))
     }
 
     private static func queueStateCheck(_ matched: [MatchedQueue], user: String) -> CheckResult {
-        if matched.isEmpty { return CheckResult(.queueState, .skipped, "No macOS printer to check.") }
+        if matched.isEmpty { return CheckResult(.queueState, .skipped, loc("No macOS printer to check.")) }
         var lines: [String] = []
         var failed = false
         for m in matched {
             var problems: [String] = []
-            if m.isPaused { problems.append("paused") }
-            if !m.queue.isAcceptingJobs { problems.append("not accepting jobs") }
+            if m.isPaused { problems.append(loc("paused", context: "queue problem")) }
+            if !m.queue.isAcceptingJobs { problems.append(loc("not accepting jobs")) }
             let stuck = stuckJobs(m).count
-            if stuck > 0 { problems.append(stuck == 1 ? "1 stuck job" : "\(stuck) stuck jobs") }
+            if stuck > 0 { problems.append(stuck == 1 ? loc("1 stuck job") : loc("{0} stuck jobs", stuck)) }
             failed = failed || !problems.isEmpty
             let reading = CupsStatus.describe(m.queue)
-            if reading.offline { problems.append("macOS shows it offline") } else if reading.status.severity == .error { problems.append("macOS shows an error") }
+            if reading.offline { problems.append(loc("macOS shows it offline")) } else if reading.status.severity == .error { problems.append(loc("macOS shows an error")) }
             if !problems.isEmpty { lines.append("“\(m.queue.displayName)”: \(Reachability.join(problems)).") }
         }
-        if lines.isEmpty { return CheckResult(.queueState, .passed, "Not paused or offline, no stuck jobs.") }
+        if lines.isEmpty { return CheckResult(.queueState, .passed, loc("Not paused or offline, no stuck jobs.")) }
         return CheckResult(.queueState, failed ? .failed : .warning, lines.joined(separator: "\n"))
     }
 
@@ -255,11 +253,11 @@ public enum OfflineDiagnosis {
             let q = m.queue
             let shown = q.displayName
             if m.isPaused {
-                list.append(Repair(.resumeQueue, "Resume “\(shown)”", "Printing is paused in macOS, so jobs wait in the queue.", queue: q.name,
+                list.append(Repair(.resumeQueue, loc("Resume “{0}”", shown), loc("Printing is paused in macOS, so jobs wait in the queue."), queue: q.name,
                                    manualSteps: ManualSteps.for(.resumeQueue, queue: shown)))
             }
             if !q.isAcceptingJobs {
-                list.append(Repair(.acceptJobs, "Let “\(shown)” accept jobs again", "macOS turns new print jobs away for this printer.",
+                list.append(Repair(.acceptJobs, loc("Let “{0}” accept jobs again", shown), loc("macOS turns new print jobs away for this printer."),
                                    queue: q.name, manualSteps: ManualSteps.for(.acceptJobs, queue: shown)))
             }
 
@@ -267,8 +265,8 @@ public enum OfflineDiagnosis {
                 pointAt(&list, m, target, found?.hostName, caution)
             } else if !m.portIsStale, answers, !m.isPaused, CupsStatus.describe(q).offline {
                 // It answers, the address is right, yet macOS says offline.
-                list.append(Repair(.addAgain, "Add “\(shown)” again",
-                                   "The printer answers, but macOS still shows it offline. Removing it and adding it again makes macOS find it afresh.",
+                list.append(Repair(.addAgain, loc("Add “{0}” again", shown),
+                                   loc("The printer answers, but macOS still shows it offline. Removing it and adding it again makes macOS find it afresh."),
                                    queue: q.name, manualOnly: true, manualSteps: ManualSteps.for(.addAgain, queue: shown)))
             }
 
@@ -276,16 +274,17 @@ public enum OfflineDiagnosis {
             let mine = stuck.filter { QueueJobText.isOwner($0.owner, user) }
             if !mine.isEmpty {
                 let names = mine.prefix(3).map { "“\($0.name)”" }.joined(separator: ", ")
-                let what = mine.count == 1 ? "“\(mine[0].name)”" : "\(mine.count) jobs (\(names)\(mine.count > 3 ? "…" : ""))"
-                list.append(Repair(.cancelStuckJobs, mine.count == 1 ? "Cancel the stuck job in “\(shown)”" : "Cancel \(mine.count) stuck jobs in “\(shown)”",
-                                   mine.count == 1 ? "\(capital(what)) is stuck and holds up everything after it." : "\(capital(what)) are stuck and hold up everything after them.",
-                                   queue: q.name, jobIds: mine.map(\.id), question: "Cancel \(what)? \(mine.count == 1 ? "It" : "They") won't print.",
-                                   confirm: mine.count == 1 ? "Cancel job" : "Cancel jobs", manualSteps: ManualSteps.for(.cancelStuckJobs, queue: shown)))
+                let what = mine.count == 1 ? "“\(mine[0].name)”" : loc("{0} jobs ({1})", mine.count, names + (mine.count > 3 ? "…" : ""))
+                list.append(Repair(.cancelStuckJobs, mine.count == 1 ? loc("Cancel the stuck job in “{0}”", shown) : loc("Cancel {0} stuck jobs in “{1}”", mine.count, shown),
+                                   mine.count == 1 ? loc("{0} is stuck and holds up everything after it.", capital(what)) : loc("{0} are stuck and hold up everything after them.", capital(what)),
+                                   queue: q.name, jobIds: mine.map(\.id), question: mine.count == 1 ? loc("Cancel {0}? It won't print.", what) : loc("Cancel {0}? They won't print.", what),
+                                   confirm: mine.count == 1 ? loc("Cancel job") : loc("Cancel jobs"), manualSteps: ManualSteps.for(.cancelStuckJobs, queue: shown)))
             }
             let others = stuck.count - mine.count
             if others > 0 {
-                list.append(Repair(.cancelOthersJobs, "Cancel other people's stuck jobs in “\(shown)”",
-                                   "\(others == 1 ? "1 job" : "\(others) jobs") from someone else on this Mac \(others == 1 ? "is" : "are") stuck. Only an administrator can cancel \(others == 1 ? "it" : "them").",
+                list.append(Repair(.cancelOthersJobs, loc("Cancel other people's stuck jobs in “{0}”", shown),
+                                   others == 1 ? loc("1 job from someone else on this Mac is stuck. Only an administrator can cancel it.")
+                                       : loc("{0} jobs from someone else on this Mac are stuck. Only an administrator can cancel them.", others),
                                    queue: q.name, jobIds: stuck.filter { !QueueJobText.isOwner($0.owner, user) }.map(\.id), manualOnly: true,
                                    manualSteps: ManualSteps.for(.cancelOthersJobs, queue: shown)))
             }
@@ -301,20 +300,20 @@ public enum OfflineDiagnosis {
         let shown = q.displayName
         let uri = q.deviceUri ?? ""
         let old = CupsQueues.host(uri) ?? uri
-        let doubt = (m.reason == .name ? "“\(shown)” has the same model name as this printer, but prints to \(old). Is it for this printer? " : "") + (caution ?? "")
+        let doubt = (m.reason == .name ? loc("“{0}” has the same model name as this printer, but prints to {1}. Is it for this printer? ", shown, old) : "") + (caution ?? "")
         let newUri = replacingHost(uri, with: target)
-        list.append(Repair(.pointAt, "Point “\(shown)” at \(target)",
-                           "\(doubt)It still prints to \(old), the printer's old address. Inkvolt Print points it at \(target).",
+        list.append(Repair(.pointAt, loc("Point “{0}” at {1}", shown, target),
+                           loc("{0}It still prints to {1}, the printer's old address. Inkvolt Print points it at {2}.", doubt, old, target),
                            queue: q.name, target: target, targetUri: newUri,
-                           question: "\(doubt)Point “\(shown)” at \(target)? Its print jobs go to \(target) from now on.", confirm: "Point It",
+                           question: loc("{0}Point “{1}” at {2}? Its print jobs go to {3} from now on.", doubt, shown, target, target), confirm: loc("Point It"),
                            manualSteps: ManualSteps.for(.pointAt, queue: shown, target: target, uri: newUri)))
         if let hostName, !hostName.isEmpty {
             let byName = replacingHost(uri, with: hostName)
-            list.append(Repair(.pointAt, "Or point it at \(hostName)",
-                               "\(doubt)The printer's network name, which follows it when the router gives it a new address.",
+            list.append(Repair(.pointAt, loc("Or point it at {0}", hostName),
+                               loc("{0}The printer's network name, which follows it when the router gives it a new address.", doubt),
                                queue: q.name, target: hostName, targetUri: byName,
-                               question: "\(doubt)Point “\(shown)” at \(hostName)? Its print jobs go to whichever address that name has.",
-                               confirm: "Point It", isAlternative: true,
+                               question: loc("{0}Point “{1}” at {2}? Its print jobs go to whichever address that name has.", doubt, shown, hostName),
+                               confirm: loc("Point It"), isAlternative: true,
                                manualSteps: ManualSteps.for(.pointAt, queue: shown, target: hostName, uri: byName)))
         }
     }

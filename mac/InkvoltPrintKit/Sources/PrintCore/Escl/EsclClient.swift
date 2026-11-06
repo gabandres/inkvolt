@@ -34,7 +34,7 @@ public final class EsclClient: Sendable {
     }
 
     public func status() async throws -> ScannerStatus {
-        guard let bytes = try await getBytesOrNil(url("ScannerStatus")) else { throw ScanError("Scanner status not available") }
+        guard let bytes = try await getBytesOrNil(url("ScannerStatus")) else { throw ScanError(loc("Scanner status not available")) }
         return ScannerStatus.parse(try DeviceXml.load(bytes))
     }
 
@@ -56,15 +56,15 @@ public final class EsclClient: Sendable {
     }
 
     private func runScan(_ request: ScanRequest, _ yield: @Sendable ([UInt8]) -> Void) async throws {
-        guard let caps = try await capabilities() else { throw ScanError("Not an eSCL scanner") }
+        guard let caps = try await capabilities() else { throw ScanError(loc("Not an eSCL scanner")) }
         let input = caps.input(for: request.source)
         let pdf = input?.pdfOnly == true
         if input?.offersJpeg == false && !pdf {
-            throw ScanError("This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs.")
+            throw ScanError(loc("This scanner doesn't send JPEG or PDF pages from this source, which Inkvolt Print needs."))
         }
         if let problem = try await status().problem(feeder: request.source != .platen) { throw ScanError(problem) }
         guard let settings = EsclXml.buildScanSettings(request, caps, format: pdf ? ScannerPdf.mediaType : "image/jpeg") else {
-            throw ScanError("The scanner has no such source.")
+            throw ScanError(loc("The scanner has no such source."))
         }
 
         let job = try await createJob(settings)
@@ -104,17 +104,17 @@ public final class EsclClient: Sendable {
             } catch DeviceNetworkError.timedOut {
                 // The scanner may have created the job without answering; delete it so the next scan isn't "busy".
                 await deleteRecentActiveJobs()
-                throw ScanError("The scanner didn't answer in time. Try again.")
+                throw ScanError(loc("The scanner didn't answer in time. Try again."))
             }
             if response.status == 503 && attempt < 10 {
                 attempt += 1
                 try await Task.sleep(for: .seconds(1)) // warming up / busy
                 continue
             }
-            if response.status == 409 { throw ScanError("Scanner is busy with another job.") }
+            if response.status == 409 { throw ScanError(loc("Scanner is busy with another job.")) }
             try DeviceHttp.ensureSuccess(response, "POST", target)
             guard let location = response.header("Location"), let to = URL(string: location, relativeTo: root) else {
-                throw ScanError("Scanner did not return a job location.")
+                throw ScanError(loc("Scanner did not return a job location."))
             }
             // Resolve only the path against our base: Location often names the host by its .local name or another port, and
             // a relative "//other-host/x" can't move the job to another host.

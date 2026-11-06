@@ -24,10 +24,10 @@ public struct SeparatorFound: Equatable, Sendable, Codable {
     /// "Patch T sheet", "blank page", or "".
     public var description: String {
         switch kind {
-        case .patchCode: "\(PatchCodes.name(code ?? .patchT)) sheet"
-        case .blankPage: "blank page"
-        case .byHand: "marked by hand"
-        case .sheetBack: "back of the patch sheet"
+        case .patchCode: loc("{0} sheet", context: "patch code", PatchCodes.name(code ?? .patchT))
+        case .blankPage: loc("blank page")
+        case .byHand: loc("marked by hand")
+        case .sheetBack: loc("back of the patch sheet")
         case .none: ""
         }
     }
@@ -48,10 +48,10 @@ public enum Separators {
 
     public static func label(_ splitAt: SplitAt) -> String {
         switch splitAt {
-        case .patchCode: "Patch codes"
-        case .blankPage: "Blank pages"
-        case .patchCodeOrBlankPage: "Patch codes or blank pages"
-        default: "Don't split"
+        case .patchCode: loc("Patch codes")
+        case .blankPage: loc("Blank pages")
+        case .patchCodeOrBlankPage: loc("Patch codes or blank pages")
+        default: loc("Don't split")
         }
     }
 }

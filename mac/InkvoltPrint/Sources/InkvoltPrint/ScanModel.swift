@@ -13,8 +13,8 @@ enum ScanFormat: String, CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .pdf: "PDF"
-        case .searchablePdf: "Searchable PDF (text recognised on this Mac)"
-        case .jpeg: "JPEG images"
+        case .searchablePdf: String(localized: "Searchable PDF (text recognised on this Mac)")
+        case .jpeg: String(localized: "JPEG images")
         }
     }
 }
@@ -24,6 +24,12 @@ enum ScanFormat: String, CaseIterable, Identifiable {
 /// are kept in the recovery folder as they change, so a crash doesn't lose them.
 @MainActor @Observable
 final class ScanModel {
+    /// "Save cancelled after 2 files (a.pdf, b.pdf): Save again writes the rest."
+    nonisolated static func saveCancelled(_ count: Int, names: String) -> String {
+        count == 1 ? String(localized: "Save cancelled after 1 file (\(names)): Save again writes the rest.")
+            : String(localized: "Save cancelled after \(count) files (\(names)): Save again writes the rest.")
+    }
+
     private(set) var caps: ScannerCapabilities?
     private(set) var loadError: String?
     var source: ScanSource = .platen { didSet { fitChoices() } }
@@ -116,14 +122,14 @@ final class ScanModel {
     func load() async {
         guard caps == nil else { return }
         guard let scanner = await printer.scanner() else {
-            loadError = "The scanner isn't available while the printer isn't connected."
+            loadError = String(localized: "The scanner isn't available while the printer isn't connected.")
             return
         }
         do {
             caps = try await scanner.capabilities()
-            loadError = caps == nil ? "This printer's scanner didn't say what it can do." : nil
+            loadError = caps == nil ? String(localized: "This printer's scanner didn't say what it can do.") : nil
         } catch {
-            loadError = "The scanner didn't answer. Check that the printer is on, then try again."
+            loadError = String(localized: "The scanner didn't answer. Check that the printer is on, then try again.")
         }
         if let first = caps?.sources.first, !(caps?.sources.contains(source) ?? false) { source = first }
         fitChoices()
@@ -169,7 +175,7 @@ final class ScanModel {
         guard !isScanning else { return }
         problem = nil
         isScanning = true
-        status = source == .platen ? "Scanning…" : "Scanning from the feeder…"
+        status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
                                    ocrLanguage: ocrLanguage)
@@ -187,7 +193,7 @@ final class ScanModel {
                 scanning = nil
             }
             guard let scanner = await printer.scanner() else {
-                problem = "The scanner isn't available while the printer isn't connected."
+                problem = String(localized: "The scanner isn't available while the printer isn't connected.")
                 status = ""
                 return
             }
@@ -197,7 +203,7 @@ final class ScanModel {
             do {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
-                    status = "Scanned \(count) \(count == 1 ? "page" : "pages")…"
+                    status = count == 1 ? String(localized: "Scanned \(count) page…") : String(localized: "Scanned \(count) pages…")
                     added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
                 }
             } catch {
@@ -212,15 +218,15 @@ final class ScanModel {
             switch failure {
             case nil:
                 let found = notes(added, split: split, photos: photos, duplex: duplex) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
-                status = count == 0 ? "No pages came from the scanner." : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
+                status = count == 0 ? String(localized: "No pages came from the scanner.") : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 await finished?()
             case is CancellationError:
-                status = "Scan stopped."
+                status = String(localized: "Scan stopped.")
             case let e as ScanError:
                 problem = e.description
                 status = count > 0 ? pages.summary : ""
             default:
-                problem = "The scan didn't finish: the scanner stopped answering."
+                problem = String(localized: "The scan didn't finish: the scanner stopped answering.")
                 status = count > 0 ? pages.summary : ""
             }
         }
@@ -311,10 +317,10 @@ final class ScanModel {
     /// After a scan from a source that sends only PDF: what that means, in words (the Windows app's `PdfNote`).
     private func pdfNote(_ added: [String], _ request: ScanRequest) -> [String] {
         guard let origin = added.lazy.compactMap({ self.origins[$0] }).first else { return [] }
-        let from = request.source == .platen ? "the glass" : "the feeder"
+        let from = request.source == .platen ? String(localized: "the glass") : String(localized: "the feeder")
         return [origin.rendered
-            ? "This scanner sends PDF from \(from): its pages were drawn as pictures at \(request.resolution) dpi for the review."
-            : "This scanner sends PDF from \(from): its pictures were taken out as they came, so the review, text recognition and presets work as usual."]
+            ? String(localized: "This scanner sends PDF from \(from): its pages were drawn as pictures at \(request.resolution) dpi for the review.")
+            : String(localized: "This scanner sends PDF from \(from): its pictures were taken out as they came, so the review, text recognition and presets work as usual.")]
     }
 
     /// What `ScannerPdf.keepAsSent` needs to know of a file's pages: where each came from, and whether it changed (edited,
@@ -336,28 +342,36 @@ final class ScanModel {
         let plans = files.map(toSave).filter { $0.contains { $0.origin != nil } }
         if plans.isEmpty { return "" }
         if plans.allSatisfy({ ScannerPdf.keepAsSent($0) != nil }) {
-            return plans.count == 1 ? " It is the scanner's own PDF, as it sent it." : " They are the scanner's own PDFs, as it sent them."
+            return plans.count == 1 ? String(localized: " It is the scanner's own PDF, as it sent it.") : String(localized: " They are the scanner's own PDFs, as it sent them.")
         }
         return plans.compactMap(ScannerPdf.whyNotAsSent).first.map { " " + $0 } ?? ""
     }
 
     /// What a scan found, after the page summary (the Windows app's notes).
+    /// "2 separator sheets found: 3 files."
+    private static func separatorsFound(_ separators: Int, files: Int) -> String {
+        let filesText = files == 1 ? String(localized: "1 file") : String(localized: "\(files) files")
+        return separators == 1 ? String(localized: "1 separator sheet found: \(filesText).")
+            : String(localized: "\(separators) separator sheets found: \(filesText).")
+    }
+
     private func notes(_ added: [String], split: SplitAt, photos: Bool, duplex: Bool) -> [String] {
         let run = added.compactMap { pages.page($0) }
         guard !run.isEmpty else { return [] }
         var notes: [String] = []
         let found = run.reduce(0) { $0 + ($1.photos?.count ?? 0) }
         if photos {
-            notes.append(found == 0 ? "No photos were found on the glass: the whole scan is saved."
-                : "\(found == 1 ? "1 photo" : "\(found) photos") found, each saved as its own picture.")
+            notes.append(found == 0 ? String(localized: "No photos were found on the glass: the whole scan is saved.")
+                : found == 1 ? String(localized: "1 photo found, saved as its own picture.")
+                : String(localized: "\(found) photos found, each saved as its own picture."))
         }
         let separators = run.filter { $0.isSeparator && $0.separator.kind != .sheetBack }.count
         if split != .none {
             let files = pages.files.count
-            notes.append(separators == 0 ? "No separator sheets were found: it's one file."
-                : "\(separators == 1 ? "1 separator sheet" : "\(separators) separator sheets") found: \(files == 1 ? "1 file" : "\(files) files").")
+            notes.append(separators == 0 ? String(localized: "No separator sheets were found: it's one file.")
+                : Self.separatorsFound(separators, files: files))
             if duplex && (split == .blankPage || split == .patchCodeOrBlankPage) {
-                notes.append("Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better.")
+                notes.append(String(localized: "Scanning both sides: a blank back starts a new file too, so patch code sheets suit two-sided batches better."))
             }
         }
         return notes
@@ -444,7 +458,7 @@ final class ScanModel {
             before[id] = edits
             after[id] = page.edits
         }
-        let name = before.count == 1 ? "Clean up page \(pages.number(before.keys.first!) ?? 1)" : "Clean up \(before.count) pages"
+        let name = before.count == 1 ? String(localized: "Clean up page \(pages.number(before.keys.first!) ?? 1)") : String(localized: "Clean up \(before.count) pages")
         recordUndo(name, before, after: after)
         return pages.cleanupSummary(added, cleanup)
     }
@@ -486,26 +500,26 @@ final class ScanModel {
             }
         }
         if stop.isStopped { return nil }
-        guard case .success(let image) = result else { return (nil, "Couldn't show the page: it couldn't be read.") }
+        guard case .success(let image) = result else { return (nil, String(localized: "Couldn't show the page: it couldn't be read.")) }
         return (NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height)), cleanNote(id, filters, edits))
     }
 
     /// What the Clean up view says after drawing `edits` for `wanted` (the Windows app's `CleanNote`).
     func cleanNote(_ id: String, _ wanted: PageFilters, _ edits: PageEdits) -> String {
         if let size = images[id].flatMap(ScanImaging.size), PageCleanup.tooLarge(size.width, size.height), !wanted.isDisjoint(with: .pixelFilters) {
-            return "This page is too large to clean up (\(size.width * size.height / 1_000_000) million pixels): it is saved as scanned."
+            return String(localized: "This page is too large to clean up (\(size.width * size.height / 1_000_000) million pixels): it is saved as scanned.")
         }
         let photos = pages.page(id)?.hasPhotos ?? false
         if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
-            return "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole."
+            return String(localized: "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.")
         }
-        return wanted.isEmpty ? "As scanned." : "Shown \(PageCleanup.describe(wanted))."
+        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted)).")
     }
 
     /// The Clean up view's Done: the page gets `filters`, one step of Undo.
     func applyClean(_ id: String, _ filters: PageFilters) async {
         guard let edits = await edits(id, with: filters), let page = pages.page(id), edits != page.edits else { return }
-        recordUndo("Clean up page \(pages.number(id) ?? 1)", [id: page.edits], after: [id: edits])
+        recordUndo(String(localized: "Clean up page \(pages.number(id) ?? 1)"), [id: page.edits], after: [id: edits])
         change(id) { $0.setEdits(id, edits) }
     }
 
@@ -537,7 +551,7 @@ final class ScanModel {
             }
         }
         if stop.isStopped {
-            status = "Clean up stopped: no page was changed."
+            status = String(localized: "Clean up stopped: no page was changed.")
             return
         }
         var before: [String: PageEdits] = [:], after: [String: PageEdits] = [:]
@@ -550,8 +564,8 @@ final class ScanModel {
         }
         savedParts.clear()
         keep()
-        recordUndo(before.count == 1 ? "Clean up 1 page" : "Clean up \(before.count) pages", before, after: after)
-        status = before.count == 1 ? "1 page was cleaned up (Undo puts it back)." : "\(before.count) pages were cleaned up (Undo puts them back)."
+        recordUndo(before.count == 1 ? String(localized: "Clean up 1 page") : String(localized: "Clean up \(before.count) pages"), before, after: after)
+        status = before.count == 1 ? String(localized: "1 page was cleaned up (Undo puts it back).") : String(localized: "\(before.count) pages were cleaned up (Undo puts them back).")
     }
 
     func delete(_ id: String) {
@@ -676,7 +690,7 @@ final class ScanModel {
     func printPages() async {
         guard !pages.toSave.isEmpty, !isSaving else { return }
         isSaving = true
-        status = "Preparing the copy…"
+        status = String(localized: "Preparing the copy…")
         let jobs = jobs(pages.files)
         let data: Data? = await offPool {
             try? ScanPdf.write(Self.render(jobs).joined().map { ScanPdf.Page(jpeg: $0.jpeg, dpi: $0.dpi) })
@@ -684,7 +698,7 @@ final class ScanModel {
         isSaving = false
         status = pages.summary
         guard let data, let document = PDFDocument(data: data) else {
-            problem = "The pages couldn't be prepared for printing."
+            problem = String(localized: "The pages couldn't be prepared for printing.")
             return
         }
         Printing.print(document, name: suggestedName, on: printer, app: app)
@@ -835,8 +849,8 @@ final class ScanModel {
             panel.canChooseDirectories = true
             panel.canChooseFiles = false
             panel.canCreateDirectories = true
-            panel.prompt = "Use This Folder"
-            panel.message = "Choose where \"\(p.name)\" saves its scans (a folder in iCloud Drive or another synced folder works too). Inkvolt Print remembers it."
+            panel.prompt = String(localized: "Use This Folder")
+            panel.message = String(localized: "Choose where \"\(p.name)\" saves its scans (a folder in iCloud Drive or another synced folder works too). Inkvolt Print remembers it.")
             panel.directoryURL = FileManager.default.urls(for: p.folder == .pictures ? .picturesDirectory : .documentDirectory, in: .userDomainMask).first
             guard panel.runModal() == .OK, let url = panel.url else { return }
             app.setPresetFolder(p.id, url)
@@ -852,7 +866,7 @@ final class ScanModel {
         var all: [URL] = []
         isSaving = true
         problem = nil
-        status = format == .searchablePdf ? "Recognising text…" : "Saving…"
+        status = format == .searchablePdf ? String(localized: "Recognising text…") : String(localized: "Saving…")
         let stop = BatchStop()
         saveStop = stop
         defer { saveStop = nil }
@@ -880,14 +894,15 @@ final class ScanModel {
             if case .failure(let error) = result, error is SaveStopped || error is CancellationError {
                 isSaving = false
                 savedPdfs = all.filter { $0.pathExtension.lowercased() == "pdf" }
-                status = all.isEmpty ? "Save cancelled. The pages are still here."
-                    : "Save cancelled after \(all.count) \(all.count == 1 ? "file" : "files"): Save again writes the rest."
+                status = all.isEmpty ? String(localized: "Save cancelled. The pages are still here.")
+                    : all.count == 1 ? String(localized: "Save cancelled after 1 file: Save again writes the rest.")
+                    : String(localized: "Save cancelled after \(all.count) files: Save again writes the rest.")
                 return
             }
             guard case .success(let urls) = result else {
                 isSaving = false
-                let part = files.count > 1 ? " (file \(f + 1) of \(files.count); Save again writes the rest)" : ""
-                problem = "The scan couldn't be saved in \(folder.lastPathComponent)\(part). Check the folder is still there, or choose another in Manage Presets."
+                let part = files.count > 1 ? String(localized: " (file \(f + 1) of \(files.count); Save again writes the rest)") : ""
+                problem = String(localized: "The scan couldn't be saved in \(folder.lastPathComponent)\(part). Check the folder is still there, or choose another in Manage Presets.")
                 status = pages.summary
                 return
             }
@@ -916,14 +931,14 @@ final class ScanModel {
             if document.pageCount > 0 { Printing.print(document, name: urls.first?.deletingPathExtension().lastPathComponent ?? "Scan", on: printer, app: app) }
         case .email:
             guard let service = NSSharingService(named: .composeEmail), service.canPerform(withItems: urls) else {
-                problem = "No mail app is set up on this Mac to attach the scan to. The scan is saved."
+                problem = String(localized: "No mail app is set up on this Mac to attach the scan to. The scan is saved.")
                 NSWorkspace.shared.activateFileViewerSelecting(urls)
                 return
             }
-            service.subject = urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : "Scans"
+            service.subject = urls.count == 1 ? urls[0].deletingPathExtension().lastPathComponent : String(localized: "Scans")
             service.perform(withItems: urls)
         case .openInInkvoltPdf:
-            if !InkvoltPdfApp.open(urls) { problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved." }
+            if !InkvoltPdfApp.open(urls) { problem = String(localized: "Inkvolt PDF isn't installed on this Mac. The scan is saved.") }
         default:
             break
         }
@@ -942,7 +957,7 @@ final class ScanModel {
         isSaving = true
         problem = nil
         let format = format
-        status = format == .searchablePdf ? "Recognising text…" : "Saving…"
+        status = format == .searchablePdf ? String(localized: "Recognising text…") : String(localized: "Saving…")
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         let targets: [[URL]]
@@ -950,7 +965,7 @@ final class ScanModel {
             targets = url.hasDirectoryPath ? try self.targets(in: url, stem: FileNameTemplate.sanitize(suggestedName)) : [[url]]
         } catch {
             isSaving = false
-            problem = "There are too many scans with that name in \(url.lastPathComponent). Choose another folder."
+            problem = String(localized: "There are too many scans with that name in \(url.lastPathComponent). Choose another folder.")
             return
         }
         let files = pages.files
@@ -971,15 +986,15 @@ final class ScanModel {
             for (i, urls) in stopped.written.enumerated() where !urls.isEmpty { savedParts.add(files[rest[i]].map(\.id), paths: urls.map(\.path)) }
             let saved = before + stopped.written.flatMap { $0 }
             savedPdfs = saved.filter { $0.pathExtension.lowercased() == "pdf" }
-            status = saved.isEmpty ? "Save cancelled. The pages are still here."
-                : "Save cancelled after \(saved.count) \(saved.count == 1 ? "file" : "files") (\(saved.map(\.lastPathComponent).joined(separator: ", "))): Save again writes the rest."
+            status = saved.isEmpty ? String(localized: "Save cancelled. The pages are still here.")
+                : Self.saveCancelled(saved.count, names: saved.map(\.lastPathComponent).joined(separator: ", "))
             return
         }
         switch result {
         case .success(let urls):
             await finishSaving(before + urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
         case .failure:
-            problem = "The scan couldn't be saved there. Choose another place, or check there's room on the disk."
+            problem = String(localized: "The scan couldn't be saved there. Choose another place, or check there's room on the disk.")
             status = pages.summary
         }
     }
@@ -987,10 +1002,10 @@ final class ScanModel {
     /// The save's status line; then, with Settings' "Open scans in Inkvolt PDF" on and Inkvolt PDF installed, the saved
     /// PDFs open there (once: not again when the preset's own step opens them), else Finder shows them when asked.
     private func finishSaving(_ urls: [URL], in place: String, note: String, reveal: Bool, presetOpens: Bool = false) async {
-        let saved = pages.toSave.count == 1 ? "1 page" : "\(pages.toSave.count) pages"
-        let files = urls.count > 1 ? " as \(urls.count) files" : ""
+        let saved = pages.toSave.count == 1 ? String(localized: "1 page") : String(localized: "\(pages.toSave.count) pages")
+        let files = urls.count > 1 ? String(localized: " as \(urls.count) files") : ""
         clear()
-        status = "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place)." + note
+        status = String(localized: "Saved \(saved)\(files) to \(urls.count == 1 ? urls[0].lastPathComponent : place).") + note
         savedPdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
         if InkvoltPdfApp.openScans && !presetOpens && !savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
             _ = InkvoltPdfApp.open(savedPdfs)
@@ -1001,6 +1016,6 @@ final class ScanModel {
 
     /// The save bar's Open in Inkvolt PDF: every PDF the last save wrote.
     func openSavedInInkvoltPdf() {
-        if !InkvoltPdfApp.open(savedPdfs) { problem = "Inkvolt PDF isn't installed on this Mac. The scan is saved." }
+        if !InkvoltPdfApp.open(savedPdfs) { problem = String(localized: "Inkvolt PDF isn't installed on this Mac. The scan is saved.") }
     }
 }

@@ -107,12 +107,11 @@ struct PrinterPaneTests {
 
     // MARK: Supplies
 
-    private static let us = Locale(identifier: "en_US")
 
     private static func supply(_ state: String, percent: Int? = nil, pages: Int? = nil, kind: String = "toner", threshold: Int? = nil) -> SupplyText {
         SupplyText(Consumable(name: "Black toner", kind: kind, colorCode: kind == "toner" ? "K" : nil, percentRemaining: percent, state: state,
                               productNumber: "W1360A", selectibilityNumber: kind == "toner" ? "136A" : nil, lowThreshold: threshold,
-                              estimatedPagesRemaining: pages), locale: us)
+                              estimatedPagesRemaining: pages))
     }
 
     @Test func suppliesAreWordedAsThePaneShowsThem() {
