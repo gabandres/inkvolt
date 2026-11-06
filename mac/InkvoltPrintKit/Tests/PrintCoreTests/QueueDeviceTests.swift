@@ -273,7 +273,9 @@ struct QueueDeviceTests {
         let started = Date()
         let read = try #require(await source.read(Self.macOS(Self.ready)))
 
-        #expect(Date().timeIntervalSince(started) < 5)
+        // 5.5 s once on CI's busy runner (2026-11-06) for two 100 ms limits: CI gets slack, as ConnectionTests does.
+        let onCI = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil
+        #expect(Date().timeIntervalSince(started) < (onCI ? 20 : 5))
         #expect(read.supplies.map(\.name) == ["Black toner"])
         #expect(await source.origin == "the printer over IPP")
     }

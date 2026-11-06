@@ -126,7 +126,9 @@ struct TransportTests {
         let server = try HttpServer { _ in "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n" }
         defer { server.stop() }
         let scanner = SocketNetworkScanner()
-        #expect(try await scanner.isOpen("127.0.0.1", port: Int(server.port), timeout: .seconds(2)))
+        // The listening port within 2 s here; CI's busy runner missed it once (2026-11-06), so it gets 10 s there.
+        let openTimeout: Duration = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] != nil ? .seconds(10) : .seconds(2)
+        #expect(try await scanner.isOpen("127.0.0.1", port: Int(server.port), timeout: openTimeout))
         let started = ContinuousClock.now
         #expect(try await !scanner.isOpen("127.0.0.1", port: 9, timeout: .milliseconds(600)))
         // 7.5 s once on CI's busy runner (2026-11-06): the timeout waited for a GCD thread, as SNMP's cancel did (63622f8);
