@@ -98,9 +98,14 @@ public actor DeviceQueueStatus {
     /// The supplies card's source line for `read` (this source's last result): where the printer's own levels came from;
     /// "Not reported by this printer." for a queue that's online with none; nil for cupsd's own copy or an offline queue.
     public func suppliesSource(_ read: QueueStatusRead) -> String? {
-        if read.supplies.isEmpty { return read.offline ? nil : QueueDeviceText.notReported }
-        guard let last, !last.supplies.isEmpty else { return nil }
-        return QueueDeviceText.source(last.from)
+        QueueDeviceText.suppliesSource(read, from: last.flatMap { $0.supplies.isEmpty ? nil : $0.from })
+    }
+
+    /// The queue now without asking the printer: `macOS`'s read with the last reading, its origin and supplies line, so the
+    /// card shows macOS's state at once while a round (up to `callLimit`) is out; `read` then gives the printer's answer.
+    public func current(_ macOS: QueueStatusRead) -> (read: QueueStatusRead, origin: String, source: String?) {
+        let read = last.map { QueueDevice.merge(macOS, $0) } ?? macOS
+        return (read, origin, suppliesSource(read))
     }
 
     /// The queue now: `macOS`'s read with what the printer said. Nil when macOS no longer has the queue (removed meanwhile),
@@ -213,4 +218,12 @@ public enum QueueDeviceText {
 
     /// The supplies card of a queue printer that's online with no levels from anywhere.
     public static let notReported = "Not reported by this printer."
+
+    /// The supplies card's source line for `read`: `from`, where the printer's own levels came from (nil: none, so the levels
+    /// shown are cupsd's copy, with no line); "Not reported by this printer." for a queue that's online with none at all; nil
+    /// for an offline one. For a queue printer with no reader as for one with.
+    public static func suppliesSource(_ read: QueueStatusRead, from: QueueReadingFrom?) -> String? {
+        if read.supplies.isEmpty { return read.offline ? nil : notReported }
+        return from.map(source)
+    }
 }

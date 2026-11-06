@@ -26,6 +26,11 @@ public struct PrinterView: Equatable, Sendable {
     /// What the supplies card shows from the printer's supply history (roadmap 1.1), worked out for today (`SupplyHistoryFeed.show`):
     /// each supply's line, the chart and the days left; nil without a history (or before the first reading of its supplies).
     public var supplyHistory: SupplyHistoryView? = nil
+    /// A queue printer's status card: where its status and levels came from (`DeviceQueueStatus.origin`, roadmap 3.6); nil
+    /// for a network printer.
+    public var statusOrigin: String? = nil
+    /// A queue printer's supplies card: "From the printer over USB", "Not reported by this printer." (`QueueDeviceText`).
+    public var suppliesSource: String? = nil
 
     public static let connecting = PrinterView(phase: .connecting, statusMessage: "Connecting…", statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil)

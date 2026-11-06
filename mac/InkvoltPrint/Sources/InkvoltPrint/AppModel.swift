@@ -276,6 +276,12 @@ final class AppModel {
 
     /// The paper sizes Print Photos offers for a printer: its macOS queue's (libcups), demo mode's made-up inkjet's, or
     /// none (the fixed list then).
+    /// Who asks a queue printer's printer what its queue doesn't say (roadmap 3.6): route 1 over this Mac's network (a local
+    /// relay or the printer's IPP), demo mode's made-up USB laser; none for a queue with nothing to ask.
+    func queueReaders(for d: CupsDestination) -> [any QueueDeviceReader] {
+        isDemo ? DemoQueueDevice.readers(for: d) : QueueDeviceReaders.readers(for: d, transport: transport)
+    }
+
     func photoMedia(for p: PrinterModel) async -> [QueueMedia] {
         if isDemo { return p.id == Demo.inkjetUuid ? Demo.photoMedia : [] }
         guard let queue = p.queueName else { return [] }
@@ -319,6 +325,44 @@ final class AppModel {
             if let d = read.first(where: { CupsQueues.id(for: $0.name) == p.id }) { p.update(d) }
         }
         reconcile()
+        if settings.rules.enabled && settings.jobAlerts, jobsReadAt.map({ Date().timeIntervalSince($0) >= Self.jobsRefresh }) ?? true {
+            let now = Date()
+            jobsReadAt = now
+            show(await readJobs(now: now))
+        }
+    }
+
+    /// How often job alerts read the queues (the menu bar's read, roadmap 3.4).
+    static let jobsRefresh: TimeInterval = 60
+    @ObservationIgnored private var jobsReadAt: Date?
+
+    /// Who this Mac's user is to CUPS, for job alerts.
+    var jobOwner: JobOwner { JobOwner(userName: queues.user, machine: ProcessInfo.processInfo.hostName) }
+
+    /// Job alerts' read (roadmap 3.4), the app's and `--report --jobs`'s: each printer's macOS queue (a queue printer's own, a
+    /// network printer's) as last listed, its jobs through `PrintQueues.alertJobs`, into `tracker` at `now` once the printer's
+    /// own snapshot from the same read is there (`PrinterModel.observed`: a queue printer's may wait on its printer); the
+    /// notices due now. `tracker`: the report's own; nil, the app's as it is then. A queue cupsd can't list now is skipped,
+    /// never read as empty; `heard` gets each queue's jobs as read (nil: not listed) and the state followed.
+    func readJobs(into own: AlertTracker? = nil, now: Date,
+                  heard: (PrinterModel, String, [QueueJob]?, JobQueueState?) -> Void = { _, _, _, _ in }) async -> [AlertNotice] {
+        let me = jobOwner
+        var told: [AlertNotice] = []
+        for p in printers {
+            guard let queue = p.queueName else { continue }
+            let d = destinations?.first { $0.name.caseInsensitiveCompare(queue) == .orderedSame }
+            var state: JobQueueState?
+            if let d {
+                let jobs = await queues.alertJobs(queue)
+                state = jobs.map { JobQueueState.of(d, jobs: $0, now: now) }
+                heard(p, queue, jobs, state)
+                guard jobs != nil else { continue }
+            }
+            await p.observed()
+            guard printers.contains(where: { $0 === p }) else { continue } // removed meanwhile
+            told += (own ?? tracker).observeJobs(p.id, printerName: p.name, state, me: me, now: now)
+        }
+        return told
     }
 
     /// The printer list module's change, made: queue printers added and removed, the selection moved.
@@ -537,10 +581,13 @@ final class AppModel {
     /// Changes the settings, saves them and applies them to the alerts.
     func changeSettings(_ body: (inout AlertSettings) -> Void) {
         let wasOn = settings.rules.enabled
+        let jobsWereOn = wasOn && settings.jobAlerts
         var s = settings
         body(&s)
         s.repair()
         guard s != settings else { return }
+        // Job alerts on again (their switch, or alerts as a whole): the queues are read at the next queue read, not a minute later.
+        if s.rules.enabled && s.jobAlerts && !jobsWereOn { jobsReadAt = nil }
         settings = s
         store.change { $0.alertSettings = s }
         if s.rules.enabled && !wasOn {
@@ -577,8 +624,16 @@ final class AppModel {
 
     private func show(_ notices: [AlertNotice]) {
         if !notices.isEmpty && !(isDemo && self !== AppModel.shared) { // the demo window's made-up printers don't notify
-            let (title, text) = TrayText.notice(notices)
-            Notifier.post(title: title, body: text, printer: notices[0].uuid)
+            // The printers' problems in one notification, as before; each job its own, with Open the Queue (roadmap 3.4).
+            let split = JobNotices.split(notices)
+            if let first = split.printers.first {
+                let (title, text) = TrayText.notice(split.printers)
+                Notifier.post(title: title, body: text, printer: first.uuid)
+            }
+            for jobs in split.jobs {
+                let (title, text) = JobNotices.text(jobs)
+                Notifier.post(title: title, body: text, printer: jobs[0].uuid, job: true)
+            }
         }
         alertRevision += 1
         let shown = tracker.shown()
@@ -607,6 +662,8 @@ enum PaneRequest: Equatable {
     case scan
     case photosSheet
     case printPhotos([URL])
+    /// The status tab scrolled to the print queue card (a job's notification, roadmap 3.4).
+    case printQueue
 }
 
 /// The app's Mac as `FleetReader` reads it: the state file, cupsd (libcups, or demo mode's made-up queues), ImageCaptureCore's

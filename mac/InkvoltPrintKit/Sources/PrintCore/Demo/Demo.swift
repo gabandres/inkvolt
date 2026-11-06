@@ -97,7 +97,7 @@ public enum Demo {
     /// the list: a PDF writer (virtual) and the demo HP laser's own queue (its device URI carries the printer's UUID).
     public static let destinations: [CupsDestination] = [
         CupsDestination(name: "Demo_USB_laser", options: [
-            "printer-info": "Demo USB laser", "device-uri": "usb://Demo/Laser%202100?serial=DEMO0002100", "printer-make-and-model": "Demo Laser 2100",
+            "printer-info": "Demo USB laser", "device-uri": "ippusb://Demo%20Laser%202100._ipp._tcp.local./", "printer-make-and-model": "Demo Laser 2100",
             "printer-type": "4", "printer-state": "3", "printer-state-reasons": "toner-low-warning", "printer-is-accepting-jobs": "true",
             "printer-is-shared": "false",
             "marker-names": "Black Toner", "marker-levels": "12", "marker-low-levels": "15", "marker-types": "toner", "marker-colors": "#000000",

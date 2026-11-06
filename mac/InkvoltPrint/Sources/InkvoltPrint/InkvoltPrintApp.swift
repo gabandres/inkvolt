@@ -64,6 +64,7 @@ struct InkvoltPrintApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         UNUserNotificationCenter.current().delegate = self
+        Notifier.registerCategories()
         MainActor.assumeIsolated {
             ProSetup.configure(AppModel.shared) // before anything asks the Pro check
             ScannerPdf.renderer = ScannedPdfPages() // scanners that send only PDF (roadmap 1.3): pages that are not one JPEG
@@ -105,9 +106,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let printer = response.notification.request.content.userInfo[Notifier.printerKey] as? String
+        let action = response.actionIdentifier
+        let job = response.notification.request.content.categoryIdentifier == Notifier.jobCategory
         await MainActor.run {
             let model = AppModel.shared
-            if let printer, model.printers.contains(where: { $0.id == printer }) { model.selectedID = printer }
+            if action == Notifier.pauseAction { return model.pauseAlerts(for: Notifier.pauseFor) }
+            if let printer, model.printers.contains(where: { $0.id == printer }) {
+                model.selectedID = printer
+                if job { model.paneRequest = .printQueue } // a job's notification, clicked or Open the Queue
+            }
             MainWindow.bringForward()
         }
     }

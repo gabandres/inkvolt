@@ -53,7 +53,7 @@ public enum CupsQueues {
         let s = scheme(d.deviceUri)
         if s == "smb" || d.has(CupsDestination.TypeBit.remote) { return .shared }
         switch s {
-        case "usb": return .usb
+        case "usb", "ippusb": return .usb // ippusb: an IPP-over-USB printer, driverless (macOS's own backend, CUPS 2.5's)
         case "hp": return d.deviceUri?.contains("/usb/") == true ? .usb : .network // HP's driver: hp:/usb/… or hp:/net/…
         case "dnssd", "mdns", "ipp", "ipps", "http", "https", "socket", "lpd": return .network
         default: return .other
@@ -122,16 +122,30 @@ public enum CupsQueues {
     }
 
     /// The host part, percent-decoded ("NPI1A2B3C.local", "192.0.2.40", "HP LaserJet (1A2B3C)._ipp._tcp.local.").
-    static func host(_ uri: String) -> String? {
+    static func host(_ uri: String) -> String? { parts(uri)?.host }
+
+    /// A URI's host, port and path, in one parse (`host`, `IppQueueReading.target`): the authority runs from `://` to the
+    /// first `/`, `?` or `#`, its credentials end at its last `@`, an IPv6 address is in brackets; the path (never empty)
+    /// runs to the first `?` or `#`. Host percent-decoded and nil when empty; `port`: the text after the host's colon, nil
+    /// without one. Nil without `://`.
+    static func parts(_ uri: String) -> (host: String?, port: Substring?, path: Substring)? {
         guard let start = uri.range(of: "://")?.upperBound else { return nil }
-        var rest = uri[start...]
-        if let at = rest.firstIndex(of: "@"), rest[..<at].firstIndex(of: "/") == nil { rest = rest[rest.index(after: at)...] }
-        var h = String(rest.prefix { $0 != "/" && $0 != "?" })
-        if h.hasPrefix("[") { h = String(h.prefix { $0 != "]" }.dropFirst()) } else if let colon = h.lastIndex(of: ":"), h[h.index(after: colon)...].allSatisfy(\.isNumber) {
-            h = String(h[..<colon])
+        let rest = uri[start...]
+        let authorityEnd = rest.firstIndex { "/?#".contains($0) } ?? rest.endIndex
+        var authority = rest[..<authorityEnd]
+        if let at = authority.lastIndex(of: "@") { authority = authority[authority.index(after: at)...] }
+        var host = authority, port: Substring?
+        if authority.hasPrefix("[") {
+            let close = authority.firstIndex(of: "]") ?? authority.endIndex
+            host = authority[authority.index(after: authority.startIndex)..<close]
+            let after = close < authority.endIndex ? authority[authority.index(after: close)...] : ""
+            if !after.isEmpty { port = after.first == ":" ? after.dropFirst() : after } // not a port: refused where one is read
+        } else if let colon = authority.lastIndex(of: ":") {
+            (host, port) = (authority[..<colon], authority[authority.index(after: colon)...])
         }
-        h = h.removingPercentEncoding ?? h
-        return h.isEmpty ? nil : h
+        let decoded = host.removingPercentEncoding ?? String(host)
+        let path = rest[authorityEnd..<(rest[authorityEnd...].firstIndex { "?#".contains($0) } ?? rest.endIndex)]
+        return (decoded.isEmpty ? nil : decoded, port, path.isEmpty ? "/" : path)
     }
 
     /// A Bonjour service's instance name in a device URI ("HP LaserJet MFP M234dw (1A2B3C)" from
@@ -269,6 +283,22 @@ extension CupsStatus {
                            interfaces: [CupsQueues.connectionDetail(d)], firmware: nil, location: d.location)
     }
 
+    /// The same with what the queue's printer said merged in (`DeviceQueueStatus.read`, roadmap 3.6): `read`'s status and
+    /// levels, the status card's origin and the supplies card's source line.
+    public static func view(_ d: CupsDestination, read: QueueStatusRead, origin: String, suppliesSource: String?) -> PrinterView {
+        var v = PrinterView(phase: read.offline ? .offline : .online, statusMessage: read.status.message, statusDetail: read.status.detail,
+                            severity: read.status.severity, alerts: read.status.alerts, supplies: read.supplies, usage: nil, model: d.makeAndModel,
+                            interfaces: [CupsQueues.connectionDetail(d)], firmware: nil, location: d.location)
+        v.statusOrigin = origin
+        v.suppliesSource = suppliesSource
+        return v
+    }
+
+    /// For the menu bar's alerts, from the merged read.
+    public static func snapshot(_ d: CupsDestination, id: String, read: QueueStatusRead) -> PrinterSnapshot {
+        PrinterSnapshot(uuid: id, name: d.displayName, reachable: !read.offline, status: read.offline ? nil : read.status, supplies: read.supplies)
+    }
+
     /// For the menu bar's alerts.
     public static func snapshot(_ d: CupsDestination, id: String) -> PrinterSnapshot {
         let r = describe(d)
@@ -289,6 +319,15 @@ public protocol PrintQueues: Sendable {
 
     /// Who this Mac's user is to CUPS (`job-originating-user-name` of their jobs).
     var user: String { get }
+
+    /// The jobs job alerts follow (roadmap 3.4): the unfinished ones, and those CUPS gave up on with when it did, every user's;
+    /// with where each came from when the reader can say (`QueueJobAttributes`). Nil when cupsd can't be asked. Made-up
+    /// queues: their `jobs`.
+    func alertJobs(_ queue: String) async -> [QueueJob]?
+}
+
+extension PrintQueues {
+    public func alertJobs(_ queue: String) async -> [QueueJob]? { await jobs(queue) }
 }
 
 /// A job couldn't be cancelled; `message` says why in plain words.

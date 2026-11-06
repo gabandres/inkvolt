@@ -96,6 +96,10 @@ private struct AlertsSettings: View {
                 Toggle("Tell me when a printer stops answering for 15 minutes", isOn: bind(\.offlineAlerts)).disabled(!s.alerts)
             }
             Section {
+                Toggle("Tell me when my own print job fails or gets stuck", isOn: bind(\.jobAlerts)).disabled(!s.alerts)
+                Text(s.rules.jobsNote).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
                 Toggle("Quiet hours", isOn: bind(\.quietHours)).disabled(!s.alerts)
                 HStack {
                     Picker("From", selection: bind(\.quietFrom)) { hours }

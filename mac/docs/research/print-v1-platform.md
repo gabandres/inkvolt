@@ -357,6 +357,49 @@ Other APIs:
 - Image I/O gives no pixel size (`CopyPropertiesAtIndex`) for a PNG whose IHDR alone claims 40,000 × 40,000 over one
   pixel of data; a whole baseline JPEG of 20,000 × 20,000 gives its size without decoding.
 
+### USB printers' own levels (roadmap 3.6), checked on the Mac (2026-11-05)
+
+ignia-mac, macOS 27.2, Inkvolt Print's Release build (sandboxed, the entitlements above; **no new entitlement**). No
+IPP-over-USB printer was at hand, so the device URI below is read from the system, not seen on a queue.
+
+- **What device URI an IPP-over-USB queue gets: `ippusb://`, not `usb://`** (inferred, UNVERIFIED on a printer). macOS ships
+  `/usr/libexec/cups/backend/ippusb` as a symlink to the `dnssd` backend, and `/usr/libexec/ippusbd` ("Usage: ippusbd
+  <device uri>"): a launchd socket-activated proxy ("Proxy now listening", `launch_activate_socket`) that relays HTTP
+  between a client and the USB printer's IPP interface (class 7/1/4 bulk pipes). PrintCore.framework's `printtool`
+  starts it as `com.apple.ippusbd`, and its online/offline monitor treats `dnssd`, `ippusb` and `mdns` queues alike, so an
+  `ippusb://` URI names a Bonjour service the relay answers for, resolved as a `dnssd://` one is. The `usb` backend has
+  no IPP in it: a `usb://` queue (a maker's driver) has only cupsd's copy of the levels. `IppQueueReading.target` takes
+  `ippusb://<instance>._ipp._tcp.local./` as a service to resolve, and CUPS 2.5's make-and-model form as nothing to ask.
+- **The sandboxed app reaches a relay on `localhost` with `network.client` alone.** A stand-in relay, `ippeveprinter` on
+  `localhost:8632` (registered local-only, interface -1, as `InkvoltRelayTest._ipp._tcp`), behind a made-up queue
+  `ipp://localhost:8632/ipp/print`: the app's card said "Status and supply levels from the printer over USB (IPP)". Its
+  Bonjour discovery also resolved the local-only service and read it as a network printer at 127.0.0.1 (so a queue
+  `ippusb://InkvoltRelayTest._ipp._tcp.local./` was claimed by that printer, not listed on its own). A real `ippusbd`
+  relay registering such a service would show the same way; UNVERIFIED. `PrintMacTests` resolves a local-only
+  registration and reads its printer through an `ippusb://` queue (`QueueDeviceReaderTests`).
+- **cupsd's own IPP for a queue** (`ipp://localhost/printers/<queue>`) is reached over its domain socket through libcups,
+  as before, and gives cupsd's copy (`marker-*`, what `cupsGetDests2` lists); TCP `localhost:631` stays EPERM. Not asked
+  again for 3.6: it adds nothing to the destination's options.
+- Not checked: how fresh cupsd's `marker-*` stay while a USB queue is idle (no USB printer).
+
+### Job alerts' read and failed jobs (roadmap 3.4), checked on the Mac (2026-11-05)
+
+- **IPP Get-Jobs over cupsd's socket, not `cupsGetJobs2`.** Only Get-Jobs gives `job-originating-host-name` (`localhost`
+  for a job this Mac sent, so `JobOwner` knows it's yours on a shared queue too), `job-state-reasons` and
+  `job-media-sheets-completed`. The app asks twice per queue, `which-jobs=not-completed` and `which-jobs=aborted`
+  (cupsd accepts `aborted`; an unknown value is refused with client-error-attributes-or-values-not-supported).
+  `time-at-creation` and `time-at-completed` are seconds since 1970, `job-k-octets` kilobytes. Read from the sandbox:
+  the made-up queues' jobs came back with their owner and `localhost`.
+- **What CUPS does to a job when printing fails** (made-up queues, Generic PPD, error policy `stop-printer` as macOS sets
+  it; nothing reached a printer):
+  - A dead address (`ipp://192.0.2.1/ipp/print`): the job stays `processing` (`job-printing`, "The printer is not
+    responding."), the queue `processing`; the backend retries every minute (19 minutes watched), no `offline-report`,
+    the queue isn't stopped. Job alerts read it as a long job on a printer saying it's printing: "may be stuck" after 15
+    minutes.
+  - A filter failure (a broken PDF): the job goes to `processing-stopped` with `job-completed-with-errors` and the queue
+    stays idle and enabled, under `stop-printer` and `abort-job` alike; nothing became `aborted` in these runs. Job
+    alerts read it as failed ("macOS stopped this job") after the minute's hold; `--report --jobs` raised two.
+
 ### Conclusion: how far the App Store fixer goes
 
 **Can do:**

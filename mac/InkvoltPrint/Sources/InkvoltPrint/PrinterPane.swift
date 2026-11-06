@@ -34,7 +34,7 @@ struct PrinterPane: View {
         .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
         .onChange(of: app.paneRequest, initial: true) { _, request in
             switch request {
-            case .status:
+            case .status, .printQueue:
                 tab = .status
                 printingPhotos = false
             case .scan, .photosSheet: tab = .scan
@@ -73,12 +73,34 @@ struct PrinterPane: View {
     }
 
     private var status: some View {
+        ScrollViewReader { proxy in
+            statusCards
+                .onChange(of: app.paneRequest, initial: true) { _, request in
+                    guard request == .printQueue else { return }
+                    let queue = printer.queueName
+                    Task { @MainActor in // after the tab shows; then handled, so the next job's notification asks again
+                        if let queue { withAnimation { proxy.scrollTo(queue, anchor: .top) } }
+                        if app.paneRequest == .printQueue { app.paneRequest = nil }
+                    }
+                }
+        }
+    }
+
+    private var statusCards: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 StatusCard(printer: printer) { tab = .settings }
                 if printer.isNetwork { SetUpCard(printer: printer).id(printer.id) }
-                if !printer.view.supplies.isEmpty { SuppliesSection(printer: printer) }
+                if !printer.view.supplies.isEmpty {
+                    SuppliesSection(printer: printer)
+                } else if let source = printer.view.suppliesSource { // a queue printer that reports no levels (roadmap 3.6)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Supplies").font(.headline)
+                        Text(source).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
+                }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
@@ -203,6 +225,9 @@ struct StatusCard: View {
                     Image(systemName: alert.severity == .error ? "xmark.octagon.fill" : alert.severity == .warning ? "exclamationmark.triangle.fill" : "info.circle")
                         .foregroundStyle(alert.severity == .error ? .red : alert.severity == .warning ? .orange : .secondary)
                 }
+            }
+            if let origin = v.statusOrigin { // a queue printer: macOS's queue, or the printer itself (roadmap 3.6)
+                Text("Status and supply levels from \(origin)").font(.caption).foregroundStyle(.secondary)
             }
             HStack {
                 if printer.needsFixing { Button("Fix It…") { fixing = true } }

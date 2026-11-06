@@ -27,6 +27,12 @@ final class PrinterModel: Identifiable {
     @ObservationIgnored private(set) var lastReading: Date?
     /// A queue printer's queue, as last read.
     private(set) var destination: CupsDestination?
+    /// What a queue printer's printer says beyond its queue (roadmap 3.6); nil: macOS's queue only.
+    @ObservationIgnored private var deviceStatus: DeviceQueueStatus?
+    /// The device URI `deviceStatus`'s readers were made for.
+    @ObservationIgnored private var readersFor: String?
+    /// Queue reads started: only the newest one's result is shown.
+    @ObservationIgnored private var readsStarted = 0
 
     @ObservationIgnored private let monitor: PrinterMonitor?
     /// Its supply history: a network printer's monitor feeds it, a queue printer's queue levels do (`update`); nil for a
@@ -146,17 +152,54 @@ final class PrinterModel: Identifiable {
         return systemScanner.flatMap { app.scanDevice(for: $0) }
     }
 
-    /// The queue was read again.
+    /// The queue was read again: macOS's status of it, with what its printer said when a reader can ask it (roadmap 3.6,
+    /// `DeviceQueueStatus`: at most every 30 s, every 5 minutes while it doesn't answer; the last reading in between).
     func update(_ d: CupsDestination) {
         destination = d
         queueName = d.name
         name = d.displayName
         model = d.makeAndModel
-        var v = CupsStatus.view(d)
-        if v.isOnline { lastReading = Date() }
-        v.supplyHistory = view.supplyHistory // until the history has this reading
-        if v != view { view = v }
-        let snapshot = CupsStatus.snapshot(d, id: id)
+        if d.deviceUri != readersFor { // new, or re-pointed: the printer to ask is another
+            readersFor = d.deviceUri
+            let readers = app.queueReaders(for: d)
+            deviceStatus = readers.isEmpty ? nil : DeviceQueueStatus(readers: readers)
+        }
+        let macOS = QueueStatusRead.of(d)
+        readsStarted += 1 // every read, so a device read still out for an older one (an old target) shows nothing
+        let ticket = readsStarted
+        guard let deviceStatus else {
+            show(d, macOS, origin: QueueDeviceText.macOSOrigin, source: QueueDeviceText.suppliesSource(macOS, from: nil))
+            observing = historyStep
+            return
+        }
+        observing = Task { [weak self] in
+            // macOS's state at once, with the printer's last reading: the card doesn't wait on the printer (up to its limit).
+            let now = await deviceStatus.current(macOS)
+            if let me = self, ticket == me.readsStarted, !me.stopped { // else a newer read is on its way, or it was removed
+                me.showCard(d, now.read, origin: now.origin, source: now.source)
+            } else {
+                return
+            }
+            let read = await deviceStatus.read(macOS) ?? macOS
+            let origin = await deviceStatus.origin
+            let source = await deviceStatus.suppliesSource(read)
+            guard let self, ticket == self.readsStarted, !self.stopped else { return }
+            self.show(d, read, origin: origin, source: source)
+            await self.historyStep?.value
+        }
+    }
+
+    /// The latest queue read's way into the alerts (`update`): over once its snapshot reached the alert tracker. Job alerts
+    /// wait for it, so a job is judged with the printer's state from the same read (`AppModel.readJobs`).
+    @ObservationIgnored private var observing: Task<Void, Never>?
+
+    /// Once the latest queue read's snapshot reached the alert tracker (at once for a network printer: its monitor's do).
+    func observed() async { await observing?.value }
+
+    /// A queue read shown: the card, then its levels into the supply history, then the alert.
+    private func show(_ d: CupsDestination, _ read: QueueStatusRead, origin: String, source: String?) {
+        let v = showCard(d, read, origin: origin, source: source)
+        let snapshot = CupsStatus.snapshot(d, id: id, read: read)
         guard let history else {
             app.observe(snapshot)
             return
@@ -169,6 +212,16 @@ final class PrinterModel: Identifiable {
             let shown = history.show(supplies, pages: nil)
             await self?.showHistory(shown, snapshot)
         }
+    }
+
+    /// A queue read on the card alone (its history and alert come with `show`).
+    @discardableResult
+    private func showCard(_ d: CupsDestination, _ read: QueueStatusRead, origin: String, source: String?) -> PrinterView {
+        var v = CupsStatus.view(d, read: read, origin: origin, suppliesSource: source)
+        if v.isOnline { lastReading = Date() }
+        v.supplyHistory = view.supplyHistory // until the history has this reading
+        if v != view { view = v }
+        return v
     }
 
     /// A queue reading's history worked out: the card's lines and chart, and the alert's days left.
@@ -354,8 +407,25 @@ final class PrinterModel: Identifiable {
 /// Alerts as macOS notifications. Asks for permission with the first alert.
 enum Notifier {
     static let printerKey = "printer"
+    /// A print job's notification (roadmap 3.4): Open the Queue and Pause Alerts, as Windows' job toast.
+    static let jobCategory = "job"
+    static let openQueueAction = "open-queue"
+    static let pauseAction = "pause-alerts"
+    /// Pause Alerts from a notification: an hour (Windows' `AlertToasts.PauseFor`).
+    static let pauseFor: TimeInterval = 60 * 60
 
-    static func post(title: String, body: String, printer: String) {
+    /// The job notification's buttons; once, at launch.
+    static func registerCategories() {
+        let open = UNNotificationAction(identifier: openQueueAction, title: "Open the Queue", options: [.foreground])
+        let pause = UNNotificationAction(identifier: pauseAction, title: "Pause Alerts", options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: jobCategory, actions: [open, pause], intentIdentifiers: []),
+        ])
+    }
+
+    /// `job`: a print job's notification, whose click opens the printer's print queue card. The document's name is in the
+    /// text only, never in what the notification carries back to the app.
+    static func post(title: String, body: String, printer: String, job: Bool = false) {
         Task {
             let center = UNUserNotificationCenter.current()
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
@@ -363,6 +433,7 @@ enum Notifier {
             content.title = title
             content.body = body
             content.sound = .default
+            if job { content.categoryIdentifier = jobCategory }
             content.userInfo = [printerKey: printer]
             try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }

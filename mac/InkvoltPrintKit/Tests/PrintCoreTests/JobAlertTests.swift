@@ -954,4 +954,110 @@ struct JobAlertTests {
         #expect(note.contains("at most 3 times"))
         #expect(note.contains("if macOS shows notifications there"))
     }
+
+    // MARK: The Mac's own: the job read (IPP Get-Jobs over cupsd's socket) and the notifications
+
+    /// cupsd's own answer for a job this Mac sent (seen on ignia-mac, 2026-11-05): its user, `localhost` as where it came from,
+    /// times in seconds since 1970, its size in kilobytes.
+    @Test func aGetJobsGroupReadsAsAQueueJob() throws {
+        let job = try #require(QueueJobAttributes.job([
+            "job-id": "22", "job-name": "Broken file.pdf", "job-state": "6", "job-originating-user-name": "gabri",
+            "job-originating-host-name": "localhost", "time-at-creation": "1793832499", "job-k-octets": "2", "job-media-sheets-completed": "1",
+        ]))
+        #expect(job.id == 22)
+        #expect(job.name == "Broken file.pdf")
+        #expect(job.state == .stopped)
+        #expect(job.owner == "gabri")
+        #expect(job.machine == "localhost")
+        #expect(job.submitted == Date(timeIntervalSince1970: 1_793_832_499))
+        #expect(job.finished == nil)
+        #expect(job.bytes == 2048)
+        #expect(job.pagesPrinted == 1)
+        #expect(job.pages == nil)
+        #expect(Self.me.owns(job, othersMayPrint: true)) // localhost: this Mac's, even on a shared queue
+
+        let aborted = try #require(QueueJobAttributes.job(["job-id": "23", "job-state": "8", "time-at-creation": "1793832400",
+                                                           "time-at-completed": "1793832460"]))
+        #expect(aborted.state == .aborted)
+        #expect(aborted.finished == Date(timeIntervalSince1970: 1_793_832_460))
+        #expect(aborted.name == AlertText.untitled) // another user's job: cupsd hides its name
+        #expect(aborted.owner.isEmpty)
+    }
+
+    @Test(arguments: [
+        ["job-state": "5", "time-at-creation": "1"], // no id
+        ["job-id": "0", "job-state": "5"], ["job-id": "-4", "job-state": "5"], ["job-id": "x", "job-state": "5"],
+        ["job-id": "9"], ["job-id": "9", "job-state": "2"], ["job-id": "9", "job-state": "10"], // no state, or not a job state
+    ])
+    func aJobWithoutAnIdOrAStateIsLeftOut(attributes: [String: String]) {
+        #expect(QueueJobAttributes.job(attributes) == nil)
+    }
+
+    @Test func hostileNumbersAreKeptInRange() throws {
+        let job = try #require(QueueJobAttributes.job([
+            "job-id": "9", "job-state": "5", "job-k-octets": "99999999999999999999", "job-media-sheets-completed": "-3",
+            "time-at-creation": "-5", "time-at-completed": "abc", "job-name": String(repeating: "x", count: 10_000),
+        ]))
+        #expect(job.bytes == 0) // not a number it can hold
+        #expect(job.pagesPrinted == 0)
+        #expect(job.submitted == Date(timeIntervalSince1970: 0))
+        #expect(job.finished == nil)
+        #expect(job.name.count == QueueJobAttributes.maxName)
+        #expect(QueueJobAttributes.job(["job-id": "9", "job-state": "5", "job-k-octets": "4194304"])?.bytes == 4_294_967_296)
+    }
+
+    @Test func itAsksForWhatJobAlertsUseAndNothingElse() {
+        #expect(QueueJobAttributes.requested == [
+            "job-id", "job-name", "job-state", "job-originating-user-name", "job-originating-host-name", "time-at-creation",
+            "time-at-completed", "job-k-octets", "job-media-sheets-completed",
+        ])
+    }
+
+    private static func jobNotice(_ key: String, _ title: String = "“Report.pdf” didn't print") -> AlertNotice {
+        AlertNotice(uuid: laser, printerName: printerName, kind: .jobFailed, title: title, body: "\(printerName): macOS stopped this job.", jobKey: key)
+    }
+
+    private static let jam = AlertNotice(uuid: laser, printerName: printerName, kind: .paperJam, title: "Paper jam", body: "Clear it.")
+
+    /// Windows' `AlertToasts.PerPrinter`: a job's notification is its own, beside the printers' alerts.
+    @Test func aJobGetsANotificationOfItsOwnBesideThePrintersAlertAndNeitherReplacesTheOther() {
+        let a = Self.jobNotice("Job|1|1"), b = Self.jobNotice("Job|2|2")
+        let split = JobNotices.split([a, Self.jam, b])
+        #expect(split.printers == [Self.jam])
+        #expect(split.jobs == [[a], [b]])
+        #expect(JobNotices.text([a]) == (a.title, a.body))
+    }
+
+    @Test func manyJobsFromOnePrinterAtOnceShareANotification() {
+        let jobs = (1...12).map { Self.jobNotice("Job|\($0)|\($0)", "“File \($0).pdf” didn't print") }
+        let other = AlertNotice(uuid: "other", printerName: "Inkjet", kind: .jobStuck, title: "“A.pdf” isn't moving", body: "…", jobKey: "Job|3|3")
+        let split = JobNotices.split(jobs + [other])
+        #expect(split.printers.isEmpty)
+        #expect(split.jobs.count == 2)
+        #expect(split.jobs[0].count == 12)
+        let (title, text) = JobNotices.text(split.jobs[0])
+        #expect(title == "12 print jobs need attention")
+        #expect(text.split(separator: "\n").count == 4)
+        #expect(text.hasSuffix("and 9 more"))
+        #expect(split.jobs[1] == [other])
+        #expect(JobNotices.split(Array(jobs.prefix(3))).jobs.count == 3) // up to three, each its own
+    }
+
+    /// Demo mode's made-up jobs (`--report --jobs`): the demo fixer's stopped invoice is yours and fails; the office MFP's
+    /// job printing and alex's waiting raise nothing in the first minutes.
+    @Test func theDemoQueuesTellOnlyYourStoppedJob() async throws {
+        let demo = DemoOffline(now: Self.t0, delay: .zero)
+        let me = JobOwner(userName: demo.user, machine: "demo-mac")
+        let t = Self.tracker()
+        var told: [AlertNotice] = []
+        for minute in [0.0, 2] {
+            let now = Self.at(minute)
+            for d in try #require(await demo.destinations()) where CupsQueues.isRealQueue(d) {
+                let jobs = try #require(await demo.alertJobs(d.name))
+                told += t.observeJobs(CupsQueues.id(for: d.name), printerName: d.displayName, JobQueueState.of(d, jobs: jobs, now: now), me: me, now: now)
+            }
+        }
+        #expect(told.map(\.title) == ["“Invoice 1043.pdf” didn't print"])
+        #expect(told.first?.printerName == "Demo office laser")
+    }
 }

@@ -26,7 +26,9 @@ import PrintMac
 /// rows as VoiceOver reads them, checks Export…'s CSV and JSON (in memory in demo mode; else saved in the container) and the Pro
 /// gate, `fix` runs Fix All on demo mode's made-up queues saying yes to each question, `status` runs `status --all --json`
 /// through the reader (`fleetCheck`); `--batch-print [queue <name>]` runs Batch Print (`batchPrintCheck`: the window, lists, a
-/// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled). For checking a build over
+/// watched folder and `print` on demo mode's made-up queues; a test queue's jobs held, read back and cancelled); `--jobs` reads
+/// every printer's queue as job alerts do and lists the alerts a tracker of its own would raise (`jobsCheck`, roadmap 3.4). A
+/// queue printer's lines say where its status and levels came from (roadmap 3.6). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
 @MainActor
@@ -62,6 +64,7 @@ enum Report {
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
+            if args.contains("--jobs") { cancelled += await jobsCheck(model) }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
             if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
             if model.isDemo && args.contains("--setup") { cancelled += await setupCheck(model) }
@@ -288,6 +291,38 @@ enum Report {
         }
         let message = await model.setUpQueue(for: p)
         return ["setup: \(p.name): \(message) Queue now: \(p.queueName ?? "none")"]
+    }
+
+    /// `--jobs` (roadmap 3.4): each printer's macOS queue read as job alerts read it (`PrintQueues.alertJobs`: demo mode's
+    /// made-up jobs, else cupsd's Get-Jobs), into an alert tracker of its own with job alerts on, twice (now, and once the
+    /// error hold has passed), so nothing is shown, posted or kept. A real queue's documents aren't named.
+    private static func jobsCheck(_ model: AppModel) async -> [String] {
+        // The queue printers listed first: network queues wait for discovery's first sweep (AppModel.firstSweep).
+        for _ in 0..<180 where model.destinations == nil || model.isSearching { try? await Task.sleep(for: .milliseconds(250)) }
+        var lines = ["Job alerts: \(model.settings.jobAlerts ? "on" : "off") in Settings; checked with a tracker of their own"]
+        var rules = model.settings.rules
+        (rules.enabled, rules.jobs, rules.quiet) = (true, true, nil)
+        let tracker = AlertTracker(rules: rules)
+        let me = model.jobOwner
+        let start = Date()
+        var told: [AlertNotice] = []
+        for now in [start, start.addingTimeInterval(rules.errorHold + 1)] {
+            told += await model.readJobs(into: tracker, now: now) { p, queue, jobs, state in
+                guard now == start else { return }
+                guard let jobs, let state else { return lines.append("  \(p.name) [\(queue)]: cupsd didn't list its jobs") }
+                let each = jobs.map { j in
+                    "#\(j.id) \(j.state)\(me.owns(j, othersMayPrint: state.othersMayPrint) ? " mine" : "") from \(j.machine ?? "-")"
+                }
+                lines.append("  \(p.name) [\(queue)]: \(jobs.count) read, \(state.jobs.count) followed\(state.paused ? ", paused" : "")"
+                    + "\(state.printerOffline ? ", offline" : ""): \(each.joined(separator: "; "))")
+            }
+        }
+        for n in told {
+            lines.append("  job alert (\(n.kind)) \(n.printerName): \(model.isDemo ? n.title : "(document not named here)")")
+        }
+        let split = JobNotices.split(told)
+        lines.append("  notifications: \(split.jobs.count) for jobs, each with Open the Queue and Pause Alerts")
+        return lines
     }
 
     /// The selected printer's settings, firmware update mode and maintenance actions, as the Settings tab and the maintenance
@@ -732,6 +767,8 @@ enum Report {
             lines.append("\(p.name) [\(reached)]\(p.id == model.selectedID ? " (selected)" : "")")
             lines.append("  \(v.phase): \(v.listLine)")
             if let detail = v.statusDetail { lines.append("  " + mask(detail, host: p.host)) }
+            if let origin = v.statusOrigin { lines.append("  status from: \(origin)") }
+            if let source = v.suppliesSource { lines.append("  supplies source: \(source)") }
             if let m = v.model ?? p.model { lines.append("  model: \(m)") }
             if let s = p.systemScanner { lines.append("  USB scanner: \(s.name)\(p.isScannerOnly ? " (a scanner of its own)" : "")") }
             if let q = p.queueName {
