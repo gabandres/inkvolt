@@ -21,7 +21,7 @@ enum ReportStrings {
                 lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
                 continue
             }
-            let spanish = Set(AppLanguage.sentences(table, "es").filter { !$0.value.isEmpty }.keys)
+            let spanish = Set(AppLanguage.sentences(table, "es").keys)
             let left = catalog.subtracting(spanish).sorted()
             missing += left.count
             lines.append("  \(table): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences in Spanish, \(left.count) without")

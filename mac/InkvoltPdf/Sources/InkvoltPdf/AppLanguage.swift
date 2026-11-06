@@ -77,11 +77,12 @@ enum AppLanguage {
         CoreLanguage.install(CoreLanguage.Table(language: "es", sentences: sentences, locale: .current))
     }
 
-    /// The compiled table `<language>.lproj/<table>.strings`: English sentence → its translation.
+    /// The compiled table `<language>.lproj/<table>.strings`: English sentence → its translation, without the sentences
+    /// the catalog has no translation of (xcstringstool writes them empty), so every user of the table sees only real ones.
     static func sentences(_ table: String, _ language: String) -> [String: String] {
         guard let url = Bundle.main.url(forResource: table, withExtension: "strings", subdirectory: nil, localization: language),
               let dictionary = NSDictionary(contentsOf: url) as? [String: String] else { return [:] }
-        return dictionary
+        return dictionary.filter { !$0.value.isEmpty }
     }
 
     private static var bundleId: String { Bundle.main.bundleIdentifier ?? "com.bermudezsystems.InkvoltPdf" }
