@@ -949,7 +949,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   peaks above. A sheet drawn back to back costs about twice (0.45 to 1.0 s): its check (0.3 s in process) competes for
   the same cores. Not covered: a document with a password (no secret crosses a pipe) and formats other than PDF run
   unchecked; a document a check process can't open runs unchecked; the folder index's workers keep their own 2-minute
-  limit a file; the Mac.
+  limit a file; the Mac (done 2026-11-06, in process: below).
   **Its review (2026-11-05):** a check whose drawing MuPDF gave up on (damaged, or past the process's 2 GB) refuses the
   page instead of passing it on to be drawn here unlimited; a picture of over 4,096 × 4,096 is also decoded at its full
   size in the check (the small drawing decodes a JPEG at an eighth, a JPEG 2000 at its smallest level: a 30,000 ×
@@ -1033,6 +1033,21 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   disagreement the review ruled out, and as a filter that only confirms it saves nothing (every page must still be read
   to know it has no hit). (c) A page's text kept across Finds is already kept for the document's lifetime (a second Find
   about a millisecond); keeping it across sessions would write the document's text to disk, which Find never does.
+  **A hostile file's time on the Mac (2026-11-06): bounded in process, no check process.** The Mac calls MuPDF 1.25
+  directly (`MuPDFShim`), so each call that reads a page's content takes a cookie with a time budget (10 s, Windows'
+  limit) and a largest picture (1 G samples, width × height × components). The cookie alone stops nothing while MuPDF
+  inflates (the 7 KB page is one lexer call over 4 GB of white space), so the shim opens every document over its own
+  stream, which hands MuPDF small chunks while a page is read and throws MuPDF's progressive-loading "not yet"
+  (`FZ_ERROR_TRYLATER`) once the budget is spent or Cancel fired: no repair, nothing half read kept. A device in front
+  of the list and text devices looks at the clock at each drawing call and refuses a picture over the cap before it is
+  decoded (MuPDF inflates all of a picture's samples for every draw, even drawn small). The page is then refused at
+  once from then on: the viewer says "This page took too long to read and isn't shown", Find finds the rest and says
+  which pages it skipped, Batch's page images leave it out, export reports it empty, print leaves it blank; Cancel and
+  closing the document stop a reading at once. In the tests (1 s budget) the 7 KB and 1 MB pages are refused within
+  about a second (red first: 74 s for both), the 20,000 × 20,000 picture at once, a 72,000-path sheet draws as without.
+  Not covered: a picture under the cap decodes in full unbounded (a few seconds at most); image files and `PdfEdit`'s
+  editing documents run unbounded; a hostile page holds its engine (its neighbours, its thumbnails) for up to 10 s once.
+  `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
