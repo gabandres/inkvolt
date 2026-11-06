@@ -234,7 +234,8 @@ public sealed partial class PdfEngine : IDisposable
     public RenderedImage Render(int page, double scale, RectD? region = null, CancellationToken cancel = default, bool annotations = true)
     {
         cancel.ThrowIfCancellationRequested();
-        Vet(page, cancel);
+        // A page not checked yet is drawn by its check, at this scale, when the whole page is asked for.
+        if (Vet(page, region is null && annotations ? scale : 0, cancel) is { } drawn) return drawn;
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);

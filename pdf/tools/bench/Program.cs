@@ -30,6 +30,13 @@ if (args is ["page-check-fail", .. var failArgs] && PageChecks.IsCommand(failArg
     return PageChecks.Run(failArgs);
 }
 
+// A test's check process that sends each picture a pixel wider than it was asked for (PageCheckTests).
+if (args is ["page-check-wrong-picture", .. var pictureArgs] && PageChecks.IsCommand(pictureArgs))
+{
+    PageChecks.TestPictureFault = p => new RenderedImage(p.Width + 1, p.Height, [.. p.Pixels, .. new byte[p.Height * 3]]);
+    return PageChecks.Run(pictureArgs);
+}
+
 if (args is ["page-check-out-of-memory", .. var memoryArgs] && PageChecks.IsCommand(memoryArgs))
 {
     // MuPDF giving up once the process held past half of what it may (1.2 GB of its 2 GB).

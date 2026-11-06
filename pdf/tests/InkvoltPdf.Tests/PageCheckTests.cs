@@ -476,6 +476,45 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public void ACheckDrawsThePictureItsRenderWaitsForAndTheNextPagesAhead()
+    {
+        // The whole page at the render's scale comes from the check process, as this process draws it: the display list
+        // is made once, there. The next two pages are drawn ahead at that scale, one in each process.
+        var file = ThreePages(Drawn, "");
+        using var engine = Open(file);
+        using var plain = PdfEngine.Open(file, InputFileTypes.PDF, null);
+        foreach (var page in new[] { 0, 1, 2 })
+            Assert.Equal(plain.Render(page, 1.5).Pixels, engine.Render(page, 1.5).Pixels);
+        Assert.Equal(0, engine.LoadedCounts().Render.Lists);
+        Assert.Equal(3, _plan.ChecksRun);
+
+        // Drawn here: a checked page at another scale, a part of a page, a page without its comments.
+        Assert.Equal(plain.Render(0, 0.5).Pixels, engine.Render(0, 0.5).Pixels);
+        Assert.Equal(1, engine.LoadedCounts().Render.Lists);
+        using var other = Open(file);
+        var part = new RectD(10, 20, 300, 200);
+        Assert.Equal(plain.Render(1, 1.5, part).Pixels, other.Render(1, 1.5, part).Pixels);
+        Assert.Equal(plain.Render(2, 1.5, annotations: false).Pixels, other.Render(2, 1.5, annotations: false).Pixels);
+        Assert.Equal(2, other.LoadedCounts().Render.Lists);
+    }
+
+    [Fact]
+    public void APictureOfAnotherSizeThanAskedIsNeverShown()
+    {
+        // A check process reads an untrusted file: one that answers with a picture it wasn't asked for is ended, as one
+        // that says anything else wrong, and the page refused.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-wrong-picture"]) { Limit = Limit };
+        using var engine = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        Assert.Throws<PageRefusedException>(() => engine.Render(0, 1.5));
+        Assert.Equal(PageVerdict.Crashed, engine.VerdictOf(0));
+        // Checked small, with no picture to send, a page reads.
+        using var reader = PdfEngine.Open(ThreePages(Drawn, ""), InputFileTypes.PDF, null);
+        reader.CheckPlan = plan;
+        Assert.Contains("Visit notes", reader.GetText(2).Text);
+    }
+
+    [Fact]
     public void AWaitGivenUpLeavesTheCheckGoingAndItsVerdictKept()
     {
         using var engine = Open(Bomb("1 MB"));
@@ -516,8 +555,12 @@ public sealed class PageCheckTests : IDisposable
             using (var engine = PdfEngine.OpenFile(path, InputFileTypes.PDF, null))
             {
                 engine.CheckPlan = _plan;
-                engine.Render(0, 0.25);
-                Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+                // Every page drawn, so no check of it is under way (one would be ended with the document, as below).
+                for (var page = 0; page < 3; page++)
+                {
+                    engine.Render(page, 0.25);
+                    Assert.Equal(PageVerdict.Fine, engine.VerdictOf(page));
+                }
             }
             File.Delete(path); // the check process (still running, for the next document) has let go of it
             Assert.Contains(_plan.Pids, pid => !Exited(pid));
