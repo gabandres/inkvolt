@@ -65,6 +65,7 @@
 				1A0000000000000000000A10 /* Frameworks */,
 				1A0000000000000000000A11 /* Resources */,
 				1A0000000000000000000A12 /* Demo fixtures */,
+				1A0000000000000000000A30 /* Catalog keys */,
 			);
 			buildRules = (
 			);
@@ -150,6 +151,31 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "# Demo mode's made-up printers: the scrubbed test fixtures (the tests read them in place), copied into the bundle.\nset -e\nsrc=\"$SRCROOT/../../print/tests/InkvoltPrint.Tests/Fixtures\"\ndest=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Demo\"\nrm -rf \"$dest\"\nmkdir -p \"$dest\"\nfor set in m234dw hp-demo inkjet-demo cdm-laser snmp-demo; do\n  cp -R \"$src/$set\" \"$dest/$set\"\ndone\n";
+		};
+		1A0000000000000000000A30 /* Catalog keys */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/catalog-keys.py",
+				"$(SRCROOT)/Resources/Localizable.xcstrings",
+				"$(SRCROOT)/Resources/CoreStrings.xcstrings",
+			);
+			name = "Catalog keys";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/CatalogKeys.json",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Every key of the String Catalogs, for --report --strings (catalog-keys.py says why).
+set -e
+/usr/bin/python3 \"$SRCROOT/catalog-keys.py\" \"$SRCROOT/Resources\" \"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/CatalogKeys.json\"
+";
 		};
 /* End PBXShellScriptBuildPhase section */
 

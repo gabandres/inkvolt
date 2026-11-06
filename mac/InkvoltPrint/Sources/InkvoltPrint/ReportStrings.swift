@@ -1,23 +1,29 @@
 import Foundation
 import PrintCore
 
-/// `--report … --strings` (roadmap 3.7): the interface's language and whether it is complete. Each table the app has in
-/// English (`Localizable`, the app's own text, every key Xcode extracted from it; `CoreStrings`, PrintCore's and PrintMac's)
-/// against the same table in Spanish, every key missing there named; then the sentences PrintCore was asked for during the
-/// run that had no Spanish (`CoreLanguage.untranslated`). "complete" only when nothing is missing, so a report run in
+/// `--report … --strings` (roadmap 3.7): the interface's language and whether it is complete. Each String Catalog's keys
+/// (`Localizable`, the app's own text, every key Xcode extracted from it; `CoreStrings`, PrintCore's and PrintMac's), as the
+/// build's "Catalog keys" phase wrote them into the bundle (`CatalogKeys.json`, catalog-keys.py), against the compiled
+/// Spanish table, every key missing there named; then the sentences PrintCore was asked for during the run that had no
+/// Spanish (`CoreLanguage.untranslated`). "complete" only when nothing is missing, so a report run in
 /// Spanish (`-AppleLanguages '(es)'` or `--lang es`) fails on an untranslated string.
 enum ReportStrings {
     static func lines() -> [String] {
         var lines = ["language: \(AppLanguage.current) (macOS offers \(Bundle.main.localizations.sorted().joined(separator: ", "))); "
             + "locale \(Locale.current.identifier); Spanish ready \(AppLanguage.spanishReady); Settings › Language \(AppLanguage.choice.rawValue)"]
         var missing = 0
+        let catalogs = catalogKeys()
         for table in ["Localizable", "CoreStrings"] {
-            // Xcode writes the source language's table with only the keys whose English differs from the key, so the
-            // English side counts what both tables name; check-strings.sh checks every key the compiler extracted.
-            let english = keys(table, "en"), spanish = keys(table, "es")
-            let left = english.subtracting(spanish).sorted()
+            // Not the compiled English table: Xcode writes into it only the keys whose English differs from the key.
+            guard let catalog = catalogs[table], !catalog.isEmpty else {
+                missing += 1
+                lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
+                continue
+            }
+            let spanish = keys(table, "es")
+            let left = catalog.subtracting(spanish).sorted()
             missing += left.count
-            lines.append("  \(table): \(spanish.count) sentences in Spanish, \(left.count) of the English table's \(english.count) without")
+            lines.append("  \(table): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences in Spanish, \(left.count) without")
             lines += left.prefix(40).map { "    untranslated: \($0)" }
         }
         let asked = CoreLanguage.untranslated
@@ -30,8 +36,16 @@ enum ReportStrings {
         return lines
     }
 
-    /// The keys of a compiled table (`<language>.lproj/<table>.strings`); Xcode writes every key of a catalog into the
-    /// source language's and only the translated ones into another's.
+    /// Each catalog's keys, as the build wrote them: table name → its keys.
+    private static func catalogKeys() -> [String: Set<String>] {
+        guard let url = Bundle.main.url(forResource: "CatalogKeys", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let tables = try? JSONDecoder().decode([String: [String]].self, from: data) else { return [:] }
+        return tables.mapValues(Set.init)
+    }
+
+    /// The keys of a compiled table (`<language>.lproj/<table>.strings`): only the translated ones in a language other
+    /// than the source's.
     private static func keys(_ table: String, _ language: String) -> Set<String> {
         guard let url = Bundle.main.url(forResource: table, withExtension: "strings", subdirectory: nil, localization: language),
               let dictionary = NSDictionary(contentsOf: url) as? [String: Any] else { return [] }
