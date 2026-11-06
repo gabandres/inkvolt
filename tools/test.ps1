@@ -22,7 +22,7 @@ if ($LASTEXITCODE -eq 0) { exit 0 }
 $projects = @{ 'InkvoltPdf.Tests' = 'pdf/tests/InkvoltPdf.Tests'; 'InkvoltPrint.Tests' = 'print/tests/InkvoltPrint.Tests' }
 $failed = [Collections.Generic.List[string]]::new()
 foreach ($trx in Get-ChildItem $results -Filter *.trx -Recurse) {
-    [xml]$x = Get-Content $trx.FullName -Raw
+    [xml]$x = Get-Content -LiteralPath $trx.FullName -Raw
     $methods = @{}
     foreach ($t in $x.TestRun.TestDefinitions.UnitTest) { $methods[$t.id] = "$($t.TestMethod.className).$($t.TestMethod.name)" }
     foreach ($r in $x.TestRun.Results.UnitTestResult) {

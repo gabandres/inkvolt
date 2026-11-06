@@ -454,6 +454,7 @@ public static partial class ContentEditor
 
         var text = new StringBuilder();
         var at = new List<(TextRun Run, int Start, int Length)>(); // where each run's text is in the paragraph's
+        var looks = translating ? new List<TextSpan>() : null;
         var soft = false; // the line before ended with a soft hyphen
         foreach (var l in lines)
         {
@@ -463,17 +464,32 @@ public static partial class ContentEditor
                 // A hyphen typed into the word ("respon-sible") stays as typed; the lines join without a space.
                 var hyphen = text.Length >= 2 && text[^1] == '-' && char.IsLetter(text[^2]) && t.Length > 0 && char.IsLower(t[0]);
                 if (!hyphen) text.Append(' ');
-                else if (translating) text.Length--; // for a translator the line break's hyphen would be part of the word
+                else if (translating)
+                {
+                    // For a translator the line break's hyphen would be part of the word; the stretch it ended goes without it.
+                    text.Length--;
+                    if (looks is { Count: > 0 } && looks[^1].End > text.Length) looks[^1] = looks[^1] with { Length = text.Length - looks[^1].Start };
+                    if (looks is { Count: > 0 } && looks[^1].Length <= 0) looks.RemoveAt(looks.Count - 1);
+                }
             }
             // A soft hyphen (U+00AD) ending a line was added by the line break: it goes, and the word joins the next line's.
             soft = l != lines[^1] && t.EndsWith('­');
             if (soft) t = t[..^1];
             var lead = l.Text.Length - l.Text.TrimStart().Length;
+            var baseline = looks is not null ? LineBaseline(l) : default;
             for (var i = 0; i < l.Runs.Count; i++)
             {
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
+                if (looks is not null && to > from && TranslationLook(own, baseline, l.Runs[i]) is { } look)
+                {
+                    // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
+                    var start = text.Length + from;
+                    if (looks.Count > 0 && looks[^1].Look == look && JoinsAcrossSpace(looks[^1].End, start, k => k < text.Length ? text[k] : t[k - text.Length]))
+                        looks[^1] = looks[^1] with { Length = text.Length + to - looks[^1].Start };
+                    else looks.Add(new TextSpan(start, to - from, look));
+                }
             }
             text.Append(t);
         }
@@ -510,7 +526,7 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = translating ? [] : SpansOf(plain, at),
+            Spans = looks ?? SpansOf(plain, text.ToString(), at),
             Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
@@ -605,13 +621,23 @@ public static partial class ContentEditor
         var placed = new List<(PointD, List<Part>)>();
         var maxRight = p.Box.Right;
         var minLeft = p.Box.X;
-        double baseline = 0, scale = 1;
+        double baseline = 0, scale = 1, below = 0;
         for (var i = 0; i < lines.Count; i++)
         {
             var (parts, spaces, last) = lines[i];
             // A line with bigger text sits lower: the step to it grows with its biggest text, the step after it with its depth.
             var s = Math.Max(1, parts.Where(q => q.Code is not null || q.StandIn is not null).Select(q => q.Look?.Scale ?? 1).DefaultIfEmpty(1).Max());
-            baseline = i == 0 ? p.Box.Y + p.Ascent * shrink * s : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
+            // A superscript's top and a subscript's foot reach past the line's own height and depth: the first line
+            // sits low enough for the one, the box ends low enough for the other.
+            double above = 0;
+            below = 0;
+            foreach (var q in parts)
+                if ((q.Code is not null || q.StandIn is not null) && q.Look is { Rise: not 0 } look)
+                {
+                    above = Math.Max(above, (look.Rise * p.FontSize + look.Scale * p.Ascent) * shrink);
+                    below = Math.Max(below, (-look.Rise * p.FontSize + look.Scale * p.Descent) * shrink);
+                }
+            baseline = i == 0 ? p.Box.Y + Math.Max(p.Ascent * shrink * s, above) : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
             scale = s;
             var w = W(parts);
             var x0 = p.Left + (i == 0 ? p.FirstIndent : 0);
@@ -638,7 +664,7 @@ public static partial class ContentEditor
             maxRight = Math.Max(maxRight, x + w);
             minLeft = Math.Min(minLeft, x);
         }
-        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + p.Descent * shrink * scale;
+        var bottom = placed.Count == 0 ? p.Box.Y + p.Ascent + p.Descent : baseline + Math.Max(p.Descent * shrink * scale, below);
         var box = RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1));
         RectD? overlaps = p.Below is { } b && box.Bottom > b.Y + 0.5 && b.Right > box.X && b.X < box.Right ? b : null;
         var problem = enc.Colored && anchor.Info?.FillOp is null
@@ -730,8 +756,15 @@ public static partial class ContentEditor
             _text = text;
             _looks = looks;
             var lacking = new Dictionary<TextFont, List<string>>();
+            // For one face: the page's other faces a look draws in (a bold word in the page's bold), with the elements each draws.
+            var faces = new Dictionary<TextFont, HashSet<string>>();
             foreach (var (el, at) in Elements(0, text.Length))
             {
+                if (oneFace && el != "\n" && Resolve(at) is { Face: null, Page.Font: { } other } && !ReferenceEquals(other, font))
+                {
+                    if (!faces.TryGetValue(other, out var set)) faces[other] = set = [];
+                    set.Add(el);
+                }
                 if (el.All(char.IsWhiteSpace)) continue;
                 var look = Resolve(at);
                 if (look is { Face: { } face })
@@ -746,7 +779,12 @@ public static partial class ContentEditor
                 if (!lacking.TryGetValue(pageFont, out var list)) lacking[pageFont] = list = [];
                 if (!list.Contains(el)) list.Add(el);
             }
-            if (oneFace && lacking.Count > 0) lacking = new() { [font] = [.. Elements(0, text.Length).Select(e => e.Element).Where(e => e != "\n").Distinct()] };
+            if (oneFace && lacking.Count > 0)
+            {
+                // Then all of it from installed fonts: its own font's text, and each other face's from the installed font closest to that face.
+                lacking = new() { [font] = [.. Elements(0, text.Length).Select(e => e.Element).Where(e => e != "\n").Distinct()] };
+                foreach (var (other, els) in faces) lacking[other] = [.. els];
+            }
             foreach (var (pageFont, els) in lacking)
             {
                 var standIns = _standIns[pageFont] = StandInFonts.For(pageFont, [.. els.SelectMany(TrueTypeFont.CodePoints).Distinct()]);
@@ -779,6 +817,8 @@ public static partial class ContentEditor
             if (_resolved.TryGetValue(look, out var known)) return known;
             var lead = _p.Lead;
             var scale = look.Size is > 0 and var size && Math.Abs(size - _p.FontSize) > 0.01 ? size / _p.FontSize : 1;
+            var rise = look.Script switch { TextScript.Sub => SubRise, TextScript.Super => SuperRise, _ => 0 };
+            if (look.Script is not null) scale *= ScriptScale;
             int? color = look.Color is { } c && c != lead.Color ? c : null;
             var bold = look.Bold ?? lead.Bold;
             var italic = look.Italic ?? lead.Italic;
@@ -802,7 +842,7 @@ public static partial class ContentEditor
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
-            var resolved = scale == 1 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page);
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise);
             _resolved[look] = resolved;
             return resolved;
         }
@@ -1060,19 +1100,28 @@ public static partial class ContentEditor
             ownFont = true;
             cur = (face.Font!, h, size);
         }
+        var ts = info.Rise; // the text rise in effect
+        void Rise(double want)
+        {
+            if (Math.Abs(want - ts) < 1e-9) return;
+            Close();
+            sb.Append(ContentLexer.Number(want)).Append(" Ts ");
+            ts = want;
+        }
         foreach (var part in parts)
         {
             Look(part.Look);
             var s = part.Look?.Scale ?? 1;
+            // A subscript or superscript: its baseline moved by the text rise, in ems of the paragraph's text.
+            Rise(info.Rise + (part.Look?.Rise ?? 0) * plain.Size);
             if (part.StandIn is { } standIn)
             {
                 Close();
                 var tc = Math.Abs(run.CharSpacing) > 1e-9;
                 if (tc) sb.Append("0 Tc ");
-                writer.Emit(sb, standIn, plain.Size * s);
+                writer.Emit(sb, standIn, plain.Size * s, ts);
                 ownFont = false;
                 if (tc) sb.Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc ");
-                if (Math.Abs(info.Rise) > 1e-9) sb.Append(ContentLexer.Number(info.Rise)).Append(" Ts ");
                 continue;
             }
             var face = part.Look?.Page ?? plain;
@@ -1085,6 +1134,7 @@ public static partial class ContentEditor
             }
         }
         Look(null);
+        Rise(info.Rise);
         Use(run, hex, run.Size); // the font and size the operator had
         Close();
     }

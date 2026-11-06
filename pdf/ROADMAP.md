@@ -707,10 +707,34 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
   column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
   answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.
-  **Still wrong.** A bold word or a subscript in a paragraph loses its look ("dmodel"). Looked at 2026-11-06 and left:
-  the request would have to carry the looks as markup (a bold stretch, a subscript), the reply's markup be checked and
-  turned into spans (a small model drops or moves tags, and a stretch's words move in translation), and the copy's
-  one-face fitting (`MixedText` with `oneFace`) learn spans, with a rise for subscripts; not small. The model's,
+  **Looks (2026-11-06).** A bold or italic word, a subscript and a superscript keep their look ("d_model", "h_t−1",
+  "x_1", a footnote's raised mark, the census's bold names, the W-9's italic titles). A run in another face than the
+  paragraph's own (bold or italic where it isn't; its family kept when that is another, as LaTeX's are), or smaller
+  than its line's text and 0.08 em below or 0.12 em above its baseline, is a stretch (`ContentEditor.TranslationLook`);
+  the request carries the stretches as `<b>`, `<i>`, `<sub>`, `<sup>`, nested in one order, and asks the model to keep
+  them around the words they mark (`TranslationMarkup.Mark`; the text so marked is the answer's key). The reply's tags
+  are read in one pass (`TranslationMarkup.Read`, linear, at most 528 tags) and trusted only when they are ours,
+  balanced, properly nested (none inside itself, never sub and sup together, three deep at most), name only looks the
+  paragraph had, and cover about as much (per look at most twice the stretches plus one, the longest at most twice the
+  paragraph's longest plus 12 letters, 4 for scripts, a share of the letters at most twice its share plus a tenth); a
+  tag dropped leaves only its words plain. Any other reply is written plain, every tag, piece of one and angle bracket
+  taken out (`CleanReply` already drops other tags). The copy draws a look in the page's own face for it (`/FB`
+  beside `/FA`), or, when any face lacks a letter, each face's text from the installed font closest to it ("Arial",
+  "Arial Bold"); a sub- or superscript at 0.7 of the size, 0.15 em lower or 0.35 em higher (`Ts`, stand-ins too:
+  `CidFontWriter.Emit` takes the rise). Characters no font has are left out with the looks staying on their words.
+  `TranslationLooksTests` (37: markup out and back, 13 replies that can't be trusted, crafted replies of 1.2 MB of
+  tags, the page's own faces and installed ones, a superscript, a reply in plain halves). Export corpus with stand-in
+  answers (`TranslationCorpusTests`): 216 texts of 2,082 sent marked (attn's "d<sub>model</sub>", resnet's
+  "W<sub>i</sub>"), no tag on any page, the ink check's counts as before (3, 1, 9, 0, 0, 42, 0); pdf.js reads the copies'
+  words in order.
+  **Still wrong.** Looks a stretch can't carry: a word in another color or family that is neither bold nor italic (a
+  name in Times among Arial, code in a monospace font), an underline, a regular word in a bold paragraph, a
+  superscript of more than four characters set on its own band (it isn't part of the paragraph's lines). A paragraph
+  goes plain when its text has angle brackets of its own, more than 64 stretches, needs more than one request (a piece
+  could cut a stretch's tags apart; a cut-off answer is asked for in plain halves too), or is written right to left.
+  The sizes and rises are fixed, not the page's own, and a superscript doesn't widen the line step. LaTeX's math
+  italic ("d" of "d_model", CMMI) isn't read as italic. attn's section titles (NimbusRomNo9L-Medi) come out regular in
+  the installed font, as before. Not checked with a real model: how often a small one keeps the tags. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"

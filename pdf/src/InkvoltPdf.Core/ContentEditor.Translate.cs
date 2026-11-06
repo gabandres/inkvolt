@@ -568,9 +568,11 @@ public static partial class ContentEditor
     /// low as <paramref name="wideBottom"/>.
     /// </summary>
     /// <param name="most">The largest size tried, of its own (<see cref="OneSizePerColumn"/>).</param>
+    /// <param name="spans">The text's looks (bold, italic, sub and superscripts its answer's markup gave it).</param>
     internal static (ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped) FitText(TextParagraph framed, double bottom, string text,
-        TextParagraph? wide = null, double wideBottom = double.NaN, double most = 1)
+        TextParagraph? wide = null, double wideBottom = double.NaN, double most = 1, IReadOnlyList<TextSpan>? spans = null)
     {
+        spans ??= [];
         if (double.IsNaN(wideBottom)) wideBottom = bottom;
         static bool Inside(ParagraphLayout l, TextParagraph f, double bottom) =>
             l.Check.Box is var box && box.Bottom <= bottom + 0.5 && box.Right <= Math.Max(f.Right, f.Box.Right) + 1 && box.X >= Math.Min(f.Left, f.Box.X) - 1;
@@ -578,14 +580,14 @@ public static partial class ContentEditor
         // lines, so a layout too tall or too wide for the room isn't laid out again (null: it doesn't fit there).
         ParagraphLayout? Moved(TextParagraph f, string t, double size)
         {
-            var l = LayOut(f, f.Runs, t, [], size);
+            var l = LayOut(f, f.Runs, t, spans, size);
             var box = l.Check.Box;
             if (box.Bottom > wideBottom + 0.5 || box.Width > Math.Max(f.Right, f.Box.Right) - Math.Min(f.Left, f.Box.X) + 2) return null;
             var shift = box.Right > f.Right ? f.Right - box.Right : box.X < f.Left ? f.Left - box.X : 0;
             if (Math.Abs(shift) < 0.01 || !double.IsFinite(shift)) return l;
             var moved = f with { };
             moved.Center = f.Center + shift;
-            return LayOut(moved, moved.Runs, t, [], size);
+            return LayOut(moved, moved.Runs, t, spans, size);
         }
         var dropped = new List<string>();
         var smallest = SmallestFit(framed.Lead.FontSize); // of the size it is written in: its first run may be a mark or a big initial
@@ -594,17 +596,13 @@ public static partial class ContentEditor
         for (var tries = 0; ; tries++, fit = Math.Max(smallest, fit - FitStep))
         {
             if (tries > 2 / FitStep) fit = smallest; // whatever a crafted page's numbers make of the steps below
-            best = LayOut(framed, framed.Runs, text, [], fit);
+            best = LayOut(framed, framed.Runs, text, spans, fit);
             if (best.Check.Missing.Count > 0)
             {
-                foreach (var m in best.Check.Missing)
-                {
-                    dropped.Add(m);
-                    text = text.Replace(m, "", StringComparison.Ordinal);
-                }
-                text = string.Join(' ', text.Split(' ', StringSplitOptions.RemoveEmptyEntries));
+                dropped.AddRange(best.Check.Missing);
+                (text, spans) = Without(text, spans, best.Check.Missing);
                 if (text.Length == 0) return (best, 1, false, dropped);
-                best = LayOut(framed, framed.Runs, text, [], fit);
+                best = LayOut(framed, framed.Runs, text, spans, fit);
                 if (best.Check.Missing.Count > 0) return (best, 1, false, dropped);
             }
             var box = best.Check.Box;
@@ -619,8 +617,44 @@ public static partial class ContentEditor
         }
     }
 
+    /// <summary>Text with every one of <paramref name="missing"/> left out and its spaces collapsed, its looks staying on the characters that stay.</summary>
+    private static (string Text, IReadOnlyList<TextSpan> Spans) Without(string text, IReadOnlyList<TextSpan> spans, IReadOnlyList<string> missing)
+    {
+        var keep = new bool[text.Length];
+        Array.Fill(keep, true);
+        foreach (var m in missing)
+        {
+            if (m.Length == 0) continue;
+            for (var at = text.IndexOf(m, StringComparison.Ordinal); at >= 0; at = text.IndexOf(m, at + m.Length, StringComparison.Ordinal))
+                Array.Fill(keep, false, at, m.Length);
+        }
+        var looks = LooksOf(text, spans);
+        var sb = new StringBuilder(text.Length);
+        var now = new List<TextLook?>(text.Length);
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (!keep[i] || text[i] == ' ' && (sb.Length == 0 || sb[^1] == ' ')) continue;
+            sb.Append(text[i]);
+            now.Add(looks[i]);
+        }
+        if (sb.Length > 0 && sb[^1] == ' ')
+        {
+            sb.Length--;
+            now.RemoveAt(now.Count - 1);
+        }
+        var result = new List<TextSpan>();
+        for (var i = 0; i < now.Count;)
+        {
+            var j = i + 1;
+            while (j < now.Count && now[j] == now[i]) j++;
+            if (now[i] is { IsPlain: false } look) result.Add(new TextSpan(i, j - i, look));
+            i = j;
+        }
+        return (sb.ToString(), result);
+    }
+
     /// <summary>A paragraph's new text laid out in its room (<see cref="Room"/>, <see cref="FitText"/>), before it is written.</summary>
-    private sealed record Laid(string Text, TextParagraph Framed, double Bottom, TextParagraph? Wide, double WideBottom, ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped);
+    private sealed record Laid(string Text, IReadOnlyList<TextSpan> Spans, TextParagraph Framed, double Bottom, TextParagraph? Wide, double WideBottom, ParagraphLayout Layout, double Fit, bool Fits, IReadOnlyList<string> Dropped);
 
     /// <summary>A column's body text shrinks no further than this (of its size) to take the size another of its paragraphs needs.</summary>
     private const double ColumnFloor = 0.8;
@@ -665,7 +699,7 @@ public static partial class ContentEditor
             {
                 var was = laid[i]!;
                 if (was.Fit <= size + 1e-6) continue;
-                var (layout, fit, fits, dropped) = FitText(was.Framed, was.Bottom, was.Text, was.Wide, was.WideBottom, size);
+                var (layout, fit, fits, dropped) = FitText(was.Framed, was.Bottom, was.Text, was.Wide, was.WideBottom, size, was.Spans);
                 if (fits && fit >= size - 1e-6 && layout.Check.Missing.Count == 0 && layout.Lines.Count > 0) laid[i] = was with { Layout = layout, Fit = fit, Fits = true, Dropped = dropped };
             }
         }
@@ -1048,10 +1082,17 @@ public static partial class ContentEditor
             cancel.ThrowIfCancellationRequested();
             var slot = slots[i];
             var p = slot.Paragraph;
-            if (textOf(i, p) is not { Length: > 0 } text) continue;
+            if (textOf(i, p) is not { Length: > 0 } answer) continue;
             if (p.Blocked is { } blocked)
             {
                 refused.Add(new TranslationRefused(i, blocked));
+                continue;
+            }
+            // Its looks, as far as the answer's markup can be trusted; else it is plain, and no tag is left in it.
+            var (text, spans) = TranslationMarkup.Read(answer, p.Text, p.Spans);
+            if (text.Length == 0)
+            {
+                refused.Add(new TranslationRefused(i, PdfStrings.Translate_EmptyAnswer));
                 continue;
             }
             if (text.Length > MaxTextToLayOut)
@@ -1072,13 +1113,13 @@ public static partial class ContentEditor
             }
             else room = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, paints);
             var (inRoom, bottom, wide, wideBottom) = room;
-            var (layout, fit, fits, dropped) = FitText(inRoom, bottom, text, wide, wideBottom);
+            var (layout, fit, fits, dropped) = FitText(inRoom, bottom, text, wide, wideBottom, spans: spans);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
             {
                 refused.Add(new TranslationRefused(i, PdfStrings.Translate_NoFontCanDraw));
                 continue;
             }
-            laid[i] = new Laid(text, inRoom, bottom, wide, wideBottom, layout, fit, fits, dropped);
+            laid[i] = new Laid(text, spans, inRoom, bottom, wide, wideBottom, layout, fit, fits, dropped);
         }
         OneSizePerColumn(slots, laid, cancel);
 
