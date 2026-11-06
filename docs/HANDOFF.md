@@ -15,8 +15,10 @@ Print 2.1, 2.2, 3.1, 3.3 on both, paper and screen checks, the Mac UX renames, t
 **Mac order changed 2026-11-06 (afternoon), releases first:** after PDF's Spanish + What's New in Spanish: PDF for Mac's
 Flate-bomb bound → hostile-input reviews of PDF for Mac and Print for Mac → PDF for Mac 1.8 release (and Print for Mac 1.3
 once 1.2 is approved) → PDF 3.5 → PDF 3.3 → 3.6 speed → Office converter → the XL items (redaction by pattern, 3.4 LTV,
-2.1 paragraph editing, 3.1 Translate). Windows: Translate keeping bold, italic, sub- and superscripts (agent running);
-both Windows apps otherwise released (PDF 1.9.0.0, Print 1.4.0.0).
+2.1 paragraph editing, 3.1 Translate). PDF for Mac's Spanish + What's New in Spanish merged 2026-11-06 (`07d79285`).
+Windows: Translate keeping bold, italic, sub- and superscripts merged 2026-11-06 (`79355b70`; in the next PDF release;
+a person to look at where scripts sit on a real translated copy); both Windows apps otherwise released (PDF 1.9.0.0,
+Print 1.4.0.0). Mac CI: AiLoopbackServer's stop() cut another test's connection (fd reused), fixed `ea6ec329`.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
