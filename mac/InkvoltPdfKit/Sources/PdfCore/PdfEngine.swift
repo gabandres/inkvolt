@@ -125,9 +125,10 @@ public final class PdfEngine: @unchecked Sendable {
             inkv_drop_context(ctx)
         }
 
-        /// Opens the source in a new context of `store` bytes; with `password` when it needs one.
-        static func open(_ source: Source, store: Int, password: String?) throws -> Instance {
-            guard let ctx = inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
+        /// Opens the source in a new context of `store` bytes; with `password` when it needs one. `drawing`: a context
+        /// whose large drawings are split into bands on several threads (the engine's own, which renders).
+        static func open(_ source: Source, store: Int, password: String?, drawing: Bool = false) throws -> Instance {
+            guard let ctx = drawing ? inkv_new_drawing_context(store) : inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
             var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
             let doc: OpaquePointer?
             var shared: SharedBytes?
@@ -245,14 +246,14 @@ public final class PdfEngine: @unchecked Sendable {
         // MuPDF's resource store (decoded images, fonts) at 128 MB keeps re-renders fast without letting several open
         // tabs balloon.
         let source = Source.bytes(SharedBytes(data))
-        return try PdfEngine(Instance.open(source, store: 128 << 20, password: password), source: source, password: password)
+        return try PdfEngine(Instance.open(source, store: 128 << 20, password: password, drawing: true), source: source, password: password)
     }
 
     /// Opens a file in place (MuPDF reads only what it needs), e.g. for a quick preview; nil when it's encrypted.
     public static func openPreview(path: String) throws -> PdfEngine? {
         let source = Source.path(path)
         do {
-            return try PdfEngine(Instance.open(source, store: 32 << 20, password: nil), source: source, password: nil)
+            return try PdfEngine(Instance.open(source, store: 32 << 20, password: nil, drawing: true), source: source, password: nil)
         } catch is PasswordRequired {
             return nil
         }
@@ -264,6 +265,21 @@ public final class PdfEngine: @unchecked Sendable {
     private func geometry(_ page: Int) throws -> PageGeometry {
         guard pages.indices.contains(page) else { throw PdfEngineError(message: loc("There is no page {0}.", CoreLanguage.number(page + 1))) }
         return pages[page]
+    }
+
+    /// Bands a large drawing is split into, each drawn on a thread (roadmap 3.6: a drawing set's sheet took 568 ms on one
+    /// M1 core, 162 ms in 8 bands): one a core, at most 16. More bands than cores was slower (16 on the M1's 8: 206 ms):
+    /// every band reads all of the list's nodes, taking MuPDF's lock for each.
+    static let drawingBands = min(16, ProcessInfo.processInfo.activeProcessorCount)
+    /// A drawing of fewer pixels goes on one thread (a 512-pixel tile, a thumbnail).
+    static let bandPixels = 512.0 * 1024
+    /// Tests and the bench: the bands every drawing is split into (1: one thread).
+    @TaskLocal public static var bandsForTests: Int?
+
+    /// The bands a drawing of `pixels` is split into.
+    static func bands(_ pixels: Double) -> Int {
+        if let forced = bandsForTests { return max(1, forced) }
+        return pixels >= bandPixels ? drawingBands : 1
     }
 
     /// Renders a page (or a region of it, in page points) at `scale` pixels per point.
@@ -284,8 +300,9 @@ public final class PdfEngine: @unchecked Sendable {
             var pixels: UnsafeMutablePointer<UInt8>?
             var width: Int32 = 0, height: Int32 = 0
             let draw = annotations ? inkv_render_rgb : inkv_render_rgb_contents
+            let bands = Int32(Self.bands(r.width * scale * r.height * scale))
             let result = draw(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + r.x), Float(g.originY + r.y),
-                              Float(g.originX + r.right), Float(g.originY + r.bottom), cookie, &pixels, &width, &height, &err)
+                              Float(g.originX + r.right), Float(g.originY + r.bottom), bands, cookie, &pixels, &width, &height, &err)
             defer { inkv_free(pixels) }
             if result == 2 { throw CancellationError() }
             guard result == 1, let pixels else { throw PdfEngineError(message: Self.message(err)) }
@@ -339,7 +356,7 @@ public final class PdfEngine: @unchecked Sendable {
         let source = source
         gate.unlock()
         guard let source else { throw PdfEngineClosed() }
-        let engine = try PdfEngine(Instance.open(source, store: store, password: password), source: source, password: password)
+        let engine = try PdfEngine(Instance.open(source, store: store, password: password, drawing: true), source: source, password: password)
         engine.pageBudget = pageBudget
         return engine
     }

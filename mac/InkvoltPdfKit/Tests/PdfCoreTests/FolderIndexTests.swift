@@ -143,6 +143,35 @@ final class FolderIndexTests {
         #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)))
     }
 
+    /// A query's word is cut to a term's 48 units, a page's word read whole to 1,024 (`IndexTerms.words`): a phrase with a
+    /// 60-unit word first, between, or last is still side by side.
+    static let sixty = "pneumonoultramicroscopicsilicovolcanoconiosisandmoreletters" + "x"
+
+    @Test(arguments: [("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
+                      ("\(sixty) brass", "by the \(sixty) brass here", true),
+                      ("\(sixty) brass", "by the pre\(sixty) brass here", true),
+                      ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
+                      ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
+                      ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
+                      ("\(sixty) brass", "by the pneumono brass here", false)])
+    func A_phrase_with_a_word_longer_than_a_term_is_side_by_side(_ c: (query: String, page: String, expected: Bool)) {
+        #expect(Self.sixty.utf16.count == 60)
+        #expect(IndexTerms.of(c.query).contains { $0.utf16.count == IndexTerms.maxChars }, "a term cut")
+        let found = !PageText.findIn(c.page, c.query, matchCase: false, wholeWord: false, ignoreAccents: true).isEmpty
+        #expect(found == c.expected, "Find")
+        #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)) == c.expected)
+    }
+
+    @Test func A_phrase_with_a_long_word_is_found_in_the_folder() throws {
+        let index = try FolderIndex.open(base)
+        defer { index.dispose() }
+        try commit(index) { b in
+            add(b, "long.pdf", "by the lantern \(Self.sixty) brass here")
+            add(b, "apart.pdf", "brass by the lantern \(Self.sixty) and more")
+        }
+        #expect(try at(index, "lantern \(Self.sixty) brass") == ["long.pdf#1"])
+    }
+
     @Test(arguments: [("a a b", "a a c a b"), ("a b a c", "a b a a c")])
     func A_phrase_starting_again_doesn_t_join_what_isn_t_side_by_side(_ c: (query: String, page: String)) {
         #expect(!FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)))
@@ -654,15 +683,16 @@ final class FolderIndexTests {
         released.wait()
     }
 
-    /// Mac addition (review): a run longer than a term (48) is filed in overlapping pieces, so its end is found as Find
-    /// finds it inside the run; a long word of a query looks up its start.
+    /// A run longer than a term (an identifier, a hash, base64, a German compound) is found anywhere inside, as Find finds
+    /// it: its end, a piece from its middle, a phrase that starts at its end (Windows' test of the same name).
     @Test func The_end_of_a_long_run_is_found_as_Find_finds_it() throws {
         let short = String(repeating: "k", count: 50) + "endmarker9"
         let long = String(repeating: "x", count: 260) + "abcdefghijklmnopqrstuvwxyz0123456789abcd"
+        let id = "Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft"
         let index = try FolderIndex.open(base)
         defer { index.dispose() }
         try commit(index) { b in
-            add(b, "a.pdf", "intro \(short) outro", "other \(long) text")
+            add(b, "a.pdf", "intro \(short) outro", "other \(long) text", "die \(id) heute")
             add(b, "b.pdf", "endmarker nothing abcdefghijklmnopqrstuvw")
         }
         #expect(try at(index, "endmarker9") == ["a.pdf#1"])
@@ -671,6 +701,10 @@ final class FolderIndexTests {
         #expect(try at(index, String(long.suffix(40))) == ["a.pdf#2"])
         #expect(try at(index, String(long.dropFirst(100).prefix(48))) == ["a.pdf#2"])
         #expect(try at(index, "endmarker") == ["a.pdf#1", "b.pdf#1"])
+        #expect(try at(index, "gesellschaft") == ["a.pdf#3"])
+        #expect(try at(index, "hauptbetriebswerk") == ["a.pdf#3"])
+        #expect(try at(index, "marker9 outro") == ["a.pdf#1"])
+        #expect(try at(index, "Gesellschaft heute") == ["a.pdf#3"])
     }
 
     @Test func A_folder_name_gives_one_index_however_it_is_written() {

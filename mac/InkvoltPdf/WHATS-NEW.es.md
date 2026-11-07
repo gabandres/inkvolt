@@ -9,6 +9,7 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 - Comparar archivos compara un archivo de Word, Excel o PowerPoint (convertido en PDF con LibreOffice) o una imagen de una página escaneada con un PDF. Primero se reconocen en este Mac las palabras del escaneo; Comparar sin leerlos omite ese paso.
 - Comparar archivos muestra los cambios de fuente, tamaño, negrita, cursiva y color aparte de los cambios en las palabras, y un párrafo que se movió como un solo movimiento, con las palabras editadas dentro de él como cambios propios. Los encabezados repetidos y los números de página se dejan fuera. Una casilla para cada tipo lo oculta.
 - Comparar archivos alinea dos escaneos de una página que entraron un poco torcidos o desplazados antes de superponerlos, y muestra lo que se ve distinto además de las palabras. Los cambios leídos de un escaneo que un reconocedor suele confundir (l y 1, O y 0) se marcan como posibles errores de lectura. La copia anotada lo incluye todo.
+- Los dibujos grandes (planos y hojas con decenas de miles de líneas) aparecen de dos a tres veces más rápido, dibujados con todos los núcleos del Mac, y la página siguiente se dibuja por adelantado mientras te desplazas.
 
 ## 1.8.0
 - Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.

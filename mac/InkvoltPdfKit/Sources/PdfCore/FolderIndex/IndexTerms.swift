@@ -20,8 +20,8 @@ enum IndexTerms {
     static let maxChars = 48
 
     /// A page's run longer than a term is filed in pieces of `maxChars`, one starting every `pieceStep` units, so Find's
-    /// hit anywhere inside it (up to `lookupChars` long) is inside a piece; its first `maxRun` units at most (the Mac's
-    /// addition: Windows files a long run under its start only, so the end of a run is never found there).
+    /// hit anywhere inside it (up to `lookupChars` long) is inside a piece; its first `maxRun` units at most (as Windows'
+    /// IndexTerms 2).
     static let maxRun = 1024
     static let pieceStep = 24
     /// What a query's word looks up: its start, short enough to sit inside one piece wherever the piece begins (a piece
@@ -40,7 +40,12 @@ enum IndexTerms {
 
     /// The terms a page is filed under: `read`'s, with a run longer than a term in overlapping pieces.
     static func file(_ text: String, _ emit: (String) -> Void) {
-        read(Array(text.utf16), limit: maxRun, emit)
+        read(Array(text.utf16), limit: maxRun, pieces: true, emit)
+    }
+
+    /// A page's words in order, each whole up to `maxRun` units: a phrase's first word may be the end of a long run.
+    static func words(_ text: String, _ emit: (String) -> Void) {
+        read(Array(text.utf16), limit: maxRun, pieces: false, emit)
     }
 
     /// The bytes a query's term is looked up by among the filed terms (each term with them inside counts).
@@ -69,8 +74,9 @@ enum IndexTerms {
         }
     }
 
-    /// `limit`: the units of a run kept (`maxChars` for a query and for reading words in order, `maxRun` for filing).
-    private static func read(_ text: [UInt16], limit: Int, _ emit: (String) -> Void) {
+    /// `limit`: the units of a run kept (`maxChars` for a query, `maxRun` for filing and for a page's words in order);
+    /// `pieces`: a kept run longer than a term goes out in overlapping pieces.
+    private static func read(_ text: [UInt16], limit: Int, pieces: Bool = true, _ emit: (String) -> Void) {
         let table = Table.shared
         var word = [UInt16]()
         word.reserveCapacity(maxChars)
@@ -80,7 +86,9 @@ enum IndexTerms {
         var paired = false           // that run has given a pair already: a run of one is filed alone
 
         func endWord() {
-            if !word.isEmpty { emitPieces(word, emit) }
+            if !word.isEmpty {
+                if pieces { emitPieces(word, emit) } else { emit(String(decoding: word, as: UTF16.self)) }
+            }
             word.removeAll(keepingCapacity: true)
             full = false
         }

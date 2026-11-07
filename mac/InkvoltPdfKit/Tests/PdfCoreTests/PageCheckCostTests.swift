@@ -62,7 +62,7 @@ extension PageCheckTests {
             inkv_cookie_limit(cookie, 30, PdfEngine.maxPicturePixels)
             var pixels: UnsafeMutablePointer<UInt8>?
             var w: Int32 = 0, h: Int32 = 0
-            let result = inkv_render_rgb_contents(ctx, doc, 0, 0.2, 0, 0, 612, 792, cookie, &pixels, &w, &h, &err)
+            let result = inkv_render_rgb_contents(ctx, doc, 0, 0.2, 0, 0, 612, 792, 1, cookie, &pixels, &w, &h, &err)
             inkv_free(pixels)
             return (result, inkv_cookie_stopped(cookie))
         }
@@ -213,12 +213,8 @@ extension PageCheckTests {
                 }
                 lock.withLock { ids[me] = registered }
             }
-            let done = DispatchSemaphore(value: 0)
-            DispatchQueue.global().async {
-                token.cancel()
-                done.signal()
-            }
-            #expect(done.wait(timeout: .now() + 5) == .success, "cancel() is stuck")
+            let done = Self.onOwnThread { token.cancel() }
+            #expect(done.wait(timeout: .now() + Self.stuckAfter) == .success, "cancel() is stuck")
             let order = lock.withLock { ran }
             #expect(order.count == 2 && order.last == "late", "\(order)") // one of a and b, then its late handler
         }
@@ -235,17 +231,29 @@ extension PageCheckTests {
             var parentId: Int?
             let childId = child.register { box.withLock { parent.unregister(parentId) } }
             box.withLock { parentId = parent.register { child.cancel() } }
-            let done = DispatchSemaphore(value: 0)
-            DispatchQueue.global().async {
-                parent.cancel()
-                done.signal()
-            }
+            let done = Self.onOwnThread { parent.cancel() }
             if i % 2 == 0 { child.unregister(childId) }
             parent.unregister(box.withLock { parentId })
-            if done.wait(timeout: .now() + 5) != .success { stuck += 1 }
+            if done.wait(timeout: .now() + Self.stuckAfter) != .success { stuck += 1 }
         }
         #expect(stuck == 0, "\(stuck) of 500 rounds deadlocked")
     }
+
+    /// Runs `work` on a thread of its own, signalled when it ends: GCD's global pool, which the drawing bands and other
+    /// suites hold on CI's busy runner, started cancel() past the 5 s wait (2 of 200 rounds, master 3476d6dc), where
+    /// the semaphore's clock should time cancel() alone.
+    static func onOwnThread(_ work: @escaping @Sendable () -> Void) -> DispatchSemaphore {
+        let done = DispatchSemaphore(value: 0)
+        Thread {
+            work()
+            done.signal()
+        }.start()
+        return done
+    }
+
+    /// How long a cancel() may take before it counts as stuck: 5 s on a Mac, five times that on GitHub's shared runner
+    /// (as `Timing.limit`).
+    static let stuckAfter: Double = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 5 : 25
 
     @Test func AnInlinePictureLargerThanTheLimitIsRefusedBeforeItDecodes() throws {
         // MuPDF decodes an inline picture (BI … ID … EI) whole while it parses the content, before the guard sees it:

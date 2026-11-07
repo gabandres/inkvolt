@@ -13,6 +13,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Totals and other calculated fields update on more forms: a calculation that sets its own field's value directly keeps it, as in Acrobat, and the AFSimple and AFExtractNums helpers forms use work.
 - A field placed on several pages shows on each of them, and a filled field whose form doesn't link it back to its box shows its value in every viewer.
 - Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
+- Search Folders finds a phrase with a word longer than 48 letters and digits again (a code, a hash, a German compound before or after other words); 1.10.0 missed it.
 
 ## 1.10.0
 - Search Folders finds the end or the middle of a long word, code, hash or German compound (more than 48 letters and digits), as Find does in an open document; it used to find only its start. Folders already indexed are read again once, by themselves, after the update.

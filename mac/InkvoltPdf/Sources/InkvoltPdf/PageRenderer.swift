@@ -101,9 +101,20 @@ final class PageRenderer {
         if refused[page] != nil { return }
         if let c = cache[page], abs(c.scale - scale) < 0.001 { return }
         if let p = pending[page], abs(p.scale - scale) < 0.001 { return }
+        if let a = aheadRun, a.page == page, abs(a.scale - scale) < 0.001 {
+            // Drawn ahead, now shown: it goes on as the page's request.
+            pending[page] = (scale, a.token)
+            aheadRun = nil
+            return
+        }
+        stopAhead()
         pending[page]?.token.cancel()
         let token = CancelToken()
         pending[page] = (scale, token)
+        render(page, scale, token)
+    }
+
+    private func render(_ page: Int, _ scale: Double, _ token: CancelToken) {
         let engine = engine
         let dark = Self.nightReading
         queue.async {
@@ -113,6 +124,39 @@ final class PageRenderer {
                 MainActor.assumeIsolated { self.arrived(page, scale, token, rendered, refusal) }
             }
         }
+    }
+
+    // MARK: A page ahead
+
+    /// The page the view wants drawn ahead of those shown (roadmap 3.6), and its render on its way. It shares the queue
+    /// with what is shown but never holds it up: it starts only once nothing shown is waiting (no page, no tile), and a
+    /// request for what is shown cancels it (MuPDF stops within milliseconds) and starts it again after.
+    private var wantedAhead: (page: Int, scale: Double)?
+    private var aheadRun: (page: Int, scale: Double, token: CancelToken)?
+
+    /// Draws `page` at `scale` once nothing shown is waiting; nil: no page ahead.
+    func requestAhead(_ page: Int?, scale: Double) {
+        guard let page else {
+            wantedAhead = nil
+            stopAhead()
+            return
+        }
+        if let a = aheadRun, a.page != page || abs(a.scale - scale) >= 0.001 { stopAhead() }
+        wantedAhead = (page, scale)
+        startAhead()
+    }
+
+    private func stopAhead() {
+        aheadRun?.token.cancel()
+        aheadRun = nil
+    }
+
+    private func startAhead() {
+        guard let w = wantedAhead, aheadRun == nil, pending.isEmpty, pendingTiles.isEmpty, refused[w.page] == nil else { return }
+        if let c = cache[w.page], abs(c.scale - w.scale) < 0.001 { return }
+        let token = CancelToken()
+        aheadRun = (w.page, w.scale, token)
+        render(w.page, w.scale, token)
     }
 
     /// Keeps a refusal, unless its request was cancelled: `invalidate` cancels those of the engine before an edit, whose
@@ -126,6 +170,8 @@ final class PageRenderer {
 
     private func arrived(_ page: Int, _ scale: Double, _ token: CancelToken, _ rendered: RenderedImage?, _ refusal: PageRefused?) {
         if pending[page]?.token === token { pending[page] = nil }
+        if aheadRun?.token === token { aheadRun = nil }
+        defer { startAhead() }
         if let refusal {
             refuse(page, refusal, token)
             return
@@ -142,6 +188,7 @@ final class PageRenderer {
             p.token.cancel()
             pending[page] = nil
         }
+        if let w = wantedAhead, !wanted.contains(w.page) { requestAhead(nil, scale: 0) }
         guard cache.count > keepAtMost else { return }
         let far = cache.keys.sorted { distance($0, wanted) > distance($1, wanted) }
         for page in far.prefix(cache.count - keepAtMost) where !wanted.contains(page) { cache[page] = nil }
@@ -149,6 +196,7 @@ final class PageRenderer {
 
     /// The content changed: every page is drawn again, its old picture shown until the new one arrives.
     func invalidate() {
+        requestAhead(nil, scale: 0)
         for p in pending.values { p.token.cancel() }
         pending = [:]
         refused = [:] // the new engine reads its pages afresh (Windows checks an edit's pages again)
@@ -159,6 +207,7 @@ final class PageRenderer {
     }
 
     func cancelAll() {
+        requestAhead(nil, scale: 0)
         for p in pending.values { p.token.cancel() }
         pending = [:]
         for t in pendingTiles.values { t.cancel() }
@@ -199,6 +248,7 @@ final class PageRenderer {
     }
 
     private func renderTile(_ key: TileKey, _ rect: RectD, _ scale: Double) {
+        stopAhead()
         let token = CancelToken()
         pendingTiles[key] = token
         let engine = engine
@@ -214,6 +264,7 @@ final class PageRenderer {
 
     private func tileArrived(_ key: TileKey, _ rect: RectD, _ token: CancelToken, _ rendered: RenderedImage?, _ refusal: PageRefused?) {
         if pendingTiles[key] === token { pendingTiles[key] = nil }
+        defer { startAhead() }
         if let refusal {
             refuse(key.page, refusal, token)
             return

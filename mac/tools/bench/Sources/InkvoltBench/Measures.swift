@@ -97,6 +97,20 @@ enum Measures {
                         findThreads: threads, findAgainMs: findAgainMs, commentsMs: commentsMs, comments: comments, peakMb: peakMb())
     }
 
+    /// The first `pages` pages drawn by a fresh engine at the proxy's scale, then again: ms a page, cold and warm.
+    static func paint(_ bytes: [UInt8], pages: Int) throws -> (cold: Double, warm: Double) {
+        let engine = try PdfEngine.open(bytes)
+        defer { engine.close() }
+        let n = min(pages, engine.pageCount)
+        let clock = ContinuousClock()
+        var t = clock.now
+        for p in 0..<n { _ = try engine.render(p, scale: scaleFor(engine.page(p))) }
+        let cold = ms(clock.now - t) / Double(n)
+        t = clock.now
+        for p in 0..<n { _ = try engine.render(p, scale: scaleFor(engine.page(p))) }
+        return (cold, ms(clock.now - t) / Double(n))
+    }
+
     /// `INKVOLT_BENCH_TRACE=1`: the peak so far after each step, on stderr.
     static func trace(_ step: String) {
         guard ProcessInfo.processInfo.environment["INKVOLT_BENCH_TRACE"] == "1" else { return }

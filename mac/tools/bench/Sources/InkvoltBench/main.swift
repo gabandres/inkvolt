@@ -47,6 +47,21 @@ do {
         let md = value("--md") ?? (out as NSString).appendingPathComponent("RESULTS.md")
         try Harness.markdown(results).write(toFile: md, atomically: true, encoding: .utf8)
         say("wrote \(md)")
+    case "bands":
+        // The first pages drawn as the scroll proxy draws them, split into n bands (1: one thread): cold (the display
+        // list made, then drawn) and warm (drawn again), ms a page, median of 3 engines.
+        guard args.count >= 2 else { throw BenchError("usage: bands file [bands…]") }
+        let bytes = try PdfEngine.readFile(args[1])
+        let counts = args.count > 2 ? args[2...].compactMap { Int($0) } : [1, 4, 8, 16]
+        for n in counts {
+            var cold: [Double] = [], warm: [Double] = []
+            for _ in 0..<3 {
+                let r = try PdfEngine.$bandsForTests.withValue(n) { try Measures.paint(bytes, pages: 5) }
+                cold.append(r.cold)
+                warm.append(r.warm)
+            }
+            say("bands \(n): cold \(Int(cold.sorted()[1])) ms a page, warm \(Int(warm.sorted()[1])) ms (\(cold.map { Int($0) }), \(warm.map { Int($0) }))")
+        }
     case "jpegsize":
         // The JPEG size of scan page 1 at several ImageIO qualities (to match Windows' encoder, 0.86 MB a page).
         let px = Corpus.scanPixels(1)

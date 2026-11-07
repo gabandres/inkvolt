@@ -164,7 +164,7 @@ public sealed partial class FolderIndex
         var readers = new System.Collections.Concurrent.ConcurrentBag<PageReader>();
         var file = 0;
         var parallel = new ParallelOptions { MaxDegreeOfParallelism = ConfirmThreads, CancellationToken = cancel };
-        var filter = terms.Count > 1 && terms.All(t => t.Length < IndexTerms.MaxChars) ? terms : null;
+        var filter = terms.Count > 1 ? terms : null;
         for (var word = 0; word < bits.Length; word++)
         {
             var w = bits[word];
@@ -219,7 +219,9 @@ public sealed partial class FolderIndex
 
     /// <summary>
     /// Whether a page has a phrase's terms one right after the other: the first the end of a word, the last the start of one, those between whole.
-    /// Whatever Find finds has that (they are the same words, folded), so a page without it needs no asking.
+    /// Whatever Find finds has that (they are the same words, folded), so a page without it needs no asking. A query's word longer than a term
+    /// is cut to one (<see cref="IndexTerms.Of"/>) while a page's words are read whole: a term between is matched by the word's start as it
+    /// would be cut, the first term anywhere inside the word when it may have been cut (the rest of the query's word is unknown).
     /// </summary>
     internal static bool SideBySide(string text, IReadOnlyList<string> terms)
     {
@@ -227,6 +229,9 @@ public sealed partial class FolderIndex
         var ends = new List<int>();
         var next = new List<int>();
         var found = false;
+        var head = terms[0];
+        var headCut = MayBeCut(head);
+        var skips = headCut ? Skips(head) : null;
         IndexTerms.Words(PageText.SearchTextOf(text), word =>
         {
             if (found) return;
@@ -237,14 +242,47 @@ public sealed partial class FolderIndex
                     if (at + 1 == terms.Count) found = true;
                     else next.Add(at + 1);
                 }
-            if (word.EndsWith(terms[0], StringComparison.Ordinal)) next.Add(1);
+            if (headCut ? Inside(word, head, skips!) : word.EndsWith(head, StringComparison.Ordinal)) next.Add(1);
             (ends, next) = (next, ends);
         });
         return found;
     }
 
     private static bool Fits(ReadOnlySpan<char> word, IReadOnlyList<string> terms, int at) =>
-        at == terms.Count - 1 ? word.StartsWith(terms[at], StringComparison.Ordinal) : word.SequenceEqual(terms[at]);
+        at == terms.Count - 1 ? word.StartsWith(terms[at], StringComparison.Ordinal) : CutToTerm(word).SequenceEqual(terms[at]);
+
+    /// <summary>A query's term this long may be its word cut (to <see cref="IndexTerms.MaxChars"/>, a unit less to keep a pair whole).</summary>
+    private static bool MayBeCut(string term) => term.Length >= IndexTerms.MaxChars - 1;
+
+    /// <summary>A page's word cut as a query's word is cut to a term: its first <see cref="IndexTerms.MaxChars"/> units, a pair never split.</summary>
+    private static ReadOnlySpan<char> CutToTerm(ReadOnlySpan<char> word) =>
+        word.Length <= IndexTerms.MaxChars ? word
+        : word[..(char.IsHighSurrogate(word[IndexTerms.MaxChars - 1]) ? IndexTerms.MaxChars - 1 : IndexTerms.MaxChars)];
+
+    /// <summary>Whether <paramref name="term"/> is anywhere in <paramref name="word"/>: Knuth–Morris–Pratt, linear in the word (at most <see cref="IndexTerms.MaxRun"/>).</summary>
+    private static bool Inside(ReadOnlySpan<char> word, string term, int[] skips)
+    {
+        var matched = 0;
+        foreach (var c in word)
+        {
+            while (matched > 0 && term[matched] != c) matched = skips[matched - 1];
+            if (term[matched] == c && ++matched == term.Length) return true;
+        }
+        return false;
+    }
+
+    /// <summary>For each start of <paramref name="term"/>, the length of its longest proper start that is also its end.</summary>
+    private static int[] Skips(string term)
+    {
+        var skips = new int[term.Length];
+        for (int i = 1, k = 0; i < term.Length; i++)
+        {
+            while (k > 0 && term[i] != term[k]) k = skips[k - 1];
+            if (term[i] == term[k]) k++;
+            skips[i] = k;
+        }
+        return skips;
+    }
 
     /// <summary>Reads one page's kept text, holding on to the last file's list of pages.</summary>
     private sealed class PageReader(Microsoft.Win32.SafeHandles.SafeFileHandle file)
