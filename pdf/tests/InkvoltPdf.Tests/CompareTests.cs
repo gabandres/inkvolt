@@ -150,7 +150,7 @@ public class CompareTests
     private const double CW = 6, CH = 10;
 
     /// <summary>A page whose lines are the given strings, fixed-width characters, one line every 14 pt.</summary>
-    private static PageText Page(params string[] lines) =>
+    internal static PageText Page(params string[] lines) =>
         new([.. lines.Select((l, li) => l.Select((c, i) => (c.ToString(), new RectD(50 + i * CW, 50 + li * 14, CW, CH))).ToList())]);
 
     [Fact]

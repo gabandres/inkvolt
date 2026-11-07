@@ -47,6 +47,7 @@ public static class CompareReport
         }
 
         if (doc.PageCount > 0) MarginNote(0, summary, AnnotColor.Yellow);
+        var near = new NewPages(result.Rows, doc.PageCount);
         foreach (var c in result.Changes)
         {
             var misread = c.MaybeMisread ? PdfStrings.Compare_NoteMaybeMisread : "";
@@ -89,7 +90,7 @@ public static class CompareReport
                     var text = Loc.Format(PdfStrings.Compare_NoteRemoved, Quote(c.OldText)) + misread;
                     if (c.NewAnchor is { } a && a.Page < doc.PageCount && a.Page < newPages.Count && Spot(newPages[a.Page], a.Start) is { } spot)
                         Annotations.AddNoteIn(doc, a.Page, spot.X, spot.Y, text, Author, RemovedColor);
-                    else if (NearestNewPage(result, c.Row, doc.PageCount) is { } p)
+                    else if (near.Nearest(c.Row) is { } p)
                         MarginNote(p, text, RemovedColor);
                     break;
                 }
@@ -99,7 +100,7 @@ public static class CompareReport
                 case ChangeKind.PageRemoved when c.Old is [var span, ..]:
                 {
                     // On the next page the new document has, else its last one.
-                    var next = result.Rows.Skip(c.Row + 1).FirstOrDefault(r => r.NewPage is not null)?.NewPage ?? doc.PageCount - 1;
+                    var next = near.AnyAfter(c.Row) ?? doc.PageCount - 1;
                     if (next >= 0)
                         MarginNote(next, c.OldText.Length > 0
                             ? Loc.Format(PdfStrings.Compare_NotePageRemoved, span.Page + 1, oldName, Quote(c.OldText))
@@ -121,14 +122,44 @@ public static class CompareReport
         return PdfObj.Save(doc);
     }
 
-    /// <summary>The new document's page for a change on a row: the row's, else the next one's, else the last before it (a page only the old document has has none).</summary>
-    private static int? NearestNewPage(CompareResult result, int row, int pageCount)
+    /// <summary>
+    /// The new document's pages around each row, found once for all rows: asked per change by walking the rows, a long run
+    /// of removed pages took rows × rows steps.
+    /// </summary>
+    private sealed class NewPages
     {
-        for (var r = row; r < result.Rows.Count; r++)
-            if (result.Rows[r].NewPage is { } p && p < pageCount) return p;
-        for (var r = row - 1; r >= 0; r--)
-            if (result.Rows[r].NewPage is { } p && p < pageCount) return p;
-        return null;
+        private readonly int?[] _atOrAfter;  // the first new page in the document at this row or after it
+        private readonly int?[] _atOrBefore; // the last one at this row or before it
+        private readonly int?[] _anyAfter;   // the first new page at a row after this one, in the document or not
+
+        public NewPages(IReadOnlyList<CompareRow> rows, int pageCount)
+        {
+            var n = rows.Count;
+            (_atOrAfter, _atOrBefore, _anyAfter) = (new int?[n], new int?[n], new int?[n]);
+            int? inDoc = null, any = null;
+            for (var r = n - 1; r >= 0; r--)
+            {
+                _anyAfter[r] = any;
+                if (rows[r].NewPage is { } p)
+                {
+                    any = p;
+                    if (p < pageCount) inDoc = p;
+                }
+                _atOrAfter[r] = inDoc;
+            }
+            inDoc = null;
+            for (var r = 0; r < n; r++)
+            {
+                if (rows[r].NewPage is { } p && p < pageCount) inDoc = p;
+                _atOrBefore[r] = inDoc;
+            }
+        }
+
+        /// <summary>The new document's page for a change on a row: the row's, else the next one's, else the last before it (a page only the old document has has none).</summary>
+        public int? Nearest(int row) => row < 0 || row >= _atOrAfter.Length ? null : _atOrAfter[row] ?? _atOrBefore[row];
+
+        /// <summary>The new page of the first row after <paramref name="row"/> that has one.</summary>
+        public int? AnyAfter(int row) => row < 0 || row >= _anyAfter.Length ? null : _anyAfter[row];
     }
 
     /// <summary>Where a note for a position in the text goes: just above the character before it (or after it).</summary>
