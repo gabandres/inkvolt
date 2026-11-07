@@ -293,7 +293,7 @@ final class PdfDocument: NSDocument {
     }
 
     func showError(_ message: String, _ error: Error?) {
-        Report.note("ERROR \(message) \(error.map { "\(type(of: $0))" } ?? "")")
+        Report.note("ERROR \(message) \(error.map { "\(type(of: $0)): \($0)" } ?? "")")
         if Report.skipsDialogs { return }
         let alert = NSAlert()
         alert.messageText = message
