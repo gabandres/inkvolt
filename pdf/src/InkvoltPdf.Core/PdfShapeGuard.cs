@@ -36,12 +36,20 @@ internal static class PdfShapeGuard
     /// <summary>What one list shared by a few pages may add, however small the file.</summary>
     private const long SharedListingBytes = 1 << 20;
 
-    private static readonly ConditionalWeakTable<byte[], object> Known = [];
+    private static readonly ConditionalWeakTable<byte[], object> Verdicts = [];
+    private static readonly object Good = new(), Refused = new();
 
-    /// <summary>These bytes were checked, or came from a document that was: they are read without another look.</summary>
-    public static bool IsKnown(byte[] data) => Known.TryGetValue(data, out _);
+    /// <summary>These bytes were checked, or came from a document that was: they are read without another look. Bytes refused once are refused at once from then on.</summary>
+    /// <exception cref="PdfShapeException">They were refused.</exception>
+    public static bool IsKnown(byte[] data)
+    {
+        if (!Verdicts.TryGetValue(data, out var verdict)) return false;
+        return ReferenceEquals(verdict, Good) ? true : throw new PdfShapeException();
+    }
 
-    public static void MarkKnown(byte[] data) => Known.AddOrUpdate(data, Known);
+    public static void MarkKnown(byte[] data) => Verdicts.AddOrUpdate(data, Good);
+
+    public static void MarkRefused(byte[] data) => Verdicts.AddOrUpdate(data, Refused);
 
     /// <exception cref="PdfShapeException">The cross-reference sections lead back to one already read.</exception>
     public static void CheckSections(byte[] data)

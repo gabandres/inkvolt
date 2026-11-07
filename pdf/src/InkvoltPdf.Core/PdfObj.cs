@@ -118,15 +118,24 @@ internal static class PdfObj
     private static PdfDocument ReadOnce(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes)
     {
         if (PdfShapeGuard.IsKnown(data)) return Parse(data, password, mode, maxBytes);
-        PdfShapeGuard.CheckSections(data);
-        var read = Parse(data, password, PdfDocumentOpenMode.Import, maxBytes);
+        PdfDocument read;
         try
         {
-            PdfShapeGuard.CheckPageTree(read, data.LongLength);
+            PdfShapeGuard.CheckSections(data);
+            read = Parse(data, password, PdfDocumentOpenMode.Import, maxBytes);
+            try
+            {
+                PdfShapeGuard.CheckPageTree(read, data.LongLength);
+            }
+            catch
+            {
+                read.Dispose();
+                throw;
+            }
         }
-        catch
+        catch (PdfShapeException)
         {
-            read.Dispose();
+            PdfShapeGuard.MarkRefused(data);
             throw;
         }
         PdfShapeGuard.MarkKnown(data);
