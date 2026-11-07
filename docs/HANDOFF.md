@@ -42,6 +42,10 @@ across different rows (say "page N → M" unless the move stays in one row). Aft
 Translate on the Mac): the autonomous run ends after 3.6 speed, the Office converter, Print for Mac 1.3 (after Apple
 approves 1.2), Windows PDF 1.10.0.0 and Windows Compare's two leftovers. Use PPE agents now and then to spare SSS (PPE's
 T3 provider needs `claude auth login` first).
+**Owner, 2026-11-07 (afternoon): PPE first, SSS spared for the rest of its week.** Finish on PPE: PDF 1.11.0.0 (Windows,
+running), the Mac forms corpus and its fixes (a PDF for Mac release if it fixes anything), the Office converter; then stop.
+**Tuesday 2026-11-10 08:00 (PPE's reset): start 2.1 paragraph editing, then 3.1 Translate, on the Mac, on PPE**, one at a
+time. Redaction by pattern additions and 3.4 LTV stay stopped until the owner says.
 **Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
 Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
 (`pdf/tools/forms-corpus`, 150-300 public fillable PDFs: open, fill every field, save, reopen, read back with pdf.js), its
