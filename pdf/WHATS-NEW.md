@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
 
 ## 1.10.0
 - Search Folders finds the end or the middle of a long word, code, hash or German compound (more than 48 letters and digits), as Find does in an open document; it used to find only its start. Folders already indexed are read again once, by themselves, after the update.
