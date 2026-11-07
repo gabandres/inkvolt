@@ -51,6 +51,19 @@ internal static class PdfShapeGuard
 
     public static void MarkRefused(byte[] data) => Verdicts.AddOrUpdate(data, Refused);
 
+    /// <summary>
+    /// Refuses <paramref name="data"/> until <paramref name="check"/> (a read of the same bytes that is taking too long)
+    /// ends: then they are read as they are, checked again, unless the check itself gave a verdict.
+    /// </summary>
+    public static void RefuseUntil(byte[] data, Task check)
+    {
+        Verdicts.TryAdd(data, Refused);
+        check.ContinueWith(_ =>
+        {
+            if (Verdicts.TryGetValue(data, out var verdict) && ReferenceEquals(verdict, Refused) && !check.IsFaulted) Verdicts.Remove(data);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
+
     /// <exception cref="PdfShapeException">The cross-reference sections lead back to one already read.</exception>
     public static void CheckSections(byte[] data)
     {
@@ -66,38 +79,45 @@ internal static class PdfShapeGuard
     /// <exception cref="PdfShapeException">The tree is one of those.</exception>
     public static void CheckPageTree(PdfDocument doc, long fileLength)
     {
-        try
+        if (Read(() => PdfObj.Dict(doc.Internals.Catalog?.Elements["/Pages"])) is not { } root) return;
+        var path = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
+        var stack = new Stack<(PdfDictionary Node, PdfArray? Kids, int Next)>();
+        stack.Push((root, Read(() => PdfObj.Array(root.Elements["/Kids"])), 0));
+        long entries = 0, listed = 0;
+        while (stack.TryPop(out var top))
         {
-            if (PdfObj.Dict(doc.Internals.Catalog?.Elements["/Pages"]) is not { } root) return;
-            var path = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
-            var stack = new Stack<(PdfDictionary Node, PdfArray? Kids, int Next)>();
-            stack.Push((root, PdfObj.Array(root.Elements["/Kids"]), 0));
-            long entries = 0, listed = 0;
-            while (stack.TryPop(out var top))
+            if (top.Kids is not { } list || top.Next >= list.Elements.Count)
             {
-                if (top.Kids is not { } list || top.Next >= list.Elements.Count)
-                {
-                    path.Remove(top.Node);
-                    continue;
-                }
-                stack.Push(top with { Next = top.Next + 1 });
-                if (PdfObj.Dict(list.Elements[top.Next]) is not { } kid) continue;
-                if (++entries > MaxPageTreeEntries) throw new PdfShapeException();
-                if (PdfObj.Array(kid.Elements["/Kids"]) is { } kids)
-                {
-                    if (!path.Add(kid) || stack.Count >= MaxPageTreeDepth) throw new PdfShapeException();
-                    stack.Push((kid, kids, 0));
-                }
-                else
-                {
-                    listed += PdfObj.Array(kid.Elements["/Annots"])?.Elements.Count ?? 0;
-                    if (listed * ShortestReference > fileLength + SharedListingBytes) throw new PdfShapeException();
-                }
+                path.Remove(top.Node);
+                continue;
+            }
+            stack.Push(top with { Next = top.Next + 1 });
+            // An entry that can't be read is passed over, never the rest of the tree: PDFsharp reaches the others too.
+            if (Read(() => PdfObj.Dict(list.Elements[top.Next])) is not { } kid) continue;
+            if (++entries > MaxPageTreeEntries) throw new PdfShapeException();
+            if (Read(() => PdfObj.Array(kid.Elements["/Kids"])) is { } kids)
+            {
+                if (!path.Add(kid) || stack.Count >= MaxPageTreeDepth) throw new PdfShapeException();
+                stack.Push((kid, kids, 0));
+            }
+            else
+            {
+                listed += Read(() => PdfObj.Array(kid.Elements["/Annots"]))?.Elements.Count ?? 0;
+                if (listed * ShortestReference > fileLength + SharedListingBytes) throw new PdfShapeException();
             }
         }
-        catch (Exception ex) when (ex is not (PdfShapeException or OutOfMemoryException))
+
+        // What PDFsharp gives, or null where it fails (left for the document's readers to report).
+        static T? Read<T>(Func<T?> get) where T : class
         {
-            // Not this check's to report.
+            try
+            {
+                return get();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                return null;
+            }
         }
     }
 
@@ -112,6 +132,22 @@ internal static class PdfShapeGuard
         if (!StartsWithTwoNumbers(bytes)) return;
         var depth = new Nesting();
         foreach (var b in bytes) depth.Read(b);
+    }
+
+    /// <summary>
+    /// Whether the stream data starting at <paramref name="at"/> belongs to an object stream without a filter: the
+    /// dictionary before it (from its object's "obj", within <see cref="PdfRepair"/>'s dictionary limit) names /ObjStm
+    /// and no /Filter.
+    /// </summary>
+    internal static bool IsUnfilteredObjectStreamAt(byte[] data, int at)
+    {
+        if (at <= 0 || at > data.Length) return false;
+        var from = Math.Max(0, at - (64 * 1024));
+        var before = data.AsSpan(from, at - from);
+        var obj = before.LastIndexOf("obj"u8);
+        if (obj < 0) return false;
+        var dict = before[obj..];
+        return dict.IndexOf("/ObjStm"u8) >= 0 && dict.IndexOf("/Filter"u8) < 0;
     }
 
     private static bool StartsWithTwoNumbers(ReadOnlySpan<byte> bytes)
@@ -173,8 +209,12 @@ internal static class PdfShapeGuard
     /// stream's data in one read, and goes to each object by position, so stream data never counts, whatever bytes it holds,
     /// and each object starts at no depth. What it reads in one go gets <see cref="CheckObjectStream"/>.
     /// </summary>
-    public sealed class GuardedFile(byte[] data) : MemoryStream(data, writable: false)
+    public sealed class GuardedFile : MemoryStream
     {
+        private readonly byte[] _data;
+
+        public GuardedFile(byte[] data) : base(data, writable: false) => _data = data;
+
         private Nesting _nesting;
 
         public override int ReadByte()
@@ -186,8 +226,11 @@ internal static class PdfShapeGuard
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            var at = (int)Position;
             var n = base.Read(buffer, offset, count);
-            CheckObjectStream(buffer.AsSpan(offset, n));
+            // Only an object stream's own data is parsed again (a filtered one is checked once decoded, in BoundedFilters):
+            // a content stream's or a picture's bytes are never nesting, whatever they hold.
+            if (IsUnfilteredObjectStreamAt(_data, at)) CheckObjectStream(buffer.AsSpan(offset, n));
             return n;
         }
 

@@ -513,7 +513,9 @@ public sealed partial class DocumentSession : IDisposable
         var engine = open(data);
         if (!((IAsyncResult)normalizing).AsyncWaitHandle.WaitOne(limit))
         {
-            Log?.Invoke("The check of a document's bytes took too long; opened as it is.");
+            // Until the check ends, its readers are told no at once: a fill would read the same bytes and hang as it does.
+            Log?.Invoke("The check of a document's bytes took too long; opened as it is, not editable until the check ends.");
+            PdfShapeGuard.RefuseUntil(data, normalizing);
             return (data, engine, 0);
         }
         var normal = normalizing.GetAwaiter().GetResult();
