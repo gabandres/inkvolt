@@ -35,9 +35,9 @@ public static class PdfRepair
 
     /// <summary>
     /// The bytes every reader of the document uses, tried in order: the file as it is; without a stale tail; with a rebuilt
-    /// cross-reference section. The first PDFsharp reads wins. A file none of them makes readable is kept as it is, so the
-    /// readers report the file's own first failure. Not for a file PDFsharp refuses for its password or a stream too large
-    /// to decode: a repair changes neither.
+    /// cross-reference section. The first that PDFsharp reads, finding more of the objects referred to, wins; never throws.
+    /// A file none of them makes readable is kept as it is, so the readers report the file's own first failure. Not tried
+    /// for a file PDFsharp refuses for its password or a stream too large to decode: a repair changes neither.
     /// </summary>
     public static Result Normalize(byte[] data, string? password)
     {
@@ -49,8 +49,15 @@ public static class PdfRepair
         // A candidate wins when PDFsharp reads it and finds more of the objects it refers to (a file PDFsharp opens can
         // still have lost them: a cross-reference stream without /Size reads as empty).
         bool Better(byte[] candidate) => Reads(candidate, password) is (null, var m) && (failure is not null || m < missing);
-        if (StaleTail.Cut(data) is { } cut && Better(cut)) return new Result(cut, Outcome.StaleTailCut);
-        if (Rebuild(data) is { } rebuilt && Better(rebuilt)) return new Result(rebuilt, Outcome.Repaired);
+        try
+        {
+            if (StaleTail.Cut(data) is { } cut && Better(cut)) return new Result(cut, Outcome.StaleTailCut);
+            if (Rebuild(data) is { } rebuilt && Better(rebuilt)) return new Result(rebuilt, Outcome.Repaired);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // A file too odd to cut or rebuild is read as it is: its readers say what is wrong with it.
+        }
         return new Result(data, Outcome.AsIs);
     }
 
