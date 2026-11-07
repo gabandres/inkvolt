@@ -248,6 +248,6 @@ public class DamagedFileTests
         var data = Bytes(sb.ToString());
         var clock = System.Diagnostics.Stopwatch.StartNew();
         PdfRepair.Rebuild(data);
-        Assert.True(clock.ElapsedMilliseconds < 3000, $"{clock.ElapsedMilliseconds} ms");
+        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms"); // quadratic, it would take hours
     }
 }

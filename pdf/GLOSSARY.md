@@ -5,6 +5,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 
 - **Document session** (`Core/DocumentSession.cs`): one open document: its bytes, the MuPDF engine over them, the
   passwords that open them, undo/redo steps and the saved/dirty state. The tab shows it; it never touches WPF.
+- **Repaired document** (`Core/PdfRepair.cs`, `DocumentSession.Repaired`): a damaged file opened as a repaired copy. A
+  document's bytes are made readable once, as it opens (`PdfRepair.Normalize`): as they are, else without a **stale
+  tail** (`Core/StaleTail.cs`: an older, longer copy's last bytes after the last good %%EOF), else with a cross-reference
+  stream rebuilt from the objects in the file and appended. The view, every reader and Save use those bytes. Only the
+  rebuild counts as repaired: the tab says so once, and signatures made before it show as not checked.
 - **Find worker** (`Core/FindWorkers.cs`, its parent's side in `Core/PdfEngine.Find.cs`): the app started again with
   `--find-worker <pipe name>`, reading pages' text for one long search and sending each page's text and hits back over
   a private pipe. It writes nothing and shows nothing, and ends with the search or the app. A worker that fails loses
