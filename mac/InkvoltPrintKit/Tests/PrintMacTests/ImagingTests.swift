@@ -305,6 +305,139 @@ struct MacImagingTests {
         #expect(small > 240, "\(small)") // a page that can be cleaned is shown cleaned
     }
 
+    /// `jpeg` with its frame header (SOF0) saying `width` × `height`, and its marker `sof` (0xC2: progressive): what a hostile
+    /// scanner can send, a few hundred bytes claiming billions of pixels.
+    static func claiming(_ jpeg: [UInt8], width: Int, height: Int, sof: UInt8 = 0xC0) -> [UInt8] {
+        var out = jpeg
+        let at = (0..<(out.count - 1)).first { out[$0] == 0xFF && out[$0 + 1] == 0xC0 }!
+        out[at + 1] = sof
+        out[at + 5] = UInt8(height >> 8 & 0xFF)
+        out[at + 6] = UInt8(height & 0xFF)
+        out[at + 7] = UInt8(width >> 8 & 0xFF)
+        out[at + 8] = UInt8(width & 0xFF)
+        return out
+    }
+
+    /// A 16 × 16 grey PNG whose header (IHDR, its CRC fixed) says `width` × `height`.
+    static func pngClaiming(width: Int, height: Int) throws -> [UInt8] {
+        let pixels = [UInt8](repeating: 200, count: 16 * 16)
+        let image = try ScanImaging.picture(pixels, width: 16, height: 16, channels: 1)
+        let data = NSMutableData()
+        let destination = try #require(CGImageDestinationCreateWithData(data, "public.png" as CFString, 1, nil))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
+        var png = [UInt8](data as Data)
+        func be32(_ v: UInt32, at i: Int) { for k in 0..<4 { png[i + k] = UInt8(v >> (24 - 8 * k) & 0xFF) } }
+        be32(UInt32(width), at: 16)
+        be32(UInt32(height), at: 20)
+        var crc: UInt32 = 0xFFFF_FFFF
+        for byte in png[12..<29] {
+            crc ^= UInt32(byte)
+            for _ in 0..<8 { crc = crc & 1 == 1 ? (crc >> 1) ^ 0xEDB8_8320 : crc >> 1 }
+        }
+        be32(~crc, at: 29)
+        return png
+    }
+
+    /// The hostile-input review's last finding: a page past `PageCleanup.maxPixels` with a skew the page check found, a crop
+    /// and a turn is saved as the scanner sent it, never decoded at full size (a turn, a crop or straightening would be), and
+    /// shown as it is saved.
+    @Test func aPageTooLargeToEditIsSavedAsScannedNotTurnedOrCropped() async throws {
+        let (saved, shown, full, photo) = try await offPool { () -> Result<(Bool, (Int, Int), Bool, Bool), any Error> in
+            Result {
+                let huge = Self.uniformGreyJpeg(width: 17_400, height: 17_500, level: 200)
+                let edits = PageEdits(quarterTurns: 1, crop: CropBox(0.1, 0.1, 0.5, 0.5))
+                let saved = try ScanImaging.jpeg(huge, edits) == huge
+                let shown = try ScanImaging.render(huge, edits, maxPixels: 400)
+                let full = (try? ScanImaging.render(huge, .none)) == nil
+                let box = PhotoBox(centerX: 0.5, centerY: 0.5, width: 0.2, height: 0.2, angle: 0)
+                let photo = (try? ScanImaging.photo(huge, box)) == nil
+                return (saved, (shown.width, shown.height), full, photo)
+            }
+        }.get()
+        #expect(saved)
+        #expect(shown.1 == 400 && abs(shown.0 - 398) <= 1, "\(shown)") // neither turned nor cropped
+        #expect(full) // no full-size decode
+        #expect(photo)
+    }
+
+    /// The same page claimed by a few hundred bytes: 65,500 × 65,500 (17 GB as RGBA), straightened as the page check would.
+    /// Nothing decodes it at full size: saving keeps its bytes, text recognition and the ID card copy refuse it.
+    @Test func aPageClaimingAHugeSizeIsNeverDecodedAtFullSize() async throws {
+        let (saved, full, photo, text, card) = try await offPool { () -> Result<(Bool, Bool, Bool, Bool, Bool), any Error> in
+            Result {
+                let page = Self.uniformGreyJpeg(width: 800, height: 800, level: 200)
+                let huge = Self.claiming(page, width: 65_500, height: 65_500)
+                // ImageIO gives no size for it at all (its pixels can't be what its header says); either way it's never decoded.
+                if let size = ScanImaging.size(huge) { #expect(size == (65_500, 65_500)) }
+                let edits = PageEdits(deskew: 1.5, crop: CropBox(0.1, 0.1, 0.8, 0.8))
+                let saved = try ScanImaging.jpeg(huge, edits) == huge
+                let full = (try? ScanImaging.render(huge, edits)) == nil
+                let box = PhotoBox(centerX: 0.5, centerY: 0.5, width: 0.2, height: 0.2, angle: 0)
+                let photo = (try? ScanImaging.photo(huge, box)) == nil
+                let text = ScanPdf.recognize(huge) == nil
+                let side = IdCardSheet.Side(jpeg: page, dpi: 300), hugeSide = IdCardSheet.Side(jpeg: huge, dpi: 300)
+                let paper = CGSize(width: 612, height: 792)
+                #expect(IdCardSheet.pdf(front: side, back: side, paper: paper) != nil)
+                let card = IdCardSheet.pdf(front: hugeSide, back: side, paper: paper) == nil
+                return (saved, full, photo, text, card)
+            }
+        }.get()
+        #expect(saved)
+        #expect(full)
+        #expect(photo)
+        #expect(text)
+        #expect(card)
+    }
+
+    /// A thumbnail of a huge page comes only from a baseline JPEG, whose decoder scales its blocks down as it reads them; a
+    /// progressive JPEG (every coefficient kept until the last scan) or another kind isn't decoded at all.
+    @Test func aHugePageThatIsntABaselineJpegIsntDecodedEvenSmall() async throws {
+        let refused = try await offPool { () -> Result<[Bool], any Error> in
+            Result {
+                let page = Self.uniformGreyJpeg(width: 800, height: 800, level: 200)
+                let progressive = Self.claiming(page, width: 65_500, height: 65_500, sof: 0xC2)
+                let png = try Self.pngClaiming(width: 65_500, height: 65_500)
+                if let size = ScanImaging.size(png) { #expect(size == (65_500, 65_500)) }
+                let small = try Self.pngClaiming(width: 16, height: 16)
+                #expect((try? ScanImaging.render(small, .none, maxPixels: 400)) != nil)
+                return [progressive, png].flatMap { bytes in
+                    [(try? ScanImaging.render(bytes, .none, maxPixels: 400)) == nil, (try? ScanImaging.analysis(bytes)) == nil]
+                }
+            }
+        }.get()
+        #expect(refused == [true, true, true, true])
+    }
+
+    /// A USB scanner's page comes as a file ImageCapture writes: one larger than an eSCL page may be
+    /// (`DeviceHttp.maxScanReplyBytes`) isn't read into memory.
+    @Test func anImageCaptureFileLargerThanAScannedPageIsntRead() throws {
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("system-scan-test-\(UUID().uuidString).jpg")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try Data([UInt8](repeating: 7, count: 2048)).write(to: file)
+        #expect(SystemScanDevice.pageFile(file, limit: 2048) == .page([UInt8](repeating: 7, count: 2048)))
+        #expect(SystemScanDevice.pageFile(file, limit: 2047) == .tooLarge)
+        let handle = try FileHandle(forWritingTo: file)
+        try handle.truncate(atOffset: UInt64(DeviceHttp.maxScanReplyBytes) + 1) // sparse: nothing written
+        try handle.close()
+        // Kinds, not bytes: a failing #expect describes its values, and a gigabyte's description takes many minutes.
+        #expect(Self.kind(SystemScanDevice.pageFile(file)) == "tooLarge")
+    }
+
+    /// A page file that is gone (or can't be read) is unreadable, never skipped without a word: the scan ends and says so.
+    @Test func anImageCaptureFileThatCantBeReadIsUnreadable() {
+        let gone = FileManager.default.temporaryDirectory.appendingPathComponent("system-scan-gone-\(UUID().uuidString).jpg")
+        #expect(SystemScanDevice.pageFile(gone) == .unreadable)
+    }
+
+    private static func kind(_ file: SystemScanDevice.PageFile) -> String {
+        switch file {
+        case .page: "page"
+        case .tooLarge: "tooLarge"
+        case .unreadable: "unreadable"
+        }
+    }
+
     @Test func aPhotoSheetPreviewOfAPaperNoIntCanMeasureIsNone() {
         // The paper comes from the printer's queue: a size that isn't a number (or a width of 0) draws no preview.
         for paper in [SheetPaper(8.5, 1e300, 0, 0, 0, 0), SheetPaper(0, 11, 0, 0, 0, 0), SheetPaper(8.5, .nan, 0, 0, 0, 0)] {

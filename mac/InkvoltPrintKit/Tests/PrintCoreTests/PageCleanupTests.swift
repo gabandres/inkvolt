@@ -115,7 +115,12 @@ struct PageCleanupTests {
         #expect(clean.for(width: 20000, height: 20000).isEmpty)
         var turned = clean
         turned.quarterTurns = 1
-        #expect(turned.for(width: 20000, height: 20000) == PageEdits(quarterTurns: 1))
+        // The Mac: no edit at all (Windows keeps the turn): turning, straightening or cropping decodes the whole page.
+        #expect(turned.for(width: 20000, height: 20000) == .none)
+        let straightened = PageEdits(quarterTurns: 1, deskew: 1.5, crop: CropBox(0.1, 0.1, 0.5, 0.5))
+        #expect(straightened.for(width: 4000, height: 3000) == straightened)
+        #expect(straightened.for(width: 65_500, height: 65_500) == .none)
+        #expect(straightened.for(width: Int.max, height: 2) == .none)
     }
 
     @Test func aGreySheetOnAWhiteLidIsCroppedToItsEdge() {

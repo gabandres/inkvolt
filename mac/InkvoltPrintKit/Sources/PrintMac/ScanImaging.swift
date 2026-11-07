@@ -33,7 +33,8 @@ public enum ScanImaging {
     /// The page with its edits: straightened by `deskew` degrees, cropped, cleaned up by its filters (PrintCore's
     /// `PageCleanup`, on the page scanned at `dpi`), turned. `maxPixels`: decoded at most that many pixels on its longest side
     /// first (thumbnails, previews: the filters then go by that copy's own resolution); nil: full size. A page too large to
-    /// clean up is drawn without its filters, as it is saved (`PageEdits.for(width:height:)`), however small the copy.
+    /// clean up is drawn without any edit, as it is saved (`PageEdits.for(width:height:)`), however small the copy, and
+    /// isn't drawn at full size at all (`decode`).
     /// - Throws: `CancellationError` when `stop` fires.
     public static func render(_ jpeg: [UInt8], _ given: PageEdits, maxPixels: Int? = nil, dpi: Int = 300, stop: BatchStop? = nil) throws -> CGImage {
         let edits = asSaved(given, jpeg)
@@ -55,16 +56,18 @@ public enum ScanImaging {
         return image
     }
 
-    /// The page as saved: the scanner's JPEG when it has no edits (filters on a page too large to clean up are none), else
-    /// the edited page encoded once.
+    /// The page as saved: the scanner's JPEG when it has no edits (a page too large to clean up has none), else the edited
+    /// page encoded once.
     public static func jpeg(_ original: [UInt8], _ edits: PageEdits, dpi: Int = 300, stop: BatchStop? = nil) throws -> [UInt8] {
         let fitting = asSaved(edits, original)
         return fitting.isEmpty ? original : try jpeg(render(original, fitting, dpi: dpi, stop: stop))
     }
 
-    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` without its filters.
+    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` none, and none when its header
+    /// gives no size (ImageIO gives none for a JPEG claiming 65,500 × 65,500, and `decode` refuses such a picture: with
+    /// edits it couldn't be saved at all).
     static func asSaved(_ edits: PageEdits, _ jpeg: [UInt8]) -> PageEdits {
-        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? edits
+        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? .none
     }
 
     /// The sheet as a crop of the page straightened by `deskew` degrees (`PaperEdge.find` on the analysis copy, whose
@@ -187,21 +190,56 @@ public enum ScanImaging {
 
     /// Width and height in pixels without decoding the page.
     public static func size(_ jpeg: [UInt8]) -> (width: Int, height: Int)? {
-        guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+        CGImageSourceCreateWithData(Data(jpeg) as CFData, nil).flatMap(size(of:))
+    }
+
+    static func size(of source: CGImageSource) -> (width: Int, height: Int)? {
+        guard let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
               let w = props[kCGImagePropertyPixelWidth] as? Int, let h = props[kCGImagePropertyPixelHeight] as? Int else { return nil }
         return (w, h)
     }
 
+    /// The page decoded at most `maxPixels` on its longest side (nil: full size); every decode of a scan goes through here.
+    /// A page past `PageCleanup.maxPixels` (its header says, before any pixel is read: a scanner's JPEG may claim 65,500 ×
+    /// 65,500, 17 GB as RGBA) is never decoded at full size, and a smaller copy of it comes only from a baseline JPEG, whose
+    /// decoder scales each block down as it reads it (a progressive one keeps every coefficient until its last scan; other
+    /// kinds decode whole first). A picture whose header gives no size isn't decoded.
     static func decode(_ jpeg: [UInt8], maxPixels: Int?) throws -> CGImage {
-        guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil) else { throw ImageError() }
-        if let maxPixels {
+        guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil), let size = size(of: source) else { throw ImageError() }
+        let huge = PageCleanup.tooLarge(size.width, size.height)
+        if let maxPixels, !huge || isBaselineJpeg(jpeg) {
             let options: [CFString: Any] = [kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: maxPixels,
                                             kCGImageSourceCreateThumbnailWithTransform: true]
             if let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) { return image }
         }
-        guard let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw ImageError() }
+        guard !huge, let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw ImageError() }
         return image
+    }
+
+    /// A JPEG whose frame (its first SOF marker) is baseline or extended sequential with Huffman coding (SOF0, SOF1): read
+    /// once, block by block. Walks the segments before it, each at least 2 bytes on.
+    static func isBaselineJpeg(_ jpeg: [UInt8]) -> Bool {
+        guard jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8 else { return false }
+        var i = 2
+        while i + 3 < jpeg.count {
+            guard jpeg[i] == 0xFF else { return false }
+            let marker = jpeg[i + 1]
+            if marker == 0xFF { // a fill byte
+                i += 1
+                continue
+            }
+            if marker == 0xC0 || marker == 0xC1 { return true }
+            let otherFrame = (0xC2...0xCF).contains(marker) && marker != 0xC4 && marker != 0xC8 && marker != 0xCC
+            if otherFrame || marker == 0xDA || marker == 0xD9 { return false } // another kind of frame, or none before the scan
+            if (0xD0...0xD7).contains(marker) || marker == 0x01 { // no length
+                i += 2
+                continue
+            }
+            let length = Int(jpeg[i + 2]) << 8 | Int(jpeg[i + 3])
+            guard length >= 2 else { return false }
+            i += 2 + length
+        }
+        return false
     }
 
     /// Turned `degrees` anticlockwise as the page check measured the skew (the Windows app turns the pixels by −deskew,

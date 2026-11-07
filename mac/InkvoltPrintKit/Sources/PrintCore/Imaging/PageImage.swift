@@ -219,13 +219,11 @@ public struct PageEdits: Equatable, Sendable {
         return e
     }
 
-    /// These edits on a page of this size: past `PageCleanup.maxPixels` no filter runs, so filters alone don't make it
-    /// re-encoded (or even decoded).
+    /// These edits on a page of this size: past `PageCleanup.maxPixels` none, so the page is saved as scanned, never decoded at
+    /// full size (a scanner's JPEG may claim 65,500 × 65,500: 17 GB to straighten, crop or turn). The Windows app keeps the
+    /// turn, straightening and crop there and drops only the filters.
     public func `for`(width: Int, height: Int) -> PageEdits {
-        guard PageCleanup.tooLarge(width, height) else { return self }
-        var e = self
-        e.filters.subtract(.pixelFilters)
-        return e
+        PageCleanup.tooLarge(width, height) ? .none : self
     }
 
     /// The crop as seen on the turned page (what the crop view shows).

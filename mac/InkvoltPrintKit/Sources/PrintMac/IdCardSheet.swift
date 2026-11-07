@@ -38,8 +38,6 @@ public enum IdCardSheet {
         return data as Data
     }
 
-    private static func image(_ jpeg: [UInt8]) -> CGImage? {
-        guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil) else { return nil }
-        return CGImageSourceCreateImageAtIndex(source, 0, nil)
-    }
+    /// A side as scanned; nil past `PageCleanup.maxPixels` (`ScanImaging.decode`: a card is a few hundred thousand pixels).
+    private static func image(_ jpeg: [UInt8]) -> CGImage? { try? ScanImaging.decode(jpeg, maxPixels: nil) }
 }

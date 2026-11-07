@@ -26,9 +26,14 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     public var beforeCleanup: PageEdits?
     /// The scan's crop to the paper was tried on the page and found no edge, so it stays whole.
     public var noPaperEdge = false
+    /// Past `PageCleanup.maxPixels` (its JPEG's header says; the app sets it, not kept in the recovery folder): saved as
+    /// scanned (`PageEdits.for(width:height:)`), so the page check neither straightens, cleans up nor finds photos on it.
+    public var tooLargeToEdit = false
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
-                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil) {
+                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil,
+                tooLargeToEdit: Bool = false) {
+        self.tooLargeToEdit = tooLargeToEdit
         self.ocrLanguage = ocrLanguage
         self.id = id
         self.dpi = dpi
@@ -57,6 +62,7 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
             return n == 1 ? loc("{0} photo, {1}", n, done) : loc("{0} photos, {1}", n, done)
         }
         if skipped { return looksBlank ? loc("Blank, not saved") : loc("Not saved") }
+        if tooLargeToEdit { return loc("Saved as scanned: too large to straighten, crop or turn") }
         if !edits.filters.isEmpty {
             let done = PageCleanup.describe(edits.filters)
             return done.prefix(1).uppercased() + done.dropFirst()
@@ -119,9 +125,10 @@ public struct ScanPages: Equatable, Sendable {
             p.noPaperEdge = false
             p.looksBlank = looksBlank || separator.kind == .blankPage
             p.separator = separator
-            p.photos = photos
+            p.photos = p.tooLargeToEdit ? nil : photos
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
+            if p.tooLargeToEdit { return } // saved as scanned: nothing to straighten or clean up
             if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
             guard !cleanup.isEmpty, !p.looksBlank, !separator.isSeparator else { return }
             // Tried only on a page with no filters or crop yet (`cleanedUp`) whose photos weren't looked for.
@@ -200,7 +207,7 @@ public struct ScanPages: Equatable, Sendable {
     }
 
     /// The photos on a page, as the user changed them (empty: save the whole scan).
-    public mutating func setPhotos(_ id: String, _ photos: [PhotoBox]) { update(id) { $0.photos = photos } }
+    public mutating func setPhotos(_ id: String, _ photos: [PhotoBox]) { update(id) { p in if !p.tooLargeToEdit { p.photos = photos } } }
 
     /// Turns a page `quarters` quarter turns clockwise (negative: anticlockwise).
     public mutating func turn(_ id: String, _ quarters: Int) {

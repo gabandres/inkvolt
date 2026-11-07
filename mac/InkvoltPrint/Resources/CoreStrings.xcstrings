@@ -5018,6 +5018,17 @@
         }
       }
     },
+    "Saved as scanned: too large to straighten, crop or turn": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardada tal como se escaneó: demasiado grande para enderezarla, recortarla o girarla"
+          }
+        }
+      }
+    },
     "Scan [file name]": {
       "comment": "file name",
       "extractionState": "manual",
@@ -6852,6 +6863,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "El escáner envió un PDF sin páginas."
+          }
+        }
+      }
+    },
+    "The scanner sent a page that couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner envió una página que no se pudo leer."
+          }
+        }
+      }
+    },
+    "The scanner sent a page too large to read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner envió una página demasiado grande para leerla."
           }
         }
       }

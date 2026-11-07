@@ -26,6 +26,30 @@ struct ScanPagesTests {
         #expect(p.summary == "3 pages, 1 not saved")
     }
 
+    /// A page past `PageCleanup.maxPixels` (a scanner's JPEG may claim 65,500 × 65,500) is saved as the scanner sent it: the
+    /// page check neither straightens it nor cleans it up nor cuts photos out of it, nor can the user, and its note says why.
+    @Test func aPageTooLargeToEditIsSavedAsScannedAndSaysWhy() throws {
+        var p = ScanPages()
+        p.add(ScannedPage(id: "p1.jpg", dpi: 1200, tooLargeToEdit: true))
+        p.add(ScannedPage(id: "p2.jpg", dpi: 1200, tooLargeToEdit: true))
+        let boxes = [PhotoBox(centerX: 0.25, centerY: 0.2, width: 0.3, height: 0.2, angle: 3)]
+        p.analysed("p1.jpg", looksBlank: false, skew: 2, skipBlank: true, straighten: true, photos: boxes, cleanup: [.whiten, .cropToPaper],
+                   paperEdge: CropBox(0.1, 0.1, 0.8, 0.8))
+        let page = try #require(p.page("p1.jpg"))
+        #expect(page.edits == .none)
+        #expect(!page.hasPhotos)
+        #expect(page.beforeCleanup == nil)
+        #expect(!page.noPaperEdge)
+        let why = "Saved as scanned: too large to straighten, crop or turn"
+        #expect(page.note == why)
+        p.setPhotos("p1.jpg", boxes)
+        #expect(p.page("p1.jpg")?.hasPhotos == false)
+        p.turn("p1.jpg", 1)
+        #expect(p.page("p1.jpg")?.note == why)
+        p.analysed("p2.jpg", looksBlank: true, skew: 0, skipBlank: true, straighten: true)
+        #expect(p.page("p2.jpg")?.note == "Blank, not saved") // left out: nothing to say about saving it
+    }
+
     @Test func aPageEditedBeforeItsCheckIsntStraightenedOverTheEdit() throws {
         var p = Self.pages(1)
         p.turn("p1.jpg", 1)
