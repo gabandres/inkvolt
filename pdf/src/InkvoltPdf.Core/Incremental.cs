@@ -323,6 +323,9 @@ internal static class Incremental
             Enumerable.Range(0, doc.PageCount).Any(p => doc.Pages[p].Reference is not { } pr || Id(pr.ObjectID) is null))
             throw new InvalidOperationException("The page tree doesn't line up with the original.");
 
+        // Encrypted (a user-password edit): what each string and stream is, for the filter it takes.
+        var targets = b.Crypt is null ? null : StandardCrypt.Targets(catalog, reachable);
+
         // The update is written on its own and joined to the original once, so the file is copied a single time.
         var at = b.Original.Length + (b.Original.Length > 0 && b.Original[^1] is not ((byte)'\n' or (byte)'\r') ? 1 : 0);
         using var ms = new MemoryStream();
@@ -331,7 +334,7 @@ internal static class Incremental
         {
             offsets[num] = (at + ms.Position, gen);
             Ascii(ms, $"{num} {gen} obj\n");
-            var crypt = b.Crypt is { } c ? (data, stream) => c.Encrypt(num, gen, data, stream) : (Func<byte[], PdfDictionary?, byte[]>?)null;
+            var crypt = b.Crypt is { } c ? (data, stream) => c.Encrypt(num, gen, data, targets!(stream)) : (Func<byte[], PdfDictionary?, byte[]>?)null;
             ms.Write(Serialize(obj, Id, null, null, replace, crypt));
             Ascii(ms, "\nendobj\n");
         }
