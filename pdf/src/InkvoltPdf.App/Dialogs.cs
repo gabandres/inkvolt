@@ -313,8 +313,7 @@ public static class PdfFiles
             {
                 var pw = password;
                 var (readable, engine, _) = await Task.Run(() => DocumentSession.OpenReadable(data, MuPDFCore.InputFileTypes.PDF, pw));
-                engine.Dispose();
-                return new PdfSource(readable, password, Path.GetFileName(path));
+                using (engine) return new PdfSource(readable, password, Path.GetFileName(path));
             }
             catch (PasswordRequiredException ex)
             {

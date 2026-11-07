@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Inkvolt.Testing;
 using InkvoltPdf.Core;
 using PdfSharp.Pdf.IO;
 
@@ -219,13 +220,18 @@ public class DamagedFileTests
         Readable(signed);
     }
 
+    /// <summary>Signed, then saved over a longer copy of itself: its tail holds an object, so the file is repaired, not cut.</summary>
+    private static (string Signed, byte[] Damaged) SignedThenDamaged()
+    {
+        using var cert = SigningTests.RsaCert();
+        var signed = Encoding.Latin1.GetString(Signing.Sign(Core2Pdf.Build(Objects), null, new SignRequest { Certificate = cert }));
+        return (signed, Bytes(signed + "ndobj\n4 0 obj\n<< /Old true >>\nendobj\ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n" + (signed.Length - 30) + "\n%%EOF\n"));
+    }
+
     [Fact]
     public void ASignatureMadeBeforeTheRepairIsNeverShownValid()
     {
-        // Signed, then saved over a longer copy of itself: its tail holds an object, so the file is repaired, not cut.
-        using var cert = SigningTests.RsaCert();
-        var signed = Encoding.Latin1.GetString(Signing.Sign(Core2Pdf.Build(Objects), null, new SignRequest { Certificate = cert }));
-        var damaged = Bytes(signed + "ndobj\n4 0 obj\n<< /Old true >>\nendobj\ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n" + (signed.Length - 30) + "\n%%EOF\n");
+        var (signed, damaged) = SignedThenDamaged();
         using var session = DocumentSession.FromBytes(damaged, "damaged.pdf", repair: true);
         Assert.True(session.Repaired);
         var sig = Assert.Single(Signatures.Verify(session.Data, null, null, session.RepairedLength));
@@ -237,6 +243,40 @@ public class DamagedFileTests
         var plain = Signatures.Verify(Bytes(signed));
         Assert.Equal(SignatureStatus.Valid, Assert.Single(plain).Status);
         Assert.Equal(SignatureStatus.Valid, Assert.Single(Signatures.Verify(Bytes(signed), null, null, repairedLength: 0)).Status);
+    }
+
+    [Fact]
+    public void ARecoveredRepairedDocumentStaysRepaired()
+    {
+        // The recovery copy is the repaired bytes with the person's edits: sound, so opening it again repairs nothing. The
+        // repair is carried in the copy's description, and the signature made before it is still not checked.
+        var root = Path.Combine(Path.GetTempPath(), $"inkvolt-recovery-{Guid.NewGuid():N}");
+        try
+        {
+            using var session = DocumentSession.FromBytes(SignedThenDamaged().Damaged, "damaged.pdf", repair: true);
+            Assert.True(session.Repaired);
+            Assert.Equal(PdfRepair.Outcome.AsIs, PdfRepair.Normalize(session.Data, null).Outcome);
+            var store = RecoveryStore.Start(root);
+            store.Write("a", session.Data, new RecoveryInfo("damaged.pdf", null, null, null, DateTime.UtcNow, 1, session.RepairedLength));
+            store.Abandon();
+            var left = Assert.Single(RecoveryStore.FindLeftOver(root));
+            Assert.Equal(session.RepairedLength, left.Info.RepairedLength);
+            using var recovered = DocumentSession.Recover(File.ReadAllBytes(left.PdfPath), null, "damaged.pdf", repairedLength: left.Info.RepairedLength);
+            Assert.True(recovered.Repaired);
+            Assert.Equal(session.RepairedLength, recovered.RepairedLength);
+            var sig = Assert.Single(Signatures.Verify(recovered.Data, null, null, recovered.RepairedLength));
+            Assert.Equal(SignatureStatus.Unsupported, sig.Status);
+            Assert.True(sig.InRepairedFile);
+            // A description from before the field reads as not repaired; a length past the copy's end is cut to it.
+            var old = System.Text.Json.JsonSerializer.Deserialize<RecoveryInfo>("""{"DisplayName":"a.pdf","SavedUtc":"2026-11-07T00:00:00Z","Page":1}""")!;
+            Assert.Equal(0, old.RepairedLength);
+            using var past = DocumentSession.Recover(session.Data, null, "damaged.pdf", repairedLength: long.MaxValue);
+            Assert.Equal(session.Data.LongLength, past.RepairedLength);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
     }
 
     [Fact]
@@ -370,26 +410,6 @@ public class DamagedFileTests
     }
 
     [Fact]
-    public void AHostileObjectStreamIsReadQuickly()
-    {
-        // /N says 2 billion objects, and 5 million pairs all name object 1 (20 MB decoded, a few KB in the file).
-        const int pairs = 5_000_000;
-        var header = new StringBuilder(pairs * 4);
-        for (var i = 0; i < pairs; i++) header.Append("1 0 ");
-        var content = Encoding.Latin1.GetBytes(header + "<< /Type /Catalog /Pages 2 0 R >>");
-        using var packed = new MemoryStream();
-        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) z.Write(content);
-        var data = (byte[])[.. Bytes($"%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /N 2147483647 /First {pairs * 4} /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"),
-            .. packed.ToArray(), .. Bytes("\nendstream\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n")];
-        var clock = System.Diagnostics.Stopwatch.StartNew();
-        var allocated = GC.GetAllocatedBytesForCurrentThread();
-        PdfRepair.Rebuild(data);
-        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
-        Assert.True(allocated < 300 << 20, $"{allocated >> 20} MB"); // the decoded bytes, not a match per pair (17 to 26 s matching every pair)
-        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms"); // 2 s alone, 15 s under the full suite's load
-    }
-
-    [Fact]
     public void AnIndirectLengthIsFollowed()
     {
         // The content stream's /Length is "10 0 R" (object 10, written after it), and its text holds "endstream" and an
@@ -470,5 +490,34 @@ public class DamagedFileTests
         {
             Directory.Delete(dir, true);
         }
+    }
+}
+
+/// <summary>
+/// A repair's bound on a hostile object stream (<see cref="PdfRepair.Rebuild"/>), timed, so alone: under the full suite's
+/// load it took 38 s against 2 s by itself.
+/// </summary>
+[Collection(Timing.Alone)]
+public sealed class DamagedFileTimingTests
+{
+    [Fact]
+    public void AHostileObjectStreamIsReadQuickly()
+    {
+        // /N says 2 billion objects, and 5 million pairs all name object 1 (20 MB decoded, a few KB in the file).
+        const int pairs = 5_000_000;
+        var header = new StringBuilder(pairs * 4);
+        for (var i = 0; i < pairs; i++) header.Append("1 0 ");
+        var content = Encoding.Latin1.GetBytes(header + "<< /Type /Catalog /Pages 2 0 R >>");
+        using var packed = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) z.Write(content);
+        var data = (byte[])[.. Encoding.Latin1.GetBytes($"%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /N 2147483647 /First {pairs * 4} /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"),
+            .. packed.ToArray(), .. Encoding.Latin1.GetBytes("\nendstream\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n")];
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        PdfRepair.Rebuild(data);
+        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        // The decoded bytes, not a match per pair: matching every pair allocated GBs and took 17 to 26 s.
+        Assert.True(allocated < 300 << 20, $"{allocated >> 20} MB");
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(10)), $"{clock.Elapsed}"); // 2 s here
     }
 }

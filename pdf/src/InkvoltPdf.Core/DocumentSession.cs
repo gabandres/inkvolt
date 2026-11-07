@@ -225,13 +225,16 @@ public sealed partial class DocumentSession : IDisposable
     /// A document offered back after Inkvolt PDF closed without saving it (<see cref="RecoveryStore"/>): its bytes as they
     /// were, with unsaved changes, under the file it came from (null for one never saved), so Save writes it back there.
     /// <paramref name="diskStamp"/> is that file's size and time when the copy was made: a file changed since shows as
-    /// changed on disk, as it would have in the run that made the copy.
+    /// changed on disk, as it would have in the run that made the copy. <paramref name="repairedLength"/> is the document's
+    /// <see cref="RepairedLength"/> then (<see cref="RecoveryInfo.RepairedLength"/>): the copy reads as sound, and its
+    /// signatures made before the repair stay unchecked.
     /// </summary>
     /// <exception cref="PasswordRequiredException"/>
     public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
-        string? password = null)
+        string? password = null, long repairedLength = 0)
     {
         (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password);
+        repaired = Math.Max(repaired, Math.Clamp(repairedLength, 0, data.LongLength));
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
         var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine)

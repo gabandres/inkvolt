@@ -1141,6 +1141,7 @@ public partial class DocumentTab : UserControl, IDisposable
         {
             if (_disposed || Window.GetWindow(this) is not { } owner) return;
             if (await PdfFiles.LoadForImportAsync(owner, path) is not { } source) continue;
+            if (_disposed || Window.GetWindow(this) != owner) return; // closed or moved while the file was read
             await RunEdit(Loc.Format(Strings.Tab_EditInsertFile, Path.GetFileName(path)),(data, pw) => PageEditor.Insert(data, pw, source, null, before), before);
         }
     }

@@ -1282,7 +1282,7 @@ public partial class MainWindow : Window
                 try
                 {
                     var pw = password;
-                    session = await Task.Run(() => DocumentSession.Recover(data, info.OriginalPath, info.DisplayName, stamp, pw));
+                    session = await Task.Run(() => DocumentSession.Recover(data, info.OriginalPath, info.DisplayName, stamp, pw, info.RepairedLength));
                 }
                 catch (PasswordRequiredException ex)
                 {
