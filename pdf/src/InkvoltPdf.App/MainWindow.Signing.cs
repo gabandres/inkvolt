@@ -66,6 +66,7 @@ public partial class MainWindow
             var request = new SignRequest
             {
                 Certificate = cert,
+                RepairedLength = t.Session.RepairedLength,
                 FieldName = field,
                 PageIndex = box?.PageIndex ?? 0,
                 Rect = box?.Rect,
@@ -119,8 +120,9 @@ public partial class MainWindow
             }
             var data = t.Session.Data;
             var password = t.Session.Password;
+            var repaired = t.Session.RepairedLength;
             using var client = NewLtvClient();
-            var plan = await Task.Run(() => Ltv.Plan(data, password, client));
+            var plan = await Task.Run(() => Ltv.Plan(data, password, client, repairedLength: repaired));
             if (t.IsDisposed) return;
             var url = LtvDialogs.ConfirmAdd(this, plan, client);
             if (url is null) return;
@@ -164,13 +166,14 @@ public partial class MainWindow
             if (t.IsDisposed) return;
             var data = t.Session.Data;
             var password = t.Session.Password;
+            var repaired = t.Session.RepairedLength;
             using var client = NewLtvClient();
-            var plan = await Task.Run(() => Ltv.Plan(data, password, client, onlyMissing: false));
+            var plan = await Task.Run(() => Ltv.Plan(data, password, client, onlyMissing: false, repairedLength: repaired));
             if (t.IsDisposed || !LtvDialogs.ConfirmOnline(this, plan)) return;
             ShowStatus(Strings.Main_CheckingSignaturesOnline);
             LtvOnlineResult result;
             using (t.BeginBusy(Strings.Main_CheckingSignaturesOnline))
-                result = await Task.Run(() => Ltv.CheckOnlineAsync(data, password, client));
+                result = await Task.Run(() => Ltv.CheckOnlineAsync(data, password, client, repairedLength: repaired));
             if (!t.IsDisposed) t.ShowOnlineCheck(result);
         }
         catch (Exception ex) when (ex is SigningException or LtvFetchException)

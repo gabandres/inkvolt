@@ -65,7 +65,7 @@ internal sealed class Autosave : IDisposable
             entry.Started = true;
             var stamp = session.DiskStampWhenRead;
             var info = new RecoveryInfo(session.DisplayName, session.FilePath, stamp?.Length, stamp?.WriteTimeUtc, DateTime.UtcNow,
-                tab.PageView.CurrentPage);
+                tab.PageView.CurrentPage, session.RepairedLength);
             // Counted as copied only once written: a failed write (disk full, folder locked) is tried again next pass.
             Enqueue(store => store.Write(entry.Id, data, info), ok =>
             {

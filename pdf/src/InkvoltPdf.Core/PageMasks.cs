@@ -30,7 +30,7 @@ internal sealed class PageMasks
         if (bytes is null || bytes.Length > MaxBytes) return new PageMasks(null);
         try
         {
-            var doc = PdfObj.Read(new MemoryStream(bytes, writable: false), null, PdfDocumentOpenMode.Import);
+            var doc = PdfObj.Read(bytes, null, PdfDocumentOpenMode.Import);
             return new PageMasks(doc.PageCount == pages ? doc : null);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)

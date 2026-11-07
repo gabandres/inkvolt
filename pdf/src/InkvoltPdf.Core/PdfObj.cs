@@ -92,24 +92,29 @@ internal static class PdfObj
     /// <summary>
     /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
     /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
-    /// open in Inkvolt PDF goes through here.
+    /// open in Inkvolt PDF goes through here, on bytes already made readable when the document opened
+    /// (<see cref="PdfRepair.Normalize"/>): nothing here retries.
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
-    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
+    public static PdfDocument Read(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
     {
         try
         {
-            return ReadOnce(stream, password, mode, maxBytes);
+            return ReadOnce(data, password, mode, maxBytes);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("Indirect reference without value", StringComparison.Ordinal) &&
-                                                   stream.CanSeek && NewestEncryptOnly(stream) is { } patched)
+                                                   NewestEncryptOnly(data) is { } patched)
         {
-            return ReadOnce(new MemoryStream(patched, writable: false), password, mode, maxBytes);
+            return ReadOnce(patched, password, mode, maxBytes);
         }
     }
 
-    private static PdfDocument ReadOnce(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
-        BoundedFilters.Within(maxBytes, maxBytes, () => string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode));
+    private static PdfDocument ReadOnce(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
+        BoundedFilters.Within(maxBytes, maxBytes, () =>
+        {
+            var stream = new MemoryStream(data, writable: false);
+            return string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
+        });
 
     /// <summary>
     /// PDFsharp can't read an encrypted file whose /Encrypt is named by three or more trailers (an encrypted form saved
@@ -117,12 +122,9 @@ internal static class PdfObj
     /// value". The newest trailer is the one that counts, so the copy PDFsharp reads has the older trailers' /Encrypt
     /// blanked out (same length: every offset stays). Null when there is nothing to blank.
     /// </summary>
-    private static byte[]? NewestEncryptOnly(Stream stream)
+    private static byte[]? NewestEncryptOnly(byte[] original)
     {
-        stream.Position = 0;
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        var data = copy.ToArray();
+        var data = (byte[])original.Clone();
         var text = Encoding.Latin1.GetString(data);
         var refs = System.Text.RegularExpressions.Regex.Matches(text, @"/Encrypt\s*\d+\s+\d+\s+R");
         if (refs.Count < 2) return null;
@@ -145,7 +147,7 @@ internal static class PdfObj
         failure ??= PdfStrings.Doc_CantRead;
         try
         {
-            var doc = Read(new MemoryStream(data, writable: false), password, mode);
+            var doc = Read(data, password, mode);
             // A signed document opened for editing: remember its original objects so the save can be incremental.
             if (mode == PdfDocumentOpenMode.Modify)
             {

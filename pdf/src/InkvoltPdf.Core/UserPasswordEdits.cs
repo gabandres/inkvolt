@@ -37,7 +37,7 @@ internal static class UserPasswordEdits
         StandardCrypt crypt;
         string encrypt;
         (int, int, byte[])? encryptObject = null;
-        using (var orig = PdfObj.Read(new MemoryStream(data, writable: false), password, PdfDocumentOpenMode.Import))
+        using (var orig = PdfObj.Read(data, password, PdfDocumentOpenMode.Import))
         {
             var h = orig.SecurityHandler;
             var permissions = PdfSecurity.Permissions(PdfObj.Num(h.Elements["/P"], 0), PdfObj.Int(h.Elements["/R"]) ?? 0);
@@ -62,7 +62,7 @@ internal static class UserPasswordEdits
             else encrypt = Encoding.Latin1.GetString(body);
             plain = Plain(orig, h, tail);
         }
-        var doc = PdfObj.Read(new MemoryStream(plain, writable: false), null, PdfDocumentOpenMode.Modify);
+        var doc = PdfObj.Read(plain, null, PdfDocumentOpenMode.Modify);
         if (Incremental.TrackUserPasswordEdit(doc, plain, data, crypt, encrypt, encryptObject)) return doc;
         doc.Dispose();
         return null;

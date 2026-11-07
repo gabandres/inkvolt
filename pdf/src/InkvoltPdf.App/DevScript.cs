@@ -716,7 +716,7 @@ internal static class DevScript
                 log.Add($"content: {tab!.DevContentState()}");
                 break;
             case "bars":
-                foreach (var bar in new[] { "DiskBar", "FormBar", "XfaBar", "SigBar", "RedactBar" })
+                foreach (var bar in new[] { "DiskBar", "FormBar", "XfaBar", "RepairBar", "SigBar", "RedactBar" })
                     if (tab!.FindName(bar) is FrameworkElement { Visibility: Visibility.Visible }) log.Add($"bar {bar} visible");
                 log.Add($"redact bar: {BarText(tab!, "RedactBar", "RedactBarText")}");
                 break;

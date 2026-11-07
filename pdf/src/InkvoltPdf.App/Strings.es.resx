@@ -1957,6 +1957,9 @@
   <data name="Tab_XfaNote" xml:space="preserve">
     <value>Este formulario usa XFA, que Inkvolt PDF no puede llenar. Lo que ves puede ser solo una página de marcador de posición; ábrelo en Adobe Acrobat Reader para llenarlo.</value>
   </data>
+  <data name="Tab_RepairedNote" xml:space="preserve">
+    <value>Este archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo. Al guardar se escribe la copia reparada; el archivo del disco no cambia hasta que guardes.</value>
+  </data>
   <data name="Tab_RedactLeaveTip" xml:space="preserve">
     <value>Salir de la herramienta de eliminación (las marcas se quedan hasta que las borres)</value>
   </data>
@@ -3567,6 +3570,9 @@ Modificado {1:g}</value>
   </data>
   <data name="Review_SigUnsupported" xml:space="preserve">
     <value>Sin comprobar: Inkvolt PDF no puede verificar este tipo de firma.</value>
+  </data>
+  <data name="Review_SigRepaired" xml:space="preserve">
+    <value>Sin comprobar: el archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo.</value>
   </data>
   <data name="Review_SigModified" xml:space="preserve">
     <value>La firma es válida, pero el documento se modificó después de firmarse.</value>

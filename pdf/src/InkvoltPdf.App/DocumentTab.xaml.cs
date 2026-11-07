@@ -527,8 +527,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         try
         {
-            using var stream = new MemoryStream(data, writable: false);
-            using var doc = PdfObj.Read(stream, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            using var doc = PdfObj.Read(data, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
             var rotations = new int[doc.PageCount];
             for (var i = 0; i < rotations.Length; i++) rotations[i] = doc.Pages[i].Rotate;
             return rotations;
@@ -956,6 +955,7 @@ public partial class DocumentTab : UserControl, IDisposable
         _ = LoadFormDesignAsync();
         ReloadEditContent();
         UpdateRedactBar();
+        if (e.Change == ContentChange.Reload) ShowRepairBar(); // the file read again may be sound now, or damaged
         RaiseState();
     }
 
@@ -1140,7 +1140,8 @@ public partial class DocumentTab : UserControl, IDisposable
         foreach (var path in files.Reverse())
         {
             if (_disposed || Window.GetWindow(this) is not { } owner) return;
-            if (PdfFiles.LoadForImport(owner, path) is not { } source) continue;
+            if (await PdfFiles.LoadForImportAsync(owner, path) is not { } source) continue;
+            if (_disposed || Window.GetWindow(this) != owner) return; // closed or moved while the file was read
             await RunEdit(Loc.Format(Strings.Tab_EditInsertFile, Path.GetFileName(path)),(data, pw) => PageEditor.Insert(data, pw, source, null, before), before);
         }
     }

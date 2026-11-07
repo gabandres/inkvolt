@@ -88,6 +88,12 @@ public sealed class SignRequest
     /// </summary>
     public Func<byte[], CancellationToken, Task<byte[]>>? Timestamp { get; init; }
     public CertificationLevel Certify { get; init; }
+
+    /// <summary>
+    /// The document's <see cref="DocumentSession.RepairedLength"/> (0 for a sound file): its signatures made before the
+    /// repair aren't checked, and a repaired file isn't certified.
+    /// </summary>
+    public long RepairedLength { get; init; }
     /// <summary>
     /// The form fields this signature locks (FieldMDP), chosen when certifying; null locks none beyond what the signed
     /// field's own /Lock names. Part of Inkvolt Pro (<see cref="ProFeature.FieldLocking"/>).
@@ -131,7 +137,9 @@ public static class Signing
             throw new SigningException(PdfStrings.Sign_ChooseFieldToLock);
         var hash = DigestFor(cert);
 
-        var existing = Signatures.Verify(data, password);
+        if (req.Certify != CertificationLevel.None && req.RepairedLength > 0)
+            throw new SigningException(PdfStrings.Sign_CertifyRepaired);
+        var existing = Signatures.Verify(data, password, null, req.RepairedLength);
         var signedBefore = existing.Any(s => s.Status != SignatureStatus.Unsigned);
         if (req.Certify != CertificationLevel.None && signedBefore)
             throw new SigningException(PdfStrings.Sign_CertifyMustBeFirst);
@@ -158,7 +166,7 @@ public static class Signing
             {
                 Encoding.ASCII.GetBytes(hex).CopyTo(pdf, gapStart + 1);
                 if (req.LongTerm == LongTermLevel.None) return pdf;
-                var extended = await Ltv.ExtendAsync(pdf, password, req.LongTermClient!, req.LongTerm == LongTermLevel.Lta ? req.Timestamp : null, strict: true, cancel).ConfigureAwait(false);
+                var extended = await Ltv.ExtendAsync(pdf, password, req.LongTermClient!, req.LongTerm == LongTermLevel.Lta ? req.Timestamp : null, strict: true, cancel, req.RepairedLength).ConfigureAwait(false);
                 return extended.Pdf;
             }
             reserve = der.Length + 8192;
@@ -432,8 +440,7 @@ public static class Signing
         PdfDocument doc;
         try
         {
-            var stream = new MemoryStream(data, writable: false);
-            doc = PdfObj.Read(stream, password, PdfDocumentOpenMode.Modify);
+            doc = PdfObj.Read(data, password, PdfDocumentOpenMode.Modify);
         }
         catch (PdfReaderException ex)
         {

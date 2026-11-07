@@ -130,6 +130,17 @@ public sealed partial class DocumentSession : IDisposable
     public bool IsDirty => _version != _savedVersion;
     public bool IsPdf => FileType == InputFileTypes.PDF;
 
+    /// <summary>
+    /// True when the file was damaged and the content is the repaired copy made as it opened (<see cref="PdfRepair.Normalize"/>):
+    /// the person is told once, saving writes that copy, and signatures made before are not checked against it
+    /// (<see cref="Signatures.Verify"/>, given <see cref="RepairedLength"/>). Edits keep it; a reload of a sound file clears it. A file opened in place
+    /// (<see cref="InPlaceBytes"/> or more) is read as it is.
+    /// </summary>
+    public bool Repaired => RepairedLength > 0;
+
+    /// <summary>The repaired copy's length (0 when the file wasn't repaired): signatures over no more than this predate the repair.</summary>
+    public long RepairedLength { get; private set; }
+
     private sealed record EncryptionScan(object Data, bool Found);
     private EncryptionScan? _encryptionScan;
 
@@ -191,14 +202,21 @@ public sealed partial class DocumentSession : IDisposable
     {
         var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes);
         return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), copy.Data, password, copy.Type, copy.Engine)
-            { _onDisk = copy.Stamp, OpenPassword = copy.OpenPassword, _diskPassword = password, _inPlace = copy.InPlace, _inPlaceBytes = inPlaceBytes };
+        {
+            _onDisk = copy.Stamp, OpenPassword = copy.OpenPassword, _diskPassword = password, _inPlace = copy.InPlace, _inPlaceBytes = inPlaceBytes,
+            RepairedLength = copy.RepairedLength,
+        };
     }
 
-    /// <summary>A new, unsaved PDF (e.g. the result of Combine or Extract).</summary>
-    public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null)
+    /// <summary>
+    /// A new, unsaved PDF: the app's own output (Combine, Extract, Scan, a conversion), opened as it is; or, with
+    /// <paramref name="repair"/>, bytes from outside the app (an attachment), made readable as a file opened from disk is
+    /// (<see cref="OpenReadable(byte[], InputFileTypes, string?)"/>, which blocks: call it off the UI thread then).
+    /// </summary>
+    public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null, bool repair = false)
     {
-        var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
-        var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine);
+        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
+        var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine) { RepairedLength = repaired };
         session._savedVersion = -1; // never saved
         return session;
     }
@@ -207,16 +225,20 @@ public sealed partial class DocumentSession : IDisposable
     /// A document offered back after Inkvolt PDF closed without saving it (<see cref="RecoveryStore"/>): its bytes as they
     /// were, with unsaved changes, under the file it came from (null for one never saved), so Save writes it back there.
     /// <paramref name="diskStamp"/> is that file's size and time when the copy was made: a file changed since shows as
-    /// changed on disk, as it would have in the run that made the copy.
+    /// changed on disk, as it would have in the run that made the copy. <paramref name="repairedLength"/> is the document's
+    /// <see cref="RepairedLength"/> then (<see cref="RecoveryInfo.RepairedLength"/>): the copy reads as sound, and its
+    /// signatures made before the repair stay unchecked.
     /// </summary>
     /// <exception cref="PasswordRequiredException"/>
     public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
-        string? password = null)
+        string? password = null, long repairedLength = 0)
     {
-        var engine = PdfEngine.Open(data, InputFileTypes.PDF, password);
+        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password);
+        repaired = Math.Max(repaired, Math.Clamp(repairedLength, 0, data.LongLength));
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine) { OpenPassword = openPassword, _diskPassword = password };
+        var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine)
+            { OpenPassword = openPassword, _diskPassword = password, RepairedLength = repaired };
         session._onDisk = path is null ? null : diskStamp ?? DiskStamp(path);
         session._savedVersion = -1; // unsaved changes
         return session;
@@ -430,7 +452,8 @@ public sealed partial class DocumentSession : IDisposable
 
     /// <summary>A file as read from disk: its bytes, or (a big PDF) the file opened in place and not read yet.</summary>
     private sealed record DiskCopy(byte[]? Data, InPlaceFile? InPlace, InputFileTypes Type, PdfEngine Engine, (long, DateTime)? Stamp, string? Password,
-        string? OpenPassword);
+        string? OpenPassword, long RepairedLength = 0);
+
 
     private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes)
     {
@@ -451,10 +474,45 @@ public sealed partial class DocumentSession : IDisposable
                 throw;
             }
         }
-        var data = File.ReadAllBytes(path);
-        var bytesEngine = PdfEngine.Open(data, type, password);
+        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password);
         var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
-        return new DiskCopy(data, null, type, bytesEngine, stamp, password, open);
+        return new DiskCopy(data, null, type, bytesEngine, stamp, password, open, repaired);
+    }
+
+    /// <summary>Where Core says what the person needn't see but a log should (the app writes it to its log file).</summary>
+    public static Action<string>? Log { get; set; }
+
+    /// <summary>
+    /// A file's bytes from outside the app made readable once, as it opens (<see cref="PdfRepair.Normalize"/>), and the
+    /// engine on them: the view, every reader and Save use the same bytes (a damaged file's repaired copy). The check (a
+    /// PDFsharp read of the whole file) runs while MuPDF opens the bytes as they are, so the first page waits for the longer
+    /// of the two, not both; the engine is opened again only when the bytes changed, and should MuPDF refuse the changed
+    /// bytes, the file is opened as it is (logged). Also returns the repaired copy's length (0 when not repaired). Blocks:
+    /// call it off the UI thread.
+    /// </summary>
+    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password) =>
+        OpenReadable(data, type, password, bytes => PdfEngine.Open(bytes, type, password));
+
+    /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
+    internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open)
+    {
+        if (type != InputFileTypes.PDF) return (data, open(data), 0);
+        var normalizing = Task.Run(() => PdfRepair.Normalize(data, password)); // never throws: a failed read keeps the bytes
+        var engine = open(data);
+        var normal = normalizing.GetAwaiter().GetResult();
+        if (ReferenceEquals(normal.Data, data)) return (data, engine, 0);
+        try
+        {
+            var changed = open(normal.Data);
+            engine.Dispose();
+            return (normal.Data, changed, normal.Repaired ? normal.Data.LongLength : 0);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The view and every reader stay on the file as it is: its fields may be missing, but its pages show.
+            Log?.Invoke($"The viewer refused the {normal.Outcome} copy of a damaged file; opened as it is: {ex.Message}");
+            return (data, engine, 0);
+        }
     }
 
     private void ApplyReload(DiskCopy copy)
@@ -465,6 +523,7 @@ public sealed partial class DocumentSession : IDisposable
         _undo.Clear();
         _redo.Clear();
         _onDisk = copy.Stamp;
+        RepairedLength = copy.RepairedLength;
         var version = _nextVersion++;
         _savedVersion = version;
         Swap(copy.Data, copy.Engine, version, ContentChange.Reload, copy.InPlace);

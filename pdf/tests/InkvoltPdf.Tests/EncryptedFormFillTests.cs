@@ -127,6 +127,38 @@ public class EncryptedFormFillTests
         Assert.Contains("Three", Core2Pdf.AllText(filled));
     }
 
+    [Fact]
+    public void AnEncryptedFormIsNotTakenForDamagedAsItOpens()
+    {
+        // The document's bytes are normalized once as it opens: a sound encrypted form, also one whose updates don't
+        // repeat the encryption dictionary, is read as it is (a repair would say so, and stop its signatures checking).
+        var data = Protect("aes-128", fill: true, annotate: false);
+        Assert.Equal(PdfRepair.Outcome.AsIs, PdfRepair.Normalize(data, null).Outcome);
+        Assert.Equal(PdfRepair.Outcome.AsIs, PdfRepair.Normalize(AppendPagesAgain(AppendPagesAgain(data)), null).Outcome);
+        Assert.Equal(PdfRepair.Outcome.AsIs, PdfRepair.Normalize(Protect("aes-256", fill: true, annotate: false, user: "open"), "open").Outcome);
+    }
+
+    [Theory]
+    [InlineData("rc4-128")]
+    [InlineData("aes-256")]
+    public void ADamagedEncryptedFormIsRepairedThenFilledWithTheUserPassword(string method)
+    {
+        // Every xref row off by two bytes: the repair rebuilds the cross-reference, carrying /Encrypt and /ID, and the
+        // repaired bytes are filled through the user password as a sound file is.
+        var data = Protect(method, fill: true, annotate: false);
+        var broken = Encoding.Latin1.GetBytes(System.Text.RegularExpressions.Regex.Replace(Encoding.Latin1.GetString(data),
+            @"(\d{10}) 00000 n", m => $"{long.Parse(m.Groups[1].Value) + 2:D10} 00000 n"));
+        var normal = PdfRepair.Normalize(broken, null);
+        Assert.True(normal.Repaired);
+        Assert.Equal("Alice", FormEditor.Read(normal.Data, null).Single(w => w.FieldName == "name").Value);
+
+        var filled = FormEditor.Fill(normal.Data, null, new Dictionary<string, string> { ["name"] = "Repaired" }).Data;
+        Assert.True(filled.AsSpan(0, normal.Data.Length).SequenceEqual(normal.Data));
+        Assert.DoesNotContain("Repaired", Encoding.Latin1.GetString(filled, normal.Data.Length, filled.Length - normal.Data.Length));
+        Assert.Equal("Repaired", ValueByPdfSharp(filled));
+        Assert.Equal(PdfSecurity.ReadSecurity(data, null), PdfSecurity.ReadSecurity(filled, null));
+    }
+
     /// <summary>An update holding the page tree root unchanged (it has no strings to encrypt), as Acrobat writes one.</summary>
     private static byte[] AppendPagesAgain(byte[] file)
     {
