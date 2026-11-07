@@ -25,6 +25,11 @@ Mac after the Flate-bomb agent: (5) PrintMac/ScanImaging.swift decodes and strai
 size (17 GB): refuse what `PageCleanup.tooLarge` flags before any full-size decode, save it unedited; (6)
 PrintMac/ScannedPdfPages.swift has no page cap on a scanner's PDF: done with the PrintCore fixes (1,000 pages,
 merged `f34205be`). Left for the Mac: only (5).
+**PDF for Mac's Flate-bomb bound merged 2026-11-06 (`198c81a0`)**, two review rounds; Find +3.8% on a quiet Mac. Open: an
+inline picture (BI…ID…EI) whose filters inflate then discard can still run long (needs a MuPDF patch: owner's call); a
+person to look at a refused page on screen. **Owner, 2026-11-06 night: ignore the usage gate for this work**; the order
+now: Print for Mac (5) → PDF for Mac hostile-input review and fixes → PDF for Mac 1.8 release → Print for Mac 1.3 (after
+1.2's approval) → 3.5, 3.3, 3.6, Office converter, the XL items.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
