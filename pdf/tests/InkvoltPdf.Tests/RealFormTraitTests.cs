@@ -59,6 +59,27 @@ public class RealFormTraitTests
         Assert.Contains("/V /b", Fields(filled, "r2"));
     }
 
+    // ---- A choice field's widgets with their own /I (pdflib-fancy_fields) ----
+
+    [Fact]
+    public void AChoiceFieldsWidgetsDontKeepTheirOldSelection()
+    {
+        var data = Doc("6 0 R", "7 0 R 8 0 R",
+        [
+            "<< /FT /Ch /Ff 131072 /T (gundam) /Opt [(Exia) (Kyrios) (Virtue) (Dynames)] /V (Dynames) /I [3] /DA (/Helv 12 Tf 0 g) /Kids [7 0 R 8 0 R] >>",
+            Widget("/Parent 6 0 R /Rect [72 700 172 720] /I [3] /V (Dynames)"),
+            Widget("/Parent 6 0 R /Rect [72 650 172 670] /I [3]"),
+        ]);
+
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["gundam"] = "Kyrios" }).Data;
+        Assert.Contains("/I [1]", Fields(filled, "gundam").Replace("[ 1 ]", "[1]"));
+        using var doc = Core2Pdf.Open(filled);
+        var widgets = doc.Internals.GetAllObjects().OfType<PdfDictionary>().Where(o => o.Elements.GetName("/Subtype") == "/Widget").ToList();
+        Assert.Equal(2, widgets.Count);
+        Assert.All(widgets, w => Assert.False(w.Elements.ContainsKey("/I") && !w.Elements.GetArray("/I")!.Elements.Select(e => e.ToString()).SequenceEqual(["1"])));
+        Assert.All(widgets, w => Assert.False(w.Elements.ContainsKey("/V") && w.Elements.GetString("/V") != "Kyrios"));
+    }
+
     /// <summary>The field dictionary named <paramref name="name"/> as PDF text (the last one written).</summary>
     private static string Fields(byte[] data, string name)
     {

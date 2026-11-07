@@ -224,6 +224,15 @@ public static partial class FormEditor
         if (indices.Count > 0 && indices.Count == parts.Count)
             f.Dict.Elements["/I"] = new PdfArray(doc, [.. indices.Select(i => (PdfItem)new PdfInteger(i))]);
         else f.Dict.Elements.Remove("/I"); // selected indices would contradict a custom value
+
+        // Widgets that carry their own /I or /V (pdflib writes them) would keep showing the old choice in pdf.js: they
+        // inherit the field's instead.
+        foreach (var w in f.Widgets)
+            if (!ReferenceEquals(w, f.Dict))
+            {
+                w.Elements.Remove("/I");
+                w.Elements.Remove("/V");
+            }
     }
 
     /// <summary>
