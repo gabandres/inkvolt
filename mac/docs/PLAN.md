@@ -566,8 +566,12 @@ Mac differences for the PDF app (so far):
   too) from a print copy made in memory before the print panel opens, off the main thread (a sheet with Cancel after
   0.3 s; Cancel prints nothing): the bytes the view engine shows (the layers chosen made again from the document's,
   not kept beside them), every comment and form field (signatures too) drawn into its page by its own appearance
-  (`Flattener`; the file's own, never one made again, as MuPDF ignores /NeedAppearances), decrypted; Core Graphics
-  reads it in place (one buffer). The rule: paper never shows more or less than the screen, and when unsure the page is
+  (`Flattener`; the file's own, never one made again, as MuPDF ignores /NeedAppearances), decrypted, and always written
+  by MuPDF (since the hostile-input review, 2026-11-07: Core Graphics read the document's own bytes when nothing needed
+  flattening, and could resolve an object defined twice or a broken cross-reference table differently from MuPDF's
+  repair); Core Graphics reads it in place (one buffer). Core Graphics draws with no bound, so each vector page is first
+  drawn small (24 px) through the bounded engine (`PrintCopy.bound`): a page it refuses prints as a picture, which the
+  engine refuses too, so the sheet shows the refusal's sentence in the page's box. The rule: paper never shows more or less than the screen, and when unsure the page is
   a picture. `Flattener.Look` is MuPDF 1.25's drawing rule (pdf_process_annot, the appearances it makes up at load),
   used both to draw and to classify: nothing for a link or popup, the Invisible, Hidden and NoView flags, a widget of
   no field (no /FT or /T), a /Rect without area (an invisible signature); a page prints as MuPDF's 300 dpi picture,
@@ -964,7 +968,9 @@ Decided 2026-10-27 for the PDF app:
   Entitlements: none added, none needed. The DMG app has no entitlements, is hardened and not sandboxed, and hardened runtime doesn't limit outgoing connections. App Transport Security doesn't apply to Network.framework, and URLSession only ever gets https (`AiEndpoint.tryParse` refuses http:// to the internet), so Info.plist has no ATS exception. macOS 15's Local Network permission does apply to a server elsewhere on the network: `NSLocalNetworkUsageDescription` now says so too, and a refused permission reads as "allow Inkvolt PDF in System Settings › Privacy & Security › Local Network". The first connection waits for that question, and is given up after 10 seconds like any other; a second try works once it is answered.
   The window: Send stays off with a line saying what to tick, where Windows says so when Send is pressed. The Pages question is one field (All, or a range), not Windows' range control. Stop ends a request in progress; a name being resolved can't be stopped, but it is no longer waited for. API keys with a line break are refused before anything is sent (a Mac addition: the socket path writes headers by hand). `Copy All` for the preview's Copy all. Words the About box and start page use now say "unless you send": "Nothing you open leaves this Mac unless you send text to an AI you set up."
   Windows should look at: `AiStreamParser.ParseWhole` and `AiProtocol.OllamaLoadedContext` call `TryGetProperty` on a root that may not be an object, which throws InvalidOperationException, not an AiException: an endpoint answering `[]` with JSON gets "Something went wrong" (or, from `/api/ps`, an unhandled exception in `AiPrepare`). The Mac returns nil or AiError. Not fixed on Windows, as this step leaves its code alone.
-  Release review, 2026-10-30 (AiHostileTests, through the parsers and the real connection): `JSONSerialization` recurses without a limit, so a few kilobytes of `{"a":{"a":…` from an endpoint ran the thread out of stack and stopped the app, as did a preset file: `JsonNesting` refuses what nests past 64, as Windows' System.Text.Json does. Also added: an event of many data lines is read at its blank line after 64 tries (a million lines were each read to the end, for hours), trailers without a line break stop at 64 KB, and a body queued past 64 MB ends the connection (nothing makes a server wait for its reader). Checked and unchanged: keys only in the Keychain, off by default, nothing of the document sent before the window's Send (with the Ollama preset, `/api/ps` and `/api/show` on loopback carry the model's name before it, as on Windows), redirects, and names and addresses outside their label.
+  Release review, 2026-10-30 (AiHostileTests, through the parsers and the real connection): `JSONSerialization` recurses without a limit, so a few kilobytes of `{"a":{"a":…` from an endpoint ran the thread out of stack and stopped the app, as did a preset file: `JsonNesting` refuses what nests past 64, as Windows' System.Text.Json does (PrintCore's since 2026-11-07, JSON5-aware:
+  ' strings and // and /* */ comments read as such, the depth never below 0, so `{a:'"', b:[[[…` or `/* ]]]… */ [[[…`
+  can't pass; Inkvolt Print's printer hand-off, `SuitePrinters.parse`, checks it too). Also added: an event of many data lines is read at its blank line after 64 tries (a million lines were each read to the end, for hours), trailers without a line break stop at 64 KB, and a body queued past 64 MB ends the connection (nothing makes a server wait for its reader). Checked and unchanged: keys only in the Keychain, off by default, nothing of the document sent before the window's Send (with the Ollama preset, `/api/ps` and `/api/show` on loopback carry the model's name before it, as on Windows), redirects, and names and addresses outside their label.
   A person must look at (nobody at the screen; snapshots of the sheets and the pane were read, in dark mode, but not on a real screen or in light mode): the pane opening beside the pages and being dragged wider; the disclosure triangle and the sheet growing with it; the amber box for an internet endpoint in light mode; a long answer streaming with the list scrolling along; a citation's look and click; Return and Shift-Return in the question box; the Control-click menu; the real Local Network question with a server on another computer; VoiceOver reading the status line and an answer. Not exercised at all: a real Ollama or LM Studio (none on ignia-mac; no paid service was called, by rule), a real https endpoint through URLSession and through the socket path's certificate check (only TLS to a plain server, refused), saving a key in the real login keychain from the app (locked over SSH; `AiKeychainStore` itself is tested on a throwaway keychain).
 
 Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; Mac differences from Windows):
@@ -1165,8 +1171,8 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   display list or the text), then again for the drawing of what was read (a Type 3 glyph read late). Every call that
   reads a page's content goes through `PdfEngine.reading`: `render` (the view, thumbnails, print, OCR's page images,
   redaction's pictures), `saveImage` (export of pictures, Batch's page images), `text` (Find, copy), `textLines` and
-  `exportRead` (export, redaction's reading), `renderRegionRgba`, and Find's own threads; print draws a refused page
-  blank, as Windows does. What a call
+  `exportRead` (export, redaction's reading), `renderRegionRgba`, and Find's own threads; print draws the refusal's
+  sentence in a refused page's box (a Mac difference: Windows prints it blank). What a call
   found is the page's verdict for that engine (`verdictOf`: `fine`, `tooSlow`, `failed` for a picture too large), and a
   refused page throws `PageRefused` at once from then on; an edit opens a new engine, whose pages are read afresh.
 - **Cancel and closing.** Cancel aborts the cookie (the stream throws at its next chunk: the 7 KB page stops in
@@ -1183,7 +1189,9 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   leave it out with "Page {0} couldn't be read"; exports report it as unreadable (an empty page). Jobs over many pages
   skip it and say "Pages that couldn't be read were skipped: …" (`SkippedPages`): Redact by Pattern's search (with what
   it marked, so nobody takes the result as clean), the redaction check (in its notes; an earlier version's page, by
-  name), Prepare Form's field search, Recognize Text and Batch's OCR, the AI assistant's reading (sent as an empty page).
+  name; the report is then `incomplete`, as is one told of pages the search before skipped, `RedactionCheckOptions.skipped`,
+  and Batch fails such a file and saves nothing, Windows' Incomplete: Redact Patterns on a page it couldn't search, Check
+  Redaction on one it couldn't read), Prepare Form's field search, Recognize Text and Batch's OCR, the AI assistant's reading (sent as an empty page).
   **Mac difference:** Windows' versions of those jobs stop at a refused page (only Find, Batch, export, compare, print and
   the AI skip it). Applying redactions still stops at a refused page with a mark: it can't draw the page to black it
   out, and skipping would leave the text there. One figure's picture for the AI (Make Accessible) says it couldn't be
