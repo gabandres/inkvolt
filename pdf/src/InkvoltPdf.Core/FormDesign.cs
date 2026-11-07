@@ -158,7 +158,7 @@ public static class FormDesign
         var ordered = tabs switch
         {
             "A" or "W" or "S" => items.ToList(),
-            "C" => [.. items.OrderBy(x => ReadingOrder.Band(x.F.Rect.X)).ThenBy(x => Math.Round(x.F.Rect.Y, 2)).ThenBy(x => x.I)],
+            "C" => [.. items.OrderBy(x => ReadingOrder.Band(x.F.Rect.X)).ThenBy(x => ReadingOrder.Hundredths(x.F.Rect.Y)).ThenBy(x => x.I)],
             _ => [.. items.OrderBy(x => ReadingOrder.Key(x.F.Rect)).ThenBy(x => x.I)],
         };
         var rank = new int[onPage.Count];

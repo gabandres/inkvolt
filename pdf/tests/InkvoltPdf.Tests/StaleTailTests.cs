@@ -106,6 +106,30 @@ public class StaleTailTests
     }
 
     [Fact]
+    public void TwoReadsEitherSideOfAHundredthsMidpointAreTheSameWidgetAndRow()
+    {
+        // 106.455 is halfway between two hundredths: rounded to one, 106.455001 and 106.45499 (one read and the next,
+        // 0.00001 apart) were 106.46 and 106.45, two widgets. Likewise 15.005 for a reading row (15 is where two 6-point rows meet).
+        var form = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [5 0 R] /Resources << >> >>",
+            "<< >>",
+            $"<< {W} /FT /Tx /T (a) /Rect [100 100 200 120] >>",
+        ]);
+        var widget = Assert.Single(FormEditor.Read(form, null));
+        foreach (var (a, b) in new[] { (106.455001, 106.45499), (15.005001, 15.00499), (14.995001, 14.99499), (-3.005001, -3.00499) })
+        {
+            Assert.Equal((widget with { Rect = new RectD(a, a, a, a) }).Key, (widget with { Rect = new RectD(b, b, b, b) }).Key);
+            Assert.Equal(ReadingOrder.Key(new RectD(a, a, 10, 10)), ReadingOrder.Key(new RectD(b, b, 10, 10)));
+        }
+        // Still a hundredth apart is another place, and 6 points apart another row.
+        Assert.NotEqual((widget with { Rect = new RectD(106.45, 1, 1, 1) }).Key, (widget with { Rect = new RectD(106.46, 1, 1, 1) }).Key);
+        Assert.NotEqual(ReadingOrder.Band(12), ReadingOrder.Band(18));
+        Assert.Equal(ReadingOrder.Band(12), ReadingOrder.Band(14.99));
+    }
+
+    [Fact]
     public void TabOrderStaysTheSameAcrossAFill()
     {
         // Field a's top is 15.00001 below the page's (841.90002 high) top: halfway between two 6-point reading rows, so
