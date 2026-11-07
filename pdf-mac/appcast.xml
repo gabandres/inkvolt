@@ -6,6 +6,38 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.8.0</title>
+      <pubDate>Sat, 07 Nov 2026 06:38:49 GMT</pubDate>
+      <sparkle:version>1.8.0</sparkle:version>
+      <sparkle:shortVersionString>1.8.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Inkvolt PDF speaks Spanish, prints pages sharp instead of as pictures, and keeps working on files made to freeze it. Scanning gets presets and leaves out blank pages, and Snapshot copies part of a page as a picture.
+
+- Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language &amp; Region › Applications) or in Settings › Language.
+- Printing sends pages as they are, not as pictures: text and lines stay sharp at any size, and print jobs are many times smaller and faster to send. A long scan is ready to print in about a second.
+- Printing to a printer Inkvolt Print knows shows its state and toner in the print panel, and warns in red when it's off or has a problem such as a paper jam, before you press Print. File › Printer Settings opens Inkvolt Print.
+- Scan lists the scanners Inkvolt Print knows straight away; Save as Preset… keeps your scan choices under a name; blank pages are left out (on by default), and the message says how many.
+- Snapshot (Tools › Snapshot, ⌥⌘C): drag over part of a page to copy it as a picture, sharp enough to paste into a document or an email.
+- Make Accessible reads the bitmap fonts of older TeX papers, tags each heading and paragraph inside a drawing placed on the page, and reads a table cell that spans rows as one cell. The Reading Order pane can change what a piece is (heading, paragraph, caption, footnote, formula, picture).
+- Batch's Recognize Text reads scans as Tools › Recognize Text does and keeps the words it wasn't sure of for review; exports from scanned pages say how many suspect words there were.
+- A page built to take minutes to read no longer freezes the app: after a few seconds it says so, and the rest of the document can still be used. Find, Redact by Pattern, Prepare Form, Recognize Text and the AI assistant go on with the other pages and say which they skipped.
+- Redaction never passes a page it couldn't read: Batch's Redact Patterns and Check Redaction fail that file and save nothing, and Check Redaction says when it couldn't look at everything, and which pages.
+- Batch presets, form data files and the AI assistant's answers can't stop the app with deeply nested JSON.</description>
+      <description sparkle:format="markdown" xml:lang="es">Inkvolt PDF habla español, imprime las páginas nítidas en lugar de como imágenes y sigue funcionando con archivos hechos para congelarla. Escanear tiene ajustes predefinidos y omite las páginas en blanco, y Captura copia parte de una página como imagen.
+
+- Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.
+- Al imprimir, las páginas se envían tal como son, no como imágenes: el texto y las líneas se ven nítidos a cualquier tamaño, y los trabajos de impresión son muchas veces más pequeños y rápidos de enviar. Un escaneo largo está listo para imprimir en cerca de un segundo.
+- Al imprimir en una impresora que Inkvolt Print conoce, el panel de impresión muestra su estado y su tóner, y avisa en rojo si está apagada o tiene un problema, como un atasco de papel, antes de que presiones Imprimir. Archivo › Configuración de la impresora abre Inkvolt Print.
+- Escanear muestra enseguida los escáneres que Inkvolt Print conoce; Guardar como ajuste predefinido… guarda tus opciones de escaneo con un nombre; las páginas en blanco se omiten (activado de forma predeterminada) y el mensaje dice cuántas.
+- Captura (Herramientas › Captura, ⌥⌘C): arrastra sobre parte de una página para copiarla como imagen, con la nitidez suficiente para pegarla en un documento o un correo electrónico.
+- Hacer accesible lee las fuentes de mapa de bits de los artículos antiguos hechos con TeX, etiqueta cada encabezado y cada párrafo dentro de un dibujo colocado en la página, y lee como una sola celda la celda de una tabla que abarca varias filas. El panel Orden de lectura puede cambiar qué es una pieza (encabezado, párrafo, leyenda, nota al pie, fórmula, imagen).
+- Reconocer texto en En lote lee los escaneos como Herramientas › Reconocer texto y guarda para revisarlas las palabras de las que no estaba seguro; las exportaciones de páginas escaneadas dicen cuántas palabras dudosas había.
+- Una página hecha para tardar minutos en leerse ya no congela la app: a los pocos segundos lo dice, y el resto del documento se puede seguir usando. Buscar, Eliminar por patrón, Preparar formulario, Reconocer texto y el asistente de IA siguen con las demás páginas y dicen cuáles omitieron.
+- La eliminación nunca da por buena una página que no pudo leer: Eliminar por patrón y Comprobar eliminación en En lote hacen fallar ese archivo y no guardan nada, y Comprobar eliminación dice cuándo no pudo revisarlo todo, y qué páginas.
+- Los ajustes predefinidos de En lote, los archivos de datos de formulario y las respuestas del asistente de IA no pueden detener la app con JSON anidado a gran profundidad.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.8.0/Inkvolt-PDF-1.8.0.dmg" length="38377160" type="application/octet-stream" sparkle:edSignature="z+AtQ3DjS0pAxqywekWNr++ditzzY8ja22fJUUeGwN8uGuIqZ9A+fLiqYPOprrr5gVlILelT3V8W2ADXmUJRDg==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.7.0</title>
       <pubDate>Wed, 04 Nov 2026 21:44:04 GMT</pubDate>
       <sparkle:version>1.7.0</sparkle:version>
