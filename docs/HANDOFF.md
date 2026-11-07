@@ -38,6 +38,10 @@ projects' simulators and archives: the owner's call). Mac 3.3 Compare merged (`0
 speed fix merged (`53528648`). Windows Compare still has two small bugs the Mac fixed: a page of zero area is taken for a
 scan (PdfEngine's isPicture: guard area > 0), and a move's label says "on page N" when old and new page numbers match
 across different rows (say "page N → M" unless the move stays in one row). After the 1.10.0.0 release.
+**Owner, 2026-11-07: stop before the XL items** (redaction by pattern additions, 3.4 LTV, 2.1 paragraph editing, 3.1
+Translate on the Mac): the autonomous run ends after 3.6 speed, the Office converter, Print for Mac 1.3 (after Apple
+approves 1.2), Windows PDF 1.10.0.0 and Windows Compare's two leftovers. Use PPE agents now and then to spare SSS (PPE's
+T3 provider needs `claude auth login` first).
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
