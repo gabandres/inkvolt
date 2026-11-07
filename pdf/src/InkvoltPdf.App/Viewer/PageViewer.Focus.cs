@@ -53,9 +53,9 @@ public sealed partial class PageViewer
         _surface.InvalidateVisual();
     }
 
-    private static bool SameWidget(FormWidget a, FormWidget b) => a.IsSameWidget(b);
+    private static bool SameWidget(FormWidget a, FormWidget b) => a.Key == b.Key;
 
-    private static (double Row, double X) ReadingKey(RectD r) => (Math.Round(r.Y / 6), r.X);
+    private static (double Row, double X) ReadingKey(RectD r) => ReadingOrder.Key(r);
 
     /// <summary>Fields (in the document's fill order) merged with the links of the visible pages, page by page.</summary>
     private List<TabStop> TabStops()

@@ -43,15 +43,31 @@ public sealed record FormWidget(
     int AnnotIndex = -1)
 {
     /// <summary>
-    /// Whether <paramref name="other"/> is this widget as another read of the document has it: the same field on the same
-    /// page in the same place, to a hundredth of a point. Filling saves the file again, and the numbers it writes back
-    /// can lose their last digits (a rect's 106.456001 comes back as 106.456).
+    /// What tells this widget apart across reads of the document (<see cref="WidgetKey"/>). Compare widgets by it, never
+    /// with == (which compares every field, the rect exactly).
     /// </summary>
-    public bool IsSameWidget(FormWidget other) =>
-        FieldName == other.FieldName && PageIndex == other.PageIndex && Near(Rect.X, other.Rect.X) && Near(Rect.Y, other.Rect.Y) &&
-        Near(Rect.Width, other.Rect.Width) && Near(Rect.Height, other.Rect.Height);
+    public WidgetKey Key => new(PageIndex, FieldName, Math.Round(Rect.X, 2), Math.Round(Rect.Y, 2), Math.Round(Rect.Width, 2), Math.Round(Rect.Height, 2));
+}
 
-    private static bool Near(double a, double b) => Math.Abs(a - b) < 0.01;
+/// <summary>
+/// A widget as another read of the document has it: the same field on the same page in the same place, to a hundredth of
+/// a point. Filling saves the file again, and the numbers it writes back can lose their last digits (a rect's 106.456001
+/// comes back as 106.456; a page 841.90002 high as 841.9, moving every place measured from the top).
+/// </summary>
+public readonly record struct WidgetKey(int Page, string Name, double X, double Y, double Width, double Height);
+
+/// <summary>
+/// The natural reading order of things on a page (fields, links): rows a few points high, top to bottom, then left to
+/// right. Coordinates are rounded to a hundredth of a point first, so a value that lost its last digits in a save stays
+/// in its row (15.00001 and 15 were rows apart: 6-point rows meet at 15).
+/// </summary>
+public static class ReadingOrder
+{
+    /// <summary>The 6-point band <paramref name="v"/> (a distance from the top, or from the left for columns) is in.</summary>
+    public static double Band(double v) => Math.Round(Math.Round(v, 2) / 6);
+
+    /// <summary>The sort key of a rect in reading order: its row, then where it starts.</summary>
+    public static (double Row, double X) Key(RectD r) => (Band(r.Y), Math.Round(r.X, 2));
 }
 
 /// <summary>A value a field's keystroke or validate script refused, and the message it gave (or a generic one).</summary>
@@ -641,8 +657,8 @@ public static partial class FormEditor
             {
                 "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => annotOrder.GetValueOrDefault(x.Annot)),
                 "A" or "W" => group.OrderBy(x => annotOrder.GetValueOrDefault(x.Annot)),
-                "C" => group.OrderBy(x => Math.Round(x.W.Rect.X / 6)).ThenBy(x => x.W.Rect.Y),
-                _ => group.OrderBy(x => Math.Round(x.W.Rect.Y / 6)).ThenBy(x => x.W.Rect.X),
+                "C" => group.OrderBy(x => ReadingOrder.Band(x.W.Rect.X)).ThenBy(x => Math.Round(x.W.Rect.Y, 2)),
+                _ => group.OrderBy(x => ReadingOrder.Key(x.W.Rect)),
             };
             ordered.AddRange(items.Select(x => x.W));
         }

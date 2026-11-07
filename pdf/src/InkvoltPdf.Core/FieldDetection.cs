@@ -142,7 +142,7 @@ public static class FieldDetection
 
         var names = existingNames.ToList();
         var result = new List<FieldSuggestion>();
-        foreach (var s in kept.OrderBy(k => Math.Round(k.Rect.Y / 6)).ThenBy(k => k.Rect.X))
+        foreach (var s in kept.OrderBy(k => ReadingOrder.Key(k.Rect)))
         {
             var clean = CleanLabel(s.Label, captions.Contains(s.Label));
             var name = clean.Length > 0 ? FormDesign.UniqueName(names, clean) : FormDesign.NextName(names, s.Kind);

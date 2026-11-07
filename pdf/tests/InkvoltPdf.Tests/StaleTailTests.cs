@@ -96,10 +96,33 @@ public class StaleTailTests
         var before = FormEditor.Read(form, null);
         var after = FormEditor.Read(FormEditor.SetValues(form, null, new Dictionary<string, string> { ["a"] = "Sur" }), null);
         Assert.NotEqual(before[0].Rect, after[0].Rect); // what made the exact comparison miss
-        Assert.True(before[0].IsSameWidget(after[0]));
-        Assert.True(before[1].IsSameWidget(after[1]));
-        Assert.False(before[0].IsSameWidget(after[1]));
-        Assert.False(before[0].IsSameWidget(before[0] with { PageIndex = 1 }));
+        Assert.Equal(before[0].Key, after[0].Key);
+        Assert.Equal(before[1].Key, after[1].Key);
+        Assert.NotEqual(before[0].Key, after[1].Key);
+        Assert.NotEqual(before[0].Key, (before[0] with { PageIndex = 1 }).Key);
+        // One notion for every caller: a set of keys finds the refreshed widgets.
+        var keys = before.Select(w => w.Key).ToHashSet();
+        Assert.All(after, w => Assert.Contains(w.Key, keys));
+    }
+
+    [Fact]
+    public void TabOrderStaysTheSameAcrossAFill()
+    {
+        // Field a's top is 15.00001 below the page's (841.90002 high) top: halfway between two 6-point reading rows, so
+        // the 0.00002 a fill takes off (841.9, top 826.9) moved it to the row above field b's, and Tab went a, b instead of b, a.
+        var form = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.20001 841.90002] /Annots [5 0 R 6 0 R] /Resources << >> >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            $"<< {W} /FT /Tx /T (a) /Rect [300 806.90001 500 826.90001] /DA (/Helv 0 Tf 0 g) >>",
+            $"<< {W} /FT /Tx /T (b) /Rect [100 803.9 280 823.9] /DA (/Helv 0 Tf 0 g) >>",
+        ]);
+        var before = FormEditor.Read(form, null);
+        var after = FormEditor.Read(FormEditor.SetValues(form, null, new Dictionary<string, string> { ["a"] = "Sur" }), null);
+        Assert.NotEqual(before.Single(w => w.FieldName == "a").Rect.Y, after.Single(w => w.FieldName == "a").Rect.Y); // the drift
+        Assert.Equal(before.Select(w => w.FieldName), after.Select(w => w.FieldName));
+        Assert.Equal(ReadingOrder.Key(before[0].Rect), ReadingOrder.Key(after[0].Rect));
     }
 
     [Fact]
