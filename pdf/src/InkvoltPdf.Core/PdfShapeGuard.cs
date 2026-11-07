@@ -37,7 +37,7 @@ internal static class PdfShapeGuard
     private const long SharedListingBytes = 1 << 20;
 
     private static readonly ConditionalWeakTable<byte[], object> Verdicts = [];
-    private static readonly object Good = new(), Refused = new();
+    private static readonly object Good = new(), Refused = new(), Pending = new();
 
     /// <summary>These bytes were checked, or came from a document that was: they are read without another look. Bytes refused once are refused at once from then on.</summary>
     /// <exception cref="PdfShapeException">They were refused.</exception>
@@ -57,10 +57,11 @@ internal static class PdfShapeGuard
     /// </summary>
     public static void RefuseUntil(byte[] data, Task check)
     {
-        Verdicts.TryAdd(data, Refused);
+        // Pending, not Refused: a refusal the check itself makes stays when it ends.
+        Verdicts.TryAdd(data, Pending);
         check.ContinueWith(_ =>
         {
-            if (Verdicts.TryGetValue(data, out var verdict) && ReferenceEquals(verdict, Refused) && !check.IsFaulted) Verdicts.Remove(data);
+            if (Verdicts.TryGetValue(data, out var verdict) && ReferenceEquals(verdict, Pending) && !check.IsFaulted) Verdicts.Remove(data);
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
@@ -134,21 +135,6 @@ internal static class PdfShapeGuard
         foreach (var b in bytes) depth.Read(b);
     }
 
-    /// <summary>
-    /// Whether the stream data starting at <paramref name="at"/> belongs to an object stream without a filter: the
-    /// dictionary before it (from its object's "obj", within <see cref="PdfRepair"/>'s dictionary limit) names /ObjStm
-    /// and no /Filter.
-    /// </summary>
-    internal static bool IsUnfilteredObjectStreamAt(byte[] data, int at)
-    {
-        if (at <= 0 || at > data.Length) return false;
-        var from = Math.Max(0, at - (64 * 1024));
-        var before = data.AsSpan(from, at - from);
-        var obj = before.LastIndexOf("obj"u8);
-        if (obj < 0) return false;
-        var dict = before[obj..];
-        return dict.IndexOf("/ObjStm"u8) >= 0 && dict.IndexOf("/Filter"u8) < 0;
-    }
 
     private static bool StartsWithTwoNumbers(ReadOnlySpan<byte> bytes)
     {
@@ -207,31 +193,98 @@ internal static class PdfShapeGuard
     /// <summary>
     /// The file as PDFsharp reads it, with the nesting counted as it goes: its parser takes tokens a byte at a time and a
     /// stream's data in one read, and goes to each object by position, so stream data never counts, whatever bytes it holds,
-    /// and each object starts at no depth. What it reads in one go gets <see cref="CheckObjectStream"/>.
+    /// and each object starts at no depth. An unfiltered object stream's data, which PDFsharp parses again, is counted as it
+    /// is read (in one read or several), told by the tokens of its dictionary: /Type /ObjStm without /Filter.
     /// </summary>
-    public sealed class GuardedFile : MemoryStream
+    public sealed class GuardedFile(byte[] data) : MemoryStream(data, writable: false)
     {
-        private readonly byte[] _data;
+        private Nesting _nesting;      // the tokens read, since the last move to an object
+        private Nesting _objectStream; // an unfiltered object stream's data, across the reads of it
+        private bool _objStm, _filter; // the dictionary read since the last "obj" names /Type /ObjStm, a /Filter
+        private bool _nextIsObjectStream; // the "stream" keyword followed such a dictionary: its data is read next
+        private bool _inObjectStream;
+        private readonly byte[] _token = new byte[MaxToken + 1];
+        private int _tokenLength = -1; // -1: between tokens
+        private bool _name;
 
-        public GuardedFile(byte[] data) : base(data, writable: false) => _data = data;
-
-        private Nesting _nesting;
+        /// <summary>The longest token looked at: what PDFsharp reads as /ObjStm, /Filter, obj or stream is shorter, escapes and all.</summary>
+        private const int MaxToken = 32;
 
         public override int ReadByte()
         {
             var b = base.ReadByte();
-            if (b >= 0) _nesting.Read((byte)b);
+            if (b >= 0)
+            {
+                _nesting.Read((byte)b);
+                Token((byte)b);
+            }
             return b;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            var at = (int)Position;
             var n = base.Read(buffer, offset, count);
             // Only an object stream's own data is parsed again (a filtered one is checked once decoded, in BoundedFilters):
-            // a content stream's or a picture's bytes are never nesting, whatever they hold.
-            if (IsUnfilteredObjectStreamAt(_data, at)) CheckObjectStream(buffer.AsSpan(offset, n));
+            // a content stream's or a picture's bytes are never nesting, whatever they hold. Which stream it is comes from
+            // the tokens of its dictionary, read just before, however far into the stream this read is.
+            if (_nextIsObjectStream)
+            {
+                (_nextIsObjectStream, _inObjectStream) = (false, true);
+                _objectStream.Reset();
+            }
+            if (_inObjectStream)
+                foreach (var b in buffer.AsSpan(offset, n)) _objectStream.Read(b);
             return n;
+        }
+
+        /// <summary>Follows the tokens PDFsharp's parser reads a byte at a time (names decoded, as it decodes them).</summary>
+        private void Token(byte b)
+        {
+            if (!Incremental.IsWhite(b) && !Incremental.IsDelimiter(b))
+            {
+                if (_tokenLength < 0) (_tokenLength, _name) = (0, false);
+                if (_tokenLength <= MaxToken) _token[_tokenLength++] = b;
+                return;
+            }
+            EndToken();
+            if (b == '/') (_tokenLength, _name) = (0, true);
+        }
+
+        private void EndToken()
+        {
+            if (_tokenLength is < 0 or > MaxToken)
+            {
+                _tokenLength = -1;
+                return;
+            }
+            var token = _token.AsSpan(0, _tokenLength);
+            _tokenLength = -1;
+            if (_name)
+            {
+                Span<byte> name = stackalloc byte[MaxToken];
+                var length = 0;
+                for (var i = 0; i < token.Length; i++)
+                {
+                    if (token[i] == '#' && i + 2 < token.Length && byte.TryParse(token.Slice(i + 1, 2), System.Globalization.NumberStyles.HexNumber, null, out var c))
+                    {
+                        name[length++] = c;
+                        i += 2;
+                    }
+                    else name[length++] = token[i];
+                }
+                if (name[..length].SequenceEqual("ObjStm"u8)) _objStm = true;
+                else if (name[..length].SequenceEqual("Filter"u8)) _filter = true;
+            }
+            else if (token.SequenceEqual("obj"u8))
+            {
+                // A new object: what follows is its dictionary. (An indirect /Length is read after the "stream" keyword.)
+                (_objStm, _filter, _inObjectStream) = (false, false, false);
+            }
+            else if (token.SequenceEqual("stream"u8))
+            {
+                _nextIsObjectStream = _objStm && !_filter;
+                _inObjectStream = false;
+            }
         }
 
         public override long Position
@@ -240,6 +293,7 @@ internal static class PdfShapeGuard
             set
             {
                 _nesting.Reset();
+                _tokenLength = -1;
                 base.Position = value;
             }
         }
@@ -247,6 +301,7 @@ internal static class PdfShapeGuard
         public override long Seek(long offset, SeekOrigin loc)
         {
             _nesting.Reset();
+            _tokenLength = -1;
             return base.Seek(offset, loc);
         }
     }
