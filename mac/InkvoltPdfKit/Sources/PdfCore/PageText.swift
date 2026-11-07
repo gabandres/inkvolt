@@ -300,6 +300,35 @@ public final class PageText: @unchecked Sendable {
         return !scan(SearchView(units), query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents, firstOnly: true).isEmpty
     }
 
+    /// `find` on a page's text kept as a string (Windows' `FindIn`): the matches as UTF-16 ranges of `pageText`, the same
+    /// rules. The folder index asks it of the text it keeps.
+    public static func findIn(_ pageText: String, _ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false) -> [(start: Int, end: Int)] {
+        let units = Array(pageText.utf16)
+        if units.isEmpty { return [] }
+        let view = SearchView(units)
+        return scan(view, query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents, firstOnly: false)
+            .map { view.toText($0.start, $0.end) }
+    }
+
+    /// The text as search reads it (Windows' `SearchTextOf`): words hyphenated across a line break whole again, soft
+    /// hyphens gone.
+    public static func searchTextOf(_ pageText: String) -> String {
+        let units = Array(pageText.utf16)
+        if units.isEmpty { return pageText }
+        return SearchView(units).text as String
+    }
+
+    /// `excerpt` of a page's text kept as a string (UTF-16 offsets), with where the match starts in it (UTF-16 units).
+    public static func excerptOf(_ text: String, _ start: Int, _ end: Int, context: Int = 40) -> (excerpt: String, matchStart: Int) {
+        let units = Array(text.utf16)
+        let s = max(0, min(start - context, units.count))
+        let e = max(s, min(units.count, end + context))
+        let body = String(decoding: units[s..<e], as: UTF16.self)
+        let lead = s > 0 ? "…" : ""
+        let excerpt = (lead + body + (e < units.count ? "…" : "")).replacingOccurrences(of: "\n", with: " ")
+        return (excerpt, lead.utf16.count + max(0, min(start, units.count) - s))
+    }
+
     public func find(_ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false) -> [(start: Int, end: Int)] {
         if units.isEmpty { return [] }
         let view = searchView

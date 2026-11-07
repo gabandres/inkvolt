@@ -17,6 +17,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index
   current: lists the folder (**a look**), has workers read what is new or changed, commits, waits for a change notice or the next look.
+  On the Mac (`PdfCore/FolderIndex/`, the app's `FolderSearch.swift`) there are no workers: **reading threads** read in
+  process through the engine's page check, a **watchdog** gives up a file past its processor time or silent too long, and
+  the **crash journal** beside the index (`.reading`, `.crashes`) names a file that was being read when the app ended.
 - **Page check** (`Core/PageChecks.cs`, the engine's side in `Core/PdfEngine.Checks.cs`): the app started again with
   `--page-check <pipe name>`, drawing a page small (every picture decoded) before the app first runs that page's
   content in MuPDF, a picture of over 4,096 × 4,096 also decoded at its full size, and so is an image's soft mask of

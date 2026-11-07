@@ -21,6 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ProSetup.configure(selfTest: Report.isRunning)
         AppSettings.applyTheme()
         FolderWatches.shared.startSaved()
+        FolderSearches.shared.startSaved()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
         RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
@@ -62,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showWatchedFolders(_ sender: Any?) {
         if Pro.allows(.watchedFolders) { WatchedFoldersWindowController.show() } else { ProWindowController.show(feature: .watchedFolders) }
     }
+    @objc func showFolderSearch(_ sender: Any?) { FolderSearchWindowController.show() }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
     @objc func reportProblem(_ sender: Any?) { ReportProblemWindowController.show() }
@@ -73,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         Self.isTerminating = true
         Converting.stopAll()
+        FolderSearches.shared.stopAll()
         RecoveryCopies.shared.quit()
     }
 

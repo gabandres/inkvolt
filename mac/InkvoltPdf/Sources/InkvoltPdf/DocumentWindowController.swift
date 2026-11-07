@@ -97,7 +97,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Find results across the document, the one shown, and the query they're for.
     private(set) var found: [(page: Int, start: Int, end: Int)] = []
     private(set) var foundIndex = -1
-    private var foundQuery = ""
+    private(set) var foundQuery = ""
     private var findGeneration = 0
     /// The search under way, stopped when another starts or the bar closes.
     private var findCancel: CancelToken?
@@ -1086,8 +1086,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         window?.makeFirstResponder(activePages)
     }
 
-    /// Finds `query` on every page (off the main thread), shows the first match from the current page on.
-    func find(_ query: String) {
+    /// A result of Search Folders opened here: the Find bar shows its words, found with its options, from its page on.
+    func showFolderHit(page: Int, query: String, options: FolderSearchOptions) {
+        findBar.isHidden = false
+        findBar.field.stringValue = query
+        find(query, from: page, matchCase: options.matchCase, wholeWord: options.wholeWord, ignoreAccents: options.ignoreAccents)
+    }
+
+    /// Finds `query` on every page (off the main thread), shows the first match from `page` (the current page) on.
+    func find(_ query: String, from page: Int? = nil, matchCase: Bool = false, wholeWord: Bool = false, ignoreAccents: Bool = false) {
         findGeneration += 1
         let generation = findGeneration
         findCancel?.cancel()
@@ -1108,7 +1115,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
         findBar.status = loc("Searching…")
         let engine = engine
-        let from = activePages.currentPage
+        let from = min(max(page ?? activePages.currentPage, 0), max(engine.pageCount - 1, 0))
         // A new search (or the bar closed) stops the one under way (above): its pages aren't read for nothing.
         let cancel = CancelToken()
         findCancel = cancel
@@ -1118,7 +1125,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             // nothing, as a page that couldn't be read always did.
             let pages: [PdfEngine.PageMatches]
             do {
-                pages = try engine.findAll(query, matchCase: false, wholeWord: false, keepText: false, cancel: cancel)
+                pages = try engine.findAll(query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents, keepText: false,
+                                           cancel: cancel)
             } catch is CancellationError {
                 return
             } catch {

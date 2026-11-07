@@ -442,6 +442,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | 2.3 | USB scanners, the Mac's leftovers (roadmap 2.3): leaving out blank pages, scan presets, the scanners Inkvolt Print remembers | UsbScannerTests (PrintCore; the WIA and TWAIN ones stay with Windows) | Done (2026-11-06, three commits). Blank pages done (2026-11-06, on `ignia-mac`): PrintCore `Suite/ScanRun` (Windows' shared `ScanRun`: each page a scanner sends checked by `BlankPage` on PrintMac's `ScanImaging.analysis` copy, off the main actor, as kept, blank or unreadable; a page the check can't judge is kept; the done line); Scan's "Leave out blank pages" (on by default, remembered as `ScanSkipBlank`), the blank pages counted while scanning and after, the Scan button saying Scan Another Page or Scan More Pages as on Windows. Tests: 5 (4 ported, the fifth the Mac's: stopping stops the device's job). Presets done (2026-11-06, on `ignia-mac`): PrintCore `ScanPresets.fromChoices` (Windows' `FromChoices`: the dialog's source, color, resolution, page size, OCR and blank choices under a name, trimmed, cut and made unique, the resolution clamped, an unknown size dropped); Scan's Preset row (No preset, then the presets in the app's settings as `ScanPresets` JSON, Inkvolt Print's three built-ins until the list is changed, as on Windows), Save as Preset… (a sheet asking the name again while `nameProblem` refuses it) and Delete Preset; a preset chosen, or still chosen when another scanner connects, is matched to it by `PresetPlan` and its notes said. Tests: +2 (1 ported; the Mac's: odd choices made safe). Mac differences: no black and white (the Mac's scans are color or grey), so a preset has no `BlackAndWhite`; text recognition is always available (Vision). The scanners Inkvolt Print remembers done (2026-11-06, on `ignia-mac`): PrintCore `Suite/ScannerList` (Windows' `ScannerList`, its network part: the keys, "Name  (host)" with " · found on the network" for one Inkvolt Print doesn't remember, "Name  (USB)"; `network(remembered:found:)` lists the hand-off's printers with an eSCL root first, then those Bonjour finds, a remembered one found again taking its new address and keeping its name); Scan reads the hand-off (`SuitePrinters.load`, off the main thread, once) as Windows reads Inkvolt Print's state file, and connects again when the chosen scanner turns up at a new address before its old one answered. Nothing added to the hand-off: its printers already carry their eSCL root, and it stays bounded and read-only here. Tests: +2 (the network part of 1 ported; the Mac's: remembered ones first, refreshed by discovery). Mac difference: the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count the pages kept instead of opening a PDF. Review fixes (2026-11-06, on `ignia-mac`): a remembered printer found under a UUID the user accepted, or (one remembered by its address) at one of its hosts, is listed once at its new address, as Inkvolt Print joins them; `PrinterId.key`/`same` the one way a UUID is compared (discovery, the saved state, queue matching, the list); the saved scanner chosen when it turns up after another stood in for it, and a stand-in never saved (`ScannerList.pick`); a preset turned off or deleted while a scanner connects isn't applied; a job goes to the scanner's current address; the blank check stops with Stop; `PresetPlan.sizeKey`. Tests: +4 (the Mac's). |
 | 3.7 | Spanish interface (roadmap 3.7's Mac line) and What's New in Spanish for both Mac apps | PdfStringsTests, ShownStringsTests, CoreStringsTests (PrintCore's target: the PC and the mac job) | Done (2026-11-06, on `ignia-mac`). One mechanism for the app and PdfCore: PrintCore's `loc`/`LocKey` (`CoreLanguage`, Inkvolt Print for Mac's), keyed by the English with Windows' `{0}`, `{1}`, so Windows' Spanish (Strings.es.resx, PdfStrings.es.resx) is used word for word; the app installs one table at launch from three String Catalogs compiled into `es.lproj` by `assemble.sh` (`xcstringstool`; the app is a SwiftPM executable, so not Xcode's extraction): `Resources/Localizable.xcstrings` (the app, 1,738), `PdfStrings.xcstrings` (PdfCore, 1,912) and Inkvolt Print's `CoreStrings.xcstrings` (what PrintCore shows in Scan). A Mac difference: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo, Edición, Visualización, Configuración…), `DocumentCommand.shownTitle` over the English `title` that stays the identity (palette, notes, tests); `Tool.shownTitle` likewise; the palette also matches English words, each typed word at the start of a word ("zoom in" found Zoom to Page through the "in" of "página"). The language: `AppLanguage` (`--lang`, else macOS's per-app choice, which Settings › Language writes; next launch; never written by the self-test), installed after the command line, which stays English. What's New: `WHATS-NEW.es.md` in Spanish (Help › What's New), `appcast.py --notes-es` (Sparkle's `xml:lang="es"` description, from `release-notes/<version>.es.md`); Inkvolt Print: `WHATS-NEW.es.md` and `listing.json`'s `localizations` › `es-MX` (asc-listing.mjs sends it only to a localization the version has). Checks: the PC tests above (keys, stale, duplicates, placeholders, What's New line for line, unwrapped English by AppKit's calls and the app's helpers); `--self-test … --strings --quit` (ReportStrings: each catalog against its compiled Spanish, then what the run asked for without it). On ignia-mac: InkvoltPdfKit 1,240 tests, 0 warnings, green but OcrTests' Vision cases (CRImageReaderError, the Mac's known Vision flake); the app built with warnings as errors and the 150 ms flag; `--self-test --synthetic --edit --strings --quit` in English and in Spanish: strings complete in both; every check passes in both (its UI comparisons through the same `loc`), but the nine that need Vision (Recognize Text, the scan page's exports, redaction's re-recognition) when Vision fails, in either language; each passed in a run where Vision worked. Left English on purpose, as Windows: the command line, logs, file formats and columns, the built-in stamps, prompts to the AI, Report a Problem's details, the self-test's report. The Mac's own wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac". Also fixed: CoreStringsTests read a CRLF checkout's file that starts with a comment as one comment line (the PC named LedmStatusText's keys stale). |
 | 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 30 tests (42 cases), red first, with the code review's and the re-review's fixes. |
+| 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests | Done (2026-11-07, on `ignia-mac`). PdfCore `FolderIndex/`: `IndexTerms`, `FolderIndex` (+ `FolderIndexSearch`), `FolderIndexer`, ported with their tests' names (75 tests): Windows' file layout and commit order, its search (terms narrow, Find confirms on the kept text), its limits; the app's `FolderSearch.swift` (`FolderSearches`, the window) and `FolderSearchTest` (`--only-folder-search`). Pro: `ProFeature.folderSearch` (the gate stays off). See "Indexed folder search" below for what differs. |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
 command line runs (it was set only in `applicationDidFinishLaunching`, after `--batch` and `--watch` had exited), and
@@ -1264,6 +1265,87 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   UnregisteringFromALinkedTokensHandlerDoesntDeadlock (green before too: no deadlock).
 - A person must look at: a bomb page in the viewer (the sentence, centered, in light and dark; the neighbours drawing
   after it), thumbnails and the organizer (a blank page), Find's status line with a skipped page.
+
+### Indexed folder search (roadmap 3.5, 2026-11-07)
+
+Windows' design (pdf/ROADMAP.md 3.5) on the Mac, the .NET code as the spec: one index file per folder in the app's own
+Application Support (`~/Library/Application Support/Inkvolt PDF/FolderIndex/<hash>.<generation>.idx`, the folder's path
+hashed so no name shows), terms to pages, each page's text kept compressed, written only at the end a commit at a time,
+compaction to a new generation. A search reads no PDF: the index proposes pages, Find (`PageText.findIn`) confirms on the
+kept text and gives the excerpt. No network, nothing leaves the Mac; Spotlight isn't used (it indexes what it chooses,
+its text extraction isn't Find's, and Windows' design has no counterpart: the index must say which pages Find finds).
+
+**Mac differences.**
+- **Reading in process, no index workers.** As Find (E16): the indexer reads PDFs on its own reading threads (half the
+  cores, up to four, utility priority). Every page goes through the engine's page check (`pageBudget`, 10 s; a picture
+  too large; a stream inflated again and again), so a bomb page is refused and counted as unread, not waited on
+  (FolderIndexerTests.A_bomb_page_is_refused_by_its_budget…). A watchdog gives a file 2 minutes of its thread's processor
+  time (`thread_info`, as Windows counts the worker's) and 10 minutes without a sign of life; a reading told to stop that
+  doesn't within the grace is left behind and a new thread reads on (its result is dropped when it ends). What a worker
+  process bounded and a thread can't: memory (MuPDF's store and picture limits stay; Windows' 2 GB job limit has no
+  counterpart) and a crash. For the crash, a journal beside the index (`<hash>.reading`, `<hash>.crashes`) names the files
+  being read; the next launch counts them, and a file that was being read when the app ended twice is `crashed`, never
+  read again until it changes or Rebuild. Where Windows gives each file a process of its own, several files read at once
+  share the app: when the app ended with more than one in the journal, none is counted; each is a suspect, read again
+  one at a time with nothing beside it, so only a file that ends the app by itself is counted (review, 2026-11-07). A
+  file read through clears its count; a reading given up stays in the journal, marked, until its thread is back, and
+  when the app ends with one there the readings given up are the ones counted, whatever was read beside them (a hang is
+  as bad as a crash for indexing), so suspects never come back unchanged launch after launch: each file costs two
+  launches at most (second review, 2026-11-07). Quitting or
+  removing the folder is an orderly stop: the journal of readings is closed and forgotten, so a reading still under way
+  then is never counted; the app stops all folders at once and waits once (2 s), as Windows' `StopAll`. A reading that
+  throws something unexpected counts as a crash too (once more, then `crashed`), Windows' worker dying.
+- **Change notices:** FSEvents (file events, the root watched) on the folder and everything under it, then a look every
+  30 s as on Windows (a network volume may give no events). What the listing skips (names starting with ".", Finder's
+  hidden folders, `~$` files) wakes nothing, so a busy `.git` or cache costs nothing; a notice names its place, and up to
+  64 places are looked at alone (a folder listed, a file looked at, a place gone taken out with what is under it) instead
+  of the whole tree; dropped events, the folder itself, a new file past the limit or only in iCloud mean a whole look
+  (Windows looks at the whole folder on any notice). A file changed in the last 2 s waits for the next look: the Mac
+  opens a file being copied, where Windows' sharing rules refuse it.
+- **Locks:** a search takes no lock that writing holds (a commit or a compaction never holds it up; Windows reads its
+  flag without one). Words are filed by the reading thread before it takes the indexer's lock, the indexer writes
+  (`F_FULLFSYNC`) outside it, and the window reads the status and the index from a snapshot under a lock held only for a
+  moment. A commit that fails (a full disk) keeps its batch, with the counts right, says so in the folder's status, and
+  is written first on the next look (after 5 s, doubling up to 30 s), so nothing read is lost or read twice; an index
+  found damaged that can't be emptied waits the same way and says so, never a tight loop; a Rebuild asked while another
+  app holds the index says so and is done once it opens. One path is one entry: a file read again before its first
+  reading was written replaces it (in the batch, or in a batch a write failed on), and a commit that adds a path the
+  index has marks the old text dead for compaction.
+- **Listing:** `readdir` and `lstat`; symbolic links aren't followed (a link leads out of the folder or round in a
+  circle), hidden files and folders and `~$` files are skipped; iCloud Drive's files whose bytes are only in the cloud
+  (`SF_DATALESS`) are counted and left there, Windows' Cloud Files placeholders. A folder moved while it was listed reads
+  as away, never as its files gone. Paths are kept as listed, "/"-separated and case kept (a Mac volume may tell case
+  apart); the hash takes the path with "..", "." and links resolved, not upper-cased.
+- **Folding:** Windows asks its collation's sort keys what Find reads alike; the Mac's Find is Foundation's comparison
+  (`.caseInsensitive`, `.diacriticInsensitive`), so `IndexTerms` folds each letter with Foundation (through upper case
+  when that stays one letter, then width, NFKD, marks dropped) and also as Windows does the letters Foundation keeps apart
+  (ø, æ, œ, ł, đ, ß, digits of other scripts): the index may propose more, Find decides. Its `stamp` hashes the folding
+  of every letter, so a macOS whose tables differ builds the index again. A run of letters longer than a term (48) is
+  filed in overlapping pieces of 48, one every 24 units, its first 1,024 units at most, and a query's longer word looks
+  up its first 23, so the end of a long run is found as Find finds it (Windows files a long run under its first 48
+  only: a search for its end finds nothing there). `IndexTerms.version` 2: indexes made before are built again.
+- **More bounds:** besides Windows' (512 MB a file, 50,000 pages, 32 M characters of text, the page check, 2 minutes),
+  at most 100,000 PDFs a folder (the rest counted as over the limit) and 2 GB for the index file (past it nothing more is
+  read until compaction makes room; said as a problem).
+- **The file:** each page's directory entry also keeps its plain length and CRC-32 (the Compression framework's raw
+  DEFLATE has no checksum of its own, unlike Windows' zlib stream), so damage reads as damage. Commits are flushed with
+  `F_FULLFSYNC`; a new generation's name (compaction's rename, a cleared index's new file) is synced through its folder
+  before the old one is retired. One app per index through `flock` on `<hash>.lock`.
+- **The window:** Edit › Find › Search Folders… (⌥⇧⌘F; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F), a window of
+  its own: the search field (searches as you pause typing), Match case, Whole words, Ignore accents (on), the results
+  (file, page and times, the excerpt with the hit in bold; double-click or Return opens the PDF at the hit with the Find
+  bar showing the words, found with the same options), the indexed folders with their status line, Add Folder…, Pause,
+  Skipped Files…, Rebuild…, Remove…. The folders are kept in the settings (`IndexedFolders`) and indexed while the app is
+  open; quitting stops them, committing what was read.
+- **Not ported:** IndexWorkers and its tests (no workers), the killed-writer crash test (a process of its own; the file
+  cut at every byte stands for it), the memory-limit test, workers that can't start, Cloud Files sync roots.
+
+**Checked** (2026-11-07, `ignia-mac`): IndexTermsTests, FolderIndexTests, FolderIndexerTests green; the self-test's
+`FolderSearchTest` (`--edit --synthetic --only-folder-search`). **Not checked:** the 10,000-PDF bench on the Mac
+(Windows' `index-make`/`index-run` have no Mac port yet), a real hostile PDF that crashes MuPDF, a network volume, iCloud
+Drive's dataless files for real (the flag is tested, not a download), a disk filling up.
+- A person must look at: the window in light and dark and at its narrowest, the excerpt's bold hit, VoiceOver on the
+  results and folders, a result opening at its hit in a document already open.
 
 ### What a person must look at (unattended run, 2026-11-03)
 
