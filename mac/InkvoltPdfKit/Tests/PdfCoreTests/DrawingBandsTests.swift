@@ -252,7 +252,10 @@ struct DrawingBandsTests {
         _ = try engine.render(0, scale: 0.1) // the list, made once
         let alone = Self.cancelled(engine, bands: 1)
         let banded = Self.cancelled(engine, bands: 16)
-        #expect(banded < alone + 0.05, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
+        // 0.05 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns (0.17 against 0.02 s
+        // seen, 6c6e72c7): the walk this guards against took 1.5 s.
+        let more = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 0.05 : 0.5
+        #expect(banded < alone + more, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
     }
 
     /// The bands share one budget but cost more CPU in all than one thread (every band walks the list): a page one thread
