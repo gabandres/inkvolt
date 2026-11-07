@@ -59,6 +59,48 @@ public class RealFormTraitTests
         Assert.Contains("/V /b", Fields(filled, "r2"));
     }
 
+    [Fact]
+    public void AFieldReachedThroughItsWidgetsListsEachWidgetOnce()
+    {
+        // /Fields leaves out "name" (6), whose /Kids lists both its nameless widgets (7, 8), found only on the page: the
+        // first walks the field's tree, which reaches both, and neither is added to the field again.
+        var data = Doc("9 0 R", "7 0 R 8 0 R 9 0 R",
+        [
+            "<< /FT /Tx /T (name) /V (Ann) /DA (/Helv 12 Tf 0 g) /Kids [7 0 R 8 0 R] >>",
+            Widget("/Parent 6 0 R /Rect [72 700 272 720]"),
+            Widget("/Parent 6 0 R /Rect [72 650 272 670]"),
+            Widget("/FT /Tx /T (other) /Rect [72 600 272 620] /DA (/Helv 12 Tf 0 g)"),
+        ]);
+
+        var widgets = FormEditor.Read(data, null);
+        Assert.Equal(["name", "name", "other"], widgets.Select(w => w.FieldName).Order());
+        Assert.Equal(2, widgets.Where(w => w.FieldName == "name").Select(w => w.Key).Distinct().Count());
+        using var doc = Core2Pdf.Open(data);
+        var fields = new List<FormEditor.Field>();
+        FormEditor.Collect(doc, doc.AcroForm, fields);
+        Assert.Equal(2, fields.Single(f => f.Name == "name").Widgets.Count);
+    }
+
+    [Fact]
+    public void ANamelessWidgetListedInFieldsIsNamedAfterItsOwnPage()
+    {
+        // A widget listed in /Fields whose parent (no name of its own) doesn't list it: named after the page it is on.
+        var data = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R 7 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> >>",
+            Helv,
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [7 0 R] /Resources << >> >>",
+            "<< /FT /Tx /DA (/Helv 12 Tf 0 g) /Kids [] >>",
+            "<< /Type /Annot /Subtype /Widget /F 4 /P 5 0 R /Parent 6 0 R /Rect [72 700 272 720] >>",
+        ]);
+
+        var widget = Assert.Single(FormEditor.Read(data, null));
+        Assert.Equal(1, widget.PageIndex);
+        Assert.Equal("field1_p2", widget.FieldName);
+    }
+
     // ---- A choice field's widgets with their own /I (pdflib-fancy_fields) ----
 
     [Fact]

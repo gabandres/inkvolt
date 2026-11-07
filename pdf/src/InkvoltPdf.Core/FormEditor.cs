@@ -797,13 +797,25 @@ public static partial class FormEditor
     internal static void Collect(PdfDocument doc, PdfDictionary? acro, List<Field> into)
     {
         var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        // The page each widget is on (its first, through /Annots, else its /P): a widget left without a name is named after it.
+        var pageOf = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        var pageIndex = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        for (var p = 0; p < doc.PageCount; p++)
+        {
+            pageIndex.TryAdd(doc.Pages[p], p);
+            if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is not { } annots) continue;
+            foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) pageOf.TryAdd(a, p);
+        }
+        int PageOf(PdfDictionary w) =>
+            pageOf.TryGetValue(w, out var p) ? p : PdfObj.Dict(w.Elements["/P"]) is { } page && pageIndex.TryGetValue(page, out p) ? p : 0;
+
         // A widget without a name listed in /Fields itself (its parent left out) is a widget of its /Parent field: below.
         var loose = new List<(PdfDictionary Widget, int Page)>();
         if (PdfObj.Array(acro?.Elements["/Fields"]) is { } top)
             foreach (var item in top.Elements)
                 if (PdfObj.Dict(item) is { } d)
                 {
-                    if (IsNamelessKid(d)) loose.Add((d, 0));
+                    if (IsNamelessKid(d)) loose.Add((d, PageOf(d)));
                     else Walk(d, null, into, seen, 0);
                 }
 
@@ -817,7 +829,9 @@ public static partial class FormEditor
         }
 
         var unnamed = 0;
-        Dictionary<PdfDictionary, Field>? byDict = null;
+        // Every field collected, by its dictionary: kept up to date as walks add fields (indexed: how many of into it holds).
+        var byDict = new Dictionary<PdfDictionary, Field>(ReferenceEqualityComparer.Instance);
+        var indexed = 0;
         foreach (var (a, p) in loose)
         {
             if (seen.Contains(a)) continue;
@@ -831,13 +845,9 @@ public static partial class FormEditor
                     var climb = 0;
                     while (PdfObj.Dict(ancestor.Elements["/Parent"]) is { } up && !seen.Contains(up) && climb++ < 64) ancestor = up;
                     Walk(ancestor, null, into, seen, 0);
-                    byDict = null;
+                    if (seen.Contains(a)) continue; // the parent's /Kids lists it: the walk made it one of its widgets
                 }
-                if (byDict is null)
-                {
-                    byDict = new Dictionary<PdfDictionary, Field>(ReferenceEqualityComparer.Instance);
-                    foreach (var f in into) byDict.TryAdd(f.Dict, f);
-                }
+                for (; indexed < into.Count; indexed++) byDict.TryAdd(into[indexed].Dict, into[indexed]);
                 if (byDict.TryGetValue(parent, out var owner))
                 {
                     owner.Widgets.Add(a);
