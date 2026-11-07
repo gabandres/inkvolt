@@ -320,6 +320,17 @@
         }
       }
     },
+    "A word or phrase": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una palabra o frase"
+          }
+        }
+      }
+    },
     "AES-128 (old readers)": {
       "extractionState": "manual",
       "localizations": {
@@ -426,6 +437,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se guardó la clave de API: {0}"
+          }
+        }
+      }
+    },
+    "About Inkvolt Pro…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acerca de Inkvolt Pro…"
           }
         }
       }
@@ -1706,6 +1728,17 @@
         }
       }
     },
+    "Build this index again?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Volver a crear este índice?"
+          }
+        }
+      }
+    },
     "CSV, a header and a row of values": {
       "extractionState": "manual",
       "localizations": {
@@ -1779,6 +1812,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se puede importar {0}"
+          }
+        }
+      }
+    },
+    "Can't index this folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede indexar esta carpeta"
           }
         }
       }
@@ -4874,6 +4918,17 @@
         }
       }
     },
+    "Every PDF in {0} is read again, and files skipped earlier get another chance. Searches find what has been read so far.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se vuelven a leer todos los PDF de {0}, y los archivos omitidos antes tienen otra oportunidad. Las búsquedas encuentran lo que se haya leído hasta el momento."
+          }
+        }
+      }
+    },
     "Every field goes back to its default value. You can undo this.": {
       "extractionState": "manual",
       "localizations": {
@@ -5468,6 +5523,17 @@
         }
       }
     },
+    "Find a word in every PDF of a folder and its subfolders. The index stays on this Mac, kept up to date while Inkvolt PDF is open, and holds the text of those PDFs (never of files with a password). Scans are found once they have a text layer: Recognize Text adds one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca una palabra en todos los PDF de una carpeta y sus subcarpetas. El índice se queda en este Mac, se mantiene al día mientras Inkvolt PDF está abierto y contiene el texto de esos PDF (nunca de archivos con contraseña). Los escaneos se encuentran cuando tienen una capa de texto: Reconocer texto agrega una."
+          }
+        }
+      }
+    },
     "Find and Mark": {
       "extractionState": "manual",
       "localizations": {
@@ -5497,6 +5563,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar en este documento (⌘F)"
+          }
+        }
+      }
+    },
+    "Find é, è and ê when you type e": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrar é, è y ê cuando escribes e"
           }
         }
       }
@@ -6502,6 +6579,17 @@
         }
       }
     },
+    "Ignore accents": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorar acentos"
+          }
+        }
+      }
+    },
     "Image": {
       "extractionState": "manual",
       "localizations": {
@@ -6652,6 +6740,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pulgadas"
+          }
+        }
+      }
+    },
+    "Index": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexar"
+          }
+        }
+      }
+    },
+    "Index this folder and its subfolders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indexar esta carpeta y sus subcarpetas"
+          }
+        }
+      }
+    },
+    "Indexed folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carpetas indexadas"
           }
         }
       }
@@ -7015,6 +7136,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sus opciones se olvidan; las páginas ya escaneadas se quedan."
+          }
+        }
+      }
+    },
+    "Its index file is deleted. The PDFs in {0} aren't touched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se elimina su archivo de índice. Los PDF de {0} no se tocan."
           }
         }
       }
@@ -8526,6 +8658,17 @@
         }
       }
     },
+    "No folder is indexed yet. Add Folder… chooses one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay ninguna carpeta indexada. Agregar carpeta… elige una."
+          }
+        }
+      }
+    },
     "No form fields": {
       "extractionState": "manual",
       "localizations": {
@@ -8544,6 +8687,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sin imagen"
+          }
+        }
+      }
+    },
+    "No matches for “{0}”.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay coincidencias para “{0}”."
           }
         }
       }
@@ -10825,6 +10979,28 @@
         }
       }
     },
+    "Rebuild": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a crear"
+          }
+        }
+      }
+    },
+    "Rebuild…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a crear…"
+          }
+        }
+      }
+    },
     "Recent": {
       "extractionState": "manual",
       "localizations": {
@@ -11474,6 +11650,17 @@
         }
       }
     },
+    "Remove…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar…"
+          }
+        }
+      }
+    },
     "Rename": {
       "extractionState": "manual",
       "localizations": {
@@ -11811,6 +11998,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nombres de los resultados"
+          }
+        }
+      }
+    },
+    "Results": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resultados"
           }
         }
       }
@@ -12651,6 +12849,17 @@
         }
       }
     },
+    "Search Folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar en carpetas"
+          }
+        }
+      }
+    },
     "Search all commands": {
       "extractionState": "manual",
       "localizations": {
@@ -12669,6 +12878,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Buscar cualquier comando (⇧⌘K)"
+          }
+        }
+      }
+    },
+    "Search the indexed folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar en las carpetas indexadas"
           }
         }
       }
@@ -13355,6 +13575,28 @@
         }
       }
     },
+    "Skipped Files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos omitidos"
+          }
+        }
+      }
+    },
+    "Skipped Files…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos omitidos…"
+          }
+        }
+      }
+    },
     "Skipped comments": {
       "extractionState": "manual",
       "localizations": {
@@ -13362,6 +13604,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comentarios omitidos"
+          }
+        }
+      }
+    },
+    "Skipped files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos omitidos"
           }
         }
       }
@@ -13663,6 +13916,17 @@
         }
       }
     },
+    "Still indexing: more may turn up.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún se está indexando: pueden aparecer más."
+          }
+        }
+      }
+    },
     "Stop": {
       "extractionState": "manual",
       "localizations": {
@@ -13696,6 +13960,17 @@
         }
       }
     },
+    "Stop indexing this folder?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Dejar de indexar esta carpeta?"
+          }
+        }
+      }
+    },
     "Stopped ({0} done, {1} failed)": {
       "extractionState": "manual",
       "localizations": {
@@ -13703,17 +13978,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Detenida ({0} listos, {1} fallidos)"
-          }
-        }
-      }
-    },
-    "Stopped.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detenido."
           }
         }
       }
@@ -14224,6 +14488,28 @@
         }
       }
     },
+    "That folder is indexed already.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa carpeta ya está indexada."
+          }
+        }
+      }
+    },
+    "That folder is inside {0}, which is indexed already.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esa carpeta está dentro de {0}, que ya está indexada."
+          }
+        }
+      }
+    },
     "That includes the Pro features: batch presets, watched folders, the command line, Make Accessible, the reading order's fixes and PDF/A-2a. Inkvolt Pro ({0}, one time, no account) supports the project, and gives a business a licence it can put on an invoice; the key keeps the Pro features when they start asking for one, on Windows and on the Mac.": {
       "extractionState": "manual",
       "localizations": {
@@ -14675,6 +14961,28 @@
         }
       }
     },
+    "The first {0} pages are listed, of up to {1} with these words.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se muestran las primeras {0} páginas, de hasta {1} con estas palabras."
+          }
+        }
+      }
+    },
+    "The first {0} pages are listed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se muestran las primeras {0} páginas."
+          }
+        }
+      }
+    },
     "The form asks:": {
       "extractionState": "manual",
       "localizations": {
@@ -14748,6 +15056,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron llenar los formularios"
+          }
+        }
+      }
+    },
+    "The index isn't open yet. Try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El índice aún no está abierto. Vuelve a intentarlo en un momento."
+          }
+        }
+      }
+    },
+    "The index of {0} was damaged and is being built again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El índice de {0} estaba dañado y se está volviendo a crear."
           }
         }
       }
@@ -15133,6 +15463,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La búsqueda se detuvo"
+          }
+        }
+      }
+    },
+    "The search stopped on an error: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La búsqueda se detuvo por un error: {0}"
           }
         }
       }
@@ -15962,6 +16303,17 @@
         }
       }
     },
+    "Type a word with letters or digits: the index keeps those. To find punctuation, use Find in an open document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe una palabra con letras o dígitos: el índice guarda esos. Para encontrar signos de puntuación, usa Buscar en un documento abierto."
+          }
+        }
+      }
+    },
     "Type both lengths as numbers more than 0.": {
       "extractionState": "manual",
       "localizations": {
@@ -16607,6 +16959,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dónde van los resultados."
+          }
+        }
+      }
+    },
+    "Whole words": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Palabras completas"
           }
         }
       }
@@ -17491,6 +17854,17 @@
         }
       }
     },
+    "page {0}, {1} times": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "página {0}, {1} veces"
+          }
+        }
+      }
+    },
     "permissions password": {
       "extractionState": "manual",
       "localizations": {
@@ -18228,6 +18602,28 @@
         }
       }
     },
+    "{0} file in {1} the index has no text, or not all the text, of. It is read again when it changes, or with Rebuild.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivo de {1} del que el índice no tiene el texto, o no todo. Se vuelve a leer cuando cambia, o con Volver a crear."
+          }
+        }
+      }
+    },
+    "{0} files in {1} the index has no text, or not all the text, of. They are read again when they change, or with Rebuild.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivos de {1} de los que el índice no tiene el texto, o no todo. Se vuelven a leer cuando cambian, o con Volver a crear."
+          }
+        }
+      }
+    },
     "{0} forms": {
       "extractionState": "manual",
       "localizations": {
@@ -18279,6 +18675,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} capas ocultas con su contenido"
+          }
+        }
+      }
+    },
+    "{0} in {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} en {1}."
           }
         }
       }
@@ -18807,6 +19214,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0}, ni siquiera tras el reconocimiento de texto."
+          }
+        }
+      }
+    },
+    "{0}, indexed already, is inside that folder. Remove it first, then add the larger one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, ya indexada, está dentro de esa carpeta. Quítala primero y luego agrega la más grande."
           }
         }
       }

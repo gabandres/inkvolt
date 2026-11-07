@@ -15,6 +15,8 @@ public enum ProFeature: CaseIterable, Sendable {
     case readingOrder
     /// Save as PDF/A-2a (tagged, PDF/UA identifier kept), in the app and in Batch.
     case accessibleOutput
+    /// Edit › Find › Search Folders: folders indexed on this Mac and searched in under a second.
+    case folderSearch
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -77,6 +79,7 @@ public enum Pro {
         case .autoTagging: loc("Make Accessible")
         case .readingOrder: loc("Reading order")
         case .accessibleOutput: loc("Accessible PDF/A-2a")
+        case .folderSearch: loc("Folder search")
         }
     }
 
@@ -95,6 +98,8 @@ public enum Pro {
             loc("See the order a screen reader follows as numbered boxes on the page, move pieces up, down or to another page, and write the tags again.")
         case .accessibleOutput:
             loc("Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too.")
+        case .folderSearch:
+            loc("Index whole folders on this Mac, nothing sent anywhere, and find a word across thousands of PDFs in under a second, with the text around each hit; a result opens at the hit, and the index keeps up as files change.")
         }
     }
 
@@ -107,6 +112,7 @@ public enum Pro {
         case .autoTagging: loc("Make Accessible is part of Inkvolt Pro.")
         case .readingOrder: loc("Fixing the reading order is part of Inkvolt Pro.")
         case .accessibleOutput: loc("Saving accessible PDF/A-2a files is part of Inkvolt Pro.")
+        case .folderSearch: loc("Searching folders is part of Inkvolt Pro.")
         }
     }
 

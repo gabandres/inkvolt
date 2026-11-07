@@ -485,10 +485,10 @@ public final class FolderIndexer: @unchecked Sendable {
     /// circle), as are hidden files and folders. Nothing is read, so nothing in iCloud is downloaded.
     /// - Throws: when the folder itself can't be listed.
     static func listPdfs(_ folder: String, _ found: (Listed) -> Void) throws {
-        guard let root = opendir(folder) else { throw FolderIndexIOError("Couldn't list \((folder as NSString).lastPathComponent)") }
+        guard let root = opendir(folder) else { throw FolderIndexIOError(loc("Couldn't list {0}", (folder as NSString).lastPathComponent)) }
         closedir(root)
         var before = stat()
-        guard stat(folder, &before) == 0 else { throw FolderIndexIOError("Couldn't list \((folder as NSString).lastPathComponent)") }
+        guard stat(folder, &before) == 0 else { throw FolderIndexIOError(loc("Couldn't list {0}", (folder as NSString).lastPathComponent)) }
         var stack: [(path: String, relative: String, depth: Int)] = [(folder, "", 0)]
         while let next = stack.popLast() {
             let (dir, relative, depth) = next
@@ -521,7 +521,7 @@ public final class FolderIndexer: @unchecked Sendable {
         // folder away (or a listing that failed), not files to take out.
         var after = stat()
         guard stat(folder, &after) == 0, after.st_ino == before.st_ino, after.st_dev == before.st_dev else {
-            throw FolderIndexIOError("The folder moved while it was listed", ENOENT)
+            throw FolderIndexIOError(loc("The folder moved while it was listed"), ENOENT)
         }
     }
 

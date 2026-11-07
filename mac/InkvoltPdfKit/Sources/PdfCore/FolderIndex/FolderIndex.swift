@@ -59,8 +59,9 @@ public struct IndexedFile: Sendable, Equatable {
 
 /// The index file can't be used (a damaged block found while searching): it is built again.
 public struct FolderIndexDamaged: Error, CustomStringConvertible {
-    public let message: String
-    public var description: String { message }
+    /// What was found, for a developer: the app says only that the index is built again.
+    public let why: String
+    public var description: String { why }
 }
 
 /// Another Inkvolt PDF has this index open.
@@ -140,7 +141,7 @@ public final class FolderIndex: @unchecked Sendable {
         do {
             try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         } catch {
-            throw FolderIndexIOError("Couldn't make \(dir)", EACCES)
+            throw FolderIndexIOError(loc("Couldn't make {0}", dir), EACCES)
         }
         let lock = try takeLock(basePath + ".lock")
         do {
@@ -178,12 +179,12 @@ public final class FolderIndex: @unchecked Sendable {
     private static func takeLock(_ path: String) throws -> Int32 {
         for _ in 0..<5 {
             let fd = Darwin.open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o600)
-            guard fd >= 0 else { throw FolderIndexIOError("Couldn't open the index's lock") }
+            guard fd >= 0 else { throw FolderIndexIOError(loc("Couldn't open the index's lock")) }
             if flock(fd, LOCK_EX | LOCK_NB) != 0 {
                 let code = errno
                 Darwin.close(fd)
                 if code == EWOULDBLOCK { throw FolderIndexBusy() }
-                throw FolderIndexIOError("Couldn't lock the index", code)
+                throw FolderIndexIOError(loc("Couldn't lock the index"), code)
             }
             var a = stat(), b = stat()
             if fstat(fd, &a) == 0 && stat(path, &b) == 0 && a.st_ino == b.st_ino && a.st_dev == b.st_dev { return fd }
@@ -213,7 +214,7 @@ public final class FolderIndex: @unchecked Sendable {
     /// failure (the disk is full) leaves the index as it was, and the next commit overwrites what was written.
     public func commit(_ batch: IndexBatch) throws {
         try writeGate.withLock {
-            guard !disposed else { throw FolderIndexIOError("The index is closed", EBADF) }
+            guard !disposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
             let state = self.state
             let file = state.store.file
             try file.truncate(length)
@@ -256,7 +257,7 @@ public final class FolderIndex: @unchecked Sendable {
     /// - Throws: `CancellationError` when `cancel` fired (the index stays as it was); `FolderIndexDamaged`; `FolderIndexIOError`.
     public func compact(cancel: CancelToken? = nil) throws {
         try writeGate.withLock {
-            guard !disposed else { throw FolderIndexIOError("The index is closed", EBADF) }
+            guard !disposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
             let state = self.state
             let next = generation + 1
             let final = Self.pathOf(basePath, next)
@@ -305,14 +306,14 @@ public final class FolderIndex: @unchecked Sendable {
                 try writer.flush()
                 try file.sync()
                 try cancel.check()
-                guard rename(tmp, final) == 0 else { throw FolderIndexIOError("Couldn't put the tidied index in place") }
+                guard rename(tmp, final) == 0 else { throw FolderIndexIOError(loc("Couldn't put the tidied index in place")) }
             } catch {
                 unlink(tmp)
                 throw error
             }
 
             guard let found = Self.recover(final, IndexTerms.stamp) else {
-                throw FolderIndexDamaged(message: "The compacted index doesn't read back.")
+                throw FolderIndexDamaged(why: "The compacted index doesn't read back.")
             }
             generation = next
             length = found.length
@@ -327,7 +328,7 @@ public final class FolderIndex: @unchecked Sendable {
     /// Empties the index, as a new file: what the old one held is gone with it once searches on it end.
     public func clear() throws {
         try writeGate.withLock {
-            guard !disposed else { throw FolderIndexIOError("The index is closed", EBADF) }
+            guard !disposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
             let state = self.state
             let next = generation + 1
             let store = try Self.createStore(Self.pathOf(basePath, next), IndexTerms.stamp)
@@ -487,7 +488,7 @@ public final class FolderIndex: @unchecked Sendable {
             let offset = try r.long()
             let length = try r.long()
             guard let fileState, id < nextId, !path.isEmpty, offset >= 0, length >= 0, offset <= Int64.max - length else {
-                throw FolderIndexDamaged(message: "A file entry out of range.")
+                throw FolderIndexDamaged(why: "A file entry out of range.")
             }
             byPath[path] = IndexedFile(id: id, relativePath: path, size: size, writeTicks: ticks, state: fileState, pages: pages,
                                        failedPages: failed, textOffset: offset, textLength: length)
@@ -498,7 +499,7 @@ public final class FolderIndex: @unchecked Sendable {
                                    termCount: try r.int(), postingsOffset: try r.long(), postingsLength: try r.long())
             segments.append(Segment(info))
         }
-        guard r.atEnd else { throw FolderIndexDamaged(message: "More than a file list.") }
+        guard r.atEnd else { throw FolderIndexDamaged(why: "More than a file list.") }
         return Snapshot(state.store, byPath, segments, nextId, dead)
     }
 
@@ -658,38 +659,38 @@ public final class FolderIndex: @unchecked Sendable {
 
         static func read(_ file: IndexFileHandle, _ info: SegmentInfo) throws -> TermTable {
             guard info.dictLength >= 0, info.dictLength <= Int64(Int32.max), info.termCount >= 0 else {
-                throw FolderIndexDamaged(message: "A list of terms out of range.")
+                throw FolderIndexDamaged(why: "A list of terms out of range.")
             }
             let block: [UInt8]
             do {
                 block = try file.read(Int(info.dictLength), at: info.dictOffset)
             } catch {
-                throw FolderIndexDamaged(message: "A list of terms doesn't read back.")
+                throw FolderIndexDamaged(why: "A list of terms doesn't read back.")
             }
-            guard Crc32.of(block[...]) == info.dictCrc else { throw FolderIndexDamaged(message: "A list of terms doesn't read back.") }
+            guard Crc32.of(block[...]) == info.dictCrc else { throw FolderIndexDamaged(why: "A list of terms doesn't read back.") }
             var r = VarReader(block)
             let textLength = try r.int()
             let text = Array(try r.bytes(textLength))
-            guard info.termCount <= text.count else { throw FolderIndexDamaged(message: "A list of terms cut short.") }
+            guard info.termCount <= text.count else { throw FolderIndexDamaged(why: "A list of terms cut short.") }
             var starts = [Int](repeating: 0, count: info.termCount + 1)
             var postings = [Int64](repeating: 0, count: info.termCount + 1)
             var at = 0
             for i in 0..<info.termCount {
                 starts[i] = at
-                guard let end = text[at...].firstIndex(of: 10) else { throw FolderIndexDamaged(message: "A list of terms cut short.") }
+                guard let end = text[at...].firstIndex(of: 10) else { throw FolderIndexDamaged(why: "A list of terms cut short.") }
                 at = end + 1
             }
             starts[info.termCount] = at
-            guard at == text.count else { throw FolderIndexDamaged(message: "A list of terms too long.") }
+            guard at == text.count else { throw FolderIndexDamaged(why: "A list of terms too long.") }
             var offset = info.postingsOffset
             for i in 0..<info.termCount {
                 postings[i] = offset
                 let length = try r.long()
-                guard length >= 0, length <= Int64(Int32.max) else { throw FolderIndexDamaged(message: "Postings out of range.") }
+                guard length >= 0, length <= Int64(Int32.max) else { throw FolderIndexDamaged(why: "Postings out of range.") }
                 offset += length
             }
             postings[info.termCount] = offset
-            guard offset == info.postingsOffset + info.postingsLength else { throw FolderIndexDamaged(message: "Postings out of range.") }
+            guard offset == info.postingsOffset + info.postingsLength else { throw FolderIndexDamaged(why: "Postings out of range.") }
             return TermTable(text: text, starts: starts, postings: postings)
         }
 
@@ -811,7 +812,7 @@ public final class FolderIndex: @unchecked Sendable {
 
     /// One page's text from what `packPages` wrote.
     static func unpack(_ body: [UInt8], plainLength: Int, crc: UInt32) throws -> String {
-        let damaged = FolderIndexDamaged(message: "A page's text doesn't read back.")
+        let damaged = FolderIndexDamaged(why: "A page's text doesn't read back.")
         var plain = body
         if body.count != plainLength {
             guard plainLength > 0, plainLength <= 1 << 28, body.count < plainLength else { throw damaged }
@@ -964,13 +965,13 @@ final class IndexFileHandle: @unchecked Sendable {
 
     static func create(_ path: String) throws -> IndexFileHandle {
         let fd = Darwin.open(path, O_RDWR | O_CREAT | O_TRUNC | O_CLOEXEC, 0o600)
-        guard fd >= 0 else { throw FolderIndexIOError("Couldn't create the index file") }
+        guard fd >= 0 else { throw FolderIndexIOError(loc("Couldn't create the index file")) }
         return IndexFileHandle(fd)
     }
 
     static func openExisting(_ path: String) throws -> IndexFileHandle {
         let fd = Darwin.open(path, O_RDWR | O_CLOEXEC)
-        guard fd >= 0 else { throw FolderIndexIOError("Couldn't open the index file") }
+        guard fd >= 0 else { throw FolderIndexIOError(loc("Couldn't open the index file")) }
         return IndexFileHandle(fd)
     }
 
@@ -987,7 +988,7 @@ final class IndexFileHandle: @unchecked Sendable {
 
     func size() throws -> Int64 {
         var st = stat()
-        guard fstat(handle, &st) == 0 else { throw FolderIndexIOError("Couldn't read the index file") }
+        guard fstat(handle, &st) == 0 else { throw FolderIndexIOError(loc("Couldn't read the index file")) }
         return Int64(st.st_size)
     }
 
@@ -1008,8 +1009,8 @@ final class IndexFileHandle: @unchecked Sendable {
                 done += n
             }
         }
-        if failed != 0 { throw FolderIndexIOError("Couldn't read the index file", failed) }
-        if bytes.count < count { throw FolderIndexDamaged(message: "The index file ends too soon.") }
+        if failed != 0 { throw FolderIndexIOError(loc("Couldn't read the index file"), failed) }
+        if bytes.count < count { throw FolderIndexDamaged(why: "The index file ends too soon.") }
         return bytes
     }
 
@@ -1024,21 +1025,21 @@ final class IndexFileHandle: @unchecked Sendable {
             while done < buf.count {
                 let n = pwrite(fd, buf.baseAddress! + done, buf.count - done, off_t(offset) + off_t(done))
                 if n < 0 && errno == EINTR { continue }
-                guard n > 0 else { throw FolderIndexIOError("Couldn't write the index file") }
+                guard n > 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
                 done += n
             }
         }
     }
 
     func truncate(_ length: Int64) throws {
-        guard ftruncate(handle, off_t(length)) == 0 else { throw FolderIndexIOError("Couldn't write the index file") }
+        guard ftruncate(handle, off_t(length)) == 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
     }
 
     /// To the disk itself, not only its cache (`F_FULLFSYNC`; `fsync` where the file system can't).
     func sync() throws {
         let fd = handle
         if fcntl(fd, F_FULLFSYNC) == 0 { return }
-        guard fsync(fd) == 0 else { throw FolderIndexIOError("Couldn't write the index file") }
+        guard fsync(fd) == 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
     }
 }
 
@@ -1051,14 +1052,14 @@ final class Cursor {
     init(_ file: IndexFileHandle) { self.file = file }
 
     func read(_ offset: Int64, _ count: Int) throws -> ArraySlice<UInt8> {
-        guard count >= 0, offset >= 0 else { throw FolderIndexDamaged(message: "A block out of range.") }
+        guard count >= 0, offset >= 0 else { throw FolderIndexDamaged(why: "A block out of range.") }
         if offset >= start && offset + Int64(count) <= start + Int64(buffer.count) {
             let at = Int(offset - start)
             return buffer[at..<(at + count)]
         }
         let size = try file.size()
         let want = Int(min(Int64(max(count, 1 << 20)), max(0, size - offset)))
-        if want < count { throw FolderIndexDamaged(message: "The index file ends too soon.") }
+        if want < count { throw FolderIndexDamaged(why: "The index file ends too soon.") }
         buffer = try file.read(want, at: offset)
         start = offset
         return buffer[0..<count]
@@ -1126,7 +1127,7 @@ struct PostingReader {
     /// No checksum covers postings: what they say is checked here, so damage reads as damage.
     private static func inRange(_ base: Int64, _ step: Int64) throws -> Int {
         let (sum, overflow) = base.addingReportingOverflow(step)
-        guard !overflow, sum >= 0, sum <= Int64(Int32.max) else { throw FolderIndexDamaged(message: "A posting out of range.") }
+        guard !overflow, sum >= 0, sum <= Int64(Int32.max) else { throw FolderIndexDamaged(why: "A posting out of range.") }
         return Int(sum)
     }
 }
@@ -1149,24 +1150,24 @@ struct VarReader {
         var value: UInt64 = 0
         var shift: UInt64 = 0
         while shift < 64 {
-            guard at < data.endIndex else { throw FolderIndexDamaged(message: "A number cut short.") }
+            guard at < data.endIndex else { throw FolderIndexDamaged(why: "A number cut short.") }
             let b = data[at]
             at += 1
             value |= UInt64(b & 0x7F) << shift
             if b < 0x80 { return Int64(bitPattern: value) }
             shift += 7
         }
-        throw FolderIndexDamaged(message: "A number too long.")
+        throw FolderIndexDamaged(why: "A number too long.")
     }
 
     mutating func int() throws -> Int {
         let v = try long()
-        guard v >= 0, v <= Int64(Int32.max) else { throw FolderIndexDamaged(message: "A number out of range.") }
+        guard v >= 0, v <= Int64(Int32.max) else { throw FolderIndexDamaged(why: "A number out of range.") }
         return Int(v)
     }
 
     mutating func bytes(_ count: Int) throws -> ArraySlice<UInt8> {
-        guard count >= 0, count <= data.endIndex - at else { throw FolderIndexDamaged(message: "A block cut short.") }
+        guard count >= 0, count <= data.endIndex - at else { throw FolderIndexDamaged(why: "A block cut short.") }
         let slice = data[at..<(at + count)]
         at += count
         return slice

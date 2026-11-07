@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// What a folder search looks for, as Find's options; case and accents are ignored unless asked otherwise.
 public struct FolderSearchOptions: Sendable {
@@ -94,7 +95,7 @@ extension FolderIndex {
     /// Find would say on that page. A phrase's words are next to each other only if Find says so.
     /// - Throws: `CancellationError`; `FolderIndexDamaged` when the list of terms doesn't read back.
     public func search(_ query: String, options: FolderSearchOptions = FolderSearchOptions(), cancel: CancelToken? = nil) throws -> FolderSearchRun {
-        guard !isDisposed else { throw FolderIndexIOError("The index is closed", EBADF) }
+        guard !isDisposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
         let state = acquire()
         do {
             let terms = IndexTerms.of(query)
@@ -144,7 +145,7 @@ extension FolderIndex {
                 var reader = PostingReader(list)
                 while let posting = try reader.next() {
                     let (id, page) = posting
-                    guard id < first.count else { throw FolderIndexDamaged(message: "A posting out of range.") }
+                    guard id < first.count else { throw FolderIndexDamaged(why: "A posting out of range.") }
                     if first[id] < 0 || page >= count[id] { continue } // a file that is gone
                     let bit = first[id] + page
                     bits[bit >> 6] |= 1 << UInt64(bit & 63)
@@ -346,11 +347,11 @@ private final class PageReader: @unchecked Sendable {
     func page(_ f: IndexedFile, _ page: Int) throws -> String {
         if f.textLength == 0 { return "" }
         if f.id != id { try readDirectory(f) }
-        guard page < packed.count else { throw FolderIndexDamaged(message: "A page out of range.") }
+        guard page < packed.count else { throw FolderIndexDamaged(why: "A page out of range.") }
         if packed[page] == 0 { return "" }
         var at = blobs
         for i in 0..<page { at += Int64(packed[i]) }
-        guard at + Int64(packed[page]) <= f.textOffset + f.textLength else { throw FolderIndexDamaged(message: "A page out of range.") }
+        guard at + Int64(packed[page]) <= f.textOffset + f.textLength else { throw FolderIndexDamaged(why: "A page out of range.") }
         let body = Array(try cursor.read(at, packed[page]))
         return try FolderIndex.unpack(body, plainLength: plain[page], crc: crcs[page])
     }
@@ -359,7 +360,7 @@ private final class PageReader: @unchecked Sendable {
         let head = try cursor.read(f.textOffset, Int(min(f.textLength, 1 << 20)))
         var r = VarReader(head)
         let pages = try r.int()
-        guard pages == f.pages else { throw FolderIndexDamaged(message: "A file's pages out of range.") }
+        guard pages == f.pages else { throw FolderIndexDamaged(why: "A file's pages out of range.") }
         var packed = [Int](repeating: 0, count: pages)
         var plain = [Int](repeating: 0, count: pages)
         var crcs = [UInt32](repeating: 0, count: pages)
@@ -371,7 +372,7 @@ private final class PageReader: @unchecked Sendable {
             total += Int64(packed[i])
         }
         let used = Int64(try Self.directoryLength(head, pages))
-        guard used + total <= f.textLength else { throw FolderIndexDamaged(message: "A file's text out of range.") }
+        guard used + total <= f.textLength else { throw FolderIndexDamaged(why: "A file's text out of range.") }
         self.packed = packed
         self.plain = plain
         self.crcs = crcs
@@ -384,7 +385,7 @@ private final class PageReader: @unchecked Sendable {
         var at = head.startIndex
         for _ in 0..<(1 + FolderIndex.directoryFields * pages) {
             while true {
-                guard at < head.endIndex else { throw FolderIndexDamaged(message: "A number cut short.") }
+                guard at < head.endIndex else { throw FolderIndexDamaged(why: "A number cut short.") }
                 let b = head[at]
                 at += 1
                 if b < 0x80 { break }

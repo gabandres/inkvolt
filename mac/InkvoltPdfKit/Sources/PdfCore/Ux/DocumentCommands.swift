@@ -297,6 +297,9 @@ public enum DocumentCommands {
             c("Find…", "showFind:", "f"),
             c("Find Next", "findNext:", "g"),
             c("Find Previous", "findPrevious:", "g", [.command, .shift]),
+            sep,
+            // Every PDF of the indexed folders (roadmap 3.5; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F).
+            c("Search Folders…", "showFolderSearch:", "f", [.command, .option, .shift]),
         ])),
     ])
 
