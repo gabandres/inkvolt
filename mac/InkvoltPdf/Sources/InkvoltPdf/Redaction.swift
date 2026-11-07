@@ -336,7 +336,10 @@ extension DocumentWindowController {
     @objc func checkRedaction(_ sender: Any?) {
         startLongTask {
             guard let report = await self.runCheck(RedactionCheckOptions()) else { return }
-            if report.isClean {
+            if report.isClean && report.incomplete {
+                // Not "nothing was found": what it couldn't look at is said (the pages it skipped by number), as after Apply.
+                self.inform(loc("Redaction check"), loc("The redaction check couldn't look at everything: {0}", report.notes.joined(separator: " ")))
+            } else if report.isClean {
                 self.inform(loc("Redaction check"),
                             loc("Nothing recoverable was found: no text under boxes, highlights or redaction marks, no pictures under dark boxes, no text that doesn't show, and no earlier versions with text the pages no longer show.")
                                 + report.notes.map { "\n\n" + $0 }.joined())

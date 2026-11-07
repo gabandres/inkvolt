@@ -159,6 +159,8 @@ public enum RedactionCheck {
     static let maxCoversPerPage = 64
     /// Most values looked for; earlier versions examined.
     static let maxValues = 500, maxRevisions = 32
+    /// Test hook: the copy of the document without its covers can't be made.
+    @TaskLocal static var coversFailForTests = false
     /// A fill this dark (luminance 0-1) counts as a redaction box.
     static let darkLuminance = 0.25
     /// An area just outside the page: redacting it only draws the page again as a picture.
@@ -331,6 +333,9 @@ final class ContentWalker {
     private let cancel: CancelToken?
     private var ops = 0, order = 0
     private var active = Set<UInt>()
+    /// Not all of the content was walked: past `maxOperators`, forms nested deeper than `maxDepth`, a form that can't be
+    /// read (boxes there may have been missed).
+    private(set) var cut = false
 
     private struct State {
         var ctm: ContentEditor.Mat
@@ -352,7 +357,10 @@ final class ContentWalker {
         var curved = false
         for op in list {
             ops += 1
-            if ops > Self.maxOperators { return }
+            if ops > Self.maxOperators {
+                cut = true
+                return
+            }
             if ops & 1023 == 0 { try cancel.check() }
             let n = op.operands.count
             switch op.name {
@@ -426,10 +434,14 @@ final class ContentWalker {
                     scan.pictures.append((box, entry))
                     order += 1
                     scan.drawn.append((box, order, true))
-                } else if sub == "Form" && depth < Self.maxDepth && entry.isRef && active.insert(entry.identity).inserted {
+                } else if sub == "Form" && depth >= Self.maxDepth {
+                    cut = true // nested deeper than walked
+                } else if sub == "Form" && entry.isRef && active.insert(entry.identity).inserted {
                     var m = ContentEditor.Mat.identity
                     if let a = entry.array("Matrix"), a.count == 6 { m = ContentEditor.Mat(a.num(0), a.num(1), a.num(2), a.num(3), a.num(4), a.num(5)) }
-                    try run(entry.streamData ?? [], entry.dict("Resources") ?? resources, m.times(state.ctm), entry.num, depth + 1)
+                    let bytes = entry.streamData ?? []
+                    if bytes.isEmpty && !(entry.rawStreamData ?? []).isEmpty { cut = true } // a filter that fails on its data
+                    try run(bytes, entry.dict("Resources") ?? resources, m.times(state.ctm), entry.num, depth + 1)
                     active.remove(entry.identity)
                 }
             case "BI":
@@ -551,7 +563,13 @@ extension RedactionCheck {
             if let areas = options.areas, !areas.isEmpty { try self.areas(engine, scans, areas) }
             hiddenContent(doc)
 
-            let values = Array(RedactionCheck.clean(options.values + found).prefix(RedactionCheck.maxValues))
+            let all = RedactionCheck.clean(options.values + found)
+            let values = Array(all.prefix(RedactionCheck.maxValues))
+            if all.count > values.count {
+                incomplete = true // as Windows: the others weren't looked for
+                let first = CoreLanguage.number(values.count), of = CoreLanguage.number(all.count)
+                notes.append(loc("Only the first {0} of {1} redacted values were looked for as written in the rest of the file.", first, of))
+            }
             let matcher = ValueMatcher(values)
             if !matcher.isEmpty {
                 for p in 0..<pages { pageValues(p, matcher) }
@@ -560,6 +578,15 @@ extension RedactionCheck {
                 try rawBytes(doc, matcher, inFile)
             } else {
                 try earlierVersions(engine, nil, [], revisions)
+            }
+            // A value search that couldn't be made, or stopped for its time: not looked for everywhere.
+            if matcher.tooLong {
+                incomplete = true
+                notes.append(loc("A redacted value was too long to look for in the rest of the file."))
+            }
+            if matcher.timedOut.isSet {
+                incomplete = true
+                notes.append(loc("Looking for the redacted values took too long in part of the file, so that part wasn't searched to the end."))
             }
 
             let order = findings.enumerated().sorted { a, b in
@@ -580,12 +607,19 @@ extension RedactionCheck {
         private func scanPage(_ doc: MuDoc, _ index: Int) throws -> PageScan {
             let scan = PageScan()
             let page = doc.page(index)
+            var walked = false
             do {
-                try ContentWalker(page, scan, cancel).run(ContentEditor.contentBytes(page), PageBoxes.inherited(page, "Resources"),
-                                                          .identity, nil, 0)
+                let content = ContentEditor.content(page)
+                let walker = ContentWalker(page, scan, cancel)
+                try walker.run(content.bytes, PageBoxes.inherited(page, "Resources"), .identity, nil, 0)
+                walked = !content.unreadable && !walker.cut
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                walked = false
+            }
+            if !walked {
+                incomplete = true
                 notes.append(loc("Page {0}: part of its content couldn't be read, so boxes on it may have been missed.", CoreLanguage.number(index + 1)))
             }
             guard let annots = page.array("Annots") else { return scan }
@@ -781,6 +815,7 @@ extension RedactionCheck {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                incomplete = true
                 notes.append(loc("What is under the dark boxes couldn't be drawn (the file can't be copied without them), so only text under them was looked for."))
                 for p in pages { beside(p, scans[p]) }
                 return
@@ -904,6 +939,7 @@ extension RedactionCheck {
 
         /// A copy of the document without the covers, unencrypted: dark fills become unpainted paths, dark comments go.
         private func withoutCovers(_ scans: [PageScan], _ pages: [Int]) throws -> [UInt8] {
+            if RedactionCheck.coversFailForTests { throw PdfEditError("The copy without covers failed (a test).") } // English: for a developer
             let copy = try PdfEdit.openToRead(data, password)
             var forms: [Int: [Cover]] = [:]
             for p in pages {
@@ -979,6 +1015,7 @@ extension RedactionCheck {
                 let doc = try PdfEdit.openToRead(original, password)
                 for o in doc.allObjects() where o.isStream && o.name("Subtype") == "Image" { set.insert(Self.hash(o)) }
             } catch {
+                incomplete = true
                 notes.append(loc("The document before redaction couldn't be read, so pictures under the redacted areas weren't compared with it."))
             }
             return set

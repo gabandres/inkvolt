@@ -309,4 +309,62 @@ struct RedactionCheckTests {
         let matcher = RedactionCheck.ValueMatcher([value])
         #expect(!matcher.matches(text).isEmpty == found)
     }
+
+    static let partlyChecked = ["a content stream that can't be read", "a form nested deeper than walked", "covers that can't be removed",
+                                "an earlier version that can't be read", "an original that can't be read",
+                                "more earlier versions than are checked", "a search that runs out of time", "a stream that can't be read",
+                                "more values than are looked for"]
+
+    /// Review of the hostile-input fixes: every part the check says it couldn't look at (a note, then on) makes the
+    /// report incomplete, so a clean report isn't taken as nothing found (Batch fails the file, the app says so).
+    @Test(arguments: partlyChecked)
+    func whatTheCheckCouldntLookAtMakesItIncomplete(_ what: String) throws {
+        let broken = "<< /Filter /FlateDecode /Length 15 >>\nstream\nnot zlib at all\nendstream"
+        var data = Self.onePage(Self.line)
+        var options = RedactionCheckOptions(values: [Self.name])
+        var coversFail = false, seconds: Double?
+        switch what {
+        case "a content stream that can't be read":
+            data = RedactionTestPdf.build([
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents [4 0 R 5 0 R] /Resources << /Font << /F1 6 0 R >> >> >>",
+                RedactionTestPdf.stream(Self.line),
+                broken,
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            ])
+        case "a form nested deeper than walked":
+            let forms = (0..<10).map { k in
+                RedactionTestPdf.stream(k < 9 ? "/X Do" : "0 g 0 0 50 50 re f", "/Type /XObject /Subtype /Form /BBox [0 0 600 800] /Resources << /XObject << /X \(k + 7) 0 R >> >>")
+            }
+            data = Self.onePage("\(Self.line) /X Do", more: forms, xobjects: "/X 6 0 R")
+        case "covers that can't be removed":
+            (data, _, _) = try Self.bad("picture")
+            coversFail = true
+        case "an earlier version that can't be read":
+            data = Array("%PDF-1.7\nstartxref\n0\n%%EOF\n".utf8) + data
+        case "an original that can't be read":
+            let (bad, _, area) = try Self.bad("picture")
+            data = bad
+            options = RedactionCheckOptions(areas: [0: [area]], original: Array("not a PDF".utf8))
+        case "more earlier versions than are checked":
+            for k in 0...RedactionCheck.maxRevisions {
+                data = try Self.append(data, 4, RedactionTestPdf.stream("BT /F1 18 Tf 72 700 Td (Version \(k)) Tj ET"))
+            }
+        case "a search that runs out of time":
+            seconds = -1
+        case "a stream that can't be read":
+            data = Self.onePage(Self.line, more: [broken])
+        default:
+            options = RedactionCheckOptions(values: (0...RedactionCheck.maxValues).map { "Value number \($0)" })
+        }
+        let report = try RedactionCheck.$coversFailForTests.withValue(coversFail) {
+            try RedactionCheck.ValueMatcher.$secondsForTests.withValue(seconds) { try RedactionCheck.run(data, nil, options) }
+        }
+        #expect(report.incomplete, "\(what): \(report.notes)")
+        #expect(!report.notes.isEmpty)
+        // The file whole and readable, with nothing left out, is complete.
+        let plain = try RedactionCheck.run(Self.onePage(Self.line), nil, RedactionCheckOptions(values: [Self.name]))
+        #expect(!plain.incomplete, "\(plain.notes)")
+    }
 }

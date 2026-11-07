@@ -17,6 +17,20 @@ extension RedactionCheck {
         private var wordStart: [Bool] = [], wordEnd: [Bool] = []
         let values: [String]
         var isEmpty: Bool { regex == nil }
+        /// There were values, but no search could be made of them (the system refused the pattern).
+        var tooLong: Bool { regex == nil && !values.isEmpty }
+        /// Set once a search ran past its time and stopped (part of a text not searched to its end).
+        let timedOut = Flag()
+
+        /// Seconds a search of one text may take; tests shorten it.
+        @TaskLocal static var secondsForTests: Double?
+
+        final class Flag: @unchecked Sendable {
+            private let lock = NSLock()
+            private var set = false
+            func raise() { lock.withLock { set = true } }
+            var isSet: Bool { lock.withLock { set } }
+        }
 
         init(_ values: [String]) {
             self.values = values
@@ -60,7 +74,10 @@ extension RedactionCheck {
         func matches(_ text: String) -> [(value: Int, start: Int, length: Int)] {
             guard let regex, !text.isEmpty else { return [] }
             let ns = text as NSString
-            guard let found = try? TimedRegex.matches(regex, in: ns, seconds: 10) else { return [] }
+            guard let found = try? TimedRegex.matches(regex, in: ns, seconds: Self.secondsForTests ?? 10) else {
+                timedOut.raise()
+                return []
+            }
             var out: [(Int, Int, Int)] = []
             for m in found {
                 var v = -1
@@ -285,6 +302,15 @@ extension RedactionCheck {
     /// stream decoded: content streams as the text they show (in their own fonts) and as bytes; attached files by their
     /// kind (zipped Office files and PDFs looked inside); XML and text as they are. Pictures and font programs are skipped.
     static func objectText(_ o: PObj, _ owner: Owner?) -> String {
+        var cut = Cut.none
+        return objectText(o, owner, &cut)
+    }
+
+    /// How much of an object's stream wasn't searched.
+    enum Cut { case none, past(Int), unreadable }
+
+    /// `objectText`, and whether its stream was searched only in part (`past`: its first bytes) or not at all.
+    static func objectText(_ o: PObj, _ owner: Owner?, _ cut: inout Cut) -> String {
         var sb = ""
         let signature = o.isDict && o.has("ByteRange")
         strings(o, &sb, signature, 0)
@@ -292,8 +318,15 @@ extension RedactionCheck {
         let type = o.name("Type") ?? "", subtype = o.name("Subtype") ?? ""
         if subtype == "Image" || type == "XRef" || type == "ObjStm" || o.has("Length1") || o.has("Length2")
             || ["Type1C", "CIDFontType0C", "OpenType"].contains(subtype) || (o.has("N") && o.has("Alternate")) { return sb }
-        guard var bytes = o.streamData else { return sb } // a filter that fails on its data
-        if bytes.count > maxStreamBytes { bytes = Array(bytes.prefix(maxStreamBytes)) }
+        // A filter that fails on its data: nothing, or nothing decoded from bytes that are there.
+        guard var bytes = o.streamData, !bytes.isEmpty else {
+            if !(o.rawStreamData ?? []).isEmpty { cut = .unreadable }
+            return sb
+        }
+        if bytes.count > maxStreamBytes {
+            bytes = Array(bytes.prefix(maxStreamBytes))
+            cut = .past(maxStreamBytes)
+        }
         sb += "\n"
         if let owner, [.content, .annotation, .field].contains(owner.part), subtype.isEmpty || subtype == "Form" {
             sb += contentText(bytes, owner.resources) + "\n"
@@ -482,7 +515,9 @@ extension RedactionCheck.Check {
         for (n, o) in doc.allObjects().enumerated() {
             if n & 255 == 255 { try cancel.check() }
             let owner = owners[o.identity]?.owner
-            let text = RedactionCheck.objectText(o, owner)
+            var cut = RedactionCheck.Cut.none
+            let text = RedactionCheck.objectText(o, owner, &cut)
+            searchedInPart(cut, loc("Object {0} of the file", o.num))
             if text.isEmpty { continue }
             for (v, start, length) in matcher.firstOfEach(text) {
                 inFile.insert(v)
@@ -494,6 +529,18 @@ extension RedactionCheck.Check {
         }
         try hiddenInContent(matcher, owners)
         return inFile
+    }
+
+    /// A stream searched only in part, or not at all, is said (Windows' notes), and the check is incomplete.
+    func searchedInPart(_ cut: RedactionCheck.Cut, _ place: String) {
+        let note: String
+        switch cut {
+        case .none: return
+        case .past(let bytes): note = loc("{0}: only its first {1} MB were searched.", place, CoreLanguage.number(bytes >> 20))
+        case .unreadable: note = loc("{0} couldn't be read, so it wasn't searched.", place)
+        }
+        incomplete = true
+        if !notes.contains(note) { notes.append(note) }
     }
 
     /// A value that a page's content draws more often than the page's text holds it is in the content where it doesn't
@@ -565,7 +612,11 @@ extension RedactionCheck.Check {
     func earlierVersions(_ engine: PdfEngine, _ matcher: RedactionCheck.ValueMatcher?, _ inFile: Set<Int>, _ ends: [Int]) throws {
         if ends.isEmpty { return }
         let maxRevisions = RedactionCheck.maxRevisions
-        if ends.count > maxRevisions { notes.append(loc("Only the last {0} of the file's {1} earlier versions were checked.", CoreLanguage.number(maxRevisions), CoreLanguage.number(ends.count))) }
+        if ends.count > maxRevisions {
+            // The versions before them weren't looked at: one may still hold what was redacted.
+            incomplete = true
+            notes.append(loc("Only the last {0} of the file's {1} earlier versions were checked.", CoreLanguage.number(maxRevisions), CoreLanguage.number(ends.count)))
+        }
         let current = Set(texts.flatMap { RedactionCheck.words($0.text) })
         var reportedValues = Set<Int>()
         for k in max(0, ends.count - maxRevisions)..<ends.count {
@@ -577,7 +628,9 @@ extension RedactionCheck.Check {
                     let old = try PdfEdit.openToRead(prefix, password)
                     let owners = try RedactionCheck.owners(old, cancel)
                     for o in old.allObjects() {
-                        let text = RedactionCheck.objectText(o, owners[o.identity]?.owner)
+                        var cut = RedactionCheck.Cut.none
+                        let text = RedactionCheck.objectText(o, owners[o.identity]?.owner, &cut)
+                        searchedInPart(cut, place)
                         for (v, start, length) in matcher.firstOfEach(text) {
                             if inFile.contains(v) || !reportedValues.insert(v).inserted { continue }
                             hits.insert(v)
@@ -605,6 +658,7 @@ extension RedactionCheck.Check {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
+                incomplete = true
                 notes.append(loc("{0} couldn't be read on its own.", place))
             }
             step()
