@@ -646,6 +646,16 @@ public sealed partial class PdfEngine : IDisposable
     private const double ScanPictureShare = 0.7;
 
     /// <summary>
+    /// Pictures covering <paramref name="pictures"/> of a page this size make it a picture of a page (a scan). A page
+    /// without area (a MediaBox of zero width or height) is none: 0 ≥ 0 × 0.7 would make it one with no pictures.
+    /// </summary>
+    internal static bool IsPictureOfAPage(double pictures, double width, double height)
+    {
+        var area = width * height;
+        return area > 0 && pictures >= area * ScanPictureShare;
+    }
+
+    /// <summary>
     /// What Compare reads from a page: its text, as <see cref="GetText"/> reads it, how each character is set, and whether
     /// the page is a picture of a page. Not cached.
     /// </summary>
@@ -707,7 +717,7 @@ public sealed partial class PdfEngine : IDisposable
                     directions.Add((line.Direction.X, line.Direction.Y));
                 }
             }
-            return new ComparePage(new PageText(lines, directions), new PageLooks(runs), pictures >= g.Width * g.Height * ScanPictureShare);
+            return new ComparePage(new PageText(lines, directions), new PageLooks(runs), IsPictureOfAPage(pictures, g.Width, g.Height));
         }
         finally
         {
