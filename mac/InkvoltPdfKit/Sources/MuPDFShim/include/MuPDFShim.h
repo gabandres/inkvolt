@@ -46,6 +46,9 @@ typedef struct {
 
 /// A MuPDF context with the default allocator and a resource store of `store_bytes`; NULL when MuPDF can't make one.
 void *inkv_new_context(size_t store_bytes);
+/// The same, with MuPDF's locks, so its drawings can be split into bands on several threads (`inkv_render_rgb`'s
+/// `bands`); a context without them draws on one.
+void *inkv_new_drawing_context(size_t store_bytes);
 void inkv_drop_context(void *ctx);
 
 /// Opens a PDF from memory (the bytes are copied), or a file in place. NULL on failure, with the reason in err. The
@@ -95,13 +98,15 @@ void inkv_test_counts(inkv_doc *doc, long long *walked, long long *clock_reads);
 
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
+/// `bands` > 1 draws that many bands of rows on several threads, in a context from `inkv_new_drawing_context` (each band
+/// with the cookie's budget on its own thread's clock); else on this thread.
 /// 1: drawn; 2: stopped by the cookie (no pixels); 0: failed.
-int inkv_render_rgb(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
+int inkv_render_rgb(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1, int bands,
                     inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err);
 
 /// As `inkv_render_rgb`, but the page's own content only: no annotations or form fields (Recognize Text's cleaned page,
 /// which keeps the comments as comments).
-int inkv_render_rgb_contents(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,
+int inkv_render_rgb_contents(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1, int bands,
                              inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err);
 
 /// The whole page at `scale`, with its annotations, written as a PNG or a JPEG (quality 90). 1: written; 2: stopped by

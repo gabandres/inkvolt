@@ -917,9 +917,18 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         wantedTiles = tiles
         renderer.keepTiles(Set(tiles))
+        // A page asked ahead, after those shown, the way the view last moved (roadmap 3.6, as Windows asks for the next
+        // pages): a drawing set's sheet takes a few hundred milliseconds, so the next is ready as it scrolls in.
+        let up = lastVisible.map { range.lowerBound < $0.lowerBound } ?? false
+        lastVisible = range
+        let ahead = up ? range.lowerBound - 1 : range.upperBound + 1
+        if readingMode != .single, pageRects.indices.contains(ahead) { renderer.request(ahead, scale: renderScale(for: ahead)) }
         let lo = max(range.lowerBound - 1, 0), hi = min(range.upperBound + 1, max(pageRects.count - 1, 0))
         renderer.keep(lo...hi)
     }
+
+    /// The pages last shown, to tell which way the view moves.
+    private var lastVisible: ClosedRange<Int>?
 
     // MARK: Links
 

@@ -62,7 +62,7 @@ extension PageCheckTests {
             inkv_cookie_limit(cookie, 30, PdfEngine.maxPicturePixels)
             var pixels: UnsafeMutablePointer<UInt8>?
             var w: Int32 = 0, h: Int32 = 0
-            let result = inkv_render_rgb_contents(ctx, doc, 0, 0.2, 0, 0, 612, 792, cookie, &pixels, &w, &h, &err)
+            let result = inkv_render_rgb_contents(ctx, doc, 0, 0.2, 0, 0, 612, 792, 1, cookie, &pixels, &w, &h, &err)
             inkv_free(pixels)
             return (result, inkv_cookie_stopped(cookie))
         }
