@@ -52,6 +52,13 @@ Agent on its root cause (synthetic form in tests, the owner's file never in the 
 failures fixed test-first, the same run on the Mac. This comes before the remaining Mac items. **Owner: publish the
 forms fixes** (with Compare's two leftovers, already merged) as the next Windows PDF release (hostile-input review first),
 and a PDF for Mac release too if the Mac run finds anything to fix.
+**Mac forms corpus merged 2026-11-07 (`9be94286`)**: 285/285 real, 32/32 synthetic, 887/887 with `--damaged`; two review
+rounds (medium: 10 findings, all fixed; low: clean); Windows' repaired-file bar and "no signature valid across a repair"
+ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release after its fixes are reviewed and merged.
+**Windows follow-up (after 1.11.0.0):** a comb field whose format adds separators (AFSpecial SSN, MaxLen 9) shows
+"123-45-67": `Appearances.cs` draws what fits in the cells. The Mac draws the typed digits in the cells instead
+(`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
+separators; the Mac takes a pasted SSN, phone or ZIP as its digits.
 Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) submitted 2026-11-07, Waiting for Review** (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
