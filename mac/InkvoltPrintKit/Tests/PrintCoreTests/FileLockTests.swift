@@ -60,4 +60,32 @@ struct FileLockTests {
         taken?.release()
         #expect(DropFolder.hold(path) != nil) // the file there now
     }
+
+    /// A symbolic link planted at a lock's path (a watched folder anyone can write to) is never followed: no file is made
+    /// or locked at its target, and neither is a lock path that isn't a plain file (a FIFO would block the open).
+    @Test func A_symlink_or_other_non_file_at_the_lock_path_is_refused() throws {
+        #if canImport(Darwin) || canImport(Glibc)
+        let f = try Self.folder()
+        defer { try? FileManager.default.removeItem(atPath: f) }
+        let target = (f as NSString).appendingPathComponent("elsewhere")
+        let path = (f as NSString).appendingPathComponent(DropFolder.lockName)
+        try FileManager.default.createSymbolicLink(atPath: path, withDestinationPath: target)
+        #expect(throws: (any Error).self) { _ = try FileLock.hold(path, create: true, deleteOnRelease: true) }
+        #expect(!FileManager.default.fileExists(atPath: target), "a file was made at the link's target")
+        #expect(DropFolder.lock(f) == nil)
+        #expect(!FileManager.default.fileExists(atPath: target))
+
+        // A link to a file that exists: not locked either, and the file is left as it was.
+        _ = FileManager.default.createFile(atPath: target, contents: Data("theirs".utf8))
+        #expect(throws: (any Error).self) { _ = try FileLock.hold(path, create: false) }
+        #expect(!FileLock.isHeld(path))
+        #expect(try Data(contentsOf: URL(fileURLWithPath: target)) == Data("theirs".utf8))
+
+        let fifo = (f as NSString).appendingPathComponent("pipe.lock")
+        #expect(mkfifo(fifo, 0o644) == 0)
+        #expect(throws: (any Error).self) { _ = try FileLock.hold(fifo, create: true) }
+        #expect(throws: (any Error).self) { _ = try FileLock.hold(fifo, create: false) }
+        #expect(!FileLock.isHeld(fifo))
+        #endif
+    }
 }
