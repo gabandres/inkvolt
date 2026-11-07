@@ -72,11 +72,18 @@ public class FormAppearanceTests
         Assert.Contains("Kept value", strict); // the untouched field shows too
         Assert.True(Core2Pdf.Ink(filled, 0, new RectD(74, 160, 10, 10)) > 0.1, "the check box shows its check");
 
-        // A check box with no appearance and no /MK to draw one from keeps NeedAppearances, so viewers still try.
-        var broken = Core2Pdf.Form(
+        // A check box with no appearance and no /MK gets the default tick (pdfjs-checkbox_no_appearance), so nothing is
+        // left to the viewer; one with no usable /Rect keeps NeedAppearances, so viewers still try.
+        var bare = Core2Pdf.Form(
         [
             "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [72 700 272 720] /P 3 0 R /DA (/Helv 0 Tf 0 g) >>",
             "<< /Type /Annot /Subtype /Widget /FT /Btn /T (c) /V /Off /Rect [72 620 86 634] /P 3 0 R >>",
+        ], acroExtra: "/NeedAppearances true");
+        Assert.False(NeedAppearances(FormEditor.SetValues(bare, null, new Dictionary<string, string> { ["a"] = "x" })));
+        var broken = Core2Pdf.Form(
+        [
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [72 700 272 720] /P 3 0 R /DA (/Helv 0 Tf 0 g) >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Btn /T (c) /V /Off /Rect [72 620 72 620] /P 3 0 R >>",
         ], acroExtra: "/NeedAppearances true");
         Assert.True(NeedAppearances(FormEditor.SetValues(broken, null, new Dictionary<string, string> { ["a"] = "x" })));
     }

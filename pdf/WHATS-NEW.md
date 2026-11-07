@@ -9,6 +9,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Social security, phone and ZIP+4 fields take every digit you type: the dashes show once you leave the field, as in Acrobat, instead of counting against the field's length while you type (typing 123456789 into a California 540 SSN box gave 123-45-67).
 - Radio buttons and other fields whose form doesn't list every button under its group work as one group, under the group's own name, as in Acrobat; they showed up as extra fields named "field1_p1" and didn't turn each other off.
 - A list or drop-down you change shows the new choice in every other viewer too; some forms' boxes kept showing the old one in browsers.
+- A check box you tick shows its tick everywhere, also on forms that came without a look for it or with a broken one (LaTeX forms): it used to stay empty in Preview, on phones and in print.
+- A field placed on several pages shows on each of them, and a filled field whose form doesn't link it back to its box shows its value in every viewer.
 - Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
 
 ## 1.10.0

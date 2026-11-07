@@ -397,6 +397,11 @@ public static partial class FormEditor
     /// <summary>Builds what a field needs to show its value by itself; false when some widget still has no appearance.</summary>
     private static bool BuildAppearance(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js)
     {
+        // A kid widget without /Parent (the field lists it in /Kids): MuPDF doesn't take it for the field's widget and
+        // shows none of its value (qpdf's form-document-defaults).
+        foreach (var w in f.Widgets)
+            if (!ReferenceEquals(w, f.Dict) && !w.Elements.ContainsKey("/Parent") && f.Dict.Reference is { } field)
+                w.Elements["/Parent"] = field;
         switch (f.Type)
         {
             case "/Tx" or "/Ch":
@@ -418,9 +423,10 @@ public static partial class FormEditor
     }
 
     /// <summary>
-    /// Gives each check box or radio widget whose normal appearance is a single stream (or missing) on and off faces:
-    /// redrawn from its /MK (border, background, symbol) when it has one, else the single face as "on" and an empty
-    /// "off". Without that, its /AS can't switch what it shows.
+    /// Gives each check box or radio widget whose normal appearance is a single stream, missing, or a state dictionary
+    /// whose on face can't show (not a stream, or empty: pdfTeX) on and off faces: redrawn from its /MK (border,
+    /// background, symbol) when it has one or there is no face to keep (the default tick or dot), else the single face
+    /// as "on" and an empty "off". Without that, its /AS can't switch what it shows.
     /// </summary>
     private static void EnsureStateFaces(PdfDocument doc, Field f)
     {
@@ -429,10 +435,13 @@ public static partial class FormEditor
         {
             var w = f.Widgets[i];
             var normal = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"]);
-            if (normal is { Stream: null }) continue;
             var state = OnStateOf(w) ?? "Yes";
+            // A state dictionary is kept unless its on face can't show anything (pdfTeX writes an empty dictionary).
+            if (normal is { Stream: null } && DrawsSomething(normal.Elements["/" + state])) continue;
             var shown = PdfObj.Name(w.Elements["/AS"]);
-            if (PdfObj.Dict(w.Elements["/MK"]) is { } mk && (mk.Elements.ContainsKey("/BC") || mk.Elements.ContainsKey("/BG") || mk.Elements.ContainsKey("/CA")))
+            var mk = PdfObj.Dict(w.Elements["/MK"]);
+            // Redrawn from /MK, or from the default tick or dot when there is no face to keep at all.
+            if (normal is null || normal.Stream is null || mk is not null && (mk.Elements.ContainsKey("/BC") || mk.Elements.ContainsKey("/BG") || mk.Elements.ContainsKey("/CA")))
             {
                 var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
                 var c = da.Color.C;
@@ -444,7 +453,7 @@ public static partial class FormEditor
                 };
                 FormDesign.ButtonFaces(doc, w, radio, state, mark);
             }
-            else if (normal is not null)
+            else
             {
                 var bbox = PdfObj.Array(normal.Elements["/BBox"]);
                 var off = PdfObj.FormXObject(doc, [], 0, 0, bbox is null ? 1 : PdfObj.Num(bbox, 2), bbox is null ? 1 : PdfObj.Num(bbox, 3), null);
@@ -453,8 +462,21 @@ public static partial class FormEditor
                 states.Elements["/Off"] = off.Reference!;
                 PdfObj.Dict(w.Elements["/AP"])!.Elements["/N"] = states;
             }
-            else continue; // no face and nothing to draw one from: NeedAppearances covers it
             w.Elements["/AS"] = new PdfName("/" + (shown == state ? state : "Off"));
+        }
+    }
+
+    /// <summary>True when an appearance is a stream with something in it (not a dictionary, not empty).</summary>
+    private static bool DrawsSomething(PdfItem? face)
+    {
+        if (PdfObj.Dict(face) is not { Stream: not null } d) return false;
+        try
+        {
+            return PdfObj.StreamBytes(d, 1 << 20).Any(b => b is not ((byte)' ' or (byte)'\n' or (byte)'\r' or (byte)'\t' or (byte)'\f' or 0));
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        {
+            return true; // can't tell: keep it
         }
     }
 
@@ -558,22 +580,26 @@ public static partial class FormEditor
         Collect(doc, acro, fields);
         if (fields.Count == 0) return [];
 
-        // Which page each widget sits on (via the pages' /Annots; /P is optional and often wrong).
-        var pageOf = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
-        var annotOrder = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        // Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong). A widget listed
+        // by several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared).
+        var placesOf = new Dictionary<PdfDictionary, List<(int Page, int Index)>>(ReferenceEqualityComparer.Instance);
         var tabs = new string?[doc.PageCount];
         for (var i = 0; i < doc.PageCount; i++)
         {
             tabs[i] = PdfObj.Name(doc.Pages[i].Elements["/Tabs"]);
             if (PdfObj.Array(doc.Pages[i].Elements["/Annots"]) is not { } annots) continue;
             for (var k = 0; k < annots.Elements.Count; k++)
-                if (PdfObj.Dict(annots.Elements[k]) is { } a && pageOf.TryAdd(a, i)) annotOrder[a] = k;
+            {
+                if (PdfObj.Dict(annots.Elements[k]) is not { } a) continue;
+                if (!placesOf.TryGetValue(a, out var places)) placesOf[a] = places = [];
+                if (places.Count == 0 || places[^1].Page != i) places.Add((i, k));
+            }
         }
         var structOrder = tabs.Any(t => t == "S") ? StructureOrder(doc) : null;
         var calculated = CalculatedFields(fields);
         JsFormHost? js = null; // created on the first format script
 
-        var result = new List<(FormWidget W, PdfDictionary Annot)>();
+        var result = new List<(FormWidget W, PdfDictionary Annot, int Index)>();
         foreach (var f in fields)
         {
             var kind = f.Type switch
@@ -608,8 +634,8 @@ public static partial class FormEditor
                 display = Display(f, value, js ??= new JsFormHost(doc, fields, readOnly: true)).Text;
 
             foreach (var w in f.Widgets)
+            foreach (var (page, index) in placesOf.GetValueOrDefault(w) ?? [])
             {
-                if (!pageOf.TryGetValue(w, out var page)) continue;
                 if (PdfObj.Array(w.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) continue;
                 var rect = ToPageSpace(doc.Pages[page], PdfObj.Num(r, 0), PdfObj.Num(r, 1), PdfObj.Num(r, 2), PdfObj.Num(r, 3));
                 if (rect.IsEmpty) continue;
@@ -623,7 +649,7 @@ public static partial class FormEditor
                     labels.SequenceEqual(options) ? null : labels, multi,
                     kind == FormFieldKind.Radio && (f.Flags & FfNoToggleToOff) != 0,
                     kind == FormFieldKind.Text && (f.Flags & FfPassword) != 0,
-                    display, calculated.Contains(f), signed, TriggersOf(f, w), annotOrder.GetValueOrDefault(w, -1)), w));
+                    display, calculated.Contains(f), signed, TriggersOf(f, w), index), w, index));
             }
         }
 
@@ -634,10 +660,10 @@ public static partial class FormEditor
         foreach (var group in result.GroupBy(x => x.W.PageIndex).OrderBy(g => g.Key))
         {
             var tab = tabs[group.Key];
-            IEnumerable<(FormWidget W, PdfDictionary Annot)> items = tab switch
+            IEnumerable<(FormWidget W, PdfDictionary Annot, int Index)> items = tab switch
             {
-                "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => annotOrder.GetValueOrDefault(x.Annot)),
-                "A" or "W" => group.OrderBy(x => annotOrder.GetValueOrDefault(x.Annot)),
+                "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => x.Index),
+                "A" or "W" => group.OrderBy(x => x.Index),
                 "C" => group.OrderBy(x => Math.Round(x.W.Rect.X / 6)).ThenBy(x => x.W.Rect.Y),
                 _ => group.OrderBy(x => Math.Round(x.W.Rect.Y / 6)).ThenBy(x => x.W.Rect.X),
             };

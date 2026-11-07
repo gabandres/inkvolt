@@ -80,6 +80,60 @@ public class RealFormTraitTests
         Assert.All(widgets, w => Assert.False(w.Elements.ContainsKey("/V") && w.Elements.GetString("/V") != "Kyrios"));
     }
 
+    // ---- Check box faces (pdfjs-checkbox_no_appearance, pypdf-pdflatex-forms) ----
+
+    [Theory]
+    [InlineData("")] // no appearance and no /MK at all
+    [InlineData("/AP << /N << /Yes << >> >> >> /MK << /BC [1 0 0] /BG [1 1 1] /CA (4) >> /DA (/ZaDb 10 Tf 0 0 0 rg)")] // pdfTeX: the on face isn't a stream
+    [InlineData("/AP << /N << /Yes 7 0 R /Off 7 0 R >> >>")] // the on face is an empty stream
+    public void ATickedCheckBoxGetsATickItCanShow(string extra)
+    {
+        var data = Doc("6 0 R", "6 0 R",
+        [
+            Widget($"/FT /Btn /T (cb) /Rect [100 600 140 640] /V /Off /AS /Off {extra}"),
+            Core2Pdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+        ]);
+        var box = FormEditor.Read(data, null).Single();
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["cb"] = box.OnState! }).Data;
+
+        Assert.DoesNotContain("/NeedAppearances true", System.Text.Encoding.Latin1.GetString(filled));
+        var on = Core2Pdf.Ink(filled, 0, box.Rect);
+        Assert.True(on > 0.05, "the tick shows");
+        var off = FormEditor.Fill(filled, null, new Dictionary<string, string> { ["cb"] = "Off" }).Data;
+        Assert.True(Core2Pdf.Ink(off, 0, box.Rect) < on - 0.04, "and goes when unticked (the border stays)");
+    }
+
+    // ---- One widget on several pages (qpdf-form-fields-and-annotations-shared) ----
+
+    [Fact]
+    public void AWidgetSharedByTwoPagesIsOnBoth()
+    {
+        var data = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 6 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [5 0 R] /Resources << >> >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [5 0 R] /Resources << >> >>",
+            Widget("/FT /Tx /T (shared) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) /V (x)"),
+            Helv,
+        ]);
+        Assert.Equal([0, 1], FormEditor.Read(data, null).Select(w => w.PageIndex));
+    }
+
+    // ---- A kid widget without /Parent (qpdf-form-document-defaults: MuPDF didn't show its value) ----
+
+    [Fact]
+    public void AKidWidgetWithoutParentGetsItSoEveryViewerShowsItsValue()
+    {
+        var data = Doc("6 0 R", "7 0 R",
+        [
+            "<< /FT /Tx /T (Text Box 1) /DA (0 g /Helv 12 Tf) /V () /Kids [7 0 R] >>",
+            Widget("/Rect [72 700 300 720]"),
+        ]);
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["Text Box 1"] = "Filled kid" }).Data;
+        Assert.Contains("Filled kid", Core2Pdf.AllText(filled));
+    }
+
     /// <summary>The field dictionary named <paramref name="name"/> as PDF text (the last one written).</summary>
     private static string Fields(byte[] data, string name)
     {
