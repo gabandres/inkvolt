@@ -1,0 +1,93 @@
+{
+  "opm-sf2817": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "opm-sf2818": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "opm-sf3107": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "pdfjs-bug1815476": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "pdfjs-checkbox_no_appearance": [
+    "appearance-missing: CheckBox"
+  ],
+  "pdfjs-opt_demo": [
+    "field-not-found (Btn)"
+  ],
+  "pdfjs-secHandler": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "pdflib-fancy_fields": [
+    "pdfjs-value-differs: Choice"
+  ],
+  "pypdf-pdflatex-forms": [
+    "pdfjs-no-appearance: CheckBox"
+  ],
+  "qpdf-form-document-defaults": [
+    "field-not-found (Btn)",
+    "mupdf-does-not-show-value: Text plain",
+    "pdfjs-field-missing-after-save: Radio"
+  ],
+  "qpdf-form-errors": [
+    "pdfjs-field-missing-after-save: Radio",
+    "widget-not-shown: Btn"
+  ],
+  "qpdf-form-fields-and-annotations-shared": [
+    "widget-not-shown: Btn",
+    "widget-not-shown: Tx"
+  ],
+  "uscis-ar-11": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-g-1145": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-g-28": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-129f": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-130": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-131": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-134": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-485": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-539": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-751": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-765": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-821d": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-864": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-90": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-i-912": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-n-400": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ],
+  "uscis-n-565": [
+    "fill-exception: OwnerPasswordRequiredException: Editing this PDF needs its permissions (owner) password. @ at InkvoltPdf.Core.PdfObj.Open(Byte[] data, String password, PdfDocumentOpenMode mode, String failure)"
+  ]
+}

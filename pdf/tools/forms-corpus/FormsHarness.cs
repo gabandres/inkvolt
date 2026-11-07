@@ -337,7 +337,7 @@ public static class FormsHarness
         return n >= 0 && n < formats.Length ? formats[n] : "mm/dd/yyyy";
     }
 
-    private static string TextValue(int ordinal, string format, FieldScripts? js, int maxLen, bool multiline, bool comb)
+    internal static string TextValue(int ordinal, string format, FieldScripts? js, int maxLen, bool multiline, bool comb)
     {
         var digits = (1000 + ordinal * 7 % 9000).ToString(CultureInfo.InvariantCulture);
         var value = format switch
@@ -394,14 +394,16 @@ public static class FormsHarness
         try
         {
             using var doc = PdfReader.Open(new MemoryStream(data), PdfDocumentOpenMode.Import);
+            var tree = new FieldTree(doc);
             foreach (var page in doc.Pages)
                 foreach (var w in Widgets(page))
                 {
-                    var name = FullName(w);
+                    var chain = tree.Chain(w);
+                    var name = tree.FullName(w);
                     if (name.Length == 0) continue;
-                    var f = Script(w, "/F");
-                    var k = Script(w, "/K");
-                    var flags = Inherited(w, "/Ff") is PdfInteger i ? i.Value : 0;
+                    var f = Script(chain, "/F");
+                    var k = Script(chain, "/K");
+                    var flags = chain.Select(d => Resolve(d.Elements["/Ff"])).OfType<PdfInteger>().FirstOrDefault()?.Value ?? 0;
                     if (result.TryGetValue(name, out var had)) result[name] = new FieldScripts(had.Format ?? f, had.Keystroke ?? k, had.Flags | flags);
                     else result[name] = new FieldScripts(f, k, flags);
                 }
@@ -413,9 +415,9 @@ public static class FormsHarness
         return result;
     }
 
-    private static string? Script(PdfDictionary widget, string key)
+    private static string? Script(List<PdfDictionary> chain, string key)
     {
-        for (var d = widget; d is not null; d = Resolve(d.Elements["/Parent"]) as PdfDictionary)
+        foreach (var d in chain)
             if (Resolve(d.Elements["/AA"]) is PdfDictionary aa && Resolve(aa.Elements[key]) is PdfDictionary action && Resolve(action.Elements["/JS"]) is { } js)
                 return js switch
                 {
@@ -434,22 +436,43 @@ public static class FormsHarness
                 yield return a;
     }
 
-    /// <summary>A widget's full field name: the /T of it and its parents, joined by dots.</summary>
-    internal static string FullName(PdfDictionary widget)
+    /// <summary>
+    /// The AcroForm's field tree read top-down from /Fields, as Acrobat reads it: each widget's full name and its chain
+    /// of field dictionaries (itself first). A widget missing its /Parent link is still named by the tree.
+    /// </summary>
+    internal sealed class FieldTree
     {
-        var parts = new List<string>();
-        var guard = 0;
-        for (var d = widget; d is not null && guard++ < 64; d = Resolve(d.Elements["/Parent"]) as PdfDictionary)
-            if (Resolve(d.Elements["/T"]) is PdfString t) parts.Insert(0, t.Value);
-        return string.Join('.', parts);
-    }
+        private readonly Dictionary<PdfDictionary, List<PdfDictionary>> _chains = new(ReferenceEqualityComparer.Instance);
 
-    private static PdfItem? Inherited(PdfDictionary d, string key)
-    {
-        var guard = 0;
-        for (var x = d; x is not null && guard++ < 64; x = Resolve(x.Elements["/Parent"]) as PdfDictionary)
-            if (x.Elements.ContainsKey(key)) return Resolve(x.Elements[key]);
-        return null;
+        public FieldTree(PdfDocument doc)
+        {
+            if (Resolve(doc.Internals.Catalog.Elements["/AcroForm"]) is PdfDictionary acro && Resolve(acro.Elements["/Fields"]) is PdfArray fields)
+                foreach (var f in fields.Elements)
+                    if (Resolve(f) is PdfDictionary d) Walk(d, []);
+        }
+
+        private void Walk(PdfDictionary d, List<PdfDictionary> above)
+        {
+            if (above.Count > 32 || _chains.ContainsKey(d) || above.Contains(d)) return;
+            List<PdfDictionary> chain = [d, .. above];
+            _chains[d] = chain;
+            if (Resolve(d.Elements["/Kids"]) is PdfArray kids)
+                foreach (var k in kids.Elements)
+                    if (Resolve(k) is PdfDictionary kd) Walk(kd, chain);
+        }
+
+        /// <summary>The widget and its fields up to the root: from the tree, else by its /Parent links.</summary>
+        public List<PdfDictionary> Chain(PdfDictionary widget)
+        {
+            if (_chains.TryGetValue(widget, out var chain)) return chain;
+            var list = new List<PdfDictionary>();
+            for (var d = widget; d is not null && list.Count < 64 && !list.Contains(d); d = Resolve(d.Elements["/Parent"]) as PdfDictionary) list.Add(d);
+            return list;
+        }
+
+        /// <summary>A widget's full field name: the /T of it and its parents, joined by dots.</summary>
+        public string FullName(PdfDictionary widget) =>
+            string.Join('.', Chain(widget).AsEnumerable().Reverse().Select(d => Resolve(d.Elements["/T"])).OfType<PdfString>().Select(t => t.Value));
     }
 
     internal static PdfItem? Resolve(PdfItem? item) => item is PdfReference r ? r.Value : item;
@@ -506,10 +529,11 @@ public static class FormsHarness
         var needs = Resolve(doc.Internals.Catalog.Elements["/AcroForm"]) is PdfDictionary acro && Resolve(acro.Elements["/NeedAppearances"]) is PdfBoolean { Value: true };
         if (needs) report.Notes.Add("saved with /NeedAppearances true");
         var seen = new HashSet<string>();
+        var tree = new FieldTree(doc);
         foreach (var page in doc.Pages)
             foreach (var w in Widgets(page))
             {
-                var name = FullName(w);
+                var name = tree.FullName(w);
                 if (!plan.TryGetValue(name, out var p)) continue;
                 seen.Add(name);
                 var n = Resolve((Resolve(w.Elements["/AP"]) as PdfDictionary)?.Elements["/N"]);
@@ -760,7 +784,8 @@ public static class FormsHarness
                 "CheckBox" => ws.Where(w => w.ExportValue == p.Stored).ToList(),
                 _ => ws,
             };
-            if (shown.Any(w => !w.HasAppearance)) report.Fail("pdfjs-no-appearance", p.Name, $"{p.Kind}: {shown.Count(w => !w.HasAppearance)} of {shown.Count} widget(s)");
+            // Buttons sharing an export value (one choice repeated on several pages) turn on one at a time: one must show.
+            if (p.Kind is "Radio" or "CheckBox" ? shown.Count > 0 && shown.All(w => !w.HasAppearance) : shown.Any(w => !w.HasAppearance)) report.Fail("pdfjs-no-appearance", p.Name, $"{p.Kind}: {shown.Count(w => !w.HasAppearance)} of {shown.Count} widget(s)");
             string? problem = p.Kind switch
             {
                 "Text" => Str(ws[0].Value) is var v && Same(v, p.Stored) ? null : $"pdf.js reads '{Esc(Str(ws[0].Value))}', Inkvolt stored '{Esc(p.Stored)}'",

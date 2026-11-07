@@ -6,15 +6,17 @@ namespace InkvoltPdf.FormsCorpus;
 
 /// <summary>
 /// The UI half: a <c>--script</c> for Inkvolt PDF that fills a form as a person does (the page fitted, a real mouse
-/// click on each field, real key messages typed, Tab to move on), then saves; and the check of what it saved.
+/// click on each field, real key messages typed, Tab to move on), then saves with Ctrl+S over the file it opened; and the
+/// check of what it saved.
 /// </summary>
 public static class UiScript
 {
     public sealed record Expected(string Name, string Kind, string Value, string? State);
 
-    public static (string Steps, List<Expected> Expected) Build(byte[] data, string savePath, int count)
+    public static (string Steps, List<Expected> Expected) Build(byte[] data, int count)
     {
         var widgets = FormEditor.Read(data, null);
+        var scripts = FormsHarness.Scripts(data);
         var fields = FormEditor.DataFields(data, null).ToDictionary(f => f.Name);
         var steps = new StringBuilder();
         var expected = new List<Expected>();
@@ -48,8 +50,11 @@ public static class UiScript
             {
                 case FormFieldKind.Text:
                 {
-                    var value = f.MaxLength is > 0 and < 5 ? "12345"[..f.MaxLength] : $"Ui{n}";
-                    steps.AppendLine($"keys {value}");
+                    // What the field's format accepts (digits, a date in its format...), typed on one line.
+                    scripts.TryGetValue(f.Name, out var js);
+                    var comb = js is not null && (js.Flags & (1 << 24)) != 0;
+                    var value = FormsHarness.TextValue(n, FormsHarness.FormatOf(js), js, f.MaxLength, multiline: false, comb);
+                    steps.AppendLine($"keys {value.Replace(" ", "{sp}")}");
                     steps.AppendLine("key Tab");
                     expected.Add(new Expected(f.Name, "Text", value, null));
                     break;
@@ -63,14 +68,21 @@ public static class UiScript
                     break;
                 }
                 default:
-                    expected.Add(new Expected(f.Name, f.Kind.ToString(), target.OnState!, target.OnState));
+                    // A click toggles a check box: one that was ticked ends up unticked.
+                    var off = f.Kind == FormFieldKind.CheckBox && f.Value is not ("Off" or "");
+                    expected.Add(new Expected(f.Name, f.Kind.ToString(), off ? "Off" : target.OnState!, target.OnState));
                     break;
             }
             steps.AppendLine("wait 400");
+            // A form script's alert (a value it refuses) is modal: log what it says, then dismiss it as a person would.
+            steps.AppendLine("windows");
+            steps.AppendLine("closedialog");
         }
-        steps.AppendLine("wait 2500"); // the tab writes queued values in the background
         steps.AppendLine("fields 3");
-        steps.AppendLine($"save {savePath}");
+        // Ctrl+S, as a person saves: the tab first writes the values still queued, then saves over the opened file.
+        steps.AppendLine("key S ctrl");
+        steps.AppendLine("wait 5000");
+        steps.AppendLine("state");
         steps.AppendLine("exit");
         return (steps.ToString(), expected);
     }
@@ -92,6 +104,7 @@ public static class UiScript
             {
                 "Text" => got.Value == e.Value || Digits(got.Value).Length > 0 && Digits(got.Value) == Digits(e.Value),
                 "Choice" => got.Value == e.Value,
+                _ when e.Value == "Off" => got.Value is "Off" or "",
                 _ => got.Value is not ("Off" or ""),
             };
             if (!ok) problems.Add($"ui-value-not-kept\t{e.Name}\t{e.Kind}: typed/clicked '{e.Value}', saved '{got.Value}'");

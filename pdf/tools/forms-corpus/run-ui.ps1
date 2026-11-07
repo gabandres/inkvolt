@@ -1,13 +1,14 @@
 # The UI half of the forms corpus: Inkvolt PDF itself opens each sample form with a generated --script that fits the
 # page, clicks each of the first fields with real mouse messages, types with real key messages, presses Tab, then
-# saves; the harness then reads what the app saved back (FormsCorpus uicheck). This is the page view's own path:
-# PageViewer's click and editor, DocumentTab's queued fill, the edit transaction, Save As.
+# presses Ctrl+S; the harness then reads what the app saved back (FormsCorpus uicheck). This is the page view's own
+# path: PageViewer's click and editor, DocumentTab's queued fill, the edit transaction, Save (which first writes what
+# is still queued; the dev script's own "save" step doesn't, so it isn't used).
 #
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1                       the 20 sample forms below, 8 fields each
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -Forms irs-fw9 -Fields 20
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -App C:\path\InkvoltPdf.exe   an already built app
 #
-# Results: .cache\ui\<name>.steps.txt.log (the app's log of each step), <name>.ui.pdf (what it saved) and summary.txt.
+# Results: .cache\ui\<name>.steps.txt.log (the app's log of each step), <name>.pdf (the copy it filled and saved) and summary.txt.
 [CmdletBinding()]
 param(
     [string[]]$Forms = @(
@@ -46,10 +47,11 @@ $rows = foreach ($name in $Forms) {
     $pdf = Join-Path $cache "$name.pdf"
     if (-not (Test-Path $pdf)) { [pscustomobject]@{ Form = $name; Result = 'not downloaded (fetch.ps1)' }; continue }
     $steps = & dotnet $dll.FullName script $pdf $ui $Fields
-    $saved = Join-Path $ui "$name.ui.pdf"
-    Remove-Item -Force -ErrorAction SilentlyContinue $saved, "$steps.log"
-    # A copy to open, so the app never writes next to the corpus file; settings go to a throwaway data folder.
+    Remove-Item -Force -ErrorAction SilentlyContinue "$steps.log"
+    # A copy to open (and Ctrl+S over), so the app never writes next to the corpus file; settings go to a throwaway
+    # data folder.
     $open = Join-Path $ui "$name.pdf"
+    $saved = $open
     Copy-Item -Force $pdf $open
     $start = New-Object Diagnostics.ProcessStartInfo $App
     $start.UseShellExecute = $false
@@ -63,6 +65,9 @@ $rows = foreach ($name in $Forms) {
         $check = & dotnet $dll.FullName uicheck $saved (Join-Path $ui "$name.expected.json")
         $failedStep = ($log -split "`n" | Where-Object { $_ -like 'FAILED*' } | Select-Object -First 1)
         $result = if ($failedStep) { "SCRIPT FAILED: $($failedStep.Substring(0, [Math]::Min(160, $failedStep.Length)))" } else { ($check -join ' | ') }
+        # The form's own alerts (values its scripts refused), dismissed by the script: worth reading beside the result.
+        $alerts = @($log -split "`n" | Where-Object { $_ -like "window 'Message from the form'*" } | ForEach-Object { ($_ -split "'")[3] })
+        if ($alerts.Count) { $result += " | form alerts: $($alerts -join ' / ')" }
     }
     Write-Host "$name : $result"
     [pscustomobject]@{ Form = $name; Result = $result }

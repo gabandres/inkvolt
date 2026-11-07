@@ -13,7 +13,7 @@ using InkvoltPdf.FormsCorpus;
 // one <in.pdf> <out-dir> <name>     One form, in this process: <out-dir>\<name>.report.json and <name>.filled.pdf.
 // summary <results.json>            The grouped summary again, from saved results.
 // script <in.pdf> <out-dir> [n]     A --script for the app that clicks and types into the first n fillable fields
-//                                    (mouse and keys, as a person would) and saves: <out-dir>\<name>.steps.txt, .expected.json.
+//                                    (mouse and keys, as a person would) and saves with Ctrl+S: <out-dir>\<name>.steps.txt, .expected.json.
 // uicheck <saved.pdf> <expected.json>  What the app saved holds the values the script typed and clicked.
 return args switch
 {
@@ -184,7 +184,7 @@ static int Script(string pdf, string outDir, int count)
 {
     Directory.CreateDirectory(outDir);
     var name = Path.GetFileNameWithoutExtension(pdf);
-    var (steps, expected) = UiScript.Build(File.ReadAllBytes(pdf), Path.Combine(outDir, name + ".ui.pdf"), count);
+    var (steps, expected) = UiScript.Build(File.ReadAllBytes(pdf), count);
     File.WriteAllText(Path.Combine(outDir, name + ".steps.txt"), steps);
     File.WriteAllText(Path.Combine(outDir, name + ".expected.json"), JsonSerializer.Serialize(expected, FormsHarness.Json));
     Console.WriteLine(Path.Combine(outDir, name + ".steps.txt"));
@@ -210,18 +210,26 @@ static int Dump(string pdf, string field)
         Console.WriteLine($"FormEditor field: {f.Kind} value='{f.Value}' options=[{string.Join("|", f.Options)}] labels=[{string.Join("|", f.Labels)}]");
     using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(data), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
     var p = 0;
+    var tree = new FormsHarness.FieldTree(doc);
     foreach (var page in doc.Pages)
     {
         p++;
-        foreach (var w in FormsHarness.Widgets(page).Where(w => FormsHarness.FullName(w) == field))
+        foreach (var w in FormsHarness.Widgets(page).Where(w => tree.FullName(w) == field))
         {
             Console.WriteLine($"page {p} widget: {Describe(w)}");
             if (FormsHarness.Resolve((FormsHarness.Resolve(w.Elements["/AP"]) as PdfSharp.Pdf.PdfDictionary)?.Elements["/N"]) is PdfSharp.Pdf.PdfDictionary n)
             {
-                if (n.Stream is { } s) Console.WriteLine($"  /AP /N stream: {Encoding.Latin1.GetString(s.UnfilteredValue).ReplaceLineEndings(" ")[..Math.Min(400, s.UnfilteredValue.Length)]}");
-                else Console.WriteLine($"  /AP /N states: {string.Join(" ", n.Elements.Keys)}");
+                if (n.Stream is { } s) Console.WriteLine($"  /AP /N stream: {Describe(n)} | {Encoding.Latin1.GetString(s.UnfilteredValue).ReplaceLineEndings(" ")[..Math.Min(400, s.UnfilteredValue.Length)]}");
+                else
+                {
+                    Console.WriteLine($"  /AP /N states: {string.Join(" ", n.Elements.Keys)}");
+                    foreach (var key in n.Elements.Keys)
+                        if (FormsHarness.Resolve(n.Elements[key]) is PdfSharp.Pdf.PdfDictionary { Stream: { } face } fd)
+                            Console.WriteLine($"    {key}: {Describe(fd)} | {Encoding.Latin1.GetString(face.UnfilteredValue).ReplaceLineEndings(" ")[..Math.Min(200, face.UnfilteredValue.Length)]}");
+                        else Console.WriteLine($"    {key}: not a stream: {(FormsHarness.Resolve(n.Elements[key]) is PdfSharp.Pdf.PdfDictionary nd ? Describe(nd) : FormsHarness.Resolve(n.Elements[key])?.GetType().Name ?? "null")}");
+                }
             }
-            for (var parent = FormsHarness.Resolve(w.Elements["/Parent"]) as PdfSharp.Pdf.PdfDictionary; parent is not null; parent = FormsHarness.Resolve(parent.Elements["/Parent"]) as PdfSharp.Pdf.PdfDictionary)
+            foreach (var parent in tree.Chain(w).Skip(1))
                 Console.WriteLine($"  parent: {Describe(parent)}");
         }
     }
