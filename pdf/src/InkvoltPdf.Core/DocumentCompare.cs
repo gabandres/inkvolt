@@ -131,6 +131,13 @@ public enum RowText
 /// <param name="PageMoved">A page only one side has here because it moved: its text is on another row, as a move.</param>
 public sealed record CompareRow(int? OldPage, int? NewPage, RowText Text, int Changes = 0, bool PageMoved = false);
 
+/// <summary>
+/// Where a move's text went: from <paramref name="OldPage"/> to <paramref name="NewPage"/>. <paramref name="OnOnePage"/>:
+/// within one row, on pages of the same number ("on page 3"); otherwise both pages are named ("page 3 → 3" when an
+/// inserted page shifted the rows).
+/// </summary>
+public readonly record struct MovePlace(int OldPage, int NewPage, bool OnOnePage);
+
 public enum ChangeKind { Inserted, Deleted, Changed, PageInserted, PageRemoved, Moved, Formatted }
 
 /// <summary>Characters [Start, End) of a page's text (Start == End: a position between characters).</summary>
@@ -178,6 +185,15 @@ public sealed class CompareResult
 
     /// <summary>No changes and every pair had text to compare.</summary>
     public bool Identical => Changes.Count == 0 && PairsWithoutText == 0;
+
+    /// <summary>Where a <see cref="ChangeKind.Moved"/> change went, for its label; null for another kind.</summary>
+    public MovePlace? PlaceOf(CompareChange c)
+    {
+        if (c.Kind != ChangeKind.Moved || c.Old is not [var from, ..] || c.New is not [var to, ..]) return null;
+        // Each page is on one row: the move stays in a row when a row pairs exactly these two pages.
+        var oneRow = from.Page == to.Page && Rows.Any(r => r.OldPage == from.Page && r.NewPage == to.Page);
+        return new MovePlace(from.Page, to.Page, oneRow);
+    }
 
     /// <summary>"3 text changes (1 inserted, 2 changed); 1 page removed; 2 pages without text": one line for the toolbar and the report.</summary>
     public string Summary()

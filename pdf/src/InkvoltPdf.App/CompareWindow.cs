@@ -641,7 +641,7 @@ internal sealed class CompareWindow : Window
             ChangeKind.Inserted => new ChangeItem(index, c.Row, m ? Strings.Compare_InsertedMisread : Strings.Compare_Inserted, where, Quote(c.NewText), InsertedChip),
             ChangeKind.Deleted => new ChangeItem(index, c.Row, m ? Strings.Compare_RemovedMisread : Strings.Compare_Removed, where, Quote(c.OldText), DeletedChip),
             ChangeKind.Changed => new ChangeItem(index, c.Row, m ? Strings.Compare_ChangedMisread : Strings.Compare_ChangedKind, where, $"{Quote(c.OldText)} → {Quote(c.NewText)}", ChangedChip),
-            ChangeKind.Moved => new ChangeItem(index, c.Row, Strings.Compare_Moved, c.Old is [var from, ..] && c.New is [var to, ..] ? (from.Page == to.Page ? Loc.Format(Strings.Compare_OnPage, to.Page + 1) : Loc.Format(Strings.Compare_PageMoved, from.Page + 1, to.Page + 1)) : where,
+            ChangeKind.Moved => new ChangeItem(index, c.Row, Strings.Compare_Moved, _result.PlaceOf(c) is { } p ? (p.OnOnePage ? Loc.Format(Strings.Compare_OnPage, p.NewPage + 1) : Loc.Format(Strings.Compare_PageMoved, p.OldPage + 1, p.NewPage + 1)) : where,
                 Quote(c.NewText), MovedChip, ItemGroup.Moved),
             ChangeKind.Formatted => new ChangeItem(index, c.Row, Strings.Compare_GroupFormatting, where, $"{c.Look?.Describe()}: {Quote(c.NewText)}", FormattedChip, ItemGroup.Formatting),
             ChangeKind.PageInserted => new ChangeItem(index, c.Row, Strings.Compare_PageInserted, where, c.NewText.Length > 0 ? Quote(c.NewText) : Strings.Compare_NoText, InsertedChip),
