@@ -6780,4 +6780,8 @@
     <value>Acción {0} (addLongTermData): no se puede usar "timestampServer": {1}.</value>
     <comment>Preset error; {0} the action's number, {1} why</comment>
   </data>
+  <data name="Doc_ShapeRefused" xml:space="preserve">
+    <value>Este PDF está construido de una forma que podría detener la aplicación, así que solo se pueden mostrar sus páginas. No se puede rellenar ni editar.</value>
+    <comment>A file whose nesting or page tree would crash the reader: shown when something tries to read or edit its objects</comment>
+  </data>
 </root>

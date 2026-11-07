@@ -23,7 +23,7 @@ public static partial class PdfRepair
         var seen = new HashSet<long>();
         var blanks = new List<(int Start, int Length)>();
         var sections = 0;
-        while (sections < MaxSections && seen.Add(at))
+        while (seen.Count < MaxSections && seen.Add(at))
         {
             if (SectionDict(data, at, work) is not { } dict || work.Spent) break;
             var named = false;
@@ -42,6 +42,27 @@ public static partial class PdfRepair
         var copy = (byte[])data.Clone();
         foreach (var (start, length) in blanks) copy.AsSpan(start, length).Fill((byte)' ');
         return copy;
+    }
+
+    /// <summary>
+    /// Whether the cross-reference sections, followed through /Prev as PDFsharp follows them, come to an end. False when one
+    /// leads back to a section already read (PDFsharp would read on for good), or reading them takes more than any real
+    /// file's: a table's trailer comes soon after it, so that is a few times the file's size at most.
+    /// </summary>
+    internal static bool SectionsEnd(byte[] data)
+    {
+        if (Incremental.StartXref(data) is not { } at) return true;
+        var work = new Work(4L * data.Length + 2L * MaxSections * MaxDictChars);
+        var seen = new HashSet<long>();
+        while (true)
+        {
+            if (!seen.Add(at)) return false;
+            work.Spend(MaxDictChars); // what looking at a section may read, whatever it holds
+            var dict = SectionDict(data, at, work);
+            if (work.Spent) return false;
+            if (dict?.Int("/Prev") is not { } prev || prev <= 0 || prev >= data.Length) return true;
+            at = prev;
+        }
     }
 
     /// <summary>

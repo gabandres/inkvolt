@@ -494,11 +494,28 @@ public sealed partial class DocumentSession : IDisposable
         OpenReadable(data, type, password, bytes => PdfEngine.Open(bytes, type, password));
 
     /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
-    internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open)
+    internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open) =>
+        OpenReadable(data, type, password, open, () => Task.Run(() => PdfRepair.Normalize(data, password)), NormalizeTime);
+
+    /// <summary>
+    /// How long the first page waits for the check of a file's bytes. PDFsharp reads a 256 MB file in seconds; should some
+    /// file make it read on for good, the document opens as it is and its pages show, as they did before there was a check.
+    /// </summary>
+    private static readonly TimeSpan NormalizeTime = TimeSpan.FromSeconds(20);
+
+    /// <param name="normalize">Starts the check of the bytes (never fails on a bad file: a failed read keeps the bytes).</param>
+    /// <param name="limit">The most it is waited for.</param>
+    internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open,
+        Func<Task<PdfRepair.Result>> normalize, TimeSpan limit)
     {
         if (type != InputFileTypes.PDF) return (data, open(data), 0);
-        var normalizing = Task.Run(() => PdfRepair.Normalize(data, password)); // never throws: a failed read keeps the bytes
+        var normalizing = normalize();
         var engine = open(data);
+        if (!((IAsyncResult)normalizing).AsyncWaitHandle.WaitOne(limit))
+        {
+            Log?.Invoke("The check of a document's bytes took too long; opened as it is.");
+            return (data, engine, 0);
+        }
         var normal = normalizing.GetAwaiter().GetResult();
         if (ReferenceEquals(normal.Data, data)) return (data, engine, 0);
         try

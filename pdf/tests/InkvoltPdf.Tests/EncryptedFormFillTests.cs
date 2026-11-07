@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using InkvoltPdf.Core;
 using PdfSharp.Pdf.IO;
 using PdfSharp.Pdf.Security;
@@ -217,6 +218,47 @@ public class EncryptedFormFillTests
         var update = obj + $"xref\n{pages} 1\n{at:D10} 00000 n \ntrailer\n<< /Size {tail.Size} /Root {Ref("/Root")} 0 R /Encrypt {Ref("/Encrypt")} 0 R " +
                      $"/ID {tail.Id} /Prev {tail.StartXref} >>\nstartxref\n{at + obj.Length}\n%%EOF\n";
         return [.. file, .. Encoding.Latin1.GetBytes(update)];
+    }
+
+    [Theory]
+    [InlineData("rc4-128")]
+    [InlineData("aes-128")]
+    [InlineData("aes-256")]
+    public void ATrailerWhoseSizeIsTooSmallLosesNothing(string method)
+    {
+        // The newest section names an encryption dictionary with the file's highest number, and a /Size that doesn't count
+        // it: the decrypted copy leaves it out, so a new object mustn't take its number: /Encrypt would lead to that object.
+        var data = Protect(method, fill: true, annotate: false);
+        var text = Encoding.Latin1.GetString(data);
+        var encrypt = Regex.Match(text, @"/Encrypt (\d+) 0 R").Groups[1].Value;
+        var body = Regex.Match(text, $@"\n{encrypt} 0 obj\s*(<<.*?>>)\s*endobj", RegexOptions.Singleline).Groups[1].Value;
+        var root = Regex.Match(text, @"/Root (\d+) 0 R").Groups[1].Value;
+        var highest = Regex.Matches(text, @"(\d+) 0 obj").Max(m => int.Parse(m.Groups[1].Value)) + 1;
+        var tail = Incremental.Tail(data)!;
+        var obj = $"{highest} 0 obj\n{body}\nendobj\n";
+        var low = Encoding.Latin1.GetBytes(text + obj + $"xref\n{highest} 1\n{data.Length:D10} 00000 n \ntrailer\n<< /Size 2 /Root {root} 0 R /Encrypt {highest} 0 R " +
+                                           $"/ID {tail.Id} /Prev {tail.StartXref} >>\nstartxref\n{data.Length + obj.Length}\n%%EOF\n");
+        Assert.Equal("Alice", FormEditor.Read(low, null).Single(w => w.FieldName == "name").Value);
+
+        var filled = FormEditor.Fill(low, null, new Dictionary<string, string> { ["name"] = "Low size" }).Data;
+
+        Assert.True(filled.AsSpan(0, low.Length).SequenceEqual(low));
+        Assert.Equal("Low size", FormEditor.Read(filled, null).Single(w => w.FieldName == "name").Value);
+        Assert.Contains("Low size", Core2Pdf.AllText(filled));
+        Assert.Equal(PdfSecurity.ReadSecurity(data, null), PdfSecurity.ReadSecurity(filled, null));
+    }
+
+    [Fact]
+    public void APermissionsValueChangedInAnAes256FileIsNotBelieved()
+    {
+        // At AES-256 /P isn't in the key: /Perms holds the real value, encrypted (algorithm 13). PDFsharp checks it as it
+        // opens the file: one edited to allow filling isn't filled.
+        var data = Protect("aes-256", fill: false, annotate: false);
+        var text = Encoding.Latin1.GetString(data);
+        var p = Regex.Match(text, @"/P (-\d+)");
+        var allowed = (int.Parse(p.Groups[1].Value) | (1 << 8)).ToString(System.Globalization.CultureInfo.InvariantCulture).PadRight(p.Groups[1].Length);
+        var edited = Encoding.Latin1.GetBytes(text.Remove(p.Groups[1].Index, allowed.Length).Insert(p.Groups[1].Index, allowed));
+        Assert.ThrowsAny<InvalidOperationException>(() => FormEditor.Fill(edited, null, new Dictionary<string, string> { ["name"] = "x" }));
     }
 
     [Fact]

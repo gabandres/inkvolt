@@ -111,12 +111,36 @@ internal static class PdfObj
         }
     }
 
-    private static PdfDocument ReadOnce(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
+    /// <summary>
+    /// One read, its shape checked first (<see cref="PdfShapeGuard"/>): PDFsharp flattens the page tree as it opens a file
+    /// for editing, so bytes not seen yet are read for import first, and only once.
+    /// </summary>
+    private static PdfDocument ReadOnce(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes)
+    {
+        if (PdfShapeGuard.IsKnown(data)) return Parse(data, password, mode, maxBytes);
+        PdfShapeGuard.CheckSections(data);
+        var read = Parse(data, password, PdfDocumentOpenMode.Import, maxBytes);
+        try
+        {
+            PdfShapeGuard.CheckPageTree(read, data.LongLength);
+        }
+        catch
+        {
+            read.Dispose();
+            throw;
+        }
+        PdfShapeGuard.MarkKnown(data);
+        if (mode == PdfDocumentOpenMode.Import) return read;
+        read.Dispose();
+        return Parse(data, password, mode, maxBytes);
+    }
+
+    private static PdfDocument Parse(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
         BoundedFilters.Within(maxBytes, maxBytes, () =>
         {
-            var stream = new MemoryStream(data, writable: false);
+            var stream = new PdfShapeGuard.GuardedFile(data);
             return string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
-        });
+        }, parsing: true);
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
@@ -199,11 +223,17 @@ internal static class PdfObj
         // Opened with the user password only (UserPasswordEdits): a rewrite would drop the encryption.
         if (rewrite && Incremental.IsUserPasswordEdit(doc)) throw new OwnerPasswordRequiredException(false);
         var xmp = Xmp.Read(doc);
-        if (!rewrite && Incremental.Save(doc, xmp) is { } appended) return appended;
-        KeptProtection.Reapply(doc);
-        using var ms = new MemoryStream();
-        doc.Save(ms, false);
-        return Xmp.Patch(ms, doc.Info, xmp, bareXmp);
+        var saved = !rewrite && Incremental.Save(doc, xmp) is { } appended ? appended : Rewrite(doc, xmp, bareXmp);
+        PdfShapeGuard.MarkKnown(saved); // from a document that was read, so the next edit needn't look again
+        return saved;
+
+        static byte[] Rewrite(PdfDocument doc, System.Xml.Linq.XDocument? xmp, bool bareXmp)
+        {
+            KeptProtection.Reapply(doc);
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            return Xmp.Patch(ms, doc.Info, xmp, bareXmp);
+        }
     }
 
     /// <summary>Appends <paramref name="ops"/> after the page's content, which is wrapped in q/Q so its graphics state can't leak.</summary>

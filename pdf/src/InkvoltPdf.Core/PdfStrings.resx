@@ -6780,4 +6780,8 @@
     <value>Action {0} (addLongTermData): "timestampServer" can't be used: {1}.</value>
     <comment>Preset error; {0} the action's number, {1} why</comment>
   </data>
+  <data name="Doc_ShapeRefused" xml:space="preserve">
+    <value>This PDF is built in a way that could stop the app, so only its pages can be shown. It can't be filled or edited.</value>
+    <comment>A file whose nesting or page tree would crash the reader: shown when something tries to read or edit its objects</comment>
+  </data>
 </root>

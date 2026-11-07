@@ -10,7 +10,8 @@ namespace InkvoltPdf.Core;
 /// cross-reference streams), so these replace those instances: every stage of a filter chain, wherever it is in the array,
 /// is measured before it is decoded, and one that would go past the limit throws <see cref="StreamTooLargeException"/>
 /// with nothing spent. The limit is <see cref="PdfObj.MaxStreamBytes"/> a stream, or what <see cref="Within{T}"/> says;
-/// opening a file (<see cref="PdfObj.Read"/>) also has that much in all.
+/// opening a file (<see cref="PdfObj.Read"/>) also has that much in all. While a file opens, each stage's output is also
+/// checked for nesting PDFsharp's parser couldn't survive (<see cref="PdfShapeGuard.CheckObjectStream"/>).
 /// </summary>
 internal static class BoundedFilters
 {
@@ -23,6 +24,7 @@ internal static class BoundedFilters
     [ThreadStatic] private static int t_limit;
     [ThreadStatic] private static long t_left;
     [ThreadStatic] private static bool t_counting;
+    [ThreadStatic] private static bool t_parsing;
 
     static BoundedFilters()
     {
@@ -30,6 +32,7 @@ internal static class BoundedFilters
         Set("_flateDecode", new BoundedFlate());
         Set("_lzwDecode", new BoundedLzw());
         Set("_ascii85Decode", new BoundedAscii85());
+        Set("_asciiHexDecode", new CheckedAsciiHex());
 
         static void Set(string field, Filter filter) =>
             (typeof(Filtering).GetField(field, BindingFlags.NonPublic | BindingFlags.Static)
@@ -46,11 +49,13 @@ internal static class BoundedFilters
     /// Runs <paramref name="read"/> (on this thread) with each decoded stage limited to <paramref name="maxBytes"/>, and with
     /// <paramref name="totalBytes"/> for all of them together when given.
     /// </summary>
-    public static T Within<T>(int maxBytes, long? totalBytes, Func<T> read)
+    /// <param name="parsing">PDFsharp is opening a file: what is decoded is parsed next, so it is checked (<see cref="PdfShapeGuard"/>).</param>
+    public static T Within<T>(int maxBytes, long? totalBytes, Func<T> read, bool parsing = false)
     {
         Install();
-        var (limit, left, counting) = (t_limit, t_left, t_counting);
+        var (limit, left, counting, wasParsing) = (t_limit, t_left, t_counting, t_parsing);
         t_limit = maxBytes;
+        t_parsing = parsing;
         if (totalBytes is { } total) (t_left, t_counting) = (counting ? Math.Min(left, total) : total, true);
         var entered = t_left;
         try
@@ -61,7 +66,7 @@ internal static class BoundedFilters
         {
             // What was spent inside counts against an outer total too.
             var spent = entered - t_left;
-            (t_limit, t_left, t_counting) = (limit, counting ? left - spent : left, counting);
+            (t_limit, t_left, t_counting, t_parsing) = (limit, counting ? left - spent : left, counting, wasParsing);
         }
     }
 
@@ -85,6 +90,14 @@ internal static class BoundedFilters
         if (t_counting) t_left -= bytes;
     }
 
+    /// <summary>What a stage decoded, counted and, while a file opens, checked; returned for the next stage.</summary>
+    private static byte[] Decoded(byte[] bytes, int limit)
+    {
+        Spend(bytes.Length, limit);
+        if (t_parsing) PdfShapeGuard.CheckObjectStream(bytes);
+        return bytes;
+    }
+
     /// <summary>Flate: inflated a chunk at a time and kept nowhere when the stream could go past the limit, then decoded by PDFsharp.</summary>
     private sealed class BoundedFlate : FlateDecode
     {
@@ -92,9 +105,7 @@ internal static class BoundedFilters
         {
             var limit = Limit;
             if ((long)data.Length * MaxFlateRatio > limit && InflatesPast(data, limit)) Spend(long.MaxValue, limit);
-            var bytes = base.Decode(data, parms);
-            Spend(bytes.Length, limit);
-            return bytes;
+            return Decoded(base.Decode(data, parms), limit);
         }
 
         private static bool InflatesPast(byte[] raw, int limit)
@@ -125,9 +136,7 @@ internal static class BoundedFilters
             var limit = Limit;
             if ((long)data.Length * MaxLzwRatio > limit && Count(data) > limit) Spend(long.MaxValue, limit);
             // PDFsharp's LzwDecode keeps its state in the instance: one shared instance isn't safe on two threads.
-            var bytes = new LzwDecode().Decode(data, parms);
-            Spend(bytes.Length, limit);
-            return bytes;
+            return Decoded(new LzwDecode().Decode(data, parms), limit);
         }
 
         /// <summary>
@@ -211,9 +220,13 @@ internal static class BoundedFilters
                 foreach (var b in data) most += b == 'z' ? 4 : b is >= (byte)'!' and <= (byte)'u' ? 1 : 0;
                 if (most > limit) Spend(long.MaxValue, limit);
             }
-            var bytes = base.Decode(data, parms);
-            Spend(bytes.Length, limit);
-            return bytes;
+            return Decoded(base.Decode(data, parms), limit);
         }
+    }
+
+    /// <summary>ASCII hex: half its length, so no bomb, but what it decodes is parsed like any other stage's.</summary>
+    private sealed class CheckedAsciiHex : AsciiHexDecode
+    {
+        public override byte[] Decode(byte[] data, FilterParms? parms) => Decoded(base.Decode(data, parms), Limit);
     }
 }
