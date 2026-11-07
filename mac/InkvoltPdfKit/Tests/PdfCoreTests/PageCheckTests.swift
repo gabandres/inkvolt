@@ -193,6 +193,7 @@ struct PageCheckTests {
             ("text", { _ = try $0.text(1) }),
             ("textLines", { _ = try $0.textLines(1, annotations: true) }),
             ("exportRead", { _ = try $0.exportRead(1, images: false, jpegAbovePixels: 0, cancel: nil) }),
+            ("comparePage", { _ = try $0.comparePage(1) }),
             ("renderRegionRgba", { _ = try $0.renderRegionRgba(1, RectD(0, 0, 100, 100), scale: 1, cancel: nil) }),
         ]
         for (name, call) in calls {

@@ -7,6 +7,9 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 
 ## Next
 - Search Folders (Edit › Find › Search Folders…, ⌥⇧⌘F): add a folder and Inkvolt PDF indexes every PDF in it and its subfolders on this Mac, then finds a word across all of them in a moment, with the text around each hit. A result opens at the hit. The index keeps up as files change, and says which files it couldn't read and why.
+- Compare Files compares a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page with a PDF. A scan's words are recognized on this Mac first; Compare Without Reading Them skips that.
+- Compare Files lists font, size, bold, italic and color changes apart from changes to the words, and a paragraph that moved as one move, with any words edited inside it as their own changes. Running headers and page numbers are left out. A box for each kind hides it.
+- Compare Files lines up two scans of a page that were fed a little crooked or shifted before overlaying them, and lists what looks different besides the words. Changes read from a scan that a recognizer often gets wrong (l and 1, O and 0) are marked as maybe misread. The annotated copy has all of it.
 
 ## 1.8.0
 - Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.

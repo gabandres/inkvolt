@@ -23,6 +23,17 @@
         }
       }
     },
+    " This may be a misreading of the scan.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Puede que sea un error de lectura del escaneo."
+          }
+        }
+      }
+    },
     " accessibility.html": {
       "extractionState": "manual",
       "localizations": {
@@ -382,6 +393,17 @@
           "stringUnit": {
             "state": "translated",
             "value": ", detenido antes del final"
+          }
+        }
+      }
+    },
+    ", {0} of them may be misread on the scan": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", {0} de ellos pueden ser errores de lectura del escaneo"
           }
         }
       }
@@ -3532,6 +3554,39 @@
         }
       }
     },
+    "Compare Office files and scans": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparar archivos de Office y escaneos"
+          }
+        }
+      }
+    },
+    "Compare a Word, Excel or PowerPoint file or a scan with a PDF, the scan's words recognized on this Mac, and see font, size, bold, italic and color changes listed apart from wording.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compara un archivo de Word, Excel o PowerPoint, o un escaneo, con un PDF (las palabras del escaneo se reconocen en este Mac) y ve los cambios de fuente, tamaño, negrita, cursiva y color en una lista aparte de los cambios de texto."
+          }
+        }
+      }
+    },
+    "Comparing Office files, scans and formatting is part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparar archivos de Office, escaneos y formato forma parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
     "Condition": {
       "extractionState": "manual",
       "localizations": {
@@ -5457,6 +5512,17 @@
         }
       }
     },
+    "Formatting: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formato: {0}"
+          }
+        }
+      }
+    },
     "Forms": {
       "extractionState": "manual",
       "localizations": {
@@ -6898,6 +6964,17 @@
         }
       }
     },
+    "Looks different in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ve distinto en {0}."
+          }
+        }
+      }
+    },
     "Made by Inkvolt PDF on this computer; nothing was sent anywhere, and no address in the file was contacted.": {
       "extractionState": "manual",
       "localizations": {
@@ -7191,6 +7268,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "Modificado (XMP)"
+          }
+        }
+      }
+    },
+    "Moved here from page {0} of {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movido aquí desde la página {0} de {1}."
+          }
+        }
+      }
+    },
+    "Moved here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movido aquí."
+          }
+        }
+      }
+    },
+    "Moved to page {0}: “{1}”": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movido a la página {0}: “{1}”"
           }
         }
       }
@@ -17491,6 +17601,39 @@
         }
       }
     },
+    "black": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "negro"
+          }
+        }
+      }
+    },
+    "bold added": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "negrita agregada"
+          }
+        }
+      }
+    },
+    "bold removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "negrita quitada"
+          }
+        }
+      }
+    },
     "check marks and other ZapfDingbats symbols embedded": {
       "extractionState": "manual",
       "localizations": {
@@ -17498,6 +17641,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "se incrustaron las marcas de verificación y otros símbolos ZapfDingbats"
+          }
+        }
+      }
+    },
+    "color {0} → {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "color {0} → {1}"
           }
         }
       }
@@ -17762,6 +17916,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "archivos adjuntos"
+          }
+        }
+      }
+    },
+    "font {0} → {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fuente {0} → {1}"
           }
         }
       }
@@ -18070,6 +18235,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "admite como máximo {0} caracteres (se dieron {1})"
+          }
+        }
+      }
+    },
+    "italic added": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cursiva agregada"
+          }
+        }
+      }
+    },
+    "italic removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cursiva quitada"
           }
         }
       }
@@ -18822,6 +19009,17 @@
         }
       }
     },
+    "size {0} → {1} pt": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tamaño {0} → {1} pt"
+          }
+        }
+      }
+    },
     "smoothing and alternate versions PDF/A doesn't allow taken off {0} picture": {
       "extractionState": "manual",
       "localizations": {
@@ -19317,6 +19515,17 @@
         }
       }
     },
+    "unnamed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin nombre"
+          }
+        }
+      }
+    },
     "what happens when the document opens": {
       "extractionState": "manual",
       "localizations": {
@@ -19346,6 +19555,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "qué capas se muestran"
+          }
+        }
+      }
+    },
+    "white": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blanco"
           }
         }
       }
@@ -20010,6 +20230,28 @@
         }
       }
     },
+    "{0} formatting change": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} cambio de formato"
+          }
+        }
+      }
+    },
+    "{0} formatting changes": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} cambios de formato"
+          }
+        }
+      }
+    },
     "{0} forms made": {
       "extractionState": "manual",
       "localizations": {
@@ -20325,6 +20567,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} más sin indexar: el índice de una carpeta guarda como máximo {1} PDF."
+          }
+        }
+      }
+    },
+    "{0} moved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} movidos"
           }
         }
       }
@@ -21513,6 +21766,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "{1} ({0} veces)"
+          }
+        }
+      }
+    },
+    "{1}'s page is larger: {0} area beyond this page's edge looks different.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página de {1} es más grande: {0} área fuera del borde de esta página se ve distinta."
+          }
+        }
+      }
+    },
+    "{1}'s page is larger: {0} areas beyond this page's edge look different.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página de {1} es más grande: {0} áreas fuera del borde de esta página se ven distintas."
           }
         }
       }

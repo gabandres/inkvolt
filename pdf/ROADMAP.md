@@ -19,7 +19,7 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 3.1, 3.3, 3.4 and 3.5,
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 3.1, 3.4 and 3.5 (3.3 done 2026-11-07),
 in the order of the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
@@ -805,7 +805,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
   contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
 - **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
-  formatting are still to do there).
+  formatting came 2026-11-07).
 - **Now.** Windows done 2026-10-31. Either side can be an Office file (Word, Excel, PowerPoint through the installed Office,
   with the same checks as opening one), a picture of a page or a PDF. A page whose pictures cover 70% of it is a scan; one with
   no text is recognized first (Windows' OCR, skippable), and its text gets no formatting changes. Font, size, bold, italic and color
@@ -820,6 +820,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
   marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`. A scan
   isn't lined up when scanned at another size or a quarter turn off.
+- **Mac (2026-11-07):** File › Compare Files… takes a Word, Excel or PowerPoint file (made into a PDF by LibreOffice, with the
+  same checks as opening one: Word for Mac can't be driven yet) or a picture of a scanned page on either side; a page whose
+  pictures cover 70% of it is a scan, and one with no text is recognized first with Vision on this Mac (Compare Without
+  Reading Them skips it). PdfCore's `CompareLooks`, `CompareMoves` (with `CompareRunningLines`), `CompareScan`, `CompareAlign`
+  (with `VisualAreas`) ported with their tests (CompareChangesTests, CompareAlignTests, CompareContractTests: Word's two contract
+  PDFs read in place list the 30 planted changes, none extra); each kind with a box to hide it; scans lined up before the
+  overlay; what looks different besides the words listed and in the annotated copy. Pro (`ProFeature.compareOfficeAndScans`; the
+  gate stays off). A page the engine refuses (the page checks) is listed as not compared. The self-test compares a word set in
+  bold and a scanned page (`--only-compare`). **Not checked on the Mac:** a real .docx through LibreOffice against Word's PDF, a
+  real scan. What differs and why: mac/docs/PLAN.md, "Compare: Office files, scans and formatting".
 
 ### 3.4 Long-term validation for signatures
 - **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped

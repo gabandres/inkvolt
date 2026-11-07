@@ -18,7 +18,7 @@ import PdfCore
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
 /// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
-/// `CompareTest` and `FolderSearchTest` (`--only-folder-search` runs it alone); with
+/// `CompareTest` (`--only-compare` runs it alone) and `FolderSearchTest` (`--only-folder-search` runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
 /// through AppKit's close-all with unsaved changes. `--synthetic` opens
@@ -61,6 +61,8 @@ enum Report {
         Scenario(flag: "--only-menus", documents: .synthetic) { c, n in var t = MenuTest(controller: c, name: n); await t.run() },
         // Edit › Find › Search Folders… on a folder of synthetic PDFs, with an index folder of its own.
         Scenario(flag: "--only-folder-search", documents: .synthetic) { c, n in var t = FolderSearchTest(controller: c, name: n); await t.run() },
+        // File › Compare Files on versions made here: text, formatting, a scanned page.
+        Scenario(flag: "--only-compare", documents: .synthetic) { _, _ in var t = CompareTest(); await t.run() },
         Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
         // Printing to PDF files: vectors, pictures, every layout.
         Scenario(flag: "--only-print", documents: .notForm) { c, n in

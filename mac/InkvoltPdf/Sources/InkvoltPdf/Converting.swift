@@ -58,6 +58,42 @@ enum Converting {
         }
     }
 
+    /// File › Compare Files' Office side (Windows' `Comparing.LoadFile`): the file made into PDF bytes behind a progress
+    /// window with Cancel, with the same checks as opening one; nothing is opened. Nil when it wasn't (cancelled, or failed
+    /// and said so).
+    static func pdfForCompare(_ url: URL) async -> [UInt8]? {
+        let name = url.lastPathComponent
+        let installs = installs()
+        if let problem = OfficeConversion.precheck(url.path, installs) {
+            tell(loc("Can't compare {0}", name), problem)
+            return nil
+        }
+        let internet = OfficeFiles.isFromInternet(url.path)
+        if internet && !confirmInternet(name) { return nil }
+        let converterName = installs.route(url.path)?.appName ?? "LibreOffice"
+        let path = url.path
+        let sheet = ProgressSheet(title: loc("Comparing {0}", name), text: loc("Converting with {0}…", converterName))
+        let parent = NSApp.keyWindow ?? NSApp.mainWindow
+        if let parent, parent.sheetParent == nil, parent.attachedSheet == nil, !(parent is NSPanel) { sheet.begin(on: parent) } else { sheet.showAlone() }
+        let id = ObjectIdentifier(sheet), ended = DispatchSemaphore(value: 0)
+        running[id] = (sheet.token, ended)
+        defer {
+            running[id] = nil
+            ended.signal()
+            sheet.end()
+        }
+        let token = sheet.token
+        do {
+            return try await Task.detached { try OfficeConversion.convert(path, installs: installs, fromInternetConfirmed: internet, cancel: token) }.value
+        } catch is CancellationError {
+            return nil
+        } catch {
+            sheet.end()
+            tell(loc("Couldn't convert {0}", name), (error as? PdfEditError)?.message ?? error.localizedDescription)
+            return nil
+        }
+    }
+
     /// How a web page was laid out, for the notice: "Letter landscape, narrow margins", as Windows says it.
     private static func describe(_ options: WebPdfOptions) -> String {
         let paper = switch options.paper {
