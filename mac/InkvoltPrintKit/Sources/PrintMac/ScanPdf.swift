@@ -76,10 +76,9 @@ public enum ScanPdf {
 
     /// The words on a page, recognised by Vision on this Mac in `language` (a BCP-47 tag, matched to Vision's by
     /// `visionTag`; nil or not read here: Vision tells the language itself); nil when recognition fails (the page still
-    /// saves, without text).
+    /// saves, without text), as for a page too large to clean up (`ScanImaging.decode`: never decoded at full size).
     public static func recognize(_ jpeg: [UInt8], language: String? = nil) -> [OcrWord]? {
-        guard let source = CGImageSourceCreateWithData(Data(jpeg) as CFData, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+        guard let image = try? ScanImaging.decode(jpeg, maxPixels: nil) else { return nil }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true

@@ -289,12 +289,17 @@ final class ScanModel {
         return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos, paperEdge: edge)
     }
 
+    /// Past `PageCleanup.maxPixels` by its header (read without decoding): saved as scanned, never decoded at full size.
+    nonisolated static func tooLargeToEdit(_ jpeg: [UInt8]) -> Bool {
+        ScanImaging.size(jpeg).map { PageCleanup.tooLarge($0.width, $0.height) } ?? false
+    }
+
     @discardableResult
     private func add(_ jpeg: [UInt8], dpi: Int, check c: PageCheck) async -> String {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
         if let origin = ScannerPdf.origin(of: jpeg) { origins[id] = origin }
-        pages.add(ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage))
+        pages.add(ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage, tooLargeToEdit: Self.tooLargeToEdit(jpeg)))
         keep()
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
@@ -506,8 +511,10 @@ final class ScanModel {
 
     /// What the Clean up view says after drawing `edits` for `wanted` (the Windows app's `CleanNote`).
     func cleanNote(_ id: String, _ wanted: PageFilters, _ edits: PageEdits) -> String {
-        if let size = images[id].flatMap(ScanImaging.size), PageCleanup.tooLarge(size.width, size.height), !wanted.isDisjoint(with: .pixelFilters) {
-            return String(localized: "This page is too large to clean up (\(size.width * size.height / 1_000_000) million pixels): it is saved as scanned.")
+        if let size = images[id].flatMap(ScanImaging.size), PageCleanup.tooLarge(size.width, size.height) {
+            let pixels = size.width.multipliedReportingOverflow(by: size.height) // a header's sizes: the product can overflow
+            let shown = (pixels.overflow ? Int.max : pixels.partialValue) / 1_000_000
+            return String(localized: "This page is too large to clean up, straighten, crop or turn (\(shown) million pixels): it is saved as scanned.")
         }
         let photos = pages.page(id)?.hasPhotos ?? false
         if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
@@ -660,7 +667,10 @@ final class ScanModel {
             }
         }
         if pages.isEmpty { pages.keepSeparators = keepSeparators }
-        for p in restored.pages { pages.add(p) }
+        for var p in restored.pages {
+            p.tooLargeToEdit = images[p.id].map(Self.tooLargeToEdit) ?? false
+            pages.add(p)
+        }
         ScanRecoveryStore.remove(left)
         keep()
         for p in pages.pages { refreshThumbnail(p.id) }

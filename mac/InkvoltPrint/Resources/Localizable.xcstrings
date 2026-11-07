@@ -5554,12 +5554,12 @@
         }
       }
     },
-    "This page is too large to clean up (%lld million pixels): it is saved as scanned.": {
+    "This page is too large to clean up, straighten, crop or turn (%lld million pixels): it is saved as scanned.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta página es demasiado grande para limpiarla (%lld millones de píxeles): se guarda tal como se escaneó."
+            "value": "Esta página es demasiado grande para limpiarla, enderezarla, recortarla o girarla (%lld millones de píxeles): se guarda tal como se escaneó."
           }
         }
       }

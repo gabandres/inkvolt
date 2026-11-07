@@ -287,6 +287,21 @@ sheet's buttons were cut off (it's wider now) |
 - Local Network access has no API: `LocalNetworkSignal` is told by the transports and Bonjour (denied: URLSession's -1009
   whose network path says `localNetworkDenied`, `EHOSTUNREACH` on UDP, `PolicyDenied`; allowed: any answer). Denied shows a
   banner with a link to System Settings; once allowed, discovery and the offline printers start again at once.
+- A scanned page past `PageCleanup.maxPixels` (300 M pixels by its header, read without decoding; hostile-input review,
+  2026-11-06): saved as the scanner sent it with no edit at all, where Windows drops only its filters and still turns,
+  straightens and crops it at full size (a JPEG claiming 65,500 × 65,500 is 17 GB as RGBA, twice over for PageRotate).
+  PrintCore: `PageEdits.for(width:height:)` is `.none` there; `ScannedPage.tooLargeToEdit` (set by the app from the
+  header, not kept in the recovery folder) stops the page check straightening, cleaning up or finding photos, refuses photos
+  set by hand, and its note says "Saved as scanned: too large to straighten, crop or turn" (the Clean up view says it with
+  the millions of pixels). PrintMac: `ScanImaging.decode`, which every scan decode goes through (OCR's `ScanPdf.recognize`
+  and `IdCardSheet` too), never decodes such a page at full size and makes a small copy of it only from a baseline JPEG
+  (`isBaselineJpeg`: a progressive one or another kind isn't decoded at all); an ImageCapture page file over
+  `DeviceHttp.maxScanReplyBytes` isn't read and ends the scan with a message. Batch print pictures were already refused
+  past `BatchPrintLimits.maxPicturePixels` and photo sheets read at most 3000 px; ScannedPdfPages past 200 M pixels.
+  Tests: PageCleanupTests.aPageTooLargeToCleanSavesAsScanned (Windows' twin, the Mac's ending), ScanPagesTests.
+  aPageTooLargeToEditIsSavedAsScannedAndSaysWhy, MacImagingTests.aPageTooLargeToEditIsSavedAsScannedNotTurnedOrCropped,
+  aPageClaimingAHugeSizeIsNeverDecodedAtFullSize, aHugePageThatIsntABaselineJpegIsntDecodedEvenSmall,
+  anImageCaptureFileLargerThanAScannedPageIsntRead.
 - The state file is `state.json` in the container's Application Support/InkvoltPrint, with Swift's JSON keys
   (`StateStore`: remembered printers, the selection, pins, accepted UUIDs, forgotten printers, alerts shown). Demo mode's
   state is in memory.

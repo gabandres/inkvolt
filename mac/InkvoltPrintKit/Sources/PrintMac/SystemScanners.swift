@@ -202,7 +202,13 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
-        if let data = try? Data(contentsOf: url) { pages?.yield([UInt8](data)) }
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        if size > DeviceHttp.maxScanReplyBytes {
+            pages?.finish(throwing: ScanError(loc("The scanner sent a page too large to read.")))
+            pages = nil
+        } else if let page = Self.pageFile(url) {
+            pages?.yield(page)
+        }
         try? FileManager.default.removeItem(at: url)
     }
 
@@ -220,8 +226,12 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     }
 
     /// The scanner's error in plain words.
+    /// A page ImageCapture wrote, read only when it is no larger than `limit` (an eSCL page's: `DeviceHttp.maxScanReplyBytes`);
+    /// nil when it is larger or can't be read. Its pixels are bounded later, as an eSCL page's are (`ScanImaging`).
     nonisolated static func pageFile(_ url: URL, limit: Int = DeviceHttp.maxScanReplyBytes) -> [UInt8]? {
-        (try? Data(contentsOf: url)).map { [UInt8]($0) }
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= limit,
+              let data = try? Data(contentsOf: url), data.count <= limit else { return nil }
+        return [UInt8](data)
     }
 
     nonisolated static func words(_ error: any Error) -> String {
