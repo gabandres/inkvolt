@@ -285,7 +285,7 @@ public enum CompareRunningLines {
             }
         }
 
-        let needed = max(2, Int((Double(eligible) * minShare).rounded(.up)))
+        let needed = max(2, Int((Double(eligible) * minShare).rounded(.up))) // bounded: at most the page count
         var counting: [String: [Bool]?] = [:]
         var running = Set<String>()
         var lines = [[(key: String, start: Int, end: Int)]](repeating: [], count: pages.count)

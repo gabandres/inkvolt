@@ -1193,7 +1193,8 @@ final class CompareRowsView: NSView {
         var newImage = try new.render(n, scale: scale, cancel: cancel)
         if !alignment.isNone {
             let og = old.page(o), ng = new.page(n)
-            let w = Int((max(og.width, ng.width) * scale).rounded(.up)), h = Int((max(og.height, ng.height) * scale).rounded(.up))
+            let w = Int(exactly: (max(og.width, ng.width) * scale).rounded(.up)) ?? oldImage.width
+            let h = Int(exactly: (max(og.height, ng.height) * scale).rounded(.up)) ?? oldImage.height
             newImage = try CompareAlign.resample(newImage, 0, 0, scale, alignment, w, h, cancel: cancel)
         }
         if scan { return try VisualCompare.overlayScans(oldImage, newImage, scale, cancel: cancel) }

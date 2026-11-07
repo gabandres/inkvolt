@@ -82,7 +82,7 @@ public enum VisualCompare {
     /// The overlay of two scans rendered at `scale` pixels per point: ink may land a point and a half off, and a speck
     /// doesn't count.
     public static func overlayScans(_ oldImage: RenderedImage, _ newImage: RenderedImage, _ scale: Double, cancel: CancelToken? = nil) throws -> VisualDiff {
-        let slack = Int(min(6, max(2, (1.5 * scale).rounded())))
+        let slack = scale.isFinite ? Int(min(6, max(2, (1.5 * scale).rounded()))) : 2 // bounded: finite, clamped to 2...6
         return try overlay(oldImage, newImage, minPixels: 6, cancel: cancel, slack: slack)
     }
 

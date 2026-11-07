@@ -85,7 +85,7 @@ public enum CompareAlign {
         let w = max(oldImage.width, newImage.width), h = max(oldImage.height, newImage.height)
         if w < 16 || h < 16 || Double(w) * Double(h) > maxWorkPixels * 1.5 { return .none }
         let oldGray = gray(oldImage, w, h), newGray = gray(newImage, w, h)
-        let dpi = Int((scale * 72).rounded())
+        let dpi = Int(exactly: (scale * 72).rounded()) ?? 100
         var turn = ScanCleanup.skewOf(GrayImage(w, h, newGray), dpi) - ScanCleanup.skewOf(GrayImage(w, h, oldGray), dpi)
         if !turn.isFinite || abs(turn) > maxAngle { turn = 0 }
         try cancel?.check()
@@ -139,7 +139,7 @@ public enum CompareAlign {
                 let n = a.toNew(x0 + (Double(x) + 0.5) / scale, y0 + (Double(y) + 0.5) / scale)
                 let sx = (n.x - sourceX) * scale - 0.5, sy = (n.y - sourceY) * scale - 0.5
                 guard sx.isFinite, sy.isFinite, sx >= -1, sy >= -1, sx < Double(sw), sy < Double(sh) else { continue } // white
-                let ix = Int(sx.rounded(.down)), iy = Int(sy.rounded(.down))
+                let ix = Int(sx.rounded(.down)), iy = Int(sy.rounded(.down)) // bounded: finite, within -1 and the source's size (the guard above)
                 let fx = sx - Double(ix), fy = sy - Double(iy)
                 let at = row + x * 3
                 for c in 0..<3 {
@@ -286,7 +286,7 @@ public enum VisualAreas {
         return lines
     }
 
-    private static func rounded(_ v: Double) -> Int { v.isFinite ? Int(max(-1e9, min(1e9, v.rounded()))) : 0 }
+    private static func rounded(_ v: Double) -> Int { v.isFinite ? Int(max(-1e9, min(1e9, v.rounded()))) : 0 } // bounded: finite, clamped to 1e9
 
     /// The areas of `regions` (points of the old page) that are mostly not under text on either page: where the words
     /// differ the text compare has said so. The new page's text is brought over through `alignment`.
