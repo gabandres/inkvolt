@@ -1086,7 +1086,8 @@ public static class FormDesign
         var bc = PdfColorValue.From(PdfObj.Array(mk.Elements["/BC"]));
         var bs = PdfObj.Dict(w.Elements["/BS"]);
         var bw = bs?.Elements.ContainsKey("/W") == true ? PdfObj.Num(bs.Elements["/W"], 1) : 1;
-        var glyph = PdfObj.Str(mk.Elements["/CA"]) is { Length: 1 } ca ? ca[0] : radio ? 'l' : '4';
+        // The caption's first character (Acrobat's symbol), the default dot or tick without one.
+        var glyph = PdfObj.Str(mk.Elements["/CA"])?.Trim() is { Length: > 0 } ca ? ca[0] : radio ? 'l' : '4';
         if (!mk.Elements.ContainsKey("/CA")) mk.Elements["/CA"] = new PdfString(glyph.ToString());
 
         string Frame(bool down)

@@ -465,14 +465,15 @@ public class FormActionTests
     }
 
     [Fact]
-    public void SpecialKeystrokesFormatPhoneNumbersAsTyped()
+    public void SpecialKeystrokesCheckPhoneNumbersAsTyped()
     {
         using var phone = Keys("AFSpecial_Keystroke\\(2\\);");
         var r = phone.Run("555", "1", 3, 3)!;
-        Assert.Equal((true, "555-1", 0, 3), (r.Accepted, r.Change, r.SelStart, r.SelEnd));
-        r = phone.Run("555-1234", "5", 8, 8)!;
-        Assert.Equal("(555) 123-45", r.Change);
+        Assert.Equal((true, "1", 3, 3), (r.Accepted, r.Change, r.SelStart, r.SelEnd)); // the format adds the separators
+        Assert.True(phone.Run("555", "-", 3, 3)!.Accepted);
+        Assert.True(phone.Run("(555) 123-456", "7", 13, 13)!.Accepted);
         Assert.False(phone.Run("555", "x", 3, 3)!.Accepted);
+        Assert.False(phone.Run("5551234567", "8", 10, 10)!.Accepted);
 
         using var mask = Keys("AFSpecial_KeystrokeEx\\('99-AA'\\);");
         r = mask.Run("12", "x", 2, 2)!;
@@ -481,6 +482,39 @@ public class FormActionTests
 
         using var upper = Keys("event.change = event.change.toUpperCase\\(\\);");
         Assert.Equal("ABC", upper.Run("", "abc", 0, 0)!.Change);
+    }
+
+    /// <summary>
+    /// ca-ftb-540's SSN field: AFSpecial with a MaxLen of its digits. Typed as the page view types (each keystroke's
+    /// verdict applied within MaxLen), the digits all fit: the dashes are the format's, as in Acrobat.
+    /// </summary>
+    [Theory]
+    [InlineData(3, 9, "123456789", "123-45-6789")]
+    [InlineData(1, 9, "123456789", "12345-6789")]
+    [InlineData(2, 10, "5551234567", "(555) 123-4567")]
+    [InlineData(0, 5, "12345", "12345")]
+    public void SpecialFieldsTakeTheirDigitsWithinMaxLenAndShowTheFormat(int psf, int maxLen, string digits, string shown)
+    {
+        var doc = Doc([Text("f", 0, $"/MaxLen {maxLen} /AA << /K << /S /JavaScript /JS (AFSpecial_Keystroke\\({psf}\\);) >> " +
+                                    $"/F << /S /JavaScript /JS (AFSpecial_Format\\({psf}\\);) >> >>")]);
+        var value = "";
+        using (var keys = FieldKeystrokes.Open(doc, null, "f")!)
+        {
+            foreach (var ch in digits)
+            {
+                var r = keys.Run(value, ch.ToString(), value.Length, value.Length)!;
+                Assert.True(r.Accepted, $"{ch} after {value}");
+                value = value[..r.SelStart] + FieldKeystrokes.Fit(value, r.SelStart, r.SelEnd, r.Change, maxLen) + value[r.SelEnd..];
+            }
+            Assert.False(keys.Run(value, "1", value.Length, value.Length)!.Accepted); // one digit too many
+            Assert.False(keys.Run(value[..2], "a", 2, 2)!.Accepted);
+        }
+        Assert.Equal(digits, value);
+
+        var filled = FormEditor.Fill(doc, null, new Dictionary<string, string> { ["f"] = value });
+        Assert.Empty(filled.Rejected);
+        Assert.Equal(digits, ValueOf(filled.Data, "f")); // /V as typed, as Acrobat stores it
+        Assert.Equal(shown, FormEditor.Read(filled.Data, null).Single(w => w.FieldName == "f").DisplayValue ?? digits);
     }
 
     [Fact]

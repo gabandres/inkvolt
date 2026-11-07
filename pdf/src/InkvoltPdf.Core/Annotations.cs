@@ -362,6 +362,7 @@ public static partial class Annotations
         _ => null,
     };
 
+    /// <summary>Opens the document to change its comments: an encrypted one whose permissions allow comments needs no owner password.</summary>
     internal static PdfDocument OpenForEdit(byte[] data, string? password) =>
-        PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
+        PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit, UserEdit.Annotate);
 }

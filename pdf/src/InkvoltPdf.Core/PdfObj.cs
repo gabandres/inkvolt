@@ -93,10 +93,25 @@ internal static class PdfObj
     /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
     /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
     /// open in Inkvolt PDF goes through here, on bytes already made readable when the document opened
-    /// (<see cref="PdfRepair.Normalize"/>): nothing here retries.
+    /// (<see cref="PdfRepair.Normalize"/>). The one retry: an encrypted file whose updates each name /Encrypt, which PDFsharp
+    /// fails to read with "Indirect reference without value", is read from a copy naming it in its newest section only
+    /// (<see cref="PdfRepair.NewestEncryptOnly"/>; the bytes themselves, which signatures cover, stay as they are).
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
-    public static PdfDocument Read(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes) =>
+    public static PdfDocument Read(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
+    {
+        try
+        {
+            return ReadOnce(data, password, mode, maxBytes);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("Indirect reference without value", StringComparison.Ordinal) &&
+                                                   PdfRepair.NewestEncryptOnly(data) is { } patched)
+        {
+            return ReadOnce(patched, password, mode, maxBytes);
+        }
+    }
+
+    private static PdfDocument ReadOnce(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
         BoundedFilters.Within(maxBytes, maxBytes, () =>
         {
             var stream = new MemoryStream(data, writable: false);
@@ -111,7 +126,9 @@ internal static class PdfObj
 
     public static string F(double v) => Math.Round(v, 3).ToString("0.###", Inv);
 
-    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string? failure = null)
+    /// <param name="edit">What a Modify-mode open is for: an encrypted document whose /P allows it is edited with its user
+    /// password (<see cref="UserPasswordEdits"/>) instead of asking for the owner password.</param>
+    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string? failure = null, UserEdit edit = UserEdit.None)
     {
         failure ??= PdfStrings.Doc_CantRead;
         try
@@ -127,7 +144,27 @@ internal static class PdfObj
         }
         catch (PdfReaderException ex)
         {
-            throw ReaderError(ex, mode, failure);
+            var error = ReaderError(ex, mode, failure);
+            if (error is OwnerPasswordRequiredException { WrongPassword: false } && edit != UserEdit.None && WithUserPassword(data, password, edit) is { } doc)
+                return doc;
+            throw error;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="UserPasswordEdits.Open"/>, null when it fails in any way (a file it can't copy, a handler it refuses): the
+    /// caller then asks for the owner password, as for anything else the user password can't do. A stream too large to
+    /// decode says so (<see cref="StreamTooLargeException"/>), as every open does.
+    /// </summary>
+    private static PdfDocument? WithUserPassword(byte[] data, string? password, UserEdit edit)
+    {
+        try
+        {
+            return UserPasswordEdits.Open(data, password, edit);
+        }
+        catch (Exception ex) when (ex is not (OutOfMemoryException or StreamTooLargeException))
+        {
+            return null;
         }
     }
 
@@ -159,6 +196,8 @@ internal static class PdfObj
     /// <exception cref="SignaturesWouldBreakException">A signed document whose edit can't be appended (see <see cref="SignedEdits"/>).</exception>
     public static byte[] Save(PdfDocument doc, bool rewrite = false, bool bareXmp = false)
     {
+        // Opened with the user password only (UserPasswordEdits): a rewrite would drop the encryption.
+        if (rewrite && Incremental.IsUserPasswordEdit(doc)) throw new OwnerPasswordRequiredException(false);
         var xmp = Xmp.Read(doc);
         if (!rewrite && Incremental.Save(doc, xmp) is { } appended) return appended;
         KeptProtection.Reapply(doc);

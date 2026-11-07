@@ -265,6 +265,15 @@ public static partial class FormEditor
         if (indices.Count > 0 && indices.Count == parts.Count)
             f.Dict.Elements["/I"] = new PdfArray(doc, [.. indices.Select(i => (PdfItem)new PdfInteger(i))]);
         else f.Dict.Elements.Remove("/I"); // selected indices would contradict a custom value
+
+        // Widgets that carry their own /I or /V (pdflib writes them) would keep showing the old choice in pdf.js: they
+        // inherit the field's instead.
+        foreach (var w in f.Widgets)
+            if (!ReferenceEquals(w, f.Dict))
+            {
+                w.Elements.Remove("/I");
+                w.Elements.Remove("/V");
+            }
     }
 
     /// <summary>
@@ -429,6 +438,11 @@ public static partial class FormEditor
     /// <summary>Builds what a field needs to show its value by itself; false when some widget still has no appearance.</summary>
     private static bool BuildAppearance(PdfDocument doc, PdfDictionary? acro, Field f, JsFormHost? js)
     {
+        // A kid widget without /Parent (the field lists it in /Kids): MuPDF doesn't take it for the field's widget and
+        // shows none of its value (qpdf's form-document-defaults).
+        foreach (var w in f.Widgets)
+            if (!ReferenceEquals(w, f.Dict) && !w.Elements.ContainsKey("/Parent") && f.Dict.Reference is { } field)
+                w.Elements["/Parent"] = field;
         switch (f.Type)
         {
             case "/Tx" or "/Ch":
@@ -450,9 +464,11 @@ public static partial class FormEditor
     }
 
     /// <summary>
-    /// Gives each check box or radio widget whose normal appearance is a single stream (or missing) on and off faces:
-    /// redrawn from its /MK (border, background, symbol) when it has one, else the single face as "on" and an empty
-    /// "off". Without that, its /AS can't switch what it shows.
+    /// Gives each check box or radio widget faces it can show on and off with: only a face that is missing or empty is
+    /// drawn, in its /MK's style (border, background, the /CA symbol; the default tick or dot without one), and every face
+    /// that draws something is kept. A single face is kept as "on" (an "off" drawn from /MK's border and background, empty
+    /// without them); a state dictionary whose on face is missing or empty (pdfTeX writes an empty dictionary) gets a new
+    /// one. Without that, its /AS can't switch what it shows.
     /// </summary>
     private static void EnsureStateFaces(PdfDocument doc, Field f)
     {
@@ -460,34 +476,73 @@ public static partial class FormEditor
         for (var i = 0; i < f.Widgets.Count; i++)
         {
             var w = f.Widgets[i];
-            var normal = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"]);
-            if (normal is { Stream: null }) continue;
+            var ap = PdfObj.Dict(w.Elements["/AP"]);
+            var normal = PdfObj.Dict(ap?.Elements["/N"]);
             var state = OnStateOf(w) ?? "Yes";
+            if (normal is { Stream: null } && DrawsSomething(normal.Elements["/" + state])) continue;
             var shown = PdfObj.Name(w.Elements["/AS"]);
-            if (PdfObj.Dict(w.Elements["/MK"]) is { } mk && (mk.Elements.ContainsKey("/BC") || mk.Elements.ContainsKey("/BG") || mk.Elements.ContainsKey("/CA")))
+            var single = normal is { Stream: not null } && DrawsSomething(normal) ? normal : null;
+            var down = PdfObj.Dict(ap?.Elements["/D"]);
+            Redraw(w, state);
+            if (PdfObj.Dict(w.Elements["/AP"]) is { } drawn && !ReferenceEquals(drawn, ap))
             {
-                var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
-                var c = da.Color.C;
-                var mark = c.Length switch
-                {
-                    3 => new AnnotColor(c[0], c[1], c[2]),
-                    4 => new AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])),
-                    _ => new AnnotColor(c[0], c[0], c[0]),
-                };
-                FormDesign.ButtonFaces(doc, w, radio, state, mark);
+                // The faces that drew something stay: the single face as "on", a state dictionary's others, the down faces.
+                if (single is not null && PdfObj.Dict(drawn.Elements["/N"]) is { } on) on.Elements["/" + state] = single.Reference is { } r ? r : single;
+                foreach (var (key, old) in new[] { ("/N", normal), ("/D", down) })
+                    if (old is { Stream: null } && PdfObj.Dict(drawn.Elements[key]) is { } faces)
+                        foreach (var (face, value) in old.Elements)
+                            if (DrawsSomething(value)) faces.Elements[face] = value;
+                if (single is not null && down is null) drawn.Elements.Remove("/D"); // it had no down look: none is added
+                if (ap?.Elements["/R"] is { } rollover) drawn.Elements["/R"] = rollover;
             }
-            else if (normal is not null)
+            else if (single is not null && ap is not null)
             {
-                var bbox = PdfObj.Array(normal.Elements["/BBox"]);
+                // Nothing to draw in (no usable /Rect): the single face as "on" and an empty "off".
+                var bbox = PdfObj.Array(single.Elements["/BBox"]);
                 var off = PdfObj.FormXObject(doc, [], 0, 0, bbox is null ? 1 : PdfObj.Num(bbox, 2), bbox is null ? 1 : PdfObj.Num(bbox, 3), null);
                 var states = new PdfDictionary(doc);
-                states.Elements["/" + state] = normal.Reference is { } r ? r : normal;
+                states.Elements["/" + state] = single.Reference is { } r ? r : single;
                 states.Elements["/Off"] = off.Reference!;
-                PdfObj.Dict(w.Elements["/AP"])!.Elements["/N"] = states;
+                ap.Elements["/N"] = states;
             }
-            else continue; // no face and nothing to draw one from: NeedAppearances covers it
+            else continue; // no face and nothing to draw one in: NeedAppearances covers it
             w.Elements["/AS"] = new PdfName("/" + (shown == state ? state : "Off"));
         }
+
+        void Redraw(PdfDictionary w, string state)
+        {
+            var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
+            var c = da.Color.C;
+            var mark = c.Length switch
+            {
+                3 => new AnnotColor(c[0], c[1], c[2]),
+                4 => new AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])),
+                _ => new AnnotColor(c[0], c[0], c[0]),
+            };
+            FormDesign.ButtonFaces(doc, w, radio, state, mark);
+        }
+    }
+
+    /// <summary>
+    /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,
+    /// else its first byte that isn't white space, in the bytes as written or (filtered) the first few KB decoded.
+    /// </summary>
+    private static bool DrawsSomething(PdfItem? face)
+    {
+        if (PdfObj.Dict(face) is not { Stream: not null } d) return false;
+        var raw = d.Stream.Value;
+        if (raw.Length == 0) return false;
+        if (d.Elements["/Filter"] is null) return Visible(raw);
+        try
+        {
+            return Visible(PdfObj.StreamBytes(d, 4096));
+        }
+        catch (Exception ex) when (ex is StreamTooLargeException or IOException or InvalidDataException or InvalidOperationException)
+        {
+            return true; // more than a few KB, or can't tell: keep it
+        }
+
+        static bool Visible(ReadOnlySpan<byte> bytes) => bytes.IndexOfAnyExcept(" \n\r\t\f\0"u8) >= 0;
     }
 
     /// <summary>
@@ -590,22 +645,26 @@ public static partial class FormEditor
         Collect(doc, acro, fields);
         if (fields.Count == 0) return [];
 
-        // Which page each widget sits on (via the pages' /Annots; /P is optional and often wrong).
-        var pageOf = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
-        var annotOrder = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        // Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong). A widget listed
+        // by several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared).
+        var placesOf = new Dictionary<PdfDictionary, List<(int Page, int Index)>>(ReferenceEqualityComparer.Instance);
         var tabs = new string?[doc.PageCount];
         for (var i = 0; i < doc.PageCount; i++)
         {
             tabs[i] = PdfObj.Name(doc.Pages[i].Elements["/Tabs"]);
             if (PdfObj.Array(doc.Pages[i].Elements["/Annots"]) is not { } annots) continue;
             for (var k = 0; k < annots.Elements.Count; k++)
-                if (PdfObj.Dict(annots.Elements[k]) is { } a && pageOf.TryAdd(a, i)) annotOrder[a] = k;
+            {
+                if (PdfObj.Dict(annots.Elements[k]) is not { } a) continue;
+                if (!placesOf.TryGetValue(a, out var places)) placesOf[a] = places = [];
+                if (places.Count == 0 || places[^1].Page != i) places.Add((i, k));
+            }
         }
         var structOrder = tabs.Any(t => t == "S") ? StructureOrder(doc) : null;
         var calculated = CalculatedFields(fields);
         JsFormHost? js = null; // created on the first format script
 
-        var result = new List<(FormWidget W, PdfDictionary Annot)>();
+        var result = new List<(FormWidget W, PdfDictionary Annot, int Index)>();
         foreach (var f in fields)
         {
             var kind = f.Type switch
@@ -640,8 +699,8 @@ public static partial class FormEditor
                 display = Display(f, value, js ??= new JsFormHost(doc, fields, readOnly: true)).Text;
 
             foreach (var w in f.Widgets)
+            foreach (var (page, index) in placesOf.GetValueOrDefault(w) ?? [])
             {
-                if (!pageOf.TryGetValue(w, out var page)) continue;
                 if (PdfObj.Array(w.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) continue;
                 var rect = ToPageSpace(doc.Pages[page], PdfObj.Num(r, 0), PdfObj.Num(r, 1), PdfObj.Num(r, 2), PdfObj.Num(r, 3));
                 if (rect.IsEmpty) continue;
@@ -655,7 +714,7 @@ public static partial class FormEditor
                     labels.SequenceEqual(options) ? null : labels, multi,
                     kind == FormFieldKind.Radio && (f.Flags & FfNoToggleToOff) != 0,
                     kind == FormFieldKind.Text && (f.Flags & FfPassword) != 0,
-                    display, calculated.Contains(f), signed, TriggersOf(f, w), annotOrder.GetValueOrDefault(w, -1)), w));
+                    display, calculated.Contains(f), signed, TriggersOf(f, w), index), w, index));
             }
         }
 
@@ -666,10 +725,10 @@ public static partial class FormEditor
         foreach (var group in result.GroupBy(x => x.W.PageIndex).OrderBy(g => g.Key))
         {
             var tab = tabs[group.Key];
-            IEnumerable<(FormWidget W, PdfDictionary Annot)> items = tab switch
+            IEnumerable<(FormWidget W, PdfDictionary Annot, int Index)> items = tab switch
             {
-                "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => annotOrder.GetValueOrDefault(x.Annot)),
-                "A" or "W" => group.OrderBy(x => annotOrder.GetValueOrDefault(x.Annot)),
+                "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => x.Index),
+                "A" or "W" => group.OrderBy(x => x.Index),
                 "C" => group.OrderBy(x => ReadingOrder.Band(x.W.Rect.X)).ThenBy(x => ReadingOrder.Hundredths(x.W.Rect.Y)),
                 _ => group.OrderBy(x => ReadingOrder.Key(x.W.Rect)),
             };
@@ -762,28 +821,78 @@ public static partial class FormEditor
     internal static void Collect(PdfDocument doc, PdfDictionary? acro, List<Field> into)
     {
         var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        // The page each widget is on (its first, through /Annots, else its /P): a widget left without a name is named after it.
+        var pageOf = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        var pageIndex = new Dictionary<PdfDictionary, int>(ReferenceEqualityComparer.Instance);
+        for (var p = 0; p < doc.PageCount; p++)
+        {
+            pageIndex.TryAdd(doc.Pages[p], p);
+            if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is not { } annots) continue;
+            foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>()) pageOf.TryAdd(a, p);
+        }
+        int PageOf(PdfDictionary w) =>
+            pageOf.TryGetValue(w, out var p) ? p : PdfObj.Dict(w.Elements["/P"]) is { } page && pageIndex.TryGetValue(page, out p) ? p : 0;
+
+        // A widget without a name listed in /Fields itself (its parent left out) is a widget of its /Parent field: below.
+        var loose = new List<(PdfDictionary Widget, int Page)>();
         if (PdfObj.Array(acro?.Elements["/Fields"]) is { } top)
             foreach (var item in top.Elements)
-                if (PdfObj.Dict(item) is { } d) Walk(d, null, into, seen, 0);
+                if (PdfObj.Dict(item) is { } d)
+                {
+                    if (IsNamelessKid(d)) loose.Add((d, PageOf(d)));
+                    else Walk(d, null, into, seen, 0);
+                }
 
         // Some producers leave /Fields empty (or incomplete) and attach widgets only to pages. Viewers still treat
-        // those as fields, so pick up every widget not reached above, starting from its top-most parent field.
-        var unnamed = 0;
+        // those as fields, so pick up every widget not reached above.
         for (var p = 0; p < doc.PageCount; p++)
         {
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is not { } annots) continue;
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
+                if (!seen.Contains(a) && PdfObj.NameOf(a, "/Subtype") == "/Widget") loose.Add((a, p));
+        }
+
+        var unnamed = 0;
+        // Every field collected, by its dictionary: kept up to date as walks add fields (indexed: how many of into it holds).
+        var byDict = new Dictionary<PdfDictionary, Field>(ReferenceEqualityComparer.Instance);
+        var indexed = 0;
+        foreach (var (a, p) in loose)
+        {
+            if (seen.Contains(a)) continue;
+            // A widget without a name belongs to its /Parent field, as Acrobat reads it, even when the parent's /Kids
+            // leaves it out (pdf.js's opt_demo, qpdf's form-errors): walk the parent's tree if nothing reached it yet.
+            if (IsNamelessKid(a) && PdfObj.Dict(a.Elements["/Parent"]) is { } parent)
             {
-                if (seen.Contains(a) || PdfObj.NameOf(a, "/Subtype") != "/Widget") continue;
-                var root = a;
-                var guard = 0;
-                while (PdfObj.Dict(root.Elements["/Parent"]) is { } parent && !seen.Contains(parent) && guard++ < 64) root = parent;
-                if (seen.Contains(root)) continue;
-                var name = root.Elements.ContainsKey("/T") ? null : $"field{++unnamed}_p{p + 1}";
-                Walk(root, name, into, seen, 0);
+                if (!seen.Contains(parent))
+                {
+                    var ancestor = parent;
+                    var climb = 0;
+                    while (PdfObj.Dict(ancestor.Elements["/Parent"]) is { } up && !seen.Contains(up) && climb++ < 64) ancestor = up;
+                    Walk(ancestor, null, into, seen, 0);
+                    if (seen.Contains(a)) continue; // the parent's /Kids lists it: the walk made it one of its widgets
+                }
+                for (; indexed < into.Count; indexed++) byDict.TryAdd(into[indexed].Dict, into[indexed]);
+                if (byDict.TryGetValue(parent, out var owner))
+                {
+                    owner.Widgets.Add(a);
+                    seen.Add(a);
+                    continue;
+                }
             }
+            var root = a;
+            var guard = 0;
+            while (PdfObj.Dict(root.Elements["/Parent"]) is { } up && !seen.Contains(up) && guard++ < 64) root = up;
+            if (seen.Contains(root)) continue;
+            var name = root.Elements.ContainsKey("/T") ? null : $"field{++unnamed}_p{p + 1}";
+            Walk(root, name, into, seen, 0);
         }
     }
+
+    /// <summary>A widget with no name of its own under a /Parent field: one of that field's widgets.</summary>
+    private static bool IsNamelessKid(PdfDictionary d) =>
+        !d.Elements.ContainsKey("/T") && d.Elements.ContainsKey("/Parent") && IsWidget(d);
+
+    private static bool IsWidget(PdfDictionary d) => PdfObj.NameOf(d, "/Subtype") == "/Widget" || d.Elements.ContainsKey("/Rect");
 
     private static void Walk(PdfDictionary node, string? parentName, List<Field> into, HashSet<PdfDictionary> seen, int depth)
     {
@@ -796,7 +905,10 @@ public static partial class FormEditor
         if (fieldKids.Count > 0)
         {
             foreach (var k in fieldKids) Walk(k, name, into, seen, depth + 1);
-            return;
+            // Kids without a name next to named ones are this field's own widgets (qpdf's form-document-defaults; pdf.js
+            // reads them so).
+            kids = kids.Where(k => !k.Elements.ContainsKey("/T") && IsWidget(k)).ToList();
+            if (kids.Count == 0) return;
         }
 
         // Terminal field: its widgets are the kids without names, or the field dictionary itself.
@@ -871,6 +983,7 @@ public static partial class FormEditor
         return RectD.FromEdges(a.X, a.Y, b.X, b.Y);
     }
 
+    /// <summary>Opens the form; for editing, an encrypted form whose permissions allow filling needs no owner password.</summary>
     private static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode) =>
-        PdfObj.Open(data, password, mode, PdfStrings.Form_CantRead);
+        PdfObj.Open(data, password, mode, PdfStrings.Form_CantRead, UserEdit.FillForms);
 }
