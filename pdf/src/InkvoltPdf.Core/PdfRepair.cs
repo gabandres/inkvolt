@@ -1,7 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
-using System.Text.RegularExpressions;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
@@ -14,7 +13,7 @@ namespace InkvoltPdf.Core;
 /// bytes. MuPDF repairs a damaged file as it opens it and shows its pages; PDFsharp refuses it, which left such a form with
 /// no fields, comments or bookmarks and every edit failing.
 /// </summary>
-public static class PdfRepair
+public static partial class PdfRepair
 {
     public enum Outcome
     {
@@ -33,22 +32,34 @@ public static class PdfRepair
         public bool Repaired => Outcome == Outcome.Repaired;
     }
 
+    /// <summary>How much of a document PDFsharp reads, best first.</summary>
+    private enum Health
+    {
+        /// <summary>Opened, with its catalog, page tree, and the fields, comments and bookmarks it names.</summary>
+        Sound,
+        /// <summary>Opened, but its fields, a page's comments or its bookmarks are lost: every one named resolves to no object.</summary>
+        PartsLost,
+        /// <summary>Opened with no catalog or no page tree (a cross-reference stream without /Size reads as empty).</summary>
+        NoDocument,
+        /// <summary>Not opened.</summary>
+        Unreadable,
+    }
+
     /// <summary>
-    /// The bytes every reader of the document uses, tried in order: the file as it is; without a stale tail; with a rebuilt
-    /// cross-reference section. The first that PDFsharp reads, finding more of the objects referred to, wins; never throws.
-    /// A file none of them makes readable is kept as it is, so the readers report the file's own first failure. Not tried
-    /// for a file PDFsharp refuses for its password or a stream too large to decode: a repair changes neither.
+    /// The bytes every reader of the document uses: the file as it is when PDFsharp reads it soundly (<see cref="Health"/>;
+    /// a reference to no object alone, as an editor leaves a deleted one, is no damage), else without a stale tail, else
+    /// with a rebuilt cross-reference section, whichever PDFsharp reads better first; never throws. A file none of them
+    /// helps is kept as it is, so the readers report the file's own first failure. Not tried for a file PDFsharp refuses for
+    /// its password or a stream too large to decode: a repair changes neither.
     /// </summary>
     public static Result Normalize(byte[] data, string? password)
     {
         if (data.AsSpan(0, Math.Min(data.Length, 1024)).IndexOf("%PDF"u8) < 0) return new Result(data, Outcome.AsIs);
-        var (failure, missing) = Reads(data, password);
-        if (failure is null && missing == 0) return new Result(data, Outcome.AsIs);
+        var (failure, health) = Reads(data, password);
+        if (health == Health.Sound) return new Result(data, Outcome.AsIs);
         if (failure is StreamTooLargeException || failure?.Message.Contains("password", StringComparison.OrdinalIgnoreCase) == true)
             return new Result(data, Outcome.AsIs);
-        // A candidate wins when PDFsharp reads it and finds more of the objects it refers to (a file PDFsharp opens can
-        // still have lost them: a cross-reference stream without /Size reads as empty).
-        bool Better(byte[] candidate) => Reads(candidate, password) is (null, var m) && (failure is not null || m < missing);
+        bool Better(byte[] candidate) => Reads(candidate, password).Health < health;
         try
         {
             if (StaleTail.Cut(data) is { } cut && Better(cut)) return new Result(cut, Outcome.StaleTailCut);
@@ -61,59 +72,53 @@ public static class PdfRepair
         return new Result(data, Outcome.AsIs);
     }
 
-    /// <summary>What PDFsharp threw opening <paramref name="data"/> (null when it opened it), and how many references it found pointing at no object.</summary>
-    private static (Exception? Failure, int Missing) Reads(byte[] data, string? password)
+    /// <summary>What PDFsharp threw opening <paramref name="data"/> (null when it opened it), and how much of it it reads.</summary>
+    private static (Exception? Failure, Health Health) Reads(byte[] data, string? password)
     {
         try
         {
             using var doc = PdfObj.Read(data, password, PdfDocumentOpenMode.Import);
+            if (Resolved(doc.Internals.Catalog.Elements["/Pages"]) is not PdfDictionary) return (null, Health.NoDocument);
             _ = doc.Pages.Count; // the page tree, as every reader walks it (PageCount alone doesn't)
-            return (null, Missing(doc));
+            return (null, PartsLost(doc) ? Health.PartsLost : Health.Sound);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return (ex, 0);
+            return (ex, Health.Unreadable);
         }
     }
 
-    /// <summary>References reachable from the catalog that resolve to no object (an empty catalog counts as one).</summary>
-    private static int Missing(PdfDocument doc)
+    /// <summary>
+    /// Whether the document's fields, a page's comments or its bookmarks can't be read: the entry naming them, or every
+    /// item in a non-empty list of them, refers to no object. One lost item among readable ones is not this.
+    /// </summary>
+    private static bool PartsLost(PdfDocument doc)
     {
-        var missing = doc.Internals.Catalog.Elements.Count == 0 ? 1 : 0;
-        var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance) { doc.Internals.Catalog };
-        var queue = new Queue<PdfObject>([doc.Internals.Catalog]);
-        while (queue.TryDequeue(out var obj)) Visit(obj, 0);
-        return missing;
+        var catalog = doc.Internals.Catalog;
+        if (Lost(catalog.Elements["/AcroForm"]) || Lost(catalog.Elements["/Outlines"])) return true;
+        if (Resolved(catalog.Elements["/AcroForm"]) is PdfDictionary form && (Lost(form.Elements["/Fields"]) || AllLost(form.Elements["/Fields"])))
+            return true;
+        if (Resolved(catalog.Elements["/Outlines"]) is PdfDictionary outlines && Lost(outlines.Elements["/First"])) return true;
+        foreach (var page in doc.Pages)
+            if (Lost(page.Elements["/Annots"]) || AllLost(page.Elements["/Annots"]))
+                return true;
+        return false;
 
-        void Visit(PdfItem? item, int depth)
-        {
-            switch (item)
-            {
-                case PdfReference r when r.Value is null:
-                    missing++;
-                    break;
-                case PdfReference r:
-                    if (seen.Add(r.Value)) queue.Enqueue(r.Value);
-                    break;
-                case PdfDictionary d when depth < 32:
-                    foreach (var v in d.Elements.Values) Visit(v, depth + 1);
-                    break;
-                case PdfArray a when depth < 32:
-                    foreach (var v in a.Elements) Visit(v, depth + 1);
-                    break;
-            }
-        }
+        static bool Lost(PdfItem? item) => item is PdfReference { Value: null };
+        static bool AllLost(PdfItem? item) => Resolved(item) is PdfArray { Elements.Count: > 0 } a && a.Elements.All(Lost);
     }
+
+    private static PdfItem? Resolved(PdfItem? item) => item is PdfReference r ? r.Value : item;
 
     // ---- Rebuilding the cross-reference section ----
 
-    /// <summary>The most objects a rebuilt section lists: more than any real file, few enough to hold in memory.</summary>
+    /// <summary>The most objects a rebuilt section lists, and the most object-stream entries read: more than any real file.</summary>
     private const int MaxObjects = 4 << 20;
 
     /// <summary>The most bytes the object streams decode to, each and in all.</summary>
     private const int MaxObjStmBytes = 64 << 20;
 
-    /// <summary>The most of an object's dictionary read for its /Type and /Length (they come first in real files).</summary>
+    /// <summary>The most of a dictionary read (token by token) before it is taken as broken.</summary>
     private const int MaxDictChars = 64 * 1024;
 
     /// <summary>The most trailers read, from the end of the file.</summary>
@@ -122,108 +127,135 @@ public static class PdfRepair
     /// <summary>Where an object is: at an offset in the file, or the index'th object of object stream Stream.</summary>
     private readonly record struct Entry(long Order, bool Compressed, long Offset, int Gen, int Stream, int Index);
 
-    /// <summary>A trailer's references (as "n g R") and /ID, where it is in the file.</summary>
-    private sealed record Trailer(long At, (int Num, int Gen)? Root, (int Num, int Gen)? Info, (int Num, int Gen)? Encrypt, string? Id);
+    /// <summary>A trailer's (or cross-reference stream's) /Root and /Info, its /Encrypt as written, and its /ID, where it is in the file.</summary>
+    private sealed record Trailer(long At, (int Num, int Gen)? Root, (int Num, int Gen)? Info, string? Encrypt, string? Id);
+
+    private sealed record ObjStm(int Num, long Order, int Start, int End, RawDict Dict);
 
     /// <summary>
     /// <paramref name="data"/> with a cross-reference stream appended that lists every object found in it, as MuPDF's repair
-    /// finds them: the file read front to back for "n g obj" headers (a stream's content skipped by its /Length, or up to
-    /// "endstream"), the objects held in object streams, and the last occurrence of each number winning. The trailer's
-    /// /Root, /Info, /Encrypt and /ID come from the last trailer (or cross-reference stream) whose /Root is among them, else
-    /// /Root is the last catalog found. Null when there is no catalog to point at. Linear in the file's size.
+    /// finds them: the file read front to back for "n g obj" headers, each object's dictionary read token by token, a
+    /// stream's content (only after its dictionary's "&gt;&gt;", the keyword "stream" and an end of line) skipped by its
+    /// /Length (followed when indirect) or up to "endstream"; the objects held in object streams; the last occurrence of
+    /// each number winning. The trailer's /Root, /Info, /Encrypt and /ID come from the last trailer (or cross-reference
+    /// stream) whose /Root is among them, else /Root is the last catalog found; /Encrypt and /ID from any trailer naming one.
+    /// Null when there is no catalog to point at, or the file is encrypted (an encryption dictionary among its objects) and
+    /// no trailer says how: a rebuild without /Encrypt would have PDFsharp read the ciphertext as text. Linear in the
+    /// file's size, its total work capped (<see cref="Work"/>).
     /// </summary>
     internal static byte[]? Rebuild(byte[] data)
     {
+        var work = new Work(4L * data.Length + 2L * MaxObjStmBytes + (1 << 20));
         var entries = new Dictionary<int, Entry>();
         var trailers = new List<Trailer>();
         var catalogs = new List<(long Order, int Num, int Gen)>();
-        var objStms = new List<(int Num, long Order, int Start, int End, string Dict)>();
-        var span = data.AsSpan();
+        var objStms = new List<ObjStm>();
+        var encrypted = false;
+        Headers? headers = null;
+        long? Resolve(RawDict dict, string key, int near) =>
+            dict.Int(key) ?? (dict.Ref(key) is { } r ? (headers ??= new Headers(data)).IntOf(data, r, near) : null);
         var objKw = new Next(data, "obj"u8.ToArray());
-        var endobjKw = new Next(data, "endobj"u8.ToArray());
-        var streamKw = new Next(data, "stream"u8.ToArray());
         var endstreamKw = new Next(data, "endstream"u8.ToArray());
 
         var pos = 0;
         while (objKw.From(pos) is var i and >= 0)
         {
-            if (Incremental.ObjectHeaderAt(span, i) is not ({ } num, var gen, var start))
+            var body = i + 3;
+            if (Incremental.ObjectHeaderAt(data, i) is not ({ } num, var gen, var start))
             {
-                pos = i + 3;
+                pos = body;
                 continue;
             }
-            var body = i + 3;
-            // The object runs to "stream", "endobj" or the next object header, whichever comes first.
-            var endobj = endobjKw.From(body);
-            var stream = StreamKeyword(streamKw, data, body);
-            var bound = Min(endobj, stream);
-            var header = -1;
-            for (var o = objKw.From(body); o >= 0 && (bound < 0 || o < bound); o = objKw.From(o + 3))
-                if (Incremental.ObjectHeaderAt(span, o) is { } h)
-                {
-                    header = h.Start;
-                    break;
-                }
-            var dictEnd = header >= 0 ? header : bound >= 0 ? bound : Math.Min(data.Length, body + 4096);
-            var dict = Encoding.Latin1.GetString(data, body, Math.Min(dictEnd - body, MaxDictChars));
             entries[num] = new Entry(start, false, start, gen, 0, 0);
             if (entries.Count > MaxObjects) return null;
-
-            if (stream >= 0 && stream == dictEnd)
+            pos = body;
+            var dict = ReadDict(data, SkipWhite(data, body, data.Length), work);
+            if (work.Spent) return null;
+            if (dict is null) continue; // no dictionary, or a broken one: the next header begins another object
+            pos = dict.End;
+            var content = StreamContentAfter(data, dict.End);
+            if (content < 0)
             {
-                var content = stream + 6;
-                if (content < data.Length && data[content] == '\r') content++;
-                if (content < data.Length && data[content] == '\n') content++;
-                var contentEnd = EndOfStream(data, content, dict, endstreamKw);
-                if (Has(dict, "/ObjStm") && contentEnd >= 0) objStms.Add((num, start, content, contentEnd, dict));
-                if (Has(dict, "/XRef")) trailers.Add(TrailerOf(start, dict));
-                pos = contentEnd >= 0 ? contentEnd : content;
+                if (dict.Name("/Type") == "Catalog") catalogs.Add((start, num, gen));
+                if (dict.Name("/Filter") is not null && (dict.Has("/O") && dict.Has("/U") || dict.Has("/Recipients"))) encrypted = true;
+                continue;
             }
-            else
-            {
-                if (Has(dict, "/Catalog")) catalogs.Add((start, num, gen));
-                pos = endobj >= 0 && endobj == dictEnd ? endobj + 6 : dictEnd;
-            }
+            var length = Resolve(dict, "/Length", content);
+            var contentEnd = EndOfStream(data, content, length, endstreamKw);
+            if (dict.Name("/Type") == "ObjStm" && contentEnd >= 0) objStms.Add(new ObjStm(num, start, content, contentEnd, dict));
+            if (dict.Name("/Type") == "XRef") trailers.Add(TrailerOf(start, dict));
+            pos = contentEnd >= 0 ? contentEnd : content;
         }
 
         // Objects in object streams: each where its stream is in the file.
         var decoded = 0L;
-        foreach (var (stmNum, order, startAt, end, dict) in objStms)
+        var pairs = 0L;
+        foreach (var stm in objStms)
         {
-            if (entries.GetValueOrDefault(stmNum) is not { Compressed: false } own || own.Order != order) continue; // a later object took its number
-            if (Decode(data, startAt, end, dict, MaxObjStmBytes - decoded) is not { } content) continue;
+            if (entries.GetValueOrDefault(stm.Num) is not { Compressed: false } own || own.Order != stm.Order) continue; // a later object took its number
+            if (Decode(data, stm.Start, stm.End, stm.Dict, MaxObjStmBytes - decoded) is not { } content) continue;
             decoded += content.Length;
-            if (Int(dict, "/N") is not { } n || Int(dict, "/First") is not { } first || first > content.Length || n < 0) continue;
-            var header = Encoding.Latin1.GetString(content, 0, first);
-            var pairs = Regex.Matches(header, @"(\d{1,7})\s+(\d{1,10})");
-            for (var k = 0; k < Math.Min(n, pairs.Count); k++)
+            work.Spend(content.Length);
+            if (Resolve(stm.Dict, "/N", stm.End) is not { } n || Resolve(stm.Dict, "/First", stm.End) is not { } first || first > content.Length) continue;
+            n = Math.Min(n, first / 4 + 1); // a pair takes at least 4 bytes ("1 0 ")
+            var catalogNames = CatalogNames(content, (int)first);
+            var (lastAt, lastCatalog) = (-1L, false);
+            var p = 0;
+            for (var k = 0; k < n; k++)
             {
-                if (!int.TryParse(pairs[k].Groups[1].Value, out var num) || num is <= 0 or > Incremental.MaxObjectNumber) continue;
-                if (entries.TryGetValue(num, out var e) && e.Order > order) continue;
-                entries[num] = new Entry(order, true, 0, 0, stmNum, k);
+                if (ReadInt(content, ref p, (int)first) is not { } objNum || ReadInt(content, ref p, (int)first) is not { } offset) break;
+                if (++pairs > MaxObjects) return null;
+                if (objNum is <= 0 or > Incremental.MaxObjectNumber) continue;
+                if (entries.TryGetValue((int)objNum, out var e) && e.Order > stm.Order) continue;
+                entries[(int)objNum] = new Entry(stm.Order, true, 0, 0, stm.Num, k);
                 if (entries.Count > MaxObjects) return null;
-                if (long.TryParse(pairs[k].Groups[2].Value, out var off) && first + off < content.Length)
+                // A catalog, read only where a "/Catalog" lies within reach of the object's start.
+                var at = first + offset;
+                if (catalogNames.Count == 0 || at >= content.Length) continue;
+                if (at != lastAt)
                 {
-                    var stop = k + 1 < pairs.Count && long.TryParse(pairs[k + 1].Groups[2].Value, out var o2) && first + o2 > first + off ? first + o2 : content.Length;
-                    if (Has(Encoding.Latin1.GetString(content, (int)(first + off), (int)Math.Min(stop - first - off, 4096)), "/Catalog")) catalogs.Add((order, num, 0));
+                    var c = catalogNames.BinarySearch((int)at);
+                    c = c < 0 ? ~c : c;
+                    lastCatalog = c < catalogNames.Count && catalogNames[c] - at < MaxDictChars &&
+                                  ReadDict(content, SkipWhite(content, (int)at, content.Length), work)?.Name("/Type") == "Catalog";
+                    lastAt = at;
+                    if (work.Spent) return null;
                 }
+                if (lastCatalog) catalogs.Add((stm.Order, (int)objNum, 0));
             }
         }
 
         // Classic trailers, the last few.
         var from = data.Length;
-        for (var t = 0; t < MaxTrailers && from > 0 && span[..from].LastIndexOf("trailer"u8) is var at and >= 0; t++, from = at)
-            trailers.Add(TrailerOf(at, Encoding.Latin1.GetString(data, at, Math.Min(data.Length - at, 4096)) is var s && s.IndexOf("startxref", StringComparison.Ordinal) is var e and > 0 ? s[..e] : s));
+        for (var t = 0; t < MaxTrailers && from > 0 && data.AsSpan(0, from).LastIndexOf("trailer"u8) is var at and >= 0; t++, from = at)
+        {
+            if (ReadDict(data, SkipWhite(data, at + 7, data.Length), work) is { } dict) trailers.Add(TrailerOf(at, dict));
+            if (work.Spent) return null;
+        }
 
         bool Known((int Num, int Gen)? r) => r is { } x && entries.ContainsKey(x.Num);
         var trailer = trailers.Where(t => Known(t.Root)).MaxBy(t => t.At);
         var root = trailer?.Root ?? (catalogs.Count > 0 ? (catalogs.MaxBy(c => c.Order).Num, catalogs.MaxBy(c => c.Order).Gen) : null);
         if (root is null || !Known(root)) return null;
-        return Write(data, entries, root.Value, Known(trailer?.Info) ? trailer!.Info : null, trailer?.Encrypt, trailer?.Id);
+        // Encrypted objects stay encrypted in every revision: any trailer naming /Encrypt says how to read them.
+        var secured = trailer?.Encrypt is not null ? trailer : trailers.Where(t => t.Encrypt is not null).MaxBy(t => t.At);
+        var encrypt = secured?.Encrypt;
+        var id = secured?.Id ?? trailer?.Id;
+        if (encrypt is null ? encrypted : id is null || (RefOf(encrypt) is { } e2 && !entries.ContainsKey(e2.Num))) return null;
+        return Write(data, entries, root.Value, Known(trailer?.Info) ? trailer!.Info : null, encrypt, id);
+    }
+
+    /// <summary>Where "/Catalog" names appear in an object stream's objects (after <paramref name="first"/>), in order.</summary>
+    private static List<int> CatalogNames(byte[] content, int first)
+    {
+        var at = new List<int>();
+        for (var p = first; p < content.Length && content.AsSpan(p).IndexOf("/Catalog"u8) is var i and >= 0; p += i + 8)
+            if (TokenEnd(content, p + i + 1, content.Length) == p + i + 8) at.Add(p + i);
+        return at;
     }
 
     /// <summary>The file with the new cross-reference stream (object number one past the largest) and its startxref appended.</summary>
-    private static byte[] Write(byte[] data, Dictionary<int, Entry> entries, (int Num, int Gen) root, (int Num, int Gen)? info, (int Num, int Gen)? encrypt, string? id)
+    private static byte[] Write(byte[] data, Dictionary<int, Entry> entries, (int Num, int Gen) root, (int Num, int Gen)? info, string? encrypt, string? id)
     {
         var self = entries.Keys.Max() + 1;
         var gap = data.Length > 0 && data[^1] is (byte)'\n' or (byte)'\r' ? "" : "\n";
@@ -250,7 +282,7 @@ public static class PdfRepair
         }
         var keys = new StringBuilder($"/Type /XRef /Size {self + 1} /Index [{index}] /W [1 4 4] /Root {root.Num} {root.Gen} R");
         if (info is { } i) keys.Append($" /Info {i.Num} {i.Gen} R");
-        if (encrypt is { } x) keys.Append($" /Encrypt {x.Num} {x.Gen} R");
+        if (encrypt is not null) keys.Append($" /Encrypt {encrypt}");
         if (id is not null) keys.Append($" /ID {id}");
         using var ms = new MemoryStream(data.Length + rows.Length + 512);
         ms.Write(data);
@@ -261,40 +293,29 @@ public static class PdfRepair
     }
 
     /// <summary>
-    /// Where a stream's content ends: at /Length when "endstream" follows there, else at the next "endstream"; -1 when
-    /// neither (the file ends inside the stream).
+    /// Where a stream's content ends: at <paramref name="length"/> when "endstream" follows there, else at the next
+    /// "endstream" (found once for the whole scan, <see cref="Next"/>); -1 when neither (the file ends inside the stream).
     /// </summary>
-    private static int EndOfStream(byte[] data, int content, string dict, Next endstreamKw)
+    private static int EndOfStream(byte[] data, int content, long? length, Next endstreamKw)
     {
-        if (Int(dict, "/Length") is { } length && length >= 0 && content + (long)length <= data.Length)
+        if (length is { } n && n >= 0 && content + n <= data.Length)
         {
-            var p = content + length;
-            while (p < data.Length && p - content - length < 4 && Incremental.IsWhite(data[p])) p++;
-            if (data.AsSpan(p).StartsWith("endstream"u8)) return content + length;
+            var end = content + (int)n;
+            var p = end;
+            while (p < data.Length && p - end < 4 && Incremental.IsWhite(data[p])) p++;
+            if (data.AsSpan(p).StartsWith("endstream"u8)) return end;
         }
-        var end = endstreamKw.From(content);
-        return end;
-    }
-
-    /// <summary>The next "stream" keyword from <paramref name="from"/> that isn't the end of an "endstream".</summary>
-    private static int StreamKeyword(Next streamKw, byte[] data, int from)
-    {
-        while (streamKw.From(from) is var s and >= 0)
-        {
-            if (s < 3 || !data.AsSpan(s - 3).StartsWith("end"u8)) return s;
-            from = s + 6;
-        }
-        return -1;
+        return endstreamKw.From(content);
     }
 
     /// <summary>An object stream's content: as it is, or Flate-decoded (no predictor); null for any other filter or a damaged stream.</summary>
-    private static byte[]? Decode(byte[] data, int start, int end, string dict, long budget)
+    private static byte[]? Decode(byte[] data, int start, int end, RawDict dict, long budget)
     {
         if (end < start || budget <= 0) return null;
         var raw = data.AsSpan(start, end - start);
-        var filter = Regex.Match(dict, @"/Filter\s*\[?\s*/(\w+)\s*\]?");
-        if (!filter.Success) return raw.Length <= budget ? raw.ToArray() : null;
-        if (filter.Groups[1].Value != "FlateDecode" || dict.Contains("/DecodeParms", StringComparison.Ordinal)) return null;
+        var filter = dict.Raw("/Filter")?.Trim().TrimStart('[').TrimEnd(']').Trim();
+        if (filter is null) return raw.Length <= budget ? raw.ToArray() : null;
+        if (filter != "/FlateDecode" || dict.Has("/DecodeParms")) return null;
         try
         {
             using var z = new ZLibStream(new MemoryStream(data, start, end - start, writable: false), CompressionMode.Decompress);
@@ -314,26 +335,8 @@ public static class PdfRepair
         }
     }
 
-    private static Trailer TrailerOf(long at, string dict) =>
-        new(at, Ref(dict, "/Root"), Ref(dict, "/Info"), Ref(dict, "/Encrypt"), Incremental.FileId(dict));
-
-    private static (int, int)? Ref(string dict, string key) =>
-        Regex.Match(dict, Regex.Escape(key) + @"\s+(\d{1,7})\s+(\d{1,5})\s+R") is { Success: true } m &&
-        int.TryParse(m.Groups[1].Value, out var n) && int.TryParse(m.Groups[2].Value, out var g) && n is > 0 and <= Incremental.MaxObjectNumber
-            ? (n, g) : null;
-
-    private static int? Int(string dict, string key) =>
-        Regex.Match(dict, Regex.Escape(key) + @"\s+(\d{1,10})(?!\s+\d+\s+R)") is { Success: true } m && int.TryParse(m.Groups[1].Value, out var v) ? v : null;
-
-    /// <summary>Whether the dictionary names <paramref name="name"/> (not as the start of a longer name).</summary>
-    private static bool Has(string dict, string name)
-    {
-        for (var i = dict.IndexOf(name, StringComparison.Ordinal); i >= 0; i = dict.IndexOf(name, i + 1, StringComparison.Ordinal))
-            if (i + name.Length >= dict.Length || !char.IsAsciiLetterOrDigit(dict[i + name.Length])) return true;
-        return false;
-    }
-
-    private static int Min(int a, int b) => a < 0 ? b : b < 0 ? a : Math.Min(a, b);
+    private static Trailer TrailerOf(long at, RawDict dict) =>
+        new(at, dict.Ref("/Root"), dict.Ref("/Info"), dict.Raw("/Encrypt"), dict.Raw("/ID") is { } ids ? Incremental.FileId("/ID " + ids) : null);
 
     /// <summary>
     /// The next occurrence of a keyword at or after a position, remembered until the position passes it, so scanning a
