@@ -38,15 +38,7 @@ internal static partial class TranslationMarkup
     public static string Mark(string text, IReadOnlyList<TextSpan> spans)
     {
         if (spans.Count == 0 || spans.Count > 4 * MaxStretches || !Markable(text)) return text;
-        var kinds = new Kind[text.Length];
-        foreach (var s in spans)
-        {
-            var k = KindOf(s.Look);
-            if (k == Kind.None) continue;
-            // A later span's script replaces an earlier one's (as looks lay over each other): never sub and sup at once.
-            var keep = (k & Scripts) != 0 ? ~Scripts : ~Kind.None;
-            for (var i = Math.Max(0, s.Start); i < Math.Min(text.Length, s.End); i++) kinds[i] = (kinds[i] & keep) | k;
-        }
+        var kinds = KindsOf(text.Length, spans);
         var sb = new StringBuilder(text.Length + 32);
         var open = new List<Kind>(3);
         var stretches = 0;
@@ -72,6 +64,63 @@ internal static partial class TranslationMarkup
             if (i < text.Length) sb.Append(text[i]);
         }
         return stretches == 0 ? text : sb.ToString();
+    }
+
+    /// <summary>
+    /// Each character's looks: bold or italic where any span gives it; a later span's script replacing an earlier one's
+    /// (as looks lay over each other), never sub and sup at once. Linear in the text and the spans, however they overlap
+    /// (a crafted page's 256 spans over a paragraph of millions of characters).
+    /// </summary>
+    private static Kind[] KindsOf(int length, IReadOnlyList<TextSpan> spans)
+    {
+        var kinds = new Kind[length];
+        int[]? bold = null, italic = null, next = null;
+        for (var s = spans.Count - 1; s >= 0; s--)
+        {
+            var k = KindOf(spans[s].Look);
+            int from = Math.Max(0, spans[s].Start), to = Math.Min(length, spans[s].End);
+            if (k == Kind.None || from >= to) continue;
+            if ((k & Kind.Bold) != 0) Count(ref bold, from, to);
+            if ((k & Kind.Italic) != 0) Count(ref italic, from, to);
+            if ((k & Scripts) == 0) continue;
+            // Latest span first: a character's script is the first one set; next[i] skips characters already set.
+            if (next is null)
+            {
+                next = new int[length + 1];
+                for (var i = 0; i <= length; i++) next[i] = i;
+            }
+            for (var i = Unset(next, from); i < to; i = Unset(next, i))
+            {
+                kinds[i] = k & Scripts;
+                next[i] = i + 1;
+            }
+        }
+        if (bold is null && italic is null) return kinds;
+        int b = 0, it = 0;
+        for (var i = 0; i < length; i++)
+        {
+            if (bold is not null && (b += bold[i]) > 0) kinds[i] |= Kind.Bold;
+            if (italic is not null && (it += italic[i]) > 0) kinds[i] |= Kind.Italic;
+        }
+        return kinds;
+
+        void Count(ref int[]? starts, int from, int to)
+        {
+            starts ??= new int[length + 1];
+            starts[from]++;
+            starts[to]--;
+        }
+    }
+
+    /// <summary>The first character at or after <paramref name="i"/> with no script set yet (path halving).</summary>
+    private static int Unset(int[] next, int i)
+    {
+        while (next[i] != i)
+        {
+            next[i] = next[next[i]];
+            i = next[i];
+        }
+        return i;
     }
 
     private static List<Kind> Ordered(Kind k)
