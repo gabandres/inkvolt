@@ -1,0 +1,189 @@
+using System.Security.Cryptography;
+using System.Text;
+using PdfSharp.Pdf;
+
+namespace InkvoltPdf.Core;
+
+/// <summary>
+/// The standard security handler's file key, worked out from the user (open) password, and the encryption of new objects
+/// with it (ISO 32000-2 7.6.4; RC4 and AES-128 at revisions 2-4, AES-256 at revisions 5 and 6). The owner password is never
+/// needed: whoever opens a document can write objects it will read, which is what an incremental update of a form that
+/// allows filling takes (<see cref="UserPasswordEdits"/>).
+/// </summary>
+internal sealed class StandardCrypt
+{
+    private enum Method { None, Rc4, Aes128, Aes256 }
+
+    private readonly byte[] _key;
+    private readonly Method _strings, _streams;
+    private readonly bool _encryptMetadata;
+
+    private StandardCrypt(byte[] key, Method strings, Method streams, bool encryptMetadata)
+    {
+        _key = key;
+        _strings = strings;
+        _streams = streams;
+        _encryptMetadata = encryptMetadata;
+    }
+
+    /// <summary>
+    /// The handler of encryption dictionary <paramref name="h"/> opened with <paramref name="password"/> as the user password,
+    /// or null when it isn't the standard handler at a revision covered here, a crypt filter is unknown, or the password
+    /// doesn't check out against /U.
+    /// </summary>
+    /// <param name="id0">The first element of the file's /ID (revisions 2-4 mix it into the key).</param>
+    public static StandardCrypt? FromUserPassword(PdfDictionary h, byte[] id0, string password)
+    {
+        if (PdfObj.Name(h.Elements["/Filter"]) != "Standard") return null;
+        var r = PdfObj.Int(h.Elements["/R"]) ?? 0;
+        var v = PdfObj.Int(h.Elements["/V"]) ?? 0;
+        if (r is < 2 or > 6 || v is < 1 or > 5) return null;
+        if (KeptProtection.RawBytes(h.Elements["/O"]) is not { } o || KeptProtection.RawBytes(h.Elements["/U"]) is not { } u) return null;
+        var encryptMetadata = PdfObj.Resolve(h.Elements["/EncryptMetadata"]) is not PdfBoolean { Value: false };
+
+        Method strings, streams;
+        if (v < 4) strings = streams = Method.Rc4;
+        else
+        {
+            var cf = PdfObj.Dict(h.Elements["/CF"]);
+            Method? Filter(string key)
+            {
+                var name = PdfObj.Name(h.Elements[key]) ?? "Identity";
+                if (name == "Identity") return Method.None;
+                return PdfObj.Name(PdfObj.Dict(cf?.Elements["/" + name])?.Elements["/CFM"]) switch
+                {
+                    "None" => Method.None,
+                    "V2" => Method.Rc4,
+                    "AESV2" => Method.Aes128,
+                    "AESV3" => Method.Aes256,
+                    _ => null,
+                };
+            }
+            if (Filter("/StrF") is not { } s || Filter("/StmF") is not { } m) return null;
+            (strings, streams) = (s, m);
+        }
+
+        byte[]? key;
+        if (r <= 4)
+        {
+            var p = unchecked((int)(long)PdfObj.Num(h.Elements["/P"], 0));
+            var length = r == 2 ? 5 : Math.Clamp((PdfObj.Int(h.Elements["/Length"]) ?? (r == 4 ? 128 : 40)) / 8, 5, 16);
+            key = Rc4FileKey(Encoding.Latin1.GetBytes(password), o, p, id0, r, length, encryptMetadata);
+            if (!Rc4UserCheck(key, id0, u, r)) return null;
+        }
+        else
+        {
+            if (u.Length < 48 || KeptProtection.RawBytes(h.Elements["/UE"]) is not { Length: >= 32 } ue) return null;
+            var pw = Encoding.UTF8.GetBytes(password);
+            if (pw.Length > 127) pw = pw[..127];
+            if (!Hash(pw, u.AsSpan(32, 8), [], r).AsSpan().SequenceEqual(u.AsSpan(0, 32))) return null;
+            var intermediate = Hash(pw, u.AsSpan(40, 8), [], r);
+            using var aes = Aes.Create();
+            aes.Key = intermediate;
+            key = aes.DecryptCbc(ue.AsSpan(0, 32), new byte[16], PaddingMode.None);
+        }
+        return new StandardCrypt(key, strings, streams, encryptMetadata);
+    }
+
+    /// <summary>
+    /// Encrypts a string (<paramref name="stream"/> null) or a stream's data of object <paramref name="num"/> <paramref name="gen"/>.
+    /// The XMP metadata stream stays plain when /EncryptMetadata is false.
+    /// </summary>
+    public byte[] Encrypt(int num, int gen, byte[] data, PdfDictionary? stream)
+    {
+        var method = stream is null ? _strings : _streams;
+        if (stream is not null && !_encryptMetadata && PdfObj.NameOf(stream, "/Type") == "/Metadata") method = Method.None;
+        switch (method)
+        {
+            case Method.None:
+                return data;
+            case Method.Rc4:
+                return KeptProtection.Rc4(ObjectKey(num, gen, aes: false), data);
+            default:
+                using (var aes = Aes.Create())
+                {
+                    aes.Key = method == Method.Aes256 ? _key : ObjectKey(num, gen, aes: true);
+                    var iv = RandomNumberGenerator.GetBytes(16);
+                    return [.. iv, .. aes.EncryptCbc(data, iv, PaddingMode.PKCS7)];
+                }
+        }
+    }
+
+    /// <summary>True when a stream names its own /Crypt filter, which isn't handled here: such a stream can't be written.</summary>
+    public static bool HasOwnCryptFilter(PdfDictionary stream) =>
+        PdfObj.Resolve(stream.Elements["/Filter"]) switch
+        {
+            PdfName n => n.Value == "/Crypt",
+            PdfArray a => a.Elements.Any(e => PdfObj.Name(e) == "Crypt"),
+            _ => false,
+        };
+
+    /// <summary>Algorithm 1: the key for one object (revisions 2-4, and AES-128).</summary>
+    private byte[] ObjectKey(int num, int gen, bool aes)
+    {
+        if (_strings == Method.Aes256 || _streams == Method.Aes256) return _key;
+        byte[] salt = aes ? "sAlT"u8.ToArray() : [];
+        byte[] input = [.. _key, (byte)num, (byte)(num >> 8), (byte)(num >> 16), (byte)gen, (byte)(gen >> 8), .. salt];
+        return MD5.HashData(input)[..Math.Min(_key.Length + 5, 16)];
+    }
+
+    /// <summary>Algorithm 2: the file key from the user password (revisions 2-4).</summary>
+    internal static byte[] Rc4FileKey(byte[] password, byte[] o, int p, byte[] id0, int revision, int length, bool encryptMetadata)
+    {
+        var padded = new byte[32];
+        var n = Math.Min(32, password.Length);
+        Array.Copy(password, padded, n);
+        Array.Copy(KeptProtection.Padding, 0, padded, n, 32 - n);
+        using var md5 = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
+        md5.AppendData(padded);
+        md5.AppendData(o.AsSpan(0, Math.Min(32, o.Length)));
+        md5.AppendData([(byte)p, (byte)(p >> 8), (byte)(p >> 16), (byte)(p >> 24)]);
+        md5.AppendData(id0);
+        if (revision >= 4 && !encryptMetadata) md5.AppendData([0xFF, 0xFF, 0xFF, 0xFF]);
+        var hash = md5.GetHashAndReset();
+        if (revision >= 3)
+            for (var i = 0; i < 50; i++) hash = MD5.HashData(hash.AsSpan(0, length));
+        return hash[..length];
+    }
+
+    /// <summary>Algorithms 4 and 5 compared with /U: true when <paramref name="key"/> came from the user password.</summary>
+    private static bool Rc4UserCheck(byte[] key, byte[] id0, byte[] u, int revision)
+    {
+        if (revision == 2) return u.Length >= 32 && KeptProtection.Rc4(key, KeptProtection.Padding).AsSpan().SequenceEqual(u.AsSpan(0, 32));
+        if (u.Length < 16) return false;
+        var x = KeptProtection.Rc4(key, MD5.HashData([.. KeptProtection.Padding, .. id0]));
+        var k = new byte[key.Length];
+        for (var i = 1; i <= 19; i++)
+        {
+            for (var j = 0; j < key.Length; j++) k[j] = (byte)(key[j] ^ i);
+            x = KeptProtection.Rc4(k, x);
+        }
+        return x.AsSpan(0, 16).SequenceEqual(u.AsSpan(0, 16));
+    }
+
+    /// <summary>The revision 5 hash (SHA-256), or algorithm 2.B for revision 6.</summary>
+    internal static byte[] Hash(byte[] password, ReadOnlySpan<byte> salt, byte[] userKey, int revision)
+    {
+        var k = SHA256.HashData([.. password, .. salt, .. userKey]);
+        if (revision == 5) return k;
+        using var aes = Aes.Create();
+        for (var round = 0; ; round++)
+        {
+            byte[] one = [.. password, .. k, .. userKey];
+            var k1 = new byte[one.Length * 64];
+            for (var i = 0; i < 64; i++) one.CopyTo(k1, i * one.Length);
+            aes.Key = k[..16];
+            var e = aes.EncryptCbc(k1, k.AsSpan(16, 16), PaddingMode.None);
+            var mod = 0;
+            for (var i = 0; i < 16; i++) mod += e[i];
+            k = (mod % 3) switch
+            {
+                0 => SHA256.HashData(e),
+                1 => SHA384.HashData(e),
+                _ => SHA512.HashData(e),
+            };
+            if (round >= 63 && e[^1] <= round + 1 - 32) break;
+        }
+        return k[..32];
+    }
+}

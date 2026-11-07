@@ -95,8 +95,40 @@ internal static class PdfObj
     /// open in Inkvolt PDF goes through here.
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
-    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes) =>
+    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
+    {
+        try
+        {
+            return ReadOnce(stream, password, mode, maxBytes);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.StartsWith("Indirect reference without value", StringComparison.Ordinal) &&
+                                                   stream.CanSeek && NewestEncryptOnly(stream) is { } patched)
+        {
+            return ReadOnce(new MemoryStream(patched, writable: false), password, mode, maxBytes);
+        }
+    }
+
+    private static PdfDocument ReadOnce(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
         BoundedFilters.Within(maxBytes, maxBytes, () => string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode));
+
+    /// <summary>
+    /// PDFsharp can't read an encrypted file whose /Encrypt is named by three or more trailers (an encrypted form saved
+    /// incrementally twice, by Acrobat or by <see cref="UserPasswordEdits"/>): it fails with "Indirect reference without
+    /// value". The newest trailer is the one that counts, so the copy PDFsharp reads has the older trailers' /Encrypt
+    /// blanked out (same length: every offset stays). Null when there is nothing to blank.
+    /// </summary>
+    private static byte[]? NewestEncryptOnly(Stream stream)
+    {
+        stream.Position = 0;
+        using var copy = new MemoryStream();
+        stream.CopyTo(copy);
+        var data = copy.ToArray();
+        var text = Encoding.Latin1.GetString(data);
+        var refs = System.Text.RegularExpressions.Regex.Matches(text, @"/Encrypt\s*\d+\s+\d+\s+R");
+        if (refs.Count < 2) return null;
+        for (var i = 0; i < refs.Count - 1; i++) data.AsSpan(refs[i].Index, refs[i].Length).Fill((byte)' ');
+        return data;
+    }
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
@@ -106,7 +138,9 @@ internal static class PdfObj
 
     public static string F(double v) => Math.Round(v, 3).ToString("0.###", Inv);
 
-    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string? failure = null)
+    /// <param name="edit">What a Modify-mode open is for: an encrypted document whose /P allows it is edited with its user
+    /// password (<see cref="UserPasswordEdits"/>) instead of asking for the owner password.</param>
+    public static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode, string? failure = null, UserEdit edit = UserEdit.None)
     {
         failure ??= PdfStrings.Doc_CantRead;
         try
@@ -122,7 +156,10 @@ internal static class PdfObj
         }
         catch (PdfReaderException ex)
         {
-            throw ReaderError(ex, mode, failure);
+            var error = ReaderError(ex, mode, failure);
+            if (error is OwnerPasswordRequiredException { WrongPassword: false } && edit != UserEdit.None && UserPasswordEdits.Open(data, password, edit) is { } doc)
+                return doc;
+            throw error;
         }
     }
 

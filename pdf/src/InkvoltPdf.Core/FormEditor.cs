@@ -830,6 +830,7 @@ public static partial class FormEditor
         return RectD.FromEdges(a.X, a.Y, b.X, b.Y);
     }
 
+    /// <summary>Opens the form; for editing, an encrypted form whose permissions allow filling needs no owner password.</summary>
     private static PdfDocument Open(byte[] data, string? password, PdfDocumentOpenMode mode) =>
-        PdfObj.Open(data, password, mode, PdfStrings.Form_CantRead);
+        PdfObj.Open(data, password, mode, PdfStrings.Form_CantRead, UserEdit.FillForms);
 }

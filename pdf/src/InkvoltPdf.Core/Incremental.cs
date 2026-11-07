@@ -44,6 +44,13 @@ internal static class Incremental
         public required long StartXref;
         public required bool XrefStream;
         public required string? Id;
+        /// <summary>An encrypted document edited with its user password (<see cref="UserPasswordEdits"/>): new objects are
+        /// encrypted with its file key, and the trailer names <see cref="Encrypt"/> (the original /Encrypt value).</summary>
+        public StandardCrypt? Crypt;
+        public string? Encrypt;
+        /// <summary>The encryption dictionary as an indirect object, written again (never encrypted) in each update: PDFsharp
+        /// can't read a file whose third trailer names an /Encrypt object an older section defines.</summary>
+        public (int Num, int Gen, byte[] Body)? EncryptObject;
     }
 
     private static readonly ConditionalWeakTable<PdfDocument, Base> Tracked = [];
@@ -62,7 +69,26 @@ internal static class Incremental
     /// signed (or always, with <paramref name="force"/>: signing appends even to an unsigned file, so later signatures
     /// never break earlier ones).
     /// </summary>
-    public static void Track(PdfDocument doc, byte[] data, string? password, bool force = false)
+    public static void Track(PdfDocument doc, byte[] data, string? password, bool force = false) =>
+        Track(doc, data, data, password, force, null, null);
+
+    /// <summary>
+    /// Tracks <paramref name="doc"/>, opened in Modify mode from <paramref name="plain"/> (the decrypted copy of
+    /// <paramref name="original"/>, with the same object numbers), so its edits are appended to the encrypted original
+    /// with new objects encrypted by <paramref name="crypt"/>. False when it can't be.
+    /// </summary>
+    internal static bool TrackUserPasswordEdit(PdfDocument doc, byte[] plain, byte[] original, StandardCrypt crypt, string encrypt,
+        (int Num, int Gen, byte[] Body)? encryptObject)
+    {
+        Track(doc, plain, original, null, true, crypt, encrypt);
+        if (!Tracked.TryGetValue(doc, out var b)) return false;
+        b.EncryptObject = encryptObject;
+        return true;
+    }
+
+    /// <param name="data">What <paramref name="doc"/> was opened from, read again to pair the objects.</param>
+    /// <param name="original">The file the update is appended to: <paramref name="data"/>, or the encrypted file it is a decrypted copy of.</param>
+    private static void Track(PdfDocument doc, byte[] data, byte[] original, string? password, bool force, StandardCrypt? crypt, string? encrypt)
     {
         var signed = LooksSigned(data);
         var why = new StrongBox<string>("");
@@ -75,7 +101,7 @@ internal static class Incremental
         }
         try
         {
-            if (Tail(data) is not { } tail)
+            if (Tail(original) is not { } tail)
             {
                 why.Value = PdfStrings.Doc_AppendNoXref;
                 return;
@@ -141,7 +167,7 @@ internal static class Incremental
             var maxNum = orig.Internals.GetAllObjects().Select(o => o.Reference?.ObjectNumber ?? 0).DefaultIfEmpty(0).Max();
             Tracked.AddOrUpdate(doc, new Base
             {
-                Original = data,
+                Original = original,
                 Map = map,
                 Snapshot = snapshot,
                 Parents = parents,
@@ -149,6 +175,8 @@ internal static class Incremental
                 StartXref = tail.StartXref,
                 XrefStream = tail.XrefStream,
                 Id = tail.Id,
+                Crypt = crypt,
+                Encrypt = encrypt,
             });
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
@@ -171,6 +199,8 @@ internal static class Incremental
             SignedEdits.NoteAppended();
             return appended;
         }
+        // Edited with the user password only: a rewrite would drop the encryption, and keeping it needs the owner password.
+        if (Tracked.TryGetValue(doc, out var b) && b.Crypt is not null) throw new OwnerPasswordRequiredException(false);
         if (!Signed.TryGetValue(doc, out var why) || SignedEdits.RewriteAllowed) return null;
         throw new SignaturesWouldBreakException(CountSignatures(doc), why.Value is { Length: > 0 } reason ? reason : PdfStrings.Doc_AppendCantWrite);
     }
@@ -298,13 +328,22 @@ internal static class Incremental
         {
             offsets[num] = (at + ms.Position, gen);
             Ascii(ms, $"{num} {gen} obj\n");
-            ms.Write(Serialize(obj, Id, null, null, replace));
+            var crypt = b.Crypt is { } c ? (data, stream) => c.Encrypt(num, gen, data, stream) : (Func<byte[], PdfDictionary?, byte[]>?)null;
+            ms.Write(Serialize(obj, Id, null, null, replace, crypt));
+            Ascii(ms, "\nendobj\n");
+        }
+        if (b.EncryptObject is { } e && !offsets.ContainsKey(e.Num))
+        {
+            offsets[e.Num] = (at + ms.Position, e.Gen);
+            Ascii(ms, $"{e.Num} {e.Gen} obj\n");
+            ms.Write(e.Body);
             Ascii(ms, "\nendobj\n");
         }
 
         var root = Id(doc.Internals.Catalog.Reference!.ObjectID)!.Value;
         var infoRef = info.Reference is { } ir && Id(ir.ObjectID) is { } i ? $" /Info {i.Item1} {i.Item2} R" : "";
-        var trailerKeys = $"/Root {root.Item1} {root.Item2} R{infoRef}{(b.Id is null ? "" : $" /ID {b.Id}")} /Prev {b.StartXref}";
+        var encrypt = b.Encrypt is null ? "" : $" /Encrypt {b.Encrypt}";
+        var trailerKeys = $"/Root {root.Item1} {root.Item2} R{infoRef}{(b.Id is null ? "" : $" /ID {b.Id}")}{encrypt} /Prev {b.StartXref}";
         var xrefAt = at + ms.Position;
         if (b.XrefStream)
         {
@@ -524,16 +563,17 @@ internal static class Incremental
     /// </summary>
     /// <param name="skip">Top-level dictionary keys left out (for comparing).</param>
     /// <param name="replace">A top-level dictionary key written with this value text instead.</param>
+    /// <param name="crypt">Encrypts each string (dictionary null) and the stream's data (its dictionary) as written.</param>
     internal static byte[] Serialize(PdfObject obj, Func<PdfObjectID, (int, int)?> id, Dictionary<PdfDictionary, byte[]>? streamHash,
-        IReadOnlySet<string>? skip = null, (string Key, string Value)? replace = null)
+        IReadOnlySet<string>? skip = null, (string Key, string Value)? replace = null, Func<byte[], PdfDictionary?, byte[]>? crypt = null)
     {
         using var ms = new MemoryStream();
-        Item(ms, obj, id, streamHash, top: true, depth: 0, skip, replace);
+        Item(ms, obj, id, streamHash, top: true, depth: 0, skip, replace, crypt);
         return ms.ToArray();
     }
 
     private static void Item(MemoryStream s, PdfItem? item, Func<PdfObjectID, (int, int)?> id, Dictionary<PdfDictionary, byte[]>? streamHash, bool top, int depth,
-        IReadOnlySet<string>? skip = null, (string Key, string Value)? replace = null)
+        IReadOnlySet<string>? skip = null, (string Key, string Value)? replace = null, Func<byte[], PdfDictionary?, byte[]>? crypt = null)
     {
         if (depth > 256) throw new InvalidOperationException("Object nesting is too deep.");
         if (!top && item is PdfObject { IsIndirect: true } indirect) item = indirect.Reference;
@@ -554,11 +594,17 @@ internal static class Incremental
                     Name(s, key);
                     s.WriteByte((byte)' ');
                     if (replace is { } rep && rep.Key == key) Ascii(s, rep.Value);
-                    else Item(s, d.Elements[key], id, streamHash, false, depth + 1);
+                    // A signature's /Contents is never encrypted (ISO 32000-2 7.6.2).
+                    else Item(s, d.Elements[key], id, streamHash, false, depth + 1, crypt: key == "/Contents" && d.Elements.ContainsKey("/ByteRange") ? null : crypt);
                 }
                 if (d.Stream is { } stream)
                 {
                     var data = stream.Value ?? [];
+                    if (crypt is not null)
+                    {
+                        if (StandardCrypt.HasOwnCryptFilter(d)) throw new InvalidOperationException("A stream with its own crypt filter can't be encrypted here.");
+                        data = crypt(data, d);
+                    }
                     Ascii(s, $"/Length {data.Length}>>\nstream\n");
                     if (streamHash is null) s.Write(data);
                     else
@@ -576,7 +622,7 @@ internal static class Incremental
                 for (var i = 0; i < a.Elements.Count; i++)
                 {
                     if (i > 0) s.WriteByte((byte)' ');
-                    Item(s, a.Elements[i], id, streamHash, false, depth + 1);
+                    Item(s, a.Elements[i], id, streamHash, false, depth + 1, crypt: crypt);
                 }
                 s.WriteByte((byte)']');
                 break;
@@ -587,13 +633,13 @@ internal static class Incremental
                 Name(s, n.Value);
                 break;
             case PdfString str:
-                Hex(s, str.Value, str.Encoding == PdfStringEncoding.Unicode);
+                Hex(s, str.Value, str.Encoding == PdfStringEncoding.Unicode, crypt);
                 break;
             case PdfStringObject str:
-                Hex(s, str.Value, str.Encoding == PdfStringEncoding.Unicode);
+                Hex(s, str.Value, str.Encoding == PdfStringEncoding.Unicode, crypt);
                 break;
             case PdfDate date:
-                Hex(s, PdfObj.DateString(new DateTimeOffset(date.Value)).Value, false);
+                Hex(s, PdfObj.DateString(new DateTimeOffset(date.Value)).Value, false, crypt);
                 break;
             case PdfBoolean b:
                 Ascii(s, b.Value ? "true" : "false");
@@ -653,13 +699,14 @@ internal static class Incremental
     }
 
     /// <summary>A string as hex: its bytes (characters 0-255) as read, or UTF-16BE with a BOM for text beyond Latin-1.</summary>
-    private static void Hex(Stream s, string value, bool unicode)
+    private static void Hex(Stream s, string value, bool unicode, Func<byte[], PdfDictionary?, byte[]>? crypt = null)
     {
         byte[] bytes;
         if (unicode || value.Any(c => c > 0xFF))
             bytes = [0xFE, 0xFF, .. Encoding.BigEndianUnicode.GetBytes(value)];
         else
             bytes = Encoding.Latin1.GetBytes(value);
+        if (crypt is not null) bytes = crypt(bytes, null);
         Ascii(s, $"<{Convert.ToHexString(bytes)}>");
     }
 

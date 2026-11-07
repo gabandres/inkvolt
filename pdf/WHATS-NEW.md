@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Protected forms that allow filling in (USCIS and OPM forms among them) fill without asking for a permissions password, as in Acrobat: the saved form keeps its protection, and comments work too when the form allows them. Other changes still ask for that password.
 - Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
 
 ## 1.10.0

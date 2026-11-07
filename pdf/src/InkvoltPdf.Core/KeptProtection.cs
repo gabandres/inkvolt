@@ -137,7 +137,7 @@ public static class KeptProtection
         s.PermitAssembleDocument = permissions.Assemble;
     }
 
-    private static readonly byte[] Padding =
+    internal static readonly byte[] Padding =
     [
         0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
         0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80, 0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53, 0x69, 0x7A,
@@ -180,7 +180,7 @@ public static class KeptProtection
         return value;
     }
 
-    private static byte[] Rc4(byte[] key, byte[] data)
+    internal static byte[] Rc4(byte[] key, byte[] data)
     {
         var s = new byte[256];
         for (var i = 0; i < 256; i++) s[i] = (byte)i;
@@ -201,7 +201,7 @@ public static class KeptProtection
     }
 
     /// <summary>A string's bytes as stored in the file (encryption dictionary strings are never encrypted).</summary>
-    private static byte[]? RawBytes(PdfItem? item)
+    internal static byte[]? RawBytes(PdfItem? item)
     {
         if (PdfObj.Resolve(item) is not PdfString s) return null;
         return s.Encoding == PdfStringEncoding.Unicode
