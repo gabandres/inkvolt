@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Protected forms that allow filling in (USCIS and OPM forms among them) fill without asking for a permissions password, as in Acrobat: the saved form keeps its protection, and comments work too when the form allows them. Other changes still ask for that password.
+- Social security, phone and ZIP+4 fields take every digit you type: the dashes show once you leave the field, as in Acrobat, instead of counting against the field's length while you type (typing 123456789 into a California 540 SSN box gave 123-45-67).
 - Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
 
 ## 1.10.0
