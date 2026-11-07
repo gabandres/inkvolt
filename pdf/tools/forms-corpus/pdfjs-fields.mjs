@@ -54,6 +54,7 @@ for (const arg of process.argv.slice(2)) {
   } catch (e) {
     result = { file, error: String(e?.message ?? e).slice(0, 300) };
   }
-  process.stdout.write(JSON.stringify(result) + "\n");
+  // Waits for the write: a pipe on macOS takes 64 KB at a time, and process.exit would cut a long line off.
+  await new Promise((done) => process.stdout.write(JSON.stringify(result) + "\n", done));
 }
 process.exit(0);

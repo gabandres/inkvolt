@@ -623,6 +623,26 @@ public final class FieldKeystrokes: @unchecked Sendable {
         return String(decoding: t[..<room], as: UTF16.self)
     }
 
+    /// `text` with UTF-16 range [start, end) replaced by `change`.
+    static func replacing(_ text: String, _ start: Int, _ end: Int, _ change: String) -> String {
+        let s = text as NSString
+        let a = min(max(start, 0), s.length), b = min(max(end, a), s.length)
+        return s.replacingCharacters(in: NSRange(location: a, length: b - a), with: change)
+    }
+
+    /// One edit in a field's editor, as the app's editor applies it: `before` became `after`; the field's length limit,
+    /// then its keystroke script (refused characters taken back, rewritten ones replaced). `text` is what the editor holds
+    /// now, `refused` that the script said no.
+    public static func typed(before: String, after: String, maxLength: Int, _ keystrokes: FieldKeystrokes?) -> (text: String, refused: Bool, alerts: [String]) {
+        let d = diff(before, after)
+        let change = maxLength > 0 ? fit(before, d.start, d.end, d.change, maxLength) : d.change
+        guard let keystrokes, let verdict = keystrokes.run(before, change, d.start, d.end) else {
+            return (replacing(before, d.start, d.end, change), false, [])
+        }
+        if !verdict.accepted { return (before, true, verdict.alerts) }
+        return (replacing(before, verdict.selStart, verdict.selEnd, verdict.change), false, verdict.alerts)
+    }
+
     /// The field's keystroke check, or nil when it has no keystroke script (or the PDF can't be read).
     public static func open(_ data: [UInt8], _ password: String?, _ fieldName: String) -> FieldKeystrokes? {
         guard let doc = try? PdfEdit.openToRead(data, password), let fields = try? FormEditor.collect(doc, doc.catalog.dict("AcroForm")),
