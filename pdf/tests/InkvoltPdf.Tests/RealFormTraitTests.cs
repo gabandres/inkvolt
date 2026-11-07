@@ -134,6 +134,34 @@ public class RealFormTraitTests
         Assert.Contains("Filled kid", Core2Pdf.AllText(filled));
     }
 
+    // ---- Calculations (pdfjs-issue15753) ----
+
+    [Fact]
+    public void ACalculationThatSetsItsOwnFieldThroughGetFieldKeepsTheValue()
+    {
+        var data = Doc("6 0 R 7 0 R", "6 0 R 7 0 R",
+        [
+            Widget("/FT /Tx /T (Field1) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g)"),
+            Widget("/FT /Tx /T (Field2) /Rect [72 650 300 670] /DA (/Helv 12 Tf 0 g) /AA << /C << /S /JavaScript " +
+                   "/JS (var field1 = this.getField\\(\"Field1\"\\); var field2 = this.getField\\(\"Field2\"\\); field2.value = field1.value;) >> >>"),
+        ], acroExtra: "/CO [7 0 R]");
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["Field1"] = "Copied" }).Data;
+        Assert.Equal("Copied", FormEditor.Read(filled, null).Single(w => w.FieldName == "Field2").Value);
+    }
+
+    [Fact]
+    public void CalculationsHaveAcrobatsSimpleAndExtractNumsHelpers()
+    {
+        var data = Doc("6 0 R 7 0 R", "6 0 R 7 0 R",
+        [
+            Widget("/FT /Tx /T (in) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g)"),
+            Widget("/FT /Tx /T (out) /Rect [72 650 300 670] /DA (/Helv 12 Tf 0 g) /AA << /C << /S /JavaScript " +
+                   "/JS (var n = AFExtractNums\\(this.getField\\('in'\\).value\\); event.value = AFSimple\\('SUM', n[0], n[1]\\) + AFSimple\\('MAX', 2, 9\\) + AFSimple\\('PRD', 2, 3\\);) >> >>"),
+        ], acroExtra: "/CO [7 0 R]");
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["in"] = "(555) 1234" }).Data;
+        Assert.Equal("1804", FormEditor.Read(filled, null).Single(w => w.FieldName == "out").Value); // 555 + 1234 + 9 + 6
+    }
+
     /// <summary>The field dictionary named <paramref name="name"/> as PDF text (the last one written).</summary>
     private static string Fields(byte[] data, string name)
     {
