@@ -17,6 +17,9 @@ public enum ProFeature: CaseIterable, Sendable {
     case accessibleOutput
     /// Edit › Find › Search Folders: folders indexed on this Mac and searched in under a second.
     case folderSearch
+    /// File › Compare Files with an Office file or a picture of a page on either side, scans' words recognized, and
+    /// formatting changes listed (comparing two PDFs, moves and the overlay stay free).
+    case compareOfficeAndScans
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -80,6 +83,7 @@ public enum Pro {
         case .readingOrder: loc("Reading order")
         case .accessibleOutput: loc("Accessible PDF/A-2a")
         case .folderSearch: loc("Folder search")
+        case .compareOfficeAndScans: loc("Compare Office files and scans")
         }
     }
 
@@ -100,6 +104,8 @@ public enum Pro {
             loc("Save a tagged PDF as PDF/A-2a, the archival format that keeps the tags and says it is accessible (PDF/UA); in Batch too.")
         case .folderSearch:
             loc("Index whole folders on this Mac, nothing sent anywhere, and find a word across thousands of PDFs in under a second, with the text around each hit; a result opens at the hit, and the index keeps up as files change.")
+        case .compareOfficeAndScans:
+            loc("Compare a Word, Excel or PowerPoint file or a scan with a PDF, the scan's words recognized on this Mac, and see font, size, bold, italic and color changes listed apart from wording.")
         }
     }
 
@@ -113,6 +119,7 @@ public enum Pro {
         case .readingOrder: loc("Fixing the reading order is part of Inkvolt Pro.")
         case .accessibleOutput: loc("Saving accessible PDF/A-2a files is part of Inkvolt Pro.")
         case .folderSearch: loc("Searching folders is part of Inkvolt Pro.")
+        case .compareOfficeAndScans: loc("Comparing Office files, scans and formatting is part of Inkvolt Pro.")
         }
     }
 

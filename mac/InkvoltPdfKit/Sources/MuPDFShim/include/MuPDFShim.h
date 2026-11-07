@@ -303,6 +303,11 @@ int inkv_export_page(void *ctx, inkv_doc *doc, int page, int images, long long j
                      char *err);
 void inkv_free_export(inkv_export *e);
 
+/// Reads a page for Compare (the Windows engine's `GetComparePage`): its own content only, as `inkv_page_chars` reads
+/// it, each character with its font, size and color, and where its pictures are (no pixels, no vector paths).
+/// 1: read; 2: stopped by the cookie; 0: failed.
+int inkv_compare_page(void *ctx, inkv_doc *doc, int page, inkv_export *out, inkv_cookie *cookie, char *err);
+
 /// Draws an area of the page (MuPDF page space) at `scale`, with its annotations, on transparency, as straight (not
 /// premultiplied) RGBA; malloc'ed (inkv_free). 1: drawn; 2: stopped by the cookie; 0: failed.
 int inkv_render_region_rgba(void *ctx, inkv_doc *doc, int page, float scale, float x0, float y0, float x1, float y1,

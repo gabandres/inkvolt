@@ -1805,6 +1805,17 @@
         }
       }
     },
+    "Can't compare {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede comparar {0}"
+          }
+        }
+      }
+    },
     "Can't import {0}": {
       "extractionState": "manual",
       "localizations": {
@@ -2344,6 +2355,17 @@
         }
       }
     },
+    "Changed (may be misread)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiado (puede ser un error de lectura)"
+          }
+        }
+      }
+    },
     "Changed [a change]": {
       "extractionState": "manual",
       "localizations": {
@@ -2362,6 +2384,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Página {0} del modificado"
+          }
+        }
+      }
+    },
+    "Changed page {0} couldn't be read, so it wasn't compared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} del modificado no se pudo leer, así que no se comparó."
           }
         }
       }
@@ -3191,6 +3224,17 @@
         }
       }
     },
+    "Compare Without Reading Them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparar sin leerlos"
+          }
+        }
+      }
+    },
     "Compare by": {
       "extractionState": "manual",
       "localizations": {
@@ -3231,6 +3275,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comparado con {0}: {1}"
+          }
+        }
+      }
+    },
+    "Comparing {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparando {0}"
+          }
+        }
+      }
+    },
+    "Comparing…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comparando…"
           }
         }
       }
@@ -3528,6 +3594,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron cambiar las capas: {0}"
+          }
+        }
+      }
+    },
+    "Couldn't convert {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo convertir {0}"
           }
         }
       }
@@ -5985,6 +6062,17 @@
         }
       }
     },
+    "Formatting": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Formato"
+          }
+        }
+      }
+    },
     "Forms Filled": {
       "extractionState": "manual",
       "localizations": {
@@ -7037,6 +7125,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Insertado"
+          }
+        }
+      }
+    },
+    "Inserted (may be misread)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertado (puede ser un error de lectura)"
           }
         }
       }
@@ -8361,6 +8460,17 @@
         }
       }
     },
+    "Moved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movido"
+          }
+        }
+      }
+    },
     "Moved to place {0}": {
       "extractionState": "manual",
       "localizations": {
@@ -8368,6 +8478,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Movida a la posición {0}"
+          }
+        }
+      }
+    },
+    "Moves": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movimientos"
           }
         }
       }
@@ -8929,6 +9050,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sin comprobar: Inkvolt PDF no puede verificar este tipo de firma."
+          }
+        }
+      }
+    },
+    "Not compared": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No comparado"
           }
         }
       }
@@ -9692,6 +9824,17 @@
         }
       }
     },
+    "Original page {0} couldn't be read, so it wasn't compared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} del original no se pudo leer, así que no se comparó."
+          }
+        }
+      }
+    },
     "Original page {0}, changed page {1}": {
       "extractionState": "manual",
       "localizations": {
@@ -9934,17 +10077,6 @@
         }
       }
     },
-    "Page {0} and page {1} have no text to compare; their pictures differ (see Visual)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La página {0} y la página {1} no tienen texto que comparar; sus imágenes son distintas (ver Visual)"
-          }
-        }
-      }
-    },
     "Page {0} took too long to read and wasn't searched.": {
       "extractionState": "manual",
       "localizations": {
@@ -10106,6 +10238,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las páginas casi sin tinta (el reverso vacío de una hoja de una cara) no se agregan. Una página con apenas una palabra corta se conserva."
+          }
+        }
+      }
+    },
+    "Pages without text can't be compared word by word: they are checked visually, and Visual shows them overlaid.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas sin texto no se pueden comparar palabra por palabra: se comprueban visualmente, y Visual las muestra superpuestas."
           }
         }
       }
@@ -10286,13 +10429,13 @@
         }
       }
     },
-    "Pick the original and the changed version. An open document is compared as it is now, unsaved changes included.": {
+    "Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elige el original y la versión modificada. Un documento abierto se compara tal como está ahora, con los cambios sin guardar."
+            "value": "Elige el original y la versión modificada. Un documento abierto se compara tal como está ahora, con los cambios sin guardar. Cualquiera de los dos puede ser un archivo de Word, Excel o PowerPoint (convertido en PDF con LibreOffice) o una imagen de una página escaneada: sus palabras se reconocen en este Mac."
           }
         }
       }
@@ -10880,6 +11023,17 @@
         }
       }
     },
+    "Reading the scans… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo los escaneos… página {0} de {1}"
+          }
+        }
+      }
+    },
     "Reading the tags…": {
       "extractionState": "manual",
       "localizations": {
@@ -10898,6 +11052,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Leyendo el texto de {0}…"
+          }
+        }
+      }
+    },
+    "Reading the text… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo el texto… página {0} de {1}"
           }
         }
       }
@@ -11613,6 +11778,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitado"
+          }
+        }
+      }
+    },
+    "Removed (may be misread)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitado (puede ser un error de lectura)"
           }
         }
       }
@@ -13201,6 +13377,17 @@
         }
       }
     },
+    "Show formatting": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar formato"
+          }
+        }
+      }
+    },
     "Show in Finder": {
       "extractionState": "manual",
       "localizations": {
@@ -13208,6 +13395,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar en Finder"
+          }
+        }
+      }
+    },
+    "Show looks different": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar lo que se ve distinto"
+          }
+        }
+      }
+    },
+    "Show moves": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar movimientos"
           }
         }
       }
@@ -13296,6 +13505,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar el nombre completo del certificado del firmante"
+          }
+        }
+      }
+    },
+    "Show wording": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar cambios de texto"
           }
         }
       }
@@ -15599,6 +15819,17 @@
         }
       }
     },
+    "The words on scanned pages were recognized, so some differences may be misreadings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las palabras de las páginas escaneadas se reconocieron, así que algunas diferencias pueden ser errores de lectura."
+          }
+        }
+      }
+    },
     "There is nothing to flatten.": {
       "extractionState": "manual",
       "localizations": {
@@ -17007,6 +17238,17 @@
         }
       }
     },
+    "Wording": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto"
+          }
+        }
+      }
+    },
     "Words it wasn't sure of are listed in Tools › Review Suspect Words.": {
       "extractionState": "manual",
       "localizations": {
@@ -17447,6 +17689,17 @@
         }
       }
     },
+    "couldn't be read: not compared": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se pudo leer: no se comparó"
+          }
+        }
+      }
+    },
     "digital signatures": {
       "extractionState": "manual",
       "localizations": {
@@ -17700,6 +17953,39 @@
         }
       }
     },
+    "no text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin texto"
+          }
+        }
+      }
+    },
+    "no text on the changed page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin texto en la página del modificado"
+          }
+        }
+      }
+    },
+    "no text on the original page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin texto en la página del original"
+          }
+        }
+      }
+    },
     "no text to compare: see Visual": {
       "extractionState": "manual",
       "localizations": {
@@ -17788,6 +18074,28 @@
         }
       }
     },
+    "only in the changed file: its text moved from another page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "solo en el archivo modificado: su texto vino de otra página"
+          }
+        }
+      }
+    },
+    "only in the original: its text moved to another page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "solo en el original: su texto se movió a otra página"
+          }
+        }
+      }
+    },
     "open password": {
       "extractionState": "manual",
       "localizations": {
@@ -17850,6 +18158,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "miniaturas de página"
+          }
+        }
+      }
+    },
+    "page {0} → {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "página {0} → {1}"
           }
         }
       }
@@ -18184,6 +18503,17 @@
         }
       }
     },
+    "{0} ({1} of the page); no text to compare. Visual shows where.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} ({1} de la página); no hay texto que comparar. Visual muestra dónde."
+          }
+        }
+      }
+    },
     "{0} All pages will print.": {
       "extractionState": "manual",
       "localizations": {
@@ -18312,6 +18642,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} archivos adjuntos"
+          }
+        }
+      }
+    },
+    "{0} besides the text. Visual shows where.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} además del texto. Visual muestra dónde."
           }
         }
       }
@@ -18822,6 +19163,17 @@
         }
       }
     },
+    "{0} other areas look different.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otras {0} áreas se ven distintas."
+          }
+        }
+      }
+    },
     "{0} page couldn't be read": {
       "extractionState": "manual",
       "localizations": {
@@ -18833,6 +19185,17 @@
         }
       }
     },
+    "{0} page couldn't be read and wasn't compared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} página no se pudo leer y no se comparó."
+          }
+        }
+      }
+    },
     "{0} page had no text": {
       "extractionState": "manual",
       "localizations": {
@@ -18840,6 +19203,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} página no tenía texto"
+          }
+        }
+      }
+    },
+    "{0} page looks different (Visual shows where).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} página se ve distinta (Visual muestra dónde)."
           }
         }
       }
@@ -18910,6 +19284,17 @@
         }
       }
     },
+    "{0} pages couldn't be read and weren't compared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas no se pudieron leer y no se compararon."
+          }
+        }
+      }
+    },
     "{0} pages had no text": {
       "extractionState": "manual",
       "localizations": {
@@ -18917,6 +19302,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} páginas no tenían texto"
+          }
+        }
+      }
+    },
+    "{0} pages look different (Visual shows where).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas se ven distintas (Visual muestra dónde)."
           }
         }
       }
@@ -18983,6 +19379,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} respuestas"
+          }
+        }
+      }
+    },
+    "{0} scanned page wasn't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se leyó {0} página escaneada."
+          }
+        }
+      }
+    },
+    "{0} scanned pages weren't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se leyeron {0} páginas escaneadas."
           }
         }
       }
@@ -19317,6 +19735,28 @@
         }
       }
     },
+    "{0}: couldn't be checked": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: no se pudo comprobar"
+          }
+        }
+      }
+    },
+    "{0}: looks the same": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: se ve igual"
+          }
+        }
+      }
+    },
     "{0}: none found": {
       "extractionState": "manual",
       "localizations": {
@@ -19372,28 +19812,6 @@
         }
       }
     },
-    "{0}; {1} page without text looks different": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "{0}; {1} página sin texto se ve distinta"
-          }
-        }
-      }
-    },
-    "{0}; {1} pages without text look different": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "{0}; {1} páginas sin texto se ven distintas"
-          }
-        }
-      }
-    },
     "{0}; {1} suspect word to check in the sidebar's Suspect Words.": {
       "extractionState": "manual",
       "localizations": {
@@ -19434,6 +19852,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "{1} firmas; {0} tienen problemas: {2}."
+          }
+        }
+      }
+    },
+    "{1}: {0} area looks different": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1}: {0} área se ve distinta"
+          }
+        }
+      }
+    },
+    "{1}: {0} areas look different": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1}: {0} áreas se ven distintas"
           }
         }
       }

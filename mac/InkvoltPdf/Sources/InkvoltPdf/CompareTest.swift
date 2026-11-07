@@ -74,6 +74,15 @@ struct CompareTest {
         check(c.selected == 0 && c.rowsView.selected != nil, "Next selects the first change")
         c.step(-1)
         check(c.selected == c.items.count - 1, "Previous from the first goes round to the last")
+        check(c.summary.stringValue.contains(loc("{0} page looks different (Visual shows where).", 1)),
+              "the summary says what the visual check found: \(c.summary.stringValue)")
+        // A "Looks different" entry (no change of its own) stays selected when the list is made again (a box toggled, or
+        // the visual check adding an area).
+        let looks = c.items.firstIndex { $0.group == .looks }
+        for _ in 0..<c.items.count where c.selected != looks { c.step(1) }
+        c.showGroup(.formatting, false)
+        c.showGroup(.formatting, true)
+        check(looks != nil && c.selected == looks, "a Looks different entry stays selected as the list is made again")
         c.setVisual(true)
         c.rowsView.want(rows: [0, 2])
         let first = await wait { c.rowsView.overlayRegions[0]?.isEmpty == false }
@@ -101,7 +110,113 @@ struct CompareTest {
               "Annotated Copy: a new document with the change highlighted and the summary note (\(notes.count) comments)")
         copy?.close()
         c.close()
+        await formatting()
+        await scanned()
+        await skippedAsAScanWasRead()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
+    }
+
+    /// One page whose lines are runs of Helvetica (`false`) and Helvetica-Bold (`true`).
+    static func styledPdf(_ lines: [[(String, Bool)]]) -> [UInt8] {
+        var content = ""
+        for (i, runs) in lines.enumerated() {
+            content += "BT 72 \(720 - i * 24) Td"
+            for (text, bold) in runs { content += " /F\(bold ? 2 : 1) 14 Tf (\(text)) Tj" }
+            content += " ET\n"
+        }
+        let font = "<< /Type /Font /Subtype /Type1 /BaseFont /%@ /Encoding /WinAnsiEncoding >>"
+        let objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [5 0 R] /Count 1 >>",
+                       String(format: font, "Helvetica"), String(format: font, "Helvetica-Bold"),
+                       "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents 6 0 R >>",
+                       "<< /Length \(content.utf8.count) >>\nstream\n\(content)\nendstream"]
+        var out = Array("%PDF-1.7\n".utf8)
+        var offsets: [Int] = []
+        for (i, o) in objects.enumerated() {
+            offsets.append(out.count)
+            out += Array("\(i + 1) 0 obj\n\(o)\nendobj\n".utf8)
+        }
+        let xref = out.count
+        var table = "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for o in offsets { table += String(format: "%010d 00000 n \n", o) }
+        table += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+        return out + Array(table.utf8)
+    }
+
+    /// Roadmap 3.3: a word set in bold and an amount changed: the formatting change listed apart from the wording, each
+    /// kind's box hiding it, and the annotated copy saying what changed in the look.
+    private mutating func formatting() async {
+        lines.append("== Compare: formatting apart from wording")
+        let old = Self.styledPdf([[("Service agreement", false)], [("The fee is 100 dollars per month.", false)]])
+        let new = Self.styledPdf([[("Service agreement", false)], [("The ", false), ("fee", true), (" is 150 dollars per month.", false)]])
+        let c = CompareWindowController.show(old: CompareSide(name: "plain.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "bold.pdf", data: new, password: nil))
+        await c.finished()
+        let r = c.result
+        let bold = c.items.first { $0.kind == loc("Formatting") }
+        check(r?.formatted == 1 && r?.changed == 1 && bold?.text == loc("bold added") + ": fee",
+              "a word set in bold is one formatting change, apart from the changed amount: \(c.summary.stringValue)")
+        let all = c.items.count
+        let boxes = c.groupBoxes[.formatting].map { !$0.isHidden } == true && c.groupBoxes[.wording].map { !$0.isHidden } == true
+        c.showGroup(.formatting, false)
+        let hidden = c.items.count == all - 1 && !c.items.contains { $0.kind == loc("Formatting") } && c.rowsView.hiddenKinds.contains(.formatted)
+        c.showGroup(.formatting, true)
+        check(boxes && hidden && c.items.count == all, "the kinds' boxes: Formatting off hides its entry and its marks, on shows them again")
+        let copy = c.makeAnnotatedCopy()
+        let notes = (copy?.session?.data).flatMap { try? Annotations.read($0, nil) } ?? []
+        check(notes.contains { $0.kind == .highlight && $0.contents == loc("Formatting: {0}", loc("bold added")) },
+              "Annotated Copy: the bold word highlighted with what changed (\(notes.count) comments)")
+        copy?.close()
+        c.close()
+    }
+
+    /// A PDF whose one page is a picture (200 dpi) of `pdf`'s first page, as a scanner makes one.
+    static func scanOf(_ pdf: [UInt8]) -> [UInt8]? {
+        guard let engine = try? PdfEngine.open(pdf) else { return nil }
+        defer { engine.close() }
+        let g = engine.page(0)
+        guard let image = try? engine.render(0, scale: 200.0 / 72), let cg = PageRenderer.cgImage(image) else { return nil }
+        let rep = NSBitmapImageRep(cgImage: cg)
+        rep.size = NSSize(width: g.width, height: g.height) // 200 dpi in the PNG
+        guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
+        return try? ImageImport.imagesToPdf([(bytes: Array(png), name: "scan.png")])
+    }
+
+    /// Roadmap 3.3: the changed version a scan (a picture of the page, no text): its words recognized with Vision first,
+    /// the changed amount listed as read from the scan, and no formatting said about it.
+    private mutating func scanned() async {
+        lines.append("== Compare: a scanned page")
+        let old = Self.styledPdf([[("Scope of work", false)], [("The supplier delivers 12 monthly reports.", false)]])
+        guard let new = Self.scanOf(Self.styledPdf([[("Scope of work", false)], [("The supplier delivers 15 monthly reports.", false)]])) else {
+            return check(false, "the scan couldn't be made")
+        }
+        let c = CompareWindowController.show(old: CompareSide(name: "typed.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "scan.pdf", data: new, password: nil))
+        await c.finished()
+        let r = c.result
+        let amount = r?.changes.first { $0.kind == .changed && $0.oldText == "12" }
+        check(c.scanNote == loc("The words on scanned pages were recognized, so some differences may be misreadings."),
+              "the scan's words were recognized: \(c.scanNote ?? "no note")")
+        check(amount?.newText == "15" && amount?.readFromScan == true && r?.formatted == 0 && r?.pairsWithoutText == 0,
+              "the changed amount on the scan is listed as read from it, no formatting said: \(c.summary.stringValue)")
+        c.close()
+    }
+
+    /// Compare Without Reading Them pressed as a scan's words came back: that scan was read, the other one wasn't.
+    private mutating func skippedAsAScanWasRead() async {
+        lines.append("== Compare: skipped as a scan was read")
+        guard let old = Self.scanOf(Self.styledPdf([[("Scope of work", false)]])), let new = Self.scanOf(Self.styledPdf([[("Scope of works", false)]])) else {
+            return check(false, "the scans couldn't be made")
+        }
+        CompareWindowController.testRecognizer = { _, _, skip in
+            skip?.cancel() // pressed while this page was read; its words still come back
+            return []
+        }
+        defer { CompareWindowController.testRecognizer = nil }
+        let c = CompareWindowController.show(old: CompareSide(name: "first-scan.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "second-scan.pdf", data: new, password: nil))
+        await c.finished()
+        check(c.scanNote == loc("{0} scanned page wasn't read.", 1), "one of two scans read before the skip: \(c.scanNote ?? "no note")")
+        c.close()
     }
 }

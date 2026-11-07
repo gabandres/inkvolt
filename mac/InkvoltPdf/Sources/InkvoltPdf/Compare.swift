@@ -11,25 +11,41 @@ struct CompareSide: Sendable {
 }
 
 /// File › Compare Files… (the Windows app's `Compare` and `CompareWindow`): pick the original and the changed version
-/// (an open document, or any PDF; Swap), then the Compare window: rows of lined-up pages side by side with one scroll
-/// bar, the text differences highlighted on both sides (inserted green, removed red, changed amber, a marker where words
-/// went missing on the other side), the list of changes to step through (⌘] and ⌘[, or the arrows) and a summary;
-/// Visual overlays the pages (ink only in the original red, only in the changed file blue, shared grey, boxes around
-/// what differs) for drawings and scans; pages without text are checked visually in the background. Annotated Copy
-/// opens a copy of the changed file with every change as a comment, to save and share. Works on its own copies of both
-/// documents, so the windows can change or close meanwhile.
+/// (an open document, or a file: a PDF, an Office file made into a PDF by LibreOffice, a picture of a scanned page; Swap),
+/// then the Compare window: rows of lined-up pages side by side with one scroll bar, the text differences highlighted on
+/// both sides (inserted green, removed red, changed amber, moved violet, reformatted blue, a marker where words went
+/// missing on the other side), the list of changes to step through (⌘] and ⌘[, or the arrows), with a box per kind
+/// (wording, moves, formatting, looks different) to hide it, and a summary. Scanned pages without text are recognized
+/// first (Vision, on this Mac; skippable). Visual overlays the pages (ink only in the original red, only in the changed
+/// file blue, shared grey, boxes around what differs), a scan lined up for shift and skew first; what looks different
+/// besides the words is checked in the background and listed. Annotated Copy opens a copy of the changed file with every
+/// change as a comment, to save and share. Works on its own copies of both documents, so the windows can change or close
+/// meanwhile. A page that can't be read is listed as not compared.
 @MainActor
 final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTableViewDataSource, NSTableViewDelegate {
     /// The windows open (they keep themselves alive); the last one made (the self-test reads it).
     private static var shown: [CompareWindowController] = []
     private(set) static var last: CompareWindowController?
 
+    /// The self-test's recognizer for scanned pages; nil: Vision in Recognize Text's language.
+    static var testRecognizer: Recognizer?
+
+    /// The list's kinds, each with a box to hide it (`notCompared` is always listed).
+    enum ItemGroup: CaseIterable {
+        case wording, moves, formatting, looks, notCompared
+    }
+
     struct Item {
+        /// Who it is, whatever its place in the list (the selection follows it when entries are added or hidden).
+        let id = UUID()
         var change: Int?
         var row: Int
         var kind: String
         var text: String
         var color: NSColor
+        var group: ItemGroup = .wording
+        /// Where it is when the row's pages don't say it (a move: from and to).
+        var place: String?
     }
 
     let oldSide: CompareSide
@@ -37,13 +53,23 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private(set) var result: CompareResult?
     private(set) var oldText: [PageText] = []
     private(set) var newText: [PageText] = []
+    private var oldScan: [Bool] = [], newScan: [Bool] = []
+    private var oldUnread = Set<Int>(), newUnread = Set<Int>()
     private var oldEngine: PdfEngine?
     private var newEngine: PdfEngine?
+    /// Every entry, and those shown (the kinds not hidden).
+    private(set) var allItems: [Item] = []
     private(set) var items: [Item] = []
+    private(set) var hidden = Set<ItemGroup>()
     private(set) var selected: Int?
-    /// Rows without text that look different side by side (checked after the text).
+    /// Rows that look different besides their words (checked after the text), and those areas on the changed pages.
     private(set) var visuallyDifferent: [Int] = []
+    private(set) var visualAreas: [CompareVisualArea] = []
+    /// What happened to the scans' words: recognized, skipped, not read.
+    private(set) var scanNote: String?
     private let cancel = CancelToken()
+    /// Compare Without Reading Them: stops the scans' recognition only.
+    private let skipToken = CancelToken()
     private(set) var task: Task<Void, Never>?
     private(set) var failure: String?
 
@@ -55,13 +81,19 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private let previous = NSButton(title: loc("Previous"), target: nil, action: nil)
     private let next = NSButton(title: loc("Next"), target: nil, action: nil)
     let copyButton = NSButton(title: loc("Annotated Copy"), target: nil, action: nil)
+    let skipButton = NSButton(title: loc("Compare Without Reading Them"), target: nil, action: nil)
     private let position = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
+    /// The kinds' boxes, shown when the list has more than one kind.
+    private let groupBar = NSStackView()
+    private(set) var groupBoxes: [ItemGroup: NSButton] = [:]
     /// Zoom out, Fit and zoom in (Windows' Compare window: Ctrl+-, Ctrl+0, Ctrl+=); the pages fit the width at first.
     let zoomOut = NSButton(title: "−", target: nil, action: nil)
     let zoomFit = NSButton(title: loc("Fit"), target: nil, action: nil)
     let zoomIn = NSButton(title: "+", target: nil, action: nil)
     static let minZoom = 0.1, maxZoom = 8.0
+    /// Most rows whose text was compared that are also looked at (the check renders each page).
+    static let maxLookedAtRows = 2000
 
     @discardableResult
     static func show(old: CompareSide, new: CompareSide) -> CompareWindowController {
@@ -97,12 +129,15 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         mode.action = #selector(modeChanged)
         mode.setAccessibilityLabel(loc("Compare by"))
         mode.isEnabled = false
-        for (b, action) in [(previous, #selector(previousChange)), (next, #selector(nextChange)), (copyButton, #selector(annotatedCopy))] {
+        for (b, action) in [(previous, #selector(previousChange)), (next, #selector(nextChange)), (copyButton, #selector(annotatedCopy)),
+                            (skipButton, #selector(skipReading))] {
             b.target = self
             b.action = action
             b.bezelStyle = .rounded
             b.isEnabled = false
         }
+        skipButton.isEnabled = true
+        skipButton.isHidden = true
         let zooms: [(NSButton, Selector, String, String)] = [(zoomOut, #selector(zoomOutClicked), "-", loc("Zoom out (⌘-)")),
                                                              (zoomFit, #selector(zoomFitClicked), "0", loc("Fit the pages to the window (⌘0)")),
                                                              (zoomIn, #selector(zoomInClicked), "=", loc("Zoom in (⌘=)"))]
@@ -132,9 +167,23 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         legend.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         legend.textColor = .secondaryLabelColor
         legend.lineBreakMode = .byTruncatingMiddle
-        let bar = NSStackView(views: [progress, summary, mode, zoomOut, zoomFit, zoomIn, previous, position, next, copyButton])
+        let bar = NSStackView(views: [progress, summary, skipButton, mode, zoomOut, zoomFit, zoomIn, previous, position, next, copyButton])
         bar.spacing = 10
         bar.edgeInsets = NSEdgeInsets(top: 8, left: 12, bottom: 4, right: 12)
+
+        let shows: [(ItemGroup, String)] = [(.wording, loc("Show wording")), (.moves, loc("Show moves")), (.formatting, loc("Show formatting")),
+                                            (.looks, loc("Show looks different"))]
+        for (group, label) in shows {
+            let box = NSButton(checkboxWithTitle: Self.groupName(group), target: self, action: #selector(groupToggled(_:)))
+            box.state = .on
+            box.setAccessibilityLabel(label)
+            box.isHidden = true
+            groupBoxes[group] = box
+            groupBar.addArrangedSubview(box)
+        }
+        groupBar.spacing = 16
+        groupBar.edgeInsets = NSEdgeInsets(top: 0, left: 14, bottom: 0, right: 12)
+        groupBar.isHidden = true
 
         let column = NSTableColumn(identifier: .init("change"))
         column.title = loc("Changes")
@@ -166,7 +215,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         listScroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
         listScroll.widthAnchor.constraint(lessThanOrEqualToConstant: 380).isActive = true
 
-        let stack = NSStackView(views: [bar, legend, split])
+        let stack = NSStackView(views: [bar, groupBar, legend, split])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 4
@@ -178,86 +227,348 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         scroll.contentView.postsFrameChangedNotifications = true
     }
 
+    static func groupName(_ group: ItemGroup) -> String {
+        switch group {
+        case .wording: loc("Wording")
+        case .moves: loc("Moves")
+        case .formatting: loc("Formatting")
+        case .looks: loc("Looks different")
+        case .notCompared: loc("Not compared")
+        }
+    }
+
     // MARK: Comparing
+
+    /// One document's pages as Compare reads them; a page the engine refuses or can't read is empty and counted, so its
+    /// row says it wasn't compared.
+    nonisolated private static func readPages(_ engine: PdfEngine, _ token: CancelToken, _ report: @escaping @Sendable () async -> Void) async throws
+        -> (pages: [ComparePage], unread: Set<Int>) {
+        var pages: [ComparePage] = []
+        var unread = Set<Int>()
+        for p in 0..<engine.pageCount {
+            if token.isCancelled { throw CancellationError() }
+            do {
+                pages.append(try engine.comparePage(p, cancel: token))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                pages.append(.empty)
+                unread.insert(p)
+            }
+            await report()
+        }
+        return (pages, unread)
+    }
 
     private func start() {
         let old = oldSide, new = newSide, token = cancel
         task = Task { @MainActor in
             do {
-                let read = try await Task.detached { () throws -> (PdfEngine, PdfEngine, [PageText], [PageText], CompareResult) in
+                let (a, b) = try await Task.detached { () throws -> (PdfEngine, PdfEngine) in
                     let a = try PdfEngine.open(old.data, password: old.password)
-                    let b = try PdfEngine.open(new.data, password: new.password)
-                    let ta = try (0..<a.pageCount).map { try a.text($0, cache: false, cancel: token) }
-                    let tb = try (0..<b.pageCount).map { try b.text($0, cache: false, cancel: token) }
-                    return (a, b, ta, tb, try DocumentCompare.run(ta, tb, cancel: token))
+                    do {
+                        return (a, try PdfEngine.open(new.data, password: new.password))
+                    } catch {
+                        a.close()
+                        throw error
+                    }
                 }.value
-                (self.oldEngine, self.newEngine, self.oldText, self.newText, self.result) = read
+                (self.oldEngine, self.newEngine) = (a, b)
+                let total = a.pageCount + b.pageCount
+                let counter = PageCounter()
+                let report: @Sendable () async -> Void = {
+                    let done = counter.next()
+                    if done % 4 == 0 || done == total {
+                        await MainActor.run {
+                            self.summary.stringValue = loc("Reading the text… page {0} of {1}", CoreLanguage.number(done), CoreLanguage.number(total))
+                        }
+                    }
+                }
+                async let readOld = Task.detached { try await Self.readPages(a, token, report) }.value
+                async let readNew = Task.detached { try await Self.readPages(b, token, report) }.value
+                let (oldRead, newRead) = try await (readOld, readNew)
+                (self.oldUnread, self.newUnread) = (oldRead.unread, newRead.unread)
+                (self.oldScan, self.newScan) = (oldRead.pages.map(\.isPicture), newRead.pages.map(\.isPicture))
+
+                let recognized = try await self.readScans(a, oldRead.pages, b, newRead.pages)
+                let formatting = Pro.allows(.compareOfficeAndScans)
+                let oldSource = CompareSource.of(oldRead.pages, recognized: recognized.old, formatting: formatting)
+                let newSource = CompareSource.of(newRead.pages, recognized: recognized.new, formatting: formatting)
+                (self.oldText, self.newText) = (oldSource.pages, newSource.pages)
+                self.summary.stringValue = loc("Comparing…")
+                self.result = try await Task.detached { try DocumentCompare.run(oldSource, newSource, cancel: token) }.value
                 self.showResult()
-                await self.checkScans()
+                await self.checkVisually()
             } catch is CancellationError {
                 self.summary.stringValue = loc("Stopped.")
             } catch {
                 self.failure = "\(error)"
                 self.summary.stringValue = loc("The documents couldn't be compared: {0}", (error as? PdfEngineError)?.message ?? "\(error)")
             }
+            self.skipButton.isHidden = true
             self.progress.stopAnimation(nil)
             self.progress.isHidden = true
             self.task = nil
         }
     }
 
+    /// Recognizes the pages that are pictures with no text, one at a time, on this Mac (Vision; nothing leaves it).
+    /// Reading long scans takes minutes, so it can be skipped: those pages are then only compared by how they look.
+    private func readScans(_ oldEngine: PdfEngine, _ oldPages: [ComparePage], _ newEngine: PdfEngine, _ newPages: [ComparePage]) async throws
+        -> (old: [Int: PageText], new: [Int: PageText]) {
+        var read: (old: [Int: PageText], new: [Int: PageText]) = ([:], [:])
+        var todo: [(engine: PdfEngine, page: Int, old: Bool)] = []
+        for (p, page) in oldPages.enumerated() where page.isPicture && page.text.isEmpty { todo.append((oldEngine, p, true)) }
+        for (p, page) in newPages.enumerated() where page.isPicture && page.text.isEmpty { todo.append((newEngine, p, false)) }
+        if todo.isEmpty { return read }
+        guard Pro.allows(.compareOfficeAndScans) else {
+            scanNote = Pro.locked(.compareOfficeAndScans)
+            return read
+        }
+        let language = SavedOcr.language
+        let recognize = Self.testRecognizer ?? PageOcr.recognizer(VisionRecognizer(languages: language.map { [$0] }))
+        let skip = skipToken
+        skipButton.isHidden = false
+        defer { skipButton.isHidden = true }
+        for (i, item) in todo.enumerated() {
+            if cancel.isCancelled { throw CancellationError() }
+            if skip.isCancelled { break }
+            summary.stringValue = loc("Reading the scans… page {0} of {1}", CoreLanguage.number(i + 1), CoreLanguage.number(todo.count))
+            let engine = item.engine, page = item.page
+            let words = await Task.detached { () -> Result<[OcrWord], Error> in Result { try recognize(engine, page, skip) } }.value
+            switch words {
+            case .success(let w):
+                let text = CompareScan.pageTextOf(w)
+                if item.old { read.old[page] = text } else { read.new[page] = text }
+            case .failure(let error):
+                if error is CancellationError { break }
+                Report.progress("compare: a scanned page wasn't read: \(error)")
+            }
+        }
+        if cancel.isCancelled { throw CancellationError() }
+        // What was stored was read, a page whose words came back just as Skip was pressed too.
+        let unread = todo.count - read.old.count - read.new.count
+        scanNote = unread == 0 ? loc("The words on scanned pages were recognized, so some differences may be misreadings.")
+            : unread == 1 ? loc("{0} scanned page wasn't read.", 1) : loc("{0} scanned pages weren't read.", CoreLanguage.number(unread))
+        return read
+    }
+
+    @objc func skipReading() {
+        skipToken.cancel()
+        skipButton.isHidden = true
+    }
+
+    private func isScanRow(_ row: CompareRow) -> Bool {
+        (row.oldPage.map { oldScan.indices.contains($0) && oldScan[$0] } ?? false) || (row.newPage.map { newScan.indices.contains($0) && newScan[$0] } ?? false)
+    }
+
+    private func isUnreadRow(_ row: CompareRow) -> Bool {
+        (row.oldPage.map(oldUnread.contains) ?? false) || (row.newPage.map(newUnread.contains) ?? false)
+    }
+
     private func showResult() {
         guard let result, let a = oldEngine, let b = newEngine else { return }
-        summary.stringValue = result.summary()
-        items = result.changes.enumerated().map { i, c in
-            let (kind, text): (String, String) = switch c.kind {
-            case .inserted: (loc("Inserted"), c.newText)
-            case .deleted: (loc("Removed"), c.oldText)
-            case .changed: (loc("Changed", context: "a change"), "\(c.oldText) → \(c.newText)")
-            case .pageInserted: (loc("Page inserted"), c.newText.isEmpty ? loc("(no text)") : c.newText)
-            case .pageRemoved: (loc("Page removed"), c.oldText.isEmpty ? loc("(no text)") : c.oldText)
+        allItems = result.changes.enumerated().map { i, c in item(i, c, result.rows[c.row]) }
+        for (r, row) in result.rows.enumerated() where isUnreadRow(row) {
+            let text: String
+            if let o = row.oldPage, oldUnread.contains(o) {
+                text = loc("Original page {0} couldn't be read, so it wasn't compared.", CoreLanguage.number(o + 1))
+            } else {
+                text = loc("Changed page {0} couldn't be read, so it wasn't compared.", CoreLanguage.number((row.newPage ?? 0) + 1))
             }
-            return Item(change: i, row: c.row, kind: kind, text: text, color: CompareRowsView.markColor(c.kind))
+            allItems.append(Item(change: nil, row: r, kind: loc("Not compared"), text: text, color: .systemGray, group: .notCompared))
         }
+        allItems = allItems.enumerated().sorted { ($0.element.row, $0.offset) < ($1.element.row, $1.offset) }.map(\.element)
         rowsView.load(result: result, oldText: oldText, newText: newText, old: a, new: b)
+        rowsView.scanRows = Set(result.rows.indices.filter { isScanRow(result.rows[$0]) })
+        rowsView.unreadRows = Set(result.rows.indices.filter { isUnreadRow(result.rows[$0]) })
+        summary.stringValue = summaryText()
         mode.isEnabled = true
         copyButton.isEnabled = true
-        table.reloadData()
+        refreshItems()
         relayout()
-        updateButtons()
         NSAccessibility.post(element: window as Any, notification: .announcementRequested,
-                             userInfo: [.announcement: result.summary(), .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+                             userInfo: [.announcement: summary.stringValue, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
         Report.progress("compare: \(result.summary())")
     }
 
-    /// Pages without text, compared by their pixels: the ones that differ are listed.
-    private func checkScans() async {
-        guard let result, let a = oldEngine, let b = newEngine else { return }
-        let rows = result.rows.enumerated().filter { [.noTextOld, .noTextNew, .noTextBoth].contains($0.element.text) }
-        let token = cancel
-        for (r, row) in rows {
-            guard let o = row.oldPage, let n = row.newPage, !token.isCancelled else { continue }
-            let differs = (try? await Task.detached { () throws -> Bool in
-                let diff = try VisualCompare.overlay(try a.render(o, scale: 0.5, cancel: token), try b.render(n, scale: 0.5, cancel: token), cancel: token)
-                return !diff.regions.isEmpty
-            }.value) ?? false
-            if differs {
-                visuallyDifferent.append(r)
-                let text = loc("Page {0} and page {1} have no text to compare; their pictures differ (see Visual)", CoreLanguage.number(o + 1), CoreLanguage.number(n + 1))
-                items.append(Item(change: nil, row: r, kind: loc("Looks different"), text: text, color: .systemPurple))
+    /// The result, what can't be compared word by word, and what happened to the scans.
+    private func summaryText() -> String {
+        guard let result else { return "" }
+        var parts = [result.summary() + "."]
+        let looks = visuallyDifferent.count
+        if looks > 0 {
+            parts.append(looks == 1 ? loc("{0} page looks different (Visual shows where).", 1)
+                : loc("{0} pages look different (Visual shows where).", CoreLanguage.number(looks)))
+        }
+        if result.pairsWithoutText > 0 {
+            parts.append(loc("Pages without text can't be compared word by word: they are checked visually, and Visual shows them overlaid."))
+        }
+        let unread = oldUnread.count + newUnread.count
+        if unread > 0 {
+            parts.append(unread == 1 ? loc("{0} page couldn't be read and wasn't compared.", 1)
+                : loc("{0} pages couldn't be read and weren't compared.", CoreLanguage.number(unread)))
+        }
+        if let scanNote { parts.append(scanNote) }
+        return parts.joined(separator: " ")
+    }
+
+    private func item(_ index: Int, _ c: CompareChange, _ row: CompareRow) -> Item {
+        let color = CompareRowsView.markColor(c.kind)
+        let m = c.maybeMisread
+        switch c.kind {
+        case .inserted:
+            return Item(change: index, row: c.row, kind: m ? loc("Inserted (may be misread)") : loc("Inserted"), text: c.newText, color: color)
+        case .deleted:
+            return Item(change: index, row: c.row, kind: m ? loc("Removed (may be misread)") : loc("Removed"), text: c.oldText, color: color)
+        case .changed:
+            let kind = m ? loc("Changed (may be misread)") : loc("Changed", context: "a change")
+            return Item(change: index, row: c.row, kind: kind, text: "\(c.oldText) → \(c.newText)", color: color)
+        case .moved:
+            // "on page 3" only within one pair of pages: the same number on another row is "page 3 → 3".
+            let place: String?
+            switch result?.place(ofMove: c) {
+            case .onPage(let p): place = loc("on page {0}", CoreLanguage.number(p + 1))
+            case .pages(let from, let to): place = loc("page {0} → {1}", CoreLanguage.number(from + 1), CoreLanguage.number(to + 1))
+            case nil: place = nil
             }
+            return Item(change: index, row: c.row, kind: loc("Moved"), text: c.newText, color: color, group: .moves, place: place)
+        case .formatted:
+            return Item(change: index, row: c.row, kind: loc("Formatting"), text: "\(c.look?.describe() ?? ""): \(c.newText)", color: color, group: .formatting)
+        case .pageInserted:
+            return Item(change: index, row: c.row, kind: loc("Page inserted"), text: c.newText.isEmpty ? loc("(no text)") : c.newText, color: color)
+        case .pageRemoved:
+            return Item(change: index, row: c.row, kind: loc("Page removed"), text: c.oldText.isEmpty ? loc("(no text)") : c.oldText, color: color)
         }
-        items.sort { $0.row < $1.row }
+    }
+
+    /// The list as the kinds' boxes say, the pages' marks too.
+    private func refreshItems() {
+        let keep = selected.flatMap { items.indices.contains($0) ? items[$0].id : nil }
+        items = allItems.filter { !hidden.contains($0.group) }
+        var kinds = Set<ChangeKind>()
+        if hidden.contains(.wording) { kinds.formUnion([.inserted, .deleted, .changed, .pageInserted, .pageRemoved]) }
+        if hidden.contains(.moves) { kinds.insert(.moved) }
+        if hidden.contains(.formatting) { kinds.insert(.formatted) }
+        rowsView.hiddenKinds = kinds
+        rowsView.hideLooks = hidden.contains(.looks)
+        selected = keep.flatMap { id in items.firstIndex { $0.id == id } }
         table.reloadData()
-        if !visuallyDifferent.isEmpty {
-            let n = visuallyDifferent.count
-            summary.stringValue = n == 1 ? loc("{0}; {1} page without text looks different", result.summary(), CoreLanguage.number(n))
-                : loc("{0}; {1} pages without text look different", result.summary(), CoreLanguage.number(n))
-        }
+        if let selected { table.selectRowIndexes([selected], byExtendingSelection: false) }
+        updateGroups()
         updateButtons()
     }
 
-    /// Waits for the comparison and the scans' check (the self-test).
+    /// Offers a kind's box once the list has some of it, and when there's more than one kind to tell apart.
+    private func updateGroups() {
+        var present = 0
+        for (group, box) in groupBoxes {
+            let count = allItems.filter { $0.group == group }.count
+            box.isHidden = count == 0
+            box.title = "\(Self.groupName(group)) (\(CoreLanguage.number(count)))" // in every language: a name and a value, no words
+            if count > 0 { present += 1 }
+        }
+        groupBar.isHidden = present < 2
+    }
+
+    @objc private func groupToggled(_ sender: NSButton) {
+        guard let group = groupBoxes.first(where: { $0.value === sender })?.key else { return }
+        showGroup(group, sender.state == .on)
+    }
+
+    /// Hides or shows one kind in the list and on the pages.
+    func showGroup(_ group: ItemGroup, _ show: Bool) {
+        if show { hidden.remove(group) } else { hidden.insert(group) }
+        groupBoxes[group]?.state = show ? .on : .off
+        refreshItems()
+    }
+
+    /// What the words don't say: each pair of pages rendered small and overlaid, then what differs is listed. Pages
+    /// without text are all looked at. Pages with text only off the text, and only where it stayed in place (text that
+    /// reflowed moves everything under it); a scan against a page made by a program is left out, since it differs all
+    /// over. Two scans are lined up first.
+    private func checkVisually() async {
+        guard let result, let a = oldEngine, let b = newEngine else { return }
+        var looked = 0
+        let token = cancel
+        for (r, row) in result.rows.enumerated() {
+            guard let o = row.oldPage, let n = row.newPage, !isUnreadRow(row) else { continue }
+            if token.isCancelled { return }
+            let noText = row.text == .noTextOld || row.text == .noTextNew || row.text == .noTextBoth
+            let scan = isScanRow(row)
+            let oldPage = oldText[o], newPage = newText[n]
+            if !noText {
+                if scan != (oldScan[o] && newScan[n]) { continue }
+                // The pages' lines, and below the areas under their text, are worked out off the main thread: dense pages
+                // take millions of steps.
+                if !scan {
+                    let same = await Task.detached { VisualAreas.sameLayout(oldPage, newPage) }.value
+                    if !same { continue }
+                }
+                looked += 1
+                if looked > Self.maxLookedAtRows { continue }
+            }
+            // Scans at the scale a changed word still shows at once ink may land a little off (the slack is in points).
+            let scale = scan ? VisualCompare.scanCheckScale : 0.7
+            let outcome: Result<(PageAlignment, VisualDiff, [RectD]), Error>
+            do {
+                // Lined up by the one search a row gets, which the drawing may have started already.
+                let alignment = scan ? try await rowsView.alignment(r) : PageAlignment.none
+                outcome = await Task.detached { () -> Result<(PageAlignment, VisualDiff, [RectD]), Error> in
+                    Result {
+                        let diff = try CompareRowsView.overlayOf(a, o, b, n, scale: scale, alignment: alignment, scan: scan, cancel: token)
+                        let inPoints = diff.regions.map { RectD($0.x / scale, $0.y / scale, $0.width / scale, $0.height / scale) }
+                        let boxes = noText ? inPoints : VisualAreas.offText(inPoints, oldPage, newPage, alignment)
+                        return (alignment, diff, boxes)
+                    }
+                }.value
+            } catch {
+                outcome = .failure(error)
+            }
+            let what = noText ? Self.noTextWhat(row.text) : nil
+            guard case .success(let (alignment, diff, boxes)) = outcome else {
+                if token.isCancelled { return }
+                if let what { rowsView.rowStates[r] = loc("{0}: couldn't be checked", what) }
+                continue
+            }
+            if let what {
+                rowsView.rowStates[r] = boxes.isEmpty ? loc("{0}: looks the same", what) : Self.areasDiffer(boxes.count, what)
+            }
+            rowsView.needsDisplay = true
+            if boxes.isEmpty { continue }
+            // An area beyond the changed page's edge has nowhere to be marked: a page's note says so.
+            let page = RectD(0, 0, b.page(n).width, b.page(n).height)
+            let onPage = boxes.map { alignment.boxToNew($0).intersect(page) }
+            visualAreas.append(CompareVisualArea(n, onPage.filter { !$0.isEmpty }, offPage: onPage.filter(\.isEmpty).count))
+            visuallyDifferent.append(r)
+            let count = boxes.count == 1 ? loc("{0} area", 1) : loc("{0} areas", CoreLanguage.number(boxes.count))
+            let share = diff.changedShare.formatted(.percent.precision(.fractionLength(1)).locale(CoreLanguage.locale))
+            let text = noText ? loc("{0} ({1} of the page); no text to compare. Visual shows where.", count, share) : loc("{0} besides the text. Visual shows where.", count)
+            let at = allItems.firstIndex { $0.row > r } ?? allItems.count
+            allItems.insert(Item(change: nil, row: r, kind: loc("Looks different"), text: text, color: .systemPurple, group: .looks), at: at)
+            refreshItems()
+            summary.stringValue = summaryText()
+        }
+        if !visuallyDifferent.isEmpty {
+            NSAccessibility.post(element: window as Any, notification: .announcementRequested,
+                                 userInfo: [.announcement: summary.stringValue, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+            Report.progress("compare: \(visuallyDifferent.count) rows look different")
+        }
+    }
+
+    private static func noTextWhat(_ text: RowText) -> String {
+        switch text {
+        case .noTextOld: loc("no text on the original page")
+        case .noTextNew: loc("no text on the changed page")
+        default: loc("no text")
+        }
+    }
+
+    private static func areasDiffer(_ n: Int, _ what: String) -> String {
+        n == 1 ? loc("{1}: {0} area looks different", 1, what) : loc("{1}: {0} areas look different", CoreLanguage.number(n), what)
+    }
+
+    /// Waits for the comparison and the visual check (the self-test).
     func finished() async { await task?.value }
 
     static func color(_ c: AnnotColor) -> NSColor { NSColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1) }
@@ -345,7 +656,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let item = items[row]
-        let where_ = result.map { r -> String in
+        let where_ = item.place ?? result.map { r -> String in
             let x = r.rows[item.row]
             let o = x.oldPage.map { $0 + 1 }, n = x.newPage.map { $0 + 1 }
             if let o, let n, o != n { return loc("Page {0} → page {1}", CoreLanguage.number(o), CoreLanguage.number(n)) }
@@ -383,13 +694,16 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     @objc func annotatedCopy() { _ = makeAnnotatedCopy() }
 
-    /// A copy of the changed document with every change as a comment, opened as a new unsaved document.
+    /// A copy of the changed document with every change as a comment, and what looks different, opened as a new unsaved
+    /// document.
     @discardableResult
     func makeAnnotatedCopy() -> PdfDocument? {
         guard let result else { return nil }
         do {
+            let areas = visualAreas.reduce(0) { $0 + $1.boxes.count + $1.offPage }
+            let looks = areas == 0 ? "" : " " + loc("{0} other areas look different.", CoreLanguage.number(areas))
             let bytes = try CompareReport.annotate(newSide.data, newSide.password, result, newText, oldName: oldSide.name,
-                                                   summary: loc("Compared with {0}: {1}", oldSide.name, result.summary()))
+                                                   summary: loc("Compared with {0}: {1}", oldSide.name, result.summary()) + looks, visual: visualAreas)
             let stem = (newSide.name as NSString).deletingPathExtension
             let session = try DocumentSession.recover(bytes, originalPath: nil, loc("{0} (compared).pdf", stem), password: newSide.password)
             let document = PdfDocument(recovered: session, page: 0, fileDate: nil)
@@ -407,6 +721,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     func windowWillClose(_ notification: Notification) {
         cancel.cancel()
+        skipToken.cancel()
         rowsView.stop()
         let a = oldEngine, b = newEngine
         Task { @MainActor in
@@ -419,16 +734,19 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     // MARK: Picking the files
 
-    /// File › Compare Files…: the original and the changed version, each an open document or a file; Swap.
     /// How many times Compare Files' question was asked while the self-test ran (it isn't shown then).
     private(set) static var picksAsked = 0
 
+    /// Pictures of scanned pages a side can be.
+    static let pictureExtensions = ["png", "jpg", "jpeg", "tif", "tiff", "bmp", "heic"]
+
+    /// File › Compare Files…: the original and the changed version, each an open document or a file; Swap.
     static func pick() {
         if Report.skipsDialogs { return picksAsked += 1 }
         let documents = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0.session != nil }
         let alert = NSAlert()
         alert.messageText = loc("Compare Files")
-        alert.informativeText = loc("Pick the original and the changed version. An open document is compared as it is now, unsaved changes included.")
+        alert.informativeText = loc("Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.")
         func popup(_ select: Int) -> NSPopUpButton {
             let p = NSPopUpButton(frame: .zero, pullsDown: false)
             for d in documents { p.addItem(withTitle: d.name) }
@@ -443,7 +761,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         var files: [ObjectIdentifier: URL] = [:]
         let chooser = FileChooser { popup in
             let panel = NSOpenPanel()
-            panel.allowedContentTypes = [.pdf]
+            panel.allowedContentTypes = [.pdf] + Converting.types(OfficeFiles.panelExtensions(OfficeApp.allCases) + pictureExtensions)
             guard let url = StartWindowController.pick(panel)?.first else {
                 popup.selectItem(at: 0)
                 return
@@ -469,21 +787,49 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         alert.addButton(withTitle: loc("Cancel"))
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
-        func side(_ p: NSPopUpButton) -> CompareSide? {
+        func side(_ p: NSPopUpButton) -> (side: CompareSide?, url: URL?) {
             let i = p.indexOfSelectedItem
-            if i >= 0 && i < documents.count, let s = documents[i].session { return CompareSide(name: documents[i].name, data: s.data, password: s.password) }
+            if i >= 0 && i < documents.count, let s = documents[i].session { return (CompareSide(name: documents[i].name, data: s.data, password: s.password), nil) }
             let title = p.titleOfSelectedItem ?? ""
-            guard let url = files[ObjectIdentifier(p)] ?? files.values.first(where: { $0.lastPathComponent == title }) else { return nil }
-            return fileSide(url)
+            return (nil, files[ObjectIdentifier(p)] ?? files.values.first(where: { $0.lastPathComponent == title }))
         }
-        guard let a = side(original), let b = side(changed) else { return }
-        show(old: a, new: b)
+        let a = side(original), b = side(changed)
+        Task { @MainActor in
+            guard let old = await resolve(a), let new = await resolve(b) else { return }
+            show(old: old, new: new)
+        }
     }
 
-    /// A PDF file as a side, its password asked when it has one.
-    static func fileSide(_ url: URL) -> CompareSide? {
+    private static func resolve(_ choice: (side: CompareSide?, url: URL?)) async -> CompareSide? {
+        if let side = choice.side { return side }
+        guard let url = choice.url else { return nil }
+        return await fileSide(url)
+    }
+
+    /// A file as a side (Windows' `Comparing.LoadFile`): a PDF as it is (its password asked when it has one), an Office
+    /// file made into a PDF by LibreOffice, a picture as a page. Nil (after saying why) when it can't be.
+    static func fileSide(_ url: URL) async -> CompareSide? {
+        let name = url.lastPathComponent
+        let ext = url.pathExtension.lowercased()
+        if ext != "pdf" && (OfficeFiles.appFor(url.path) != nil || pictureExtensions.contains(ext)) {
+            guard Pro.allows(.compareOfficeAndScans) else {
+                ProWindowController.show(feature: .compareOfficeAndScans)
+                return nil
+            }
+            if OfficeFiles.appFor(url.path) != nil {
+                return await Converting.pdfForCompare(url).map { CompareSide(name: name, data: $0, password: nil) }
+            }
+            do {
+                let bytes = Array(try Data(contentsOf: url))
+                let pdf = try await Task.detached { try ImageImport.imagesToPdf([(bytes: bytes, name: name)]) }.value
+                return CompareSide(name: name, data: pdf, password: nil)
+            } catch {
+                NewDocuments.present(loc("Couldn't read {0}", name), error)
+                return nil
+            }
+        }
         guard let data = try? Data(contentsOf: url) else {
-            NewDocuments.present(loc("{0} couldn't be read.", url.lastPathComponent), nil)
+            NewDocuments.present(loc("{0} couldn't be read.", name), nil)
             return nil
         }
         let bytes = Array(data)
@@ -491,12 +837,12 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         while true {
             do {
                 try PdfEngine.open(bytes, password: password).close()
-                return CompareSide(name: url.lastPathComponent, data: bytes, password: password)
+                return CompareSide(name: name, data: bytes, password: password)
             } catch let e as PasswordRequired {
-                guard let p = askPassword(url.lastPathComponent, wrong: e.wrongPassword) else { return nil }
+                guard let p = askPassword(name, wrong: e.wrongPassword) else { return nil }
                 password = p
             } catch {
-                NewDocuments.present(loc("{0} isn't a PDF Inkvolt PDF can read.", url.lastPathComponent), error)
+                NewDocuments.present(loc("{0} isn't a PDF Inkvolt PDF can read.", name), error)
                 return nil
             }
         }
@@ -538,9 +884,22 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     }
 }
 
+/// Pages read so far, from both documents' reading at once.
+private final class PageCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = 0
+
+    func next() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+        done += 1
+        return done
+    }
+}
+
 /// The rows of lined-up pages: the original on the left, the changed version on the right, each scaled to its half of
-/// the width, with the changes marked; or, in Visual, one overlay per row with boxes around what differs. Pages are
-/// drawn on demand, off the main thread, and only those near the visible ones keep their pictures.
+/// the width, with the changes marked; or, in Visual, one overlay per row with boxes around what differs (a scan lined up
+/// first). Pages are drawn on demand, off the main thread, and only those near the visible ones keep their pictures.
 @MainActor
 final class CompareRowsView: NSView {
     private static let side = 16.0, gap = 16.0, header = 26.0, bottom = 14.0
@@ -566,6 +925,17 @@ final class CompareRowsView: NSView {
     var zoom = 0.0
     var selected: Int? { didSet { needsDisplay = true } }
     var onPick: ((Int) -> Void)?
+    /// Kinds whose marks aren't drawn (their box in the window is off), and whether the overlay's boxes are hidden.
+    var hiddenKinds = Set<ChangeKind>() { didSet { needsDisplay = true } }
+    var hideLooks = false { didSet { needsDisplay = true } }
+    /// Rows with a scan on either side (overlaid lined up, with slack), rows with a page that couldn't be read, what the
+    /// visual check found for a row without text, and the scans' alignments found so far.
+    var scanRows = Set<Int>()
+    var unreadRows = Set<Int>()
+    var rowStates: [Int: String] = [:] { didSet { needsDisplay = true } }
+    private(set) var alignments: [Int: PageAlignment] = [:]
+    /// Scan rows' alignments being found: one search a row, shared by the visual check and the drawing.
+    private var aligning: [Int: Task<PageAlignment, Error>] = [:]
     private var result: CompareResult?
     private var old: PdfEngine?
     private var new: PdfEngine?
@@ -587,18 +957,26 @@ final class CompareRowsView: NSView {
         self.result = result
         self.old = old
         self.new = new
-        for (i, c) in result.changes.enumerated() {
+        // A move's two sides are on different rows: each side is marked on the row its page is on.
+        var rowOfOld: [Int: Int] = [:], rowOfNew: [Int: Int] = [:]
+        for (r, row) in result.rows.enumerated() {
+            if let o = row.oldPage { rowOfOld[o] = r }
+            if let n = row.newPage { rowOfNew[n] = r }
+        }
+        for (i, c) in result.changes.enumerated() where c.kind != .pageInserted && c.kind != .pageRemoved {
             for s in c.old where s.page < oldText.count {
-                for r in oldText[s.page].rects(s.start, s.end) { oldMarks[result.changes[i].row, default: []].append(Mark(rect: r, kind: c.kind, change: i, caret: false)) }
+                let r = rowOfOld[s.page] ?? c.row
+                for rect in oldText[s.page].rects(s.start, s.end) { oldMarks[r, default: []].append(Mark(rect: rect, kind: c.kind, change: i, caret: false)) }
             }
             for s in c.new where s.page < newText.count {
-                for r in newText[s.page].rects(s.start, s.end) { newMarks[result.changes[i].row, default: []].append(Mark(rect: r, kind: c.kind, change: i, caret: false)) }
+                let r = rowOfNew[s.page] ?? c.row
+                for rect in newText[s.page].rects(s.start, s.end) { newMarks[r, default: []].append(Mark(rect: rect, kind: c.kind, change: i, caret: false)) }
             }
-            if let a = c.oldAnchor, a.page < oldText.count, let r = caret(oldText[a.page], a.start) {
-                oldMarks[c.row, default: []].append(Mark(rect: r, kind: c.kind, change: i, caret: true))
+            if let a = c.oldAnchor, a.page < oldText.count, let rect = caret(oldText[a.page], a.start) {
+                oldMarks[rowOfOld[a.page] ?? c.row, default: []].append(Mark(rect: rect, kind: c.kind, change: i, caret: true))
             }
-            if let a = c.newAnchor, a.page < newText.count, let r = caret(newText[a.page], a.start) {
-                newMarks[c.row, default: []].append(Mark(rect: r, kind: c.kind, change: i, caret: true))
+            if let a = c.newAnchor, a.page < newText.count, let rect = caret(newText[a.page], a.start) {
+                newMarks[rowOfNew[a.page] ?? c.row, default: []].append(Mark(rect: rect, kind: c.kind, change: i, caret: true))
             }
         }
     }
@@ -690,7 +1068,7 @@ final class CompareRowsView: NSView {
         let l = layouts[row]
         for (marks, box) in [(newMarks[row] ?? [], l.newBox), (oldMarks[row] ?? [], l.oldBox)] {
             guard let box else { continue }
-            if let m = marks.first(where: { viewRect($0.rect, box, l.scale).insetBy(dx: -2, dy: -2).contains(p) }) {
+            if let m = marks.first(where: { !hiddenKinds.contains($0.kind) && viewRect($0.rect, box, l.scale).insetBy(dx: -2, dy: -2).contains(p) }) {
                 selected = m.change
                 onPick?(m.change)
                 return
@@ -710,6 +1088,7 @@ final class CompareRowsView: NSView {
             if let box = l.overlayBox {
                 wanted.insert(r * 3 + 2)
                 drawPicture(r * 3 + 2, box, l.scale)
+                if hideLooks { continue }
                 NSColor.systemPurple.setStroke()
                 for g in regions[r] ?? [] {
                     // Regions are pixels of the overlay at its render scale.
@@ -728,24 +1107,28 @@ final class CompareRowsView: NSView {
                 }
                 wanted.insert(r * 3 + part)
                 drawPicture(r * 3 + part, box, l.scale)
-                for m in (part == 0 ? oldMarks[r] : newMarks[r]) ?? [] {
-                    let rect = viewRect(m.rect, box, l.scale)
-                    let color = Self.markColor(m.kind)
-                    if m.caret {
-                        color.setFill()
-                        rect.fill()
-                    } else {
-                        color.withAlphaComponent(m.change == selected ? 0.55 : 0.35).setFill()
-                        rect.fill(using: .sourceOver)
-                    }
-                    if m.change == selected {
-                        NSColor.controlAccentColor.setStroke()
-                        NSBezierPath(rect: rect.insetBy(dx: -2, dy: -2)).stroke()
-                    }
-                }
+                drawMarks((part == 0 ? oldMarks[r] : newMarks[r]) ?? [], box, l.scale)
             }
         }
         request(wanted)
+    }
+
+    private func drawMarks(_ marks: [Mark], _ box: NSRect, _ scale: Double) {
+        for m in marks where !hiddenKinds.contains(m.kind) {
+            let rect = viewRect(m.rect, box, scale)
+            let color = Self.markColor(m.kind)
+            if m.caret {
+                color.setFill()
+                rect.fill()
+            } else {
+                color.withAlphaComponent(m.change == selected ? 0.55 : 0.35).setFill()
+                rect.fill(using: .sourceOver)
+            }
+            if m.change == selected {
+                NSColor.controlAccentColor.setStroke()
+                NSBezierPath(rect: rect.insetBy(dx: -2, dy: -2)).stroke()
+            }
+        }
     }
 
     static func markColor(_ kind: ChangeKind) -> NSColor {
@@ -753,16 +1136,24 @@ final class CompareRowsView: NSView {
         case .inserted, .pageInserted: CompareWindowController.color(CompareReport.insertedColor)
         case .deleted, .pageRemoved: CompareWindowController.color(CompareReport.removedColor)
         case .changed: CompareWindowController.color(CompareReport.changedColor)
+        case .moved: CompareWindowController.color(CompareReport.movedColor)
+        case .formatted: CompareWindowController.color(CompareReport.formattedColor)
         }
     }
 
     private func drawHeader(_ r: Int, _ row: CompareRow, _ l: RowLayout) {
         let what: String
-        switch row.text {
-        case .compared: what = row.changes == 0 ? loc("no changes") : row.changes == 1 ? loc("1 change") : loc("{0} changes", CoreLanguage.number(row.changes))
-        case .noTextOld, .noTextNew, .noTextBoth: what = loc("no text to compare: see Visual")
-        case .onlyOld: what = loc("removed page")
-        case .onlyNew: what = loc("inserted page")
+        if unreadRows.contains(r) {
+            what = loc("couldn't be read: not compared")
+        } else if let state = rowStates[r] {
+            what = state
+        } else {
+            switch row.text {
+            case .compared: what = row.changes == 0 ? loc("no changes") : row.changes == 1 ? loc("1 change") : loc("{0} changes", CoreLanguage.number(row.changes))
+            case .noTextOld, .noTextNew, .noTextBoth: what = loc("no text to compare: see Visual")
+            case .onlyOld: what = row.pageMoved ? loc("only in the original: its text moved to another page") : loc("removed page")
+            case .onlyNew: what = row.pageMoved ? loc("only in the changed file: its text moved from another page") : loc("inserted page")
+            }
         }
         let o = row.oldPage.map { $0 + 1 }, n = row.newPage.map { $0 + 1 }
         let label: String
@@ -820,47 +1211,101 @@ final class CompareRowsView: NSView {
         request(keys)
     }
 
+    /// The overlay of a row's two pages at `scale`: the changed page brought into the original's place through
+    /// `alignment` first, and for a scan, ink allowed to land a little off.
+    nonisolated static func overlayOf(_ old: PdfEngine, _ o: Int, _ new: PdfEngine, _ n: Int, scale: Double, alignment: PageAlignment, scan: Bool,
+                                      cancel: CancelToken?) throws -> VisualDiff {
+        let oldImage = try old.render(o, scale: scale, cancel: cancel)
+        var newImage = try new.render(n, scale: scale, cancel: cancel)
+        if !alignment.isNone {
+            let og = old.page(o), ng = new.page(n)
+            let w = Int(exactly: (max(og.width, ng.width) * scale).rounded(.up)) ?? oldImage.width
+            let h = Int(exactly: (max(og.height, ng.height) * scale).rounded(.up)) ?? oldImage.height
+            newImage = try CompareAlign.resample(newImage, 0, 0, scale, alignment, w, h, cancel: cancel)
+        }
+        if scan { return try VisualCompare.overlayScans(oldImage, newImage, scale, cancel: cancel) }
+        return try VisualCompare.overlay(oldImage, newImage, cancel: cancel)
+    }
+
     /// Draws the pictures wanted that are missing (or at another scale); drops those far from view.
     private func request(_ wanted: Set<Int>) {
         for key in pictures.keys where !wanted.contains(key) && pictures.count > 24 { pictures[key] = nil }
-        guard let result, let old, let new, !token.isCancelled else { return }
-        let backing = Double(window?.backingScaleFactor ?? 2)
+        guard result != nil, !token.isCancelled else { return }
         for key in wanted.sorted() where pictures[key] == nil && !pending.contains(key) {
-            let r = key / 3, part = key % 3
-            let row = result.rows[r]
-            let scale = min(layouts[r].scale * backing, 3)
+            let r = key / 3
             pending.insert(key)
-            let token = self.token
-            queue.async {
-                var image: RenderedImage?
-                var found: [RectD]?
-                var problem: String?
+            guard key % 3 == 2 && scanRows.contains(r) && alignments[r] == nil else {
+                draw(key, scanRows.contains(r) ? alignments[r] ?? .none : .none)
+                continue
+            }
+            // A scan's overlay is lined up first.
+            Task { @MainActor in
                 do {
-                    if part == 2, let o = row.oldPage, let n = row.newPage {
-                        let diff = try VisualCompare.overlay(try old.render(o, scale: scale, cancel: token), try new.render(n, scale: scale, cancel: token),
-                                                             cancel: token)
-                        image = diff.image
-                        found = diff.regions
-                    } else if part == 0, let o = row.oldPage {
-                        image = try old.render(o, scale: scale, cancel: token)
-                    } else if part == 1, let n = row.newPage {
-                        image = try new.render(n, scale: scale, cancel: token)
-                    }
-                } catch is CancellationError {
-                    // the window closed
+                    self.draw(key, try await self.alignment(r))
                 } catch {
-                    problem = "\(error)"
+                    self.pending.remove(key)
+                    if !(error is CancellationError) { Report.progress("compare: row \(r) not lined up: \(error)") }
                 }
-                let done = image, regionsFound = found, failed = problem
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        self.pending.remove(key)
-                        if let failed { Report.progress("compare: row \(r) part \(part) not drawn: \(failed)") }
-                        guard let done, let cg = PageRenderer.cgImage(done) else { return }
-                        self.pictures[key] = (cg, scale)
-                        if let regionsFound { self.regions[r] = regionsFound }
-                        self.needsDisplay = true
-                    }
+            }
+        }
+    }
+
+    /// A scan row's alignment, searched for once, off the main thread and the render queue: the visual check and the
+    /// drawing may both want it at once, and share the search.
+    func alignment(_ r: Int) async throws -> PageAlignment {
+        if let known = alignments[r] { return known }
+        if let running = aligning[r] { return try await running.value }
+        guard let result, let old, let new, result.rows.indices.contains(r), let o = result.rows[r].oldPage, let n = result.rows[r].newPage else {
+            return .none
+        }
+        let token = self.token
+        let search = Task.detached { try CompareAlign.find(old, o, new, n, cancel: token) }
+        aligning[r] = search
+        defer { aligning[r] = nil }
+        let found = try await search.value
+        alignments[r] = found
+        return found
+    }
+
+    /// Draws one picture on the render queue: a page, or a row's overlay with the changed page brought over by `alignment`.
+    private func draw(_ key: Int, _ alignment: PageAlignment) {
+        let r = key / 3, part = key % 3
+        guard let result, let old, let new, !token.isCancelled, layouts.indices.contains(r), result.rows.indices.contains(r) else {
+            pending.remove(key)
+            return
+        }
+        let row = result.rows[r]
+        let scale = min(layouts[r].scale * Double(window?.backingScaleFactor ?? 2), 3)
+        let scan = scanRows.contains(r)
+        let token = self.token
+        queue.async {
+            var image: RenderedImage?
+            var found: [RectD]?
+            var problem: String?
+            do {
+                if part == 2, let o = row.oldPage, let n = row.newPage {
+                    let diff = try Self.overlayOf(old, o, new, n, scale: scale, alignment: alignment, scan: scan, cancel: token)
+                    image = diff.image
+                    found = diff.regions
+                } else if part == 0, let o = row.oldPage {
+                    image = try old.render(o, scale: scale, cancel: token)
+                } else if part == 1, let n = row.newPage {
+                    image = try new.render(n, scale: scale, cancel: token)
+                }
+            } catch is CancellationError {
+                // the window closed
+            } catch {
+                problem = "\(error)"
+            }
+            let done = image, regionsFound = found, failed = problem
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.pending.remove(key)
+                    if let failed { Report.progress("compare: row \(r) part \(part) not drawn: \(failed)") }
+                    guard let done, let cg = PageRenderer.cgImage(done) else { return }
+                    self.pictures[key] = (cg, scale)
+                    if let regionsFound { self.regions[r] = regionsFound }
+                    self.needsDisplay = true
                 }
             }
         }

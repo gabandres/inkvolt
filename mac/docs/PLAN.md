@@ -443,6 +443,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | 3.7 | Spanish interface (roadmap 3.7's Mac line) and What's New in Spanish for both Mac apps | PdfStringsTests, ShownStringsTests, CoreStringsTests (PrintCore's target: the PC and the mac job) | Done (2026-11-06, on `ignia-mac`). One mechanism for the app and PdfCore: PrintCore's `loc`/`LocKey` (`CoreLanguage`, Inkvolt Print for Mac's), keyed by the English with Windows' `{0}`, `{1}`, so Windows' Spanish (Strings.es.resx, PdfStrings.es.resx) is used word for word; the app installs one table at launch from three String Catalogs compiled into `es.lproj` by `assemble.sh` (`xcstringstool`; the app is a SwiftPM executable, so not Xcode's extraction): `Resources/Localizable.xcstrings` (the app, 1,738), `PdfStrings.xcstrings` (PdfCore, 1,912) and Inkvolt Print's `CoreStrings.xcstrings` (what PrintCore shows in Scan). A Mac difference: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo, Edición, Visualización, Configuración…), `DocumentCommand.shownTitle` over the English `title` that stays the identity (palette, notes, tests); `Tool.shownTitle` likewise; the palette also matches English words, each typed word at the start of a word ("zoom in" found Zoom to Page through the "in" of "página"). The language: `AppLanguage` (`--lang`, else macOS's per-app choice, which Settings › Language writes; next launch; never written by the self-test), installed after the command line, which stays English. What's New: `WHATS-NEW.es.md` in Spanish (Help › What's New), `appcast.py --notes-es` (Sparkle's `xml:lang="es"` description, from `release-notes/<version>.es.md`); Inkvolt Print: `WHATS-NEW.es.md` and `listing.json`'s `localizations` › `es-MX` (asc-listing.mjs sends it only to a localization the version has). Checks: the PC tests above (keys, stale, duplicates, placeholders, What's New line for line, unwrapped English by AppKit's calls and the app's helpers); `--self-test … --strings --quit` (ReportStrings: each catalog against its compiled Spanish, then what the run asked for without it). On ignia-mac: InkvoltPdfKit 1,240 tests, 0 warnings, green but OcrTests' Vision cases (CRImageReaderError, the Mac's known Vision flake); the app built with warnings as errors and the 150 ms flag; `--self-test --synthetic --edit --strings --quit` in English and in Spanish: strings complete in both; every check passes in both (its UI comparisons through the same `loc`), but the nine that need Vision (Recognize Text, the scan page's exports, redaction's re-recognition) when Vision fails, in either language; each passed in a run where Vision worked. Left English on purpose, as Windows: the command line, logs, file formats and columns, the built-in stamps, prompts to the AI, Report a Problem's details, the self-test's report. The Mac's own wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac". Also fixed: CoreStringsTests read a CRLF checkout's file that starts with a comment as one comment line (the PC named LedmStatusText's keys stale). |
 | 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 30 tests (42 cases), red first, with the code review's and the re-review's fixes. |
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests | Done (2026-11-07, on `ignia-mac`). PdfCore `FolderIndex/`: `IndexTerms`, `FolderIndex` (+ `FolderIndexSearch`), `FolderIndexer`, ported with their tests' names (75 tests): Windows' file layout and commit order, its search (terms narrow, Find confirms on the kept text), its limits; the app's `FolderSearch.swift` (`FolderSearches`, the window) and `FolderSearchTest` (`--only-folder-search`). Pro: `ProFeature.folderSearch` (the gate stays off). See "Indexed folder search" below for what differs. |
+| 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) | Done (2026-11-07, on `ignia-mac`). PdfCore `Compare/`: `CompareLooks` (`WordLook`, `LookChange`, `PageLooks`, `ComparePage`, `CompareSource`), `CompareMoves` and `CompareRunningLines`, `CompareScan`, `CompareAlign` and `VisualAreas`, `DocumentCompare` on each side's `CompareSource`, `VisualCompare`'s slack and `overlayScans`, `CompareReport`'s moves, formatting and visual areas; `PdfEngine.comparePage` (the shim's `inkv_compare_page`); `ProFeature.compareOfficeAndScans` (the gate stays off). The app's `Compare.swift`: Office files (LibreOffice) and pictures on either side, scans recognized with Vision (Compare Without Reading Them), the kinds' boxes, the visual check of pages with text and of scans lined up, the annotated copy with what looks different; `CompareTest` adds a word set in bold and a scanned page (`--only-compare`). 49 tests added in the 3 suites (and comparePage in a page check); on `ignia-mac` InkvoltPdfKit's 1,422 tests pass, warnings as errors with the 150 ms flag, the release app built the same way, `--edit --synthetic --only-compare` 13 checks pass (Vision read the scan); check-int clean; the PC's string tests green. See "Compare: Office files, scans and formatting" below for what differs. |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
 command line runs (it was set only in `applicationDidFinishLaunching`, after `--batch` and `--watch` had exited), and
@@ -1346,6 +1347,58 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
 Drive's dataless files for real (the flag is tested, not a download), a disk filling up.
 - A person must look at: the window in light and dark and at its narrowest, the excerpt's bold hit, VoiceOver on the
   results and folders, a result opening at its hit in a document already open.
+
+### Compare: Office files, scans and formatting (roadmap 3.3, 2026-11-07)
+
+Windows' 3.3 (pdf/ROADMAP.md) on the Mac's E3 Compare, the .NET code as the spec: CompareChangesTests, CompareAlignTests and
+CompareContractTests ported with their names (camelCase, as CompareTests), then `CompareLooks`, `CompareMoves` (with
+`CompareRunningLines`), `CompareScan`, `CompareAlign` (with `VisualAreas`) and the new parts of `DocumentCompare`,
+`VisualCompare` and `CompareReport`. The contract test reads Word's two PDFs in place from `pdf/tests/InkvoltPdf.Tests/Data`
+and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 formatting), none extra, as on Windows.
+
+**Mac differences.**
+- **Office files through LibreOffice**, not the installed Office: `Converting.pdfForCompare` runs E12's `OfficeConversion`
+  (its precheck, the question for a file from the internet, the converter's own process, time limit and Cancel) behind a
+  progress sheet, and nothing is opened. Word for Mac can't be driven yet (E12); without LibreOffice the message says so.
+  LibreOffice lays a .docx out a little differently from Word, so an Office file is best compared with a PDF LibreOffice
+  made too (or two Office files): against Word's PDF, line breaks and fonts may differ. **Not checked:** a real .docx.
+- **Scans read with Vision**, in Recognize Text's language (`SavedOcr.language`), through `PageOcr.recognizer` (each page
+  rendered at 300 dpi within 60 million pixels, under the page checks), one page at a time, on this Mac; Compare Without
+  Reading Them stops it (the pages read so far count). A page Vision fails on counts as not read, and the summary says how
+  many. Vision's boxes are upright (no angle), so `CompareScan.pageTextOf` gets angle 0; a skewed scan still reads in
+  Vision's line order. Windows' recognizer skipping a line (`couldBeALostLine`) is kept as the heuristic it is.
+- **The compare read** (`PdfEngine.comparePage`, Windows' `GetComparePage`): the shim's `inkv_compare_page` reads the page's
+  own content (no annotations), as `inkv_page_chars` does, with each character's font, size and color and the pictures'
+  boxes (no pixels, no paths); the text is the same as `text`'s (theLooksLineUpWithThePageTextOnEveryPage). It keeps the
+  pictures (`FZ_STEXT_PRESERVE_IMAGES`, as Windows' `GetComparePage`) to tell a scan, so MuPDF may start a new line at a
+  picture set inline where `text` doesn't: the words compared are the same (wordsBesideAnInlinePictureAreTheTextsWords). Under the page
+  checks: a bomb page is refused at its budget (PageCheckTests' list of bounded calls has `comparePage`).
+- **A page that can't be read** (refused by the page checks, or MuPDF fails on it) is read as an empty page and listed as
+  "Not compared", its row headed "couldn't be read: not compared", and left out of the visual check; the rest of the
+  documents is compared. Windows shows such a page as a page without text.
+- **Extra bounds:** `CompareAlign.find` on two pages renders them within 4 million pixels (100 dpi for any real page;
+  Windows renders at 100 dpi whatever the size); the image overload refuses images past 6 million pixels (no alignment).
+  The visual check looks at most 2,000 rows with text, as Windows, each cancellable.
+- **The visual check** renders rows without text at 0.7 (E3 used 0.5), as Windows, and now also pages with text that
+  stayed in place (what looks different off the text) and two scans lined up (`VisualCompare.overlayScans`); the Visual
+  overlay of a scan's row is lined up the same way. A picture of a page can be a PNG, JPEG, TIFF, BMP or HEIC.
+- `MakeThePdfsWithWord` isn't ported: the PDFs are Word's, made on Windows.
+- **Self-test:** `CompareTest` compares, after E3's versions, a page with a word set in bold and an amount changed (one
+  formatting change apart from the wording, the kinds' boxes, the annotated copy's "Formatting: bold added") and a typed
+  page against a picture of its changed version (the scan recognized with Vision, the changed amount read from the scan).
+  `--edit --synthetic --only-compare` runs it alone. The scanned page needs Vision: it fails when Vision does (the Mac's
+  known Vision flake, see 3.7).
+- **Review fixes (2026-11-07).** `DocumentCompare` counts each page's moved words in one pass (it walked every word once
+  per page only one side has: 2,000 pages against 1 took 16.5 s, now 0.7 s in a debug build) and checks Cancel in every
+  long loop; `CompareRunningLines` changes its per-line record in place (taking it out of the dictionary and putting it
+  back copied its places on every page: quadratic for "Page N" on every page). The move's label says "on page N" only
+  within one row (`CompareResult.place(ofMove:)`), else "page N → M", even for the same number. A page without area is
+  never a picture. `Math.Round`'s ports round half to even (the scans' slack, the skew's dpi, a line's place). In the app:
+  the selection follows an entry's identity (a "Looks different" entry stayed selected only by its change, which it hasn't);
+  a scan whose words came back as Skip was pressed counts as read; the visual check works out the pages' lines and the
+  areas under their text off the main thread, finds a scan row's alignment once for the check and the drawing (off the
+  render queue), and updates the summary ("1 page looks different (Visual shows where).") and tells VoiceOver. Windows
+  still has the per-page walk, the zero-area page and the label comparing page numbers.
 
 ### What a person must look at (unattended run, 2026-11-03)
 

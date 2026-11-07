@@ -2198,7 +2198,9 @@ static int inkv_export_font(fz_context *ctx, inkv_export *out, fz_font ***seen, 
     return k;
 }
 
-int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long jpeg_above, inkv_export *out, inkv_cookie *cookie, char *err) {
+/* `annotations`: drawn in (export) or the page's own content only (compare); `vectors`: paths collected too. */
+static int export_page(void *vctx, inkv_doc *d, int index, int images, long long jpeg_above, int annotations, int vectors, inkv_export *out,
+                       inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     fz_stext_page *text = NULL;
     fz_device *dev = NULL;
@@ -2211,10 +2213,10 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
     fz_try(ctx) {
         fz_page *page = inkv_page(ctx, d, index);
         fz_stext_options options = { 0 };
-        options.flags = FZ_STEXT_COLLECT_VECTORS | (images ? FZ_STEXT_PRESERVE_IMAGES : 0);
+        options.flags = (vectors ? FZ_STEXT_COLLECT_VECTORS : 0) | (images ? FZ_STEXT_PRESERVE_IMAGES : 0);
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        inkv_run_text(ctx, d, page, 1, dev, cookie);
+        inkv_run_text(ctx, d, page, annotations, dev, cookie);
         fz_close_device(ctx, dev);
         inkv_next_part(ctx, cookie); // the pictures' encoding below
         int nl = 0, nc = 0, ni = 0, nv = 0;
@@ -2309,6 +2311,14 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
         return 0;
     }
     return 1;
+}
+
+int inkv_export_page(void *ctx, inkv_doc *d, int index, int images, long long jpeg_above, inkv_export *out, inkv_cookie *cookie, char *err) {
+    return export_page(ctx, d, index, images, jpeg_above, 1, 1, out, cookie, err);
+}
+
+int inkv_compare_page(void *ctx, inkv_doc *d, int index, inkv_export *out, inkv_cookie *cookie, char *err) {
+    return export_page(ctx, d, index, 2, 0, 0, 0, out, cookie, err);
 }
 
 int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, float x0, float y0, float x1, float y1,
