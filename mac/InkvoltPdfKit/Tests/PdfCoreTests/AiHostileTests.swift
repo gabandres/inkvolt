@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import PrintCore
 @testable import PdfCore
 
 /// A Mac addition, from the release review of E11: what a crafted or broken server can send, through the parsers and through

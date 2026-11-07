@@ -256,19 +256,10 @@ public enum FormDataFiles {
     }
 
     private static func readJson(_ file: [UInt8]) throws -> [String: String] {
-        // JSONSerialization has no depth limit of its own: nesting past 64 is refused first, as Windows' MaxDepth does.
-        var depth = 0, inString = false, escaped = false
-        for b in file {
-            if inString {
-                if escaped { escaped = false } else if b == UInt8(ascii: "\\") { escaped = true } else if b == UInt8(ascii: "\"") { inString = false }
-            } else if b == UInt8(ascii: "\"") {
-                inString = true
-            } else if b == UInt8(ascii: "{") || b == UInt8(ascii: "[") {
-                depth += 1
-                if depth > 64 { throw PdfEditError(loc("The JSON file can't be read: it is nested more than 64 levels deep.")) }
-            } else if b == UInt8(ascii: "}") || b == UInt8(ascii: "]") {
-                depth -= 1
-            }
+        // JSONSerialization has no depth limit of its own: nesting past 64 is refused first, as Windows' MaxDepth does (JSON5's
+        // strings and comments read as such: `JsonNesting`).
+        if !JsonNesting.isSafe(Data(file)) {
+            throw PdfEditError(loc("The JSON file can't be read: it is nested more than 64 levels deep.")) // JsonNesting.limit
         }
         let object: Any
         do {

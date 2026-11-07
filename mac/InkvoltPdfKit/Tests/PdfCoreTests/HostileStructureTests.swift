@@ -637,3 +637,31 @@ struct HostileStructureTests {
         #expect(image?.rgb == [10, 20, 30])
     }
 }
+
+/// A Mac addition from Inkvolt PDF for Mac's hostile-input review: JSON5 (which batch presets and form data files allow)
+/// can't hide nesting from the depth check before JSONSerialization (`JsonNesting`), which would run out of stack.
+struct Json5NestingTests {
+    private static let deep = 100_000
+
+    private static var bypasses: [String] {
+        let open = String(repeating: "[", count: deep), close = String(repeating: "]", count: deep)
+        return ["{a:'\"', b:\(open)", "{ /* \(close) */ a: \(open)", "{ // \(close)\n a: \(open)", "{ a: 1 }\(close)\(open)"]
+    }
+
+    @Test func APresetThatHidesItsNestingInJson5IsRefused() {
+        for json in Self.bypasses {
+            #expect(throws: BatchPresetError.self) { _ = try BatchPresets.read(json) }
+        }
+        // JSON5 that nests little still reads.
+        let preset = try? BatchPresets.read("{ // a comment [[[\n version: 1, name: 'Ok [[[', actions: [ /* ]]] */ { action: 'optimize' } ] }")
+        #expect(preset?.name == "Ok [[[")
+    }
+
+    @Test func AFormDataFileThatHidesItsNestingInJson5IsRefused() {
+        for json in Self.bypasses {
+            #expect(throws: PdfEditError.self) { _ = try FormDataFiles.readValues(Array(json.utf8)) }
+        }
+        let values = try? FormDataFiles.readValues(Array("{ /* [[[ */ 'Name': \"it's [[[\", // ]]]\n other: \"x\" }".utf8))
+        #expect(values == ["Name": "it's [[[", "other": "x"])
+    }
+}
