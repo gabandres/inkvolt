@@ -3730,6 +3730,17 @@
         }
       }
     },
+    "Couldn't empty the index to build it again: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo vaciar el índice para crearlo de nuevo: {0}"
+          }
+        }
+      }
+    },
     "Couldn't find {0}. Check the address, and that this Mac is online.": {
       "extractionState": "manual",
       "localizations": {

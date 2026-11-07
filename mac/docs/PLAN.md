@@ -1285,11 +1285,26 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   process bounded and a thread can't: memory (MuPDF's store and picture limits stay; Windows' 2 GB job limit has no
   counterpart) and a crash. For the crash, a journal beside the index (`<hash>.reading`, `<hash>.crashes`) names the files
   being read; the next launch counts them, and a file that was being read when the app ended twice is `crashed`, never
-  read again until it changes or Rebuild. A reading that throws something unexpected counts as a crash too (once more,
-  then `crashed`), Windows' worker dying.
+  read again until it changes or Rebuild. Where Windows gives each file a process of its own, several files read at once
+  share the app: when the app ended with more than one in the journal, none is counted; each is a suspect, read again
+  one at a time with nothing beside it, so only a file that ends the app by itself is counted (review, 2026-11-07). A
+  file read through clears its count; a reading given up stays in the journal until its thread is back. Quitting or
+  removing the folder is an orderly stop: the journal of readings is closed and forgotten, so a reading still under way
+  then is never counted; the app stops all folders at once and waits once (2 s), as Windows' `StopAll`. A reading that
+  throws something unexpected counts as a crash too (once more, then `crashed`), Windows' worker dying.
 - **Change notices:** FSEvents (file events, the root watched) on the folder and everything under it, then a look every
-  30 s as on Windows (a network volume may give no events). A file changed in the last 2 s waits for the next look: the
-  Mac opens a file being copied, where Windows' sharing rules refuse it.
+  30 s as on Windows (a network volume may give no events). What the listing skips (names starting with ".", Finder's
+  hidden folders, `~$` files) wakes nothing, so a busy `.git` or cache costs nothing; a notice names its place, and up to
+  64 places are looked at alone (a folder listed, a file looked at, a place gone taken out with what is under it) instead
+  of the whole tree; dropped events, the folder itself, a new file past the limit or only in iCloud mean a whole look
+  (Windows looks at the whole folder on any notice). A file changed in the last 2 s waits for the next look: the Mac
+  opens a file being copied, where Windows' sharing rules refuse it.
+- **Locks:** a search takes no lock that writing holds (a commit or a compaction never holds it up; Windows reads its
+  flag without one). Words are filed by the reading thread before it takes the indexer's lock, the indexer writes
+  (`F_FULLFSYNC`) outside it, and the window reads the status and the index from a snapshot under a lock held only for a
+  moment. A commit that fails (a full disk) keeps its batch, with the counts right, says so in the folder's status, and
+  is written first on the next look (after 5 s, doubling up to 30 s), so nothing read is lost or read twice; an index
+  found damaged that can't be emptied waits the same way and says so, never a tight loop.
 - **Listing:** `readdir` and `lstat`; symbolic links aren't followed (a link leads out of the folder or round in a
   circle), hidden files and folders and `~$` files are skipped; iCloud Drive's files whose bytes are only in the cloud
   (`SF_DATALESS`) are counted and left there, Windows' Cloud Files placeholders. A folder moved while it was listed reads
@@ -1299,13 +1314,17 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   (`.caseInsensitive`, `.diacriticInsensitive`), so `IndexTerms` folds each letter with Foundation (through upper case
   when that stays one letter, then width, NFKD, marks dropped) and also as Windows does the letters Foundation keeps apart
   (ø, æ, œ, ł, đ, ß, digits of other scripts): the index may propose more, Find decides. Its `stamp` hashes the folding
-  of every letter, so a macOS whose tables differ builds the index again.
+  of every letter, so a macOS whose tables differ builds the index again. A run of letters longer than a term (48) is
+  filed in overlapping pieces of 48, one every 24 units, its first 1,024 units at most, and a query's longer word looks
+  up its first 23, so the end of a long run is found as Find finds it (Windows files a long run under its first 48
+  only: a search for its end finds nothing there). `IndexTerms.version` 2: indexes made before are built again.
 - **More bounds:** besides Windows' (512 MB a file, 50,000 pages, 32 M characters of text, the page check, 2 minutes),
   at most 100,000 PDFs a folder (the rest counted as over the limit) and 2 GB for the index file (past it nothing more is
   read until compaction makes room; said as a problem).
 - **The file:** each page's directory entry also keeps its plain length and CRC-32 (the Compression framework's raw
   DEFLATE has no checksum of its own, unlike Windows' zlib stream), so damage reads as damage. Commits are flushed with
-  `F_FULLFSYNC`. One app per index through `flock` on `<hash>.lock`.
+  `F_FULLFSYNC`; a new generation's name (compaction's rename, a cleared index's new file) is synced through its folder
+  before the old one is retired. One app per index through `flock` on `<hash>.lock`.
 - **The window:** Edit › Find › Search Folders… (⌥⇧⌘F; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F), a window of
   its own: the search field (searches as you pause typing), Match case, Whole words, Ignore accents (on), the results
   (file, page and times, the excerpt with the hit in bold; double-click or Return opens the PDF at the hit with the Find

@@ -108,9 +108,10 @@ final class FolderSearches {
         save()
     }
 
-    /// Quitting: the readings stop and what was read is committed, briefly.
+    /// Quitting: every folder is told at once and waited for once, briefly (Windows' `StopAll`); a reading still under
+    /// way is forgotten, not counted as having ended the app.
     func stopAll() {
-        for f in all { f.indexer?.stop(wait: 2) }
+        FolderIndexer.stop(all.compactMap(\.indexer), wait: 2)
     }
 
     /// Starts indexing, paused if it was left so. Locked: nothing runs, and the index file stays for when a key is back.
