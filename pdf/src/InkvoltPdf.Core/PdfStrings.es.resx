@@ -1104,6 +1104,9 @@
   <data name="Batch_SignedExportedOnly" xml:space="preserve">
     <value>Firmado: solo se exportó; el PDF se dejó como está para que sus firmas sigan siendo válidas</value>
   </data>
+  <data name="Batch_Repaired" xml:space="preserve">
+    <value>Dañado: se reparó para abrirlo; los resultados se hacen con la copia reparada</value>
+  </data>
   <data name="Batch_DoneNothingSaved" xml:space="preserve">
     <value>Listo (nada que guardar)</value>
     <comment>A file's result in the list</comment>
@@ -2940,6 +2943,9 @@
   <data name="Sign_CantRead" xml:space="preserve">
     <value>La firma no se puede leer: {0}</value>
     <comment>{0} = the error message</comment>
+  </data>
+  <data name="Sign_RepairedFile" xml:space="preserve">
+    <value>El archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que esta firma no se puede comprobar con él. Abre el original en el programa con que se firmó para comprobar la firma.</value>
   </data>
   <data name="Sign_RangeDoesntFit" xml:space="preserve">
     <value>El intervalo de bytes de la firma no corresponde al archivo.</value>

@@ -754,6 +754,10 @@ public static class BatchRunner
                 {
                     if (!LooksLikePdf(data)) return Result(BatchItemState.Failed, PdfStrings.Batch_NotPdf);
                     if (PdfSecurity.NeedsOpenPassword(data)) await UnlockAsync(data).ConfigureAwait(false);
+                    // As a document opens in a tab: a damaged file is worked on as its repaired copy, and the report says so.
+                    var normal = await Task.Run(() => PdfRepair.Normalize(data, _password), cancel).ConfigureAwait(false);
+                    data = normal.Data;
+                    if (normal.Repaired) _notes.Add(PdfStrings.Batch_Repaired);
                 }
                 // Long-term data is for signed files: it never counts as a change that would leave them alone.
                 var changes = plan.Steps.Any(s => s.ChangesPdf && s is not AddLongTermStep);

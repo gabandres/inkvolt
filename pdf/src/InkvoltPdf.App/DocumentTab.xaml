@@ -590,6 +590,21 @@
                     </DockPanel>
                 </Border>
 
+                <!-- InfoBar: the file was damaged and opened as a repaired copy (said once; Save writes that copy) -->
+                <Border x:Name="RepairBar" Visibility="Collapsed" Padding="14,8" Margin="12,10,12,0" CornerRadius="6"
+                        Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        AutomationProperties.LiveSetting="Polite">
+                    <DockPanel>
+                        <Button x:Name="RepairBarClose" DockPanel.Dock="Right" Style="{StaticResource IconButton}" FontSize="10" Height="26" MinWidth="26"
+                                Content="&#xE711;" ToolTip="{x:Static loc:Strings.Tab_Dismiss}" AutomationProperties.Name="{x:Static loc:Strings.Tab_Dismiss}" />
+                        <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE90F;" FontSize="16" Margin="0,0,12,0"
+                                   Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                        <TextBlock VerticalAlignment="Center" TextWrapping="Wrap"
+                                   Text="{x:Static loc:Strings.Tab_RepairedNote}" />
+                    </DockPanel>
+                </Border>
+
                 <!-- InfoBar: digital signatures -->
                 <Border x:Name="SigBar" Visibility="Collapsed" Padding="14,8" Margin="12,10,12,0" CornerRadius="6"
                         Background="{DynamicResource SystemFillColorAttentionBackgroundBrush}"

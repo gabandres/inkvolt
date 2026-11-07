@@ -251,6 +251,11 @@ public partial class DocumentTab
     private bool _signatureBaselineStale; // reloaded from disk: the next verification is the new "on open" result
     private bool _sigBarDismissed;
     private bool _xfaBarDismissed;
+    private bool _repairBarDismissed;
+
+    /// <summary>Says once, as the file opens or is read again, that it was damaged and opened as a repaired copy.</summary>
+    private void ShowRepairBar() =>
+        RepairBar.Visibility = Session.Repaired && !_repairBarDismissed ? Visibility.Visible : Visibility.Collapsed;
     private bool _displayDocTitle;
     private string? _docTitle;
 
@@ -373,6 +378,11 @@ public partial class DocumentTab
             _xfaBarDismissed = true;
             XfaBar.Visibility = Visibility.Collapsed;
         };
+        RepairBarClose.Click += (_, _) =>
+        {
+            _repairBarDismissed = true;
+            RepairBar.Visibility = Visibility.Collapsed;
+        };
 
         RedactClear.Click += (_, _) => Viewer.ClearRedactions();
         RedactApply.Click += (_, _) => _ = ApplyRedactions();
@@ -480,6 +490,7 @@ public partial class DocumentTab
         {
             if (info.SuspectWords) SuspectRail.Visibility = Visibility.Visible;
             if (info.Xfa is { XfaOnly: true } && !_xfaBarDismissed) XfaBar.Visibility = Visibility.Visible;
+            ShowRepairBar();
             if (info.Prefs is { } prefs)
             {
                 _displayDocTitle = prefs.DisplayDocTitle;
@@ -515,7 +526,8 @@ public partial class DocumentTab
         var files = Try<IReadOnlyList<AttachmentInfo>>("attachments", ["/EmbeddedFiles", "/Annots"], d => Attachments.List(d, pw), [], []);
         var layers = Try<IReadOnlyList<LayerInfo>>("layers", ["/OCProperties"], d => Layers.List(d, pw), [], []);
         var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", ["/OCProperties"], d => Layers.ReadOrder(d, pw), [], []) : [];
-        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.Verify(d, pw, online), null, []);
+        // A repaired file's signatures are never presented as checked against the repaired bytes.
+        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.InRepairedFile(Signatures.Verify(d, pw, online), session.RepairedLength), null, []);
         var xfa = first ? Try<(bool, bool)?>("XFA", ["/XFA"], d => FormEditor.HasXfa(d, pw), null, (false, false)) : null;
         var prefs = first
             ? Try<ViewerPrefs?>("opening settings", ["/PageMode", "/PageLayout", "/ViewerPreferences", "/OpenAction"], d => DocumentFeatures.ReadViewerPrefs(d, pw), null,
@@ -1097,7 +1109,7 @@ public partial class DocumentTab
 
     internal static string SignatureSummary(SignatureInfo s, bool brokenByEdits = false) => brokenByEdits
         ? Strings.Review_SigBrokenByEdits
-        : s.Status switch
+        : s.InRepairedFile ? Strings.Review_SigRepaired : s.Status switch
     {
         SignatureStatus.Unsigned => Strings.Review_SigEmpty,
         SignatureStatus.Invalid => Strings.Review_SigInvalid,
@@ -1111,7 +1123,7 @@ public partial class DocumentTab
         _ => Strings.Review_SigValid,
     };
 
-    private string ShortStatus(SignatureInfo s) => BrokenByEdits(s) ? Strings.Review_SigShortBroken : s.Status switch
+    private string ShortStatus(SignatureInfo s) => BrokenByEdits(s) ? Strings.Review_SigShortBroken : s.InRepairedFile ? Strings.Review_SigShortUnsupported : s.Status switch
     {
         SignatureStatus.ModifiedAfterSigning when AppendedByEdits(s) => Strings.Review_SigShortAppended,
         SignatureStatus.Invalid => Strings.Review_SigShortInvalid,

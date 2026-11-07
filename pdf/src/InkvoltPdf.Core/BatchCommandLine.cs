@@ -328,7 +328,7 @@ public static class BatchCommandLine
         FormMergeReport report;
         try
         {
-            report = FormMerge.Run(File.ReadAllBytes(form), password, File.ReadAllBytes(csv), form, options, null, cancel);
+            report = FormMerge.Run(PdfRepair.Normalize(File.ReadAllBytes(form), password).Data, password, File.ReadAllBytes(csv), form, options, null, cancel);
         }
         catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or IOException or UnauthorizedAccessException)
         {

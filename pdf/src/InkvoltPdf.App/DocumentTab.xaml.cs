@@ -527,8 +527,7 @@ public partial class DocumentTab : UserControl, IDisposable
     {
         try
         {
-            using var stream = new MemoryStream(data, writable: false);
-            using var doc = PdfObj.Read(stream, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            using var doc = PdfObj.Read(data, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
             var rotations = new int[doc.PageCount];
             for (var i = 0; i < rotations.Length; i++) rotations[i] = doc.Pages[i].Rotate;
             return rotations;
@@ -956,6 +955,7 @@ public partial class DocumentTab : UserControl, IDisposable
         _ = LoadFormDesignAsync();
         ReloadEditContent();
         UpdateRedactBar();
+        if (e.Change == ContentChange.Reload) ShowRepairBar(); // the file read again may be sound now, or damaged
         RaiseState();
     }
 

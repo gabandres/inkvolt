@@ -46,6 +46,11 @@ public enum SignatureStatus
 /// <param name="Detail">Why a signature is invalid or unsupported, or what else to know (an ignored timestamp, disallowed changes).</param>
 /// <param name="CertificationLevel">For a certifying signature, its DocMDP permission (1 no changes, 2 form filling and signing, 3 also comments), else null.</param>
 /// <param name="LongTerm">What the file holds for checking this signature years from now (null for an empty field or one that didn't check out).</param>
+/// <param name="SignedLength">Where the signed bytes end (the revision the signature covers), or -1 when unknown.</param>
+/// <param name="InRepairedFile">
+/// Not checked because the file was damaged and these are its repaired bytes (<see cref="Signatures.InRepairedFile"/>):
+/// <see cref="Status"/> is then <see cref="SignatureStatus.Unsupported"/>.
+/// </param>
 public sealed record SignatureInfo(
     string FieldName,
     int PageIndex,
@@ -64,7 +69,9 @@ public sealed record SignatureInfo(
     string? Detail,
     X509Certificate2? Certificate,
     int? CertificationLevel = null,
-    LongTermInfo? LongTerm = null);
+    LongTermInfo? LongTerm = null,
+    long SignedLength = -1,
+    bool InRepairedFile = false);
 
 /// <summary>
 /// Verifies digital signatures on the raw file bytes: /ByteRange digests and CMS signatures
@@ -90,6 +97,19 @@ public static class Signatures
         var now = Verify(current, password);
         return [.. intact.Where(s => now.FirstOrDefault(n => n.FieldName == s.FieldName)?.Status is not (SignatureStatus.Valid or SignatureStatus.ModifiedAfterSigning))];
     }
+
+    /// <summary>
+    /// The signatures of a document whose file was damaged and opened as a repaired copy of <paramref name="repairedLength"/>
+    /// bytes (<see cref="DocumentSession.RepairedLength"/>): each one made before the repair (its signed bytes end within
+    /// the copy, or where they end is unknown) is reported as not checked, never valid, since the repair may have changed
+    /// what its bytes mean. One made after (on the repaired copy) is checked as usual.
+    /// </summary>
+    public static IReadOnlyList<SignatureInfo> InRepairedFile(IReadOnlyList<SignatureInfo> signatures, long repairedLength) =>
+        repairedLength <= 0
+            ? signatures
+            : [.. signatures.Select(s => s.Status == SignatureStatus.Unsigned || s.SignedLength > repairedLength
+                ? s
+                : s with { Status = SignatureStatus.Unsupported, InRepairedFile = true, LongTerm = null, Detail = PdfStrings.Sign_RepairedFile })];
 
     /// <param name="online">Revocation data the person asked for with <see cref="Ltv.CheckOnlineAsync"/>, for this check only.</param>
     public static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password = null, RevocationSnapshot? online = null) =>
@@ -182,7 +202,7 @@ public static class Signatures
                         info = info with { Status = SignatureStatus.Valid, Detail = info.Detail == AfterSigning ? null : info.Detail };
                         facts.OnlyValidationDataAfter = true;
                     }
-                    facts.Info = info;
+                    facts.Info = info with { SignedLength = signedLength };
                     results.Add(facts);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)

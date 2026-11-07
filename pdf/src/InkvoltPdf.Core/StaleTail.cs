@@ -4,7 +4,7 @@ namespace InkvoltPdf.Core;
 /// A file an editor saved over a longer copy of itself without cutting it to its new length keeps the old file's last bytes
 /// after its own %%EOF: rows of the old xref table, the old trailer, and a startxref that now points into the middle of the
 /// new file. MuPDF repairs such a file as it opens it (its pages show); PDFsharp refuses it, which left its form without
-/// fields and every edit failing. <see cref="Cut"/> gives the file without that tail; the document load
+/// fields and every edit failing. <see cref="Cut"/> gives the file without that tail; <see cref="PdfRepair.Normalize"/>
 /// tries it when a document opens.
 /// </summary>
 internal static class StaleTail

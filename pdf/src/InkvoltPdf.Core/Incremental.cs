@@ -80,7 +80,7 @@ internal static class Incremental
                 why.Value = PdfStrings.Doc_AppendNoXref;
                 return;
             }
-            using var orig = PdfObj.Read(new MemoryStream(data, writable: false), password, PdfDocumentOpenMode.Import);
+            using var orig = PdfObj.Read(data, password, PdfDocumentOpenMode.Import);
             var pairs = Pair(orig, doc, tail.HasInfo);
             if (pairs is null)
             {

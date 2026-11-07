@@ -589,14 +589,14 @@ public class HostileStructureTests
         var one = ObjectStreamFile(2 << 20);
         Assert.True(one.Length < 64 * 1024);
         var before = GC.GetAllocatedBytesForCurrentThread();
-        var ex = Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(new MemoryStream(one), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
+        var ex = Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(one, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
         Assert.True(GC.GetAllocatedBytesForCurrentThread() - before < 1 << 20);
         Assert.Contains("too large", ex.Message);
-        using (var doc = PdfObj.Read(new MemoryStream(one), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
+        using (var doc = PdfObj.Read(one, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
             Assert.Equal(1, doc.PageCount);
         var three = ObjectStreamFile(600 << 10, 600 << 10, 600 << 10);
-        Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(new MemoryStream(three), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
-        using (var doc = PdfObj.Read(new MemoryStream(three), null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
+        Assert.Throws<StreamTooLargeException>(() => PdfObj.Read(three, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 1 << 20));
+        using (var doc = PdfObj.Read(three, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import, maxBytes: 4 << 20))
             Assert.Equal(1, doc.PageCount);
 
         // At the real limit, through the open every edit uses: the edit fails with the message, having spent little.

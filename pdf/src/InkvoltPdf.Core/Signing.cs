@@ -432,8 +432,7 @@ public static class Signing
         PdfDocument doc;
         try
         {
-            var stream = new MemoryStream(data, writable: false);
-            doc = PdfObj.Read(stream, password, PdfDocumentOpenMode.Modify);
+            doc = PdfObj.Read(data, password, PdfDocumentOpenMode.Modify);
         }
         catch (PdfReaderException ex)
         {

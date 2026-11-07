@@ -92,29 +92,16 @@ internal static class PdfObj
     /// <summary>
     /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
     /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
-    /// open in Inkvolt PDF goes through here.
-    /// A file PDFsharp refuses because an editor saved it over a longer copy of itself (<see cref="StaleTail"/>) is read
-    /// without that tail.
+    /// open in Inkvolt PDF goes through here, on bytes already made readable when the document opened
+    /// (<see cref="PdfRepair.Normalize"/>): nothing here retries.
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
-    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
-    {
-        try
+    public static PdfDocument Read(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes) =>
+        BoundedFilters.Within(maxBytes, maxBytes, () =>
         {
-            return ReadAsIs(stream, password, mode, maxBytes);
-        }
-        catch (PdfReaderException) when (stream.CanSeek && stream.Length <= int.MaxValue)
-        {
-            stream.Position = 0;
-            var bytes = new byte[stream.Length];
-            stream.ReadExactly(bytes);
-            if (StaleTail.Cut(bytes) is not { } cut) throw;
-            return ReadAsIs(new MemoryStream(cut, writable: false), password, mode, maxBytes);
-        }
-    }
-
-    private static PdfDocument ReadAsIs(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
-        BoundedFilters.Within(maxBytes, maxBytes, () => string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode));
+            var stream = new MemoryStream(data, writable: false);
+            return string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
+        });
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
@@ -129,16 +116,7 @@ internal static class PdfObj
         failure ??= PdfStrings.Doc_CantRead;
         try
         {
-            PdfDocument doc;
-            try
-            {
-                doc = ReadAsIs(new MemoryStream(data, writable: false), password, mode, MaxStreamBytes);
-            }
-            catch (PdfReaderException) when (StaleTail.Cut(data) is { } cut)
-            {
-                data = cut; // an incremental save appends to the file as PDFsharp read it
-                doc = ReadAsIs(new MemoryStream(cut, writable: false), password, mode, MaxStreamBytes);
-            }
+            var doc = Read(data, password, mode);
             // A signed document opened for editing: remember its original objects so the save can be incremental.
             if (mode == PdfDocumentOpenMode.Modify)
             {

@@ -1104,6 +1104,9 @@
   <data name="Batch_SignedExportedOnly" xml:space="preserve">
     <value>Signed: only exported, the PDF left as it is so its signatures stay valid</value>
   </data>
+  <data name="Batch_Repaired" xml:space="preserve">
+    <value>Damaged: repaired to open it; the results are made from the repaired copy</value>
+  </data>
   <data name="Batch_DoneNothingSaved" xml:space="preserve">
     <value>Done (nothing to save)</value>
     <comment>A file's result in the list</comment>
@@ -2940,6 +2943,9 @@
   <data name="Sign_CantRead" xml:space="preserve">
     <value>The signature can't be read: {0}</value>
     <comment>{0} = the error message</comment>
+  </data>
+  <data name="Sign_RepairedFile" xml:space="preserve">
+    <value>The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.</value>
   </data>
   <data name="Sign_RangeDoesntFit" xml:space="preserve">
     <value>The signature's byte range doesn't fit the file.</value>

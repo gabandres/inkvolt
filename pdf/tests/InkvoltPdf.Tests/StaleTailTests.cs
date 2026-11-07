@@ -46,8 +46,11 @@ public class StaleTailTests
     [Fact]
     public void AFormSavedOverALongerFileReadsFillsAndSavesClean()
     {
-        var data = SavedOverALongerFile();
-        Assert.Throws<PdfReaderException>(() => PdfReader.Open(new MemoryStream(data), PdfDocumentOpenMode.Import)); // what PDFsharp alone does
+        var stale = SavedOverALongerFile();
+        Assert.Throws<PdfReaderException>(() => PdfReader.Open(new MemoryStream(stale), PdfDocumentOpenMode.Import)); // what PDFsharp alone does
+        var normal = PdfRepair.Normalize(stale, null); // as the document opens
+        Assert.Equal(PdfRepair.Outcome.StaleTailCut, normal.Outcome);
+        var data = normal.Data;
 
         var widgets = FormEditor.Read(data, null);
         Assert.Equal(["900_1_Text", "901_1_Value", "901_2_Value", "901_3_Total", "902_Check"], widgets.Select(w => w.FieldName).Order());

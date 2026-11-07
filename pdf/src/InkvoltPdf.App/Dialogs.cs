@@ -309,7 +309,8 @@ public static class PdfFiles
             try
             {
                 using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password);
-                return new PdfSource(data, password, Path.GetFileName(path));
+                // Made readable as a tab would make it: inserted pages and comparisons read a damaged file's repaired copy.
+                return new PdfSource(PdfRepair.Normalize(data, password).Data, password, Path.GetFileName(path));
             }
             catch (PasswordRequiredException ex)
             {
