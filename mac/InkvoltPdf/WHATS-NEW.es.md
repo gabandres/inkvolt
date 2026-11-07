@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Buscar en carpetas (Edición › Buscar › Buscar en carpetas…, ⌥⇧⌘F): agrega una carpeta e Inkvolt PDF indexa en este Mac todos los PDF que contiene, también en sus subcarpetas, y luego encuentra una palabra en todos ellos en un momento, con el texto alrededor de cada resultado. Un resultado se abre en su lugar. El índice se mantiene al día cuando cambian los archivos y dice qué archivos no pudo leer y por qué.
 
 ## 1.8.0
 - Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.

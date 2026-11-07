@@ -875,7 +875,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Beat it when:** a folder is indexed in the background (a local file beside our settings), kept current as files
   change, OCR text included; results with context, opened at the hit; accents and case ignored as Find does. Test:
   10,000 PDFs indexed once, a word query answered in under 1 s, a changed file found again within a minute.
-- **Effort** M. Windows; Mac still to do (Spotlight covers part of it there).
+- **Effort** M. Windows and Mac.
 - **Now.** Windows done 2026-10-31: Edit › Search Folders… (Ctrl+Alt+Shift+F, the command palette), Pro (`ProFeature.FolderSearch`; the gate stays off). No new
   dependency: a small inverted index of our own, one file per folder in the data folder's `FolderIndex` (`FolderIndex`): terms to pages, each page's text compressed, written
   only at the end, a commit at a time, flushed before its footer, so a crash leaves the last commit; compaction writes a new file. Terms fold what Find's own comparer reads alike,
@@ -889,7 +889,14 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   35 ms, paused and resumed, a result opened at its hit, a new file found. Tests: every byte offset of a commit cut (`FolderIndexTests`), a writer killed 8 times mid-commit (`FolderIndexerTests`), workers dying, hanging, spinning and running out of memory
   on a file, a folder going away. **Missed, not part of the target:** a phrase of two words common but rarely side by side took 3.2-4.1 s to list 500 pages (first result 14-20 ms; every page has to be read).
   **Not checked:** real-world PDFs at this scale (the corpus is generated), a real hostile PDF (a worker's death is simulated), a network drive, a disk filling up. An MSIX install indexes and searches a folder in the pack's smoke run (`smoke-msix.ps1`), passed with 1.5.0. **Cloud drives:** real Cloud Files placeholders are tested on a sync root the test makes, on this PC, with no provider running (read when on the PC, counted and left alone when only in the cloud, a sub-folder included). Of OneDrive itself only one folder on one PC was measured, its 7 PDFs listed, all on the PC already: a file only in OneDrive's cloud has not been seen staying there, nor Dropbox or Google Drive at all.
-  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes). The Mac's half is still to do.
+  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes).
+- **Mac (2026-11-07):** Edit › Find › Search Folders… (⌥⇧⌘F, the command palette), Pro (`ProFeature.folderSearch`; the gate stays off). PdfCore's `FolderIndex`, `FolderIndexer` and `IndexTerms`
+  ported with their tests (IndexTermsTests, FolderIndexTests, FolderIndexerTests): the same file layout, commits and search, the index in the app's own Application Support, nothing sent anywhere;
+  Spotlight isn't used (its text isn't Find's). Read in process on reading threads, as the Mac's Find, not in worker processes: each page through the engine's page check (a bomb page refused at its
+  budget, the rest of the file indexed), a watchdog on each file's processor time and silence, and a journal beside the index for a file that was being read when the app ended (twice: skipped,
+  counted, listed). FSEvents and a look every 30 s; iCloud files not downloaded are counted and left there. Bounded as on Windows, plus 100,000 PDFs a folder and 2 GB of index file. The self-test
+  indexes a folder of synthetic PDFs and finds, opens and re-finds a word (`--only-folder-search`). **Not checked on the Mac:** the 10,000-PDF bench, a real crashing PDF, a network volume.
+  What differs and why: mac/docs/PLAN.md, "Indexed folder search".
 
 ### 3.6 Speed on huge files (differentiator)
 - **The gap.** Acrobat users report freezes on 200-500 page files and on large drawings, and Adobe staff suggest
