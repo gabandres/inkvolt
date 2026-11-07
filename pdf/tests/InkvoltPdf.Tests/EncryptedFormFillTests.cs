@@ -159,6 +159,37 @@ public class EncryptedFormFillTests
         Assert.Equal(PdfSecurity.ReadSecurity(data, null), PdfSecurity.ReadSecurity(filled, null));
     }
 
+    [Fact]
+    public void AnEncryptionDictionaryIsWrittenAgainWithItsIndirectValues()
+    {
+        // An encryption dictionary whose /Length and /CF are indirect objects (legal; PDFsharp's reader refuses them, but
+        // a dictionary written again must never lose them): they keep their original objects, which stay in the file.
+        using var doc = new PdfSharp.Pdf.PdfDocument();
+        var length = new PdfSharp.Pdf.PdfIntegerObject(doc, 128);
+        doc.Internals.AddObject(length);
+        var cf = new PdfSharp.Pdf.PdfDictionary(doc);
+        cf.Elements["/StdCF"] = new PdfSharp.Pdf.PdfDictionary();
+        doc.Internals.AddObject(cf);
+        var h = new PdfSharp.Pdf.PdfDictionary(doc);
+        h.Elements["/Filter"] = new PdfSharp.Pdf.PdfName("/Standard");
+        h.Elements["/Length"] = length.Reference;
+        h.Elements["/CF"] = cf.Reference;
+        h.Elements["/O"] = new PdfSharp.Pdf.PdfString(new string([(char)0xE9, (char)1]), PdfSharp.Pdf.PdfStringEncoding.RawEncoding);
+        var body = Encoding.Latin1.GetString(UserPasswordEdits.EncryptBody(h)!);
+        Assert.Contains($"/Length {length.Reference!.ObjectNumber} 0 R", body);
+        Assert.Contains($"/CF {cf.Reference!.ObjectNumber} 0 R", body);
+        Assert.Contains("/O <E901>", body);
+        Assert.DoesNotContain("null", body);
+
+        // A string that wouldn't read back byte for byte (text beyond Latin-1, even inside /CF): not written again.
+        var std = new PdfSharp.Pdf.PdfDictionary();
+        std.Elements["/X"] = new PdfSharp.Pdf.PdfString(new string((char)0x4E2D, 1), PdfSharp.Pdf.PdfStringEncoding.Unicode);
+        var direct = new PdfSharp.Pdf.PdfDictionary();
+        direct.Elements["/StdCF"] = std;
+        h.Elements["/CF"] = direct;
+        Assert.Null(UserPasswordEdits.EncryptBody(h));
+    }
+
     /// <summary>An update holding the page tree root unchanged (it has no strings to encrypt), as Acrobat writes one.</summary>
     private static byte[] AppendPagesAgain(byte[] file)
     {

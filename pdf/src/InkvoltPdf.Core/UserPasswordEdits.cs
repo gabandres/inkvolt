@@ -50,22 +50,44 @@ internal static class UserPasswordEdits
             if (!allowed || Incremental.Tail(data) is not { Id: { } id } tail) return null;
             if (StandardCrypt.FromUserPassword(h, Convert.FromHexString(id[2..id.IndexOf('>')]), password ?? "") is not { } c) return null;
             crypt = c;
-            // Its strings are never encrypted: written back as read. A copy whose /U no longer checks out isn't used.
-            var body = Incremental.Serialize(h, _ => null, null);
+            var body = EncryptBody(h);
             if (h.Reference is { } r)
             {
+                // Written again in the update when it can be (PDFsharp reads a file whose newest section repeats it); else
+                // the update names the original object, which stays in the file.
                 encrypt = $"{r.ObjectNumber} {r.GenerationNumber} R";
-                // Written again only when every string reads back byte for byte (PDFsharp decodes one starting FE FF).
-                if (h.Elements.Values.All(v => PdfObj.Resolve(v) is not PdfString s || s.Encoding != PdfStringEncoding.Unicode && s.Value.All(c => c <= 0xFF)))
-                    encryptObject = (r.ObjectNumber, r.GenerationNumber, body);
+                if (body is not null) encryptObject = (r.ObjectNumber, r.GenerationNumber, body);
             }
-            else encrypt = Encoding.Latin1.GetString(body);
+            else if (body is not null) encrypt = Encoding.Latin1.GetString(body);
+            else return null; // a direct dictionary must be written in the new trailer: it can't be, so the owner password is asked for
             plain = Plain(orig, h, tail);
         }
         var doc = PdfObj.Read(plain, null, PdfDocumentOpenMode.Modify);
         if (Incremental.TrackUserPasswordEdit(doc, plain, data, crypt, encrypt, encryptObject)) return doc;
         doc.Dispose();
         return null;
+    }
+
+    /// <summary>
+    /// The encryption dictionary as written again (its strings are never encrypted), or null when it can't be written so
+    /// that it reads back byte for byte: a string PDFsharp decoded as text (one starting FE FF) or holding text beyond
+    /// Latin-1, anywhere in it. An indirect value keeps its object: the update's numbers are the original's, and the
+    /// original's objects stay in the file.
+    /// </summary>
+    internal static byte[]? EncryptBody(PdfDictionary handler)
+    {
+        if (!ReadsBack(handler, 0)) return null;
+        return Incremental.Serialize(handler, r => (r.ObjectNumber, r.GenerationNumber), null);
+
+        static bool ReadsBack(PdfItem? item, int depth) => depth <= 32 && item switch
+        {
+            PdfString s => s.Encoding != PdfStringEncoding.Unicode && s.Value.All(c => c <= 0xFF),
+            PdfReference => true,
+            PdfObject { IsIndirect: true } when depth > 0 => true,
+            PdfDictionary d => d.Elements.Values.All(v => ReadsBack(v, depth + 1)),
+            PdfArray a => a.Elements.All(v => ReadsBack(v, depth + 1)),
+            _ => true,
+        };
     }
 
     /// <summary>
