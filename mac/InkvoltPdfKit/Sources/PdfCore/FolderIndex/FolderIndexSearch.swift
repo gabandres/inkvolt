@@ -95,8 +95,7 @@ extension FolderIndex {
     /// Find would say on that page. A phrase's words are next to each other only if Find says so.
     /// - Throws: `CancellationError`; `FolderIndexDamaged` when the list of terms doesn't read back.
     public func search(_ query: String, options: FolderSearchOptions = FolderSearchOptions(), cancel: CancelToken? = nil) throws -> FolderSearchRun {
-        guard !isDisposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
-        let state = acquire()
+        let state = try acquire()
         do {
             let terms = IndexTerms.of(query)
             if terms.isEmpty { return Self.finished(state, false) }
@@ -105,7 +104,7 @@ extension FolderIndex {
             var seen = Set<String>()
             for term in terms where seen.insert(term).inserted {
                 var bits = [UInt64](repeating: 0, count: (map.total + 64) / 64)
-                try Self.markPages(state, map, Array(term.utf8), &bits, cancel)
+                try Self.markPages(state, map, IndexTerms.lookup(term), &bits, cancel)
                 if var had = found {
                     for i in 0..<had.count { had[i] &= bits[i] }
                     found = had
@@ -294,9 +293,9 @@ private final class Confirmer: @unchecked Sendable {
         if let filter, !FolderIndex.sideBySide(text, filter) { return nil }
         let hits = PageText.findIn(text, query, matchCase: options.matchCase, wholeWord: options.wholeWord, ignoreAccents: options.ignoreAccents)
         guard let first = hits.first else { return nil }
-        let before = max(0, first.start - 40)
-        return FolderHit(relativePath: f.relativePath, page: page, hits: hits.count, excerpt: PageText.excerptOf(text, first.start, first.end),
-                         matchStart: (before > 0 ? 1 : 0) + first.start - before, matchLength: first.end - first.start)
+        let shown = PageText.excerptOf(text, first.start, first.end)
+        return FolderHit(relativePath: f.relativePath, page: page, hits: hits.count, excerpt: shown.excerpt,
+                         matchStart: shown.matchStart, matchLength: first.end - first.start)
     }
 }
 

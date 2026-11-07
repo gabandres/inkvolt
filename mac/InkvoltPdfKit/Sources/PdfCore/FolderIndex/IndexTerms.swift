@@ -14,18 +14,63 @@ import Foundation
 /// table, so an index built by an older macOS whose tables differ is built again.
 enum IndexTerms {
     /// The folding's version, kept in the index file's header.
-    static let version = 1
+    static let version = 2
 
-    /// A longer run (a base64 blob, hostile text) is filed under its start; a query's long word is cut the same way.
+    /// A term's length at most: a query's longer word is cut to it; a page's longer run is filed in pieces (`file`).
     static let maxChars = 48
+
+    /// A page's run longer than a term is filed in pieces of `maxChars`, one starting every `pieceStep` units, so Find's
+    /// hit anywhere inside it (up to `lookupChars` long) is inside a piece; its first `maxRun` units at most (the Mac's
+    /// addition: Windows files a long run under its start only, so the end of a run is never found there).
+    static let maxRun = 1024
+    static let pieceStep = 24
+    /// What a query's word looks up: its start, short enough to sit inside one piece wherever the piece begins (a piece
+    /// starts at most `pieceStep` before it, and may end a unit early to keep a surrogate pair whole).
+    static let lookupChars = maxChars - pieceStep - 1
 
     /// Calls `emit` with each term of `text`, in order, repeats included.
     static func read(_ text: String, _ emit: (String) -> Void) {
-        read(Array(text.utf16), emit)
+        read(Array(text.utf16), limit: maxChars, emit)
     }
 
     /// The same over UTF-16 units.
     static func read(_ text: [UInt16], _ emit: (String) -> Void) {
+        read(text, limit: maxChars, emit)
+    }
+
+    /// The terms a page is filed under: `read`'s, with a run longer than a term in overlapping pieces.
+    static func file(_ text: String, _ emit: (String) -> Void) {
+        read(Array(text.utf16), limit: maxRun, emit)
+    }
+
+    /// The bytes a query's term is looked up by among the filed terms (each term with them inside counts).
+    static func lookup(_ term: String) -> [UInt8] {
+        let units = Array(term.utf16)
+        if units.count <= lookupChars { return Array(term.utf8) }
+        var end = lookupChars
+        if UTF16.isLeadSurrogate(units[end - 1]) { end -= 1 }
+        return Array(String(decoding: units[..<end], as: UTF16.self).utf8)
+    }
+
+    /// Calls `emit` with a word, in overlapping pieces when it is longer than a term.
+    private static func emitPieces(_ word: [UInt16], _ emit: (String) -> Void) {
+        if word.count <= maxChars {
+            emit(String(decoding: word, as: UTF16.self))
+            return
+        }
+        var start = 0
+        while true {
+            var end = min(start + maxChars, word.count)
+            if end < word.count && UTF16.isTrailSurrogate(word[end]) { end -= 1 }
+            emit(String(decoding: word[start..<end], as: UTF16.self))
+            if end == word.count { return }
+            start += pieceStep
+            if UTF16.isTrailSurrogate(word[start]) { start += 1 }
+        }
+    }
+
+    /// `limit`: the units of a run kept (`maxChars` for a query and for reading words in order, `maxRun` for filing).
+    private static func read(_ text: [UInt16], limit: Int, _ emit: (String) -> Void) {
         let table = Table.shared
         var word = [UInt16]()
         word.reserveCapacity(maxChars)
@@ -35,7 +80,7 @@ enum IndexTerms {
         var paired = false           // that run has given a pair already: a run of one is filed alone
 
         func endWord() {
-            if !word.isEmpty { emit(String(decoding: word, as: UTF16.self)) }
+            if !word.isEmpty { emitPieces(word, emit) }
             word.removeAll(keepingCapacity: true)
             full = false
         }
@@ -62,7 +107,7 @@ enum IndexTerms {
                 let isUpper = cp >= 0x41 && cp <= 0x5A
                 if isUpper || (cp >= 0x61 && cp <= 0x7A) || (cp >= 0x30 && cp <= 0x39) {
                     if inRun { endRun() }
-                    if word.count < maxChars { word.append(UInt16(isUpper ? cp + 32 : cp)) } else { full = true }
+                    if word.count < limit { word.append(UInt16(isUpper ? cp + 32 : cp)) } else { full = true }
                 } else if !word.isEmpty || inRun {
                     endWord()
                     if inRun { endRun() }
@@ -85,7 +130,7 @@ enum IndexTerms {
                 } else {
                     if inRun { endRun() }
                     let units = c > 0xFFFF ? 2 : 1
-                    if !full && word.count + units <= maxChars {
+                    if !full && word.count + units <= limit {
                         if let scalar = Unicode.Scalar(c) { word.append(contentsOf: scalar.utf16) }
                     } else {
                         full = true

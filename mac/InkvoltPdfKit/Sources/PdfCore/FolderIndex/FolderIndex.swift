@@ -106,6 +106,8 @@ public final class FolderIndex: @unchecked Sendable {
     private var current: Snapshot
     private var length: Int64        // committed bytes in the current file; what is past it is thrown away (under writeGate)
     private var generation: Int      // under writeGate
+    /// Set under both gates, so writing reads it under `writeGate` and a search under `stateGate`, which is only ever held
+    /// for a moment: a search never waits behind a commit or a compaction, which hold `writeGate` for their whole run.
     private var disposed = false
 
     private init(basePath: String, lockFd: Int32, state: Snapshot, length: Int64, generation: Int) {
@@ -311,6 +313,13 @@ public final class FolderIndex: @unchecked Sendable {
                 unlink(tmp)
                 throw error
             }
+            do {
+                // The new name on disk before the old generation is retired (deleted once its searches end).
+                try IndexFileHandle.syncDirectory(of: final)
+            } catch {
+                unlink(final)
+                throw error
+            }
 
             guard let found = Self.recover(final, IndexTerms.stamp) else {
                 throw FolderIndexDamaged(why: "The compacted index doesn't read back.")
@@ -350,8 +359,7 @@ public final class FolderIndex: @unchecked Sendable {
     /// Closes the index (its file stays).
     public func dispose() {
         writeGate.withLock {
-            if disposed { return }
-            disposed = true
+            guard markDisposed() else { return }
             state.store.release()
             Self.releaseLock(basePath + ".lock", lockFd, delete: true)
         }
@@ -360,8 +368,7 @@ public final class FolderIndex: @unchecked Sendable {
     /// Closes the index and deletes its file.
     public func disposeAndDelete() {
         writeGate.withLock {
-            if disposed { return }
-            disposed = true
+            guard markDisposed() else { return }
             state.store.retire()
             Self.releaseLock(basePath + ".lock", lockFd, delete: true)
         }
@@ -386,8 +393,10 @@ public final class FolderIndex: @unchecked Sendable {
         do {
             try file.write(header(stamp), at: 0)
             try file.sync()
+            try IndexFileHandle.syncDirectory(of: path) // its name on disk before an older generation is retired
         } catch {
             file.close()
+            unlink(path)
             throw error
         }
         return Store(path, file)
@@ -505,15 +514,27 @@ public final class FolderIndex: @unchecked Sendable {
 
     // ---- What a search reads ----
 
-    /// Takes the current state for a search: its file stays open until `Store.release`.
-    func acquire() -> Snapshot {
-        stateGate.withLock {
+    /// Takes the current state for a search: its file stays open until `Store.release`. Takes no lock that writing holds.
+    /// - Throws: `FolderIndexIOError` once the index is closed.
+    func acquire() throws -> Snapshot {
+        try stateGate.withLock {
+            guard !disposed else { throw FolderIndexIOError(loc("The index is closed"), EBADF) }
             current.store.addRef()
             return current
         }
     }
 
-    var isDisposed: Bool { writeGate.withLock { disposed } }
+    /// Closes the index for searches too (under `writeGate`).
+    private func markDisposed() -> Bool {
+        stateGate.withLock {
+            if disposed { return false }
+            disposed = true
+            return true
+        }
+    }
+
+    /// Test hook: runs `body` holding the lock writing holds.
+    func holdingWrites(_ body: () -> Void) { writeGate.withLock(body) }
 
     /// One generation's open file; closed when the index and the last search are done with it.
     final class Store: @unchecked Sendable {
@@ -858,25 +879,46 @@ public final class IndexBatch: @unchecked Sendable {
     /// Takes `file` out when this commits.
     public func remove(_ file: IndexedFile) { removed.append(file.id) }
 
+    /// The batch that follows this one once it is committed: its files' numbers go on from here.
+    func following() -> IndexBatch { IndexBatch(firstId: firstId + added.count) }
+
     /// Adds a file. `packed` comes from `FolderIndex.packPages`; `pages` by page number, nil for no text.
     public func add(_ relativePath: String, size: Int64, writeTicks: Int64, state: IndexedState, pageCount: Int, failedPages: Int,
                     packed: [UInt8], pages: [String?]) {
+        add(relativePath, size: size, writeTicks: writeTicks, state: state, pageCount: pageCount, failedPages: failedPages,
+            packed: packed, words: Self.fileWords(pages))
+    }
+
+    /// A file's words, each with the pages it is on in order: the slow part of adding a file, done by any thread before
+    /// `add`, outside whatever lock guards the batch.
+    public static func fileWords(_ pages: [String?]) -> [String: [Int]] {
+        var words: [String: [Int]] = [:]
+        for (page, text) in pages.enumerated() {
+            guard let text, !text.isEmpty else { continue }
+            IndexTerms.file(PageText.searchTextOf(text)) { term in
+                if words[term]?.last == page { return }
+                words[term, default: []].append(page)
+            }
+        }
+        return words
+    }
+
+    /// Adds a file whose words `fileWords` filed.
+    public func add(_ relativePath: String, size: Int64, writeTicks: Int64, state: IndexedState, pageCount: Int, failedPages: Int,
+                    packed: [UInt8], words: [String: [Int]]) {
         let id = firstId + added.count
         added.append(IndexedFile(id: id, relativePath: relativePath, size: size, writeTicks: writeTicks, state: state, pages: pageCount,
                                  failedPages: failedPages, textOffset: Int64(texts.count), textLength: Int64(packed.count)))
         texts += packed
-        for (page, text) in pages.enumerated() {
-            guard let text, !text.isEmpty else { continue }
-            IndexTerms.read(PageText.searchTextOf(text)) { term in
-                let list: PostingList
-                if let had = terms[term] {
-                    list = had
-                } else {
-                    list = PostingList()
-                    terms[term] = list
-                }
-                postingBytes += list.add(id, page)
+        for (term, pages) in words {
+            let list: PostingList
+            if let had = terms[term] {
+                list = had
+            } else {
+                list = PostingList()
+                terms[term] = list
             }
+            for page in pages { postingBytes += list.add(id, page) }
         }
     }
 
@@ -1038,6 +1080,17 @@ final class IndexFileHandle: @unchecked Sendable {
     /// To the disk itself, not only its cache (`F_FULLFSYNC`; `fsync` where the file system can't).
     func sync() throws {
         let fd = handle
+        if fcntl(fd, F_FULLFSYNC) == 0 { return }
+        guard fsync(fd) == 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
+    }
+
+    /// The folder's entries to the disk (a file made or renamed in it), so a crash can't lose the new name after the old
+    /// file is gone.
+    static func syncDirectory(of path: String) throws {
+        let dir = (path as NSString).deletingLastPathComponent
+        let fd = Darwin.open(dir, O_RDONLY | O_CLOEXEC)
+        guard fd >= 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
+        defer { Darwin.close(fd) }
         if fcntl(fd, F_FULLFSYNC) == 0 { return }
         guard fsync(fd) == 0 else { throw FolderIndexIOError(loc("Couldn't write the index file")) }
     }

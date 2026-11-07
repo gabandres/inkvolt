@@ -594,6 +594,56 @@ final class FolderIndexTests {
         #expect(try search(index, "w5x7").contains { $0.relativePath == "c0f02.pdf" }) // (2 + 5) % 37
     }
 
+    /// Mac addition (review): the excerpt says where its match starts, so nothing else works it out again.
+    @Test(arguments: [0, 5, 39, 40, 41, 100])
+    func The_excerpt_says_where_its_match_starts(_ before: Int) {
+        let text = String(repeating: "x", count: before) + "target\nafter"
+        let shown = PageText.excerptOf(text, before, before + 6)
+        let units = Array(shown.excerpt.utf16)
+        #expect(String(decoding: units[shown.matchStart..<(shown.matchStart + 6)], as: UTF16.self) == "target")
+        #expect(shown.excerpt.hasPrefix("…") == (before > 40))
+    }
+
+    /// Mac addition (review): a search takes no lock that writing holds, so a long commit or a compaction doesn't hold it up.
+    @Test func A_search_doesn_t_wait_for_a_commit_or_a_compaction() throws {
+        let index = try FolderIndex.open(base)
+        defer { index.dispose() }
+        try commit(index) { add($0, "a.pdf", "lantern") }
+        let held = DispatchSemaphore(value: 0)
+        let released = DispatchSemaphore(value: 0)
+        Thread.detachNewThread {
+            index.holdingWrites {
+                held.signal()
+                Thread.sleep(forTimeInterval: 2)
+            }
+            released.signal()
+        }
+        held.wait()
+        let started = Date()
+        #expect(try at(index, "lantern") == ["a.pdf#1"])
+        #expect(Date().timeIntervalSince(started) < 1)
+        released.wait()
+    }
+
+    /// Mac addition (review): a run longer than a term (48) is filed in overlapping pieces, so its end is found as Find
+    /// finds it inside the run; a long word of a query looks up its start.
+    @Test func The_end_of_a_long_run_is_found_as_Find_finds_it() throws {
+        let short = String(repeating: "k", count: 50) + "endmarker9"
+        let long = String(repeating: "x", count: 260) + "abcdefghijklmnopqrstuvwxyz0123456789abcd"
+        let index = try FolderIndex.open(base)
+        defer { index.dispose() }
+        try commit(index) { b in
+            add(b, "a.pdf", "intro \(short) outro", "other \(long) text")
+            add(b, "b.pdf", "endmarker nothing abcdefghijklmnopqrstuvw")
+        }
+        #expect(try at(index, "endmarker9") == ["a.pdf#1"])
+        #expect(try at(index, String(short.suffix(10))) == ["a.pdf#1"])
+        #expect(try at(index, "kkkkkendmarker") == ["a.pdf#1"])
+        #expect(try at(index, String(long.suffix(40))) == ["a.pdf#2"])
+        #expect(try at(index, String(long.dropFirst(100).prefix(48))) == ["a.pdf#2"])
+        #expect(try at(index, "endmarker") == ["a.pdf#1", "b.pdf#1"])
+    }
+
     @Test func A_folder_name_gives_one_index_however_it_is_written() {
         let a = FolderIndex.basePathFor(dir, "/Users/someone/Papers/")
         #expect(a == FolderIndex.basePathFor(dir, "/Users/someone/Papers"))

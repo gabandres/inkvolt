@@ -35,6 +35,33 @@ struct IndexTermsTests {
         #expect(IndexTerms.of(String(repeating: "a", count: 60))[0] == String(repeating: "a", count: IndexTerms.maxChars))
     }
 
+    /// Mac addition (review): what is filed of a run longer than a term: overlapping pieces, each within a term's length,
+    /// so any part of the run up to `lookupChars` long is inside one of them; bounded by `maxRun`.
+    @Test func A_long_run_is_filed_in_overlapping_pieces_up_to_a_bound() {
+        let run = (0..<60).map { String(UnicodeScalar(UInt8(97 + $0 % 26))) }.joined()
+        var filed: [String] = []
+        IndexTerms.file(run + " b") { filed.append($0) }
+        let head = String(run.prefix(48))
+        let tail = String(run.dropFirst(IndexTerms.pieceStep))
+        let expected: [String] = [head, tail, "b"]
+        #expect(filed == expected)
+        var hostile: [String] = []
+        IndexTerms.file(String(repeating: "a", count: 100_000)) { hostile.append($0) }
+        #expect(hostile.count <= IndexTerms.maxRun / IndexTerms.pieceStep + 1)
+        #expect(hostile.allSatisfy { $0.utf16.count <= IndexTerms.maxChars })
+        // A pair is never split between pieces (Gothic letters, two UTF-16 units each).
+        let pairs = String(repeating: "\u{10330}", count: 40)
+        var paired: [String] = []
+        IndexTerms.file(pairs) { paired.append($0) }
+        #expect(paired.count == 3)
+        let whole = paired.allSatisfy { !$0.unicodeScalars.contains("\u{FFFD}") && $0.utf16.count <= IndexTerms.maxChars }
+        #expect(whole)
+        // The query side: a long word looks up its start, short enough to sit inside one piece.
+        #expect(IndexTerms.lookup(run) == Array(run.prefix(IndexTerms.lookupChars).utf8))
+        #expect(IndexTerms.lookup("short") == Array("short".utf8))
+        #expect(IndexTerms.lookupChars <= IndexTerms.maxChars - IndexTerms.pieceStep - 1)
+    }
+
     @Test func Half_a_surrogate_pair_breaks_a_word_and_breaks_nothing_else() {
         let ab: [UInt16] = [0x61, 0x62], cd: [UInt16] = [0x63, 0x64]
         var found: [String] = []

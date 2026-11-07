@@ -318,13 +318,15 @@ public final class PageText: @unchecked Sendable {
         return SearchView(units).text as String
     }
 
-    /// `excerpt` of a page's text kept as a string (UTF-16 offsets).
-    public static func excerptOf(_ text: String, _ start: Int, _ end: Int, context: Int = 40) -> String {
+    /// `excerpt` of a page's text kept as a string (UTF-16 offsets), with where the match starts in it (UTF-16 units).
+    public static func excerptOf(_ text: String, _ start: Int, _ end: Int, context: Int = 40) -> (excerpt: String, matchStart: Int) {
         let units = Array(text.utf16)
         let s = max(0, min(start - context, units.count))
         let e = max(s, min(units.count, end + context))
         let body = String(decoding: units[s..<e], as: UTF16.self)
-        return ((s > 0 ? "…" : "") + body + (e < units.count ? "…" : "")).replacingOccurrences(of: "\n", with: " ")
+        let lead = s > 0 ? "…" : ""
+        let excerpt = (lead + body + (e < units.count ? "…" : "")).replacingOccurrences(of: "\n", with: " ")
+        return (excerpt, lead.utf16.count + max(0, min(start, units.count) - s))
     }
 
     public func find(_ query: String, matchCase: Bool, wholeWord: Bool, ignoreAccents: Bool = false) -> [(start: Int, end: Int)] {
