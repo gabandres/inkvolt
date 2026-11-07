@@ -45,7 +45,9 @@ T3 provider needs `claude auth login` first).
 **Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
 Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
 (`pdf/tools/forms-corpus`, 150-300 public fillable PDFs: open, fill every field, save, reopen, read back with pdf.js), its
-failures fixed test-first, the same run on the Mac. This comes before the remaining Mac items.
+failures fixed test-first, the same run on the Mac. This comes before the remaining Mac items. **Owner: publish the
+forms fixes** (with Compare's two leftovers, already merged) as the next Windows PDF release (hostile-input review first),
+and a PDF for Mac release too if the Mac run finds anything to fix.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
