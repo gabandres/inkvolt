@@ -22,7 +22,8 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Exports to Word, Excel, PowerPoint, HTML and text that read scanned pages say how many suspect words there were, to check against the PDF.
 - A page built to take minutes to read (a few kilobytes that unpack to gigabytes, a picture too large to decode, or a pattern of millions of tiles) no longer freezes the app: after a few seconds it says the page took too long to read, and the rest of the document can still be used. Find, Redact by Pattern, the redaction check, Prepare Form, Recognize Text and the AI assistant go on with the other pages and say which they skipped; Cancel and closing the document stop it at once. A page that's only slow to arrive (a network share, iCloud) or waiting while the Mac is busy isn't refused.
 - Batch's Redact Patterns and Check Redaction fail a file with a page they couldn't read, and save nothing for it: what was looked for could still be on that page. Redact by Pattern and the check after Apply Redactions say which pages weren't looked at.
-- A page that's too large or slow to read prints as a sentence saying so, never as an unbounded drawing that could freeze the app; the paper is always made from the same reading of the file as the screen.
+- A page that's too large or slow to read prints as a sentence saying so, never as an unbounded drawing that could freeze the app; the paper is always made from the same reading of the file as the screen. Pages already shown aren't checked again, and the others are checked without drawing them, so a long scan is ready to print in about a second.
+- Check Redaction says when it couldn't look at everything (a page or a part of the file it couldn't read, more earlier versions than it checks), and which pages, instead of saying nothing was found.
 - Batch presets, form data files and the AI assistant's answers can't hide deep nesting in JSON5 comments or strings to stop the app.
 
 ## 1.7.0
