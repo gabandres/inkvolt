@@ -10,6 +10,7 @@ B=mac/tools/bench/.build/release/InkvoltBench
 $B make --out ~/inkvolt-bench-corpus          # the corpus, about 1.1 GB, a minute; never in the repo
 $B run  --out ~/inkvolt-bench-corpus --reps 3 --md mac/tools/bench/RESULTS.md --note "the machine's state"
 $B scale ~/inkvolt-bench-corpus/text.pdf lantern 1 2 4 8   # Find's text reading on n threads, each its own engine
+$B bands ~/inkvolt-bench-corpus/drawings.pdf 1 4 8 16      # the first 5 pages drawn in n bands: cold and again, ms a page
 $B clean --out ~/inkvolt-bench-corpus
 ```
 

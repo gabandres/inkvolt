@@ -948,6 +948,21 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Find reads pages on threads in process (`PdfEngine.findAll`, every core but one, no workers): 5,000 pages in 0.55 s, the
   drawing set in 6.9 s (33.5 s before); one copy of a file's bytes for all of an engine's instances took the drawing set's
   peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (584 ms a sheet) and its Find.
+  **Mac, drawing in bands (2026-11-07).** A sheet's time was the draw device's (568 ms of one core drawing its kept
+  display list, 80 ms making it). The shim now draws a list of 2,000 paths or more and no pictures in bands of rows, one
+  a core, each a clone of the render's context running the one list into its rows (`inkv_draw_bands`; Windows draws big
+  renders in four strips on cloned contexts, which its wrapper's process-wide locks hold back). MuPDF's locks are taken for every
+  node of the list in every band: pthread mutexes made the threads queue in the kernel (8 bands: 192 ms), unfair locks
+  162 ms; 16 bands on the M1's 8 cores were slower again. The bands share the cookie's stops and one CPU budget, so a
+  hostile page is refused as on one thread (`DrawingBandsTests`); a page with pictures stays on one thread (each band
+  decodes and scales its part of a picture, which can shift a source row at a band's edge), the others come out within
+  anti-aliasing. The viewer also asks for the next page ahead, the way it last scrolled. Bench (M1 Air, base and branch
+  interleaved, load 2 to 14): the drawing set's first render 617 to 257 ms, scroll proxy 707 to 261 ms a sheet (607 to
+  237 on the quietest pair; `run`: 223 ms, slowest 251), the same pages again 587 to 166 ms; the other files, Find and
+  memory unchanged. Still missed: the scroll proxy (each sheet's list, about 80 ms on one thread, plus its drawing), and
+  Find (9.8 s under that load, 6.9 s quiet): 80% of it is MuPDF's content lexer (`fz_strtof`, `lex_number`, one byte at
+  a time) and inflate, which only a change to MuPDF itself would make faster (the owner's call); the text device's work
+  on the 72,000 paths is under 2% of it.
   **A hostile file's time: MuPDF's own inflating, bounded by time (Windows, 2026-11-05).** PDFsharp's filters are bounded
   (`BoundedFilters`, 256 MB a stream); MuPDF's inflating kept memory flat but not time: a 7 KB page Flate twice to 4 GB
   took 52 to 116 s of one core to draw, a 1 MB one Flate once to 1 GB 13 s, a 20,000 × 20,000 picture of 1.2 MB 9 s a
@@ -1087,7 +1102,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
 - **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30),
   page checks that draw the render's picture (2026-11-06); the drawing set's scroll, first Find and (on the line) first
   page remain over target; Mac: the benchmark and Find on threads done (E16,
-  2026-11-02), the same two over target.
+  2026-11-02), drawings in bands on every core (2026-11-07: a sheet 584 to 223 ms); the same two still over target.
 
 ### 3.7 Spanish interface
 
