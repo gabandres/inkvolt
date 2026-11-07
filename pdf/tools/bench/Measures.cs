@@ -48,7 +48,7 @@ public static class Measures
     {
         var optimized = !(typeof(Measures).Assembly.GetCustomAttributes(typeof(DebuggableAttribute), false).FirstOrDefault() is DebuggableAttribute d && d.IsJITOptimizerDisabled);
         // As DocumentSession.Open does: a file of InPlaceBytes or more opens in place (nothing read up front), a smaller one
-        // is read whole first.
+        // is read whole first, and its bytes are checked (PdfRepair.Normalize) while the engine opens.
         var bytes = new FileInfo(path).Length;
         var inPlace = bytes >= DocumentSession.InPlaceBytes;
         var sw = Stopwatch.StartNew();
@@ -56,7 +56,7 @@ public static class Measures
         var readMs = Ms(sw);
         PdfEngine OpenEngine()
         {
-            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : PdfEngine.Open(data, InputFileTypes.PDF, null);
+            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : DocumentSession.OpenReadable(data, InputFileTypes.PDF, null).Engine;
             engine.CheckFirstPage(); // as DocumentSession does for the document the user opens
             return engine;
         }

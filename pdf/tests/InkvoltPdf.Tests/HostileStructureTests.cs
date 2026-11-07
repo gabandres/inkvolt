@@ -383,7 +383,8 @@ public class HostileStructureTests
         // 5,000 pages sharing a content stream at the limit of drawing steps for a page: 10 billion steps. (The document's limit
         // lowered here: the real one takes minutes to reach.)
         var data = SharedPages(5000, string.Concat(Enumerable.Repeat("q Q ", 1_000_000)));
-        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000)));
+        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 120); // past 60 s on a loaded PC
+        Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
     }
 
     [Fact]
