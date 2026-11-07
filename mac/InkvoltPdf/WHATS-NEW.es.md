@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+
+## 1.9.0
 - Buscar en carpetas (Edición › Buscar › Buscar en carpetas…, ⌥⇧⌘F): agrega una carpeta e Inkvolt PDF indexa en este Mac todos los PDF que contiene, también en sus subcarpetas, y luego encuentra una palabra en todos ellos en un momento, con el texto alrededor de cada resultado. Un resultado se abre en su lugar. El índice se mantiene al día cuando cambian los archivos y dice qué archivos no pudo leer y por qué.
 - Comparar archivos compara un archivo de Word, Excel o PowerPoint (convertido en PDF con LibreOffice) o una imagen de una página escaneada con un PDF. Primero se reconocen en este Mac las palabras del escaneo; Comparar sin leerlos omite ese paso.
 - Comparar archivos muestra los cambios de fuente, tamaño, negrita, cursiva y color aparte de los cambios en las palabras, y un párrafo que se movió como un solo movimiento, con las palabras editadas dentro de él como cambios propios. Los encabezados repetidos y los números de página se dejan fuera. Una casilla para cada tipo lo oculta.
@@ -14,6 +16,7 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 - Las casillas de Seguro Social, teléfono y código postal con espacio solo para los dígitos los aceptan todos; los guiones aparecen al salir del campo.
 - Funcionan más formularios reales: botones de opción y campos que el formulario enumera de forma rara, casillas de verificación que no mostraban la marca, una lista que seguía mostrando la opción anterior, un campo que aparece en varias páginas.
 - Los PDF dañados conservan lo que tienen al llenarlos y guardarlos: ya no se pierden marcadores ni campos, y los restos de una copia anterior ya no reemplazan los valores del formulario. Un archivo dañado lo indica al abrirse, y una firma hecha antes de la reparación nunca se muestra como válida.
+- Los formularios hechos para congelar la app se abren y se llenan en un momento: campos puestos en miles de páginas, la imagen de una casilla que se descomprime a gigabytes, un archivo dañado numerado en los millones. Un campo puesto en más páginas de las que se muestran lo indica.
 
 ## 1.8.0
 - Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.

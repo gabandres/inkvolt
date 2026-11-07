@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.9.0
 - Search Folders (Edit › Find › Search Folders…, ⌥⇧⌘F): add a folder and Inkvolt PDF indexes every PDF in it and its subfolders on this Mac, then finds a word across all of them in a moment, with the text around each hit. A result opens at the hit. The index keeps up as files change, and says which files it couldn't read and why.
 - Compare Files compares a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page with a PDF. A scan's words are recognized on this Mac first; Compare Without Reading Them skips that.
 - Compare Files lists font, size, bold, italic and color changes apart from changes to the words, and a paragraph that moved as one move, with any words edited inside it as their own changes. Running headers and page numbers are left out. A box for each kind hides it.
@@ -15,6 +17,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Social Security, phone and ZIP boxes with room for just the digits take them all; the dashes appear when you leave the field.
 - More real forms work: radio buttons and fields their form lists oddly, check boxes that showed no tick, a list that kept showing its old choice, a field shown on several pages.
 - Damaged PDFs keep what they hold when filled and saved: bookmarks and fields are no longer lost, and leftovers of an older copy no longer replace the form's values. A damaged file says so when it opens, and a signature made before the repair is never shown as valid.
+- Forms made to freeze the app open and fill in moments: fields listed on thousands of pages, a check box picture that unpacks to gigabytes, a damaged file numbered in the millions. A field listed on more pages than are shown says so.
 
 ## 1.8.0
 - Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
