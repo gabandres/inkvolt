@@ -7,7 +7,7 @@ final class FormField: Hashable {
     let name: String
     let type: String
     let flags: Int
-    let widgets: [PObj]
+    var widgets: [PObj]
 
     init(_ dict: PObj, _ name: String, _ type: String, _ flags: Int, _ widgets: [PObj]) {
         self.dict = dict
@@ -66,7 +66,7 @@ public enum FormEditor {
     /// scripts take go through it, which asks the user first. When every value was rejected and nothing else changed,
     /// `data` is the input itself.
     public static func fill(_ data: [UInt8], _ password: String?, _ values: [String: String], host: FormActionHost? = nil) throws -> FormFillResult {
-        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"), userEdit: .fillForms)
         let xmp = Xmp.read(doc)
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
@@ -178,6 +178,12 @@ public enum FormEditor {
             f.dict.set("I", doc.array(indices.map { doc.int($0) }))
         } else {
             f.dict.remove("I") // selected indices would contradict a custom value
+        }
+        // Widgets that carry their own /I or /V (pdflib writes them) would keep showing the old choice in pdf.js: they
+        // inherit the field's instead.
+        for w in f.widgets where w.identity != f.dict.identity {
+            w.remove("I")
+            w.remove("V")
         }
     }
 
@@ -345,6 +351,9 @@ public enum FormEditor {
 
     /// Builds what a field needs to show its value by itself; false when some widget still has no appearance.
     private static func buildAppearance(_ doc: MuDoc, _ acro: PObj?, _ f: FormField, _ js: JsFormHost?) -> Bool {
+        // A kid widget without /Parent (the field lists it in /Kids): MuPDF doesn't take it for the field's widget and
+        // shows none of its value (qpdf's form-document-defaults).
+        for w in f.widgets where w.identity != f.dict.identity && !w.has("Parent") { w.set("Parent", f.dict) }
         if f.isTextOrChoice { return writeAppearances(doc, acro, f, js) }
         if f.isToggle {
             ensureStateFaces(doc, f)
@@ -360,37 +369,72 @@ public enum FormEditor {
         return states.has(shown)
     }
 
-    /// Gives each check box or radio widget whose normal appearance is a single stream (or missing) on and off faces:
-    /// redrawn from its /MK (border, background, symbol) when it has one, else the single face as "on" and an empty
-    /// "off". Without that, its /AS can't switch what it shows.
+    /// Gives each check box or radio widget faces it can show on and off with: only a face that is missing or empty is
+    /// drawn, in its /MK's style (border, background, the /CA symbol; the default tick or dot without one), and every face
+    /// that draws something is kept. A single face is kept as "on" (an "off" drawn from /MK's border and background, empty
+    /// without them); a state dictionary whose on face is missing or empty (pdfTeX writes an empty dictionary) gets a new
+    /// one. Without that, its /AS can't switch what it shows.
     private static func ensureStateFaces(_ doc: MuDoc, _ f: FormField) {
         let radio = f.flags & ffRadio != 0
         for w in f.widgets {
-            let normal = w.dict("AP")?.dict("N")
-            if let normal, !normal.isStream { continue }
+            let ap = w.dict("AP")
+            let normal = ap?.dict("N")
             let state = onStateOf(w) ?? "Yes"
+            if let normal, !normal.isStream, drawsSomething(normal[state]) { continue }
             let shown = w.name("AS")
-            if let mk = w.dict("MK"), mk.has("BC") || mk.has("BG") || mk.has("CA") {
-                let da = DefaultAppearance.parse(w.text("DA") ?? inherited(f.dict, "DA")?.text ?? "/ZaDb 0 Tf 0 g")
-                let c = da.color.c
-                let mark: AnnotColor
-                switch c.count {
-                case 3: mark = AnnotColor(c[0], c[1], c[2])
-                case 4: mark = AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3]))
-                default: mark = AnnotColor(c[0], c[0], c[0])
+            // Taken before the redraw replaces /AP: the faces that stay.
+            let single = normal.flatMap { $0.isStream && drawsSomething($0) ? ap?["N"] : nil }
+            let oldFaces: [(String, PObj)] = ["N", "D"].compactMap { key in
+                guard let faces = ap?.dict(key), !faces.isStream else { return nil }
+                return (key, faces)
+            }
+            let hadDown = ap?["D"] != nil
+            let rollover = ap?["R"]
+            let oldIdentity = ap?.identity
+            ButtonFaces.build(doc, w, radio: radio, state: state, mark: buttonMark(w, f))
+            if let drawn = w.dict("AP"), drawn.identity != oldIdentity {
+                if let single { drawn.dict("N")?.set(state, single) }
+                for (key, old) in oldFaces {
+                    guard let faces = drawn.dict(key) else { continue }
+                    for name in old.keys where drawsSomething(old[name]) { faces.set(name, old[name]) }
                 }
-                ButtonFaces.build(doc, w, radio: radio, state: state, mark: mark)
-            } else if let normal, let ap = w.dict("AP") {
+                if single != nil && !hadDown { drawn.remove("D") } // it had no down look: none is added
+                if let rollover { drawn.set("R", rollover) }
+            } else if let single, let ap, let normal {
+                // Nothing to draw in (no usable /Rect): the single face as "on" and an empty "off".
                 let bbox = normal.array("BBox")
                 let off = doc.formXObject([], 0, 0, bbox?.num(2) ?? 1, bbox?.num(3) ?? 1, nil)
-                let face = ap["N"] ?? normal
-                ap.set("N", doc.dict([(state, face), ("Off", off)]))
+                ap.set("N", doc.dict([(state, single), ("Off", off)]))
             } else {
-                continue // no face and nothing to draw one from: NeedAppearances covers it
+                continue // no face and nothing to draw one in: NeedAppearances covers it
             }
             w.set("AS", doc.name(shown == state ? state : "Off"))
         }
     }
+
+    /// The symbol's color: the widget's or field's default appearance.
+    private static func buttonMark(_ w: PObj, _ f: FormField) -> AnnotColor {
+        let c = DefaultAppearance.parse(w.text("DA") ?? inherited(f.dict, "DA")?.text ?? "/ZaDb 0 Tf 0 g").color.c
+        switch c.count {
+        case 3: return AnnotColor(c[0], c[1], c[2])
+        case 4: return AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3]))
+        default: return AnnotColor(c[0], c[0], c[0])
+        }
+    }
+
+    /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,
+    /// else its first byte that isn't white space, in the bytes as written or (filtered) decoded. One too large to decode
+    /// here, or that can't be read, counts as drawing: it is kept.
+    private static func drawsSomething(_ face: PObj?) -> Bool {
+        guard let face, face.isStream, let raw = face.rawStreamData else { return face?.isStream == true }
+        if raw.isEmpty { return false }
+        if face["Filter"] == nil { return visible(raw) }
+        if raw.count > 1 << 16 { return true }
+        guard let decoded = face.streamData else { return true }
+        return visible(decoded)
+    }
+
+    private static func visible(_ bytes: [UInt8]) -> Bool { bytes.contains { ![32, 10, 13, 9, 12, 0].contains($0) } }
 
     /// Generates the normal appearance of every widget of a text or choice field from its current value. False when a
     /// widget's couldn't be built (no usable /Rect).
@@ -403,6 +447,11 @@ public enum FormEditor {
         let listBox = f.type == "Ch" && f.flags & ffCombo == 0
         var (text, color) = f.type == "Tx" ? display(f, raw, js) : (raw, nil)
         if f.type == "Ch" && !listBox, let ci = exports.firstIndex(of: raw) { text = labels[ci] }
+        // Comb cells for the digits alone: a format's separators would push the last digits out of them. Mac difference
+        // (Windows draws what fits): the cells show what was typed.
+        let maxLength = inherited(f.dict, "MaxLen")?.int ?? 0
+        let combed = f.type == "Tx" && f.flags & ffComb != 0 && f.flags & (ffMultiline | ffPassword) == 0
+        if combed && maxLength > 0 && text.unicodeScalars.count > maxLength { text = raw }
 
         var selected = Set<Int>()
         if listBox {
@@ -422,9 +471,9 @@ public enum FormEditor {
             let look = FieldLook(
                 da: da, drBaseFont: (baseFont ?? "").isEmpty ? nil : baseFont, quadding: q,
                 multiline: f.type == "Tx" && f.flags & ffMultiline != 0,
-                comb: f.type == "Tx" && f.flags & ffComb != 0 && f.flags & (ffMultiline | ffPassword) == 0,
+                comb: combed,
                 password: f.type == "Tx" && f.flags & ffPassword != 0,
-                maxLen: inherited(f.dict, "MaxLen")?.int ?? 0, text: text, listBox: listBox, items: labels, selected: selected,
+                maxLen: maxLength, text: text, listBox: listBox, items: labels, selected: selected,
                 topIndex: topIndex, colorOverride: color.flatMap { $0.isEmpty ? nil : PdfColorValue(c: $0) })
             guard let ap = FieldAppearance.build(doc, w, look) else {
                 complete = false
@@ -461,9 +510,9 @@ public enum FormEditor {
         let fields = try collect(doc, acro)
         if fields.isEmpty { return [] }
 
-        // Which page each widget sits on (via the pages' /Annots; /P is optional and often wrong).
-        var pageOf: [UInt: Int] = [:]
-        var annotOrder: [UInt: Int] = [:]
+        // Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong). A widget listed by
+        // several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared).
+        var placesOf: [UInt: [(page: Int, index: Int)]] = [:]
         let pageCount = try doc.pageCount()
         var tabs: [String?] = []
         var pages: [PObj] = []
@@ -471,16 +520,15 @@ public enum FormEditor {
             let page = doc.page(i)
             pages.append(page)
             tabs.append(page.name("Tabs"))
-            for (k, a) in (page.array("Annots")?.elements ?? []).enumerated() where a.isDict && pageOf[a.identity] == nil {
-                pageOf[a.identity] = i
-                annotOrder[a.identity] = k
+            for (k, a) in (page.array("Annots")?.elements ?? []).enumerated() where a.isDict && placesOf[a.identity]?.last?.page != i {
+                placesOf[a.identity, default: []].append((i, k))
             }
         }
         let structOrder = tabs.contains("S") ? structureOrder(doc) : [:]
         let calculated = Set(fields.filter { !(actionScript($0, "C") ?? "").allSatisfy(\.isWhitespace) })
         var js: JsFormHost? // made on the first format script
 
-        var result: [(widget: FormWidget, annot: UInt)] = []
+        var result: [(widget: FormWidget, annot: UInt, index: Int)] = []
         for f in fields {
             let kind: FormFieldKind
             switch f.type {
@@ -503,22 +551,24 @@ public enum FormEditor {
             }
 
             for w in f.widgets {
-                guard let page = pageOf[w.identity], let r = w.array("Rect"), r.count >= 4 else { continue }
-                let rect = PageBoxes.toPageSpace(pages[page], r.num(0), r.num(1), r.num(2), r.num(3))
-                if rect.isEmpty { continue }
+                guard let r = w.array("Rect"), r.count >= 4 else { continue }
                 let annotFlags = w.int("F") ?? 0
                 if annotFlags & (annotHidden | annotNoView) != 0 { continue }
-                let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
-                result.append((FormWidget(
-                    fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onStateOf(w),
-                    multiline: f.flags & ffMultiline != 0, readOnly: f.flags & ffReadOnly != 0 || annotFlags & annotReadOnly != 0,
-                    editable: kind == .choice && f.flags & ffCombo != 0 && f.flags & ffEdit != 0,
-                    maxLength: maxLen, options: options, value: value, tabOrder: 0,
-                    optionLabels: labels == options ? nil : labels, multiSelect: multi,
-                    noToggleToOff: kind == .radio && f.flags & ffNoToggleToOff != 0,
-                    password: kind == .text && f.flags & ffPassword != 0,
-                    displayValue: display, calculated: calculated.contains(f), signed: signed, triggers: FormActions.triggersOf(f, w),
-                    annotIndex: annotOrder[w.identity] ?? -1), w.identity))
+                for (page, index) in placesOf[w.identity] ?? [] {
+                    let rect = PageBoxes.toPageSpace(pages[page], r.num(0), r.num(1), r.num(2), r.num(3))
+                    if rect.isEmpty { continue }
+                    let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
+                    result.append((FormWidget(
+                        fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onStateOf(w),
+                        multiline: f.flags & ffMultiline != 0, readOnly: f.flags & ffReadOnly != 0 || annotFlags & annotReadOnly != 0,
+                        editable: kind == .choice && f.flags & ffCombo != 0 && f.flags & ffEdit != 0,
+                        maxLength: maxLen, options: options, value: value, tabOrder: 0,
+                        optionLabels: labels == options ? nil : labels, multiSelect: multi,
+                        noToggleToOff: kind == .radio && f.flags & ffNoToggleToOff != 0,
+                        password: kind == .text && f.flags & ffPassword != 0,
+                        displayValue: display, calculated: calculated.contains(f), signed: signed, triggers: FormActions.triggersOf(f, w),
+                        annotIndex: index), w.identity, index))
+                }
             }
         }
 
@@ -528,8 +578,8 @@ public enum FormEditor {
         var ordered: [FormWidget] = []
         for page in Set(result.map(\.widget.pageIndex)).sorted() {
             let group = result.enumerated().filter { $0.element.widget.pageIndex == page }
-            func key(_ x: (widget: FormWidget, annot: UInt)) -> [Double] {
-                let annot = Double(annotOrder[x.annot] ?? 0)
+            func key(_ x: (widget: FormWidget, annot: UInt, index: Int)) -> [Double] {
+                let annot = Double(x.index)
                 switch tabs[page] {
                 case "S": return [Double(structOrder[x.annot] ?? Int.max), annot]
                 case "A", "W": return [annot]
@@ -596,40 +646,97 @@ public enum FormEditor {
     static func collect(_ doc: MuDoc, _ acro: PObj?) throws -> [FormField] {
         var into: [FormField] = []
         var seen = Set<UInt>()
-        for item in acro?.array("Fields")?.elements ?? [] where item.isDict { walk(item, nil, &into, &seen, 0) }
+        // The page each widget is on (its first, through /Annots, else its /P): a widget left without a name is named after it.
+        var pageOf: [UInt: Int] = [:]
+        var pageIndex: [UInt: Int] = [:]
+        var annotLists: [[PObj]] = []
+        for p in 0..<(try doc.pageCount()) {
+            let page = doc.page(p)
+            if pageIndex[page.identity] == nil { pageIndex[page.identity] = p }
+            let annots = (page.array("Annots")?.elements ?? []).filter(\.isDict)
+            annotLists.append(annots)
+            for a in annots where pageOf[a.identity] == nil { pageOf[a.identity] = p }
+        }
+
+        // A widget without a name listed in /Fields itself (its parent left out) is a widget of its /Parent field: below.
+        var loose: [(widget: PObj, page: Int)] = []
+        for item in acro?.array("Fields")?.elements ?? [] where item.isDict {
+            if isNamelessKid(item) {
+                loose.append((item, pageOf[item.identity] ?? item.dict("P").flatMap { pageIndex[$0.identity] } ?? 0))
+            } else {
+                walk(item, nil, &into, &seen, 0)
+            }
+        }
+        // Some producers leave /Fields empty (or incomplete) and attach widgets only to pages. Viewers still treat those as
+        // fields, so pick up every widget not reached above.
+        for (p, annots) in annotLists.enumerated() {
+            for a in annots where !seen.contains(a.identity) && a.name("Subtype") == "Widget" { loose.append((a, p)) }
+        }
 
         var unnamed = 0
-        for p in 0..<(try doc.pageCount()) {
-            for a in doc.page(p).array("Annots")?.elements ?? [] where a.isDict {
-                if seen.contains(a.identity) || a.name("Subtype") != "Widget" { continue }
-                var root = a
-                var guardCount = 0
-                while let parent = root.dict("Parent"), !seen.contains(parent.identity), guardCount < 64 {
-                    root = parent
-                    guardCount += 1
+        // Every field collected, by its dictionary: kept up to date as walks add fields (indexed: how many of into it holds).
+        var byDict: [UInt: FormField] = [:]
+        var indexed = 0
+        for (a, p) in loose {
+            if seen.contains(a.identity) { continue }
+            // A widget without a name belongs to its /Parent field, as Acrobat reads it, even when the parent's /Kids leaves
+            // it out (pdf.js's opt_demo, qpdf's form-errors): walk the parent's tree if nothing reached it yet.
+            if isNamelessKid(a), let parent = a.dict("Parent") {
+                if !seen.contains(parent.identity) {
+                    var ancestor = parent
+                    var climb = 0
+                    while let up = ancestor.dict("Parent"), !seen.contains(up.identity), climb < 64 {
+                        ancestor = up
+                        climb += 1
+                    }
+                    walk(ancestor, nil, &into, &seen, 0)
+                    if seen.contains(a.identity) { continue } // the parent's /Kids lists it: the walk made it one of its widgets
                 }
-                if seen.contains(root.identity) { continue }
-                var name: String?
-                if !root.has("T") {
-                    unnamed += 1
-                    name = "field\(unnamed)_p\(p + 1)"
+                while indexed < into.count {
+                    if byDict[into[indexed].dict.identity] == nil { byDict[into[indexed].dict.identity] = into[indexed] }
+                    indexed += 1
                 }
-                walk(root, name, &into, &seen, 0)
+                if let owner = byDict[parent.identity] {
+                    owner.widgets.append(a)
+                    seen.insert(a.identity)
+                    continue
+                }
             }
+            var root = a
+            var guardCount = 0
+            while let up = root.dict("Parent"), !seen.contains(up.identity), guardCount < 64 {
+                root = up
+                guardCount += 1
+            }
+            if seen.contains(root.identity) { continue }
+            var name: String?
+            if !root.has("T") {
+                unnamed += 1
+                name = "field\(unnamed)_p\(p + 1)"
+            }
+            walk(root, name, &into, &seen, 0)
         }
         return into
     }
+
+    /// A widget with no name of its own under a /Parent field: one of that field's widgets.
+    private static func isNamelessKid(_ d: PObj) -> Bool { !d.has("T") && d.has("Parent") && isWidget(d) }
+
+    private static func isWidget(_ d: PObj) -> Bool { d.name("Subtype") == "Widget" || d.has("Rect") }
 
     private static func walk(_ node: PObj, _ parentName: String?, _ into: inout [FormField], _ seen: inout Set<UInt>, _ depth: Int) {
         guard depth <= 64, seen.insert(node.identity).inserted else { return } // malformed files can contain cycles
         let partial = node["T"].flatMap { $0.kind == .string ? $0.text : nil }
         let name = partial.map { p in parentName.map { "\($0).\(p)" } ?? p } ?? parentName ?? ""
 
-        let kids = node.array("Kids")?.elements.filter(\.isDict) ?? []
+        var kids = node.array("Kids")?.elements.filter(\.isDict) ?? []
         let fieldKids = kids.filter { $0.has("T") }
         if !fieldKids.isEmpty {
             for k in fieldKids { walk(k, name, &into, &seen, depth + 1) }
-            return
+            // Kids without a name next to named ones are this field's own widgets (qpdf's form-document-defaults; pdf.js
+            // reads them so).
+            kids = kids.filter { !$0.has("T") && isWidget($0) }
+            if kids.isEmpty { return }
         }
 
         // A terminal field: its widgets are the kids without names, or the field dictionary itself.

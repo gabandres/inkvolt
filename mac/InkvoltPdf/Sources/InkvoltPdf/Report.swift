@@ -45,6 +45,8 @@ enum Report {
 
     /// The checks that run alone, in the order a run with several flags picks the first of.
     static let scenarios: [Scenario] = [
+        // Masked fields typed in the page view's editor, Tab after a fill, an encrypted form that allows filling.
+        Scenario(flag: "--only-form-fill", documents: .synthetic) { _, _ in var t = FormFillTest(); await t.run() },
         Scenario(flag: "--only-prepare-form", documents: .notForm) { c, n in var t = PrepareFormTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-accessible", documents: .notForm) { c, n in var t = AccessibleTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-accessibility", documents: .notForm) { c, n in var t = AccessibilityTest(controller: c, name: n); await t.run() },
@@ -153,7 +155,7 @@ enum Report {
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
         // The app, compare, attachments and page tests' own documents get only their checks.
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument,
-              !FolderSearchTest.isActive else { return }
+              !FolderSearchTest.isActive, !FormFillTest.isActive else { return }
         if uxShots {
             // The synthetic text document only; the form opens, unseen, and is closed at the end.
             guard controller.pdf.fileURL?.path == syntheticPath else { return }
@@ -227,6 +229,8 @@ enum Report {
                     await view.run()
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
+                    var filling = FormFillTest()
+                    await filling.run()
                     // Before signing: a signed document declines the scale's page edits.
                     var measure = MeasureTest(controller: controller, name: name)
                     await measure.run()

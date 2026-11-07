@@ -411,12 +411,13 @@ struct FormActionTests {
         #expect(FieldKeystrokes.open(Self.doc([Self.text("f", 0)]), nil, "f") == nil) // no keystroke script
     }
 
-    @Test func specialKeystrokesFormatPhoneNumbersAsTyped() throws {
+    @Test func specialKeystrokesCheckPhoneNumbersAsTyped() throws {
         let phone = try Self.keys("AFSpecial_Keystroke\\(2\\);")
         var r = try #require(phone.run("555", "1", 3, 3))
-        #expect(r.accepted && r.change == "555-1" && r.selStart == 0 && r.selEnd == 3)
-        r = try #require(phone.run("555-1234", "5", 8, 8))
-        #expect(r.change == "(555) 123-45")
+        #expect(r.accepted && r.change == "1" && r.selStart == 3 && r.selEnd == 3) // the format adds the separators
+        #expect(phone.run("555", "-", 3, 3)?.accepted == true)
+        #expect(phone.run("(555) 123-456", "7", 13, 13)?.accepted == true)
+        #expect(phone.run("5551234567", "8", 10, 10)?.accepted == false)
         #expect(phone.run("555", "x", 3, 3)?.accepted == false)
 
         let mask = try Self.keys("AFSpecial_KeystrokeEx\\('99-AA'\\);")

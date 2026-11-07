@@ -229,7 +229,7 @@ public enum CommentFiles {
     public static func importComments(_ data: [UInt8], _ password: String?, _ file: [UInt8]) throws -> CommentImport {
         var (records, skipped) = try parse(file)
         var notes: [String] = []
-        let doc = try PdfEdit.open(data, password)
+        let doc = try PdfEdit.open(data, password, userEdit: .annotate)
         let xmp = Xmp.read(doc)
         let labels = try PdfStructure.readLabels(doc)
         let pageCount = try doc.pageCount()

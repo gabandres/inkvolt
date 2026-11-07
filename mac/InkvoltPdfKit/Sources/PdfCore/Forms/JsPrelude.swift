@@ -164,7 +164,13 @@ enum JsPrelude {
   ].forEach(function (p) {
     Object.defineProperty(fp, p, {
       get: function () { return h.get(this.name, p); },
-      set: function (v) { if (p !== 'valueAsString' && p !== 'type' && p !== 'exportValues' && p !== 'numItems') h.set(this.name, p, v); },
+      set: function (v) {
+        if (p === 'valueAsString' || p === 'type' || p === 'exportValues' || p === 'numItems') return;
+        h.set(this.name, p, v);
+        // A calculation that sets its own field's value (instead of event.value) keeps it, as in Acrobat.
+        var e = G.event;
+        if (p === 'value' && e && e.name === 'Calculate' && e.targetName === this.name) e.value = v;
+      },
       enumerable: true
     });
   });
@@ -439,22 +445,24 @@ enum JsPrelude {
     reject('The value entered does not match the format of the field [ ' + fieldName() + ' ]: ' + mask);
   };
 
-  // Zip, Zip+4, phone and social security numbers: digits only, the separators appear as you type.
+  // Zip, Zip+4, phone and social security numbers while typing, as Acrobat's AFSpecial_Keystroke checks them: the text
+  // so far must be the start of one (digits, and the separators the user types); nothing is inserted, so a MaxLen of
+  // just the digits holds them all, and the format script shows the separators.
+  var sep = '(\\.|[- ])?';
+  var specialPartial = [
+    [/^\d{0,5}$/],
+    [new RegExp('^\\d{0,5}' + sep + '\\d{0,4}$')],
+    [new RegExp('^\\d{0,3}' + sep + '\\d{0,3}' + sep + '\\d{0,4}$'), /^\(\d{0,3}$/,
+     new RegExp('^\\(\\d{0,3}\\)' + sep + '\\d{0,3}' + sep + '\\d{0,4}$'), new RegExp('^\\(\\d{0,3}' + sep + '\\d{0,3}' + sep + '\\d{0,4}$'),
+     new RegExp('^\\d{0,3}\\)' + sep + '\\d{0,3}' + sep + '\\d{0,4}$'), /^011(\.|[- \d])*$/],
+    [new RegExp('^\\d{0,3}' + sep + '\\d{0,2}' + sep + '\\d{0,4}$')]
+  ];
   function liveDigits(e, n) {
     var v = String(e.value), start = e.selStart >= 0 ? e.selStart : v.length, end = e.selEnd >= 0 ? e.selEnd : v.length;
-    var change = String(e.change);
-    if (!/^[0-9\s\-().+]*$/.test(change)) { e.rc = false; return; }
-    if (end < v.length) return;
-    var typed = v.substring(0, start) + change, digits = typed.replace(/\D/g, '');
-    var mask = n === 0 ? '99999' : n === 1 ? '99999-9999' : n === 3 ? '999-99-9999'
-      : digits.length > 7 || /^\s*\(/.test(typed) ? '(999) 999-9999' : '999-9999';
-    if (digits.length > placeholders(mask).length) { e.rc = false; return; }
-    var out = '', j = 0;
-    for (var i = 0; i < mask.length && j < digits.length; i++) out += mask.charAt(i) === '9' ? digits.charAt(j++) : mask.charAt(i);
-    if (out === '' && mask.charAt(0) === '(' && /\(/.test(typed)) out = '(';
-    e.selStart = 0;
-    e.selEnd = v.length;
-    e.change = out;
+    var merged = v.substring(0, start) + String(e.change) + v.substring(end), list = specialPartial[n];
+    if (merged === '' || !list) return;
+    for (var i = 0; i < list.length; i++) if (list[i].test(merged)) return;
+    e.rc = false;
   }
 
   G.AFSpecial_Keystroke = function (n) {
@@ -467,6 +475,21 @@ enum JsPrelude {
       : n === 2 ? digits === 7 || digits === 10 : n === 3 ? digits === 9 : true);
     if (!ok) mismatch();
   };
+
+  // AFSimple('SUM'|'PRD'|'AVG'|'MIN'|'MAX', a, b) and AFExtractNums(s) (the runs of digits, or null), as in Acrobat's AForm:
+  // AVG adds (AFSimple_Calculate divides by the count afterwards), and an unknown operation gives back the first value.
+  G.AFSimple = function (op, a, b) {
+    a = AFMakeNumber(a) || 0; b = AFMakeNumber(b) || 0;
+    switch (String(op).toUpperCase()) {
+      case 'AVG':
+      case 'SUM': return a + b;
+      case 'PRD': return a * b;
+      case 'MIN': return Math.min(a, b);
+      case 'MAX': return Math.max(a, b);
+    }
+    return a;
+  };
+  G.AFExtractNums = function (s) { return str(s).match(/\d+/g); };
 
   G.AFSimple_Calculate = function (op, fields) {
     var names = typeof fields === 'string' ? fields.split(',') : fields || [];

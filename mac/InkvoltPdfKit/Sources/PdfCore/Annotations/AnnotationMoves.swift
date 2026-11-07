@@ -14,7 +14,7 @@ extension Annotations {
         guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
         try checkMovable(found.annot)
         if dx == 0 && dy == 0 { return data }
-        return try PageEditor.edit(data, password) { doc in
+        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page), a = found.annot
             let o = PageBoxes.toPdf(page, 0, 0), d = PageBoxes.toPdf(page, dx, dy)
@@ -51,7 +51,7 @@ extension Annotations {
     /// Recolors a note or a text mark: /C and its appearance, drawn again in `color`.
     /// - Throws: `PdfEditError` when there is no such comment, or it is another kind.
     public static func setColor(_ data: [UInt8], _ password: String?, _ id: String, _ color: AnnotColor) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page), a = found.annot
             try checkMovable(a)

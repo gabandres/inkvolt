@@ -187,8 +187,8 @@ enum ButtonFaces {
         let bc = PdfColorValue.from(mk.array("BC"))
         let bs = w.dict("BS")
         let bw = bs?.has("W") == true ? bs?.number("W") ?? 1 : 1
-        let ca = mk.text("CA") ?? ""
-        let glyph: Character = ca.count == 1 ? ca.first! : radio ? "l" : "4"
+        // The caption's first character (Acrobat's symbol), the default dot or tick without one.
+        let glyph: Character = (mk.text("CA") ?? "").trimmingCharacters(in: .whitespacesAndNewlines).first ?? (radio ? "l" : "4")
         if !mk.has("CA") { mk.set("CA", doc.text(String(glyph))) }
         let f = PdfNum.f
         let rgb = "\(f(mark.r)) \(f(mark.g)) \(f(mark.b))"

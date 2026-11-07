@@ -1,6 +1,6 @@
 import CryptoKit
 import Foundation
-import PdfCore
+@testable import PdfCore
 
 // run --pdfs <dir> [--out dir] [--corpus corpus.json] [--only a,b] [--files a.pdf,b.pdf] [--timeout s] [--jobs n] [--no-pdfjs]
 //     [--update-baseline]
@@ -26,10 +26,11 @@ func writeReport(_ report: FormReport, _ path: String) {
 }
 
 func one() -> Int32 {
-    guard arguments.count >= 4, let data = readBytes(arguments[1]) else { return 2 }
+    guard arguments.count >= 4, let file = readBytes(arguments[1]) else { return 2 }
     let (outDir, name) = (arguments[2], arguments[3])
     try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
-    let report = FormsHarness.fillOne(name, data, outDir, password: arguments.count > 4 ? arguments[4] : nil)
+    // The bytes the app would open.
+    let report = FormsHarness.fillOne(name, StaleTail.normalized(file), outDir, password: arguments.count > 4 ? arguments[4] : nil)
     writeReport(report, (outDir as NSString).appendingPathComponent(name + ".report.json"))
     return 0
 }
@@ -79,6 +80,21 @@ func run() -> Int32 {
         let sha = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
         work.append((c.name, path, c.sha256.map { $0 != sha } == true ? "source changed" : nil))
     }
+    // --damaged: each real form again as an overwritten longer copy leaves it, and with its end cut off (MuPDF repairs both).
+    if arguments.contains("--damaged") {
+        let damagedDir = (outDir as NSString).appendingPathComponent("damaged")
+        try? fm.createDirectory(atPath: damagedDir, withIntermediateDirectories: true)
+        for item in work where item.skip == nil {
+            guard let bytes = readBytes(item.path) else { continue }
+            let variants = [("tail", SyntheticForms.Damage.staleTail(bytes)), ("cut", Array(bytes.dropLast(min(64, bytes.count / 2))))]
+            for (kind, damaged) in variants {
+                let name = item.name + "~" + kind
+                let path = (damagedDir as NSString).appendingPathComponent(name + ".pdf")
+                fm.createFile(atPath: path, contents: Data(damaged))
+                work.append((name, path, nil))
+            }
+        }
+    }
     for (name, _) in SyntheticForms.all {
         if let only, !only.contains(name) { continue }
         let path = (synthDir as NSString).appendingPathComponent(name + ".pdf")
@@ -121,6 +137,14 @@ func run() -> Int32 {
     }
     group.wait()
     var reports = box.reports.sorted { $0.name < $1.name }
+    // A damaged copy has every field and widget of the sound one.
+    let sound = Dictionary(reports.filter { !$0.name.contains("~") }.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
+    for i in reports.indices {
+        let parts = reports[i].name.split(separator: "~")
+        guard parts.count == 2, let base = sound[String(parts[0])], reports[i].fields != base.fields || reports[i].widgets != base.widgets else { continue }
+        reports[i].fail("damage-lost-fields", "", "\(base.fields) fields, \(base.widgets) widgets became \(reports[i].fields), \(reports[i].widgets)")
+        reports[i].status = "fail"
+    }
 
     // pdf.js over the originals and the filled files, unless there is no Node or pdf.js here.
     let paths = Dictionary(items.map { ($0.name, $0.path) }, uniquingKeysWith: { a, _ in a })

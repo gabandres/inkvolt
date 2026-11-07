@@ -12,7 +12,7 @@ extension FormEditor {
         let doc: MuDoc
         var readOnly = false
         do {
-            doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
+            doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"), userEdit: .fillForms)
         } catch is OwnerPasswordRequired {
             doc = try PdfEdit.openToRead(data, password)
             readOnly = true

@@ -292,7 +292,7 @@ public enum Measurements {
     /// covers the whole page, and listed first so the document's viewports for parts of the page (details at other
     /// scales) keep applying inside their areas.
     public static func setPageScale(_ data: [UInt8], _ password: String?, _ pages: [Int], _ scale: MeasureScale?) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             let count = try doc.pageCount()
             for i in Set(pages).sorted() where i >= 0 && i < count {
                 let page = doc.page(i)

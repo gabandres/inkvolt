@@ -49,7 +49,7 @@ public enum TextStamps {
     /// Adds (or, with an existing id, replaces) a stamp. `rect` is in page space; text lines are split on '\n'.
     public static func put(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ rect: RectD, _ kind: StampKind, _ text: String,
                            _ fontSize: Double, replaceId: String? = nil) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             try Annotations.checkPage(doc, pageIndex)
             let page = doc.page(pageIndex)
             if let replaceId { _ = try removeFrom(doc, replaceId) }
@@ -96,7 +96,7 @@ public enum TextStamps {
 
     /// Removes a stamp (Fill & Sign text or mark, a placed signature, picture or stamp).
     public static func remove(_ data: [UInt8], _ password: String?, _ id: String) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             // On a signed file the stamp stays in the signed revision (an appended removal), like a deleted comment.
             if try removeFrom(doc, id) { SignedEdits.noteRemoval() }
         }
