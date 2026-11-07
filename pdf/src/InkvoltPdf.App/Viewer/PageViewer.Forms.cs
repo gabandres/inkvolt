@@ -89,6 +89,9 @@ public sealed partial class PageViewer
         foreach (var name in _pendingValues.Keys.ToList())
             if (widgets.FirstOrDefault(w => w.FieldName == name) is { } w && w.Value == _pendingValues[name])
                 _pendingValues.Remove(name);
+        // The open editor compares what it holds with the document as it is now, not as it was when it opened: a value cleared
+        // back to the field's old one, after the first was written, is a change.
+        if (_editorWidget is { } open && widgets.FirstOrDefault(w => w.Key == open.Key) is { } current) _editorWidget = current;
         if (_focusWidget is not null)
             _focusWidget = widgets.FirstOrDefault(w => w.Key == _focusWidget.Key);
         if (_hoverWidget is not null)

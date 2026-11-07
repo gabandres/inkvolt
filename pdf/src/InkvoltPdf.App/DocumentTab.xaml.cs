@@ -102,7 +102,7 @@ public partial class DocumentTab : UserControl, IDisposable
     private bool _updatingPill;
 
     // Forms and Fill & Sign
-    private readonly Dictionary<string, string> _formQueue = [];
+    private readonly FormValueQueue _formQueue = new();
     private bool _formSaving;
     private int _annotationLoad;
     private bool _formBarDismissed;
@@ -172,7 +172,7 @@ public partial class DocumentTab : UserControl, IDisposable
         RestoreViewState();
         Viewer.FieldEdited += (_, e) =>
         {
-            _formQueue[e.FieldName] = e.Value;
+            _formQueue.Set(e.FieldName, e.Value);
             _ = FlushFormQueue();
         };
         Viewer.StampEdited += (_, e) => _ = SaveStamp(e);
@@ -539,6 +539,9 @@ public partial class DocumentTab : UserControl, IDisposable
         }
     }
 
+    /// <summary>Dev scripts (<c>slowfill</c>): how much longer each batch of field values takes, as on a PC under load.</summary>
+    internal int DevFillDelayMs { get; set; }
+
     /// <summary>Writes queued field values one batch at a time, so quick clicks and typing never lose a change.</summary>
     private async Task FlushFormQueue()
     {
@@ -554,27 +557,27 @@ public partial class DocumentTab : UserControl, IDisposable
                     await WhenIdle();
                     continue;
                 }
-                var batch = new Dictionary<string, string>(_formQueue);
-                _formQueue.Clear();
+                var batch = _formQueue.Take();
                 var label = batch.Count == 1 ? Strings.Tab_EditFillField : Loc.Format(Strings.Tab_EditFillFields, batch.Count);
                 FormFillResult? fill = null;
                 var host = FormHost;
-                var outcome = await TryEdit(label, (d, pw) => (fill = FormEditor.Fill(d, pw, batch, host)).Data, quiet: true, contentOnly: true);
+                // No veil: it would swallow the click on the next field, and the keys typed after it, however long this takes.
+                var outcome = await TryEdit(label, (d, pw) =>
+                {
+                    if (DevFillDelayMs > 0) Thread.Sleep(DevFillDelayMs);
+                    return (fill = FormEditor.Fill(d, pw, batch, host)).Data;
+                }, quiet: true, contentOnly: true, veil: false);
                 if (fill is not null && outcome is EditOutcome.Done or EditOutcome.NoChange) ReportFormScripts(batch, fill);
-                if (outcome == EditOutcome.Busy)
+                switch (_formQueue.Finished(batch, outcome))
                 {
-                    // Another edit (or its warning prompt) got the tab first: put the values back (newer ones typed
-                    // meanwhile win) and write them once it's done.
-                    foreach (var (name, value) in batch) _formQueue.TryAdd(name, value);
-                    continue;
-                }
-                if (outcome != EditOutcome.Done)
-                {
-                    // Declined the password/signature warning, or the write failed: the fields show the document's
-                    // values again, so nothing on screen claims a change that isn't in the file.
-                    _formQueue.Clear();
-                    Viewer.ClearPendingValues();
-                    break;
+                    case FormBatchEnd.ShowDocumentValues:
+                        Viewer.RevertPendingValues(batch);
+                        break;
+                    case FormBatchEnd.Stop:
+                        // Declined the password/signature warning, or the write failed: the fields show the document's
+                        // values again, so nothing on screen claims a change that isn't in the file.
+                        Viewer.ClearPendingValues();
+                        return;
                 }
             }
         }
@@ -589,7 +592,7 @@ public partial class DocumentTab : UserControl, IDisposable
     /// What the form's scripts said about a written batch: refused values go back to the document's value with the
     /// script's message; app.alert texts show as toasts; console output and script errors go to the log.
     /// </summary>
-    private void ReportFormScripts(Dictionary<string, string> batch, FormFillResult fill)
+    private void ReportFormScripts(IReadOnlyDictionary<string, string> batch, FormFillResult fill)
     {
         foreach (var line in fill.Log) Log.Write(line);
         foreach (var r in fill.Rejected) Log.Write($"Form script refused the value of {r.FieldName}: {r.Message}");

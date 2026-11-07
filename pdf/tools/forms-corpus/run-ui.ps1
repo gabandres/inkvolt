@@ -7,6 +7,8 @@
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1                       the 20 sample forms below, 8 fields each
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -Forms irs-fw9 -Fields 20
 #   pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -App C:\path\InkvoltPdf.exe   an already built app
+#   pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -SlowFill 1500        each value takes 1.5 s longer to write: a PC under load,
+#                                                                      every click and key arriving while the last value is written
 #
 # Results: .cache\ui\<name>.steps.txt.log (the app's log of each step), <name>.pdf (the copy it filled and saved) and summary.txt.
 [CmdletBinding()]
@@ -17,7 +19,8 @@ param(
         'pdflib-fancy_fields', 'oo-pdfformexample', 'qpdf-field-types', 'synth-js-es', 'synth-inherited', 'synth-radio-kids'),
     [int]$Fields = 8,
     [string]$App,
-    [int]$TimeoutSeconds = 240
+    [int]$TimeoutSeconds = 240,
+    [int]$SlowFill = 0
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -46,7 +49,7 @@ if (-not $App) {
 $rows = foreach ($name in $Forms) {
     $pdf = Join-Path $cache "$name.pdf"
     if (-not (Test-Path $pdf)) { [pscustomobject]@{ Form = $name; Result = 'not downloaded (fetch.ps1)' }; continue }
-    $steps = & dotnet $dll.FullName script $pdf $ui $Fields
+    $steps = & dotnet $dll.FullName script $pdf $ui $Fields $SlowFill
     Remove-Item -Force -ErrorAction SilentlyContinue "$steps.log"
     # A copy to open (and Ctrl+S over), so the app never writes next to the corpus file; settings go to a throwaway
     # data folder.

@@ -862,6 +862,20 @@ internal static class DevScript
             }
             case "editor": log.Add($"editor: {v!.DevEditorText ?? "(closed)"}"); break;
             case "commit": v!.CommitEditor(); break;
+            // slowfill ms: each batch of field values takes that much longer, as on a PC under load.
+            case "slowfill": tab!.DevFillDelayMs = int.Parse(arg); break;
+            // waitsaved [s]: wait for the save a Ctrl+S just started, however long the writes before it take.
+            case "waitsaved":
+            {
+                var limit = Environment.TickCount64 + (int.TryParse(arg, out var seconds) ? seconds : 120) * 1000;
+                while (tab!.HasPendingEdits || tab.IsBusy || tab.Session.IsDirty)
+                {
+                    if (Environment.TickCount64 > limit) throw new TimeoutException($"not saved: busy={tab.IsBusy} pending={tab.HasPendingEdits} dirty={tab.Session.IsDirty}");
+                    await Task.Delay(100);
+                }
+                log.Add("saved");
+                break;
+            }
             case "save":
                 tab!.Session.SaveAs(arg);
                 log.Add($"saved {new FileInfo(arg).Length} bytes");
