@@ -64,6 +64,20 @@ the medians; the load was 2 to 14 from another session's builds (the first pair,
 `text.pdf`, `scan.pdf` and `comments.pdf` are unchanged (their pages have pictures or few paths, so they are drawn on one
 thread as before). `bands` (8 bands against 1, 4, 16; unfair locks against pthread mutexes and a spin lock) is in PLAN.md.
 
+After the review's fixes (each band's own stop flag, a drawing out of time drawn again on one thread, Type3 glyphs with
+pictures on one thread): the branch before them (300a6337) and after, interleaved, 3 runs each (`one`), started at a load
+of 1.82 (5.90 at the end, the bench's own threads). Each run was a little slower than the one before on the fanless Air
+(scroll 197, 201, 213 ms before; 199, 207, 219 after), so the 1 to 3% between each pair is within that drift.
+
+| `drawings.pdf` | Before the fixes | After | |
+|---|---|---|---|
+| First page: render | 208 ms | 214 ms | |
+| Scrolling proxy, ms/page | 201 | 207 | |
+| Slowest of the 20 | 208 ms | 216 ms | |
+| The same pages again, ms/page | 133 | 137 | |
+| Find | 7.9 s | 8.5 s | unchanged code (the text instances draw nothing) |
+| Peak memory | 1.31 GB | 1.31 GB | |
+
 ## What missed
 
 - `drawings.pdf`: 20 of the first 20 pages took over 200 ms to render (slowest 251 ms; 223 ms on average).
