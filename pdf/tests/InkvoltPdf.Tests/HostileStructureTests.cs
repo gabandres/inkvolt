@@ -388,9 +388,9 @@ public class HostileStructureTests
     }
 
     [Fact]
-    public async Task AccessibilityCheckStopsOnAFileWhosePagesAllListTheSameAnnotations()
+    public async Task AccessibilityCheckRefusesAFileWhosePagesAllListTheSameAnnotations()
     {
-        // 20,000 pages share an array of 20,000 annotations: 400 million looked at.
+        // 20,000 pages share an array of 20,000 annotations: 400 million looked at. Refused as it opens (PdfShapeGuard).
         const int pages = 20_000;
         var objects = new List<string>
         {
@@ -401,8 +401,7 @@ public class HostileStructureTests
         };
         for (var i = 0; i < pages; i++) objects.Add("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots 3 0 R >>");
         var data = Core2Pdf.Build(objects);
-        var report = await Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000), 120); // past 60 s on a loaded PC
-        Assert.Contains(report.Notes, n => n.Contains("very long", StringComparison.Ordinal));
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => Within(() => AccessibilityCheck.Run(data, null, null, default, 5_000_000)));
     }
 
     /// <summary>A page that draws form 5, whose own content is <paramref name="form"/>, with the given more objects.</summary>

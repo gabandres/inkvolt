@@ -490,7 +490,7 @@ public static partial class FormEditor
                 if (single is not null && PdfObj.Dict(drawn.Elements["/N"]) is { } on) on.Elements["/" + state] = single.Reference is { } r ? r : single;
                 foreach (var (key, old) in new[] { ("/N", normal), ("/D", down) })
                     if (old is { Stream: null } && PdfObj.Dict(drawn.Elements[key]) is { } faces)
-                        foreach (var (face, value) in old.Elements)
+                        foreach (var (face, value) in old.Elements.Take(MaxKeptFaces))
                             if (DrawsSomething(value)) faces.Elements[face] = value;
                 if (single is not null && down is null) drawn.Elements.Remove("/D"); // it had no down look: none is added
                 if (ap?.Elements["/R"] is { } rollover) drawn.Elements["/R"] = rollover;
@@ -522,6 +522,12 @@ public static partial class FormEditor
             FormDesign.ButtonFaces(doc, w, radio, state, mark);
         }
     }
+
+    /// <summary>
+    /// The most faces of a state dictionary kept when a widget is drawn again: a real one has an on and an off. One dictionary
+    /// of thousands shared by thousands of widgets would be looked through and copied for each.
+    /// </summary>
+    private const int MaxKeptFaces = 16;
 
     /// <summary>
     /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,

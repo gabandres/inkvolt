@@ -5,6 +5,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
 
 - **Document session** (`Core/DocumentSession.cs`): one open document: its bytes, the MuPDF engine over them, the
   passwords that open them, undo/redo steps and the saved/dirty state. The tab shows it; it never touches WPF.
+- **Refused shape** (`Core/PdfShapeGuard.cs`, `PdfShapeException`): a file PDFsharp is never given because it couldn't survive it: nesting
+  without end, a page tree that holds itself, runs deep or multiplies, one comment list shared by too many pages, cross-reference
+  sections that loop. Checked once per byte array in `PdfObj.Read`. Its pages still show (MuPDF); its objects can't be read or edited.
 - **Repaired document** (`Core/PdfRepair.cs`, `DocumentSession.Repaired`): a damaged file opened as a repaired copy. A
   file's bytes are made readable once, as it opens from outside the app (`PdfRepair.Normalize`; the app's own output
   is opened as it is): as they are when PDFsharp reads them soundly (a reference to no object alone is no damage), else

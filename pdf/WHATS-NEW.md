@@ -5,8 +5,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
-- Protected forms that allow filling in (USCIS and OPM forms among them) fill without asking for a permissions password, as in Acrobat: the saved form keeps its protection, and comments work too when the form allows them. Other changes still ask for that password.
-- Social security, phone and ZIP+4 fields take every digit you type: the dashes show once you leave the field, as in Acrobat, instead of counting against the field's length while you type (typing 123456789 into a California 540 SSN box gave 123-45-67).
+
+## 1.11.0
+- Protected government forms that allow filling in (USCIS and OPM forms among them) now fill without asking for a password, as in Acrobat: the saved form keeps its protection, and comments work too when the form allows them. Other changes still ask for the permissions password.
+- Social security, phone and ZIP+4 boxes take every digit you type: the dashes show once you leave the field, as in Acrobat, instead of counting against the field's length while you type (typing 123456789 into a California 540 SSN box gave 123-45-67).
 - Radio buttons and other fields whose form doesn't list every button under its group work as one group, under the group's own name, as in Acrobat; they showed up as extra fields named "field1_p1" and didn't turn each other off.
 - A list or drop-down you change shows the new choice in every other viewer too; some forms' boxes kept showing the old one in browsers.
 - A check box you tick shows its tick everywhere, also on forms that came without a look for it or with a broken one (LaTeX forms): it used to stay empty in Preview, on phones and in print.
@@ -14,7 +16,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - A field placed on several pages shows on each of them, and a filled field whose form doesn't link it back to its box shows its value in every viewer.
 - Compare names both pages of text that moved to another pair of pages ("page 2 → 2" after a page was inserted before it), where it said "on page 2"; and a page of zero size is no longer taken for a scan.
 - Search Folders finds a phrase with a word longer than 48 letters and digits again (a code, a hash, a German compound before or after other words); 1.10.0 missed it.
-- Forms that another program saved over an older copy of themselves (the pages showed, but no field could be filled and typing chose tools instead) fill again: type, tick, totals recalculate, and the saved file opens cleanly everywhere. Tab also keeps going to the next field after a value is written, instead of jumping back to the page's first field.
+- Damaged forms open and fill again, with their comments and bookmarks: a file another program saved over an older copy of itself, or whose index is broken or missing (the pages showed, but no field could be filled and typing chose tools instead). Type, tick, totals recalculate, and the saved file opens cleanly everywhere; if the file had to be repaired a bar says so, and signatures made before the repair aren't shown as checked. Tab also keeps going to the next field after a value is written, instead of jumping back to the page's first field.
+- On a slow or busy PC, nothing you type or click in a form is lost: a click on the next field no longer waits behind "working" while the last value is written, and a value the form refuses no longer takes the next one with it, also right before Ctrl+S.
+- A PDF built to stop the app (pages or lists nested without end) no longer quits it: its pages show, and it says it can't be edited.
 
 ## 1.10.0
 - Search Folders finds the end or the middle of a long word, code, hash or German compound (more than 48 letters and digits), as Find does in an open document; it used to find only its start. Folders already indexed are read again once, by themselves, after the update.

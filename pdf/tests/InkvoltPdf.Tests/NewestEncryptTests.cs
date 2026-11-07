@@ -81,6 +81,24 @@ public class NewestEncryptTests
     }
 
     [Fact]
+    public void AChainLongerThanTheLimitIsNotFollowed()
+    {
+        // The newest section names /Encrypt, the next 1,100 don't, the oldest does: each section read counts, named or not.
+        var data = Core2Pdf.Build(["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [] /Count 0 >>", "<< /Filter /Standard >>"], "/Encrypt 3 0 R ");
+        var text = new StringBuilder(Text(data));
+        var prev = Incremental.Tail(data)!.StartXref;
+        for (var i = 0; i < 1100; i++)
+        {
+            var at = text.Length;
+            text.Append($"2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\nxref\n2 1\n{at:D10} 00000 n \ntrailer\n<< /Size 4 /Root 1 0 R /Prev {prev} >>\n");
+            prev = at + "2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n".Length;
+            text.Append($"startxref\n{prev}\n%%EOF\n");
+        }
+        var file = Encoding.Latin1.GetBytes(text.ToString());
+        Assert.Null(PdfRepair.NewestEncryptOnly(Update(file, 2, "<< /Type /Pages /Kids [] /Count 0 >>", false)));
+    }
+
+    [Fact]
     public void ACycleInTheChainEnds()
     {
         // The newest trailer's /Prev points at itself: one section, nothing to blank, and the walk ends.

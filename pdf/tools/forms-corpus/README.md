@@ -13,6 +13,7 @@ dotnet run --project pdf/tools/forms-corpus -c Release -- run --files C:\x\form.
 dotnet run --project pdf/tools/forms-corpus -c Release -- run --update-baseline       # accept the run's failures (after a fix)
 dotnet run --project pdf/tools/forms-corpus -c Release -- dump <file.pdf> <field>     # a field as FormEditor and the raw widgets see it
 pwsh -File pdf/tools/forms-corpus/run-ui.ps1         # the UI pass: the app itself, mouse and keys, on 20 sample forms
+pwsh -File pdf/tools/forms-corpus/run-ui.ps1 -SlowFill 1500   # the same with each value 1.5 s longer to write: clicks and keys arrive while it is written
 ```
 
 **What a run does, per form** (each in its own process, killed after 120 s: a hang):

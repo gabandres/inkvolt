@@ -19,7 +19,7 @@ return args switch
 {
     ["one", var pdf, var outDir, var name] => One(pdf, outDir, name),
     ["summary", var results] => Summary(results),
-    ["script", var pdf, var outDir, ..] => Script(pdf, outDir, args.Length > 3 ? int.Parse(args[3]) : 8),
+    ["script", var pdf, var outDir, ..] => Script(pdf, outDir, args.Length > 3 ? int.Parse(args[3]) : 8, args.Length > 4 ? int.Parse(args[4]) : 0),
     ["uicheck", var saved, var expected] => UiCheck(saved, expected),
     ["run", ..] => Run(args[1..]),
     ["dump", var pdf, var field] => Dump(pdf, field),
@@ -29,7 +29,7 @@ return args switch
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: run [--corpus f] [--cache d] [--out d] [--only a,b] [--timeout s] [--jobs n] [--files a,b] | one in.pdf out-dir name | summary results.json | script in.pdf out-dir [n] | uicheck saved.pdf expected.json");
+    Console.Error.WriteLine("usage: run [--corpus f] [--cache d] [--out d] [--only a,b] [--timeout s] [--jobs n] [--files a,b] | one in.pdf out-dir name | summary results.json | script in.pdf out-dir [n] [slowfill-ms] | uicheck saved.pdf expected.json");
     return 2;
 }
 
@@ -180,11 +180,11 @@ static int Summary(string results)
     return 0;
 }
 
-static int Script(string pdf, string outDir, int count)
+static int Script(string pdf, string outDir, int count, int slowFill)
 {
     Directory.CreateDirectory(outDir);
     var name = Path.GetFileNameWithoutExtension(pdf);
-    var (steps, expected) = UiScript.Build(File.ReadAllBytes(pdf), count);
+    var (steps, expected) = UiScript.Build(File.ReadAllBytes(pdf), count, slowFill);
     File.WriteAllText(Path.Combine(outDir, name + ".steps.txt"), steps);
     File.WriteAllText(Path.Combine(outDir, name + ".expected.json"), JsonSerializer.Serialize(expected, FormsHarness.Json));
     Console.WriteLine(Path.Combine(outDir, name + ".steps.txt"));

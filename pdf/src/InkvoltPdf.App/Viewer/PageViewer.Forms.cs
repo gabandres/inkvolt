@@ -89,6 +89,9 @@ public sealed partial class PageViewer
         foreach (var name in _pendingValues.Keys.ToList())
             if (widgets.FirstOrDefault(w => w.FieldName == name) is { } w && w.Value == _pendingValues[name])
                 _pendingValues.Remove(name);
+        // The open editor compares what it holds with the document as it is now, not as it was when it opened: a value cleared
+        // back to the field's old one, after the first was written, is a change.
+        if (_editorWidget is { } open && widgets.FirstOrDefault(w => w.Key == open.Key) is { } current) _editorWidget = current;
         if (_focusWidget is not null)
             _focusWidget = widgets.FirstOrDefault(w => w.Key == _focusWidget.Key);
         if (_hoverWidget is not null)
@@ -609,16 +612,24 @@ public sealed partial class PageViewer
         _overlay.Children.Add(editor);
         PositionEditor();
         if (widget is not null) RaiseAction(widget, FormTrigger.Focus);
+        // At once: keys typed right after the click may already be queued while the window is held up, and they belong to this
+        // field. Again once it is laid out and shown, for an editor that couldn't take the focus yet.
+        _overlay.UpdateLayout();
+        FocusEditor(editor);
         editor.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
         {
-            if (!ReferenceEquals(_editor, editor)) return;
-            // A list box takes focus on an option, so arrows and Space work at once.
-            if (editor is ListBox lb && (lb.Items.OfType<ListBoxItem>().FirstOrDefault(i => i.IsSelected) ?? lb.Items.OfType<ListBoxItem>().FirstOrDefault()) is { } item)
-                item.Focus();
-            else
-                editor.Focus();
+            if (ReferenceEquals(_editor, editor) && !editor.IsKeyboardFocusWithin) FocusEditor(editor);
         });
         _surface.InvalidateVisual();
+    }
+
+    private static void FocusEditor(FrameworkElement editor)
+    {
+        // A list box takes focus on an option, so arrows and Space work at once.
+        if (editor is ListBox lb && (lb.Items.OfType<ListBoxItem>().FirstOrDefault(i => i.IsSelected) ?? lb.Items.OfType<ListBoxItem>().FirstOrDefault()) is { } item)
+            item.Focus();
+        else
+            editor.Focus();
     }
 
     /// <summary>Keeps the editor glued to its field or text when zooming or scrolling.</summary>

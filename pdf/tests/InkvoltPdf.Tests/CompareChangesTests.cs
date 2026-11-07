@@ -192,6 +192,21 @@ public class CompareChangesTests
     }
 
     [Fact]
+    public async Task LabelingEveryMoveOfALongDocumentTakesNoTime()
+    {
+        // 200,000 rows and as many moves: each label looked through every row (4 x 10^10 steps).
+        const int count = 200_000;
+        var r = new CompareResult
+        {
+            Rows = [.. Enumerable.Range(0, count).Select(i => new CompareRow(i, i + 1, RowText.Compared))],
+            Changes = [],
+        };
+        var moves = Enumerable.Range(0, count).Select(i => new CompareChange(ChangeKind.Moved, 0, [new WordSpan(i, 0, 1)], [new WordSpan(i, 0, 1)], "a", "a")).ToList();
+        var oneRow = await Task.Run(() => moves.Count(m => r.PlaceOf(m) is { OnOnePage: true })).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        Assert.Equal(0, oneRow);
+    }
+
+    [Fact]
     public void AMovedParagraphWithAnEditedWordIsAMoveAndAChange()
     {
         var edited = A.Replace("agreed", "chosen");

@@ -62,6 +62,7 @@ internal static class UserPasswordEdits
             else return null; // a direct dictionary must be written in the new trailer: it can't be, so the owner password is asked for
             plain = Plain(orig, h, tail);
         }
+        PdfShapeGuard.MarkKnown(plain); // written here from a document that was read
         var doc = PdfObj.Read(plain, null, PdfDocumentOpenMode.Modify);
         if (Incremental.TrackUserPasswordEdit(doc, plain, data, crypt, encrypt, encryptObject)) return doc;
         doc.Dispose();
