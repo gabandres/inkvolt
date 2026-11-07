@@ -721,28 +721,68 @@ public static partial class FormEditor
     internal static void Collect(PdfDocument doc, PdfDictionary? acro, List<Field> into)
     {
         var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
+        // A widget without a name listed in /Fields itself (its parent left out) is a widget of its /Parent field: below.
+        var loose = new List<(PdfDictionary Widget, int Page)>();
         if (PdfObj.Array(acro?.Elements["/Fields"]) is { } top)
             foreach (var item in top.Elements)
-                if (PdfObj.Dict(item) is { } d) Walk(d, null, into, seen, 0);
+                if (PdfObj.Dict(item) is { } d)
+                {
+                    if (IsNamelessKid(d)) loose.Add((d, 0));
+                    else Walk(d, null, into, seen, 0);
+                }
 
         // Some producers leave /Fields empty (or incomplete) and attach widgets only to pages. Viewers still treat
-        // those as fields, so pick up every widget not reached above, starting from its top-most parent field.
-        var unnamed = 0;
+        // those as fields, so pick up every widget not reached above.
         for (var p = 0; p < doc.PageCount; p++)
         {
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is not { } annots) continue;
             foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
+                if (!seen.Contains(a) && PdfObj.NameOf(a, "/Subtype") == "/Widget") loose.Add((a, p));
+        }
+
+        var unnamed = 0;
+        Dictionary<PdfDictionary, Field>? byDict = null;
+        foreach (var (a, p) in loose)
+        {
+            if (seen.Contains(a)) continue;
+            // A widget without a name belongs to its /Parent field, as Acrobat reads it, even when the parent's /Kids
+            // leaves it out (pdf.js's opt_demo, qpdf's form-errors): walk the parent's tree if nothing reached it yet.
+            if (IsNamelessKid(a) && PdfObj.Dict(a.Elements["/Parent"]) is { } parent)
             {
-                if (seen.Contains(a) || PdfObj.NameOf(a, "/Subtype") != "/Widget") continue;
-                var root = a;
-                var guard = 0;
-                while (PdfObj.Dict(root.Elements["/Parent"]) is { } parent && !seen.Contains(parent) && guard++ < 64) root = parent;
-                if (seen.Contains(root)) continue;
-                var name = root.Elements.ContainsKey("/T") ? null : $"field{++unnamed}_p{p + 1}";
-                Walk(root, name, into, seen, 0);
+                if (!seen.Contains(parent))
+                {
+                    var ancestor = parent;
+                    var climb = 0;
+                    while (PdfObj.Dict(ancestor.Elements["/Parent"]) is { } up && !seen.Contains(up) && climb++ < 64) ancestor = up;
+                    Walk(ancestor, null, into, seen, 0);
+                    byDict = null;
+                }
+                if (byDict is null)
+                {
+                    byDict = new Dictionary<PdfDictionary, Field>(ReferenceEqualityComparer.Instance);
+                    foreach (var f in into) byDict.TryAdd(f.Dict, f);
+                }
+                if (byDict.TryGetValue(parent, out var owner))
+                {
+                    owner.Widgets.Add(a);
+                    seen.Add(a);
+                    continue;
+                }
             }
+            var root = a;
+            var guard = 0;
+            while (PdfObj.Dict(root.Elements["/Parent"]) is { } up && !seen.Contains(up) && guard++ < 64) root = up;
+            if (seen.Contains(root)) continue;
+            var name = root.Elements.ContainsKey("/T") ? null : $"field{++unnamed}_p{p + 1}";
+            Walk(root, name, into, seen, 0);
         }
     }
+
+    /// <summary>A widget with no name of its own under a /Parent field: one of that field's widgets.</summary>
+    private static bool IsNamelessKid(PdfDictionary d) =>
+        !d.Elements.ContainsKey("/T") && d.Elements.ContainsKey("/Parent") && IsWidget(d);
+
+    private static bool IsWidget(PdfDictionary d) => PdfObj.NameOf(d, "/Subtype") == "/Widget" || d.Elements.ContainsKey("/Rect");
 
     private static void Walk(PdfDictionary node, string? parentName, List<Field> into, HashSet<PdfDictionary> seen, int depth)
     {
@@ -755,7 +795,10 @@ public static partial class FormEditor
         if (fieldKids.Count > 0)
         {
             foreach (var k in fieldKids) Walk(k, name, into, seen, depth + 1);
-            return;
+            // Kids without a name next to named ones are this field's own widgets (qpdf's form-document-defaults; pdf.js
+            // reads them so).
+            kids = kids.Where(k => !k.Elements.ContainsKey("/T") && IsWidget(k)).ToList();
+            if (kids.Count == 0) return;
         }
 
         // Terminal field: its widgets are the kids without names, or the field dictionary itself.
