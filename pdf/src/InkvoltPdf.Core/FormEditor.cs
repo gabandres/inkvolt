@@ -464,10 +464,11 @@ public static partial class FormEditor
     }
 
     /// <summary>
-    /// Gives each check box or radio widget whose normal appearance is a single stream, missing, or a state dictionary
-    /// whose on face can't show (not a stream, or empty: pdfTeX) on and off faces: redrawn from its /MK (border,
-    /// background, symbol) when it has one or there is no face to keep (the default tick or dot), else the single face
-    /// as "on" and an empty "off". Without that, its /AS can't switch what it shows.
+    /// Gives each check box or radio widget faces it can show on and off with: only a face that is missing or empty is
+    /// drawn, in its /MK's style (border, background, the /CA symbol; the default tick or dot without one), and every face
+    /// that draws something is kept. A single face is kept as "on" (an "off" drawn from /MK's border and background, empty
+    /// without them); a state dictionary whose on face is missing or empty (pdfTeX writes an empty dictionary) gets a new
+    /// one. Without that, its /AS can't switch what it shows.
     /// </summary>
     private static void EnsureStateFaces(PdfDocument doc, Field f)
     {
@@ -475,50 +476,73 @@ public static partial class FormEditor
         for (var i = 0; i < f.Widgets.Count; i++)
         {
             var w = f.Widgets[i];
-            var normal = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])?.Elements["/N"]);
+            var ap = PdfObj.Dict(w.Elements["/AP"]);
+            var normal = PdfObj.Dict(ap?.Elements["/N"]);
             var state = OnStateOf(w) ?? "Yes";
-            // A state dictionary is kept unless its on face can't show anything (pdfTeX writes an empty dictionary).
             if (normal is { Stream: null } && DrawsSomething(normal.Elements["/" + state])) continue;
             var shown = PdfObj.Name(w.Elements["/AS"]);
-            var mk = PdfObj.Dict(w.Elements["/MK"]);
-            // Redrawn from /MK, or from the default tick or dot when there is no face to keep at all.
-            if (normal is null || normal.Stream is null || mk is not null && (mk.Elements.ContainsKey("/BC") || mk.Elements.ContainsKey("/BG") || mk.Elements.ContainsKey("/CA")))
+            var single = normal is { Stream: not null } && DrawsSomething(normal) ? normal : null;
+            var down = PdfObj.Dict(ap?.Elements["/D"]);
+            Redraw(w, state);
+            if (PdfObj.Dict(w.Elements["/AP"]) is { } drawn && !ReferenceEquals(drawn, ap))
             {
-                var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
-                var c = da.Color.C;
-                var mark = c.Length switch
-                {
-                    3 => new AnnotColor(c[0], c[1], c[2]),
-                    4 => new AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])),
-                    _ => new AnnotColor(c[0], c[0], c[0]),
-                };
-                FormDesign.ButtonFaces(doc, w, radio, state, mark);
+                // The faces that drew something stay: the single face as "on", a state dictionary's others, the down faces.
+                if (single is not null && PdfObj.Dict(drawn.Elements["/N"]) is { } on) on.Elements["/" + state] = single.Reference is { } r ? r : single;
+                foreach (var (key, old) in new[] { ("/N", normal), ("/D", down) })
+                    if (old is { Stream: null } && PdfObj.Dict(drawn.Elements[key]) is { } faces)
+                        foreach (var (face, value) in old.Elements)
+                            if (DrawsSomething(value)) faces.Elements[face] = value;
+                if (single is not null && down is null) drawn.Elements.Remove("/D"); // it had no down look: none is added
+                if (ap?.Elements["/R"] is { } rollover) drawn.Elements["/R"] = rollover;
             }
-            else
+            else if (single is not null && ap is not null)
             {
-                var bbox = PdfObj.Array(normal.Elements["/BBox"]);
+                // Nothing to draw in (no usable /Rect): the single face as "on" and an empty "off".
+                var bbox = PdfObj.Array(single.Elements["/BBox"]);
                 var off = PdfObj.FormXObject(doc, [], 0, 0, bbox is null ? 1 : PdfObj.Num(bbox, 2), bbox is null ? 1 : PdfObj.Num(bbox, 3), null);
                 var states = new PdfDictionary(doc);
-                states.Elements["/" + state] = normal.Reference is { } r ? r : normal;
+                states.Elements["/" + state] = single.Reference is { } r ? r : single;
                 states.Elements["/Off"] = off.Reference!;
-                PdfObj.Dict(w.Elements["/AP"])!.Elements["/N"] = states;
+                ap.Elements["/N"] = states;
             }
+            else continue; // no face and nothing to draw one in: NeedAppearances covers it
             w.Elements["/AS"] = new PdfName("/" + (shown == state ? state : "Off"));
+        }
+
+        void Redraw(PdfDictionary w, string state)
+        {
+            var da = DefaultAppearance.Parse(PdfObj.Str(w.Elements["/DA"]) ?? PdfObj.Str(Inherited(f.Dict, "/DA")) ?? "/ZaDb 0 Tf 0 g");
+            var c = da.Color.C;
+            var mark = c.Length switch
+            {
+                3 => new AnnotColor(c[0], c[1], c[2]),
+                4 => new AnnotColor((1 - c[0]) * (1 - c[3]), (1 - c[1]) * (1 - c[3]), (1 - c[2]) * (1 - c[3])),
+                _ => new AnnotColor(c[0], c[0], c[0]),
+            };
+            FormDesign.ButtonFaces(doc, w, radio, state, mark);
         }
     }
 
-    /// <summary>True when an appearance is a stream with something in it (not a dictionary, not empty).</summary>
+    /// <summary>
+    /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,
+    /// else its first byte that isn't white space, in the bytes as written or (filtered) the first few KB decoded.
+    /// </summary>
     private static bool DrawsSomething(PdfItem? face)
     {
         if (PdfObj.Dict(face) is not { Stream: not null } d) return false;
+        var raw = d.Stream.Value;
+        if (raw.Length == 0) return false;
+        if (d.Elements["/Filter"] is null) return Visible(raw);
         try
         {
-            return PdfObj.StreamBytes(d, 1 << 20).Any(b => b is not ((byte)' ' or (byte)'\n' or (byte)'\r' or (byte)'\t' or (byte)'\f' or 0));
+            return Visible(PdfObj.StreamBytes(d, 4096));
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or InvalidOperationException)
+        catch (Exception ex) when (ex is StreamTooLargeException or IOException or InvalidDataException or InvalidOperationException)
         {
-            return true; // can't tell: keep it
+            return true; // more than a few KB, or can't tell: keep it
         }
+
+        static bool Visible(ReadOnlySpan<byte> bytes) => bytes.IndexOfAnyExcept(" \n\r\t\f\0"u8) >= 0;
     }
 
     /// <summary>

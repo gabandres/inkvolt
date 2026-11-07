@@ -109,7 +109,6 @@ public class FormAppearanceTests
         Assert.Equal("Yes", widgets.Single(w => w.FieldName == "Plain").OnState);
         Assert.Null(widgets.Single(w => w.FieldName == "Name").OnState);
 
-        var off = Core2Pdf.Ink(form, 0, new RectD(75, 180, 8, 8));
         var on = FormEditor.SetValues(form, null, new Dictionary<string, string> { ["Agree"] = "Yes", ["Plain"] = "Yes" });
         Assert.False(NeedAppearances(on));
         using (var doc = Core2Pdf.Open(on))
@@ -120,12 +119,13 @@ public class FormAppearanceTests
             var states = PdfObj.Dict(PdfObj.Dict(agree.Elements["/AP"])!.Elements["/N"])!;
             Assert.Null(states.Stream);
             Assert.True(states.Elements.ContainsKey("/Yes") && states.Elements.ContainsKey("/Off"));
-            // Without /MK the single face is kept as the "on" look.
+            // The single face is kept as the "on" look, with or without /MK.
+            Assert.Equal(8, PdfObj.Dict(states.Elements["/Yes"])!.Reference!.ObjectNumber);
             var plain = PdfObj.Dict(PdfObj.Dict(Core2Pdf.Field(doc, "Plain")!.Elements["/AP"])!.Elements["/N"])!;
             Assert.Equal(["/Off", "/Yes"], plain.Elements.Keys.Order());
         }
-        Assert.True(Core2Pdf.Ink(on, 0, new RectD(75, 180, 8, 8)) > off);
         var cleared = FormEditor.SetValues(on, null, new Dictionary<string, string> { ["Agree"] = "Off" });
+        Assert.True(Core2Pdf.Ink(on, 0, new RectD(75, 180, 8, 8)) > Core2Pdf.Ink(cleared, 0, new RectD(75, 180, 8, 8)));
         Assert.Equal("Off", FormEditor.Read(cleared, null).Single(w => w.FieldName == "Agree").Value);
 
         // With an /Opt, the state names are positions, as Acrobat writes them.

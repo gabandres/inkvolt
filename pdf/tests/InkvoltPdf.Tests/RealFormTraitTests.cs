@@ -145,6 +145,65 @@ public class RealFormTraitTests
         Assert.True(Core2Pdf.Ink(off, 0, box.Rect) < on - 0.04, "and goes when unticked (the border stays)");
     }
 
+    [Fact]
+    public void ACheckBoxsOwnFaceIsKeptWhateverItsMK()
+    {
+        // One face that draws (a filled square), with a border colour in /MK: kept as the on face, never redrawn as the
+        // default tick; the off face it lacks is drawn from /MK (the border).
+        var data = Doc("6 0 R", "6 0 R",
+        [
+            Widget("/FT /Btn /T (cb) /Rect [100 600 140 640] /V /Off /AS /Off /AP << /N 7 0 R >> /MK << /BC [0 0 1] >>"),
+            Core2Pdf.Stream("0 g 10 10 20 20 re f", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+        ]);
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["cb"] = "Yes" }).Data;
+        Assert.Equal("0 g 10 10 20 20 re f", Face(filled, "cb", "/N", "Yes"));
+        var off = Face(filled, "cb", "/N", "Off");
+        Assert.Contains("0 0 1 RG", off);
+        Assert.DoesNotContain("10 10 20 20", off);
+    }
+
+    [Fact]
+    public void OnlyACheckBoxsEmptyFaceIsRedrawnInItsOwnStyle()
+    {
+        // The on face is empty (the off face draws a border): the on face alone is drawn again, with /MK /CA's cross
+        // (ZapfDingbats 8), not the default tick; the off face and the down faces stay as they are.
+        var data = Doc("6 0 R", "6 0 R",
+        [
+            Widget("/FT /Btn /T (cb) /Rect [100 600 140 640] /V /Off /AS /Off /MK << /CA (8) >> " +
+                   "/AP << /N << /Yes 7 0 R /Off 8 0 R >> /D << /Yes 8 0 R /Off 8 0 R >> >>"),
+            Core2Pdf.Stream(" \n", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+            Core2Pdf.Stream("0 0 1 RG 1 1 38 38 re S", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+        ]);
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["cb"] = "Yes" }).Data;
+        var on = Face(filled, "cb", "/N", "Yes");
+        Assert.Matches(@"m [\d. ]+ l [\d. ]+ m [\d. ]+ l S", on); // the cross's two strokes
+        Assert.DoesNotContain("1 j", on); // not the tick
+        Assert.Equal("0 0 1 RG 1 1 38 38 re S", Face(filled, "cb", "/N", "Off"));
+        Assert.Equal("0 0 1 RG 1 1 38 38 re S", Face(filled, "cb", "/D", "Yes"));
+        Assert.True(Core2Pdf.Ink(filled, 0, new RectD(100, 152, 40, 40)) > 0.05, "the cross shows");
+    }
+
+    [Theory]
+    [InlineData("(u)", "h f")]        // a diamond
+    [InlineData("(n )", " re f Q")]   // a square: the first character of a longer caption
+    public void ACheckBoxWithoutAFaceIsDrawnInTheStyleItsMKAsks(string ca, string drawn)
+    {
+        var data = Doc("6 0 R", "6 0 R", [Widget($"/FT /Btn /T (cb) /Rect [100 600 140 640] /V /Off /AS /Off /MK << /CA {ca} >>")]);
+        var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["cb"] = "Yes" }).Data;
+        var on = Face(filled, "cb", "/N", "Yes");
+        Assert.Contains(drawn, on);
+        Assert.DoesNotContain("1 j", on);
+    }
+
+    /// <summary>The content of a check box's face (/N or /D, the state's), "" when empty.</summary>
+    private static string Face(byte[] data, string name, string kind, string state)
+    {
+        using var doc = Core2Pdf.Open(data);
+        var w = doc.Internals.GetAllObjects().OfType<PdfDictionary>().Last(o => o.Elements.GetString("/T") == name);
+        var faces = PdfObj.Dict(PdfObj.Dict(w.Elements["/AP"])!.Elements[kind])!;
+        return System.Text.Encoding.Latin1.GetString(PdfObj.StreamBytes(PdfObj.Dict(faces.Elements["/" + state])!)).Trim();
+    }
+
     // ---- One widget on several pages (qpdf-form-fields-and-annotations-shared) ----
 
     [Fact]
