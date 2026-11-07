@@ -171,6 +171,26 @@ public class CompareChangesTests
         Assert.Equal(1, c.Row);
     }
 
+    /// <summary>
+    /// Text moved from old page 2 to new page 2 once a page was inserted before them: the pages share a number, not a
+    /// row, so the label names both; a move within one pair of pages says the page.
+    /// </summary>
+    [Fact]
+    public void AMoveAcrossRowsNamesBothPagesEvenWithTheSameNumber()
+    {
+        const string a = "alpha bravo charlie delta echo foxtrot", b = "golf hotel india juliet kilo lima", c = "mike november oscar papa quebec romeo";
+        const string m = "the quick brown fox jumps over the lazy dog", x = "sierra tango uniform victor whiskey xray";
+        var r = DocumentCompare.Run([Page(a), Page(b, m), Page(c)], [Page(x), Page(m, a), Page(b), Page(c)]);
+        Assert.Equal([(null, 0), (0, 1), (1, 2), (2, 3)], r.Rows.Select(row => (row.OldPage, row.NewPage)));
+        var move = Assert.Single(r.Changes, ch => ch.Kind == ChangeKind.Moved);
+        Assert.Equal((1, 1), (move.Old[0].Page, move.New[0].Page));
+        Assert.Equal(new MovePlace(1, 1, OnOnePage: false), r.PlaceOf(move));
+
+        var within = DocumentCompare.Run([Page(b, m, c)], [Page(b, c, m)]);
+        Assert.Equal(new MovePlace(0, 0, OnOnePage: true), within.PlaceOf(Assert.Single(within.Changes, ch => ch.Kind == ChangeKind.Moved)));
+        Assert.Null(within.PlaceOf(new CompareChange(ChangeKind.Inserted, 0, [], [new WordSpan(0, 0, 1)], "", "x")));
+    }
+
     [Fact]
     public void AMovedParagraphWithAnEditedWordIsAMoveAndAChange()
     {

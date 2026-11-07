@@ -211,6 +211,17 @@ public class CompareContractTests
         Assert.True(CompareSource.Of([read]).IsScanned(0));
     }
 
+    /// <summary>A page of zero width or height has no area for pictures to cover: it is no scan, even without pictures (0 ≥ 0 × 0.7).</summary>
+    [Fact]
+    public void APageWithoutAreaIsNoPictureOfAPage()
+    {
+        Assert.False(PdfEngine.IsPictureOfAPage(0, 0, 0));
+        Assert.False(PdfEngine.IsPictureOfAPage(0, 612, 0));
+        Assert.False(PdfEngine.IsPictureOfAPage(0, 0, 792));
+        Assert.False(PdfEngine.IsPictureOfAPage(612 * 792 * 0.5, 612, 792));
+        Assert.True(PdfEngine.IsPictureOfAPage(612 * 792, 612, 792));
+    }
+
     [Fact]
     public void WithoutFormattingOnlyTheWordingAndMovesAreListed()
     {
