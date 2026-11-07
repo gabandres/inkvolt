@@ -48,7 +48,7 @@ Agent on its root cause (synthetic form in tests, the owner's file never in the 
 failures fixed test-first, the same run on the Mac. This comes before the remaining Mac items. **Owner: publish the
 forms fixes** (with Compare's two leftovers, already merged) as the next Windows PDF release (hostile-input review first),
 and a PDF for Mac release too if the Mac run finds anything to fix.
-Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). Print for Mac 1.3 next on the Mac.
+Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) submitted 2026-11-07, Waiting for Review** (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
 older build finds it in the feed (en, es); self-test en/es all green but Vision's redaction/OCR checks, which fail on
