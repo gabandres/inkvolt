@@ -288,13 +288,16 @@ public static class PdfFiles
         return dlg.ShowModal() ? box.Password : null;
     }
 
-    /// <summary>Reads a PDF and verifies it opens (prompting for a password). Null if the user cancels or it can't be read.</summary>
-    public static PdfSource? LoadForImport(Window owner, string path)
+    /// <summary>
+    /// Reads a PDF and verifies it opens (prompting for a password), made readable as a tab would make it, off the UI
+    /// thread: inserted pages and comparisons read a damaged file's repaired copy. Null if the user cancels or it can't be read.
+    /// </summary>
+    public static async Task<PdfSource?> LoadForImportAsync(Window owner, string path)
     {
         byte[] data;
         try
         {
-            data = File.ReadAllBytes(path);
+            data = await File.ReadAllBytesAsync(path);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -308,9 +311,10 @@ public static class PdfFiles
         {
             try
             {
-                using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, password);
-                // Made readable as a tab would make it: inserted pages and comparisons read a damaged file's repaired copy.
-                return new PdfSource(PdfRepair.Normalize(data, password).Data, password, Path.GetFileName(path));
+                var pw = password;
+                var (readable, engine, _) = await Task.Run(() => DocumentSession.OpenReadable(data, MuPDFCore.InputFileTypes.PDF, pw));
+                engine.Dispose();
+                return new PdfSource(readable, password, Path.GetFileName(path));
             }
             catch (PasswordRequiredException ex)
             {

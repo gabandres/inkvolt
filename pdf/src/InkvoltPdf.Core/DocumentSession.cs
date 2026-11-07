@@ -133,7 +133,7 @@ public sealed partial class DocumentSession : IDisposable
     /// <summary>
     /// True when the file was damaged and the content is the repaired copy made as it opened (<see cref="PdfRepair.Normalize"/>):
     /// the person is told once, saving writes that copy, and signatures made before are not checked against it
-    /// (<see cref="Signatures.InRepairedFile"/>). Edits keep it; a reload of a sound file clears it. A file opened in place
+    /// (<see cref="Signatures.Verify"/>, given <see cref="RepairedLength"/>). Edits keep it; a reload of a sound file clears it. A file opened in place
     /// (<see cref="InPlaceBytes"/> or more) is read as it is.
     /// </summary>
     public bool Repaired => RepairedLength > 0;
@@ -208,10 +208,14 @@ public sealed partial class DocumentSession : IDisposable
         };
     }
 
-    /// <summary>A new, unsaved PDF (e.g. the result of Combine or Extract).</summary>
-    public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null)
+    /// <summary>
+    /// A new, unsaved PDF: the app's own output (Combine, Extract, Scan, a conversion), opened as it is; or, with
+    /// <paramref name="repair"/>, bytes from outside the app (an attachment), made readable as a file opened from disk is
+    /// (<see cref="OpenReadable(byte[], InputFileTypes, string?)"/>, which blocks: call it off the UI thread then).
+    /// </summary>
+    public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null, bool repair = false)
     {
-        (data, var engine, var repaired) = OpenNormalized(data, InputFileTypes.PDF, password);
+        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
         var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine) { RepairedLength = repaired };
         session._savedVersion = -1; // never saved
         return session;
@@ -227,7 +231,7 @@ public sealed partial class DocumentSession : IDisposable
     public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
         string? password = null)
     {
-        (data, var engine, var repaired) = OpenNormalized(data, InputFileTypes.PDF, password);
+        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password);
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
         var session = new DocumentSession(path, displayName, data, password, InputFileTypes.PDF, engine)
@@ -467,26 +471,45 @@ public sealed partial class DocumentSession : IDisposable
                 throw;
             }
         }
-        var (data, bytesEngine, repaired) = OpenNormalized(File.ReadAllBytes(path), type, password);
+        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password);
         var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
         return new DiskCopy(data, null, type, bytesEngine, stamp, password, open, repaired);
     }
 
+    /// <summary>Where Core says what the person needn't see but a log should (the app writes it to its log file).</summary>
+    public static Action<string>? Log { get; set; }
+
     /// <summary>
-    /// A PDF's bytes made readable once, as it opens (<see cref="PdfRepair.Normalize"/>), and the engine on them: the view,
-    /// every reader and Save use the same bytes (a damaged file's repaired copy). The check (a PDFsharp read of the whole
-    /// file) runs while MuPDF opens the bytes as they are, so the first page waits for the longer of the two, not both;
-    /// the engine is opened again only when the bytes changed. Also returns the repaired copy's length (0 when not repaired).
+    /// A file's bytes from outside the app made readable once, as it opens (<see cref="PdfRepair.Normalize"/>), and the
+    /// engine on them: the view, every reader and Save use the same bytes (a damaged file's repaired copy). The check (a
+    /// PDFsharp read of the whole file) runs while MuPDF opens the bytes as they are, so the first page waits for the longer
+    /// of the two, not both; the engine is opened again only when the bytes changed, and should MuPDF refuse the changed
+    /// bytes, the file is opened as it is (logged). Also returns the repaired copy's length (0 when not repaired). Blocks:
+    /// call it off the UI thread.
     /// </summary>
-    private static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenNormalized(byte[] data, InputFileTypes type, string? password)
+    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password) =>
+        OpenReadable(data, type, password, bytes => PdfEngine.Open(bytes, type, password));
+
+    /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
+    internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open)
     {
-        if (type != InputFileTypes.PDF) return (data, PdfEngine.Open(data, type, password), 0);
+        if (type != InputFileTypes.PDF) return (data, open(data), 0);
         var normalizing = Task.Run(() => PdfRepair.Normalize(data, password)); // never throws: a failed read keeps the bytes
-        var engine = PdfEngine.Open(data, type, password);
+        var engine = open(data);
         var normal = normalizing.GetAwaiter().GetResult();
         if (ReferenceEquals(normal.Data, data)) return (data, engine, 0);
-        engine.Dispose();
-        return (normal.Data, PdfEngine.Open(normal.Data, type, password), normal.Repaired ? normal.Data.LongLength : 0);
+        try
+        {
+            var changed = open(normal.Data);
+            engine.Dispose();
+            return (normal.Data, changed, normal.Repaired ? normal.Data.LongLength : 0);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // The view and every reader stay on the file as it is: its fields may be missing, but its pages show.
+            Log?.Invoke($"The viewer refused the {normal.Outcome} copy of a damaged file; opened as it is: {ex.Message}");
+            return (data, engine, 0);
+        }
     }
 
     private void ApplyReload(DiskCopy copy)

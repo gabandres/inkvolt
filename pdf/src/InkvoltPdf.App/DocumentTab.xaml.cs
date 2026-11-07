@@ -1140,7 +1140,7 @@ public partial class DocumentTab : UserControl, IDisposable
         foreach (var path in files.Reverse())
         {
             if (_disposed || Window.GetWindow(this) is not { } owner) return;
-            if (PdfFiles.LoadForImport(owner, path) is not { } source) continue;
+            if (await PdfFiles.LoadForImportAsync(owner, path) is not { } source) continue;
             await RunEdit(Loc.Format(Strings.Tab_EditInsertFile, Path.GetFileName(path)),(data, pw) => PageEditor.Insert(data, pw, source, null, before), before);
         }
     }

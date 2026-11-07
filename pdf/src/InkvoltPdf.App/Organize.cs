@@ -101,7 +101,7 @@ public static class Organize
     public static async Task InsertFromFile(Window owner, DocumentTab tab)
     {
         var path = PdfFiles.PickPdf(owner, Strings.Organize_InsertFromPick);
-        if (path is null || PdfFiles.LoadForImport(owner, path) is not { } source) return;
+        if (path is null || await PdfFiles.LoadForImportAsync(owner, path) is not { } source) return;
 
         int srcCount;
         using (var e = PdfEngine.Open(source.Data, MuPDFCore.InputFileTypes.PDF, source.Password)) srcCount = e.PageCount;
@@ -441,7 +441,7 @@ public static class Organize
         var sources = new List<PdfSource>();
         foreach (var f in dlg.Files)
         {
-            if (PdfFiles.LoadForImport(owner, f) is not { } s) return;
+            if (await PdfFiles.LoadForImportAsync(owner, f) is not { } s) return;
             sources.Add(s);
         }
         var bookmarks = dlg.BookmarkPerFile;
