@@ -544,6 +544,52 @@ final class FolderIndexerTests {
         #expect(!FileManager.default.fileExists(atPath: base + ".crashes"))
     }
 
+    /// A suspect read alone that the watchdog gives up on stays in the journal, marked, while a new thread reads on: if
+    /// the app then ends, the file given up is the one blamed, so the suspects never come back the same launch after
+    /// launch (each file costs two launches at most).
+    @Test func A_reading_given_up_is_blamed_when_the_app_ends_beside_it() throws {
+        put("hang.pdf", "hangword")
+        put("crash.pdf", "crashword", pages: 3) // the larger: read after hang.pdf
+        try endedWhileReading(["hang.pdf", "crash.pdf"])
+        var options = Self.quick()
+        options.stall = 1
+        options.pauseGrace = 0.3
+        let entered = DispatchSemaphore(value: 0)
+        options.readFault = { path, _ in
+            if path.hasSuffix("/hang.pdf") { Thread.sleep(forTimeInterval: 8) } // deaf to its token
+            if path.hasSuffix("/crash.pdf") {
+                entered.signal()
+                Thread.sleep(forTimeInterval: 8) // the app ends while this one is read
+            }
+        }
+        let indexer = start(options)
+        #expect(entered.wait(timeout: .now() + 30) == .success)
+        let left = try String(contentsOfFile: base + ".reading", encoding: .utf8) // what the app ending now leaves
+        indexer.stop(wait: 0.3)
+        let all = items(["hang.pdf", "crash.pdf"])
+        for _ in 0..<2 {
+            try left.write(toFile: base + ".reading", atomically: true, encoding: .utf8)
+            CrashJournal(base).noteEndedReadings()
+        }
+        #expect(CrashJournal(base).crashedTwice(all).map(\.relativePath) == ["hang.pdf"])
+        #expect(CrashJournal(base).toReadAlone(all).map(\.relativePath) == ["crash.pdf"])
+    }
+
+    /// A rebuild asked while another app holds the index waits for it, says why, and is done once the index opens.
+    @Test func A_rebuild_asked_while_the_index_is_held_elsewhere_says_so_and_happens_later() throws {
+        put("a.pdf", "aword")
+        let held = try FolderIndex.open(base)
+        let indexer = start()
+        waitUntil("the busy index", seconds: 10, about: indexer) { indexer.status.text.contains("Another Inkvolt PDF") }
+        indexer.rebuild()
+        Thread.sleep(forTimeInterval: 0.3)
+        #expect(indexer.status.phase == .problem)
+        held.dispose()
+        indexer.refresh()
+        upToDate(indexer, 1)
+        #expect(try search(indexer, "aword").count == 1)
+    }
+
     @Test func Stopping_with_a_reading_that_won_t_stop_doesn_t_count_as_a_crash() throws {
         put("deaf.pdf", "deafword")
         var options = Self.quick()

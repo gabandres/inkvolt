@@ -1288,7 +1288,10 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   read again until it changes or Rebuild. Where Windows gives each file a process of its own, several files read at once
   share the app: when the app ended with more than one in the journal, none is counted; each is a suspect, read again
   one at a time with nothing beside it, so only a file that ends the app by itself is counted (review, 2026-11-07). A
-  file read through clears its count; a reading given up stays in the journal until its thread is back. Quitting or
+  file read through clears its count; a reading given up stays in the journal, marked, until its thread is back, and
+  when the app ends with one there the readings given up are the ones counted, whatever was read beside them (a hang is
+  as bad as a crash for indexing), so suspects never come back unchanged launch after launch: each file costs two
+  launches at most (second review, 2026-11-07). Quitting or
   removing the folder is an orderly stop: the journal of readings is closed and forgotten, so a reading still under way
   then is never counted; the app stops all folders at once and waits once (2 s), as Windows' `StopAll`. A reading that
   throws something unexpected counts as a crash too (once more, then `crashed`), Windows' worker dying.
@@ -1304,7 +1307,10 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   (`F_FULLFSYNC`) outside it, and the window reads the status and the index from a snapshot under a lock held only for a
   moment. A commit that fails (a full disk) keeps its batch, with the counts right, says so in the folder's status, and
   is written first on the next look (after 5 s, doubling up to 30 s), so nothing read is lost or read twice; an index
-  found damaged that can't be emptied waits the same way and says so, never a tight loop.
+  found damaged that can't be emptied waits the same way and says so, never a tight loop; a Rebuild asked while another
+  app holds the index says so and is done once it opens. One path is one entry: a file read again before its first
+  reading was written replaces it (in the batch, or in a batch a write failed on), and a commit that adds a path the
+  index has marks the old text dead for compaction.
 - **Listing:** `readdir` and `lstat`; symbolic links aren't followed (a link leads out of the folder or round in a
   circle), hidden files and folders and `~$` files are skipped; iCloud Drive's files whose bytes are only in the cloud
   (`SF_DATALESS`) are counted and left there, Windows' Cloud Files placeholders. A folder moved while it was listed reads

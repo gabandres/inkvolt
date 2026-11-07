@@ -167,7 +167,10 @@ struct ExportHtmlTests {
     @Test func aTableOrListFromThePdfCantBreakOutEither() throws {
         let evil = "</td></tr></table><script>alert(1)</script>"
         func l(_ x: Double, _ y: Double) -> ExportLine { Self.line(String(evil.prefix(8)) + "\(Int(x))\(Int(y))", x, y) }
-        let rows = (0..<4).flatMap { r in [l(72, 100 + Double(r) * 20), l(300, 100 + Double(r) * 20), l(500, 100 + Double(r) * 20)] }
+        let rows: [ExportLine] = (0..<4).flatMap { (r: Int) -> [ExportLine] in
+            let y = 100 + Double(r) * 20
+            return [l(72, y), l(300, y), l(500, y)]
+        }
         let list = [Self.line("\u{2022} </li><script>alert(2)</script>", 72, 300), Self.line("\u{2022} second", 72, 316)]
         try Self.assertInert(try Self.dom(try Self.html([Self.page(rows + list)])))
     }

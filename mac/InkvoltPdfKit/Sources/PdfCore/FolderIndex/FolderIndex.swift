@@ -499,6 +499,9 @@ public final class FolderIndex: @unchecked Sendable {
             guard let fileState, id < nextId, !path.isEmpty, offset >= 0, length >= 0, offset <= Int64.max - length else {
                 throw FolderIndexDamaged(why: "A file entry out of range.")
             }
+            // One entry per path: a path the index has already (a commit that didn't take it out first) is replaced, and
+            // the text it had is dead, for compaction to take out.
+            if byPath[path] != nil { dead = true }
             byPath[path] = IndexedFile(id: id, relativePath: path, size: size, writeTicks: ticks, state: fileState, pages: pages,
                                        failedPages: failed, textOffset: offset, textLength: length)
         }
@@ -854,12 +857,16 @@ public final class FolderIndex: @unchecked Sendable {
 }
 
 /// Changes on their way into a `FolderIndex`, all kept in memory until `FolderIndex.commit`: files to add with their
-/// words filed, files to take out. Not safe to share between threads: the indexer holds a lock.
+/// words filed, files to take out. Not safe to share between threads: the indexer holds a lock. One path is one entry:
+/// a path added again replaces what this batch had for it (its text and terms stay behind as dead text, so compaction
+/// takes them out).
 public final class IndexBatch: @unchecked Sendable {
     private let firstId: Int
     private var terms: [String: PostingList] = [:]
     private(set) var texts: [UInt8] = []
     private var added: [IndexedFile] = []
+    private var latest: [String: Int] = [:]      // path → its entry in `added`
+    private var replaced = Set<Int>()            // entries in `added` a later one for the same path replaced
     private var removed: [Int] = []
     private var postingBytes = 0
 
@@ -870,7 +877,11 @@ public final class IndexBatch: @unchecked Sendable {
 
     public var termCount: Int { terms.count }
 
-    public var addedCount: Int { added.count }
+    /// Files this batch adds, one per path.
+    public var addedCount: Int { added.count - replaced.count }
+
+    /// The files this batch adds, one per path, in the order they were added.
+    var liveAdded: [IndexedFile] { added.indices.filter { !replaced.contains($0) }.map { added[$0] } }
 
     public var isEmpty: Bool { added.isEmpty && removed.isEmpty }
 
@@ -907,6 +918,12 @@ public final class IndexBatch: @unchecked Sendable {
     public func add(_ relativePath: String, size: Int64, writeTicks: Int64, state: IndexedState, pageCount: Int, failedPages: Int,
                     packed: [UInt8], words: [String: [Int]]) {
         let id = firstId + added.count
+        if let earlier = latest[relativePath] {
+            // Read again before this was written: the later reading is the file, the earlier one's text is dead.
+            replaced.insert(earlier)
+            removed.append(added[earlier].id)
+        }
+        latest[relativePath] = added.count
         added.append(IndexedFile(id: id, relativePath: relativePath, size: size, writeTicks: writeTicks, state: state, pages: pageCount,
                                  failedPages: failedPages, textOffset: Int64(texts.count), textLength: Int64(packed.count)))
         texts += packed
@@ -940,7 +957,8 @@ public final class IndexBatch: @unchecked Sendable {
 
     /// The file list this batch's transaction ends with, with offsets now known.
     func writeMeta(textStart: Int64, segment: FolderIndex.SegmentInfo?) -> [UInt8] {
-        Self.writeMeta(nextId: firstId + added.count, removed: removed, added: added.map { $0.moved(to: $0.textOffset + textStart) }, segment: segment)
+        let live = liveAdded.map { $0.moved(to: $0.textOffset + textStart) }
+        return Self.writeMeta(nextId: firstId + added.count, removed: removed, added: live, segment: segment)
     }
 
     static func writeMeta(nextId: Int, removed: [Int], added: [IndexedFile], segment: FolderIndex.SegmentInfo?) -> [UInt8] {

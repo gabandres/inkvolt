@@ -272,6 +272,35 @@ final class FolderIndexTests {
         #expect(index.files["remove.pdf"] == nil)
     }
 
+    /// A path read twice before its first reading was written (a write that failed, then the file changed): one entry, the
+    /// later reading's, and the earlier one's text is dead, for compaction to take out.
+    @Test func One_path_is_one_entry_however_often_it_is_added() throws {
+        let index = try FolderIndex.open(base)
+        let batch = index.newBatch()
+        add(batch, "a.pdf", "oldword")
+        add(batch, "a.pdf", "newword")
+        #expect(batch.addedCount == 1)
+        try index.commit(batch)
+        #expect(index.files.count == 1)
+        #expect(index.hasDeadText)
+        #expect(try at(index, "newword") == ["a.pdf#1"])
+        #expect(try at(index, "oldword").isEmpty)
+        index.dispose()
+
+        // Two batches committed one after the other, the second not taking out what the first added.
+        let other = (dir as NSString).appendingPathComponent("other")
+        let two = try FolderIndex.open(other)
+        defer { two.dispose() }
+        try commit(two) { add($0, "a.pdf", "oldword") }
+        try commit(two) { add($0, "a.pdf", "newword") }
+        #expect(two.files.count == 1)
+        #expect(two.hasDeadText)
+        #expect(try at(two, "oldword").isEmpty)
+        try two.compact()
+        #expect(!two.hasDeadText)
+        #expect(try at(two, "newword") == ["a.pdf#1"])
+    }
+
     @Test func Paths_are_kept_as_the_file_system_lists_them() throws {
         let index = try FolderIndex.open(base)
         defer { index.dispose() }

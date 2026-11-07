@@ -40,9 +40,11 @@ struct HeaderFooterTests {
     @Test func slotsArePlacedInsideTheMargins() {
         var o = HeaderFooterOptions()
         (o.marginTop, o.marginBottom, o.marginLeft, o.marginRight) = (36, 30, 72, 50)
-        #expect(HeaderFooter.position(.headerLeft, 100, 612, 792, 9, -2, o) == (72.0, 792 - 36 - 9.0))
+        let headerTop: Double = 792 - 36 - 9
+        let footerRight: Double = 612 - 50 - 100
+        #expect(HeaderFooter.position(.headerLeft, 100, 612, 792, 9, -2, o) == (72.0, headerTop))
         #expect(HeaderFooter.position(.footerCenter, 100, 612, 792, 9, -2, o) == (256.0, 32.0))
-        #expect(HeaderFooter.position(.footerRight, 100, 612, 792, 9, -2, o) == (612 - 50 - 100.0, 32.0))
+        #expect(HeaderFooter.position(.footerRight, 100, 612, 792, 9, -2, o) == (footerRight, 32.0))
     }
 
     @Test func writtenAsPageTextWhereItBelongs() throws {

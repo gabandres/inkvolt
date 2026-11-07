@@ -154,6 +154,8 @@ public final class FolderIndexer: @unchecked Sendable {
     /// Batches taken for writing and not on disk yet (a write failed), in order (the indexer's thread only).
     private var unsent: [IndexBatch] = []
     private var unsentBytes = 0
+    /// The files those batches add, by path (under gate): a reader that reads one again replaces it.
+    private var unsentFiles: [String: IndexedFile] = [:]
     private var failures = 0                     // writes that failed in a row (the indexer's thread only)
     private var needsEmptying = false            // the index must be emptied before anything else (the indexer's thread only)
     private var queue: [Item] = []
@@ -400,8 +402,9 @@ public final class FolderIndexer: @unchecked Sendable {
     private var deleteIndexNow: Bool { cond.withLock { deleteIndex } }
 
     /// Empties the index to read everything again; what was waiting to be written goes with it. False when it couldn't
-    /// be (a full disk): the status says so.
+    /// be (a full disk, the index not open: another app has it): the status says so.
     private func emptyIndex() -> Bool {
+        if currentIndex == nil && !openIndex() { return false } // openIndex says what is in the way
         guard let index = currentIndex else { return false }
         do {
             try options.writeFault?("clear")
@@ -416,6 +419,7 @@ public final class FolderIndexer: @unchecked Sendable {
         gate.withLock {
             batch = nil
             unsentBytes = 0
+            unsentFiles = [:]
         }
         return true
     }
@@ -810,7 +814,7 @@ public final class FolderIndexer: @unchecked Sendable {
             }
             guard reading.finish() else {
                 // Given up and replaced (the watchdog recorded it), and back only now: until now it stayed in the
-                // journal, so had it ended the app it would have been among the suspects.
+                // journal, marked, so had it ended the app it would have been the one counted.
                 journal?.done(item)
                 return
             }
@@ -842,9 +846,11 @@ public final class FolderIndexer: @unchecked Sendable {
         case crashed
     }
 
-    /// The watchdog's last word on a reading that was told to end and didn't: what it read is kept, and a new thread reads on.
+    /// The watchdog's last word on a reading that was told to end and didn't: what it read is kept, and a new thread reads
+    /// on. The reading stays in the journal, marked as given up, so had it ended the app it is the one counted.
     private func abandon(_ r: Reading) {
         guard r.abandon() else { return }
+        journal?.givenUp(r.item)
         gate.withLock {
             readings[ObjectIdentifier(r)] = nil
             readerThreads -= 1
@@ -892,12 +898,14 @@ public final class FolderIndexer: @unchecked Sendable {
         for (page, text) in pages ?? [:] where page < list.count { list[page] = text }
         let packed = FolderIndex.packPages(list)
         let words = IndexBatch.fileWords(list)
-        let had = currentIndex?.files[item.relativePath]
+        let committed = currentIndex?.files[item.relativePath]
         gate.withLock {
             done += 1
             waiting -= 1
             guard let batch else { return }
-            if let had { batch.remove(had) }
+            // What the path has now: a reading in a batch a write failed on (written before this one), else the index's.
+            // The batch itself replaces a reading of the path it already holds.
+            if let had = unsentFiles[item.relativePath] ?? committed { batch.remove(had) }
             batch.add(item.relativePath, size: item.size, writeTicks: item.ticks, state: state, pageCount: pageCount,
                       failedPages: failed, packed: packed, words: words)
         }
@@ -912,6 +920,7 @@ public final class FolderIndexer: @unchecked Sendable {
             guard let b = batch, !b.isEmpty else { return nil }
             batch = b.following()
             unsentBytes += b.bytes
+            for f in b.liveAdded { unsentFiles[f.relativePath] = f }
             return b
         }
         if let taken { unsent.append(taken) }
@@ -920,7 +929,10 @@ public final class FolderIndexer: @unchecked Sendable {
             try options.writeFault?("commit")
             try index.commit(first)
             unsent.removeFirst()
-            gate.withLock { unsentBytes -= first.bytes }
+            gate.withLock {
+                unsentBytes -= first.bytes
+                for f in first.liveAdded where unsentFiles[f.relativePath]?.id == f.id { unsentFiles[f.relativePath] = nil }
+            }
         }
         publish(force: true)
     }
@@ -1140,12 +1152,15 @@ final class Reading: @unchecked Sendable {
 /// The files being read, kept beside the index while they are, and how often each was being read when the app ended
 /// (Windows counts a worker's death, each file having a process of its own; here the app's own). Two lines of text per
 /// file, nothing else: the relative path, its modification time, the count. Several files being read when the app ended
-/// are only suspects (count 0): each is read again alone, so the one that ends the app by itself is the one counted.
+/// are only suspects (count 0): each is read again alone, so the one that ends the app by itself is the one counted. A
+/// reading the watchdog gave up on stays in the journal marked (1 where the others have 0) until its thread is back: when
+/// the app ends, the readings given up are the ones counted, whatever was read beside them, so no set of suspects comes
+/// back unchanged launch after launch.
 final class CrashJournal: @unchecked Sendable {
     private let readingPath: String
     private let countsPath: String
     private let lock = NSLock()
-    private var now: [String: Int64] = [:]       // path → ticks, being read now
+    private var now: [String: (ticks: Int64, count: Int)] = [:] // being read now; count 1: given up by the watchdog
     private var counts: [String: (ticks: Int64, count: Int)] = [:]
     private var closed = false                   // an orderly stop: nothing more is noted
 
@@ -1160,15 +1175,18 @@ final class CrashJournal: @unchecked Sendable {
         unlink(basePath + ".crashes")
     }
 
-    /// At the start: the files being read when the app last ended. One alone counts once; several are suspects, none
-    /// counted, each read again alone (`toReadAlone`).
+    /// At the start: the files being read when the app last ended. The readings the watchdog had given up on count once
+    /// each; failing those, one file alone counts once; the rest are suspects, not counted, each read again alone
+    /// (`toReadAlone`). Read alone, a suspect is the only reading not given up, so the next ending counts a file.
     func noteEndedReadings() {
         lock.withLock {
             let ended = Self.load(readingPath)
+            let givenUp = ended.filter { $0.value.count > 0 }
+            let blamed = givenUp.isEmpty && ended.count == 1 ? ended : givenUp
             for (path, entry) in ended {
                 let had = counts[path]
                 let same = had?.ticks == entry.ticks
-                if ended.count == 1 {
+                if blamed[path] != nil {
                     counts[path] = (entry.ticks, same ? (had?.count ?? 0) + 1 : 1)
                 } else if !same {
                     counts[path] = (entry.ticks, 0)
@@ -1196,8 +1214,17 @@ final class CrashJournal: @unchecked Sendable {
     func reading(_ item: FolderIndexer.Item) {
         lock.withLock {
             if closed { return }
-            now[item.relativePath] = item.ticks
-            Self.save(readingPath, now.mapValues { ($0, 0) })
+            now[item.relativePath] = (item.ticks, 0)
+            Self.save(readingPath, now)
+        }
+    }
+
+    /// The watchdog gave up on this reading and a new thread reads on: it stays here, marked, until its thread is back.
+    func givenUp(_ item: FolderIndexer.Item) {
+        lock.withLock {
+            if closed || now[item.relativePath] == nil { return }
+            now[item.relativePath] = (item.ticks, 1)
+            Self.save(readingPath, now)
         }
     }
 
@@ -1205,7 +1232,7 @@ final class CrashJournal: @unchecked Sendable {
         lock.withLock {
             if closed { return }
             now[item.relativePath] = nil
-            if now.isEmpty { unlink(readingPath) } else { Self.save(readingPath, now.mapValues { ($0, 0) }) }
+            Self.save(readingPath, now) // unlinks it when empty
         }
     }
 
