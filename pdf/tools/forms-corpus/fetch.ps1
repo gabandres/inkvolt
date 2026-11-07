@@ -24,8 +24,11 @@ foreach ($c in $corpus) {
     $pdf = Join-Path $cache "$($c.name).pdf"
     if (-not (Test-Path $pdf)) {
         $tmp = "$pdf.part"
-        if ($curl) { & $curl -s -f -L --max-time 120 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' -o $tmp $c.url }
-        else { try { Invoke-WebRequest $c.url -OutFile $tmp -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } catch { } }
+        if ($curl) {
+            & $curl -s -f -L --max-time 120 -A 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' -o $tmp $c.url
+            if ($LASTEXITCODE -ne 0) { Remove-Item -Force -ErrorAction SilentlyContinue $tmp } # cut off or refused: never kept as the form
+        }
+        else { try { Invoke-WebRequest $c.url -OutFile $tmp -UserAgent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' } catch { Remove-Item -Force -ErrorAction SilentlyContinue $tmp } }
         if (-not (Test-Path $tmp)) { Write-Warning "$($c.name): download failed ($($c.url))"; $missing++; continue }
         Move-Item -Force $tmp $pdf
     }

@@ -358,7 +358,7 @@ public static class FormsHarness
             _ => $"Ink{ordinal}",
         };
         if (maxLen > 0 && value.Length > maxLen)
-            value = format == "plain" && maxLen >= 2 ? $"I{ordinal}"[..Math.Min(maxLen, $"I{ordinal}".Length)] : "123456789012345678"[..maxLen];
+            value = format == "plain" && maxLen >= 2 ? $"I{ordinal}"[..Math.Min(maxLen, $"I{ordinal}".Length)] : new string(Enumerable.Range(0, maxLen).Select(i => (char)('1' + i % 9)).ToArray());
         return value;
     }
 
