@@ -191,6 +191,62 @@ extension PageCheckTests {
         #expect(Self.refused { _ = try engine.text(0) }?.tooSlow == true) // at once from then on
     }
 
+    @Test func AHandlerCallingBackIntoItsTokenDoesntWaitForItself() {
+        // cancel() runs the handlers on its own thread; one that unregisters itself or another, registers, looks at or
+        // cancels its token doesn't wait for itself (the deadlock the review asked about), and one unregistered before
+        // its turn doesn't run.
+        for _ in 0..<200 {
+            let token = CancelToken()
+            let lock = NSLock()
+            var ran: [String] = []
+            var ids: [String: Int] = [:]
+            func note(_ s: String) { lock.withLock { ran.append(s) } }
+            func id(_ s: String) -> Int? { lock.withLock { ids[s] } }
+            for (me, other) in [("a", "b"), ("b", "a")] {
+                let registered = token.register {
+                    note(me)
+                    token.unregister(id(me))
+                    token.unregister(id(other))
+                    _ = token.register { note("late") } // already cancelled: runs at once, here
+                    _ = token.isCancelled
+                    token.cancel()
+                }
+                lock.withLock { ids[me] = registered }
+            }
+            let done = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                token.cancel()
+                done.signal()
+            }
+            #expect(done.wait(timeout: .now() + 5) == .success, "cancel() is stuck")
+            let order = lock.withLock { ran }
+            #expect(order.count == 2 && order.last == "late", "\(order)") // one of a and b, then its late handler
+        }
+    }
+
+    @Test func UnregisteringFromALinkedTokensHandlerDoesntDeadlock() {
+        // The AI's deadline: the parent's handler cancels a child token, whose handler unregisters from the parent (on
+        // the thread running the parent's handlers), while the call's own thread unregisters from the child and the
+        // parent. Hammered, each round within a time.
+        var stuck = 0
+        for i in 0..<500 {
+            let parent = CancelToken(), child = CancelToken()
+            let box = NSLock()
+            var parentId: Int?
+            let childId = child.register { box.withLock { parent.unregister(parentId) } }
+            box.withLock { parentId = parent.register { child.cancel() } }
+            let done = DispatchSemaphore(value: 0)
+            DispatchQueue.global().async {
+                parent.cancel()
+                done.signal()
+            }
+            if i % 2 == 0 { child.unregister(childId) }
+            parent.unregister(box.withLock { parentId })
+            if done.wait(timeout: .now() + 5) != .success { stuck += 1 }
+        }
+        #expect(stuck == 0, "\(stuck) of 500 rounds deadlocked")
+    }
+
     @Test func AnInlinePictureLargerThanTheLimitIsRefusedBeforeItDecodes() throws {
         // MuPDF decodes an inline picture (BI … ID … EI) whole while it parses the content, before the guard sees it:
         // 50,000 x 50,000 gray is 2.5 GB of pixels written from a megabyte of Flate. Refused at the allocation, at once;
