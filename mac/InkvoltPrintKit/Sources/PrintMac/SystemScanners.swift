@@ -220,6 +220,10 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     }
 
     /// The scanner's error in plain words.
+    nonisolated static func pageFile(_ url: URL, limit: Int = DeviceHttp.maxScanReplyBytes) -> [UInt8]? {
+        (try? Data(contentsOf: url)).map { [UInt8]($0) }
+    }
+
     nonisolated static func words(_ error: any Error) -> String {
         // ImageCaptureCore's codes (ICReturnCode); it has none for an empty feeder or a jam: those come in the description.
         switch (error as NSError).code {

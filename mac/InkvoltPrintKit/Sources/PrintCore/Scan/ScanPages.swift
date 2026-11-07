@@ -26,9 +26,12 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     public var beforeCleanup: PageEdits?
     /// The scan's crop to the paper was tried on the page and found no edge, so it stays whole.
     public var noPaperEdge = false
+    public var tooLargeToEdit = false
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
-                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil) {
+                separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil,
+                tooLargeToEdit: Bool = false) {
+        self.tooLargeToEdit = tooLargeToEdit
         self.ocrLanguage = ocrLanguage
         self.id = id
         self.dpi = dpi
