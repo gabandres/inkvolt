@@ -19,9 +19,9 @@ public class EncryptedFormFillTests
     ]);
 
     /// <summary>The form protected by PDFsharp: owner password "own", the given user password, only what is asked allowed.</summary>
-    private static byte[] Protect(string method, bool fill, bool annotate, string user = "")
+    private static byte[] Protect(string method, bool fill, bool annotate, string user = "", byte[]? plain = null)
     {
-        using var doc = PdfReader.Open(new MemoryStream(Plain()), PdfDocumentOpenMode.Modify);
+        using var doc = PdfReader.Open(new MemoryStream(plain ?? Plain()), PdfDocumentOpenMode.Modify);
         var h = doc.SecurityHandler;
         switch (method)
         {
@@ -125,6 +125,20 @@ public class EncryptedFormFillTests
         var filled = FormEditor.Fill(acrobat, null, new Dictionary<string, string> { ["name"] = "Three" }).Data;
         Assert.Equal("Three", ValueByPdfSharp(filled)); // our update writes the encryption dictionary again
         Assert.Contains("Three", Core2Pdf.AllText(filled));
+    }
+
+    [Fact]
+    public void AFormTheUserPasswordPathCantCopyAsksForTheOwnerPassword()
+    {
+        // An object nested deeper than a copy is written (PDFsharp reads it): the copy fails, and the person is asked for
+        // the owner password as for anything else the user password can't do, never shown the raw failure.
+        var deep = new string('[', 300) + new string(']', 300);
+        var plain = Core2Pdf.Form(
+            ["<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) /V (Alice) /F 4 /P 3 0 R >>"],
+            catalogExtra: "/Deep 6 0 R", more: [deep]);
+        var data = Protect("aes-128", fill: true, annotate: false, plain: plain);
+        Assert.Equal("Alice", FormEditor.Read(data, null).Single().Value);
+        Assert.Throws<OwnerPasswordRequiredException>(() => FormEditor.Fill(data, null, new Dictionary<string, string> { ["name"] = "x" }));
     }
 
     [Fact]

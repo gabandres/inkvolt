@@ -159,9 +159,26 @@ internal static class PdfObj
         catch (PdfReaderException ex)
         {
             var error = ReaderError(ex, mode, failure);
-            if (error is OwnerPasswordRequiredException { WrongPassword: false } && edit != UserEdit.None && UserPasswordEdits.Open(data, password, edit) is { } doc)
+            if (error is OwnerPasswordRequiredException { WrongPassword: false } && edit != UserEdit.None && WithUserPassword(data, password, edit) is { } doc)
                 return doc;
             throw error;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="UserPasswordEdits.Open"/>, null when it fails in any way (a file it can't copy, a handler it refuses): the
+    /// caller then asks for the owner password, as for anything else the user password can't do. A stream too large to
+    /// decode says so (<see cref="StreamTooLargeException"/>), as every open does.
+    /// </summary>
+    private static PdfDocument? WithUserPassword(byte[] data, string? password, UserEdit edit)
+    {
+        try
+        {
+            return UserPasswordEdits.Open(data, password, edit);
+        }
+        catch (Exception ex) when (ex is not (OutOfMemoryException or StreamTooLargeException))
+        {
+            return null;
         }
     }
 
