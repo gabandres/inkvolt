@@ -50,6 +50,11 @@ public struct SignatureInfo: Sendable, Equatable {
     public var certificate: Certificate?
     /// For a certifying signature, its DocMDP permission (1 no changes, 2 form filling and signing, 3 also comments).
     public var certificationLevel: Int?
+    /// Where the signed bytes end (the revision the signature covers), -1 when unknown.
+    public var signedLength = -1
+    /// Not checked because the file was damaged and these are its repaired bytes (`Signatures.verify`): `status` is then
+    /// `.unsupported`.
+    public var inRepairedFile = false
 }
 
 /// Verifies digital signatures on the raw file bytes (the Windows app's `Signatures`): /ByteRange digests and CMS
@@ -69,7 +74,28 @@ public enum Signatures {
         }
     }
 
-    public static func verify(_ data: [UInt8], _ password: String? = nil, online: Bool = false) -> [SignatureInfo] {
+    /// - Parameter repairedLength: the document's `DocumentSession.repairedLength` (0 for a sound file): a signature made
+    ///   before the repair (its signed bytes end within the repaired copy, or can't be placed in it) is never shown valid;
+    ///   it is `.unsupported`, `inRepairedFile`. Bytes no session made sound (a damaged file read as it is, a stale tail
+    ///   hiding objects) count as repaired whole.
+    public static func verify(_ data: [UInt8], _ password: String? = nil, online: Bool = false, repairedLength: Int = 0) -> [SignatureInfo] {
+        var found = inspect(data, password, online)
+        var before = repairedLength
+        if before <= 0 && found.contains(where: { $0.status != .unsigned }) && PdfRepair.isDamaged(data, password) { before = data.count }
+        guard before > 0 else { return found }
+        for i in found.indices where found[i].status != .unsigned {
+            let s = found[i].signedLength
+            if s <= before || s > data.count {
+                found[i].status = .unsupported
+                found[i].inRepairedFile = true
+                found[i].certificateTrusted = false
+                found[i].detail = loc("The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.")
+            }
+        }
+        return found
+    }
+
+    private static func inspect(_ data: [UInt8], _ password: String?, _ online: Bool) -> [SignatureInfo] {
         guard let doc = try? PdfEdit.openToRead(data, password),
               let fields = try? FormEditor.collect(doc, doc.catalog.dict("AcroForm")),
               let count = try? doc.pageCount() else { return rawScan(data, online) }
@@ -115,6 +141,7 @@ public enum Signatures {
             let e = changes?.signed ?? SignatureChanges.entries(of: v)
             var info = check(data, range, e.subFilter, f.name, page, rect, e.name, PdfDates.parse(e.m), e.reason, e.location, online)
             info.certificationLevel = e.certificationLevel
+            info.signedLength = signedLength
             if info.status == .modifiedAfterSigning, let changes, let problem = changes.problem {
                 info.status = changes.permitted ? .modifiedAfterSigning : .disallowedChanges
                 info.detail = info.detail.map { "\(problem) \($0)" } ?? problem

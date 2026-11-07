@@ -7,7 +7,7 @@ extension Annotations {
     /// when it is deleted.
     public static func addReply(_ data: [UInt8], _ password: String?, _ parentId: String, _ text: String, author: String,
                                 id: String? = nil) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             guard let found = try find(doc, parentId) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let parent = found.annot
             if !parent.isRef { throw PdfEditError(loc("That comment can't be replied to.")) }

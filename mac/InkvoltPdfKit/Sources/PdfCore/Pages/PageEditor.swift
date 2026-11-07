@@ -264,9 +264,10 @@ public enum PageEditor {
     }
 
     /// Opens the document for an edit, runs `body`, keeps the page labels, the modification date and the XMP packet in
-    /// step, and saves it (`rewrite`: always written whole, never appended).
-    static func edit(_ data: [UInt8], _ password: String?, rewrite: Bool = false, _ body: (MuDoc) throws -> Void) throws -> [UInt8] {
-        let doc = try PdfEdit.open(data, password)
+    /// step, and saves it (`rewrite`: always written whole, never appended; `userEdit`: what an encrypted document's user
+    /// password may do here when its permissions allow it).
+    static func edit(_ data: [UInt8], _ password: String?, rewrite: Bool = false, userEdit: UserEdit = .none, _ body: (MuDoc) throws -> Void) throws -> [UInt8] {
+        let doc = try PdfEdit.open(data, password, userEdit: userEdit)
         let xmp = Xmp.read(doc)
         let labels = try PdfStructure.readLabels(doc)
         try body(doc)

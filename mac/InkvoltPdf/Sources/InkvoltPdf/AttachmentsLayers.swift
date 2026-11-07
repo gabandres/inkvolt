@@ -464,7 +464,7 @@ extension DocumentWindowController {
                         wrong = true
                     }
                 }
-                NewDocuments.open(bytes, name: Self.safeFileName(a.fileName), password: own)
+                NewDocuments.open(bytes, name: Self.safeFileName(a.fileName), password: own, repair: true)
             } catch {
                 presentProblem(loc("Couldn't open {0}", a.fileName), error)
             }

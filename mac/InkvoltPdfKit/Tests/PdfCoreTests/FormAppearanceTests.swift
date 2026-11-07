@@ -66,10 +66,16 @@ struct FormAppearanceTests {
         #expect(strict.contains("Kept value")) // the untouched field shows too
         #expect(try Core2Pdf.ink(result, 0, RectD(74, 160, 10, 10)) > 0.1, "the check box shows its check")
 
-        // A check box with no appearance and no /MK to draw one from keeps NeedAppearances, so viewers still try.
-        let broken = Core2Pdf.form([
+        // A check box with no appearance and no /MK gets the default tick (pdfjs-checkbox_no_appearance), so nothing is
+        // left to the viewer; one with no usable /Rect keeps NeedAppearances, so viewers still try.
+        let bare = Core2Pdf.form([
             "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [72 700 272 720] /P 3 0 R /DA (/Helv 0 Tf 0 g) >>",
             "<< /Type /Annot /Subtype /Widget /FT /Btn /T (c) /V /Off /Rect [72 620 86 634] /P 3 0 R >>",
+        ], acroExtra: "/NeedAppearances true")
+        #expect(try !Self.needAppearances(filled(bare, ["a": "x"])))
+        let broken = Core2Pdf.form([
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (a) /Rect [72 700 272 720] /P 3 0 R /DA (/Helv 0 Tf 0 g) >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Btn /T (c) /V /Off /Rect [72 620 72 620] /P 3 0 R >>",
         ], acroExtra: "/NeedAppearances true")
         #expect(try Self.needAppearances(filled(broken, ["a": "x"])))
     }
@@ -91,7 +97,6 @@ struct FormAppearanceTests {
         #expect(widgets.first { $0.fieldName == "Plain" }?.onState == "Yes")
         #expect(widgets.first { $0.fieldName == "Name" }?.onState == nil)
 
-        let off = try Core2Pdf.ink(form, 0, RectD(75, 180, 8, 8))
         let on = try filled(form, ["Agree": "Yes", "Plain": "Yes"])
         #expect(try !Self.needAppearances(on))
         let doc = try Core2Pdf.open(on)
@@ -101,11 +106,14 @@ struct FormAppearanceTests {
         let states = try #require(agree.dict("AP")?.dict("N"))
         #expect(!states.isStream)
         #expect(states.has("Yes") && states.has("Off"))
-        // Without /MK the single face is kept as the "on" look.
+        // The single face is kept as the "on" look, with or without /MK.
+        let yes = latin1(states["Yes"]?.streamData ?? []).trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(yes == "q 0 G 0.5 0.5 13 13 re S Q BT 0 g /ZaDb 10 Tf 2 3 Td (4) Tj ET")
         let plain = try #require(Core2Pdf.field(doc, "Plain")?.dict("AP")?.dict("N"))
         #expect(plain.keys.sorted() == ["Off", "Yes"])
-        #expect(try Core2Pdf.ink(on, 0, RectD(75, 180, 8, 8)) > off)
         let cleared = try filled(on, ["Agree": "Off"])
+        let inkOn = try Core2Pdf.ink(on, 0, RectD(75, 180, 8, 8))
+        #expect(try inkOn > Core2Pdf.ink(cleared, 0, RectD(75, 180, 8, 8)))
         #expect(try FormEditor.read(cleared, nil).first { $0.fieldName == "Agree" }?.value == "Off")
 
         // With an /Opt, the state names are positions, as Acrobat writes them.

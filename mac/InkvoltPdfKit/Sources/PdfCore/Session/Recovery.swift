@@ -10,14 +10,18 @@ public struct RecoveryInfo: Codable, Equatable, Sendable {
     public var originalWriteTime: Date?
     public var saved: Date
     public var page: Int
+    /// The document's `DocumentSession.repairedLength` (nil in an older description: not repaired): the copy is the repaired
+    /// bytes, sound, and would read as never repaired.
+    public var repairedLength: Int64?
 
-    public init(displayName: String, originalPath: String?, originalLength: Int64?, originalWriteTime: Date?, saved: Date, page: Int) {
+    public init(displayName: String, originalPath: String?, originalLength: Int64?,originalWriteTime: Date?, saved: Date, page: Int, repairedLength: Int64? = nil) {
         self.displayName = displayName
         self.originalPath = originalPath
         self.originalLength = originalLength
         self.originalWriteTime = originalWriteTime
         self.saved = saved
         self.page = page
+        self.repairedLength = repairedLength
     }
 }
 
@@ -42,14 +46,14 @@ public final class RecoveryStore: @unchecked Sendable {
     /// Starts this run's folder under `root`.
     public static func start(_ root: String) throws -> RecoveryStore { RecoveryStore(try RunFolder.start(root)) }
 
-    private static func encoder() -> JSONEncoder {
+    static func encoder() -> JSONEncoder {
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
         e.dateEncodingStrategy = .iso8601
         return e
     }
 
-    private static func decoder() -> JSONDecoder {
+    static func decoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601
         return d

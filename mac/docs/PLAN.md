@@ -1512,6 +1512,43 @@ Built and tested over SSH on `ignia-mac`; nobody saw these on a screen. Each nee
   in Sign Digitally, Header & Footer, Watermark, Recognize Text, Redact by Pattern, Reduce File Size, Split and Batch;
   the subtitle's zoom while pinching; the comment list at the Large sidebar size; VoiceOver reading the dialogs' controls
   by their labels; the tooltips on Save as PDF/A, Flatten, Sanitize Document and Review Suspect Words.
+- Filling a real form by hand (the self-test types through the editor's own path, `FormFillTest`): a masked field's editor on
+  screen, comb cells that draw what was typed under a format, a USCIS form in Acrobat after filling here.
+
+### Filling real forms (the forms corpus, 2026-11-07)
+
+`mac/tools/forms-corpus` is Windows' `pdf/tools/forms-corpus` on PdfCore (README and RESULTS.md there), with typing, tab order,
+encryption, bookmarks and damaged copies added. What it found is fixed with Windows' test names (`RealFormTraitTests`,
+`EncryptedFormFillTests`, `FormActionTests`) and `DamagedFormTests`; the app's check is `FormFillTest` (`--only-form-fill`).
+Mac differences:
+
+- **Encrypted forms that allow filling.** Windows reads a decrypted copy and writes each new object with its own `StandardCrypt`;
+  here MuPDF holds the file key from the user password and writes the update itself (`PdfEdit.open`'s `userEdit`). So a repaired
+  such file can be written whole with `encrypt=keep`, where Windows only ever appends; there is no copy that can fail, and none of
+  Windows' checks on it (/Perms, handler consistency, /Encrypt written again).
+- **A stale tail** (`StaleTail`). Windows cuts a tail holding no object and rebuilds the cross-reference otherwise. MuPDF's repair
+  takes the last copy of an object, so an old object in the tail replaced the real one (a whole form's fields, in `~tail`): here a
+  tail that doesn't start as an update would (an object or a table, after white space and comments) is left out whatever it holds,
+  unless a signature's /ByteRange covers it. Every MuPDF open is given the same bytes (`MuDoc.open`, `PdfEngine.open`), so Batch,
+  the merge and every reader agree with the view. A tail holding objects is left out only as a repair: the person is told, and
+  signatures made before it aren't shown valid.
+- **Junk after the last %%EOF** (more than 512 bytes of white space, or anything holding no object). Windows keeps it and appends
+  after it. MuPDF's update counts its offsets from the end of the revision it read, so every update (an edit, a signature) goes
+  right there and the junk is dropped (`MuDoc.appendsAfter`). A revision that only lost its end isn't junk: nothing older is read
+  in its place, and saving asks for the rewrite as any signed file that can't take an update.
+- **A repaired file** (`PdfRepair.normalize`, at a session's open and reload, `fromBytes(repair:)`, `recover(repair:)`, Batch and the
+  form merge): the copy MuPDF's repair reads is written out once, every object and the encryption kept, where Windows rebuilds
+  the cross-reference with PDFsharp. The rest is Windows': `DocumentSession.repairedLength`, a bar that says so until closed, a
+  signature over no more than the copy (or one that can't be placed in it) `.unsupported` and `inRepairedFile`, no certifying,
+  `RecoveryInfo.repairedLength`. `Signatures.verify` also takes bytes no session made sound (a damaged file read as it is) as
+  repaired whole. Windows' long-term data checks have no Mac counterpart yet (the Mac doesn't add long-term data).
+- **A repaired file written whole** has every object loaded first (`MuDoc.write`): MuPDF's writer takes a repaired cross-reference
+  for one without object streams and, with garbage collection, silently dropped what they hold (bookmarks, structure trees).
+- **Comb cells under a format.** A format's separators that don't fit the cells (SSN in 9 cells) would push the last digits out;
+  the cells show what was typed. Windows draws what fits. The field's value and `displayValue` are the same on both.
+- **Pasted Zip, phone and SSN numbers** (`FieldKeystrokes.typed`): with room for just the digits, the separators that don't fit
+  are left out, so `123-45-6789` pasted into a MaxLen 9 SSN box goes in as its digits. Windows cuts the paste to the MaxLen
+  (`123-45-67`), which the commit then refuses.
 
 ## Open decisions
 

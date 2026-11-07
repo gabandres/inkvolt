@@ -126,7 +126,8 @@ struct Core2SignatureTests {
         pdf.replaceSubrange(start.lowerBound..<end, with: Array(padded.utf8))
         let sigs = Signatures.verify(pdf)
         #expect(sigs.allSatisfy { $0.status != .valid })
-        #expect(sigs.contains { $0.status == .invalid })
+        // Invalid; or, when the longer number made MuPDF repair the file, not checked against the repaired bytes.
+        #expect(sigs.contains { $0.status == .invalid || $0.inRepairedFile })
     }
 
     @Test func unsupportedFormatsAndUnsignedFiles() throws {

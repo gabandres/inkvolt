@@ -339,31 +339,14 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         guard let field = editorView, let w = editing else { return }
         let now = field.stringValue
         guard now != lastText else { return }
-        let d = FieldKeystrokes.diff(lastText, now)
-        var change = d.change
-        if w.maxLength > 0 { change = FieldKeystrokes.fit(lastText, d.start, d.end, change, w.maxLength) }
-        var result = Self.replacing(lastText, d.start, d.end, change)
-        if let k = keystrokes, let verdict = k.run(lastText, change, d.start, d.end) {
-            for alert in verdict.alerts { controller?.notify(alert) }
-            if !verdict.accepted {
-                NSSound.beep()
-                result = lastText
-            } else {
-                result = Self.replacing(lastText, verdict.selStart, verdict.selEnd, verdict.change)
-            }
+        let typed = FieldKeystrokes.typed(before: lastText, after: now, maxLength: w.maxLength, keystrokes)
+        for alert in typed.alerts { controller?.notify(alert) }
+        if typed.refused { NSSound.beep() }
+        if typed.text != now {
+            field.stringValue = typed.text
+            field.currentEditor()?.selectedRange = NSRange(location: (typed.text as NSString).length, length: 0)
         }
-        if result != now {
-            field.stringValue = result
-            field.currentEditor()?.selectedRange = NSRange(location: (result as NSString).length, length: 0)
-        }
-        lastText = result
-    }
-
-    /// `text` with UTF-16 range [start, end) replaced by `change`.
-    static func replacing(_ text: String, _ start: Int, _ end: Int, _ change: String) -> String {
-        let s = text as NSString
-        let a = min(max(start, 0), s.length), b = min(max(end, a), s.length)
-        return s.replacingCharacters(in: NSRange(location: a, length: b - a), with: change)
+        lastText = typed.text
     }
 
     func control(_ control: NSControl, textView: NSTextView, doCommandBy selector: Selector) -> Bool {

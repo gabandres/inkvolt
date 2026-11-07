@@ -41,7 +41,7 @@ public enum CompareReport {
     /// - Throws: `OwnerPasswordRequired` when the new document needs its permissions password to be edited.
     public static func annotate(_ newData: [UInt8], _ password: String?, _ result: CompareResult, _ newPages: [PageText], oldName: String,
                                 summary: String, visual: [CompareVisualArea] = []) throws -> [UInt8] {
-        try PageEditor.edit(newData, password) { doc in
+        try PageEditor.edit(newData, password, userEdit: .annotate) { doc in
             let pageCount = try doc.pageCount()
             // Notes without a place in the text (the summary, removed and inserted pages, removals with no anchor) are
             // gathered into one note per page, in its top-left corner, so any number of them stays on the page.

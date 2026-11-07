@@ -23,6 +23,10 @@ public struct PdfEditError: Error, Equatable, Sendable, CustomStringConvertible 
 final class MuDoc {
     let ctx: UnsafeMutableRawPointer
     let doc: OpaquePointer
+    /// Opened for an edit its permissions (/P) allow with just the user password.
+    var editedWithUserPassword = false
+    /// Read without the file's tail (`StaleTail`): an update goes right after the bytes read.
+    var appendsAfter: Int?
     /// A document opened in another's context (so pages and objects can be grafted between them) keeps that document,
     /// and so the context, alive.
     private let owner: MuDoc?
@@ -45,20 +49,28 @@ final class MuDoc {
     static func open(_ data: [UInt8]) throws -> MuDoc {
         guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(ctx, $0.baseAddress, $0.count, 8, &err) }) else {
+        // Up to the end of the file's last good revision (`StaleTail`): a stale tail or junk after it reaches no reader, and
+        // an update goes right after it (`appendsAfter`).
+        let keep = StaleTail.keepLength(data)
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(ctx, $0.baseAddress, keep, 8, &err) }) else {
             inkv_drop_context(ctx)
             throw PdfEngineError(message: PdfEngine.message(err))
         }
-        return MuDoc(ctx: ctx, doc: doc)
+        let opened = MuDoc(ctx: ctx, doc: doc)
+        if keep < data.count { opened.appendsAfter = keep }
+        return opened
     }
 
     /// A PDF opened in `other`'s context, to graft pages and objects between them.
     static func open(_ data: [UInt8], in other: MuDoc) throws -> MuDoc {
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(other.ctx, $0.baseAddress, $0.count, 8, &err) }) else {
+        let keep = StaleTail.keepLength(data)
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(other.ctx, $0.baseAddress, keep, 8, &err) }) else {
             throw PdfEngineError(message: PdfEngine.message(err))
         }
-        return MuDoc(ctx: other.ctx, doc: doc, owner: other)
+        let opened = MuDoc(ctx: other.ctx, doc: doc, owner: other)
+        if keep < data.count { opened.appendsAfter = keep }
+        return opened
     }
 
     /// A new, empty PDF (no pages), in a context of its own.
@@ -124,17 +136,25 @@ final class MuDoc {
 
     var canAppend: Bool { inkv_can_append(ctx, doc) != 0 }
 
-    /// The original bytes and an incremental update with the edits (the encryption kept).
+    /// The original bytes and an incremental update with the edits (the encryption kept). A document read without the
+    /// file's tail (`appendsAfter`) gets the update right after the bytes it read: MuPDF's offsets count from there. Every
+    /// caller goes through here (edits, signing).
     func append(original: [UInt8]) throws -> [UInt8] {
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
-        try check { err in original.withUnsafeBufferPointer { inkv_append_pdf(ctx, doc, $0.baseAddress, $0.count, &out, &length, err) } != 0 }
+        let base = min(appendsAfter ?? original.count, original.count)
+        try check { err in original.withUnsafeBufferPointer { inkv_append_pdf(ctx, doc, $0.baseAddress, base, &out, &length, err) } != 0 }
         defer { inkv_free(out) }
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
 
-    /// A whole new file, written with MuPDF's write options.
+    /// A whole new file, written with MuPDF's write options. A repaired document's objects are loaded first: MuPDF's writer
+    /// takes the repaired cross-reference for one without object streams, can't read what is compressed in them, and with
+    /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
+        if !canAppend {
+            for n in 1..<max(objectCount, 1) { _ = object(n).kind }
+        }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }
@@ -143,29 +163,38 @@ final class MuDoc {
     }
 }
 
+/// What an edit may do to an encrypted document with only its user password (empty, or the open password), when its /P
+/// allows it: the Windows app's `UserEdit`. Anything else needs the permissions (owner) password.
+enum UserEdit {
+    case none
+    /// /P bit 9 (fill in forms) or bit 6 (comments, and with them filling).
+    case fillForms
+    /// /P bit 6.
+    case annotate
+}
+
 /// Opening a PDF for an edit and saving the edited result, as the Windows app's `PdfObj.Open` and `PdfObj.Save` do with
-/// PDFsharp. An encrypted document is edited only with its permissions (owner) password. Saving: a signed document gets
-/// the edit appended as an incremental update (its signed bytes untouched, so its signatures keep verifying); anything
-/// else is written whole (MuPDF's garbage collection, so what an edit removed is gone), keeping its encryption as it was:
-/// the same method, permissions and both passwords (`encrypt=keep`).
+/// PDFsharp. An encrypted document is edited with its permissions (owner) password, or for what its /P allows (`userEdit`)
+/// with the user password: MuPDF holds the file key either way. Saving: a signed document, or one edited with the user
+/// password, gets the edit appended as an incremental update (the bytes as they were, the update under the same key);
+/// anything else (also such a document when it can't be appended to) is written whole (MuPDF's garbage collection, so what
+/// an edit removed is gone), keeping its encryption as it was: the same method, permissions and both passwords
+/// (`encrypt=keep`).
 enum PdfEdit {
-    static func open(_ data: [UInt8], _ password: String?, failure: String? = nil) throws -> MuDoc {
-        var doc: MuDoc
+    static func open(_ data: [UInt8], _ password: String?, failure: String? = nil, userEdit: UserEdit = .none) throws -> MuDoc {
+        let doc: MuDoc
         do {
             doc = try MuDoc.open(data)
         } catch let e as PdfEngineError {
             throw PdfEditError("\(failure ?? loc("This PDF can't be edited")): \(e.message)")
         }
-        // MuPDF looks for the last startxref only near the end of the file: junk after %%EOF (a mail gateway's padding)
-        // makes it repair the file, and a repaired file can't be appended to. A signed one is read again up to its last
-        // valid startxref; the update still goes after all of it (`save` appends to the bytes as given).
-        if !doc.canAppend && SignedEdits.looksSigned(data), let end = lastEnd(data), end < data.count,
-           let trimmed = try? MuDoc.open(Array(data[..<end])), trimmed.canAppend {
-            doc = trimmed
-        }
         if doc.hasEncrypt {
             let bits = doc.authBits(password)
             if bits & 4 == 0 {
+                if bits & 2 != 0 && allowsWithUserPassword(doc, userEdit) {
+                    doc.editedWithUserPassword = true
+                    return doc
+                }
                 // A password that opens nothing at all is wrong; none, or only the open password, isn't.
                 throw OwnerPasswordRequired(wrongPassword: !(password ?? "").isEmpty && bits & 6 == 0)
             }
@@ -173,27 +202,16 @@ enum PdfEdit {
         return doc
     }
 
-    /// Where the file's last valid revision ends: after the last "startxref <offset> %%EOF" (and its line end); nil when
-    /// there is none (the Windows app's `Incremental.StartXref` search).
-    static func lastEnd(_ data: [UInt8]) -> Int? {
-        let key = Array("startxref".utf8), eof = Array("%%EOF".utf8)
-        func isSpace(_ b: UInt8) -> Bool { b == 32 || b == 9 || b == 10 || b == 13 || b == 12 || b == 0 }
-        var from = data.endIndex
-        while let r = data[..<from].lastRange(of: key) {
-            from = r.lowerBound
-            var i = r.upperBound
-            while i < data.count && isSpace(data[i]) { i += 1 }
-            let digits = i
-            while i < data.count && data[i] >= 48 && data[i] <= 57 { i += 1 }
-            if i == digits { continue }
-            while i < data.count && isSpace(data[i]) { i += 1 }
-            guard i + eof.count <= data.count, Array(data[i..<i + eof.count]) == eof else { continue }
-            var end = i + eof.count
-            if end < data.count && data[end] == 13 { end += 1 }
-            if end < data.count && data[end] == 10 { end += 1 }
-            return end
+    /// Whether the standard handler's /P allows this edit with just the user password (revision 2 has no separate fill
+    /// bit: `PdfSecurity.permissions` reads annotate for it).
+    private static func allowsWithUserPassword(_ doc: MuDoc, _ edit: UserEdit) -> Bool {
+        guard edit != .none, let found = try? doc.encryptInfo(), PdfSecurity.method(found) != .unknown else { return false }
+        let allowed = PdfSecurity.permissions(found.p, revision: found.r)
+        switch edit {
+        case .none: return false
+        case .fillForms: return allowed.fillForms || allowed.annotate
+        case .annotate: return allowed.annotate
         }
-        return nil
     }
 
     /// The edited document's bytes. `rewrite`: always written whole (redaction, extraction), never appended.
@@ -208,12 +226,15 @@ enum PdfEdit {
                 throw SignaturesWouldBreak(signatureCount: SignedEdits.countSignatures(data), reason: "MuPDF can't append to this file")
             }
         }
+        // The bytes as the publisher protected them, and the update under the same key, as Acrobat saves such a form.
+        if !rewrite && doc.editedWithUserPassword && doc.canAppend { return try doc.append(original: data) }
         return try writeWhole(doc, password: password)
     }
 
-    /// The whole document, its protection kept (or its open password dropped, inside `KeptProtection.run`).
+    /// The whole document, its protection kept (or its open password dropped, inside `KeptProtection.run`, which only the
+    /// owner password may do).
     static func writeWhole(_ doc: MuDoc, password: String?) throws -> [UInt8] {
-        if KeptProtection.dropOpenPassword, let info = try doc.encryptInfo() {
+        if KeptProtection.dropOpenPassword, !doc.editedWithUserPassword, let info = try doc.encryptInfo() {
             let method = PdfSecurity.method(info)
             return try doc.write("garbage=compact," + PdfSecurity.encryptOptions(method == .aes256 ? .aes256 : .aes128,
                                                                              user: "", owner: password ?? "", p: info.p))
@@ -296,15 +317,15 @@ public enum SignedEdits {
     private static let byteRange = Array("/ByteRange".utf8)
 
     /// Signed-looking files carry a /ByteRange; signature dictionaries are never compressed into object streams.
-    static func looksSigned(_ data: [UInt8]) -> Bool { data.firstRange(of: byteRange) != nil }
+    static func looksSigned(_ data: [UInt8]) -> Bool { PdfBytes.first(byteRange, in: data) != nil }
 
     /// The signature dictionaries in the file, by their /ByteRange (at least 1 for a signed-looking file).
     static func countSignatures(_ data: [UInt8]) -> Int {
         var count = 0
-        var from = data.startIndex
-        while let r = data[from...].firstRange(of: byteRange) {
+        var from = 0
+        while let at = PdfBytes.first(byteRange, in: data, from: from) {
             count += 1
-            from = r.upperBound
+            from = at + byteRange.count
         }
         return max(count, 1)
     }

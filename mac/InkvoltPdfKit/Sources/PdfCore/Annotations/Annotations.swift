@@ -105,7 +105,7 @@ public enum Annotations {
     public static func addTextMarkup(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ kind: TextMarkupKind, _ lineRects: [RectD],
                                      _ color: AnnotColor, note: String?, author: String, id: String? = nil) throws -> [UInt8] {
         if lineRects.allSatisfy(\.isEmpty) { throw PdfEditError(loc("No text to mark.")) }
-        return try PageEditor.edit(data, password) { doc in
+        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             try checkPage(doc, pageIndex)
             addTextMarkupIn(doc, pageIndex, kind, lineRects, color, note: note, author: author, id: id)
         }
@@ -190,7 +190,7 @@ public enum Annotations {
     /// Adds a sticky note: a /Text annotation drawn as a 20 pt note icon whose top-left is at (x, y), page space.
     public static func addNote(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ x: Double, _ y: Double, _ text: String,
                                author: String, color: AnnotColor? = nil, id: String? = nil) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             try checkPage(doc, pageIndex)
             addNoteIn(doc, pageIndex, x, y, text, author: author, color: color, id: id)
         }
@@ -223,7 +223,7 @@ public enum Annotations {
     /// Changes a comment's text. A FreeText box (other than a Fill & Sign stamp) shows the new text: its appearance is
     /// rebuilt.
     public static func setContents(_ data: [UInt8], _ password: String?, _ id: String, _ text: String) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let p = found.page, annot = found.annot
             annot.set("Contents", doc.text(text))
@@ -236,7 +236,7 @@ public enum Annotations {
 
     /// Deletes an annotation with its popup and its replies (and theirs).
     public static func delete(_ data: [UInt8], _ password: String?, _ id: String) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             if !(try deleteIn(doc, id)) { throw PdfEditError(loc("That comment no longer exists.")) }
         }
     }

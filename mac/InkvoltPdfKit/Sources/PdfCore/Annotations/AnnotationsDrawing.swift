@@ -71,7 +71,7 @@ extension Annotations {
 
     private static func redraw(_ data: [UInt8], _ password: String?, _ id: String,
                                _ change: (AnnotGeometry, AnnotStyle) -> (AnnotGeometry, AnnotStyle)) throws -> [UInt8] {
-        try PageEditor.edit(data, password) { doc in
+        try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             guard let found = try find(doc, id) else { throw PdfEditError(loc("That comment no longer exists.")) }
             let page = doc.page(found.page)
             let subtype = found.annot.name("Subtype") ?? ""
@@ -87,7 +87,7 @@ extension Annotations {
     private static func addDrawing(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ subtype: String, _ g: AnnotGeometry,
                                    _ s: AnnotStyle, _ author: String, _ contents: String, _ id: String?) throws -> [UInt8] {
         try validate(subtype, g, s)
-        return try PageEditor.edit(data, password) { doc in
+        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             try checkPage(doc, pageIndex)
             let page = doc.page(pageIndex)
             let annot = newAnnot(doc, page, subtype, 0, 0, 0, 0, id, contents, author, s.color ?? AnnotStyle.black)
@@ -100,7 +100,7 @@ extension Annotations {
                                _ s: AnnotStyle, _ author: String, _ id: String?, _ scale: MeasureScale) throws -> [UInt8] {
         let g = AnnotGeometry(paths: [points])
         try validate(subtype, g, s)
-        return try PageEditor.edit(data, password) { doc in
+        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             try checkPage(doc, pageIndex)
             let page = doc.page(pageIndex)
             let annot = newAnnot(doc, page, subtype, 0, 0, 0, 0, id, "", author, s.color ?? AnnotStyle.black)

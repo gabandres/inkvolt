@@ -70,6 +70,12 @@ public final class DocumentSession: @unchecked Sendable {
     /// The document's open (user) password when known.
     public private(set) var openPassword: String?
     public private(set) var engine: PdfEngine
+    /// The repaired copy's length (0 when the file wasn't repaired): signatures over no more than this predate the repair.
+    public private(set) var repairedLength = 0
+    /// True when the file was damaged and the content is the repaired copy made as it opened (`PdfRepair.normalize`): the
+    /// person is told once, saving writes that copy, and signatures made before aren't checked against it. Edits keep it; a
+    /// reload of a sound file clears it.
+    public var repaired: Bool { repairedLength > 0 }
     /// True when the content differs from what is on disk (undoing back to the saved state clears it).
     public var isDirty: Bool { version != savedVersion }
 
@@ -108,18 +114,36 @@ public final class DocumentSession: @unchecked Sendable {
     public static func open(_ path: String, password: String? = nil) throws -> DocumentSession {
         // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
         let stamp = DiskStamp.of(path)
-        let data = try PdfEngine.readFile(path)
-        let engine = try PdfEngine.open(data, password: password)
+        let (data, engine, repaired) = try openReadable(try PdfEngine.readFile(path), password)
         let full = URL(fileURLWithPath: path).standardizedFileURL.path
         let session = DocumentSession(path: full, displayName: (full as NSString).lastPathComponent, data: data, password: password, engine: engine)
+        session.repairedLength = repaired
         session.onDisk = stamp
         session.openPassword = PdfSecurity.isOpenPassword(data, password) ? password : nil
         session.diskPassword = password
         return session
     }
 
-    /// A new, unsaved PDF (e.g. the result of Combine or Extract).
-    public static func fromBytes(_ data: [UInt8], _ displayName: String, password: String? = nil) throws -> DocumentSession {
+    /// The bytes a file from outside is worked on as (`PdfRepair.normalize`), its engine, and the repaired copy's length (0
+    /// when it wasn't repaired). Should MuPDF refuse the changed bytes, the file is opened as it is, still counted as damaged.
+    private static func openReadable(_ file: [UInt8], _ password: String?) throws -> (data: [UInt8], engine: PdfEngine, repaired: Int) {
+        let normal = PdfRepair.normalize(file, password)
+        if let engine = try? PdfEngine.open(normal.data, password: password) {
+            return (normal.data, engine, normal.repaired ? normal.data.count : 0)
+        }
+        return (file, try PdfEngine.open(file, password: password), normal.repaired ? file.count : 0)
+    }
+
+    /// A new, unsaved PDF (e.g. the result of Combine or Extract, which opens as it is). `repair`: bytes from outside the app
+    /// (an attachment), opened as a file is (`PdfRepair.normalize`).
+    public static func fromBytes(_ data: [UInt8], _ displayName: String, password: String? = nil, repair: Bool = false) throws -> DocumentSession {
+        if repair {
+            let (bytes, engine, repaired) = try openReadable(data, password)
+            let session = DocumentSession(path: nil, displayName: displayName, data: bytes, password: password, engine: engine)
+            session.repairedLength = repaired
+            session.savedVersion = -1 // never saved
+            return session
+        }
         let session = DocumentSession(path: nil, displayName: displayName, data: data, password: password,
                                       engine: try PdfEngine.open(data, password: password))
         session.savedVersion = -1 // never saved
@@ -128,12 +152,24 @@ public final class DocumentSession: @unchecked Sendable {
 
     /// A document offered back after Inkvolt PDF closed without saving it (`RecoveryStore`): its bytes as they were, under
     /// the file it came from (nil for one never saved), so Save writes it back there. `diskStamp`: that file's size and
-    /// time when the copy was made, so a file changed since shows as changed on disk.
+    /// time when the copy was made, so a file changed since shows as changed on disk. `repairedLength`: from the copy's
+    /// description (`RecoveryInfo.repairedLength`): the copy is sound and would read as never repaired. `repair`: bytes from
+    /// outside the app, opened as a file is.
     public static func recover(_ data: [UInt8], originalPath: String?, _ displayName: String, diskStamp: DiskStamp? = nil,
-                               password: String? = nil) throws -> DocumentSession {
-        let engine = try PdfEngine.open(data, password: password)
+                               password: String? = nil, repairedLength: Int = 0, repair: Bool = false) throws -> DocumentSession {
+        var data = data
+        var repaired = min(max(repairedLength, 0), data.count)
+        let engine: PdfEngine
+        if repair {
+            let opened = try openReadable(data, password)
+            (data, engine) = (opened.data, opened.engine)
+            repaired = max(repaired, opened.repaired)
+        } else {
+            engine = try PdfEngine.open(data, password: password)
+        }
         let path = originalPath.map { URL(fileURLWithPath: $0).standardizedFileURL.path }
         let session = DocumentSession(path: path, displayName: displayName, data: data, password: password, engine: engine)
+        session.repairedLength = repaired
         session.openPassword = PdfSecurity.isOpenPassword(data, password) ? password : nil
         session.diskPassword = password
         session.onDisk = path.flatMap { diskStamp ?? DiskStamp.of($0) }
@@ -281,15 +317,15 @@ public final class DocumentSession: @unchecked Sendable {
         var stamp: DiskStamp?
         var password: String?
         var openPassword: String?
+        var repairedLength: Int
     }
 
     private static func readDiskCopy(_ path: String?, _ password: String?) throws -> DiskCopy {
         guard let path else { throw PdfEditError(loc("This document has not been saved to a file.")) }
         let stamp = DiskStamp.of(path)
-        let data = try PdfEngine.readFile(path)
-        let engine = try PdfEngine.open(data, password: password)
+        let (data, engine, repaired) = try openReadable(try PdfEngine.readFile(path), password)
         return DiskCopy(data: data, engine: engine, stamp: stamp, password: password,
-                        openPassword: PdfSecurity.isOpenPassword(data, password) ? password : nil)
+                        openPassword: PdfSecurity.isOpenPassword(data, password) ? password : nil, repairedLength: repaired)
     }
 
     private func apply(_ copy: DiskCopy) {
@@ -299,6 +335,7 @@ public final class DocumentSession: @unchecked Sendable {
         undoSteps.removeAll()
         redoSteps.removeAll()
         onDisk = copy.stamp
+        repairedLength = copy.repairedLength
         let v = nextVersion
         nextVersion += 1
         savedVersion = v
@@ -391,8 +428,10 @@ public final class DocumentSession: @unchecked Sendable {
             // Signed document: an edit a signature doesn't allow (a page change) shows that signature as invalid from
             // then on. Say so before it happens; a rewrite the user allowed was asked about already.
             if signedOnOpen && !request.signaturesWarned && !rewrite {
-                let (edited, given) = (result, pw)
-                let broken = await Task.detached { Signatures.brokenByEdits(Signatures.verify(original, given), edited, given) }.value
+                let (edited, given, repaired) = (result, pw, repairedLength)
+                let broken = await Task.detached {
+                    Signatures.brokenByEdits(Signatures.verify(original, given, repairedLength: repaired), edited, given)
+                }.value
                 if closed { return EditResult(.failed) }
                 if !broken.isEmpty && !prompts.confirmBreakingEdit(label: request.label, broken: broken) { return EditResult(.declined) }
             }

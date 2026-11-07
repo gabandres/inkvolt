@@ -12,7 +12,7 @@ extension FormEditor {
         let doc: MuDoc
         var readOnly = false
         do {
-            doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
+            doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"), userEdit: .fillForms)
         } catch is OwnerPasswordRequired {
             doc = try PdfEdit.openToRead(data, password)
             readOnly = true
@@ -480,7 +480,7 @@ final class FormActionRunner {
                 let state = dv?.kind == .name ? dv?.name ?? "Off" : "Off"
                 f.dict.set("V", doc.name(state))
                 for w in f.widgets where w.has("AS") || w.has("AP") {
-                    w.set("AS", doc.name(FormEditor.onStateOf(w) == state ? state : "Off"))
+                    w.set("AS", doc.name(FormEditor.onStateOf(w, in: f) == state ? state : "Off"))
                 }
             }
             js.touch(f)
@@ -591,9 +591,12 @@ public final class FieldKeystrokes: @unchecked Sendable {
 
     /// The script engine was started when this was opened (so the first keystroke doesn't wait for it).
     let warm: Bool
+    /// The script is AFSpecial_Keystroke (Zip, Zip+4, phone, SSN): the value is digits, the separators the format's.
+    let digitsOnly: Bool
 
-    private init(warm: Bool, _ run: @escaping (String, String, Int, Int) -> KeystrokeResult?) {
+    private init(warm: Bool, digitsOnly: Bool, _ run: @escaping (String, String, Int, Int) -> KeystrokeResult?) {
         self.warm = warm
+        self.digitsOnly = digitsOnly
         runBody = run
     }
 
@@ -623,6 +626,32 @@ public final class FieldKeystrokes: @unchecked Sendable {
         return String(decoding: t[..<room], as: UTF16.self)
     }
 
+    /// `text` with UTF-16 range [start, end) replaced by `change`.
+    static func replacing(_ text: String, _ start: Int, _ end: Int, _ change: String) -> String {
+        let s = text as NSString
+        let a = min(max(start, 0), s.length), b = min(max(end, a), s.length)
+        return s.replacingCharacters(in: NSRange(location: a, length: b - a), with: change)
+    }
+
+    /// One edit in a field's editor, as the app's editor applies it: `before` became `after`; the field's length limit,
+    /// then its keystroke script (refused characters taken back, rewritten ones replaced). `text` is what the editor holds
+    /// now, `refused` that the script said no.
+    public static func typed(before: String, after: String, maxLength: Int, _ keystrokes: FieldKeystrokes?) -> (text: String, refused: Bool, alerts: [String]) {
+        let d = diff(before, after)
+        var change = d.change
+        // A Zip, phone or SSN field (AFSpecial_Keystroke) with room for just its digits: separators that don't fit are left
+        // out (the format shows them), so a number pasted with its dashes goes in whole.
+        if maxLength > 0, keystrokes?.digitsOnly == true, before.utf16.count - (d.end - d.start) + change.utf16.count > maxLength {
+            change = String(change.filter { $0.isASCII && $0.isNumber })
+        }
+        if maxLength > 0 { change = fit(before, d.start, d.end, change, maxLength) }
+        guard let keystrokes, let verdict = keystrokes.run(before, change, d.start, d.end) else {
+            return (replacing(before, d.start, d.end, change), false, [])
+        }
+        if !verdict.accepted { return (before, true, verdict.alerts) }
+        return (replacing(before, verdict.selStart, verdict.selEnd, verdict.change), false, verdict.alerts)
+    }
+
     /// The field's keystroke check, or nil when it has no keystroke script (or the PDF can't be read).
     public static func open(_ data: [UInt8], _ password: String?, _ fieldName: String) -> FieldKeystrokes? {
         guard let doc = try? PdfEdit.openToRead(data, password), let fields = try? FormEditor.collect(doc, doc.catalog.dict("AcroForm")),
@@ -630,7 +659,8 @@ public final class FieldKeystrokes: @unchecked Sendable {
               let script = FormEditor.actionScript(field, "K"), !script.isEmpty else { return nil }
         let js = JsFormHost(doc, fields, readOnly: true)
         js.prewarm() // the engine and document scripts now, off the main thread
-        return FieldKeystrokes(warm: js.started) { value, change, selStart, selEnd in
+        let special = script.range(of: #"AFSpecial_Keystroke\s*\("#, options: .regularExpression) != nil
+        return FieldKeystrokes(warm: js.started, digitsOnly: special) { value, change, selStart, selEnd in
             _ = doc // the document stays open with the keystroke check
             let n = value.utf16.count
             let start = min(max(selStart, 0), n)

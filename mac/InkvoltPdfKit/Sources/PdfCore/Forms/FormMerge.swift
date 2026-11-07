@@ -93,6 +93,8 @@ public enum FormMerge {
     /// Throws when the CSV can't be read, the name pattern names a column it doesn't have, or the PDF has no form.
     public static func run(_ form: [UInt8], _ password: String?, _ csv: [UInt8], formPath: String, _ options: FormMergeOptions,
                            progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil) throws -> FormMergeReport {
+        // A damaged form is filled as its repaired copy, as it opens in a window.
+        let form = PdfRepair.normalize(form, password).data
         let (header, rows) = try FormDataFiles.readTable(csv)
         if let error = validateTemplate(options.nameTemplate, header) { throw PdfEditError(error) }
         let fields = try FormEditor.dataFields(form, password)

@@ -245,7 +245,8 @@ public final class PdfEngine: @unchecked Sendable {
     public static func open(_ data: [UInt8], password: String? = nil) throws -> PdfEngine {
         // MuPDF's resource store (decoded images, fonts) at 128 MB keeps re-renders fast without letting several open
         // tabs balloon.
-        let source = Source.bytes(SharedBytes(data))
+        // What every reader is given: the file up to its last good revision (`StaleTail`).
+        let source = Source.bytes(SharedBytes(StaleTail.openable(data)))
         return try PdfEngine(Instance.open(source, store: 128 << 20, password: password, drawing: true), source: source, password: password)
     }
 

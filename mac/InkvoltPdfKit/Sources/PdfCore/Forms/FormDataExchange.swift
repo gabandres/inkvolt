@@ -10,7 +10,7 @@ extension FormEditor {
     /// empty or off), as the ResetForm action does; then the calculations run and the changed fields are drawn again.
     /// The data comes back unchanged when nothing was reset.
     public static func resetForm(_ data: [UInt8], _ password: String?, fields names: [String]? = nil) throws -> [UInt8] {
-        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"))
+        let doc = try PdfEdit.open(data, password, failure: loc("This PDF's form can't be read"), userEdit: .fillForms)
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
         if fields.isEmpty { throw PdfEditError(loc("This PDF has no fillable form.")) }

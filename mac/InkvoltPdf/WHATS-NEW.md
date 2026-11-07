@@ -11,6 +11,10 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Compare Files lists font, size, bold, italic and color changes apart from changes to the words, and a paragraph that moved as one move, with any words edited inside it as their own changes. Running headers and page numbers are left out. A box for each kind hides it.
 - Compare Files lines up two scans of a page that were fed a little crooked or shifted before overlaying them, and lists what looks different besides the words. Changes read from a scan that a recognizer often gets wrong (l and 1, O and 0) are marked as maybe misread. The annotated copy has all of it.
 - Large drawings (plans and sheets with tens of thousands of lines) appear two to three times faster, drawn on all of the Mac's cores, and the next page is drawn ahead while you scroll.
+- Protected forms that allow filling (many government forms, such as USCIS's) are filled and saved without asking for a password, and stay protected as they were.
+- Social Security, phone and ZIP boxes with room for just the digits take them all; the dashes appear when you leave the field.
+- More real forms work: radio buttons and fields their form lists oddly, check boxes that showed no tick, a list that kept showing its old choice, a field shown on several pages.
+- Damaged PDFs keep what they hold when filled and saved: bookmarks and fields are no longer lost, and leftovers of an older copy no longer replace the form's values. A damaged file says so when it opens, and a signature made before the repair is never shown as valid.
 
 ## 1.8.0
 - Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
