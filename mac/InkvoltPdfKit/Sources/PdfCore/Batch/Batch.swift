@@ -469,6 +469,13 @@ struct BatchSkip: Error { var reason: String }
 /// A check found something: the file fails.
 struct BatchCheckFailed: Error { var message: String }
 
+extension BatchRunner {
+    /// A redaction that couldn't look at everything fails its file: "Redaction check: <why> Nothing was saved."
+    static func incompleteMessage(_ notes: [String]) -> String {
+        loc("Redaction check: {0} Nothing was saved.", notes.joined(separator: " "))
+    }
+}
+
 /// A batch (the Windows app's `BatchRunner`): a list of actions done to each of many files, the results saved in an
 /// output folder (the originals stay as they are). Files run on worker tasks, a few at a time (`BatchPlan.maxParallel`,
 /// and only as many as fit `BatchPlan.memoryBudget`: a large file runs alone). A file that fails or is skipped is listed
@@ -743,7 +750,10 @@ public enum BatchRunner {
             case .sanitize(let items):
                 return try Sanitizer.sanitize(d, pw, items).data
             case .redactPatterns(let options):
-                let (redacted, matches) = try RedactionPatterns.redact(d, pw, options, cancel: cancel)
+                let (redacted, matches, unsearched) = try RedactionPatterns.redact(d, pw, options, cancel: cancel)
+                // A page that couldn't be searched may still show what was looked for: nobody is there to judge, so the
+                // file fails and nothing is saved (Windows' Incomplete).
+                if let note = SkippedPages.note(unsearched) { throw BatchCheckFailed(message: BatchRunner.incompleteMessage([note])) }
                 let pages = Set(matches.map(\.page)).count
                 if !matches.isEmpty {
                     if beforeRedaction == nil { beforeRedaction = d }
@@ -810,9 +820,14 @@ public enum BatchRunner {
         private func checkRedaction(_ data: [UInt8]) throws {
             let report = try RedactionCheck.run(data, password, RedactionCheckOptions(values: redactedValues, areas: redactedAreas, original: beforeRedaction),
                                                 progress: { [self] done, total in self.report(loc("Checking redaction…"), Double(done) / Double(max(1, total))) }, cancel: cancel)
-            if report.isClean { return }
+            if report.isClean {
+                // Clean but not everything was looked at (a page the engine refused): it isn't clean.
+                if report.incomplete { throw BatchCheckFailed(message: BatchRunner.incompleteMessage(report.notes)) }
+                return
+            }
             for f in report.findings.prefix(10) { notes.append("\(f.place): \(RedactionCheck.name(f.kind))") }
             if report.findings.count > 10 { notes.append(loc("… and {0} more", CoreLanguage.number(report.findings.count - 10))) }
+            if report.incomplete { notes += report.notes }
             throw BatchCheckFailed(message: loc("Redaction check: {0}", report.summary))
         }
 

@@ -242,7 +242,7 @@ struct RedactionPatternTests {
         #expect(try Self.text(data, 0).contains("jane.doe@example.com"))
         let heading = try Core2RedactionTests.area(data, "Public heading")
 
-        let (redacted, matches) = try RedactionPatterns.redact(data, nil, RedactionPatternOptions())
+        let (redacted, matches, _) = try RedactionPatterns.redact(data, nil, RedactionPatternOptions())
         #expect(matches.map(\.pattern) == [.email, .socialSecurity])
         #expect(matches.reduce(0) { $0 + $1.rects.count } == 3) // the SSN runs over two lines
 
@@ -256,7 +256,7 @@ struct RedactionPatternTests {
         #expect(try Core2Pdf.ink(redacted, 0, heading) < 0.6, "and isn't blacked out")
 
         // Nothing found: the file is left as it was.
-        let (same, none) = try RedactionPatterns.redact(data, nil, RedactionPatternOptions(patterns: [.iban]))
+        let (same, none, _) = try RedactionPatterns.redact(data, nil, RedactionPatternOptions(patterns: [.iban]))
         #expect(none.isEmpty)
         #expect(same == data)
     }

@@ -217,20 +217,22 @@ public enum RedactionPatterns {
         return out
     }
 
-    /// Finds the matches and redacts them for good (`Redaction.apply`); the data as it was when nothing matched.
+    /// Finds the matches and redacts them for good (`Redaction.apply`); the data as it was when nothing matched. `skipped`:
+    /// the pages the engine refused (from 0), not searched, so whatever matches on them is still there.
     public static func redact(_ data: [UInt8], _ password: String?, _ options: RedactionPatternOptions,
-                              cancel: CancelToken? = nil) throws -> (data: [UInt8], matches: [RedactionMatch]) {
+                              cancel: CancelToken? = nil) throws -> (data: [UInt8], matches: [RedactionMatch], skipped: [Int]) {
         let engine = try PdfEngine.open(data, password: password)
         let matches: [RedactionMatch]
+        let skipped = SkippedPages()
         do {
-            matches = try find(engine, options, cancel: cancel)
+            matches = try find(engine, options, cancel: cancel, skipped: skipped)
             engine.close()
         } catch {
             engine.close()
             throw error
         }
         try cancel.check()
-        return matches.isEmpty ? (data, matches) : (try Redaction.apply(data, password, areas(matches)), matches)
+        return matches.isEmpty ? (data, matches, skipped.list) : (try Redaction.apply(data, password, areas(matches)), matches, skipped.list)
     }
 
     /// How many matches of each kind, in the order the kinds are offered (kinds without matches left out).

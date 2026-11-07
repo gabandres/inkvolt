@@ -591,6 +591,7 @@ extension RedactionCheck.Check {
                     var gone: [String] = []
                     // A page the engine refuses is said, and the version's other pages are still read.
                     guard let text = try SkippedPages().unlessRefused({ try pages.text(p, cache: false, cancel: cancel) }) else {
+                        incomplete = true
                         notes.append(loc("{0} couldn't be read on its own.", loc("{0}, page {1}", place, CoreLanguage.number(p + 1))))
                         continue
                     }

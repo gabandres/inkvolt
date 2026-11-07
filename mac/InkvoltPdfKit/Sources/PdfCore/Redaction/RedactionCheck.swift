@@ -96,11 +96,14 @@ public struct RedactionCheckOptions: Sendable {
     /// The document before it was redacted (opened with the same password): none of its pictures may be under a
     /// redacted area unchanged.
     public var original: [UInt8]?
+    /// Pages a search before the check skipped (from 0): what was there wasn't looked for, so the check is incomplete.
+    public var skipped: [Int]
 
-    public init(values: [String] = [], areas: [Int: [RectD]]? = nil, original: [UInt8]? = nil) {
+    public init(values: [String] = [], areas: [Int: [RectD]]? = nil, original: [UInt8]? = nil, skipped: [Int] = []) {
         self.values = values
         self.areas = areas
         self.original = original
+        self.skipped = skipped
     }
 }
 
@@ -111,6 +114,9 @@ public struct RedactionCheckReport: Sendable {
     public var values: [String]
     /// What couldn't be checked, and why.
     public var notes: [String]
+    /// Not everything was looked at (a page the engine refused, here or in the search before): clean doesn't mean clean.
+    /// `notes` say why.
+    public var incomplete = false
 
     public var isClean: Bool { findings.isEmpty }
 
@@ -181,10 +187,12 @@ public enum RedactionCheck {
 
     /// The text under areas about to be redacted (read before applying them): each line's characters whose middle is
     /// inside an area, as one value. These are what `RedactionCheckOptions.values` looks for afterwards. A page the engine
-    /// refuses gives none (the check after applying says it couldn't read it).
-    public static func valuesUnder(_ engine: PdfEngine, _ areas: [Int: [RectD]], cancel: CancelToken? = nil) throws -> [String] {
+    /// refuses gives none, and goes in `skipped` (for `RedactionCheckOptions.skipped`: the check after applying is then
+    /// incomplete).
+    public static func valuesUnder(_ engine: PdfEngine, _ areas: [Int: [RectD]], cancel: CancelToken? = nil,
+                                   skipped: SkippedPages? = nil) throws -> [String] {
         var values: [String] = []
-        let skipped = SkippedPages()
+        let skipped = skipped ?? SkippedPages()
         for (page, rects) in areas.sorted(by: { $0.key < $1.key }) {
             if page < 0 || page >= engine.pageCount || rects.allSatisfy(\.isEmpty) { continue }
             guard let text = try skipped.unlessRefused({ try engine.text(page, cache: false, cancel: cancel) }) else { continue }
@@ -486,8 +494,11 @@ extension RedactionCheck {
         /// Values found somewhere.
         var hits = Set<Int>()
         var hiddenLayers = 0
-        /// Pages the engine refused: not looked at, which the notes say.
+        /// Pages the engine refused (and those the search before skipped, `RedactionCheckOptions.skipped`): not looked at,
+        /// which the notes say, and the report is incomplete.
         let skipped = SkippedPages()
+        /// A page of an earlier version the engine refused: not compared.
+        var incomplete = false
         private var done = 0, total = 0
 
         init(_ data: [UInt8], _ password: String?, _ options: RedactionCheckOptions, _ progress: ((Int, Int) -> Void)?, _ cancel: CancelToken?) {
@@ -514,6 +525,7 @@ extension RedactionCheck {
             defer { engine.close() }
             let doc = try PdfEdit.openToRead(data, password)
             let pages = engine.pageCount
+            for p in options.skipped where p >= 0 { skipped.insert(p) }
             let docPages = try doc.pageCount()
             let revisions = RedactionCheck.revisions(data)
             total = pages * 2 + min(revisions.count, RedactionCheck.maxRevisions)
@@ -557,7 +569,9 @@ extension RedactionCheck {
                 return a.offset < b.offset
             }.map(\.element)
             if let note = skipped.note { notes.append(note) }
-            return RedactionCheckReport(findings: order, values: values, notes: notes)
+            var report = RedactionCheckReport(findings: order, values: values, notes: notes)
+            report.incomplete = incomplete || !skipped.list.isEmpty
+            return report
         }
 
         // ---- Covers ----

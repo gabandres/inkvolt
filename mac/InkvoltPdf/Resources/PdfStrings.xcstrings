@@ -210,6 +210,17 @@
         }
       }
     },
+    "\"{0}\" is too large.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{0}\" es demasiado grande."
+          }
+        }
+      }
+    },
     "\"{0}\" isn't a signature field.": {
       "extractionState": "manual",
       "localizations": {
@@ -9226,6 +9237,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comprobación de eliminación: {0}"
+          }
+        }
+      }
+    },
+    "Redaction check: {0} Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobación de eliminación: {0} No se guardó nada."
           }
         }
       }
