@@ -125,26 +125,24 @@ enum StaleTail {
         return nil
     }
 
-    /// Whether the bytes from `from` on hold an object header (a revision, whole or broken, not just junk).
+    /// Whether the bytes from `from` on hold an object header (a revision, whole or broken, not just junk): any "obj" keyword
+    /// standing alone, as MuPDF's repair reads one. Its lexer takes comments for white space and reads signed numbers, so
+    /// "5 0 %note↵obj" and "+5 +0 obj" are objects to it: no look back at the numbers, only at the word ("endobj",
+    /// "objects" aren't one).
     static func holdsObjects(_ data: [UInt8], from: Int) -> Bool {
         var at = from
         while let found = PdfBytes.first(objKey, in: data, from: at) {
-            // "n g obj": white space and digits just before the keyword (the "obj" of "endobj" has none).
-            var i = found
-            var numbers = 0
-            while numbers < 2 && i > from {
-                let spaces = i
-                while i > from && PdfBytes.isWhite(data[i - 1]) { i -= 1 }
-                if i == spaces { break }
-                let digits = i
-                while i > from && data[i - 1] >= 48 && data[i - 1] <= 57 { i -= 1 }
-                if i == digits { break }
-                numbers += 1
-            }
-            if numbers == 2 { return true }
-            at = found + objKey.count
+            let end = found + objKey.count
+            let alone = (found == 0 || !isRegular(data[found - 1])) && (end >= data.count || !isRegular(data[end]))
+            if alone { return true }
+            at = end
         }
         return false
+    }
+
+    /// A byte that is neither white space nor a delimiter: part of a keyword, name or number.
+    private static func isRegular(_ b: UInt8) -> Bool {
+        !PdfBytes.isWhite(b) && !"()<>[]{}/%".utf8.contains(b)
     }
 
     /// Where the bytes the file's signatures cover end: the largest end of any /ByteRange in it, 0 without one.

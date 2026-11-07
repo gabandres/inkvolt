@@ -23,7 +23,11 @@ enum PdfRepair {
         // A password the document needs and wasn't given: read as it is until it is (the session asks for it).
         if doc.needsPassword && doc.authBits(password) == 0 { return Result(data: bytes, repaired: hidden) }
         if !damaged(doc) { return Result(data: bytes, repaired: hidden) }
-        guard let copy = try? doc.write("encrypt=keep"), let check = try? MuDoc.open(copy), !damaged(check) else {
+        // MuPDF's repaired cross-reference runs to the largest object number it found: a few objects numbered in the millions
+        // (300 bytes) were written as 8 million rows, 168 MB. Such a copy is renumbered; a fuller one keeps its numbers.
+        let sparse = doc.objectCount > 2 * doc.loadAllObjects() + 1024
+        guard let copy = try? doc.write(sparse ? "garbage=compact,encrypt=keep" : "encrypt=keep"), let check = try? MuDoc.open(copy),
+              !damaged(check) else {
             return Result(data: bytes, repaired: true)
         }
         return Result(data: copy, repaired: true)

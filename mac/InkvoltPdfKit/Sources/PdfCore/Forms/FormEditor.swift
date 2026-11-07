@@ -424,19 +424,15 @@ public enum FormEditor {
         }
     }
 
-    /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,
-    /// else its first byte that isn't white space, in the bytes as written or (filtered) decoded. One too large to decode
-    /// here, or that can't be read, counts as drawing: it is kept.
+    /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its first
+    /// byte that isn't white space, within its first 64 KB decoded (no further: a face of a few bytes can inflate to
+    /// gigabytes, and many widgets share one). One with only white space there and more after, or that can't be read,
+    /// counts as drawing: it is kept.
     private static func drawsSomething(_ face: PObj?) -> Bool {
-        guard let face, face.isStream, let raw = face.rawStreamData else { return face?.isStream == true }
-        if raw.isEmpty { return false }
-        if face["Filter"] == nil { return visible(raw) }
-        if raw.count > 1 << 16 { return true }
-        guard let decoded = face.streamData else { return true }
-        return visible(decoded)
+        guard let face, face.isStream else { return false }
+        guard let head = face.streamHead(1 << 16) else { return true }
+        return head.more || head.bytes.contains { !PdfBytes.isWhite($0) }
     }
-
-    private static func visible(_ bytes: [UInt8]) -> Bool { bytes.contains { ![32, 10, 13, 9, 12, 0].contains($0) } }
 
     /// Generates the normal appearance of every widget of a text or choice field from its current value. False when a
     /// widget's couldn't be built (no usable /Rect).
@@ -507,14 +503,20 @@ public enum FormEditor {
         if !acro.has("DA") { acro.set("DA", doc.text("/Helv 0 Tf 0 g")) }
     }
 
+    /// The most places a widget is shown on besides its first page, over the whole form (a widget is on one page; one that
+    /// several pages list is shown on each, up to this): pages sharing one /Annots array would make pages × widgets.
+    static let maxExtraPlaces = 10_000
+
     private static func readWidgets(_ doc: MuDoc) throws -> [FormWidget] {
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
         if fields.isEmpty { return [] }
 
         // Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong). A widget listed by
-        // several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared).
+        // several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared), up to
+        // `maxExtraPlaces` places beyond each widget's first page.
         var placesOf: [UInt: [(page: Int, index: Int)]] = [:]
+        var extraPlaces = 0
         let pageCount = try doc.pageCount()
         var tabs: [String?] = []
         var pages: [PObj] = []
@@ -523,6 +525,10 @@ public enum FormEditor {
             pages.append(page)
             tabs.append(page.name("Tabs"))
             for (k, a) in (page.array("Annots")?.elements ?? []).enumerated() where a.isDict && placesOf[a.identity]?.last?.page != i {
+                if placesOf[a.identity] != nil {
+                    if extraPlaces >= maxExtraPlaces { continue }
+                    extraPlaces += 1
+                }
                 placesOf[a.identity, default: []].append((i, k))
             }
         }
@@ -556,19 +562,22 @@ public enum FormEditor {
                 guard let r = w.array("Rect"), r.count >= 4 else { continue }
                 let annotFlags = w.int("F") ?? 0
                 if annotFlags & (annotHidden | annotNoView) != 0 { continue }
-                for (page, index) in placesOf[w.identity] ?? [] {
+                guard let places = placesOf[w.identity] else { continue }
+                let triggers = FormActions.triggersOf(f, w)
+                let onState = onStateOf(w, in: f)
+                for (page, index) in places {
                     let rect = PageBoxes.toPageSpace(pages[page], r.num(0), r.num(1), r.num(2), r.num(3))
                     if rect.isEmpty { continue }
                     let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
                     result.append((FormWidget(
-                        fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onStateOf(w, in: f),
+                        fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onState,
                         multiline: f.flags & ffMultiline != 0, readOnly: f.flags & ffReadOnly != 0 || annotFlags & annotReadOnly != 0,
                         editable: kind == .choice && f.flags & ffCombo != 0 && f.flags & ffEdit != 0,
                         maxLength: maxLen, options: options, value: value, tabOrder: 0,
                         optionLabels: labels == options ? nil : labels, multiSelect: multi,
                         noToggleToOff: kind == .radio && f.flags & ffNoToggleToOff != 0,
                         password: kind == .text && f.flags & ffPassword != 0,
-                        displayValue: display, calculated: calculated.contains(f), signed: signed, triggers: FormActions.triggersOf(f, w),
+                        displayValue: display, calculated: calculated.contains(f), signed: signed, triggers: triggers,
                         annotIndex: index), w.identity, index))
                 }
             }
@@ -578,8 +587,10 @@ public enum FormEditor {
         // order; otherwise (and for /R) the natural reading order: top to bottom, then left to right, rows within a few
         // points counting as one line.
         var ordered: [FormWidget] = []
-        for page in Set(result.map(\.widget.pageIndex)).sorted() {
-            let group = result.enumerated().filter { $0.element.widget.pageIndex == page }
+        // Grouped once (filtering all of them for each page was pages x widgets).
+        let byPage = Dictionary(grouping: result.enumerated(), by: { $0.element.widget.pageIndex })
+        for page in byPage.keys.sorted() {
+            let group = byPage[page] ?? []
             func key(_ x: (widget: FormWidget, annot: UInt, index: Int)) -> [Double] {
                 let annot = Double(x.index)
                 switch tabs[page] {

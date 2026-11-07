@@ -148,13 +148,16 @@ final class MuDoc {
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
 
+    /// Loads every object in use (in C: free numbers are skipped without a look, so a repaired cross-reference that runs to
+    /// the largest number found costs nothing for the numbers between); how many are in use.
+    @discardableResult
+    func loadAllObjects() -> Int { Int(inkv_obj_load_all(ctx, doc)) }
+
     /// A whole new file, written with MuPDF's write options. A repaired document's objects are loaded first: MuPDF's writer
     /// takes the repaired cross-reference for one without object streams, can't read what is compressed in them, and with
     /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
-        if !canAppend {
-            for n in 1..<max(objectCount, 1) { _ = object(n).kind }
-        }
+        if !canAppend { _ = loadAllObjects() }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }

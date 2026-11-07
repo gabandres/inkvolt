@@ -2270,6 +2270,24 @@ int inkv_obj_xref_len(void *vctx, inkv_doc *d) {
     return n;
 }
 
+int inkv_obj_load_all(void *vctx, inkv_doc *d) {
+    fz_context *ctx = vctx;
+    int used = 0;
+    fz_try(ctx) {
+        pdf_document *pdf = inkv_pdf(ctx, d);
+        int n = pdf_xref_len(ctx, pdf);
+        for (int i = 1; i < n; i++) {
+            pdf_xref_entry *e = pdf_get_xref_entry_no_null(ctx, pdf, i);
+            if (e->type != 'n' && e->type != 'o') continue;
+            used++;
+            fz_try(ctx) pdf_cache_object(ctx, pdf, i);
+            fz_catch(ctx) fz_ignore_error(ctx);
+        }
+    }
+    fz_catch(ctx) fz_ignore_error(ctx);
+    return used;
+}
+
 uint8_t *inkv_obj_stream(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t *length, char *err) {
     fz_context *ctx = vctx;
     fz_buffer *buf = NULL;
@@ -2294,6 +2312,40 @@ uint8_t *inkv_obj_stream(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t *
         return NULL;
     }
     return copy;
+}
+
+uint8_t *inkv_obj_stream_head(void *vctx, inkv_doc *d, inkv_obj *o, size_t max, size_t *length, int *more, char *err) {
+    fz_context *ctx = vctx;
+    fz_stream *stm = NULL;
+    uint8_t *head = NULL;
+    fz_var(stm);
+    fz_var(head);
+    *length = 0;
+    *more = 0;
+    (void)d;
+    fz_try(ctx) {
+        head = malloc(max ? max : 1);
+        if (!head) fz_throw(ctx, FZ_ERROR_SYSTEM, "Not enough memory for the stream.");
+        stm = pdf_open_stream(ctx, OBJ(o));
+        size_t n = 0;
+        while (n < max) {
+            size_t got = fz_read(ctx, stm, head + n, max - n);
+            if (got == 0) break;
+            n += got;
+        }
+        if (n == max) {
+            unsigned char probe;
+            *more = fz_read(ctx, stm, &probe, 1) != 0;
+        }
+        *length = n;
+    }
+    fz_always(ctx) fz_drop_stream(ctx, stm);
+    fz_catch(ctx) {
+        free(head);
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return head;
 }
 
 /// The bytes as a stream stores them: deflated (zlib) when asked. Throws.
