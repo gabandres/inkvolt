@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <float.h>
 #include <math.h>
 #include <stdatomic.h>
 #include <mupdf/fitz.h>
@@ -59,16 +60,73 @@ static void inkv_stop(fz_context *ctx, inkv_cookie *c, int why, int code, const 
     fz_throw(ctx, code, "%s", message);
 }
 
-/// Stops the call (throws `code`, the cookie aborted) once it was cancelled or its time is up; nothing otherwise.
-static void inkv_watch(fz_context *ctx, inkv_cookie *c, int code) {
+/// Stops the call (throws `code`, the cookie aborted) once it was cancelled or, the thread's CPU time being `now`, its
+/// time is up; nothing otherwise.
+static void inkv_watch_at(fz_context *ctx, inkv_cookie *c, double now, int code) {
     if (!c) return;
     if (!atomic_load(&c->stopped)) {
         if (atomic_load(&c->cancelled)) atomic_store(&c->stopped, INKV_STOP_CANCELLED);
-        else if (c->deadline > 0 && inkv_cpu() > c->deadline) atomic_store(&c->stopped, INKV_STOP_SLOW);
+        else if (c->deadline > 0 && now > c->deadline) atomic_store(&c->stopped, INKV_STOP_SLOW);
         else return;
     }
     inkv_set_abort(c);
     fz_throw(ctx, code, "The page's reading was stopped.");
+}
+
+/// inkv_watch_at, the clock read only when the time can be up.
+static void inkv_watch(fz_context *ctx, inkv_cookie *c, int code) {
+    if (c) inkv_watch_at(ctx, c, c->deadline > 0 ? inkv_cpu() : 0, code);
+}
+
+/// Stops the call at once if it was cancelled (or already stopped); doesn't read the clock.
+static void inkv_watch_flags(fz_context *ctx, inkv_cookie *c, int code) {
+    if (c && (atomic_load(&c->stopped) || atomic_load(&c->cancelled))) inkv_watch_at(ctx, c, 0, code);
+}
+
+// ---- The largest allocation while a call reads ----
+//
+// MuPDF decodes an inline picture (BI … ID … EI) while it parses the content, all of its pixels at once, before any
+// device sees it: the guard's picture check comes too late, and its width and height are anything the content says
+// (100,000 x 100,000 is 10 GB of pixels, written while its filters inflate them; a JPEG 2000 picture is decoded as it
+// is read too). So while a call with a picture limit reads a page's content (its first part, not the drawing of what
+// was read, whose pixels its caller sized), one allocation may be at most 4 bytes for each pixel allowed (the largest
+// picture allowed, in CMYK or with alpha): a larger one fails, which MuPDF reports as out of memory, and the call stops
+// as for a picture too large. The time an allowed picture takes to decode is bounded by its size, as a picture's is.
+
+//
+// Once such a call is stopped (its time, Cancel, closing), every allocation fails while it reads: MuPDF's reads turn
+// every error but "not yet" into the end of the stream, and its interpreter swallows "not yet" for each tile of a
+// pattern it draws by itself, so a pattern with no step at all (2^62 tiles, its own count not a number) went on for
+// ever after the stop, a refused read a tile. Out of memory is FZ_ERROR_SYSTEM in MuPDF 1.25, raised outside the reads
+// (opening each tile's stream) and passed up by its interpreter and its loading, which repair nothing for it.
+
+typedef struct {
+    inkv_cookie *active; // the call reading a page's content now; NULL: none
+} inkv_alloc_state;
+
+static int inkv_alloc_refuses(inkv_alloc_state *a, size_t size) {
+    inkv_cookie *c = a ? a->active : NULL;
+    if (!c) return 0;
+    if (atomic_load(&c->stopped) || atomic_load(&c->cancelled)) return 1;
+    if (c->max_pixels <= 0 || (double)size <= 4 * c->max_pixels) return 0;
+    int none = 0;
+    atomic_compare_exchange_strong(&c->stopped, &none, INKV_STOP_LARGE);
+    inkv_set_abort(c);
+    return 1;
+}
+
+static void *inkv_malloc(void *user, size_t size) { return inkv_alloc_refuses(user, size) ? NULL : malloc(size); }
+static void *inkv_realloc(void *user, void *old, size_t size) {
+    return inkv_alloc_refuses(user, size) ? NULL : realloc(old, size);
+}
+static void inkv_free_mem(void *user, void *p) {
+    (void)user;
+    free(p);
+}
+
+/// The context's allocation state, if it was made by inkv_new_context.
+static inkv_alloc_state *inkv_alloc_of(fz_context *ctx) {
+    return ctx && ctx->alloc.malloc == inkv_malloc ? ctx->alloc.user : NULL;
 }
 
 /// The bytes a document reads: in place in memory, or from a file. While a call reads (`active`), at most `chunk`
@@ -82,12 +140,19 @@ typedef struct {
     int64_t next_at;           // where the last chunk ended: reading on from there keeps the chunk's size
     inkv_cookie *active;
     size_t chunk;
-    double last;               // the reading thread's CPU time when it was handed the last chunk
+    size_t unseen;             // bytes handed over since the clock was last read
+    int slow;                  // the bytes before the last reading of the clock took MuPDF long
+    double last;               // the reading thread's CPU time when the clock was last read
     double delay;              // test hook: seconds each read waits while a call reads (a slow share)
+    long long clock_reads;     // test hook: how often the clock was read
     unsigned char buffer[16384];
 } inkv_source;
 
 #define INKV_CHUNK_MAX 16384
+
+/// Bytes handed over between two readings of the clock (or one chunk, when larger): two Flates make at most a megabyte
+/// of each byte, so a quarter of a gigabyte inflates unseen at most, some tenths of a second.
+#define INKV_UNSEEN 256
 
 static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     inkv_source *s = stm->state;
@@ -97,16 +162,29 @@ static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     size_t left = (size_t)(s->length - s->pos);
     size_t n = s->fd >= 0 && left > INKV_CHUNK_MAX ? INKV_CHUNK_MAX : left;
     if (s->active) {
-        inkv_watch(ctx, s->active, FZ_ERROR_TRYLATER);
+        // MuPDF's "not yet": its reads and loading pass it up untouched (any other error is the end of the stream to
+        // them, and a reason to repair the file). Its interpreter swallows it for each pattern tile it draws by itself;
+        // once a call is stopped, its allocations fail too (inkv_alloc_refuses), which it passes up.
+        int code = FZ_ERROR_TRYLATER;
+        inkv_watch_flags(ctx, s->active, code);
         // Reading somewhere else (another object, another stream) starts small again: chunks grown on the page's
-        // quick objects would hand MuPDF a whole 7 KB bomb at once. A chunk that took MuPDF long to use up (its own
-        // time since it was handed over: a slow disk or a busy machine doesn't count) may have inflated a lot: the
-        // next ones are smaller, so the time is looked at often.
-        double spent = inkv_cpu() - s->last;
+        // quick objects would hand MuPDF a whole 7 KB bomb at once. The clock is read once INKV_UNSEEN bytes went by
+        // (a kernel call: a page of small objects read it hundreds of thousands of times, two per chunk): bytes that
+        // took MuPDF long to use up (its own time: a slow disk or a busy machine doesn't count) may have inflated a
+        // lot, so the next chunks are smaller, and grow only once the clock says they go quickly again.
         if (s->pos != s->next_at) s->chunk = 16;
-        else if (spent > 0.004) s->chunk = s->chunk > 16 ? s->chunk / 16 : 1;
-        else if (s->chunk < INKV_CHUNK_MAX) s->chunk *= 2;
+        else if (!s->slow && s->chunk < INKV_CHUNK_MAX) s->chunk *= 2;
+        if (s->unseen >= INKV_UNSEEN) {
+            double now = inkv_cpu();
+            s->clock_reads++;
+            inkv_watch_at(ctx, s->active, now, code);
+            s->slow = now - s->last > 0.004;
+            if (s->slow) s->chunk = s->chunk > 16 ? s->chunk / 16 : 1;
+            s->last = now;
+            s->unseen = 0;
+        }
         if (n > s->chunk) n = s->chunk;
+        s->unseen += n;
         if (s->delay > 0) usleep((useconds_t)(s->delay * 1e6));
     }
     if (s->fd >= 0) {
@@ -124,7 +202,6 @@ static int inkv_source_next(fz_context *ctx, fz_stream *stm, size_t max) {
     s->pos += (int64_t)n;
     s->next_at = s->pos;
     stm->pos = s->pos;
-    if (s->active) s->last = inkv_cpu();
     return *stm->rp++;
 }
 
@@ -175,6 +252,7 @@ typedef struct {
     inkv_cookie *cookie;
     unsigned calls;      // the clock is read every 64 calls (72,000 paths a sheet read it 150,000 times: 4% of Find)
     int drawing;
+    int skipped;         // degenerate patterns' tiles begun and not ended, drawn as nothing (guard_tiles)
     fz_matrix transform; // the draw device's own, from what it is handed to its pixels
     fz_irect pixels;     // the draw device's pixels
 } inkv_guard;
@@ -211,26 +289,35 @@ static void guard_picture(fz_context *ctx, fz_device *dev, fz_image *image) {
             inkv_stop(ctx, c, INKV_STOP_LARGE, FZ_ERROR_ABORT, "A picture on the page is too large.");
 }
 
-/// Refuses a pattern whose tiles would take the draw device longer than the part's time left: it draws every tile
-/// inside one call (its end of the tile), which nothing stops. The tiles are counted over what its pixels show of the
-/// area, as the draw device counts them, each the size of the pattern's cell (a cell larger than its step overlaps).
-static void guard_tiles(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm) {
+/// In front of a draw device, whether a pattern is drawn: not when it is degenerate (it shows nothing), refused (throws)
+/// when its tiles would take the draw device longer than the part's time left: it draws every tile inside one call
+/// (its end of the tile), which nothing stops. The tiles are counted over what its pixels show of the area, as the draw
+/// device counts them, each the size of the pattern's cell (a cell larger than its step overlaps). 1: drawn as nothing.
+static int guard_tiles(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm) {
     inkv_guard *g = (inkv_guard *)dev;
     inkv_cookie *c = g->cookie;
     inkv_watch(ctx, c, FZ_ERROR_ABORT);
-    if (!g->drawing || c->deadline <= 0) return;
+    if (!g->drawing) return 0;
     fz_matrix m = fz_concat(ctm, g->transform); // pattern space to pixels
+    // A cell of no area in pixels (a scale of 0, found in harmless files, or one MuPDF can't invert either: it then
+    // counts its tiles from the matrix itself) or a step of 0 or not a number: nothing anyone can see, and the draw
+    // device's count of its tiles isn't a number. Drawn as nothing, as a zero-area fill is.
+    double det = (double)m.a * m.d - (double)m.b * m.c;
+    if (!(fabs(det) > FLT_EPSILON) || !isfinite(det)) return 1;
+    if (!(fabs((double)xstep) > 0) || !(fabs((double)ystep) > 0) || !isfinite(xstep) || !isfinite(ystep)) return 1;
+    if (c->deadline <= 0) return 0;
     fz_rect shown = fz_intersect_rect(area, fz_transform_rect(fz_rect_from_irect(g->pixels), fz_invert_matrix(m)));
-    if (fz_is_empty_rect(shown)) return;
+    if (fz_is_empty_rect(shown)) return 0;
     double cell_w = fmax(view.x1 - view.x0, 0), cell_h = fmax(view.y1 - view.y0, 0);
     double across = (shown.x1 - shown.x0 + cell_w) / fabs((double)xstep) + 1;
     double down = (shown.y1 - shown.y0 + cell_h) / fabs((double)ystep) + 1;
     fz_rect cell = fz_transform_rect(view, m);
     double cell_pixels = fmax(cell.x1 - cell.x0, 1) * fmax(cell.y1 - cell.y0, 1);
     double cost = across * down * (INKV_TILE_SECONDS + cell_pixels * INKV_TILE_PIXEL_SECONDS);
-    // A step of 0 (or not a number) gives no finite cost: refused too.
-    if (!(cost <= c->deadline - inkv_cpu()))
+    if (isnan(cost)) return 1; // an area or a cell that isn't a number: nothing to see either
+    if (!(cost <= c->deadline - inkv_cpu())) // too many to count is too many to draw
         inkv_stop(ctx, c, INKV_STOP_SLOW, FZ_ERROR_ABORT, "A pattern on the page has too many tiles to draw in time.");
+    return 0;
 }
 
 static void guard_fill_path(fz_context *ctx, fz_device *dev, const fz_path *path, int even_odd, fz_matrix ctm, fz_colorspace *cs,
@@ -324,11 +411,19 @@ static void guard_begin_group(fz_context *ctx, fz_device *dev, fz_rect area, fz_
 static void guard_end_group(fz_context *ctx, fz_device *dev) { fz_end_group(ctx, TARGET(dev)); }
 
 static int guard_begin_tile(fz_context *ctx, fz_device *dev, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id) {
-    guard_tiles(ctx, dev, area, view, xstep, ystep, ctm);
+    if (guard_tiles(ctx, dev, area, view, xstep, ystep, ctm)) {
+        // Told it is cached, the interpreter and a display list skip the tile's content; its end isn't the target's.
+        ((inkv_guard *)dev)->skipped++;
+        return 1;
+    }
     return fz_begin_tile_id(ctx, TARGET(dev), area, view, xstep, ystep, ctm, id);
 }
 
-static void guard_end_tile(fz_context *ctx, fz_device *dev) { fz_end_tile(ctx, TARGET(dev)); }
+static void guard_end_tile(fz_context *ctx, fz_device *dev) {
+    inkv_guard *g = (inkv_guard *)dev;
+    if (g->skipped > 0) g->skipped--;
+    else fz_end_tile(ctx, TARGET(dev));
+}
 
 static void guard_render_flags(fz_context *ctx, fz_device *dev, int set, int clear) { fz_render_flags(ctx, TARGET(dev), set, clear); }
 
@@ -400,6 +495,31 @@ static fz_device *inkv_new_draw_guard(fz_context *ctx, fz_device *draw, inkv_coo
     return &g->super;
 }
 
+/// An open document and the pages it keeps loaded: at most `capacity`, the least recently used freed first (with
+/// their display lists), so memory stays bounded however far a long document is scrolled.
+struct inkv_doc {
+    fz_document *doc;
+    inkv_source *src; // the stream it reads, NULL for a document made here
+    int count;
+    int capacity;
+    int loaded;
+    fz_page **pages;
+    fz_display_list **lists;
+    unsigned *used;
+    unsigned clock;
+    unsigned char *checked; // by object number: objects whose streams, and all they lead to, a walk found fine
+    int checked_bits;
+    long long walked;       // test hook: objects the walks looked at
+};
+
+/// The walks' verdicts no longer hold: the document's objects changed, or may have been renumbered.
+static void inkv_forget_checks(fz_context *ctx, inkv_doc *d) {
+    if (!d) return;
+    fz_free(ctx, d->checked);
+    d->checked = NULL;
+    d->checked_bits = 0;
+}
+
 // ---- A page's streams, before it is read ----
 
 /// Filters that make more bytes than they read; two in a row make at most a megabyte of each byte (Flate's 1,032 to 1,
@@ -435,16 +555,32 @@ static int inkv_away(fz_context *ctx, pdf_obj *key) {
     return 0;
 }
 
+/// Whether a walk's verdicts can be kept for the document's next walks: it was opened (not made here) and hasn't been
+/// edited, which makes MuPDF start an incremental section that stays until the document is written again.
+static int inkv_checks_kept(fz_context *ctx, inkv_doc *d) {
+    pdf_document *pdf = d->src ? pdf_specifics(ctx, d->doc) : NULL;
+    return pdf && pdf->num_incremental_sections == 0 && !pdf->disallow_new_increments;
+}
+
+static int inkv_bit(const unsigned char *bits, int count, int num) {
+    return num >= 0 && num < count && (bits[num >> 3] & (1 << (num & 7)));
+}
+
 /// Refuses the page (INKV_STOP_FILTERS) when a stream it reaches (its content, forms, patterns, pictures, fonts,
 /// shadings, its annotations' appearances) is decompressed more than twice in a row: the inner filters' bytes never
 /// reach the document's stream, so nothing would bound them. Each object once; the call's time and Cancel looked at as
-/// it goes. Throws.
-static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
+/// it goes. An object a walk went through to its end, with all it leads to, is fine for the document's later walks
+/// (its other pages, the same page read again: Find's text, then a drawing, then a list), so each is resolved once a
+/// document. Throws.
+static void inkv_check_streams(fz_context *ctx, inkv_doc *d, fz_page *page, inkv_cookie *c) {
     pdf_page *pp = c ? pdf_page_from_fz_page(ctx, page) : NULL;
     if (!pp) return;
+    int keep = inkv_checks_kept(ctx, d);
+    if (!keep) inkv_forget_checks(ctx, d);
+    if (pdf_is_indirect(ctx, pp->obj) && inkv_bit(d->checked, d->checked_bits, pdf_to_num(ctx, pp->obj))) return;
     pdf_obj **stack = NULL, *at = NULL;
     unsigned char *seen = NULL;
-    int top = 0, capacity = 64, bits = 0;
+    int top = 0, capacity = 64, bits = 0, damaged = 0;
     unsigned steps = 0;
     fz_var(stack);
     fz_var(at);
@@ -452,6 +588,7 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
     fz_var(top);
     fz_var(capacity);
     fz_var(bits);
+    fz_var(damaged);
     fz_try(ctx) {
         pdf_obj *root = pdf_resolve_indirect(ctx, pp->obj);
         stack = fz_malloc_array(ctx, capacity, pdf_obj *);
@@ -461,9 +598,9 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
             if ((++steps & 255) == 0) inkv_watch(ctx, c, FZ_ERROR_ABORT);
             fz_try(ctx) {
                 pdf_obj *o = at;
-                int visit = 1;
+                int visit = 1, num = 0;
                 if (pdf_is_indirect(ctx, at)) {
-                    int num = pdf_to_num(ctx, at);
+                    num = pdf_to_num(ctx, at);
                     if (num >= bits) {
                         // Objects an edit or a repair added are past the length the walk started with.
                         int more = num + 1 > 2 * bits ? num + 1 : 2 * bits;
@@ -472,9 +609,10 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
                         memset(seen + had, 0, need - had);
                         bits = more;
                     }
-                    if (num <= 0 || (seen[num >> 3] & (1 << (num & 7)))) visit = 0;
+                    if (num <= 0 || (seen[num >> 3] & (1 << (num & 7))) || inkv_bit(d->checked, d->checked_bits, num)) visit = 0;
                     else {
                         seen[num >> 3] |= (unsigned char)(1 << (num & 7));
+                        d->walked++;
                         if (pdf_is_stream(ctx, at) && inkv_inflates(ctx, pdf_dict_get(ctx, at, PDF_NAME(Filter))) > INKV_MAX_INFLATING)
                             inkv_stop(ctx, c, INKV_STOP_FILTERS, FZ_ERROR_ABORT, "A stream on the page is decompressed too many times.");
                         o = pdf_resolve_indirect(ctx, at);
@@ -482,9 +620,14 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
                 }
                 if (visit && pdf_is_dict(ctx, o)) {
                     pdf_obj *type = pdf_dict_get(ctx, o, PDF_NAME(Type));
-                    if (o != root && (pdf_name_eq(ctx, type, PDF_NAME(Page)) || pdf_name_eq(ctx, type, PDF_NAME(Pages)))) visit = 0;
+                    if (o != root && (pdf_name_eq(ctx, type, PDF_NAME(Page)) || pdf_name_eq(ctx, type, PDF_NAME(Pages)))) {
+                        // Another page: not walked from here, so not found fine either.
+                        visit = 0;
+                        if (num > 0) seen[num >> 3] &= (unsigned char)~(1 << (num & 7));
+                    }
                 }
-                int dict = visit && pdf_is_dict(ctx, o), n = !visit ? 0 : dict ? pdf_dict_len(ctx, o) : pdf_is_array(ctx, o) ? pdf_array_len(ctx, o) : 0;
+                int dict = visit && pdf_is_dict(ctx, o);
+                int n = !visit ? 0 : dict ? pdf_dict_len(ctx, o) : pdf_is_array(ctx, o) ? pdf_array_len(ctx, o) : 0;
                 for (int i = 0; i < n; i++) {
                     if (dict && inkv_away(ctx, pdf_dict_get_key(ctx, o, i))) continue;
                     pdf_obj *v = dict ? pdf_dict_get_val(ctx, o, i) : pdf_array_get(ctx, o, i);
@@ -502,11 +645,23 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
                 at = NULL;
             }
             fz_catch(ctx) {
-                // A damaged object is MuPDF's to report when it draws; the walk goes on. A stop doesn't.
+                // A damaged object is MuPDF's to report when it draws; the walk goes on (and keeps nothing: a repair
+                // may read the object later). A stop doesn't.
                 if (atomic_load(&c->stopped) || fz_caught(ctx) == FZ_ERROR_TRYLATER || fz_caught(ctx) == FZ_ERROR_SYSTEM)
                     fz_rethrow(ctx);
                 fz_ignore_error(ctx);
+                damaged = 1;
             }
+        }
+        if (keep && !damaged) {
+            // Every object walked, and all it leads to, was found fine.
+            if (bits > d->checked_bits) {
+                size_t had = d->checked_bits ? (size_t)d->checked_bits / 8 + 1 : 0, need = (size_t)bits / 8 + 1;
+                d->checked = fz_realloc(ctx, d->checked, need);
+                memset(d->checked + had, 0, need - had);
+                d->checked_bits = bits;
+            }
+            for (int i = 0; i < bits / 8 + 1; i++) d->checked[i] |= seen[i];
         }
     }
     fz_always(ctx) {
@@ -517,22 +672,11 @@ static void inkv_check_streams(fz_context *ctx, fz_page *page, inkv_cookie *c) {
     fz_catch(ctx) fz_rethrow(ctx);
 }
 
-/// An open document and the pages it keeps loaded: at most `capacity`, the least recently used freed first (with
-/// their display lists), so memory stays bounded however far a long document is scrolled.
-struct inkv_doc {
-    fz_document *doc;
-    inkv_source *src; // the stream it reads, NULL for a document made here
-    int count;
-    int capacity;
-    int loaded;
-    fz_page **pages;
-    fz_display_list **lists;
-    unsigned *used;
-    unsigned clock;
-};
-
 /// Starts a call that reads a page's content with `c` (NULL: unbounded): its first part's time from now.
-static void inkv_begin(inkv_doc *d, inkv_cookie *c) {
+static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) {
+    double now = c || d->src ? inkv_cpu() : 0;
+    inkv_alloc_state *a = inkv_alloc_of(ctx);
+    if (a) a->active = c;
     if (c) {
         atomic_store(&c->stopped, atomic_load(&c->cancelled) ? INKV_STOP_CANCELLED : 0);
         // A cookie used again starts unaborted, unless it was cancelled: a cancel racing this clear sets it again
@@ -543,21 +687,27 @@ static void inkv_begin(inkv_doc *d, inkv_cookie *c) {
         } else {
             inkv_set_abort(c);
         }
-        c->deadline = c->seconds > 0 ? inkv_cpu() + c->seconds : 0;
+        c->deadline = c->seconds > 0 ? now + c->seconds : 0;
     }
     if (d->src) {
         d->src->active = c;
         d->src->chunk = 16;
-        d->src->last = inkv_cpu();
+        d->src->unseen = 0;
+        d->src->last = now;
     }
 }
 
-/// The call's next part (drawing what was read) gets a budget of its own.
-static void inkv_next_part(inkv_cookie *c) {
+/// The call's next part (drawing what was read) gets a budget of its own; its allocations (the caller's pixels, which
+/// its caller sized) aren't the page's.
+static void inkv_next_part(fz_context *ctx, inkv_cookie *c) {
+    inkv_alloc_state *a = inkv_alloc_of(ctx);
+    if (a) a->active = NULL;
     if (c && c->seconds > 0) c->deadline = inkv_cpu() + c->seconds;
 }
 
-static void inkv_end(inkv_doc *d) {
+static void inkv_end(fz_context *ctx, inkv_doc *d) {
+    inkv_alloc_state *a = inkv_alloc_of(ctx);
+    if (a) a->active = NULL;
     if (d->src) {
         d->src->active = NULL;
         d->src->chunk = INKV_CHUNK_MAX;
@@ -589,8 +739,14 @@ static char *inkv_strdup(const char *s) {
 }
 
 void *inkv_new_context(size_t store_bytes) {
-    fz_context *ctx = fz_new_context(NULL, NULL, store_bytes ? store_bytes : FZ_STORE_DEFAULT);
-    if (!ctx) return NULL;
+    inkv_alloc_state *state = calloc(1, sizeof(inkv_alloc_state));
+    if (!state) return NULL;
+    fz_alloc_context alloc = { state, inkv_malloc, inkv_realloc, inkv_free_mem };
+    fz_context *ctx = fz_new_context(&alloc, NULL, store_bytes ? store_bytes : FZ_STORE_DEFAULT);
+    if (!ctx) {
+        free(state);
+        return NULL;
+    }
     // Errors reach Swift through the shim's messages; MuPDF's own printing to stderr (errors, repair warnings) is off.
     fz_set_error_callback(ctx, NULL, NULL);
     fz_set_warning_callback(ctx, NULL, NULL);
@@ -598,12 +754,19 @@ void *inkv_new_context(size_t store_bytes) {
     fz_catch(ctx) {
         fz_ignore_error(ctx);
         fz_drop_context(ctx);
+        free(state);
         return NULL;
     }
     return ctx;
 }
 
-void inkv_drop_context(void *ctx) { fz_drop_context((fz_context *)ctx); }
+void inkv_drop_context(void *vctx) {
+    fz_context *ctx = vctx;
+    if (!ctx) return;
+    inkv_alloc_state *state = inkv_alloc_of(ctx);
+    fz_drop_context(ctx); // allocates and frees through the state until it is gone
+    free(state);
+}
 
 /// The page count and the page cache, once the document is open. Throws.
 static void inkv_setup(fz_context *ctx, inkv_doc *d, int cache) {
@@ -651,13 +814,13 @@ static fz_page *inkv_page(fz_context *ctx, inkv_doc *d, int i) {
 
 /// A display list of the page (its own content only, or with its annotations and widgets), read under the cookie's
 /// bounds through a guard. A list whose reading was stopped is dropped, never kept: it throws. Throws.
-static fz_display_list *inkv_new_list(fz_context *ctx, fz_page *page, int contents_only, inkv_cookie *c) {
+static fz_display_list *inkv_new_list(fz_context *ctx, inkv_doc *d, fz_page *page, int contents_only, inkv_cookie *c) {
     fz_display_list *list = fz_new_display_list(ctx, fz_bound_page(ctx, page));
     fz_device *dev = NULL, *guard = NULL;
     fz_var(dev);
     fz_var(guard);
     fz_try(ctx) {
-        inkv_check_streams(ctx, page, c);
+        inkv_check_streams(ctx, d, page, c);
         dev = fz_new_list_device(ctx, list);
         guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
         fz_device *run = guard ? guard : dev;
@@ -682,7 +845,7 @@ static fz_display_list *inkv_new_list(fz_context *ctx, fz_page *page, int conten
 /// The page's display list (made once while the page stays loaded, unless its reading was stopped). Throws.
 static fz_display_list *inkv_list(fz_context *ctx, inkv_doc *d, int i, inkv_cookie *c) {
     fz_page *page = inkv_page(ctx, d, i);
-    if (!d->lists[i]) d->lists[i] = inkv_new_list(ctx, page, 0, c);
+    if (!d->lists[i]) d->lists[i] = inkv_new_list(ctx, d, page, 0, c);
     return d->lists[i];
 }
 
@@ -776,6 +939,7 @@ void inkv_drop_doc(void *vctx, inkv_doc *d) {
     fz_free(ctx, d->pages);
     fz_free(ctx, d->lists);
     fz_free(ctx, d->used);
+    fz_free(ctx, d->checked);
     fz_drop_document(ctx, d->doc);
     fz_free(ctx, d);
 }
@@ -877,6 +1041,11 @@ void inkv_test_slow_reads(inkv_doc *d, double seconds) {
     if (d && d->src) d->src->delay = seconds > 0 ? seconds : 0;
 }
 
+void inkv_test_counts(inkv_doc *d, long long *walked, long long *clock_reads) {
+    *walked = d ? d->walked : 0;
+    *clock_reads = d && d->src ? d->src->clock_reads : 0;
+}
+
 static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, float scale, float x0, float y0, float x1, float y1,
                       inkv_cookie *cookie, uint8_t **pixels, int *width, int *height, char *err) {
     fz_context *ctx = vctx;
@@ -890,12 +1059,12 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
     fz_var(own);
     fz_var(aborted);
     *pixels = NULL;
-    inkv_begin(d, cookie);
+    inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         // The page's own content only (no annotations): a list of its own, not the cached one.
-        fz_display_list *list = contents_only ? (own = inkv_new_list(ctx, inkv_page(ctx, d, index), 1, cookie))
+        fz_display_list *list = contents_only ? (own = inkv_new_list(ctx, d, inkv_page(ctx, d, index), 1, cookie))
                                               : inkv_list(ctx, d, index, cookie);
-        inkv_next_part(cookie);
+        inkv_next_part(ctx, cookie);
         fz_matrix ctm = fz_scale(scale, scale);
         fz_rect area = fz_make_rect(x0, y0, x1, y1);
         fz_irect box = fz_round_rect(fz_transform_rect(area, ctm));
@@ -925,7 +1094,7 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
         fz_drop_display_list(ctx, own);
-        inkv_end(d);
+        inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         if (inkv_aborted(cookie)) {
@@ -955,10 +1124,10 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
     fz_var(pix);
     fz_var(dev);
     fz_var(guard);
-    inkv_begin(d, cookie);
+    inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_display_list *list = inkv_list(ctx, d, index, cookie);
-        inkv_next_part(cookie);
+        inkv_next_part(ctx, cookie);
         // fz_new_pixmap_from_display_list, with the cookie: no file is written for a drawing that was stopped.
         fz_matrix ctm = fz_scale(scale, scale);
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(fz_transform_rect(fz_bound_display_list(ctx, list), ctm)), NULL, 0);
@@ -976,7 +1145,7 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
         fz_drop_device(ctx, guard);
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
-        inkv_end(d);
+        inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         if (inkv_halted(cookie)) {
@@ -991,8 +1160,8 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
 
 /// Runs the page (its own content, or with its annotations and widgets) into a text device, under the cookie's
 /// bounds; throws when the reading was stopped. Throws.
-static void inkv_run_text(fz_context *ctx, fz_page *page, int annotations, fz_device *dev, inkv_cookie *c) {
-    inkv_check_streams(ctx, page, c);
+static void inkv_run_text(fz_context *ctx, inkv_doc *d, fz_page *page, int annotations, fz_device *dev, inkv_cookie *c) {
+    inkv_check_streams(ctx, d, page, c);
     fz_device *guard = c ? inkv_new_guard(ctx, dev, c) : NULL;
     fz_try(ctx) {
         fz_device *run = guard ? guard : dev;
@@ -1021,13 +1190,13 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
     *chars = NULL;
     *line_count = 0;
     *char_count = 0;
-    inkv_begin(d, cookie);
+    inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_page *page = inkv_page(ctx, d, index);
         fz_stext_options options = { 0 };
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        inkv_run_text(ctx, page, annotations, dev, cookie);
+        inkv_run_text(ctx, d, page, annotations, dev, cookie);
         fz_close_device(ctx, dev);
         int nl = 0, nc = 0;
         for (fz_stext_block *b = text->first_block; b; b = b->next) {
@@ -1069,7 +1238,7 @@ static int page_chars(void *vctx, inkv_doc *d, int index, int annotations, inkv_
     fz_always(ctx) {
         fz_drop_device(ctx, dev);
         fz_drop_stext_page(ctx, text);
-        inkv_end(d);
+        inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         free(ls);
@@ -1200,6 +1369,7 @@ int inkv_outline(void *vctx, inkv_doc *d, inkv_outline_item **items, int *count,
 
 int inkv_write_pdf(void *vctx, inkv_doc *d, const char *options, uint8_t **out, size_t *length, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_buffer *buffer = NULL;
     fz_output *output = NULL;
     fz_var(buffer);
@@ -1289,6 +1459,7 @@ int inkv_encrypt_info(void *vctx, inkv_doc *d, int info[4], char filter[32], cha
 
 int inkv_pdf_rotate(void *vctx, inkv_doc *d, const int *pages, int count, int degrees, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_try(ctx) {
         pdf_document *pdf = inkv_pdf(ctx, d);
         for (int i = 0; i < count; i++) {
@@ -1308,6 +1479,7 @@ static int inkv_int_desc(const void *a, const void *b) { return *(const int *)b 
 
 int inkv_pdf_delete_pages(void *vctx, inkv_doc *d, const int *pages, int count, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     int *sorted = NULL;
     fz_var(sorted);
     fz_try(ctx) {
@@ -1354,6 +1526,7 @@ int inkv_can_append(void *vctx, inkv_doc *d) {
 int inkv_append_pdf(void *vctx, inkv_doc *d, const uint8_t *original, size_t original_length, uint8_t **out, size_t *length,
                     char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_buffer *buffer = NULL;
     fz_output *output = NULL;
     fz_var(buffer);
@@ -1743,6 +1916,7 @@ inkv_obj *inkv_obj_new(void *vctx, inkv_doc *d, int kind, double number, const c
 
 inkv_obj *inkv_obj_add(void *vctx, inkv_doc *d, inkv_obj *o, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     pdf_obj *ref = NULL;
     fz_var(ref);
     fz_try(ctx) ref = pdf_add_object(ctx, inkv_pdf(ctx, d), OBJ(o));
@@ -1819,6 +1993,7 @@ static fz_buffer *inkv_stream_buffer(fz_context *ctx, const uint8_t *bytes, size
 inkv_obj *inkv_obj_add_stream(void *vctx, inkv_doc *d, inkv_obj *dict, const uint8_t *bytes, size_t length, int deflate,
                               char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_buffer *buf = NULL;
     pdf_obj *made = NULL, *ref = NULL;
     fz_var(buf);
@@ -1848,6 +2023,7 @@ inkv_obj *inkv_obj_add_stream(void *vctx, inkv_doc *d, inkv_obj *dict, const uin
 
 int inkv_obj_set_stream(void *vctx, inkv_doc *d, inkv_obj *o, const uint8_t *bytes, size_t length, int deflate, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_buffer *buf = NULL;
     fz_var(buf);
     fz_try(ctx) {
@@ -1868,6 +2044,7 @@ int inkv_obj_set_stream(void *vctx, inkv_doc *d, inkv_obj *o, const uint8_t *byt
 
 int inkv_page_insert(void *vctx, inkv_doc *d, int at, inkv_obj *page, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_try(ctx) pdf_insert_page(ctx, inkv_pdf(ctx, d), at, OBJ(page));
     fz_catch(ctx) {
         inkv_error(ctx, err);
@@ -1996,16 +2173,16 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
     fz_var(dev);
     fz_var(seen);
     memset(out, 0, sizeof(*out));
-    inkv_begin(d, cookie);
+    inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_page *page = inkv_page(ctx, d, index);
         fz_stext_options options = { 0 };
         options.flags = FZ_STEXT_COLLECT_VECTORS | (images ? FZ_STEXT_PRESERVE_IMAGES : 0);
         text = fz_new_stext_page(ctx, fz_bound_page(ctx, page));
         dev = fz_new_stext_device(ctx, text, &options);
-        inkv_run_text(ctx, page, 1, dev, cookie);
+        inkv_run_text(ctx, d, page, 1, dev, cookie);
         fz_close_device(ctx, dev);
-        inkv_next_part(cookie); // the pictures' encoding below
+        inkv_next_part(ctx, cookie); // the pictures' encoding below
         int nl = 0, nc = 0, ni = 0, nv = 0;
         for (fz_stext_block *b = text->first_block; b; b = b->next) {
             if (b->type == FZ_STEXT_BLOCK_TEXT) {
@@ -2086,7 +2263,7 @@ int inkv_export_page(void *vctx, inkv_doc *d, int index, int images, long long j
         free(seen);
         fz_drop_device(ctx, dev);
         fz_drop_stext_page(ctx, text);
-        inkv_end(d);
+        inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         inkv_free_export(out);
@@ -2109,10 +2286,10 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
     fz_var(dev);
     fz_var(guard);
     *pixels = NULL;
-    inkv_begin(d, cookie);
+    inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_display_list *list = inkv_list(ctx, d, index, cookie);
-        inkv_next_part(cookie);
+        inkv_next_part(ctx, cookie);
         fz_matrix ctm = fz_scale(scale, scale);
         fz_rect area = fz_transform_rect(fz_make_rect(x0, y0, x1, y1), ctm);
         pix = fz_new_pixmap_with_bbox(ctx, fz_device_rgb(ctx), fz_round_rect(area), NULL, 1);
@@ -2146,7 +2323,7 @@ int inkv_render_region_rgba(void *vctx, inkv_doc *d, int index, float scale, flo
         fz_drop_device(ctx, guard);
         fz_drop_device(ctx, dev);
         fz_drop_pixmap(ctx, pix);
-        inkv_end(d);
+        inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         if (inkv_halted(cookie)) {
@@ -2189,6 +2366,7 @@ int inkv_obj_location(void *vctx, inkv_doc *d, int num, int64_t *offset) {
 
 int inkv_obj_replace(void *vctx, inkv_doc *d, int num, const uint8_t *text, size_t length, int encrypted, char *err) {
     fz_context *ctx = vctx;
+    inkv_forget_checks(ctx, d); // its objects change
     fz_stream *stm = NULL;
     fz_buffer *data = NULL;
     pdf_obj *obj = NULL, *ref = NULL;

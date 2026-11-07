@@ -328,6 +328,17 @@ public final class PdfEngine: @unchecked Sendable {
         if let main { inkv_test_slow_reads(main.doc, seconds) }
     }
 
+    /// Test hook: objects the stream checks of the engine's main instance resolved so far, and how often its document's
+    /// stream read the CPU clock.
+    func countsForTests() -> (walked: Int, clockReads: Int) {
+        gate.lock()
+        defer { gate.unlock() }
+        guard let main else { return (0, 0) }
+        var walked: Int64 = 0, reads: Int64 = 0
+        inkv_test_counts(main.doc, &walked, &reads)
+        return (Int(walked), Int(reads))
+    }
+
     /// Runs `body`, a call that reads `page`'s content, with a cookie bounding it (Windows' page check, in process): the
     /// engine's `pageBudget` for the reading and again for the drawing, the largest picture, `cancel` and closing the
     /// engine. What the call found is kept as the page's verdict; a page refused once is refused at once from then on.

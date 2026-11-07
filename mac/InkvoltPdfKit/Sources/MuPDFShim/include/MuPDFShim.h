@@ -89,6 +89,10 @@ int inkv_cookie_stopped(inkv_cookie *cookie);
 /// Test hook: each read of the document's bytes, while a call reads a page, waits `seconds` first (a slow share).
 void inkv_test_slow_reads(inkv_doc *doc, double seconds);
 
+/// Test hook: objects the document's stream checks resolved so far (each once a document, while it isn't edited), and
+/// how often its stream read the CPU clock while a call read.
+void inkv_test_counts(inkv_doc *doc, long long *walked, long long *clock_reads);
+
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
 /// 1: drawn; 2: stopped by the cookie (no pixels); 0: failed.
