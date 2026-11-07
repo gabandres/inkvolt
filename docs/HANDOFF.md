@@ -42,6 +42,10 @@ across different rows (say "page N → M" unless the move stays in one row). Aft
 Translate on the Mac): the autonomous run ends after 3.6 speed, the Office converter, Print for Mac 1.3 (after Apple
 approves 1.2), Windows PDF 1.10.0.0 and Windows Compare's two leftovers. Use PPE agents now and then to spare SSS (PPE's
 T3 provider needs `claude auth login` first).
+**Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
+Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
+(`pdf/tools/forms-corpus`, 150-300 public fillable PDFs: open, fill every field, save, reopen, read back with pdf.js), its
+failures fixed test-first, the same run on the Mac. This comes before the remaining Mac items.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
