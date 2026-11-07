@@ -1416,20 +1416,37 @@ is under 1%, so passing it no paths (tried, measured, dropped) changed nothing.
   scissor. `PdfEngine.bands`: one a core (`activeProcessorCount`, at most 16) for a drawing of 512 K pixels or more, else
   one thread (tiles, thumbnails); `bandsForTests` sets it for tests and the bench.
 - **The page check holds.** The bands share the cookie: a stop or Cancel seen by one stops all at their next drawing call
-  (`CancelStopsEveryBand`). They share one CPU budget: each guard adds its own thread's time to the call's count
-  (`spent`) and stops when the count passes the budget, so a page that takes 10 s of one core is refused after the budget
-  in 16 bands as on one (`APageSlowToDrawIsRefusedAfterOneBudgetInBandsToo`; with a budget each it would have been
-  drawn). A pattern's tiles are counted over the whole picture, not the band.
+  (`CancelStopsEveryBand`), and sets each band's own MuPDF flag (`inkv_cookie.bands`), so a band that is only skipping
+  the nodes outside its rows stops at the next node too (`ACancelStopsBandsThatOnlySkipAsSoonAsOneThread`). They share
+  one CPU budget: each guard adds its own thread's time to the call's count (`spent`) and stops when the count passes
+  the budget, so a page that takes 10 s of one core is refused after the budget in 16 bands as on one
+  (`APageSlowToDrawIsRefusedAfterOneBudgetInBandsToo`; with a budget each it would have been drawn). The bands cost more
+  CPU in all than one thread (each walks the whole list), so a drawing out of time in bands is drawn again on one thread
+  with a budget of its own before the page is refused: never refused in bands where one thread draws it
+  (`APageOneThreadDrawsInItsBudgetIsDrawnInBands`, red first), at the cost, for a page that is refused, of a budget's
+  CPU time in bands first. A pattern's tiles are counted over the whole picture, not the band.
 - **Why not pictures.** MuPDF decodes and scales only the part of a picture a draw shows, so a band near a picture's edge
   sampled another source row (up to 255 apart on a picture of sharp stripes): a page with any picture (a scan, a logo)
-  draws on one thread as before. Paths come out within anti-aliasing: an edge cut at a band's top steps from there (at
-  most 32 apart, under 2 on average, `ADrawingInBandsIsTheSameAsOnOneThread`; every other kind of page byte for byte).
+  draws on one thread as before, and so does text in a Type3 font whose glyphs draw a picture or a shading (a glyph
+  larger than MuPDF's glyph cache takes, 256 pixels, is drawn clipped to the band: `guard_text_pictures`,
+  `AType3GlyphWithAPictureIsNotSplit`, red first).
+- **Paths, byte for byte per band.** MuPDF's rasterizer moves a slanted edge's end to where it crosses the picture's top
+  or bottom, rounded to its sub-pixel grid, and steps the edge from there (`draw-edge.c`, `clip_lerp_y`): a picture's rows
+  depend on where it is cut, on one thread as in bands (the viewer's tiles differ from a whole page the same way), and
+  overlapping bands would only move the cut. So each band is, byte for byte, what one thread draws of its rows
+  (`EachBandIsWhatOneThreadDrawsOfItsRows`), a sheet of lines along the rows and columns is the whole page's picture byte
+  for byte (`ASheetOfStraightLinesIsTheSameInBandsByteForByte`), and a sheet of slanted lines is within anti-aliasing of
+  it (at most 32 apart, under 2 on average, `ADrawingInBandsIsTheSameAsOnOneThread`; every other kind of page byte for
+  byte).
 - **Locks.** MuPDF takes its allocation lock to keep and drop each node's path in every band, even nodes outside the band:
   with pthread mutexes the threads queued in the kernel (`sample`: more time waiting than drawing; 8 bands 192 ms a
   sheet), with `os_unfair_lock` 162 ms; a spin lock was as fast idle and twice as slow under load. More bands than cores
   is slower (16 on the M1's 8: 206 ms). `bench bands drawings.pdf 1 4 8 16` measures it.
-- **The page ahead.** The viewer asks for the next page after the ones shown, the way it last scrolled (`PagesView
-  .requestVisible`; not in Single Page), so a sheet is often drawn before it scrolls in. The bench doesn't measure the
+- **The page ahead.** The viewer asks for the next page after the ones shown, the way it last scrolled (`ReadAhead`: the
+  way changes only when the first page shown does, and is forgotten when the pages are laid out again), so a sheet is
+  often drawn before it scrolls in. Not in Single Page, nor zoomed into tiles. It never holds up what is shown
+  (`PageRenderer.requestAhead`): it starts only once no page or tile shown is waiting, a request for what is shown cancels
+  it and starts it again after, and it becomes that request if it is the page now shown. The bench doesn't measure the
   viewer: a person scrolling a drawing set should see fewer blank sheets.
 
 Bench, base and branch interleaved (`one`, 3 runs each, the load 2 to 14 from another session's builds; the quietest pair

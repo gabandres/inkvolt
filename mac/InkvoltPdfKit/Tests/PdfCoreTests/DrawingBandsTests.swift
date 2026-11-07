@@ -85,6 +85,21 @@ struct DrawingBandsTests {
         }
     }
 
+    /// Whether two pictures are the same bytes (a debug build's `==` on 12 MB of pixels takes a minute).
+    static func same(_ a: [UInt8]?, _ b: [UInt8]?) -> Bool {
+        guard let a, let b, a.count == b.count else { return false }
+        return a.withUnsafeBytes { x in b.withUnsafeBytes { y in a.isEmpty || memcmp(x.baseAddress!, y.baseAddress!, a.count) == 0 } }
+    }
+
+    /// The bytes darker than half.
+    static func dark(_ a: [UInt8]) -> Int {
+        a.withUnsafeBufferPointer { p in
+            var n = 0
+            for v in p where v < 128 { n += 1 }
+            return n
+        }
+    }
+
     /// The largest difference between two pictures' bytes, and the average one.
     static func differ(_ a: [UInt8], _ b: [UInt8]) -> (most: Int, mean: Double) {
         var most = 0, sum = 0
@@ -122,7 +137,7 @@ struct DrawingBandsTests {
                     #expect(d.most <= 32 && d.mean < 2, "\(bands) bands: at most \(d.most) apart, \(d.mean) on average")
                     #expect(d.most > 0, "\(bands) bands: drawn on one thread")
                 } else {
-                    #expect(split.pixels == one.pixels, "\(kind), \(bands) bands")
+                    #expect(Self.same(split.pixels, one.pixels), "\(kind), \(bands) bands")
                 }
             }
         }
@@ -177,5 +192,153 @@ struct DrawingBandsTests {
         }
         #expect(took < 1.5, "\(took) s")
         #expect(engine.verdictOf(0) != .tooSlow)
+    }
+
+    // ---- Review of the bands (a0f82aaf) ----
+
+    static let topScale = 1200 / 612.0 * 1.5
+
+    /// Seconds a render takes when `cancel` fires 20 ms after it starts (the list made before).
+    static func cancelled(_ engine: PdfEngine, bands: Int) -> Double {
+        let cancel = CancelToken()
+        Thread {
+            usleep(20_000)
+            cancel.cancel()
+        }.start()
+        return P.time {
+            do {
+                _ = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: topScale, cancel: cancel) }
+                Issue.record("\(bands) bands: not cancelled")
+            } catch is CancellationError {
+            } catch {
+                Issue.record("\(bands) bands: threw \(error)")
+            }
+        }
+    }
+
+    /// A list of `times` x 10,000 strokes below the page (a form drawn again and again), which every band skips, and
+    /// lines on it: skipping them costs one thread little, 16 bands far more in all (each walks the whole list).
+    static let skippedBelow = offPage(150)
+
+    static func offPage(_ times: Int) -> [UInt8] {
+        var form = "0.3 w\n"
+        var rng = SplitMix(seed: 3)
+        for _ in 0..<10_000 {
+            let x = rng.next(600), y = -400 + rng.next(300)
+            form += "\(x) \(y) m \(x + 2) \(y + 1) l S\n"
+        }
+        let content = String(repeating: "/F Do\n", count: times) + grid(2400)
+        return page(content, "/XObject << /F 5 0 R >>", more: [
+            P.stream(P.zlib(Array(form.utf8)), "/Type /XObject /Subtype /Form /BBox [0 -400 612 0] /Filter /FlateDecode"),
+        ])
+    }
+
+    /// A band that only skips nodes makes no drawing call the guard sees: it must see a stop in MuPDF's own flag, which
+    /// it reads between nodes, or it walks the whole list after the others stopped.
+    @Test func ACancelStopsBandsThatOnlySkipAsSoonAsOneThread() throws {
+        let engine = try P.open(Self.skippedBelow, budget: 0)
+        defer { engine.close() }
+        _ = try engine.render(0, scale: 0.1) // the list, made once
+        let alone = Self.cancelled(engine, bands: 1)
+        let banded = Self.cancelled(engine, bands: 16)
+        #expect(banded < alone + 0.05, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
+    }
+
+    /// The bands share one budget but cost more CPU in all than one thread (every band walks the list): a page one thread
+    /// draws within its budget must never be refused in bands.
+    @Test func APageOneThreadDrawsInItsBudgetIsDrawnInBands() throws {
+        let engine = try P.open(Self.skippedBelow, budget: 0)
+        defer { engine.close() }
+        _ = try engine.render(0, scale: 0.1)
+        let alone = try P.time { _ = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: Self.topScale) } }
+        engine.pageBudget = alone * 1.5
+        let one = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: Self.topScale) }
+        var banded: RenderedImage?
+        let took = P.time {
+            do {
+                banded = try PdfEngine.$bandsForTests.withValue(16) { try engine.render(0, scale: Self.topScale) }
+            } catch {
+                Issue.record("16 bands within a budget of \(alone * 1.5) s: \(error)")
+            }
+        }
+        #expect(Self.same(banded?.pixels, one.pixels), "\(took) s in bands")
+        #expect(engine.verdictOf(0) != .tooSlow)
+    }
+
+    /// A sheet of `count` lines along the rows and columns.
+    static func grid(_ count: Int, extra: String = "") -> String {
+        var content = "0.5 w 0 0 0 RG\n"
+        var rng = SplitMix(seed: 5)
+        for i in 0..<count {
+            let x = 20 + rng.next(560), y = 20 + rng.next(740), l = 10 + rng.next(200)
+            content += i % 2 == 0 ? "\(x) \(y) m \(x + l) \(y) l S\n" : "\(x) \(y) m \(x) \(y + l) l S\n"
+        }
+        return content + extra
+    }
+
+    /// MuPDF's rasterizer moves a slanted edge's end to where it crosses the picture's top or bottom, rounded to its
+    /// sub-pixel grid, and steps the edge from there (draw-edge.c, clip_lerp_y): a picture's rows depend on where it is
+    /// cut, on one thread as in bands (the viewer's tiles differ from a whole page the same way). Overlapping the bands
+    /// would only move the cut. So each band must be, byte for byte, what one thread draws of the same rows; and a sheet
+    /// of lines along the rows and columns, whose edges a cut doesn't move, is the whole page's picture byte for byte.
+    @Test(arguments: [2, 3, 8, 16])
+    func EachBandIsWhatOneThreadDrawsOfItsRows(_ bands: Int) throws {
+        let engine = try PdfEngine.open(Self.file("drawing sheet"))
+        defer { engine.close() }
+        let g = engine.page(0)
+        let scale = 1200 / g.height // 1,200 rows: every count of bands here cuts at whole rows
+        let split = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: scale) }
+        var stitched: [UInt8] = []
+        for i in 0..<bands {
+            let y0 = Double(1200 * i / bands) / scale, y1 = Double(1200 * (i + 1) / bands) / scale
+            let rows = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: scale, region: RectD(0, y0, g.width, y1 - y0)) }
+            stitched += rows.pixels
+        }
+        #expect(split.height == 1200)
+        #expect(Self.same(split.pixels, stitched), "\(bands) bands")
+        let whole = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: scale) }
+        #expect(!Self.same(stitched, whole.pixels), "one thread cut at the bands' rows: the same as whole")
+    }
+
+    @Test(arguments: [3, 7, 16])
+    func ASheetOfStraightLinesIsTheSameInBandsByteForByte(_ bands: Int) throws {
+        let engine = try PdfEngine.open(Self.page(Self.grid(2400)))
+        defer { engine.close() }
+        let scale = 1200 / 612.0 * 1.5
+        let one = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: scale) }
+        let split = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: scale) }
+        #expect(Self.same(split.pixels, one.pixels), "\(bands) bands")
+    }
+
+    /// A Type3 font whose one glyph ("A") draws a picture mask: a glyph larger than MuPDF's glyph cache takes is drawn
+    /// by the draw device clipped to its band, and its picture scaled for that band's part only.
+    static let typeThree: [UInt8] = {
+        var mask: [UInt8] = []
+        for y in 0..<150 {
+            for x in stride(from: 0, to: 200, by: 8) {
+                var byte: UInt8 = 0
+                for b in 0..<8 where ((x + b) / 7 + y / 5) % 3 == 0 || (x + b + y) % 11 == 0 { byte |= 0x80 >> UInt8(b) }
+                mask.append(byte)
+            }
+        }
+        let content = grid(2400, extra: "0 0 0 rg BT /T3 150 Tf 100 300 Td (A) Tj ET")
+        return page(content, "/Font << /T3 5 0 R >>", more: [
+            P.obj("<< /Type /Font /Subtype /Type3 /FontBBox [0 0 1000 1000] /FontMatrix [0.001 0 0 0.001 0 0] /CharProcs << /a 6 0 R >> "
+                  + "/Encoding << /Type /Encoding /Differences [65 /a] >> /FirstChar 65 /LastChar 65 /Widths [1000] "
+                  + "/Resources << /XObject << /Im 7 0 R >> >> >>"),
+            P.stream("1000 0 0 0 1000 1000 d1 q 1000 0 0 1000 0 0 cm /Im Do Q"),
+            P.stream(P.zlib(mask), "/Type /XObject /Subtype /Image /Width 200 /Height 150 /BitsPerComponent 1 /ImageMask true /Filter /FlateDecode"),
+        ])
+    }()
+
+    @Test(arguments: [3, 7, 16])
+    func AType3GlyphWithAPictureIsNotSplit(_ bands: Int) throws {
+        let engine = try PdfEngine.open(Self.typeThree)
+        defer { engine.close() }
+        let scale = 1200 / 612.0 * 1.5
+        let one = try PdfEngine.$bandsForTests.withValue(1) { try engine.render(0, scale: scale) }
+        #expect(Self.dark(one.pixels) > 50_000, "the glyph drawn")
+        let split = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: scale) }
+        #expect(Self.same(split.pixels, one.pixels), "\(bands) bands")
     }
 }

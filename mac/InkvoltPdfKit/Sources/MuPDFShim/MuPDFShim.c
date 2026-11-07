@@ -1,5 +1,6 @@
 #include "MuPDFShim.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <float.h>
@@ -39,8 +40,12 @@
 #define INKV_STOP_LARGE 3
 #define INKV_STOP_FILTERS 4
 
+/// The most bands a drawing is split into (inkv_draw_bands).
+#define INKV_MAX_BANDS 16
+
 struct inkv_cookie {
     fz_cookie cookie;      // its abort is set from any thread, never cleared once a cancel set it
+    fz_cookie bands[INKV_MAX_BANDS]; // each band's own (MuPDF writes its progress into it); a stop sets their aborts too
     double seconds;        // a part's reading budget (the reading, then the drawing); 0: none
     double max_pixels;     // the largest picture, width x height; 0: none
     double deadline;       // the thread's CPU time at which the current part's time is up; 0: none
@@ -51,8 +56,12 @@ struct inkv_cookie {
 /// The calling thread's CPU time: a call runs on one thread, and the time it waits isn't counted.
 static double inkv_cpu(void) { return (double)clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) / 1e9; }
 
-/// MuPDF's own flag, which it reads between operators and display-list nodes.
-static void inkv_set_abort(inkv_cookie *c) { __atomic_store_n(&c->cookie.abort, 1, __ATOMIC_SEQ_CST); }
+/// MuPDF's own flag, which it reads between operators and display-list nodes: the call's, and every band's (a band
+/// whose rows a node misses skips it without a drawing call, so only this flag stops its walk through the list).
+static void inkv_set_abort(inkv_cookie *c) {
+    __atomic_store_n(&c->cookie.abort, 1, __ATOMIC_SEQ_CST);
+    for (int i = 0; i < INKV_MAX_BANDS; i++) __atomic_store_n(&c->bands[i].abort, 1, __ATOMIC_SEQ_CST);
+}
 
 /// Stops the call for `why` (unless it already stopped for another reason): throws `code`.
 static void inkv_stop(fz_context *ctx, inkv_cookie *c, int why, int code, const char *message) {
@@ -264,7 +273,9 @@ typedef struct {
     fz_matrix transform; // the draw device's own, from what it is handed to its pixels
     fz_irect pixels;     // the draw device's pixels
     long long paths;     // the paths it passed on (filled, stroked, clipped): what a list is made of
-    long long pictures;  // the pictures and picture masks it passed on
+    long long pictures;  // the pictures and picture masks it passed on, and text in a Type3 font that draws one
+    fz_font *type3;      // the last Type3 font looked at (guard_text_pictures) and whether its glyphs draw a picture
+    int type3_pictures;
     atomic_llong *spent; // a band's (inkv_draw_band): the CPU time all the bands spent, in ns; NULL: the cookie's deadline
     double since;        // a band's thread's CPU time when it last added to `spent`
 } inkv_guard;
@@ -379,25 +390,65 @@ static void guard_clip_stroke_path(fz_context *ctx, fz_device *dev, const fz_pat
     fz_clip_stroke_path(ctx, TARGET(dev), path, stroke, ctm, scissor);
 }
 
+/// Whether a glyph's content has an operator that draws a picture or a shading (`Do`, `BI`, `sh`), as a token: one
+/// inside a string or a name counts too (the page is then drawn on one thread, nothing worse).
+static int inkv_draws_picture(const unsigned char *s, size_t n) {
+    for (size_t i = 0; i + 1 < n; i++) {
+        int op = (s[i] == 'D' && s[i + 1] == 'o') || (s[i] == 'B' && s[i + 1] == 'I') || (s[i] == 's' && s[i + 1] == 'h');
+        if (!op) continue;
+        int before = i == 0 || !isalnum(s[i - 1]);
+        int after = i + 2 == n || !isalnum(s[i + 2]);
+        if (before && after) return 1;
+    }
+    return 0;
+}
+
+/// While a list is made: text in a Type3 font whose glyphs may draw a picture counts as one (inkv_bandable). The draw
+/// device draws a glyph larger than its cache takes clipped to its pixels, the glyph's picture scaled for them only;
+/// smaller glyphs are drawn whole and cached, and a glyph that takes the text's colour is run into the list itself.
+static void guard_text_pictures(fz_context *ctx, inkv_guard *g, const fz_text *text) {
+    if (g->drawing) return;
+    for (const fz_text_span *span = text ? text->head : NULL; span; span = span->next) {
+        fz_font *font = span->font;
+        fz_buffer **procs = font ? fz_font_t3_procs(ctx, font) : NULL;
+        if (!procs) continue;
+        if (font != g->type3) {
+            g->type3 = font;
+            g->type3_pictures = 0;
+            for (int i = 0; i < 256 && !g->type3_pictures; i++) {
+                if (!procs[i]) continue;
+                unsigned char *data = NULL;
+                size_t n = fz_buffer_storage(ctx, procs[i], &data);
+                g->type3_pictures = inkv_draws_picture(data, n);
+            }
+        }
+        if (g->type3_pictures) g->pictures++;
+    }
+}
+
 static void guard_fill_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_colorspace *cs, const float *color,
                             float alpha, fz_color_params cp) {
+    guard_text_pictures(ctx, (inkv_guard *)dev, text);
     guard_check(ctx, dev);
     FORWARD(dev, fill_text, text, ctm, cs, color, alpha, cp);
 }
 
 static void guard_stroke_text(fz_context *ctx, fz_device *dev, const fz_text *text, const fz_stroke_state *stroke, fz_matrix ctm,
                               fz_colorspace *cs, const float *color, float alpha, fz_color_params cp) {
+    guard_text_pictures(ctx, (inkv_guard *)dev, text);
     guard_check(ctx, dev);
     FORWARD(dev, stroke_text, text, stroke, ctm, cs, color, alpha, cp);
 }
 
 static void guard_clip_text(fz_context *ctx, fz_device *dev, const fz_text *text, fz_matrix ctm, fz_rect scissor) {
+    guard_text_pictures(ctx, (inkv_guard *)dev, text);
     guard_check(ctx, dev);
     fz_clip_text(ctx, TARGET(dev), text, ctm, scissor);
 }
 
 static void guard_clip_stroke_text(fz_context *ctx, fz_device *dev, const fz_text *text, const fz_stroke_state *stroke, fz_matrix ctm,
                                    fz_rect scissor) {
+    guard_text_pictures(ctx, (inkv_guard *)dev, text);
     guard_check(ctx, dev);
     fz_clip_stroke_text(ctx, TARGET(dev), text, stroke, ctm, scissor);
 }
@@ -757,6 +808,20 @@ static int inkv_halted(inkv_cookie *c) { return c && (atomic_load(&c->stopped) |
 /// Whether MuPDF was asked to stop (the cookie's own flag, which a cancel sets from another thread).
 static int inkv_aborted(inkv_cookie *c) { return c && (inkv_halted(c) || __atomic_load_n(&c->cookie.abort, __ATOMIC_SEQ_CST)); }
 
+/// A call stopped for its time only (not Cancel, a picture or a stream) made ready to go on: 1. The flags are cleared as
+/// inkv_begin clears them, so a cancel racing this still stops it.
+static int inkv_restart_after_slow(inkv_cookie *c) {
+    if (!c || atomic_load(&c->cancelled)) return 0;
+    int slow = INKV_STOP_SLOW;
+    if (!atomic_compare_exchange_strong(&c->stopped, &slow, 0)) return 0;
+    __atomic_store_n(&c->cookie.abort, 0, __ATOMIC_SEQ_CST);
+    if (atomic_load(&c->cancelled)) {
+        atomic_store(&c->stopped, INKV_STOP_CANCELLED);
+        inkv_set_abort(c);
+    }
+    return 1;
+}
+
 /// Copies the caught error's message for Swift and marks it handled (MuPDF warns of errors a catch leaves unreported).
 static void inkv_error(fz_context *ctx, char *err) {
     if (err) {
@@ -880,9 +945,10 @@ static fz_page *inkv_page(fz_context *ctx, inkv_doc *d, int i) {
 /// Paths a list must have to be drawn in bands: fewer draw in a few milliseconds on one thread.
 #define INKV_BAND_PATHS 2000
 
-/// Whether a list made of `paths` paths and `pictures` pictures is drawn in bands. Not with a picture: MuPDF decodes and
-/// scales the part of a picture each band shows, so near a band's edge it may sample its neighbouring row; paths come
-/// out within anti-aliasing's noise (an edge cut at a band's top steps from there).
+/// Whether a list made of `paths` paths and `pictures` pictures is drawn in bands. Not with a picture (a Type3 glyph's
+/// counts: guard_text_pictures): MuPDF decodes and scales the part of a picture each band shows, so near a band's edge it
+/// may sample its neighbouring row; paths come out as one thread draws the same rows (an edge cut at a band's top steps
+/// from there).
 static int inkv_bandable(long long paths, long long pictures) { return pictures == 0 && paths >= INKV_BAND_PATHS; }
 
 /// A display list of the page (its own content only, or with its annotations and widgets), read under the cookie's
@@ -1132,9 +1198,19 @@ void inkv_test_counts(inkv_doc *d, long long *walked, long long *clock_reads) {
 // draw device's (anti-aliasing costs per path, not per pixel). The list is made once; then each band of the picture's
 // rows runs it on a thread of its own, in a clone of the render's context (which shares its store, glyphs and pictures
 // under MuPDF's locks: `inkv_new_drawing_context`), into its rows of the one picture, the nodes outside its rows skipped.
-// The bands share the call's cookie: a stop or Cancel seen by one stops them all at their next drawing call. They share
-// the part's budget too: each adds its own thread's CPU time to one count (`spent`), so a hostile page is stopped after
-// the CPU time one thread would have had, and a pattern's tiles are counted over the whole picture.
+// The bands share the call's cookie: a stop or Cancel seen by one stops them all at their next drawing call, and sets
+// each band's own MuPDF flag (`inkv_cookie.bands`), which stops a band that is only skipping nodes outside its rows at the
+// next node. They share the part's budget too: each adds its own thread's CPU time to one count (`spent`), so a hostile
+// page is stopped after the CPU time one thread would have had, and a pattern's tiles are counted over the whole picture.
+// The bands cost more CPU in all than one thread (each walks the whole list), so a drawing out of time in bands is drawn
+// again on one thread with a budget of its own before the page is refused: refused in bands only where one thread
+// refuses it, after at most a budget's CPU time in bands (on 8 cores, an eighth of it as time on the clock) and one alone.
+//
+// A band's rows aren't always one thread's of the whole picture, byte for byte: MuPDF's rasterizer moves a slanted
+// edge's end to where it crosses the picture's top or bottom, rounded to its sub-pixel grid (draw-edge.c, clip_lerp_y),
+// and steps the edge from there. That is the rasterizer's, on one thread as in bands (the viewer's tiles differ from a
+// whole page the same way); overlapping bands would only move the cut. Each band is byte for byte what one thread draws
+// of its rows (DrawingBandsTests), and lines along rows and columns, whose edges no cut moves, come out the same.
 
 typedef struct {
     fz_context *base;      // the render's context, cloned for each band
@@ -1161,7 +1237,6 @@ static void inkv_draw_band(void *vjob, size_t i) {
     fz_set_warning_callback(ctx, NULL, NULL);
     fz_pixmap *part = NULL;
     fz_device *dev = NULL, *guard = NULL;
-    fz_cookie own = { 0 }; // MuPDF writes its progress into it: one each
     fz_var(part);
     fz_var(dev);
     fz_var(guard);
@@ -1181,7 +1256,8 @@ static void inkv_draw_band(void *vjob, size_t i) {
                 g->since = inkv_cpu();
                 g->pixels = all; // a pattern's tiles counted over the whole picture, as one thread counts them
             }
-            fz_run_display_list(ctx, job->list, guard ? guard : dev, job->ctm, fz_rect_from_irect(r), job->cookie ? &own : NULL);
+            fz_cookie *own = job->cookie ? &job->cookie->bands[i] : NULL;
+            fz_run_display_list(ctx, job->list, guard ? guard : dev, job->ctm, fz_rect_from_irect(r), own);
             if (guard) fz_close_device(ctx, guard);
             fz_close_device(ctx, dev);
         }
@@ -1215,6 +1291,19 @@ static void inkv_draw_bands(fz_context *ctx, fz_display_list *list, fz_pixmap *p
     job->bands = bands;
     atomic_store(&job->failed, 0);
     atomic_store(&job->spent, 0);
+    if (cookie) {
+        // The bands' flags start clear, unless the call was stopped already: a cancel racing this sets the call's flag
+        // before the bands', so one seen clear after here means its bands' are set after too.
+        for (int i = 0; i < INKV_MAX_BANDS; i++) {
+            fz_cookie *own = &cookie->bands[i];
+            own->progress = 0;
+            own->progress_max = 0;
+            own->errors = 0;
+            own->incomplete = 0;
+            __atomic_store_n(&own->abort, 0, __ATOMIC_SEQ_CST);
+        }
+        if (__atomic_load_n(&cookie->cookie.abort, __ATOMIC_SEQ_CST) || inkv_halted(cookie)) inkv_set_abort(cookie);
+    }
     dispatch_apply_f((size_t)bands, DISPATCH_APPLY_AUTO, job, inkv_draw_band);
     int failed = atomic_load(&job->failed);
     char message[INKV_ERR_SIZE];
@@ -1253,9 +1342,19 @@ static int render_rgb(void *vctx, inkv_doc *d, int index, int contents_only, flo
         // clone one without locks), each at least 16 rows.
         int most = (box.y1 - box.y0) / 16;
         if (bands > most) bands = most;
-        if (bands > 1 && bandable && inkv_alloc_of(ctx) && inkv_alloc_of(ctx)->locks) {
+        if (bands > INKV_MAX_BANDS) bands = INKV_MAX_BANDS;
+        int split = bands > 1 && bandable && inkv_alloc_of(ctx) && inkv_alloc_of(ctx)->locks;
+        if (split) {
             inkv_draw_bands(ctx, list, pix, ctm, cookie, bands);
-        } else {
+            // The bands spend more CPU in all than one thread (each walks the whole list): out of time in bands, the
+            // page is drawn again on one thread with a budget of its own, so it is refused only where one thread is.
+            if (inkv_restart_after_slow(cookie)) {
+                fz_clear_pixmap_with_value(ctx, pix, 255);
+                inkv_next_part(ctx, cookie);
+                split = 0;
+            }
+        }
+        if (!split) {
             dev = fz_new_draw_device(ctx, fz_identity, pix);
             guard = inkv_new_draw_guard(ctx, dev, cookie, fz_identity, pix);
             fz_run_display_list(ctx, list, guard ? guard : dev, ctm, fz_transform_rect(area, ctm), cookie ? &cookie->cookie : NULL);

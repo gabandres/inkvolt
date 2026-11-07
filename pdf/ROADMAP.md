@@ -954,9 +954,11 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   renders in four strips on cloned contexts, which its wrapper's process-wide locks hold back). MuPDF's locks are taken for every
   node of the list in every band: pthread mutexes made the threads queue in the kernel (8 bands: 192 ms), unfair locks
   162 ms; 16 bands on the M1's 8 cores were slower again. The bands share the cookie's stops and one CPU budget, so a
-  hostile page is refused as on one thread (`DrawingBandsTests`); a page with pictures stays on one thread (each band
-  decodes and scales its part of a picture, which can shift a source row at a band's edge), the others come out within
-  anti-aliasing. The viewer also asks for the next page ahead, the way it last scrolled. Bench (M1 Air, base and branch
+  hostile page is refused as on one thread (`DrawingBandsTests`), and a drawing out of time in bands is drawn again on
+  one thread before the page is refused; a page with pictures (Type3 glyphs that draw one included) stays on one thread
+  (each band decodes and scales its part of a picture, which can shift a source row at a band's edge); each band is byte
+  for byte what one thread draws of its rows. The viewer also asks for the next page ahead, the way it last scrolled,
+  once what is shown is drawn. Bench (M1 Air, base and branch
   interleaved, load 2 to 14): the drawing set's first render 617 to 257 ms, scroll proxy 707 to 261 ms a sheet (607 to
   237 on the quietest pair; `run`: 223 ms, slowest 251), the same pages again 587 to 166 ms; the other files, Find and
   memory unchanged. Still missed: the scroll proxy (each sheet's list, about 80 ms on one thread, plus its drawing), and
