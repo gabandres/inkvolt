@@ -24,7 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
         RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
-        RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(), ask: !Report.isRunning)
+        // The update test shows no window: an offer of left-overs would wait on screen before the test starts.
+        RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(), ask: !Report.isRunning && !updates.isTesting)
         updates.startTestIfAsked()
         // Launched with no file (files from Finder arrive just after launch): the start page. After an update, once,
         // What's New.

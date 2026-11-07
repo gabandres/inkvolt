@@ -133,7 +133,7 @@ It's outside the Mac App Store because of MuPDF's licence: a notarized DMG that 
 `brew install --cask gabandres/inkvolt/inkvolt-pdf`. The Windows version came first and the Mac app is catching up
 release by release; the site says exactly what is still missing.
 
-Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.7.0
+Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.8.0
 Site: https://bermudezsystems.com/products/inkvolt/
 
 One developer, Puerto Rico.
@@ -156,7 +156,7 @@ attachments, earlier versions) before you share it.
 
 Notarized DMG with its own updates, or Homebrew: `brew install --cask gabandres/inkvolt/inkvolt-pdf`.
 
-Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.7.0
+Release: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.8.0
 Source: https://github.com/gabandres/inkvolt
 
 I'm the one developer, in Puerto Rico, and glad to answer anything.

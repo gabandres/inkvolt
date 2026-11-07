@@ -12,6 +12,9 @@ import Sparkle
 /// checks the feed without any window and writes what Sparkle found to the report (version, length, URL). With
 /// `--install` it lets Sparkle download, verify (EdDSA and Apple signature), extract and install the update at once, then
 /// relaunch; that turns on automatic checks and downloads in the app's defaults, so a test restores them afterwards.
+/// With them on, Sparkle's own check at launch holds a session the probe is ignored behind (the report's RUNNING line
+/// says session=true, then TIMEOUT): turn them off in the defaults for the test (SUEnableAutomaticChecks,
+/// SUAutomaticallyUpdate) and back on after. A launch for the test never offers recovery copies (no window).
 @MainActor
 final class Updates {
     private let delegate: UpdaterDelegate
@@ -32,7 +35,8 @@ final class Updates {
         let updater = controller.updater
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         delegate.write("# Inkvolt PDF update self-test, \(Date())")
-        delegate.write("RUNNING version=\(version) feed=\(updater.feedURL?.absoluteString ?? "none") profile=\(updater.sendsSystemProfile)")
+        delegate.write("RUNNING version=\(version) feed=\(updater.feedURL?.absoluteString ?? "none") profile=\(updater.sendsSystemProfile) "
+                       + "session=\(updater.sessionInProgress) canCheck=\(updater.canCheckForUpdates) automatic=\(updater.automaticallyChecksForUpdates)")
         if delegate.install {
             // Sparkle downloads by itself only with automatic checks on too.
             updater.automaticallyChecksForUpdates = true
@@ -120,6 +124,11 @@ final class UpdaterDelegate: NSObject, SPUUpdaterDelegate {
     }
 
     func updaterWillRelaunchApplication(_ updater: SPUUpdater) { write("RELAUNCHING") }
+
+    /// Every check ends here, the ones Sparkle starts by itself too (one in progress makes it ignore the test's probe).
+    func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: (any Error)?) {
+        write("CYCLE \(updateCheck.rawValue) \(error.map(describe) ?? "no error")")
+    }
 
     func updater(_ updater: SPUUpdater, didAbortWithError error: any Error) {
         write("ABORTED \(describe(error))")

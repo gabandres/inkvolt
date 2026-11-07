@@ -31,6 +31,10 @@ person to look at a refused page on screen. **Owner, 2026-11-06 night: ignore th
 now: Print for Mac (5) → PDF for Mac hostile-input review and fixes → PDF for Mac 1.8 release → Print for Mac 1.3 (after
 1.2's approval) → 3.5, 3.3, 3.6, Office converter, the XL items.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
+**Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
+with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
+older build finds it in the feed (en, es); self-test en/es all green but Vision's redaction/OCR checks, which fail on
+ignia-mac the same way for the released 1.7.0 (CRImageReaderError 1, disk 95 % full: owner, free space). Next: Print for Mac 1.3.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
 link's very long word, `aa8f28d`), bench (`e5f9961`, PC busy), smoke passed side by side, release notes en/es through the API,
