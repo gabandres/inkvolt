@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Forms that another program saved over an older copy of themselves (the pages showed, but no field could be filled and typing chose tools instead) fill again: type, tick, totals recalculate, and the saved file opens cleanly everywhere. Tab also keeps going to the next field after a value is written, instead of jumping back to the page's first field.
 
 ## 1.10.0
 - Search Folders finds the end or the middle of a long word, code, hash or German compound (more than 48 letters and digits), as Find does in an open document; it used to find only its start. Folders already indexed are read again once, by themselves, after the update.
