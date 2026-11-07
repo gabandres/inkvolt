@@ -47,6 +47,7 @@ Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
 older build finds it in the feed (en, es); self-test en/es all green but Vision's redaction/OCR checks, which fail on
 ignia-mac the same way for the released 1.7.0 (CRImageReaderError 1, disk 95 % full: owner, free space). Next: Print for Mac 1.3.
+**Inkvolt PDF 1.10.0.0 published in the Store 2026-11-07 08:47** (Translate keeps bold, italic, sub- and superscripts; Search Folders inside long runs; Compare on a long document against a short one): hostile-input review since 1.9.0.0 first (one fix, `TranslationMarkup.Mark` linear, `60697e05`), bench (`7ccfaada`, PC ~35% busy), pdfjs-check passed, smoke passed side by side, release notes en/es through the API, tag `pdf-v1.10.0.0`, GitHub release, website `softwareVersion` 1.10.0.
 **Inkvolt PDF 1.9.0.0 published in the Store 2026-11-06 14:41** (Translate's turned tables, links, columns and sizes;
 ZapfDingbats; drawings drawn once; Flatten's hidden things): hostile-input review since 1.8.0.0 first (one fix, `Follow` on a
 link's very long word, `aa8f28d`), bench (`e5f9961`, PC busy), smoke passed side by side, release notes en/es through the API,
