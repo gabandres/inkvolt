@@ -198,10 +198,12 @@ public class RealFormTraitTests
         [
             Widget("/FT /Tx /T (in) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g)"),
             Widget("/FT /Tx /T (out) /Rect [72 650 300 670] /DA (/Helv 12 Tf 0 g) /AA << /C << /S /JavaScript " +
-                   "/JS (var n = AFExtractNums\\(this.getField\\('in'\\).value\\); event.value = AFSimple\\('SUM', n[0], n[1]\\) + AFSimple\\('MAX', 2, 9\\) + AFSimple\\('PRD', 2, 3\\);) >> >>"),
+                   "/JS (var n = AFExtractNums\\(this.getField\\('in'\\).value\\); event.value = AFSimple\\('SUM', n[0], n[1]\\) + AFSimple\\('MAX', 2, 9\\) + AFSimple\\('PRD', 2, 3\\) + " +
+                   "AFSimple\\('AVG', 4, 6\\) + AFSimple\\('XYZ', 7, 100\\);) >> >>"),
         ], acroExtra: "/CO [7 0 R]");
         var filled = FormEditor.Fill(data, null, new Dictionary<string, string> { ["in"] = "(555) 1234" }).Data;
-        Assert.Equal("1804", FormEditor.Read(filled, null).Single(w => w.FieldName == "out").Value); // 555 + 1234 + 9 + 6
+        // 555 + 1234 + 9 + 6, then AVG's sum (AFSimple_Calculate divides it afterwards) and an unknown operation's first value.
+        Assert.Equal("1821", FormEditor.Read(filled, null).Single(w => w.FieldName == "out").Value);
     }
 
     /// <summary>The field dictionary named <paramref name="name"/> as PDF text (the last one written).</summary>

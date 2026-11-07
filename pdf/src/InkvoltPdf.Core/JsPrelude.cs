@@ -287,17 +287,18 @@ internal static class JsPrelude
     return h.makeNumber(s === undefined || s === null ? '' : String(s));
   }
   G.AFMakeNumber = AFMakeNumber;
-  // AFSimple('SUM'|'PRD'|'AVG'|'MIN'|'MAX', a, b) and AFExtractNums(s) (the runs of digits, or null), as in Acrobat's AForm.
+  // AFSimple('SUM'|'PRD'|'AVG'|'MIN'|'MAX', a, b) and AFExtractNums(s) (the runs of digits, or null), as in Acrobat's AForm:
+  // AVG adds (AFSimple_Calculate divides by the count afterwards), and an unknown operation gives back the first value.
   G.AFSimple = function (op, a, b) {
     a = AFMakeNumber(a) || 0; b = AFMakeNumber(b) || 0;
     switch (String(op).toUpperCase()) {
-      case 'AVG': return (a + b) / 2;
+      case 'AVG':
       case 'SUM': return a + b;
       case 'PRD': return a * b;
       case 'MIN': return Math.min(a, b);
       case 'MAX': return Math.max(a, b);
     }
-    return 0;
+    return a;
   };
   G.AFExtractNums = function (s) { return str(s).match(/\d+/g); };
   G.AFMergeChange = function (e) {
