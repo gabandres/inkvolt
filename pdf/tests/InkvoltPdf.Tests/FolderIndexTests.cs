@@ -205,6 +205,34 @@ public sealed class FolderIndexTests : IDisposable
         Assert.True(FolderIndex.SideBySide("before " + page + " after", IndexTerms.Of(query)));
     }
 
+    /// <summary>A word of 60 letters (and one of 61 units whose term ends a unit early, before a pair).</summary>
+    public static TheoryData<string> LongWords => [LongWord, "a" + string.Concat(Enumerable.Repeat("\U00010330", 30))];
+
+    private static readonly string LongWord = string.Concat(Enumerable.Range(0, 60).Select(i => (char)('a' + i * 7 % 26)));
+
+    /// <summary>
+    /// A phrase with a word longer than a term (its query term cut to 48) passes side by side wherever the word is: first (also the
+    /// end of a longer word), between, last; a page whose long word differs within its first 48 doesn't.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(LongWords))]
+    public void A_phrase_with_a_word_longer_than_a_term_passes_side_by_side(string word)
+    {
+        var page = $"one {word} two three";
+        foreach (var query in new[] { $"one {word} two", $"{word} two", $"one {word}", $"{word[5..]} two" })
+        {
+            Assert.NotEmpty(PageText.FindIn(page, query, false, false, true));
+            Assert.True(FolderIndex.SideBySide(page, IndexTerms.Of(query)), query);
+        }
+        var other = $"one {word[..9]}q{word[9..]} two three";
+        foreach (var query in new[] { $"one {word} two", $"{word} two", $"one {word}" })
+            Assert.False(FolderIndex.SideBySide(other, IndexTerms.Of(query)), query);
+
+        // The end of a long run, then a word (what the long run's fix made pass), and phrases of short words, as before.
+        Assert.True(FolderIndex.SideBySide($"intro {new string('k', 50)}endmarker9 outro", IndexTerms.Of("marker9 outro")));
+        Assert.False(FolderIndex.SideBySide("by the lanterns", IndexTerms.Of("the lantern s")));
+    }
+
     [Theory]
     [InlineData("東京", "東京都の地図", true)]
     [InlineData("京", "東京都の地図", true)]
@@ -417,6 +445,23 @@ public sealed class FolderIndexTests : IDisposable
         Assert.Equal(["a.pdf#3"], Where(index, "hauptbetriebswerk"));
         Assert.Equal(["a.pdf#1"], Where(index, "marker9 outro"));
         Assert.Equal(["a.pdf#3"], Where(index, "Gesellschaft heute"));
+    }
+
+    /// <summary>A phrase with a word longer than a term finds its page, the word first, between or last.</summary>
+    [Theory]
+    [MemberData(nameof(LongWords))]
+    public void A_phrase_with_a_word_longer_than_a_term_is_found(string word)
+    {
+        using var index = FolderIndex.Open(Base);
+        Commit(index, b =>
+        {
+            Add(b, "a.pdf", $"one {word} two three");
+            Add(b, "b.pdf", $"three {word} one two");
+        });
+        Assert.Equal(["a.pdf#1"], Where(index, $"one {word} two"));
+        Assert.Equal(["a.pdf#1"], Where(index, $"{word} two"));
+        Assert.Equal(["a.pdf#1"], Where(index, $"one {word}"));
+        Assert.Equal(["b.pdf#1"], Where(index, $"{word[5..]} one"));
     }
 
     /// <summary>
