@@ -34,7 +34,10 @@ now: Print for Mac (5) → PDF for Mac hostile-input review and fixes → PDF fo
 PDF for Mac's hostile-input fixes (`cf3166ca`), 3.5 folder search on the Mac (`cd4ce066`) and Windows' long-run fix
 (`9cd5ed6c`) merged. Small Mac follow-up: the folder search's side-by-side (phrase) check cuts page words to 48, so a
 phrase starting at the end of a long run is dropped (Windows fixed it in `208bf79a`). ignia-mac has ~7 GB free (other
-projects' simulators and archives: the owner's call).
+projects' simulators and archives: the owner's call). Mac 3.3 Compare merged (`0c68341e`); Windows' Compare
+speed fix merged (`53528648`). Windows Compare still has two small bugs the Mac fixed: a page of zero area is taken for a
+scan (PdfEngine's isPicture: guard area > 0), and a move's label says "on page N" when old and new page numbers match
+across different rows (say "page N → M" unless the move stays in one row). After the 1.10.0.0 release.
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
