@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.10.0
 - Search Folders finds the end or the middle of a long word, code, hash or German compound (more than 48 letters and digits), as Find does in an open document; it used to find only its start. Folders already indexed are read again once, by themselves, after the update.
 - Translate with AI keeps a paragraph's bold and italic words, subscripts and superscripts ("d_model", "2¹⁰") in the translation, drawn in the page's own bold or italic when it has them; when the model's answer mixes up the marks, that paragraph is written plain.
 - Compare no longer hangs on a very long document against a short one (thousands of pages against a few): it finishes in seconds, Cancel and closing the window stop it at once, and saving its report is as quick.
