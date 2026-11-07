@@ -36,6 +36,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     }
 
     struct Item {
+        /// Who it is, whatever its place in the list (the selection follows it when entries are added or hidden).
+        let id = UUID()
         var change: Int?
         var row: Int
         var kind: String
@@ -328,7 +330,6 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let skip = skipToken
         skipButton.isHidden = false
         defer { skipButton.isHidden = true }
-        var done = 0, failed = 0
         for (i, item) in todo.enumerated() {
             if cancel.isCancelled { throw CancellationError() }
             if skip.isCancelled { break }
@@ -341,13 +342,12 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
                 if item.old { read.old[page] = text } else { read.new[page] = text }
             case .failure(let error):
                 if error is CancellationError { break }
-                failed += 1
                 Report.progress("compare: a scanned page wasn't read: \(error)")
             }
-            if !skip.isCancelled { done += 1 }
         }
         if cancel.isCancelled { throw CancellationError() }
-        let unread = todo.count - done + failed
+        // What was stored was read, a page whose words came back just as Skip was pressed too.
+        let unread = todo.count - read.old.count - read.new.count
         scanNote = unread == 0 ? loc("The words on scanned pages were recognized, so some differences may be misreadings.")
             : unread == 1 ? loc("{0} scanned page wasn't read.", 1) : loc("{0} scanned pages weren't read.", CoreLanguage.number(unread))
         return read
@@ -396,6 +396,11 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     private func summaryText() -> String {
         guard let result else { return "" }
         var parts = [result.summary() + "."]
+        let looks = visuallyDifferent.count
+        if looks > 0 {
+            parts.append(looks == 1 ? loc("{0} page looks different (Visual shows where).", 1)
+                : loc("{0} pages look different (Visual shows where).", CoreLanguage.number(looks)))
+        }
         if result.pairsWithoutText > 0 {
             parts.append(loc("Pages without text can't be compared word by word: they are checked visually, and Visual shows them overlaid."))
         }
@@ -420,10 +425,12 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             let kind = m ? loc("Changed (may be misread)") : loc("Changed", context: "a change")
             return Item(change: index, row: c.row, kind: kind, text: "\(c.oldText) → \(c.newText)", color: color)
         case .moved:
-            var place: String?
-            if let from = c.old.first, let to = c.new.first {
-                place = from.page == to.page ? loc("on page {0}", CoreLanguage.number(to.page + 1))
-                    : loc("page {0} → {1}", CoreLanguage.number(from.page + 1), CoreLanguage.number(to.page + 1))
+            // "on page 3" only within one pair of pages: the same number on another row is "page 3 → 3".
+            let place: String?
+            switch result?.place(ofMove: c) {
+            case .onPage(let p): place = loc("on page {0}", CoreLanguage.number(p + 1))
+            case .pages(let from, let to): place = loc("page {0} → {1}", CoreLanguage.number(from + 1), CoreLanguage.number(to + 1))
+            case nil: place = nil
             }
             return Item(change: index, row: c.row, kind: loc("Moved"), text: c.newText, color: color, group: .moves, place: place)
         case .formatted:
@@ -437,7 +444,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
 
     /// The list as the kinds' boxes say, the pages' marks too.
     private func refreshItems() {
-        let keep = selected.flatMap { items.indices.contains($0) ? items[$0].change : nil }
+        let keep = selected.flatMap { items.indices.contains($0) ? items[$0].id : nil }
         items = allItems.filter { !hidden.contains($0.group) }
         var kinds = Set<ChangeKind>()
         if hidden.contains(.wording) { kinds.formUnion([.inserted, .deleted, .changed, .pageInserted, .pageRemoved]) }
@@ -445,7 +452,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         if hidden.contains(.formatting) { kinds.insert(.formatted) }
         rowsView.hiddenKinds = kinds
         rowsView.hideLooks = hidden.contains(.looks)
-        selected = keep.flatMap { change in items.firstIndex { $0.change == change } }
+        selected = keep.flatMap { id in items.firstIndex { $0.id == id } }
         table.reloadData()
         if let selected { table.selectRowIndexes([selected], byExtendingSelection: false) }
         updateGroups()
@@ -489,30 +496,41 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             if token.isCancelled { return }
             let noText = row.text == .noTextOld || row.text == .noTextNew || row.text == .noTextBoth
             let scan = isScanRow(row)
+            let oldPage = oldText[o], newPage = newText[n]
             if !noText {
                 if scan != (oldScan[o] && newScan[n]) { continue }
-                if !scan && !VisualAreas.sameLayout(oldText[o], newText[n]) { continue }
+                // The pages' lines, and below the areas under their text, are worked out off the main thread: dense pages
+                // take millions of steps.
+                if !scan {
+                    let same = await Task.detached { VisualAreas.sameLayout(oldPage, newPage) }.value
+                    if !same { continue }
+                }
                 looked += 1
                 if looked > Self.maxLookedAtRows { continue }
             }
             // Scans at the scale a changed word still shows at once ink may land a little off (the slack is in points).
             let scale = scan ? VisualCompare.scanCheckScale : 0.7
-            let known = rowsView.alignments[r]
-            let outcome = await Task.detached { () -> Result<(PageAlignment, VisualDiff), Error> in
-                Result {
-                    let alignment = scan ? try (known ?? CompareAlign.find(a, o, b, n, cancel: token)) : PageAlignment.none
-                    return (alignment, try CompareRowsView.overlayOf(a, o, b, n, scale: scale, alignment: alignment, scan: scan, cancel: token))
-                }
-            }.value
+            let outcome: Result<(PageAlignment, VisualDiff, [RectD]), Error>
+            do {
+                // Lined up by the one search a row gets, which the drawing may have started already.
+                let alignment = scan ? try await rowsView.alignment(r) : PageAlignment.none
+                outcome = await Task.detached { () -> Result<(PageAlignment, VisualDiff, [RectD]), Error> in
+                    Result {
+                        let diff = try CompareRowsView.overlayOf(a, o, b, n, scale: scale, alignment: alignment, scan: scan, cancel: token)
+                        let inPoints = diff.regions.map { RectD($0.x / scale, $0.y / scale, $0.width / scale, $0.height / scale) }
+                        let boxes = noText ? inPoints : VisualAreas.offText(inPoints, oldPage, newPage, alignment)
+                        return (alignment, diff, boxes)
+                    }
+                }.value
+            } catch {
+                outcome = .failure(error)
+            }
             let what = noText ? Self.noTextWhat(row.text) : nil
-            guard case .success(let (alignment, diff)) = outcome else {
+            guard case .success(let (alignment, diff, boxes)) = outcome else {
                 if token.isCancelled { return }
                 if let what { rowsView.rowStates[r] = loc("{0}: couldn't be checked", what) }
                 continue
             }
-            if scan { rowsView.alignments[r] = alignment }
-            let inPoints = diff.regions.map { RectD($0.x / scale, $0.y / scale, $0.width / scale, $0.height / scale) }
-            let boxes = noText ? inPoints : VisualAreas.offText(inPoints, oldText[o], newText[n], alignment)
             if let what {
                 rowsView.rowStates[r] = boxes.isEmpty ? loc("{0}: looks the same", what) : Self.areasDiffer(boxes.count, what)
             }
@@ -529,6 +547,12 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             let at = allItems.firstIndex { $0.row > r } ?? allItems.count
             allItems.insert(Item(change: nil, row: r, kind: loc("Looks different"), text: text, color: .systemPurple, group: .looks), at: at)
             refreshItems()
+            summary.stringValue = summaryText()
+        }
+        if !visuallyDifferent.isEmpty {
+            NSAccessibility.post(element: window as Any, notification: .announcementRequested,
+                                 userInfo: [.announcement: summary.stringValue, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+            Report.progress("compare: \(visuallyDifferent.count) rows look different")
         }
     }
 
@@ -909,7 +933,9 @@ final class CompareRowsView: NSView {
     var scanRows = Set<Int>()
     var unreadRows = Set<Int>()
     var rowStates: [Int: String] = [:] { didSet { needsDisplay = true } }
-    var alignments: [Int: PageAlignment] = [:]
+    private(set) var alignments: [Int: PageAlignment] = [:]
+    /// Scan rows' alignments being found: one search a row, shared by the visual check and the drawing.
+    private var aligning: [Int: Task<PageAlignment, Error>] = [:]
     private var result: CompareResult?
     private var old: PdfEngine?
     private var new: PdfEngine?
@@ -1204,48 +1230,82 @@ final class CompareRowsView: NSView {
     /// Draws the pictures wanted that are missing (or at another scale); drops those far from view.
     private func request(_ wanted: Set<Int>) {
         for key in pictures.keys where !wanted.contains(key) && pictures.count > 24 { pictures[key] = nil }
-        guard let result, let old, let new, !token.isCancelled else { return }
-        let backing = Double(window?.backingScaleFactor ?? 2)
+        guard result != nil, !token.isCancelled else { return }
         for key in wanted.sorted() where pictures[key] == nil && !pending.contains(key) {
-            let r = key / 3, part = key % 3
-            let row = result.rows[r]
-            let scale = min(layouts[r].scale * backing, 3)
-            let scan = scanRows.contains(r), known = alignments[r]
+            let r = key / 3
             pending.insert(key)
-            let token = self.token
-            queue.async {
-                var image: RenderedImage?
-                var found: [RectD]?
-                var problem: String?
-                var aligned: PageAlignment?
+            guard key % 3 == 2 && scanRows.contains(r) && alignments[r] == nil else {
+                draw(key, scanRows.contains(r) ? alignments[r] ?? .none : .none)
+                continue
+            }
+            // A scan's overlay is lined up first.
+            Task { @MainActor in
                 do {
-                    if part == 2, let o = row.oldPage, let n = row.newPage {
-                        let alignment = scan ? try (known ?? CompareAlign.find(old, o, new, n, cancel: token)) : PageAlignment.none
-                        let diff = try Self.overlayOf(old, o, new, n, scale: scale, alignment: alignment, scan: scan, cancel: token)
-                        image = diff.image
-                        found = diff.regions
-                        aligned = scan ? alignment : nil
-                    } else if part == 0, let o = row.oldPage {
-                        image = try old.render(o, scale: scale, cancel: token)
-                    } else if part == 1, let n = row.newPage {
-                        image = try new.render(n, scale: scale, cancel: token)
-                    }
-                } catch is CancellationError {
-                    // the window closed
+                    self.draw(key, try await self.alignment(r))
                 } catch {
-                    problem = "\(error)"
+                    self.pending.remove(key)
+                    if !(error is CancellationError) { Report.progress("compare: row \(r) not lined up: \(error)") }
                 }
-                let done = image, regionsFound = found, failed = problem, alignment = aligned
-                DispatchQueue.main.async {
-                    MainActor.assumeIsolated {
-                        self.pending.remove(key)
-                        if let failed { Report.progress("compare: row \(r) part \(part) not drawn: \(failed)") }
-                        if let alignment, self.alignments[r] == nil { self.alignments[r] = alignment }
-                        guard let done, let cg = PageRenderer.cgImage(done) else { return }
-                        self.pictures[key] = (cg, scale)
-                        if let regionsFound { self.regions[r] = regionsFound }
-                        self.needsDisplay = true
-                    }
+            }
+        }
+    }
+
+    /// A scan row's alignment, searched for once, off the main thread and the render queue: the visual check and the
+    /// drawing may both want it at once, and share the search.
+    func alignment(_ r: Int) async throws -> PageAlignment {
+        if let known = alignments[r] { return known }
+        if let running = aligning[r] { return try await running.value }
+        guard let result, let old, let new, result.rows.indices.contains(r), let o = result.rows[r].oldPage, let n = result.rows[r].newPage else {
+            return .none
+        }
+        let token = self.token
+        let search = Task.detached { try CompareAlign.find(old, o, new, n, cancel: token) }
+        aligning[r] = search
+        defer { aligning[r] = nil }
+        let found = try await search.value
+        alignments[r] = found
+        return found
+    }
+
+    /// Draws one picture on the render queue: a page, or a row's overlay with the changed page brought over by `alignment`.
+    private func draw(_ key: Int, _ alignment: PageAlignment) {
+        let r = key / 3, part = key % 3
+        guard let result, let old, let new, !token.isCancelled, layouts.indices.contains(r) else {
+            pending.remove(key)
+            return
+        }
+        let row = result.rows[r]
+        let scale = min(layouts[r].scale * Double(window?.backingScaleFactor ?? 2), 3)
+        let scan = scanRows.contains(r)
+        let token = self.token
+        queue.async {
+            var image: RenderedImage?
+            var found: [RectD]?
+            var problem: String?
+            do {
+                if part == 2, let o = row.oldPage, let n = row.newPage {
+                    let diff = try Self.overlayOf(old, o, new, n, scale: scale, alignment: alignment, scan: scan, cancel: token)
+                    image = diff.image
+                    found = diff.regions
+                } else if part == 0, let o = row.oldPage {
+                    image = try old.render(o, scale: scale, cancel: token)
+                } else if part == 1, let n = row.newPage {
+                    image = try new.render(n, scale: scale, cancel: token)
+                }
+            } catch is CancellationError {
+                // the window closed
+            } catch {
+                problem = "\(error)"
+            }
+            let done = image, regionsFound = found, failed = problem
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    self.pending.remove(key)
+                    if let failed { Report.progress("compare: row \(r) part \(part) not drawn: \(failed)") }
+                    guard let done, let cg = PageRenderer.cgImage(done) else { return }
+                    self.pictures[key] = (cg, scale)
+                    if let regionsFound { self.regions[r] = regionsFound }
+                    self.needsDisplay = true
                 }
             }
         }

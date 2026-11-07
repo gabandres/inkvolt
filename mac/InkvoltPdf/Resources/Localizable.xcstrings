@@ -19207,6 +19207,17 @@
         }
       }
     },
+    "{0} page looks different (Visual shows where).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} página se ve distinta (Visual muestra dónde)."
+          }
+        }
+      }
+    },
     "{0} page recognized with OCR": {
       "extractionState": "manual",
       "localizations": {
@@ -19291,6 +19302,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} páginas no tenían texto"
+          }
+        }
+      }
+    },
+    "{0} pages look different (Visual shows where).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas se ven distintas (Visual muestra dónde)."
           }
         }
       }

@@ -74,6 +74,15 @@ struct CompareTest {
         check(c.selected == 0 && c.rowsView.selected != nil, "Next selects the first change")
         c.step(-1)
         check(c.selected == c.items.count - 1, "Previous from the first goes round to the last")
+        check(c.summary.stringValue.contains(loc("{0} page looks different (Visual shows where).", 1)),
+              "the summary says what the visual check found: \(c.summary.stringValue)")
+        // A "Looks different" entry (no change of its own) stays selected when the list is made again (a box toggled, or
+        // the visual check adding an area).
+        let looks = c.items.firstIndex { $0.group == .looks }
+        for _ in 0..<c.items.count where c.selected != looks { c.step(1) }
+        c.showGroup(.formatting, false)
+        c.showGroup(.formatting, true)
+        check(looks != nil && c.selected == looks, "a Looks different entry stays selected as the list is made again")
         c.setVisual(true)
         c.rowsView.want(rows: [0, 2])
         let first = await wait { c.rowsView.overlayRegions[0]?.isEmpty == false }
@@ -103,6 +112,7 @@ struct CompareTest {
         c.close()
         await formatting()
         await scanned()
+        await skippedAsAScanWasRead()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -189,6 +199,24 @@ struct CompareTest {
               "the scan's words were recognized: \(c.scanNote ?? "no note")")
         check(amount?.newText == "15" && amount?.readFromScan == true && r?.formatted == 0 && r?.pairsWithoutText == 0,
               "the changed amount on the scan is listed as read from it, no formatting said: \(c.summary.stringValue)")
+        c.close()
+    }
+
+    /// Compare Without Reading Them pressed as a scan's words came back: that scan was read, the other one wasn't.
+    private mutating func skippedAsAScanWasRead() async {
+        lines.append("== Compare: skipped as a scan was read")
+        guard let old = Self.scanOf(Self.styledPdf([[("Scope of work", false)]])), let new = Self.scanOf(Self.styledPdf([[("Scope of works", false)]])) else {
+            return check(false, "the scans couldn't be made")
+        }
+        CompareWindowController.testRecognizer = { _, _, skip in
+            skip?.cancel() // pressed while this page was read; its words still come back
+            return []
+        }
+        defer { CompareWindowController.testRecognizer = nil }
+        let c = CompareWindowController.show(old: CompareSide(name: "first-scan.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "second-scan.pdf", data: new, password: nil))
+        await c.finished()
+        check(c.scanNote == loc("{0} scanned page wasn't read.", 1), "one of two scans read before the skip: \(c.scanNote ?? "no note")")
         c.close()
     }
 }
