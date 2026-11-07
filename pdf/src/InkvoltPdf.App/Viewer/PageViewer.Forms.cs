@@ -25,6 +25,8 @@ public interface IFieldKeystrokes
 {
     void Prepare(FormWidget widget);
     KeystrokeResult? Filter(FormWidget widget, string value, string change, int selStart, int selEnd);
+    /// <summary>The field is a Zip, phone or SSN field (AFSpecial_Keystroke): a pasted number goes in as its digits.</summary>
+    bool DigitsOnly(FormWidget widget);
     void Release();
 }
 
@@ -615,7 +617,7 @@ public sealed partial class PageViewer
         // At once: keys typed right after the click may already be queued while the window is held up, and they belong to this
         // field. Again once it is laid out and shown, for an editor that couldn't take the focus yet.
         _overlay.UpdateLayout();
-        FocusEditor(editor);
+        if (ReferenceEquals(_editor, editor)) FocusEditor(editor); // laying out may have closed it
         editor.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Input, () =>
         {
             if (ReferenceEquals(_editor, editor) && !editor.IsKeyboardFocusWithin) FocusEditor(editor);
@@ -877,7 +879,7 @@ public sealed partial class PageViewer
         e.CancelCommand();
         // A paste longer than the field allows keeps what fits (as a plain paste would).
         var (start, end) = (box.SelectionStart, box.SelectionStart + box.SelectionLength);
-        text = FieldKeystrokes.Fit(box.Text, start, end, text, box.MaxLength);
+        text = FieldKeystrokes.Pasted(box.Text, start, end, text, box.MaxLength, _editorWidget is { } w && Keystrokes?.DigitsOnly(w) == true);
         if (text.Length == 0 && start == end) return;
         if (FilterEdit(box, text, deleteBack: null)) Replace(box, start, end, text);
     }

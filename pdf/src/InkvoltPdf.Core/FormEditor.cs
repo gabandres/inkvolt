@@ -490,7 +490,7 @@ public static partial class FormEditor
                 if (single is not null && PdfObj.Dict(drawn.Elements["/N"]) is { } on) on.Elements["/" + state] = single.Reference is { } r ? r : single;
                 foreach (var (key, old) in new[] { ("/N", normal), ("/D", down) })
                     if (old is { Stream: null } && PdfObj.Dict(drawn.Elements[key]) is { } faces)
-                        foreach (var (face, value) in old.Elements.Take(MaxKeptFaces))
+                        foreach (var (face, value) in KeptFaces(old, state))
                             if (DrawsSomething(value)) faces.Elements[face] = value;
                 if (single is not null && down is null) drawn.Elements.Remove("/D"); // it had no down look: none is added
                 if (ap?.Elements["/R"] is { } rollover) drawn.Elements["/R"] = rollover;
@@ -528,6 +528,16 @@ public static partial class FormEditor
     /// of thousands shared by thousands of widgets would be looked through and copied for each.
     /// </summary>
     private const int MaxKeptFaces = 16;
+
+    /// <summary>The faces of a state dictionary that may be kept: /Off and the on state wherever they are listed, then others up to <see cref="MaxKeptFaces"/>.</summary>
+    private static IEnumerable<KeyValuePair<string, PdfItem?>> KeptFaces(PdfDictionary states, string on)
+    {
+        string[] first = ["/Off", "/" + on];
+        foreach (var key in first)
+            if (states.Elements.ContainsKey(key)) yield return new(key, states.Elements[key]);
+        foreach (var entry in states.Elements.Where(e => !first.Contains(e.Key)).Take(MaxKeptFaces - first.Length))
+            yield return new(entry.Key, entry.Value);
+    }
 
     /// <summary>
     /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its length,
@@ -577,6 +587,11 @@ public static partial class FormEditor
         var (exports, labels) = ReadOptions(Inherited(f.Dict, "/Opt"));
         var listBox = f.Type == "/Ch" && (f.Flags & FfCombo) == 0;
         var (text, color) = f.Type == "/Tx" ? Display(f, raw, js) : (raw, null);
+        // A comb field shows its value in its cells: when the format adds separators that don't fit (an SSN's dashes in nine
+        // cells), the value as typed, not the formatted text cut to MaxLen ("123-45-67").
+        var comb = f.Type == "/Tx" && (f.Flags & FfComb) != 0 && (f.Flags & (FfMultiline | FfPassword)) == 0;
+        var maxLen = PdfObj.Int(Inherited(f.Dict, "/MaxLen")) ?? 0;
+        if (comb && maxLen > 0 && TrueTypeFont.CodePoints(text).Count() > maxLen) text = raw;
         if (f.Type == "/Ch" && !listBox && exports.IndexOf(raw) is var ci and >= 0) text = labels[ci];
 
         var selected = new HashSet<int>();
@@ -601,9 +616,9 @@ public static partial class FormEditor
                 DrBaseFont = string.IsNullOrEmpty(baseFont) ? null : baseFont,
                 Quadding = q,
                 Multiline = f.Type == "/Tx" && (f.Flags & FfMultiline) != 0,
-                Comb = f.Type == "/Tx" && (f.Flags & FfComb) != 0 && (f.Flags & (FfMultiline | FfPassword)) == 0,
+                Comb = comb,
                 Password = f.Type == "/Tx" && (f.Flags & FfPassword) != 0,
-                MaxLen = PdfObj.Int(Inherited(f.Dict, "/MaxLen")) ?? 0,
+                MaxLen = maxLen,
                 Text = text,
                 ListBox = listBox,
                 Items = labels,

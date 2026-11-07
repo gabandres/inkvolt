@@ -254,14 +254,21 @@ internal static class DevScript
                 var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
                 var lp = ClientPoint(window, v!, int.Parse(a[0]) - 1, Num(a[1]), Num(a[2]));
                 SetCapture(hwnd);
-                PostMessageW(hwnd, 0x0200, MouseHeld(), lp);
-                SetHeld(0x01, true);
-                PostMessageW(hwnd, 0x0201, MouseHeld(), lp);
-                SetHeld(0x01, false);
-                PostMessageW(hwnd, 0x0202, MouseHeld(), lp);
-                await PostKeys(window, a[3], pace: false);
-                await Settled();
-                ReleaseCapture();
+                try
+                {
+                    PostMessageW(hwnd, 0x0200, MouseHeld(), lp);
+                    SetHeld(0x01, true);
+                    PostMessageW(hwnd, 0x0201, MouseHeld(), lp);
+                    SetHeld(0x01, false);
+                    PostMessageW(hwnd, 0x0202, MouseHeld(), lp);
+                    await PostKeys(window, a[3], pace: false);
+                    await Settled();
+                }
+                finally
+                {
+                    SetHeld(0x01, false);
+                    ReleaseCapture();
+                }
                 break;
             }
             case "drag": await Drag(window, v!, arg); break;

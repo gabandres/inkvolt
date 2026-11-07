@@ -37,7 +37,7 @@ internal static class PdfShapeGuard
     private const long SharedListingBytes = 1 << 20;
 
     private static readonly ConditionalWeakTable<byte[], object> Verdicts = [];
-    private static readonly object Good = new(), Refused = new();
+    private static readonly object Good = new(), Refused = new(), Pending = new();
 
     /// <summary>These bytes were checked, or came from a document that was: they are read without another look. Bytes refused once are refused at once from then on.</summary>
     /// <exception cref="PdfShapeException">They were refused.</exception>
@@ -50,6 +50,23 @@ internal static class PdfShapeGuard
     public static void MarkKnown(byte[] data) => Verdicts.AddOrUpdate(data, Good);
 
     public static void MarkRefused(byte[] data) => Verdicts.AddOrUpdate(data, Refused);
+
+    /// <summary>
+    /// Refuses <paramref name="data"/> until <paramref name="check"/> (a read of the same bytes that is taking too long)
+    /// ends: then they are read as they are, checked again, unless the check itself gave a verdict. A check that failed
+    /// (it threw, not a refusal of the bytes' shape) leaves them refused: nothing says they are safe to read.
+    /// </summary>
+    public static void RefuseUntil(byte[] data, Task check)
+    {
+        // Pending, not Refused: a refusal the check itself makes stays when it ends.
+        Verdicts.TryAdd(data, Pending);
+        check.ContinueWith(_ =>
+        {
+            if (!Verdicts.TryGetValue(data, out var verdict) || !ReferenceEquals(verdict, Pending)) return;
+            if (check.IsCompletedSuccessfully) Verdicts.Remove(data);
+            else Verdicts.AddOrUpdate(data, Refused);
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+    }
 
     /// <exception cref="PdfShapeException">The cross-reference sections lead back to one already read.</exception>
     public static void CheckSections(byte[] data)
@@ -66,38 +83,45 @@ internal static class PdfShapeGuard
     /// <exception cref="PdfShapeException">The tree is one of those.</exception>
     public static void CheckPageTree(PdfDocument doc, long fileLength)
     {
-        try
+        if (Read(() => PdfObj.Dict(doc.Internals.Catalog?.Elements["/Pages"])) is not { } root) return;
+        var path = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
+        var stack = new Stack<(PdfDictionary Node, PdfArray? Kids, int Next)>();
+        stack.Push((root, Read(() => PdfObj.Array(root.Elements["/Kids"])), 0));
+        long entries = 0, listed = 0;
+        while (stack.TryPop(out var top))
         {
-            if (PdfObj.Dict(doc.Internals.Catalog?.Elements["/Pages"]) is not { } root) return;
-            var path = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
-            var stack = new Stack<(PdfDictionary Node, PdfArray? Kids, int Next)>();
-            stack.Push((root, PdfObj.Array(root.Elements["/Kids"]), 0));
-            long entries = 0, listed = 0;
-            while (stack.TryPop(out var top))
+            if (top.Kids is not { } list || top.Next >= list.Elements.Count)
             {
-                if (top.Kids is not { } list || top.Next >= list.Elements.Count)
-                {
-                    path.Remove(top.Node);
-                    continue;
-                }
-                stack.Push(top with { Next = top.Next + 1 });
-                if (PdfObj.Dict(list.Elements[top.Next]) is not { } kid) continue;
-                if (++entries > MaxPageTreeEntries) throw new PdfShapeException();
-                if (PdfObj.Array(kid.Elements["/Kids"]) is { } kids)
-                {
-                    if (!path.Add(kid) || stack.Count >= MaxPageTreeDepth) throw new PdfShapeException();
-                    stack.Push((kid, kids, 0));
-                }
-                else
-                {
-                    listed += PdfObj.Array(kid.Elements["/Annots"])?.Elements.Count ?? 0;
-                    if (listed * ShortestReference > fileLength + SharedListingBytes) throw new PdfShapeException();
-                }
+                path.Remove(top.Node);
+                continue;
+            }
+            stack.Push(top with { Next = top.Next + 1 });
+            // An entry that can't be read is passed over, never the rest of the tree: PDFsharp reaches the others too.
+            if (Read(() => PdfObj.Dict(list.Elements[top.Next])) is not { } kid) continue;
+            if (++entries > MaxPageTreeEntries) throw new PdfShapeException();
+            if (Read(() => PdfObj.Array(kid.Elements["/Kids"])) is { } kids)
+            {
+                if (!path.Add(kid) || stack.Count >= MaxPageTreeDepth) throw new PdfShapeException();
+                stack.Push((kid, kids, 0));
+            }
+            else
+            {
+                listed += Read(() => PdfObj.Array(kid.Elements["/Annots"]))?.Elements.Count ?? 0;
+                if (listed * ShortestReference > fileLength + SharedListingBytes) throw new PdfShapeException();
             }
         }
-        catch (Exception ex) when (ex is not (PdfShapeException or OutOfMemoryException))
+
+        // What PDFsharp gives, or null where it fails (left for the document's readers to report).
+        static T? Read<T>(Func<T?> get) where T : class
         {
-            // Not this check's to report.
+            try
+            {
+                return get();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                return null;
+            }
         }
     }
 
@@ -113,6 +137,7 @@ internal static class PdfShapeGuard
         var depth = new Nesting();
         foreach (var b in bytes) depth.Read(b);
     }
+
 
     private static bool StartsWithTwoNumbers(ReadOnlySpan<byte> bytes)
     {
@@ -171,24 +196,98 @@ internal static class PdfShapeGuard
     /// <summary>
     /// The file as PDFsharp reads it, with the nesting counted as it goes: its parser takes tokens a byte at a time and a
     /// stream's data in one read, and goes to each object by position, so stream data never counts, whatever bytes it holds,
-    /// and each object starts at no depth. What it reads in one go gets <see cref="CheckObjectStream"/>.
+    /// and each object starts at no depth. An unfiltered object stream's data, which PDFsharp parses again, is counted as it
+    /// is read (in one read or several), told by the tokens of its dictionary: /Type /ObjStm without /Filter.
     /// </summary>
     public sealed class GuardedFile(byte[] data) : MemoryStream(data, writable: false)
     {
-        private Nesting _nesting;
+        private Nesting _nesting;      // the tokens read, since the last move to an object
+        private Nesting _objectStream; // an unfiltered object stream's data, across the reads of it
+        private bool _objStm, _filter; // the dictionary read since the last "obj" names /Type /ObjStm, a /Filter
+        private bool _nextIsObjectStream; // the "stream" keyword followed such a dictionary: its data is read next
+        private bool _inObjectStream;
+        private readonly byte[] _token = new byte[MaxToken + 1];
+        private int _tokenLength = -1; // -1: between tokens
+        private bool _name;
+
+        /// <summary>The longest token looked at: what PDFsharp reads as /ObjStm, /Filter, obj or stream is shorter, escapes and all.</summary>
+        private const int MaxToken = 32;
 
         public override int ReadByte()
         {
             var b = base.ReadByte();
-            if (b >= 0) _nesting.Read((byte)b);
+            if (b >= 0)
+            {
+                _nesting.Read((byte)b);
+                Token((byte)b);
+            }
             return b;
         }
 
         public override int Read(byte[] buffer, int offset, int count)
         {
             var n = base.Read(buffer, offset, count);
-            CheckObjectStream(buffer.AsSpan(offset, n));
+            // Only an object stream's own data is parsed again (a filtered one is checked once decoded, in BoundedFilters):
+            // a content stream's or a picture's bytes are never nesting, whatever they hold. Which stream it is comes from
+            // the tokens of its dictionary, read just before, however far into the stream this read is.
+            if (_nextIsObjectStream)
+            {
+                (_nextIsObjectStream, _inObjectStream) = (false, true);
+                _objectStream.Reset();
+            }
+            if (_inObjectStream)
+                foreach (var b in buffer.AsSpan(offset, n)) _objectStream.Read(b);
             return n;
+        }
+
+        /// <summary>Follows the tokens PDFsharp's parser reads a byte at a time (names decoded, as it decodes them).</summary>
+        private void Token(byte b)
+        {
+            if (!Incremental.IsWhite(b) && !Incremental.IsDelimiter(b))
+            {
+                if (_tokenLength < 0) (_tokenLength, _name) = (0, false);
+                if (_tokenLength <= MaxToken) _token[_tokenLength++] = b;
+                return;
+            }
+            EndToken();
+            if (b == '/') (_tokenLength, _name) = (0, true);
+        }
+
+        private void EndToken()
+        {
+            if (_tokenLength is < 0 or > MaxToken)
+            {
+                _tokenLength = -1;
+                return;
+            }
+            var token = _token.AsSpan(0, _tokenLength);
+            _tokenLength = -1;
+            if (_name)
+            {
+                Span<byte> name = stackalloc byte[MaxToken];
+                var length = 0;
+                for (var i = 0; i < token.Length; i++)
+                {
+                    if (token[i] == '#' && i + 2 < token.Length && byte.TryParse(token.Slice(i + 1, 2), System.Globalization.NumberStyles.HexNumber, null, out var c))
+                    {
+                        name[length++] = c;
+                        i += 2;
+                    }
+                    else name[length++] = token[i];
+                }
+                if (name[..length].SequenceEqual("ObjStm"u8)) _objStm = true;
+                else if (name[..length].SequenceEqual("Filter"u8)) _filter = true;
+            }
+            else if (token.SequenceEqual("obj"u8))
+            {
+                // A new object: what follows is its dictionary. (An indirect /Length is read after the "stream" keyword.)
+                (_objStm, _filter, _inObjectStream) = (false, false, false);
+            }
+            else if (token.SequenceEqual("stream"u8))
+            {
+                _nextIsObjectStream = _objStm && !_filter;
+                _inObjectStream = false;
+            }
         }
 
         public override long Position
@@ -197,6 +296,7 @@ internal static class PdfShapeGuard
             set
             {
                 _nesting.Reset();
+                _tokenLength = -1;
                 base.Position = value;
             }
         }
@@ -204,6 +304,7 @@ internal static class PdfShapeGuard
         public override long Seek(long offset, SeekOrigin loc)
         {
             _nesting.Reset();
+            _tokenLength = -1;
             return base.Seek(offset, loc);
         }
     }

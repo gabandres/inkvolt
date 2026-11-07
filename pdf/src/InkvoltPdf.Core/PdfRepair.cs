@@ -50,14 +50,18 @@ public static partial class PdfRepair
     /// a reference to no object alone, as an editor leaves a deleted one, is no damage), else without a stale tail, else
     /// with a rebuilt cross-reference section, whichever PDFsharp reads better first; never throws. A file none of them
     /// helps is kept as it is, so the readers report the file's own first failure. Not tried for a file PDFsharp refuses for
-    /// its password, a stream too large to decode or its shape (<see cref="PdfShapeException"/>): a repair changes none of them.
+    /// its password, a stream too large to decode or its shape (<see cref="PdfShapeException"/>): a repair changes none of them,
+    /// but cross-reference sections that loop, which the rebuilt one replaces.
     /// </summary>
     public static Result Normalize(byte[] data, string? password)
     {
         if (data.AsSpan(0, Math.Min(data.Length, 1024)).IndexOf("%PDF"u8) < 0) return new Result(data, Outcome.AsIs);
         var (failure, health) = Reads(data, password);
         if (health == Health.Sound) return new Result(data, Outcome.AsIs);
-        if (failure is StreamTooLargeException or PdfShapeException || failure?.Message.Contains("password", StringComparison.OrdinalIgnoreCase) == true)
+        // Cross-reference sections that loop are what a rebuilt cross-reference repairs (it has no /Prev): every other
+        // refused shape is in the objects themselves.
+        if (failure is StreamTooLargeException || (failure is PdfShapeException && SectionsEnd(data)) ||
+            failure?.Message.Contains("password", StringComparison.OrdinalIgnoreCase) == true)
             return new Result(data, Outcome.AsIs);
         bool Better(byte[] candidate) => Reads(candidate, password).Health < health;
         try
