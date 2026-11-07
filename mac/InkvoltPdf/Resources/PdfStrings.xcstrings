@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "This form lists its fields on more pages than Inkvolt PDF shows at once: {0} of those places are left out. Every field is still shown on its first page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este formulario pone sus campos en más páginas de las que Inkvolt PDF muestra a la vez: se omiten {0} de esos lugares. Cada campo se sigue mostrando en su primera página."
+          }
+        }
+      }
+    },
     "The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.": {
       "extractionState": "manual",
       "localizations": {

@@ -14,6 +14,8 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
     private(set) weak var controller: DocumentWindowController?
     /// The form's widgets as last read (in tab order).
     private(set) var widgets: [FormWidget] = []
+    /// The form's places left out (`FormEditor.readForm`) were said.
+    private var toldPlacesLeftOut = false
     /// The widget with the keyboard focus (Tab moves it), and the one whose editor is open.
     private(set) var focused: FormWidget?
     private(set) var editing: FormWidget?
@@ -56,7 +58,13 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
     /// Reads the widgets of the current bytes; an open editor stays on its field.
     func reload() {
         guard let session = editor?.session else { return }
-        widgets = (try? FormEditor.read(session.data, session.password)) ?? []
+        let read = (try? FormEditor.readForm(session.data, session.password)) ?? (widgets: [], placesLeftOut: 0)
+        widgets = read.widgets
+        // Pages listing the same fields too often (one /Annots array shared by thousands of pages): said once.
+        if read.placesLeftOut > 0 && !toldPlacesLeftOut {
+            toldPlacesLeftOut = true
+            controller?.notify(FormEditor.placesLeftOutMessage(read.placesLeftOut))
+        }
         if let f = focused { focused = widgets.first { $0.fieldName == f.fieldName && $0.pageIndex == f.pageIndex && $0.annotIndex == f.annotIndex } }
         if let e = editing, !widgets.contains(where: { $0.fieldName == e.fieldName && $0.annotIndex == e.annotIndex }) { closeEditor() }
         if let h = hovered { hovered = widgets.first { $0.fieldName == h.fieldName && $0.rect == h.rect } }

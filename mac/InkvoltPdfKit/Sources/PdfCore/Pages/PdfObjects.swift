@@ -124,6 +124,17 @@ final class PObj {
     /// A stream's data as the file stores it (still encoded: a JPEG's own bytes); nil when it can't be read.
     var rawStreamData: [UInt8]? { stream(raw: true) }
 
+    /// At most `max` of a stream's decoded bytes (`raw`: as the file stores them), decoding no further, and whether it holds
+    /// more; nil when it can't be read.
+    func streamHead(_ max: Int, raw: Bool = false) -> (bytes: [UInt8], more: Bool)? {
+        var n = 0
+        var more: Int32 = 0
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        guard let b = inkv_obj_stream_head(doc.ctx, doc.doc, ptr, raw ? 1 : 0, Swift.max(max, 0), &n, &more, &err) else { return nil }
+        defer { inkv_free(b) }
+        return (Array(UnsafeBufferPointer(start: b, count: n)), more != 0)
+    }
+
     private func stream(raw: Bool) -> [UInt8]? {
         var n = 0
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))

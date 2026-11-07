@@ -23,10 +23,31 @@ enum PdfRepair {
         // A password the document needs and wasn't given: read as it is until it is (the session asks for it).
         if doc.needsPassword && doc.authBits(password) == 0 { return Result(data: bytes, repaired: hidden) }
         if !damaged(doc) { return Result(data: bytes, repaired: hidden) }
-        guard let copy = try? doc.write("encrypt=keep"), let check = try? MuDoc.open(copy), !damaged(check) else {
+        // Every object loaded once (the write then doesn't walk them again); a walk that failed partway says nothing of the
+        // objects after it, so the file is read as MuPDF repaired it in memory.
+        guard let used = try? doc.loadAllObjects() else { return Result(data: bytes, repaired: true) }
+        guard let copy = try? writeCopy(doc, password, sparse: doc.objectCount > 2 * used + 1024), let check = try? MuDoc.open(copy),
+              !damaged(check) else {
             return Result(data: bytes, repaired: true)
         }
         return Result(data: copy, repaired: true)
+    }
+
+    /// The trailer key that lists every object while a sparse copy is renumbered.
+    private static let keepKey = "InkvoltKeep"
+
+    /// The repaired document written whole, its encryption kept. `sparse`: MuPDF's repaired cross-reference runs to the
+    /// largest object number it found, so a few objects numbered in the millions (300 bytes) were written as 8 million rows,
+    /// 168 MB: such a copy is renumbered (garbage=compact), with every object listed in the trailer first so none is dropped
+    /// (compaction keeps only what the trailer reaches; a copy that isn't sparse keeps them all too), and the list taken out
+    /// in a second, plain write of the sound renumbered copy.
+    private static func writeCopy(_ doc: MuDoc, _ password: String?, sparse: Bool) throws -> [UInt8] {
+        if !sparse { return try doc.write("encrypt=keep") }
+        try doc.loadAllObjects(keepingThemIn: keepKey)
+        let renumbered = try MuDoc.open(try doc.write("garbage=compact,encrypt=keep"))
+        if renumbered.needsPassword { _ = renumbered.authBits(password) }
+        renumbered.trailer.remove(keepKey)
+        return try renumbered.write("encrypt=keep")
     }
 
     /// Whether the file is damaged as MuPDF reads it, or hides objects in a stale tail (what `Signatures.verify` checks on
