@@ -93,9 +93,27 @@ internal static class PdfObj
     /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
     /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
     /// open in Inkvolt PDF goes through here.
+    /// A file PDFsharp refuses because an editor saved it over a longer copy of itself (<see cref="StaleTail"/>) is read
+    /// without that tail.
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
-    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes) =>
+    public static PdfDocument Read(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
+    {
+        try
+        {
+            return ReadAsIs(stream, password, mode, maxBytes);
+        }
+        catch (PdfReaderException) when (stream.CanSeek && stream.Length <= int.MaxValue)
+        {
+            stream.Position = 0;
+            var bytes = new byte[stream.Length];
+            stream.ReadExactly(bytes);
+            if (StaleTail.Cut(bytes) is not { } cut) throw;
+            return ReadAsIs(new MemoryStream(cut, writable: false), password, mode, maxBytes);
+        }
+    }
+
+    private static PdfDocument ReadAsIs(Stream stream, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
         BoundedFilters.Within(maxBytes, maxBytes, () => string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode));
 
     public static PdfString MakeString(string value) =>
@@ -111,7 +129,16 @@ internal static class PdfObj
         failure ??= PdfStrings.Doc_CantRead;
         try
         {
-            var doc = Read(new MemoryStream(data, writable: false), password, mode);
+            PdfDocument doc;
+            try
+            {
+                doc = ReadAsIs(new MemoryStream(data, writable: false), password, mode, MaxStreamBytes);
+            }
+            catch (PdfReaderException) when (StaleTail.Cut(data) is { } cut)
+            {
+                data = cut; // an incremental save appends to the file as PDFsharp read it
+                doc = ReadAsIs(new MemoryStream(cut, writable: false), password, mode, MaxStreamBytes);
+            }
             // A signed document opened for editing: remember its original objects so the save can be incremental.
             if (mode == PdfDocumentOpenMode.Modify)
             {
