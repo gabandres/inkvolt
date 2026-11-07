@@ -198,6 +198,15 @@ public enum ImageImport {
 
     // ---- Other formats: decoded by MuPDF ----
 
+    /// "name" is too large (width x height pixels); without the size when it isn't a whole number Int holds (a frame of a
+    /// multi-frame TIFF sized from the first frame's header can work out to 10^30 pixels, or to infinity: Int() would trap).
+    static func tooLarge(_ name: String, _ width: Double, _ height: Double) -> PdfEditError {
+        guard let w = Int(exactly: width.rounded()), let h = Int(exactly: height.rounded()), w >= 0, h >= 0 else {
+            return PdfEditError(loc("\"{0}\" is too large.", name))
+        }
+        return PdfEditError(loc("\"{0}\" is too large ({1} x {2} pixels).", name, CoreLanguage.number(w), CoreLanguage.number(h)))
+    }
+
     private static func decoded(_ doc: MuDoc, _ bytes: [UInt8], _ type: ImageType, _ name: String) throws -> [Picture] {
         let header = self.header(bytes, type)
         let magic: String
@@ -225,7 +234,7 @@ public enum ImageImport {
             // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.
             let scale = header.width > 0 ? Double(header.width) / bw : 1
             if (bw * scale) * (bh * scale) > PdfEngine.maxPixels {
-                throw PdfEditError(loc("\"{0}\" is too large ({1} x {2} pixels).", name, CoreLanguage.number(Int(bw * scale)), CoreLanguage.number(Int(bh * scale))))
+                throw tooLarge(name, bw * scale, bh * scale)
             }
             var px: UnsafeMutablePointer<UInt8>?
             var w: Int32 = 0, h: Int32 = 0
