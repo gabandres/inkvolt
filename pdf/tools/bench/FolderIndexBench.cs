@@ -8,7 +8,7 @@ namespace InkvoltPdf.Bench;
 /// <summary>
 /// Roadmap 3.5's test: a folder of PDFs indexed once, word queries timed, a changed file found again. The corpus is made on
 /// the PC, outside the repository, and is the same on every PC: office-like files of 1 to 24 pages (a mean of about 8) of
-/// made-up prose over a large vocabulary, with a reference number of their own on each page, so the list of terms grows as
+/// made-up prose over a large vocabulary, with a reference number of their own on each page and a 64-character checksum on the first, so the list of terms grows as
 /// it does on real files. A few words are planted so a query knows what to expect: "quillwort" on every 3,333rd file,
 /// "résumé" with its accents on every 50th, and "lantern" from the prose on most pages. Six files aren't indexable
 /// on purpose: damaged, cut short, password-protected, too big, and an image with no text.
@@ -40,6 +40,10 @@ public static class FolderIndexBench
         return sb.ToString();
     }
 
+    /// <summary>A file's 64-character checksum on its first page: a run longer than a term, as hashes, identifiers and base64 are.</summary>
+    private static string Checksum(int file) =>
+        Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.ASCII.GetBytes($"file{file}")));
+
     private static string Page(int file, int page, ref Rng rng)
     {
         var sb = new StringBuilder(2600);
@@ -60,6 +64,7 @@ public static class FolderIndexBench
             line.Append(word).Append(' ');
         }
         if (page == 0 && file % 3333 == 7) sb.Append("(a note on quillwort in the marsh) Tj T*\n");
+        if (page == 0) sb.Append($"(Checksum {Checksum(file)}) Tj T*\n");
         sb.Append("ET\n");
         // "résumé" in WinAnsi, written straight into the content's bytes (the content is Latin-1).
         if (page == 0 && file % 50 == 3) sb.Append("BT /F1 11 Tf 72 60 Td (Attached: my résumé and a CAFÉ receipt) Tj ET\n");
@@ -173,7 +178,7 @@ public static class FolderIndexBench
                 log($"Indexed in {sw.Elapsed.TotalSeconds:N1} s ({indexer.Status.Searchable / sw.Elapsed.TotalSeconds:N0} files/s); this process's working set at most {peak / 1048576.0:N0} MB, its CPU {me.TotalProcessorTime.TotalSeconds:N1} s.");
             log($"  {indexer.Status.Text}");
             var size = index.FileBytes;
-            log($"  Index file: {size / 1048576.0:N0} MB, {index.Segments} segment(s), {index.TermsForBench:N0} terms, {index.Files.Values.Sum(f => f.Pages):N0} pages.");
+            log($"  Index file: {size / 1048576.0:N1} MB, {index.Segments} segment(s), {index.TermsForBench:N0} terms, {index.Files.Values.Sum(f => f.Pages):N0} pages.");
             foreach (var s in indexer.Skipped()) log($"    {s.RelativePath}: {s.Reason}");
 
             missed |= !Queries(index, log);
@@ -257,6 +262,8 @@ public static class FolderIndexBench
                      ("ntern", "inside a word", null),
                      ("e", "one letter", null),
                      ("REF-000042-000", "a reference, cut into words", null),
+                     (Checksum(4242)[^12..], "the end of a 64-character checksum", 1),
+                     (Checksum(4242).Substring(20, 24), "inside a 64-character checksum", 1),
                      ("nosuchwordanywhere", "not there", 0),
                  })
         {
