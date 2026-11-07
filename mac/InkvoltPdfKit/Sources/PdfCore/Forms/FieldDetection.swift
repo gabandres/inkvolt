@@ -46,17 +46,21 @@ public enum FieldDetection {
     }
 
     /// Suggestions for `pages` of an open document (its text from `engine`, its shapes from `data`), skipping places
-    /// `existing` fields cover; names are unique across them. `progress`: (pages done, pages).
+    /// `existing` fields cover; names are unique across them. `progress`: (pages done, pages). A page the engine refuses is
+    /// skipped, and `skipped` says which.
     public static func suggest(_ engine: PdfEngine, _ data: [UInt8], _ password: String?, _ pages: [Int], _ existing: [DesignField],
-                               cancel: CancelToken? = nil, progress: ((Int, Int) -> Void)? = nil) throws -> [FieldSuggestion] {
+                               cancel: CancelToken? = nil, skipped: SkippedPages? = nil,
+                               progress: ((Int, Int) -> Void)? = nil) throws -> [FieldSuggestion] {
         var names = existing.map(\.name)
         var result: [FieldSuggestion] = []
         let doc = try PdfEdit.openToRead(data, password)
+        let skipped = skipped ?? SkippedPages()
         for (done, p) in pages.enumerated() {
             try cancel?.check()
             progress?(done, pages.count)
             let g = engine.page(p)
-            let found = try suggest(p, g.width, g.height, engine.text(p, cache: false, cancel: cancel), VectorShapes.read(doc, p, cancel: cancel),
+            guard let text = try skipped.unlessRefused({ try engine.text(p, cache: false, cancel: cancel) }) else { continue }
+            let found = try suggest(p, g.width, g.height, text, VectorShapes.read(doc, p, cancel: cancel),
                                     existing.filter { $0.pageIndex == p }.map(\.rect), names, cancel: cancel)
             names += found.map(\.name)
             result += found

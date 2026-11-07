@@ -1094,6 +1094,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         findCancel = nil
         foundQuery = query
         found = []
+        findSkipped = ""
         foundIndex = -1
         for view in allPanes {
             view.matches = [:]
@@ -1124,22 +1125,35 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 pages = []
             }
             let results = pages.flatMap { m in m.hits.map { (page: m.page, start: $0.start, end: $0.end) } }
+            let skipped = pages.filter { $0.refused != nil }.map(\.page)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard generation == self.findGeneration else { return }
-                    self.showFound(results, from: from)
+                    self.showFound(results, from: from, skipped: skipped)
                 }
             }
         }
     }
 
-    private func showFound(_ results: [(page: Int, start: Int, end: Int)], from page: Int) {
+    /// Pages Find skipped (too costly to read), said after the count.
+    private var findSkipped = ""
+
+    /// " Page 2 took too long to read and wasn't searched." (or the pages), "" when none was skipped.
+    static func skippedNote(_ pages: [Int]) -> String {
+        guard let first = pages.first else { return "" }
+        if pages.count == 1 { return " " + loc("Page {0} took too long to read and wasn't searched.", CoreLanguage.number(first + 1)) }
+        let list = pages.map { CoreLanguage.number($0 + 1) }.joined(separator: ", ")
+        return " " + loc("{0} pages took too long to read and weren't searched: {1}.", CoreLanguage.number(pages.count), list)
+    }
+
+    private func showFound(_ results: [(page: Int, start: Int, end: Int)], from page: Int, skipped: [Int]) {
         found = results
+        findSkipped = Self.skippedNote(skipped)
         var byPage: [Int: [(start: Int, end: Int)]] = [:]
         for r in results { byPage[r.page, default: []].append((r.start, r.end)) }
         for view in allPanes { view.matches = byPage }
         if results.isEmpty {
-            findBar.status = loc("Not found")
+            findBar.status = loc("Not found") + findSkipped
         } else {
             foundIndex = (results.firstIndex { $0.page >= page } ?? 0) - 1
             step(1)
@@ -1154,7 +1168,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         foundIndex = ((foundIndex + by) % found.count + found.count) % found.count
         let m = found[foundIndex]
         for view in allPanes { view.currentMatch = m }
-        findBar.status = loc("{0} of {1}", CoreLanguage.number(foundIndex + 1), CoreLanguage.number(found.count))
+        findBar.status = loc("{0} of {1}", CoreLanguage.number(foundIndex + 1), CoreLanguage.number(found.count)) + findSkipped
         let pages = activePages
         pages.prepareToShow(m.page)
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {

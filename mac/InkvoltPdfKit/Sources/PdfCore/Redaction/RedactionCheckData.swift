@@ -589,7 +589,12 @@ extension RedactionCheck.Check {
                 defer { pages.close() }
                 for p in 0..<pages.pageCount {
                     var gone: [String] = []
-                    for w in RedactionCheck.words(try pages.text(p, cache: false, cancel: cancel).text) where !current.contains(w) && !gone.contains(w) {
+                    // A page the engine refuses is said, and the version's other pages are still read.
+                    guard let text = try SkippedPages().unlessRefused({ try pages.text(p, cache: false, cancel: cancel) }) else {
+                        notes.append(loc("{0} couldn't be read on its own.", loc("{0}, page {1}", place, CoreLanguage.number(p + 1))))
+                        continue
+                    }
+                    for w in RedactionCheck.words(text.text) where !current.contains(w) && !gone.contains(w) {
                         gone.append(w)
                     }
                     if gone.isEmpty { continue }

@@ -281,7 +281,8 @@ extension DocumentWindowController {
         }
         do {
             let total = missing.count
-            let read = try await ai.pageTexts.read(chosen, engine: current, cancel: token, progress: { [weak pane] done in
+            let skipped = SkippedPages()
+            let read = try await ai.pageTexts.read(chosen, engine: current, cancel: token, skipped: skipped, progress: { [weak pane] done in
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated { pane?.showStatus(loc("Reading the text… {0} of {1} pages", AiText.n0(done), AiText.n0(total))) }
                 }
@@ -289,6 +290,10 @@ extension DocumentWindowController {
             if engine !== current {
                 pane.showStatus(loc("Not sent: the document changed while its text was read. Try again."))
                 return nil
+            }
+            // Pages the engine refused go as empty: said, after the progress already queued.
+            if let note = skipped.note {
+                DispatchQueue.main.async { [weak pane] in MainActor.assumeIsolated { pane?.showStatus(note) } }
             }
             return read
         } catch {

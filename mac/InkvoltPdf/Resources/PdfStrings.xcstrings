@@ -8053,6 +8053,17 @@
         }
       }
     },
+    "Page {0} couldn't be read, so it isn't shown. The rest of the document can still be used.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer la página {0}, así que no se muestra. El resto del documento se puede seguir usando."
+          }
+        }
+      }
+    },
     "Page {0} has content that couldn't be decoded": {
       "extractionState": "manual",
       "localizations": {
@@ -8082,6 +8093,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Página {0} de {1}"
+          }
+        }
+      }
+    },
+    "Page {0} took too long to read, so it isn't shown. The rest of the document can still be used.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} tardaba demasiado en leerse, así que no se muestra. El resto del documento se puede seguir usando."
           }
         }
       }
@@ -8269,6 +8291,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Páginas"
+          }
+        }
+      }
+    },
+    "Pages that couldn't be read were skipped: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se omitieron las páginas que no se pudieron leer: {0}."
           }
         }
       }

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Draws pages through the engine off the main thread and keeps the latest image of each page: one render at a time
 /// per renderer, a newer request for a page cancelling the older one (MuPDF stops midway), pages no longer wanted
@@ -71,8 +72,33 @@ final class PageRenderer {
         return image
     }
 
+    /// Pages the engine refused (reading them took too long, or a picture on them is too large): they aren't asked for
+    /// again, and the view says so in their place (Windows' viewer). Cleared with the engine (`invalidate`).
+    private(set) var refused: [Int: PageRefused] = [:]
+
+    /// Called on the main thread when a page was refused.
+    var onRefused: ((Int) -> Void)?
+
+    /// What the view shows in a refused page's place.
+    func refusal(_ page: Int) -> String? {
+        guard let r = refused[page] else { return nil }
+        return r.tooSlow ? loc("This page took too long to read and isn't shown") : loc("This page can't be displayed")
+    }
+
+    /// A render, or why the engine refused the page (nil for both when it failed otherwise or was cancelled).
+    nonisolated private static func draw(_ work: () throws -> RenderedImage) -> (RenderedImage?, PageRefused?) {
+        do {
+            return (try work(), nil)
+        } catch let r as PageRefused {
+            return (nil, r)
+        } catch {
+            return (nil, nil)
+        }
+    }
+
     /// Asks for the page at `scale` pixels per point unless it is there already or on its way.
     func request(_ page: Int, scale: Double) {
+        if refused[page] != nil { return }
         if let c = cache[page], abs(c.scale - scale) < 0.001 { return }
         if let p = pending[page], abs(p.scale - scale) < 0.001 { return }
         pending[page]?.token.cancel()
@@ -81,15 +107,29 @@ final class PageRenderer {
         let engine = engine
         let dark = Self.nightReading
         queue.async {
-            let rendered = Self.night(try? engine.render(page, scale: scale, cancel: token), dark, token)
+            let (drawn, refusal) = Self.draw { try engine.render(page, scale: scale, cancel: token) }
+            let rendered = Self.night(drawn, dark, token)
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self.arrived(page, scale, token, rendered) }
+                MainActor.assumeIsolated { self.arrived(page, scale, token, rendered, refusal) }
             }
         }
     }
 
-    private func arrived(_ page: Int, _ scale: Double, _ token: CancelToken, _ rendered: RenderedImage?) {
+    /// Keeps a refusal, unless its request was cancelled: `invalidate` cancels those of the engine before an edit, whose
+    /// refusals say nothing of the new one's pages.
+    private func refuse(_ page: Int, _ refusal: PageRefused, _ token: CancelToken) {
+        guard !token.isCancelled, refused[page] == nil else { return }
+        refused[page] = refusal
+        cache[page] = nil
+        onRefused?(page)
+    }
+
+    private func arrived(_ page: Int, _ scale: Double, _ token: CancelToken, _ rendered: RenderedImage?, _ refusal: PageRefused?) {
         if pending[page]?.token === token { pending[page] = nil }
+        if let refusal {
+            refuse(page, refusal, token)
+            return
+        }
         guard !token.isCancelled, let rendered, let image = Self.cgImage(rendered) else { return }
         let entry = Image(scale: scale, image: image)
         cache[page] = entry
@@ -111,6 +151,7 @@ final class PageRenderer {
     func invalidate() {
         for p in pending.values { p.token.cancel() }
         pending = [:]
+        refused = [:] // the new engine reads its pages afresh (Windows checks an edit's pages again)
         for (page, entry) in cache { cache[page] = Image(scale: -1, image: entry.image) }
         for t in pendingTiles.values { t.cancel() }
         pendingTiles = [:]
@@ -135,7 +176,7 @@ final class PageRenderer {
     /// drawn before the content changed) are asked for. Their keys come back (for `keepTiles`).
     func requestTiles(_ page: Int, scale: Double, region: RectD, size: (width: Double, height: Double)) -> [TileKey] {
         let side = Self.tileSide(scale)
-        guard side > 0, region.width > 0, region.height > 0 else { return [] }
+        guard side > 0, region.width > 0, region.height > 0, refused[page] == nil else { return [] }
         let key = Self.scaleKey(scale)
         let c0 = max(Int(region.x / side), 0), r0 = max(Int(region.y / side), 0)
         let c1 = min(Int((region.right - 0.001) / side), max(Int((size.width - 0.001) / side), 0))
@@ -163,15 +204,20 @@ final class PageRenderer {
         let engine = engine
         let dark = Self.nightReading
         queue.async {
-            let rendered = Self.night(try? engine.render(key.page, scale: scale, region: rect, cancel: token), dark, token)
+            let (drawn, refusal) = Self.draw { try engine.render(key.page, scale: scale, region: rect, cancel: token) }
+            let rendered = Self.night(drawn, dark, token)
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { self.tileArrived(key, rect, token, rendered) }
+                MainActor.assumeIsolated { self.tileArrived(key, rect, token, rendered, refusal) }
             }
         }
     }
 
-    private func tileArrived(_ key: TileKey, _ rect: RectD, _ token: CancelToken, _ rendered: RenderedImage?) {
+    private func tileArrived(_ key: TileKey, _ rect: RectD, _ token: CancelToken, _ rendered: RenderedImage?, _ refusal: PageRefused?) {
         if pendingTiles[key] === token { pendingTiles[key] = nil }
+        if let refusal {
+            refuse(key.page, refusal, token)
+            return
+        }
         guard !token.isCancelled, let rendered, let image = Self.cgImage(rendered) else { return }
         tiles[key] = Tile(rect: rect, image: image, fresh: true)
         onTile?(key.page, rect)

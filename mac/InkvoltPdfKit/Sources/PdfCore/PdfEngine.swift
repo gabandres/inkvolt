@@ -177,6 +177,21 @@ public final class PdfEngine: @unchecked Sendable {
     public var pageCount: Int { pages.count }
     public let isEncrypted: Bool
 
+    /// Seconds a call may spend reading a page's content (the page check's limit on Windows, 10 s); tests shorten it.
+    public static var defaultPageBudget: Double { budgetForTests ?? 10 }
+    @TaskLocal static var budgetForTests: Double?
+
+    /// This engine's budget for reading a page (0: no limit).
+    public var pageBudget: Double {
+        get { verdicts.budget }
+        set { verdicts.budget = newValue }
+    }
+
+    private let verdicts = PageVerdicts()
+
+    /// What reading the page found so far.
+    public func verdictOf(_ page: Int) -> PageVerdict { verdicts[page] }
+
     private init(_ main: Instance, source: Source, password: String?) throws {
         self.main = main
         self.source = source
@@ -264,26 +279,24 @@ public final class PdfEngine: @unchecked Sendable {
         let g = try geometry(page)
         let r = region ?? RectD(0, 0, g.width, g.height)
         try Self.checkSize(r.width * scale, r.height * scale)
-        let cookie = cancel == nil ? nil : inkv_new_cookie()
-        defer { inkv_drop_cookie(cookie) }
-        let handler = cookie.flatMap { c in cancel?.register { inkv_cookie_abort(c) } }
-        defer { cancel?.unregister(handler) }
-        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        var pixels: UnsafeMutablePointer<UInt8>?
-        var width: Int32 = 0, height: Int32 = 0
-        let draw = annotations ? inkv_render_rgb : inkv_render_rgb_contents
-        let result = draw(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + r.x), Float(g.originY + r.y),
-                          Float(g.originX + r.right), Float(g.originY + r.bottom), cookie, &pixels, &width, &height, &err)
-        defer { inkv_free(pixels) }
-        if result == 2 { throw CancellationError() }
-        guard result == 1, let pixels else { throw PdfEngineError(message: Self.message(err)) }
-        try cancel.check()
-        return RenderedImage(Int(width), Int(height), Array(UnsafeBufferPointer(start: pixels, count: Int(width) * Int(height) * 3)))
+        return try reading(page, cancel) { cookie in
+            var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+            var pixels: UnsafeMutablePointer<UInt8>?
+            var width: Int32 = 0, height: Int32 = 0
+            let draw = annotations ? inkv_render_rgb : inkv_render_rgb_contents
+            let result = draw(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + r.x), Float(g.originY + r.y),
+                              Float(g.originX + r.right), Float(g.originY + r.bottom), cookie, &pixels, &width, &height, &err)
+            defer { inkv_free(pixels) }
+            if result == 2 { throw CancellationError() }
+            guard result == 1, let pixels else { throw PdfEngineError(message: Self.message(err)) }
+            try cancel.check()
+            return RenderedImage(Int(width), Int(height), Array(UnsafeBufferPointer(start: pixels, count: Int(width) * Int(height) * 3)))
+        }
     }
 
     /// Renders a page straight to a PNG or JPEG file at the given resolution.
-    /// - Throws: `CancellationError` when `cancel` fired before the render started; `PdfEngineError` when the image
-    ///   would exceed `maxPixels`.
+    /// - Throws: `CancellationError` when `cancel` fired; `PdfEngineError` when the image would exceed `maxPixels`;
+    ///   `PageRefused` (no file written).
     public func saveImage(_ page: Int, dpi: Double, path: String, jpeg: Bool, cancel: CancelToken? = nil) throws {
         try cancel.check()
         gate.lock()
@@ -293,9 +306,78 @@ public final class PdfEngine: @unchecked Sendable {
         let scale = dpi / 72
         let g = try geometry(page)
         try Self.checkSize((g.width * scale).rounded(.up), (g.height * scale).rounded(.up))
-        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        guard inkv_save_image(main.ctx, main.doc, Int32(page), Float(scale), path, jpeg ? 1 : 0, &err) != 0 else {
-            throw PdfEngineError(message: Self.message(err))
+        try reading(page, cancel) { cookie in
+            var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+            let result = inkv_save_image(main.ctx, main.doc, Int32(page), Float(scale), path, jpeg ? 1 : 0, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
+        }
+    }
+
+    /// Largest picture MuPDF may decode, width × height: 268 million pixels (16,384 × 16,384), where Windows' page check
+    /// refuses one (half its 2 GB process at 4 bytes a pixel, `PageChecks.OutOfResources`). A 600 dpi scan of a D-size
+    /// sheet (311 M) or the 20,000 × 20,000 picture that took 9 s a draw on Windows is larger. A page with a larger one is
+    /// refused before MuPDF decodes any of it; MuPDF decodes all of a picture for every draw, whatever the zoom, a
+    /// second or more for the largest allowed, and the time is looked at between pictures.
+    public static let maxPicturePixels = 268_435_456.0
+
+    /// Test hook: each read of the file's bytes waits `seconds` while a page is read (a slow share or iCloud).
+    func slowReadsForTests(_ seconds: Double) {
+        gate.lock()
+        defer { gate.unlock() }
+        if let main { inkv_test_slow_reads(main.doc, seconds) }
+    }
+
+    /// Test hook: objects the stream checks of the engine's main instance resolved so far, and how often its document's
+    /// stream read the CPU clock.
+    func countsForTests() -> (walked: Int, clockReads: Int) {
+        gate.lock()
+        defer { gate.unlock() }
+        guard let main else { return (0, 0) }
+        var walked: Int64 = 0, reads: Int64 = 0
+        inkv_test_counts(main.doc, &walked, &reads)
+        return (Int(walked), Int(reads))
+    }
+
+    /// Runs `body`, a call that reads `page`'s content, with a cookie bounding it (Windows' page check, in process): the
+    /// engine's `pageBudget` for the reading and again for the drawing, the largest picture, `cancel` and closing the
+    /// engine. What the call found is kept as the page's verdict; a page refused once is refused at once from then on.
+    /// - Throws: `PageRefused`; `CancellationError` when `cancel` fired; `PdfEngineClosed` when the engine was closed.
+    private func reading<T>(_ page: Int, _ cancel: CancelToken?, _ body: (OpaquePointer) throws -> T) throws -> T {
+        let known = verdicts[page]
+        if known.refuses { throw PageRefused(page: page, tooSlow: known == .tooSlow) }
+        guard let cookie = inkv_new_cookie() else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
+        defer { inkv_drop_cookie(cookie) }
+        inkv_cookie_limit(cookie, verdicts.budget, Self.maxPicturePixels)
+        let watched = verdicts.watch(cookie)
+        defer { verdicts.unwatch(watched) }
+        let handler = cancel?.register { inkv_cookie_abort(cookie) }
+        defer { cancel?.unregister(handler) }
+        do {
+            let result = try body(cookie)
+            try settle(page, cookie)
+            verdicts.set(page, .fine)
+            return result
+        } catch {
+            try settle(page, cookie)
+            throw error
+        }
+    }
+
+    /// Why a call stopped, as an error, the page's verdict kept; nothing when it wasn't stopped.
+    private func settle(_ page: Int, _ cookie: OpaquePointer) throws {
+        switch inkv_cookie_stopped(cookie) {
+        case 1:
+            if verdicts.closed { throw PdfEngineClosed() }
+            throw CancellationError()
+        case 2:
+            verdicts.set(page, .tooSlow)
+            throw PageRefused(page: page, tooSlow: true)
+        case 3, 4: // a picture too large; a stream decompressed more than twice
+            verdicts.set(page, .failed)
+            throw PageRefused(page: page, tooSlow: false)
+        default:
+            return
         }
     }
 
@@ -357,7 +439,7 @@ public final class PdfEngine: @unchecked Sendable {
             textLru.insert(page, at: 0)
             return hit
         }
-        let text = try extractText(instance, page)
+        let text = try extractText(instance, page, cancel)
         if cache {
             textCache[page] = text
             textLru.insert(page, at: 0)
@@ -366,19 +448,21 @@ public final class PdfEngine: @unchecked Sendable {
         return text
     }
 
-    private func extractText(_ instance: Instance, _ page: Int) throws -> PageText {
-        findMemo.countExtraction()
+    private func extractText(_ instance: Instance, _ page: Int, _ cancel: CancelToken?) throws -> PageText {
         let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var lines: UnsafeMutablePointer<inkv_line>?
         var chars: UnsafeMutablePointer<inkv_char>?
         var lineCount: Int32 = 0, charCount: Int32 = 0
-        guard inkv_page_chars(instance.ctx, instance.doc, Int32(page), &lines, &lineCount, &chars, &charCount, &err) != 0 else {
-            throw PdfEngineError(message: Self.message(err))
-        }
         defer {
             inkv_free(lines)
             inkv_free(chars)
+        }
+        try reading(page, cancel) { cookie in
+            findMemo.countExtraction()
+            let result = inkv_page_chars(instance.ctx, instance.doc, Int32(page), &lines, &lineCount, &chars, &charCount, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
         }
         var result: [[(String, RectD)]] = []
         var directions: [(Double, Double)] = []
@@ -421,13 +505,15 @@ public final class PdfEngine: @unchecked Sendable {
         var lines: UnsafeMutablePointer<inkv_line>?
         var chars: UnsafeMutablePointer<inkv_char>?
         var lineCount: Int32 = 0, charCount: Int32 = 0
-        let read = annotations ? inkv_page_chars_annots : inkv_page_chars
-        guard read(instance.ctx, instance.doc, Int32(page), &lines, &lineCount, &chars, &charCount, &err) != 0 else {
-            throw PdfEngineError(message: Self.message(err))
-        }
         defer {
             inkv_free(lines)
             inkv_free(chars)
+        }
+        let read = annotations ? inkv_page_chars_annots : inkv_page_chars
+        try reading(page, nil) { cookie in
+            let result = read(instance.ctx, instance.doc, Int32(page), &lines, &lineCount, &chars, &charCount, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
         }
         var result: [TextLine] = []
         for li in 0..<Int(lineCount) {
@@ -522,8 +608,10 @@ public final class PdfEngine: @unchecked Sendable {
         return min(max(Double(y) - pages[page].originY, 0), pages[page].height)
     }
 
-    /// Closes the document; later calls throw `PdfEngineClosed`. Safe while another thread reads text.
+    /// Closes the document; later calls throw `PdfEngineClosed`. Safe while another thread reads text. A page being read
+    /// now stops at once (a hostile one would otherwise hold the locks until its budget ran out).
     public func close() {
+        verdicts.close()
         gate.lock()
         textGate.lock()
         closed = true
@@ -591,10 +679,13 @@ public final class PdfEngine: @unchecked Sendable {
         let g = try geometry(page)
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var raw = inkv_export()
-        guard inkv_export_page(instance.ctx, instance.doc, Int32(page), images ? (boxesOnly ? 2 : 1) : 0, Int64(jpegAbovePixels), &raw, &err) != 0 else {
-            throw PdfEngineError(message: Self.message(err))
-        }
         defer { inkv_free_export(&raw) }
+        let mode: Int32 = images ? (boxesOnly ? 2 : 1) : 0
+        try reading(page, cancel) { cookie in
+            let result = inkv_export_page(instance.ctx, instance.doc, Int32(page), mode, Int64(jpegAbovePixels), &raw, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
+        }
         func box(_ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float) -> RectD {
             RectD.fromEdges(Double(x0) - g.originX, Double(y0) - g.originY, Double(x1) - g.originX, Double(y1) - g.originY)
         }
@@ -644,7 +735,7 @@ public final class PdfEngine: @unchecked Sendable {
 
     /// A region of a page (page space) drawn on transparency as straight RGBA at `scale` pixels per point; nil when MuPDF
     /// can't draw it or it has no pixels.
-    /// - Throws: `CancellationError` when `cancel` fired before it was drawn.
+    /// - Throws: `CancellationError` when `cancel` fired; `PageRefused`.
     func renderRegionRgba(_ page: Int, _ region: RectD, scale: Double, cancel: CancelToken?) throws -> (rgba: [UInt8], width: Int, height: Int)? {
         try cancel.check()
         gate.lock()
@@ -654,10 +745,15 @@ public final class PdfEngine: @unchecked Sendable {
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         var pixels: UnsafeMutablePointer<UInt8>?
         var width: Int32 = 0, height: Int32 = 0
-        let ok = inkv_render_region_rgba(main.ctx, main.doc, Int32(page), Float(scale), Float(g.originX + region.x), Float(g.originY + region.y),
-                                         Float(g.originX + region.right), Float(g.originY + region.bottom), &pixels, &width, &height, &err)
         defer { inkv_free(pixels) }
-        guard ok != 0, let pixels, width > 0, height > 0 else { return nil }
+        let x0 = Float(g.originX + region.x), y0 = Float(g.originY + region.y)
+        let x1 = Float(g.originX + region.right), y1 = Float(g.originY + region.bottom)
+        let ok = try reading(page, cancel) { cookie in
+            let result = inkv_render_region_rgba(main.ctx, main.doc, Int32(page), Float(scale), x0, y0, x1, y1, &pixels, &width, &height, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            return result == 1
+        }
+        guard ok, let pixels, width > 0, height > 0 else { return nil }
         return (Array(UnsafeBufferPointer(start: pixels, count: Int(width) * Int(height) * 4)), Int(width), Int(height))
     }
 
@@ -676,6 +772,8 @@ extension PdfEngine {
         public let text: PageText?
         public let hits: [(start: Int, end: Int)]
         public let error: String?
+        /// Set when the page was refused (its reading took too long, or a picture on it is too large): skipped.
+        public var refused: PageRefused? = nil
     }
 
     /// Threads `findAll` reads pages on, each with its own MuPDF instance over the engine's one copy of the bytes: every
@@ -737,7 +835,7 @@ extension PdfEngine {
                 }
                 do {
                     let text: PageText
-                    if let instance { text = try extractText(instance, p) } else { text = try self.text(p, cache: false, cancel: cancel) }
+                    if let instance { text = try extractText(instance, p, cancel) } else { text = try self.text(p, cache: false, cancel: cancel) }
                     memo.remember(p, text)
                     let hits = text.find(query, matchCase: matchCase, wholeWord: wholeWord, ignoreAccents: ignoreAccents)
                     results.set(p, PageMatches(page: p, text: hits.isEmpty || !keepText ? nil : text, hits: hits, error: nil))
@@ -746,6 +844,9 @@ extension PdfEngine {
                 } catch let e as PdfEngineClosed {
                     failure.set(e)
                     return
+                } catch let refused as PageRefused {
+                    // Skipped: the rest is found (a refused page answers at once from then on).
+                    results.set(p, PageMatches(page: p, text: nil, hits: [], error: refused.message, refused: refused))
                 } catch {
                     results.set(p, PageMatches(page: p, text: nil, hits: [], error: (error as? PdfEngineError)?.message ?? "\(error)"))
                 }

@@ -30,6 +30,8 @@ public struct RecognizeTextReport: Equatable, Sendable {
     /// Suspect words among them, and pages replaced with their cleaned image (Recognize Text with cleaning, roadmap 2.2).
     public var suspect: Int = 0
     public var replaced: Int = 0
+    /// Pages the engine refused (too long to read, or too large to draw): skipped (from 0).
+    public var skipped: [Int] = []
 }
 
 /// Recognize Text (OCR): pages rendered at 300 dpi and recognized, the words written as an invisible text layer (the
@@ -72,25 +74,26 @@ public enum PageOcr {
         return { engine, page, cancel in try ScanText.recognize(engine, page, reader, read, spelling: spelling, cancel: cancel).words }
     }
 
-    /// OCR of `pages`: pages that already have text are skipped; words mostly inside an `exclude` area (blacked-out
-    /// redactions) are dropped. `progress` gets (pages done, pages to do).
+    /// OCR of `pages`: pages that already have text are skipped, and pages the engine refuses (`skipped` says which);
+    /// words mostly inside an `exclude` area (blacked-out redactions) are dropped. `progress` gets (pages done, pages to do).
     /// - Throws: `CancellationError` when `cancel` fires; the recognizer's errors.
     public static func recognizePages(_ data: [UInt8], _ password: String?, _ pages: [Int], _ recognize: Recognizer,
-                                      exclude: [Int: [RectD]]? = nil, cancel: CancelToken? = nil,
+                                      exclude: [Int: [RectD]]? = nil, cancel: CancelToken? = nil, skipped: SkippedPages? = nil,
                                       progress: ((Int, Int) -> Void)? = nil) throws -> (words: [Int: [OcrWord]], hadText: Int) {
         var result: [Int: [OcrWord]] = [:]
         var hadText = 0
         let engine = try PdfEngine.open(data, password: password)
         defer { engine.close() }
+        let skipped = skipped ?? SkippedPages()
         for (i, page) in pages.enumerated() {
             try cancel.check()
             progress?(i, pages.count)
-            guard page >= 0 && page < engine.pageCount else { continue }
-            if try TextLayer.hasText(engine, page, cancel: cancel) {
+            guard page >= 0 && page < engine.pageCount, let has = try skipped.unlessRefused({ try TextLayer.hasText(engine, page, cancel: cancel) }) else { continue }
+            if has {
                 hadText += 1
                 continue
             }
-            var words = try recognize(engine, page, cancel)
+            guard var words = try skipped.unlessRefused({ try recognize(engine, page, cancel) }) else { continue }
             if let blacked = exclude?[page] {
                 words.removeAll { w in blacked.contains { overlap(w.rect, $0) > 0.3 * w.rect.width * w.rect.height } }
             }
@@ -112,8 +115,10 @@ public enum PageOcr {
             all = Array(0..<engine.pageCount)
             engine.close()
         }
-        let (words, hadText) = try recognizePages(data, password, all, recognize, cancel: cancel, progress: progress)
-        let report = RecognizeTextReport(words: words.values.reduce(0) { $0 + $1.count }, pagesWithWords: words.count, hadText: hadText)
+        let skipped = SkippedPages()
+        let (words, hadText) = try recognizePages(data, password, all, recognize, cancel: cancel, skipped: skipped, progress: progress)
+        let report = RecognizeTextReport(words: words.values.reduce(0) { $0 + $1.count }, pagesWithWords: words.count, hadText: hadText,
+                                         skipped: skipped.list)
         if report.words == 0 { return (data, report) }
         try cancel.check()
         return (try TextLayer.addInvisibleText(data, password, words), report)
@@ -132,17 +137,18 @@ public enum PageOcr {
         var hadText = 0
         let engine = try PdfEngine.open(data, password: password)
         let chosen = pages ?? Array(0..<engine.pageCount)
+        let skipped = SkippedPages()
         do {
             defer { engine.close() }
             for (i, page) in chosen.enumerated() {
                 try cancel.check()
                 progress?(i, chosen.count)
-                guard page >= 0 && page < engine.pageCount else { continue }
-                if try TextLayer.hasText(engine, page, cancel: cancel) {
+                guard page >= 0 && page < engine.pageCount, let has = try skipped.unlessRefused({ try TextLayer.hasText(engine, page, cancel: cancel) }) else { continue }
+                if has {
                     hadText += 1
                     continue
                 }
-                let read = try ScanText.recognize(engine, page, recognizer, options, spelling: spelling, cancel: cancel)
+                guard let read = try skipped.unlessRefused({ try ScanText.recognize(engine, page, recognizer, options, spelling: spelling, cancel: cancel) }) else { continue }
                 if !read.words.isEmpty { words[page] = read.words }
                 if let image = read.cleaned { cleaned[page] = image }
             }
@@ -150,7 +156,7 @@ public enum PageOcr {
         progress?(chosen.count, chosen.count)
         let all = words.values.flatMap { $0 }
         let report = RecognizeTextReport(words: all.count, pagesWithWords: words.count, hadText: hadText,
-                                         suspect: all.filter { !$0.suspect.isEmpty }.count, replaced: cleaned.count)
+                                         suspect: all.filter { !$0.suspect.isEmpty }.count, replaced: cleaned.count, skipped: skipped.list)
         try cancel.check()
         var out = try ScanPage.writeBack(data, password, cleaned)
         if report.words > 0 { out = try TextLayer.addInvisibleText(out, password, words, language: recognizer.language) }
