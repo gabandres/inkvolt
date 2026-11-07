@@ -552,7 +552,7 @@ struct PageCheckTests {
         defer { engine.close() }
         engine.slowReadsForTests(0.005)
         let took = try Self.time { _ = try engine.render(0, scale: 0.25) }
-        #expect(took < 4, "\(took) s") // 1.3 s on the M1 (the reads' waits included); a byte at a time: 1,000 s
+        #expect(took < 20, "\(took) s") // 1.3 s on the M1 (the reads' waits included), 4.5-5.8 s on CI's runner; a byte at a time: 1,000 s
         #expect(engine.verdictOf(0) == .fine)
     }
 
