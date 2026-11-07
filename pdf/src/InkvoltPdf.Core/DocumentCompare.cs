@@ -191,9 +191,12 @@ public sealed class CompareResult
     {
         if (c.Kind != ChangeKind.Moved || c.Old is not [var from, ..] || c.New is not [var to, ..]) return null;
         // Each page is on one row: the move stays in a row when a row pairs exactly these two pages.
-        var oneRow = from.Page == to.Page && Rows.Any(r => r.OldPage == from.Page && r.NewPage == to.Page);
+        _pairedPages ??= [.. Rows.Where(r => r is { OldPage: not null, NewPage: not null }).Select(r => (r.OldPage!.Value, r.NewPage!.Value))];
+        var oneRow = from.Page == to.Page && _pairedPages.Contains((from.Page, to.Page));
         return new MovePlace(from.Page, to.Page, oneRow);
     }
+
+    private HashSet<(int Old, int New)>? _pairedPages;
 
     /// <summary>"3 text changes (1 inserted, 2 changed); 1 page removed; 2 pages without text": one line for the toolbar and the report.</summary>
     public string Summary()
