@@ -72,4 +72,4 @@ https://apps.microsoft.com/detail/9PNR76HJ62SK
 
 Inkvolt PDF for Mac 1.5: native, on Apple silicon, free and AGPL. Redaction with the check, digital signatures, compare,
 batch, OCR with macOS's recognizer, export to Word and PowerPoint. `brew install --cask gabandres/inkvolt/inkvolt-pdf`
-https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.8.0
+https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.9.0

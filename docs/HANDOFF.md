@@ -60,6 +60,14 @@ ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release aft
 (`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
 separators; the Mac takes a pasted SSN, phone or ZIP as its digits.
 Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) submitted 2026-11-07, Waiting for Review** (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
+**Inkvolt PDF for Mac 1.9.0 published 2026-11-07** (`pdf-mac-v1.9.0` on `4768ae0c`, notarized DMG sha256 3e19aa8f…d8d2e07,
+38.8 MB, appcast with Spanish notes, not Latest; Homebrew cask `5ddcf54` (pushed from a clone: the tap is no longer tapped on
+ignia-mac), website `f1d2750` deployed; folder search, Compare's Office files and scans, drawing in bands, the forms corpus
+work): hostile-input review since 1.8.0 first (four fixes, `d55bd7f2`: a sparse repaired copy, shared /Annots arrays, a check
+box face that inflates, a tail's object hidden by a comment or sign) and its review's fixes (`0b09155a`: places shared fairly
+and said, faces that can't be decoded kept, objects loaded once and kept through renumbering, the tail read as MuPDF's repair
+lexes it). Self-test en/es on the installed release all green (569 and 570 checks, Vision's too); the released 1.8.0 finds
+1.9.0 in the feed (en, es); /Applications holds 1.9.0 from the DMG. Next: Print for Mac 1.3.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
 older build finds it in the feed (en, es); self-test en/es all green but Vision's redaction/OCR checks, which fail on
