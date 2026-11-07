@@ -654,15 +654,16 @@ final class FolderIndexTests {
         released.wait()
     }
 
-    /// Mac addition (review): a run longer than a term (48) is filed in overlapping pieces, so its end is found as Find
-    /// finds it inside the run; a long word of a query looks up its start.
+    /// A run longer than a term (an identifier, a hash, base64, a German compound) is found anywhere inside, as Find finds
+    /// it: its end, a piece from its middle, a phrase that starts at its end (Windows' test of the same name).
     @Test func The_end_of_a_long_run_is_found_as_Find_finds_it() throws {
         let short = String(repeating: "k", count: 50) + "endmarker9"
         let long = String(repeating: "x", count: 260) + "abcdefghijklmnopqrstuvwxyz0123456789abcd"
+        let id = "Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft"
         let index = try FolderIndex.open(base)
         defer { index.dispose() }
         try commit(index) { b in
-            add(b, "a.pdf", "intro \(short) outro", "other \(long) text")
+            add(b, "a.pdf", "intro \(short) outro", "other \(long) text", "die \(id) heute")
             add(b, "b.pdf", "endmarker nothing abcdefghijklmnopqrstuvw")
         }
         #expect(try at(index, "endmarker9") == ["a.pdf#1"])
@@ -671,6 +672,10 @@ final class FolderIndexTests {
         #expect(try at(index, String(long.suffix(40))) == ["a.pdf#2"])
         #expect(try at(index, String(long.dropFirst(100).prefix(48))) == ["a.pdf#2"])
         #expect(try at(index, "endmarker") == ["a.pdf#1", "b.pdf#1"])
+        #expect(try at(index, "gesellschaft") == ["a.pdf#3"])
+        #expect(try at(index, "hauptbetriebswerk") == ["a.pdf#3"])
+        #expect(try at(index, "marker9 outro") == ["a.pdf#1"])
+        #expect(try at(index, "Gesellschaft heute") == ["a.pdf#3"])
     }
 
     @Test func A_folder_name_gives_one_index_however_it_is_written() {

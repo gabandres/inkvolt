@@ -176,7 +176,7 @@ extension FolderIndex {
         var ends: [Int] = []
         var next: [Int] = []
         var found = false
-        IndexTerms.read(PageText.searchTextOf(text)) { word in
+        IndexTerms.words(PageText.searchTextOf(text)) { word in
             if found { return }
             next.removeAll(keepingCapacity: true)
             for at in ends where fits(word, terms, at) {
