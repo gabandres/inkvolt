@@ -228,8 +228,16 @@ public static class DocumentCompare
         var (oldRunning, newRunning) = CompareRunningLines.Find(oldPages, newPages, cancel);
         var oldWords = new List<CompareWord>();
         var newWords = new List<CompareWord>();
-        for (var p = 0; p < oldPages.Count; p++) AddWords(oldWords, oldPages[p], p, oldRunning[p], oldHasText);
-        for (var p = 0; p < newPages.Count; p++) AddWords(newWords, newPages[p], p, newRunning[p], newHasText);
+        for (var p = 0; p < oldPages.Count; p++)
+        {
+            cancel.ThrowIfCancellationRequested();
+            AddWords(oldWords, oldPages[p], p, oldRunning[p], oldHasText);
+        }
+        for (var p = 0; p < newPages.Count; p++)
+        {
+            cancel.ThrowIfCancellationRequested();
+            AddWords(newWords, newPages[p], p, newRunning[p], newHasText);
+        }
         cancel.ThrowIfCancellationRequested();
 
         var oldKeys = oldWords.ConvertAll(w => w.Key);
@@ -286,10 +294,12 @@ public static class DocumentCompare
             Array.Fill(inPlaceOld, true, op.A, op.Length);
             Array.Fill(inPlaceNew, true, op.B, op.Length);
         }
+        var oldMoved = MostlyMoved(oldWords, inPlaceOld, oldPages.Count, cancel);
+        var newMoved = MostlyMoved(newWords, inPlaceNew, newPages.Count, cancel);
         for (var r = 0; r < rows.Count; r++)
         {
-            if ((rows[r].Text == RowText.OnlyOld && rows[r].OldPage is { } o && MostlyMoved(oldWords, inPlaceOld, o))
-                || (rows[r].Text == RowText.OnlyNew && rows[r].NewPage is { } n && MostlyMoved(newWords, inPlaceNew, n)))
+            if ((rows[r].Text == RowText.OnlyOld && rows[r].OldPage is { } o && oldMoved[o])
+                || (rows[r].Text == RowText.OnlyNew && rows[r].NewPage is { } n && newMoved[n]))
                 rows[r] = rows[r] with { PageMoved = true };
         }
 
@@ -298,16 +308,19 @@ public static class DocumentCompare
         foreach (var op in ops.Where(op => op.Kind == DiffKind.Equal))
             for (var k = 0; k < op.Length; k++) matched.Add((op.A + k, op.B + k));
 
+        cancel.ThrowIfCancellationRequested();
         var changes = WordChanges(ops, oldWords, newWords, oldPages, newPages, rows, rowOfOld, rowOfNew);
         var oldToNew = new Dictionary<int, int>(matched.Count);
         foreach (var (o, n) in matched) oldToNew[o] = n;
         foreach (var m in moves)
         {
+            cancel.ThrowIfCancellationRequested();
             foreach (var op in m.Inner.Where(op => op.Kind == DiffKind.Equal))
                 for (var k = 0; k < op.Length; k++) matched.Add((op.A + k, op.B + k));
             changes.AddRange(WordChanges([.. m.Inner], oldWords, newWords, oldPages, newPages, rows, rowOfOld, rowOfNew, inMove: true));
             changes.Add(MoveChange(m, oldWords, newWords, oldPages, newPages, rowOfNew, oldToNew));
         }
+        cancel.ThrowIfCancellationRequested();
         changes.AddRange(FormatChanges(matched, oldWords, newWords, oldSide, newSide, rowOfNew));
         for (var r = 0; r < rows.Count; r++)
         {
@@ -318,6 +331,7 @@ public static class DocumentCompare
                 changes.Add(new CompareChange(ChangeKind.PageInserted, r, [], [new WordSpan(n, 0, 0)], "", Excerpt(newPages[n])));
         }
         // Stable: within a row, wording in reading order, then moves, then looks.
+        cancel.ThrowIfCancellationRequested();
         changes = [.. changes.Select(c => MarkScan(c, oldSide, newSide, rows)).OrderBy(c => c.Row).ThenBy(c => c.Kind switch { ChangeKind.Moved => 1, ChangeKind.Formatted => 2, _ => 0 })];
         var perRow = new int[rows.Count];
         foreach (var c in changes) perRow[c.Row]++;
@@ -387,16 +401,21 @@ public static class DocumentCompare
             if (!skip.Any(r => w.Start >= r.Start && w.Start < r.End)) words.Add(w);
     }
 
-    private static bool MostlyMoved(List<CompareWord> words, bool[] moved, int page)
+    /// <summary>Per page, whether nearly all its words are found elsewhere: counted for every page in one pass over the words.</summary>
+    private static bool[] MostlyMoved(List<CompareWord> words, bool[] moved, int pageCount, CancellationToken cancel)
     {
-        int all = 0, gone = 0;
+        var all = new int[pageCount];
+        var gone = new int[pageCount];
         for (var i = 0; i < words.Count; i++)
         {
-            if (words[i].Page != page) continue;
-            all++;
-            if (moved[i]) gone++;
+            if ((i & 0xFFFF) == 0) cancel.ThrowIfCancellationRequested();
+            var page = words[i].Page;
+            all[page]++;
+            if (moved[i]) gone[page]++;
         }
-        return all > 0 && gone >= all * 0.8;
+        var result = new bool[pageCount];
+        for (var p = 0; p < pageCount; p++) result[p] = all[p] > 0 && gone[p] >= all[p] * 0.8;
+        return result;
     }
 
     /// <summary>Says whether a change was read from a scan, and whether it may be a misreading.</summary>
@@ -661,6 +680,8 @@ public static class DocumentCompare
             // score[i, j]: best for the first i old and j new pages; a pair is worth 2 per shared word plus 1.
             var score = new int[p + 1, q + 1];
             for (var i = 0; i <= p; i++)
+            {
+                if ((i & 63) == 0) cancel.ThrowIfCancellationRequested();
                 for (var j = 0; j <= q; j++)
                 {
                     if (i == 0 && j == 0) continue;
@@ -670,6 +691,7 @@ public static class DocumentCompare
                     if (i > 0 && j > 0) best = Math.Max(best, score[i - 1, j - 1] + 2 * shared.GetValueOrDefault((o0 + i - 1, n0 + j - 1)) + 1);
                     score[i, j] = best;
                 }
+            }
             var path = new List<(int?, int?)>();
             for (int i = p, j = q; i > 0 || j > 0;)
             {
