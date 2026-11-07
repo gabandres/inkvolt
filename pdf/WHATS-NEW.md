@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.11.1
 - Some PDFs that 1.11.0 opened view-only (a page whose drawing holds many square brackets, such as an uncompressed picture or "[1]"-style references) can be filled and edited again.
 - A file whose index loops back on itself opens repaired and can be edited, instead of view-only.
 - Social security, phone and ZIP boxes split into cells show every digit in its cell (123-45-67 lost the last two), and a number pasted with its dashes goes in whole.
