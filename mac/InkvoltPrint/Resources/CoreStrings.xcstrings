@@ -6867,6 +6867,17 @@
         }
       }
     },
+    "The scanner sent a page that couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner envió una página que no se pudo leer."
+          }
+        }
+      }
+    },
     "The scanner sent a page too large to read.": {
       "extractionState": "manual",
       "localizations": {

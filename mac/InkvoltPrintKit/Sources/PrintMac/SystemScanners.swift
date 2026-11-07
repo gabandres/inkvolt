@@ -202,12 +202,16 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didScanTo url: URL) {
-        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-        if size > DeviceHttp.maxScanReplyBytes {
+        switch Self.pageFile(url) {
+        case .page(let page):
+            pages?.yield(page)
+        case .tooLarge:
             pages?.finish(throwing: ScanError(loc("The scanner sent a page too large to read.")))
             pages = nil
-        } else if let page = Self.pageFile(url) {
-            pages?.yield(page)
+        case .unreadable:
+            // Never one page short without a word: the scan ends and says so.
+            pages?.finish(throwing: ScanError(loc("The scanner sent a page that couldn't be read.")))
+            pages = nil
         }
         try? FileManager.default.removeItem(at: url)
     }
@@ -225,15 +229,24 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         pages = nil
     }
 
-    /// The scanner's error in plain words.
-    /// A page ImageCapture wrote, read only when it is no larger than `limit` (an eSCL page's: `DeviceHttp.maxScanReplyBytes`);
-    /// nil when it is larger or can't be read. Its pixels are bounded later, as an eSCL page's are (`ScanImaging`).
-    nonisolated static func pageFile(_ url: URL, limit: Int = DeviceHttp.maxScanReplyBytes) -> [UInt8]? {
-        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= limit,
-              let data = try? Data(contentsOf: url), data.count <= limit else { return nil }
-        return [UInt8](data)
+    /// A page file ImageCapture wrote: its bytes, too large, or unreadable.
+    enum PageFile: Equatable {
+        case page([UInt8])
+        case tooLarge
+        case unreadable
     }
 
+    /// A page ImageCapture wrote, read only when it is no larger than `limit` (an eSCL page's: `DeviceHttp.maxScanReplyBytes`).
+    /// Its pixels are bounded later, as an eSCL page's are (`ScanImaging`).
+    nonisolated static func pageFile(_ url: URL, limit: Int = DeviceHttp.maxScanReplyBytes) -> PageFile {
+        guard let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize else { return .unreadable }
+        if size > limit { return .tooLarge }
+        guard let data = try? Data(contentsOf: url) else { return .unreadable }
+        if data.count > limit { return .tooLarge }
+        return .page([UInt8](data))
+    }
+
+    /// The scanner's error in plain words.
     nonisolated static func words(_ error: any Error) -> String {
         // ImageCaptureCore's codes (ICReturnCode); it has none for an empty feeder or a jam: those come in the description.
         switch (error as NSError).code {

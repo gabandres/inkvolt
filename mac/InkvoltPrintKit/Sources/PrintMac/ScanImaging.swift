@@ -63,9 +63,11 @@ public enum ScanImaging {
         return fitting.isEmpty ? original : try jpeg(render(original, fitting, dpi: dpi, stop: stop))
     }
 
-    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` none.
+    /// The edits as the page `jpeg` gets them, saved or drawn: past `PageCleanup.maxPixels` none, and none when its header
+    /// gives no size (ImageIO gives none for a JPEG claiming 65,500 × 65,500, and `decode` refuses such a picture: with
+    /// edits it couldn't be saved at all).
     static func asSaved(_ edits: PageEdits, _ jpeg: [UInt8]) -> PageEdits {
-        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? edits
+        size(jpeg).map { edits.for(width: $0.width, height: $0.height) } ?? .none
     }
 
     /// The sheet as a crop of the page straightened by `deskew` degrees (`PaperEdge.find` on the analysis copy, whose

@@ -368,7 +368,8 @@ struct MacImagingTests {
             Result {
                 let page = Self.uniformGreyJpeg(width: 800, height: 800, level: 200)
                 let huge = Self.claiming(page, width: 65_500, height: 65_500)
-                #expect(ScanImaging.size(huge)! == (65_500, 65_500))
+                // ImageIO gives no size for it at all (its pixels can't be what its header says); either way it's never decoded.
+                if let size = ScanImaging.size(huge) { #expect(size == (65_500, 65_500)) }
                 let edits = PageEdits(deskew: 1.5, crop: CropBox(0.1, 0.1, 0.8, 0.8))
                 let saved = try ScanImaging.jpeg(huge, edits) == huge
                 let full = (try? ScanImaging.render(huge, edits)) == nil
@@ -397,7 +398,7 @@ struct MacImagingTests {
                 let page = Self.uniformGreyJpeg(width: 800, height: 800, level: 200)
                 let progressive = Self.claiming(page, width: 65_500, height: 65_500, sof: 0xC2)
                 let png = try Self.pngClaiming(width: 65_500, height: 65_500)
-                #expect(ScanImaging.size(png)! == (65_500, 65_500))
+                if let size = ScanImaging.size(png) { #expect(size == (65_500, 65_500)) }
                 let small = try Self.pngClaiming(width: 16, height: 16)
                 #expect((try? ScanImaging.render(small, .none, maxPixels: 400)) != nil)
                 return [progressive, png].flatMap { bytes in
@@ -414,14 +415,27 @@ struct MacImagingTests {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("system-scan-test-\(UUID().uuidString).jpg")
         defer { try? FileManager.default.removeItem(at: file) }
         try Data([UInt8](repeating: 7, count: 2048)).write(to: file)
-        #expect(SystemScanDevice.pageFile(file, limit: 2048) == [UInt8](repeating: 7, count: 2048))
-        #expect(SystemScanDevice.pageFile(file, limit: 2047)?.count == nil)
+        #expect(SystemScanDevice.pageFile(file, limit: 2048) == .page([UInt8](repeating: 7, count: 2048)))
+        #expect(SystemScanDevice.pageFile(file, limit: 2047) == .tooLarge)
         let handle = try FileHandle(forWritingTo: file)
         try handle.truncate(atOffset: UInt64(DeviceHttp.maxScanReplyBytes) + 1) // sparse: nothing written
         try handle.close()
-        // Counts, not bytes: a failing #expect describes its values, and a gigabyte's description takes many minutes.
-        #expect(SystemScanDevice.pageFile(file)?.count == nil)
-        #expect(SystemScanDevice.pageFile(file.appendingPathExtension("gone"))?.count == nil)
+        // Kinds, not bytes: a failing #expect describes its values, and a gigabyte's description takes many minutes.
+        #expect(Self.kind(SystemScanDevice.pageFile(file)) == "tooLarge")
+    }
+
+    /// A page file that is gone (or can't be read) is unreadable, never skipped without a word: the scan ends and says so.
+    @Test func anImageCaptureFileThatCantBeReadIsUnreadable() {
+        let gone = FileManager.default.temporaryDirectory.appendingPathComponent("system-scan-gone-\(UUID().uuidString).jpg")
+        #expect(SystemScanDevice.pageFile(gone) == .unreadable)
+    }
+
+    private static func kind(_ file: SystemScanDevice.PageFile) -> String {
+        switch file {
+        case .page: "page"
+        case .tooLarge: "tooLarge"
+        case .unreadable: "unreadable"
+        }
     }
 
     @Test func aPhotoSheetPreviewOfAPaperNoIntCanMeasureIsNone() {

@@ -290,8 +290,10 @@ final class ScanModel {
     }
 
     /// Past `PageCleanup.maxPixels` by its header (read without decoding): saved as scanned, never decoded at full size.
+    /// Past `PageCleanup.maxPixels`, or with no size in its header (ImageIO gives none for a JPEG claiming 65,500 × 65,500,
+    /// and such a picture is never decoded): saved as scanned.
     nonisolated static func tooLargeToEdit(_ jpeg: [UInt8]) -> Bool {
-        ScanImaging.size(jpeg).map { PageCleanup.tooLarge($0.width, $0.height) } ?? false
+        ScanImaging.size(jpeg).map { PageCleanup.tooLarge($0.width, $0.height) } ?? true
     }
 
     @discardableResult
