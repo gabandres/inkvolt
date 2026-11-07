@@ -114,5 +114,25 @@ public class StaleTailTests
         // A tail with an object in it may be a real (if broken) update: dropping it would lose edits, so it stays.
         var withObject = Encoding.Latin1.GetBytes(Encoding.Latin1.GetString(stale).Replace(" 00000 n\r\n0000000071", "9 0 obj\r\n<< >>\r\nendobj\r\n0000000071"));
         Assert.Null(StaleTail.Cut(withObject));
+        // So does an object cut short (no endobj), and another cross-reference table: the repair keeps them.
+        var withHeader = Encoding.Latin1.GetBytes(Encoding.Latin1.GetString(stale).Replace(" 00000 n\r\n0000000071", "9 0 obj\r\n<< /Old true\r\n0000000071"));
+        Assert.Null(StaleTail.Cut(withHeader));
+        var withXref = Encoding.Latin1.GetBytes(Encoding.Latin1.GetString(stale).Replace(" 00000 n\r\n0000000071", "xref\r\n0 1\r\n0000000071"));
+        Assert.Null(StaleTail.Cut(withXref));
+    }
+
+    [Fact]
+    public void ManyStartxrefsAreCutQuickly()
+    {
+        // Every startxref points at an object whose dictionary runs on for 64 KB of near misses of "stream": each one
+        // checked to the end would read 64 KB, 200,000 times over (13 GB).
+        var sb = new StringBuilder("%PDF-1.7\n1 0 obj\n<< /Type /Catalog ");
+        for (var i = 0; i < 12_000; i++) sb.Append("strea ");
+        sb.Append(">>\nendobj\n");
+        for (var i = 0; i < 200_000; i++) sb.Append("startxref\n9\n%%EOF\n");
+        var data = Encoding.Latin1.GetBytes(sb.ToString());
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Null(StaleTail.Cut(data));
+        Assert.True(clock.ElapsedMilliseconds < 500, $"{clock.ElapsedMilliseconds} ms");
     }
 }

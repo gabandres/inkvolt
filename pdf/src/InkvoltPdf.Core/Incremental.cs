@@ -670,30 +670,25 @@ internal static class Incremental
     internal static TailInfo? Tail(byte[] data)
     {
         if (StartXref(data) is not { } at) return null;
-        var region = Encoding.Latin1.GetString(data, (int)at, (int)Math.Min(data.Length - at, 1 << 16)).TrimStart('\0', '\t', '\n', '\f', '\r', ' ');
-        bool stream;
         string dict;
-        if (region.StartsWith("xref", StringComparison.Ordinal))
+        var kind = XrefAt(data, at);
+        if (kind == XrefKind.Table)
         {
             // The table may be long: find its trailer anywhere after it.
             var t = data.AsSpan((int)at).IndexOf("trailer"u8);
             if (t < 0) return null;
-            region = Encoding.Latin1.GetString(data, (int)at + t, (int)Math.Min(data.Length - at - t, 1 << 16));
+            var region = Encoding.Latin1.GetString(data, (int)at + t, (int)Math.Min(data.Length - at - t, 1 << 16));
             var end = region.IndexOf("startxref", StringComparison.Ordinal);
             dict = end < 0 ? region : region[..end];
-            stream = false;
         }
-        else if (Regex.Match(region, @"^\d+\s+\d+\s+obj\s*<<") is { Success: true })
+        else if (kind == XrefKind.Stream)
         {
-            var end = region.IndexOf("stream", StringComparison.Ordinal);
-            if (end < 0) return null;
-            dict = region[..end];
-            if (!Regex.IsMatch(dict, @"/Type\s*/XRef\b")) return null;
-            stream = true;
+            var region = Encoding.Latin1.GetString(data, (int)at, (int)Math.Min(data.Length - at, MaxXrefDictBytes));
+            dict = region[..region.IndexOf("stream", StringComparison.Ordinal)];
         }
         else return null;
         var size = Regex.Match(dict, @"/Size\s+(\d+)");
-        return new TailInfo(at, stream, size.Success && int.TryParse(size.Groups[1].Value, PdfObj.Inv, out var n) ? n : 0,
+        return new TailInfo(at, kind == XrefKind.Stream, size.Success && int.TryParse(size.Groups[1].Value, PdfObj.Inv, out var n) ? n : 0,
             FileId(dict), Regex.IsMatch(dict, @"/Info\s+\d+\s+\d+\s+R"));
     }
 
@@ -706,15 +701,105 @@ internal static class Incremental
         var end = data.Length;
         while (end > 0 && data.AsSpan(0, end).LastIndexOf("startxref"u8) is var k and >= 0)
         {
-            var p = k + "startxref".Length;
-            while (p < data.Length && data[p] is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)'\f' or 0) p++;
-            long at = 0;
-            var digits = 0;
-            for (; p < data.Length && data[p] is >= (byte)'0' and <= (byte)'9' && digits < 18; p++, digits++) at = at * 10 + (data[p] - '0');
-            if (digits > 0 && at > 0 && at < data.Length) return at;
+            if (ParseStartXrefAt(data, k) is { } found) return found.At;
             end = k; // e.g. "startxref" inside a stream after the real one: keep looking further back
         }
         return null;
+    }
+
+    /// <summary>
+    /// The offset written after the "startxref" keyword at <paramref name="keyword"/>, and where its digits end; null when
+    /// no number inside the file follows it. Every reader of a startxref goes through here (<see cref="StaleTail"/> too).
+    /// </summary>
+    internal static (long At, int After)? ParseStartXrefAt(byte[] data, int keyword)
+    {
+        var p = keyword + "startxref".Length;
+        while (p < data.Length && IsWhite(data[p])) p++;
+        long at = 0;
+        var digits = 0;
+        for (; p < data.Length && data[p] is >= (byte)'0' and <= (byte)'9' && digits < 18; p++, digits++) at = at * 10 + (data[p] - '0');
+        return digits > 0 && at > 0 && at < data.Length ? (at, p) : null;
+    }
+
+    /// <summary>How far after a startxref offset a cross-reference stream's dictionary may run before "stream".</summary>
+    internal const int MaxXrefDictBytes = 64 * 1024;
+
+    internal enum XrefKind { None, Table, Stream }
+
+    /// <summary>
+    /// What starts at <paramref name="at"/> (after white space): a classic cross-reference table ("xref"), a
+    /// cross-reference stream ("n g obj" whose dictionary, before "stream", names /XRef), or neither. Reads at most
+    /// <paramref name="maxBytes"/> from there.
+    /// </summary>
+    internal static XrefKind XrefAt(byte[] data, long at, int maxBytes = MaxXrefDictBytes)
+    {
+        if (at < 0 || at >= data.Length || maxBytes <= 0) return XrefKind.None;
+        var rest = data.AsSpan((int)at, (int)Math.Min(data.Length - at, maxBytes));
+        var i = 0;
+        while (i < rest.Length && IsWhite(rest[i])) i++;
+        rest = rest[i..];
+        if (rest.StartsWith("xref"u8)) return XrefKind.Table;
+        i = 0;
+        for (var number = 0; number < 2; number++)
+        {
+            var start = i;
+            while (i < rest.Length && i - start < 10 && rest[i] is >= (byte)'0' and <= (byte)'9') i++;
+            if (i == start) return XrefKind.None;
+            var spaces = i;
+            while (i < rest.Length && IsWhite(rest[i])) i++;
+            if (i == spaces) return XrefKind.None;
+        }
+        if (!rest[i..].StartsWith("obj"u8)) return XrefKind.None;
+        var dict = rest[(i + 3)..];
+        var stream = dict.IndexOf("stream"u8);
+        return stream > 0 && dict[..stream].IndexOf("/XRef"u8) >= 0 ? XrefKind.Stream : XrefKind.None;
+    }
+
+    /// <summary>PDF white space.</summary>
+    internal static bool IsWhite(byte b) => b is (byte)' ' or (byte)'\t' or (byte)'\r' or (byte)'\n' or (byte)'\f' or 0;
+
+    /// <summary>PDF delimiters: they end a token as white space does.</summary>
+    internal static bool IsDelimiter(byte b) => b is (byte)'(' or (byte)')' or (byte)'<' or (byte)'>' or (byte)'[' or (byte)']' or (byte)'{' or (byte)'}' or (byte)'/' or (byte)'%';
+
+    /// <summary>The largest object number a PDF may use (ISO 32000, Annex C).</summary>
+    internal const int MaxObjectNumber = 8_388_607;
+
+    /// <summary>
+    /// The object header ("12 0 obj") whose "obj" keyword is at <paramref name="obj"/>: its number, generation and where it
+    /// starts; null when those bytes aren't one (part of "endobj", a name, a word in a string). Looks back at most 20 bytes.
+    /// </summary>
+    internal static (int Num, int Gen, int Start)? ObjectHeaderAt(ReadOnlySpan<byte> data, int obj)
+    {
+        var after = obj + 3;
+        if (after < data.Length && !IsWhite(data[after]) && !IsDelimiter(data[after])) return null;
+        var p = obj - 1;
+        if (p < 0 || !IsWhite(data[p])) return null;
+        while (p >= 0 && obj - p < 8 && IsWhite(data[p])) p--;
+        if (Digits(data, ref p, 5) is not { } gen || gen > 65535) return null;
+        if (p < 0 || !IsWhite(data[p])) return null;
+        while (p >= 0 && obj - p < 16 && IsWhite(data[p])) p--;
+        if (Digits(data, ref p, 7) is not { } num || num is <= 0 or > MaxObjectNumber) return null;
+        if (p >= 0 && !IsWhite(data[p]) && !IsDelimiter(data[p])) return null;
+        return (num, gen, p + 1);
+
+        // The number whose last digit is at p (at most max digits), p left before its first.
+        static int? Digits(ReadOnlySpan<byte> data, ref int p, int max)
+        {
+            var end = p;
+            while (p >= 0 && end - p < max && data[p] is >= (byte)'0' and <= (byte)'9') p--;
+            if (p == end || (p >= 0 && data[p] is >= (byte)'0' and <= (byte)'9')) return null;
+            var value = 0;
+            for (var k = p + 1; k <= end; k++) value = value * 10 + (data[k] - '0');
+            return value;
+        }
+    }
+
+    /// <summary>Whether <paramref name="data"/> holds an object header (<see cref="ObjectHeaderAt"/>) anywhere.</summary>
+    internal static bool HasObjectHeader(ReadOnlySpan<byte> data)
+    {
+        for (var from = 0; data[from..].IndexOf("obj"u8) is var i and >= 0; from += i + 3)
+            if (ObjectHeaderAt(data, from + i) is not null) return true;
+        return false;
     }
 
     /// <summary>The trailer's /ID as two hex strings ("[&lt;…&gt; &lt;…&gt;]"), whether the file wrote them as hex or literal strings.</summary>
