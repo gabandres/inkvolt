@@ -242,7 +242,28 @@ internal static class DevScript
             }
             case "type": v!.DevType(arg); break;
             case "keys": await PostKeys(KeyTarget(window), arg); break;
-            case "mouse": await MouseStep(window, v!, arg, log); break;
+            case "mouse":
+                await MouseStep(window, v!, arg, log);
+                await Settled();
+                break;
+            // clickkeys p x y text: click and type with nothing in between, as a person does while the window is held up: every
+            // message is in the queue before the click is handled.
+            case "clickkeys":
+            {
+                var a = arg.Split(' ', 4);
+                var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+                var lp = ClientPoint(window, v!, int.Parse(a[0]) - 1, Num(a[1]), Num(a[2]));
+                SetCapture(hwnd);
+                PostMessageW(hwnd, 0x0200, MouseHeld(), lp);
+                SetHeld(0x01, true);
+                PostMessageW(hwnd, 0x0201, MouseHeld(), lp);
+                SetHeld(0x01, false);
+                PostMessageW(hwnd, 0x0202, MouseHeld(), lp);
+                await PostKeys(window, a[3], pace: false);
+                await Settled();
+                ReleaseCapture();
+                break;
+            }
             case "drag": await Drag(window, v!, arg); break;
             case "tip": log.Add($"tip: {v!.DevTipText ?? "(none)"}"); break;
             case "mouselog":
@@ -1419,7 +1440,12 @@ internal static class DevScript
     /// and both TranslateMessage and WPF's Keyboard.Modifiers read it. Characters that need Ctrl/Alt (AltGr) or that the
     /// layout can't type are posted as WM_CHAR only (text input without key events).
     /// </summary>
-    private static async Task PostKeys(Window window, string text)
+    /// <summary>Until the messages posted so far have been handled (input comes before this priority), at most 10 s.</summary>
+    private static async Task Settled() =>
+        await Task.WhenAny(Application.Current.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle).Task, Task.Delay(10_000));
+
+    /// <param name="pace">A pause after each key, as typing has; without it, characters that need no Shift are all posted at once.</param>
+    private static async Task PostKeys(Window window, string text, bool pace = true)
     {
         var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
         foreach (var ch in text.Replace("{tab}", "\t").Replace("{enter}", "\r").Replace("{sp}", " "))
@@ -1445,7 +1471,7 @@ internal static class DevScript
                     PostMessageW(hwnd, 0x0100, vk, 1);
                     PostMessageW(hwnd, 0x0101, vk, unchecked((nint)0xC0000001));
                     PostMessageW(hwnd, 0x0101, 0x10, unchecked((nint)0xC0000001));
-                    await Task.Delay(60); // processed (and translated) while Shift is down
+                    await Settled(); // processed (and translated) while Shift is down
                 }
                 finally
                 {
@@ -1457,7 +1483,7 @@ internal static class DevScript
                 PostMessageW(hwnd, 0x0100, vk, 1);
                 PostMessageW(hwnd, 0x0101, vk, unchecked((nint)0xC0000001));
             }
-            await Task.Delay(40);
+            if (pace) await Task.Delay(40);
         }
     }
 
@@ -1644,7 +1670,7 @@ internal static class DevScript
             PostMessageW(hwnd, down, vk, 1 | context);
             PostMessageW(hwnd, up, vk, unchecked((nint)0xC0000001) | context);
             foreach (var m in Enumerable.Reverse(mods)) PostMessageW(hwnd, up, m, unchecked((nint)0xC0000001) | context);
-            await Task.Delay(150);
+            await Settled(); // handled while the modifiers are down: on a busy PC a fixed wait ended first, and Ctrl+S typed "s"
         }
         finally
         {
