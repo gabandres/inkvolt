@@ -109,12 +109,12 @@ public class DamagedFileTests
         _ => Truncated(),
     };
 
-    private static void Readable(byte[] data)
+    private static void Readable(byte[] data, string? password = null)
     {
-        var field = Assert.Single(FormEditor.Read(data, null));
+        var field = Assert.Single(FormEditor.Read(data, password));
         Assert.Equal(("name", "Ana"), (field.FieldName, field.Value));
-        Assert.Contains(Annotations.Read(data, null), a => a.Contents == "Check this");
-        Assert.Equal("Chapter one", Assert.Single(Bookmarks.Read(data, null)).Title);
+        Assert.Contains(Annotations.Read(data, password), a => a.Contents == "Check this");
+        Assert.Equal("Chapter one", Assert.Single(Bookmarks.Read(data, password)).Title);
     }
 
     [Theory]
@@ -130,7 +130,7 @@ public class DamagedFileTests
         Readable(normal.Data);
 
         // The session normalizes once: the view, the readers and Save all have the repaired bytes.
-        using var session = DocumentSession.FromBytes(data, "damaged.pdf");
+        using var session = DocumentSession.FromBytes(data, "damaged.pdf", repair: true);
         Assert.True(session.Repaired);
         Assert.Equal(normal.Data, session.Data);
         Assert.Equal(1, session.Engine.PageCount);
@@ -165,7 +165,7 @@ public class DamagedFileTests
         var normal = PdfRepair.Normalize(data, null);
         Assert.Equal(PdfRepair.Outcome.AsIs, normal.Outcome);
         Assert.Same(data, normal.Data);
-        using var session = DocumentSession.FromBytes(data, "sound.pdf");
+        using var session = DocumentSession.FromBytes(data, "sound.pdf", repair: true);
         Assert.False(session.Repaired);
         Assert.Same(data, session.Data);
     }
@@ -207,13 +207,13 @@ public class DamagedFileTests
     [Fact]
     public void ARepairedFileCanBeSignedAndItsSignatureChecks()
     {
-        using var session = DocumentSession.FromBytes(Truncated(), "damaged.pdf");
+        using var session = DocumentSession.FromBytes(Truncated(), "damaged.pdf", repair: true);
         Assert.True(session.Repaired);
         using var cert = SigningTests.RsaCert();
         // Signing appends to the repaired bytes (Incremental.Track is given those, never the file's).
         var signed = Signing.Sign(session.Data, null, new SignRequest { Certificate = cert, Reason = "Approved" });
         Assert.True(signed.AsSpan(0, session.Data.Length).SequenceEqual(session.Data));
-        var sig = Assert.Single(Signatures.InRepairedFile(Signatures.Verify(signed), session.RepairedLength));
+        var sig = Assert.Single(Signatures.Verify(signed, null, null, session.RepairedLength));
         Assert.Equal(SignatureStatus.Valid, sig.Status); // made on the repaired copy: checked as usual
         Assert.False(sig.InRepairedFile);
         Readable(signed);
@@ -226,9 +226,9 @@ public class DamagedFileTests
         using var cert = SigningTests.RsaCert();
         var signed = Encoding.Latin1.GetString(Signing.Sign(Core2Pdf.Build(Objects), null, new SignRequest { Certificate = cert }));
         var damaged = Bytes(signed + "ndobj\n4 0 obj\n<< /Old true >>\nendobj\ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n" + (signed.Length - 30) + "\n%%EOF\n");
-        using var session = DocumentSession.FromBytes(damaged, "damaged.pdf");
+        using var session = DocumentSession.FromBytes(damaged, "damaged.pdf", repair: true);
         Assert.True(session.Repaired);
-        var sig = Assert.Single(Signatures.InRepairedFile(Signatures.Verify(session.Data), session.RepairedLength));
+        var sig = Assert.Single(Signatures.Verify(session.Data, null, null, session.RepairedLength));
         Assert.Equal(SignatureStatus.Unsupported, sig.Status);
         Assert.True(sig.InRepairedFile);
         Assert.NotNull(sig.Detail);
@@ -236,7 +236,7 @@ public class DamagedFileTests
         // A file that wasn't repaired is checked as usual.
         var plain = Signatures.Verify(Bytes(signed));
         Assert.Equal(SignatureStatus.Valid, Assert.Single(plain).Status);
-        Assert.Same(plain, Signatures.InRepairedFile(plain, 0));
+        Assert.Equal(SignatureStatus.Valid, Assert.Single(Signatures.Verify(Bytes(signed), null, null, repairedLength: 0)).Status);
     }
 
     [Fact]
@@ -249,5 +249,226 @@ public class DamagedFileTests
         var clock = System.Diagnostics.Stopwatch.StartNew();
         PdfRepair.Rebuild(data);
         Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms"); // quadratic, it would take hours
+    }
+
+    /// <summary>The file cut off before its cross-reference table, with <paramref name="objects"/> in place of the usual ones.</summary>
+    private static byte[] TruncatedOf(IReadOnlyList<string> objects)
+    {
+        var sound = Encoding.Latin1.GetString(Core2Pdf.Build(objects));
+        return Bytes(sound[..(sound.IndexOf("\nxref\n", StringComparison.Ordinal) + 1)]);
+    }
+
+    /// <summary>Signed, then saved over a longer copy of itself: its tail holds an object, so the file is repaired, not cut.</summary>
+    private static byte[] SavedOverALongerCopy(byte[] signed)
+    {
+        var s = Encoding.Latin1.GetString(signed);
+        return Bytes(s + "ndobj\n4 0 obj\n<< /Old true >>\nendobj\ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n" + (s.Length - 30) + "\n%%EOF\n");
+    }
+
+    [Theory]
+    [InlineData("/BaseFont /BitstreamVeraSans-Roman")]
+    [InlineData("/Upstream true")]
+    [InlineData("/NM (livestream)")]
+    [InlineData("/NM (a stream\n)")]
+    [InlineData("/NM <73747265616d> /Mainstream [ (x) ]")]
+    public void TheWordStreamInANameOrStringStartsNoStream(string entry)
+    {
+        // A stream starts at the keyword after its dictionary's ">>", followed by an end of line. Taken anywhere, it skipped
+        // to the content stream's endstream and lost the field, the note and the bookmark written between.
+        var objects = Objects.ToArray();
+        objects[3] = $"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica {entry} /Encoding /WinAnsiEncoding >>";
+        var normal = PdfRepair.Normalize(TruncatedOf(objects), null);
+        Assert.True(normal.Repaired);
+        Readable(normal.Data);
+    }
+
+    [Fact]
+    public void ManyObjectsEndingInEndstreamAreReadInLinearTime()
+    {
+        // Each object's "endstream" holds the letters "stream": a search for the keyword that skipped each one walked every
+        // later object, for each object.
+        var sb = new StringBuilder("%PDF-1.7\n");
+        for (var i = 1; i <= 300_000; i++) sb.Append($"{i} 0 obj << /A 1 >> endstream\nendobj\n");
+        sb.Append("300001 0 obj << /Type /Catalog /Pages 300002 0 R >> endobj\n300002 0 obj << /Type /Pages /Kids [] /Count 0 >> endobj\n");
+        var data = Bytes(sb.ToString());
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.NotNull(PdfRepair.Rebuild(data));
+        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public void ManyUnclosedStringsStopTheRebuildQuickly()
+    {
+        // Every dictionary opens a string that never closes, so each one's reading runs over all the objects after it,
+        // up to its limit: the scan's total work is capped.
+        var sb = new StringBuilder("%PDF-1.7\n");
+        for (var i = 1; i <= 300_000; i++) sb.Append($"{i} 0 obj << /A (\n");
+        var data = Bytes(sb.ToString());
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        PdfRepair.Rebuild(data);
+        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms");
+    }
+
+    [Fact]
+    public void ASoundSignedFileWithAStaleAnnotsEntryIsLeftAsItIs()
+    {
+        // Page 2's /Annots names a note (6) and object 10, a note left in the file's body that its cross-reference table
+        // lists at offset 0 (as some editors leave a deleted object). PDFsharp reads the file; one reference to no object
+        // is no damage. A rebuild would bring the note back and show the valid signature (on page 1) as not checked.
+        var objects = Objects.ToArray().Concat([
+            "<< /Type /Annot /Subtype /Text /P 11 0 R /Rect [0 0 20 20] /Contents (Deleted) >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [6 0 R 10 0 R] >>",
+        ]).ToArray();
+        objects[1] = "<< /Type /Pages /Kids [3 0 R 11 0 R] /Count 2 >>";
+        objects[2] = objects[2].Replace("/Annots [5 0 R 6 0 R]", "/Annots [5 0 R]");
+        var listed = Encoding.Latin1.GetString(Core2Pdf.Build(objects));
+        var row = $"{listed.IndexOf("\n10 0 obj", StringComparison.Ordinal) + 1:D10} 00000 n";
+        Assert.Contains(row, listed);
+        var stale = Bytes(listed.Replace(row, "0000000000 00000 n"));
+        Assert.Equal("Ana", Assert.Single(FormEditor.Read(stale, null)).Value);
+        Assert.Contains(Annotations.Read(stale, null), a => a.Contents == "Check this");
+        Assert.DoesNotContain(Annotations.Read(stale, null), a => a.Contents == "Deleted");
+        using var cert = SigningTests.RsaCert();
+        var signed = Signing.Sign(stale, null, new SignRequest { Certificate = cert });
+        Assert.Equal(SignatureStatus.Valid, Assert.Single(Signatures.Verify(signed)).Status);
+
+        var normal = PdfRepair.Normalize(signed, null);
+        Assert.Equal(PdfRepair.Outcome.AsIs, normal.Outcome);
+        Assert.Same(signed, normal.Data);
+        using var session = DocumentSession.FromBytes(signed, "signed.pdf", repair: true);
+        Assert.False(session.Repaired);
+        Assert.Equal(SignatureStatus.Valid, Assert.Single(Signatures.Verify(session.Data, null, null, session.RepairedLength)).Status);
+    }
+
+    [Fact]
+    public void AnEncryptedFileWhoseTrailerIsLostIsNotRebuilt()
+    {
+        // Without its trailer nothing says how the file is encrypted: a rebuild without /Encrypt had PDFsharp read the
+        // ciphertext as text. The file is kept as it is (MuPDF still opens it).
+        var encrypted = PdfSecurity.Protect(Core2Pdf.Build(Objects), null, "open", "owner");
+        var s = Encoding.Latin1.GetString(encrypted);
+        var truncated = Bytes(s[..(s.IndexOf("\nxref", StringComparison.Ordinal) + 1)]);
+        Assert.DoesNotContain("trailer", Encoding.Latin1.GetString(truncated));
+        var normal = PdfRepair.Normalize(truncated, "open");
+        Assert.Equal(PdfRepair.Outcome.AsIs, normal.Outcome);
+        Assert.Same(truncated, normal.Data);
+        Assert.Null(PdfRepair.Rebuild(truncated));
+    }
+
+    [Fact]
+    public void AnEncryptedFileIsRebuiltWithItsEncryptAndId()
+    {
+        var encrypted = Encoding.Latin1.GetString(PdfSecurity.Protect(Core2Pdf.Build(Objects), null, "open", "owner"));
+        var broken = Bytes(Regex.Replace(encrypted, @"(\d{10}) 00000 n", m => $"{long.Parse(m.Groups[1].Value) + 2:D10} 00000 n"));
+        Assert.ThrowsAny<Exception>(() => Readable(broken, "open"));
+        var normal = PdfRepair.Normalize(broken, "open");
+        Assert.True(normal.Repaired);
+        var tail = Encoding.Latin1.GetString(normal.Data[broken.Length..]);
+        Assert.Contains("/Encrypt ", tail);
+        Assert.Contains("/ID [", tail);
+        Readable(normal.Data, "open");
+    }
+
+    [Fact]
+    public void AHostileObjectStreamIsReadQuickly()
+    {
+        // /N says 2 billion objects, and 5 million pairs all name object 1 (20 MB decoded, a few KB in the file).
+        const int pairs = 5_000_000;
+        var header = new StringBuilder(pairs * 4);
+        for (var i = 0; i < pairs; i++) header.Append("1 0 ");
+        var content = Encoding.Latin1.GetBytes(header + "<< /Type /Catalog /Pages 2 0 R >>");
+        using var packed = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) z.Write(content);
+        var data = (byte[])[.. Bytes($"%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /N 2147483647 /First {pairs * 4} /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"),
+            .. packed.ToArray(), .. Bytes("\nendstream\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n")];
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var allocated = GC.GetAllocatedBytesForCurrentThread();
+        PdfRepair.Rebuild(data);
+        allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;
+        Assert.True(allocated < 300 << 20, $"{allocated >> 20} MB"); // the decoded bytes, not a match per pair (17 to 26 s matching every pair)
+        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms"); // 2 s alone, 15 s under the full suite's load
+    }
+
+    [Fact]
+    public void AnIndirectLengthIsFollowed()
+    {
+        // The content stream's /Length is "10 0 R" (object 10, written after it), and its text holds "endstream" and an
+        // object header. Read as a length of 1, the content ended at that "endstream" and the "5 0 obj" after it replaced the field.
+        var content = "BT /Helv 12 Tf 72 650 Td (endstream) Tj (5 0 obj) Tj ET\n";
+        var objects = Objects.ToArray().Append(Encoding.Latin1.GetByteCount(content).ToString()).ToArray();
+        objects[8] = $"<< /Length 10 0 R >>\nstream\n{content}\nendstream";
+        var normal = PdfRepair.Normalize(TruncatedOf(objects), null);
+        Assert.True(normal.Repaired);
+        Readable(normal.Data);
+    }
+
+    [Fact]
+    public void TheAppsOwnBytesAreNotChecked()
+    {
+        // Combine, Extract, Scan and the rest open what the app just made: as it is, with no read of the whole file first.
+        var data = Truncated();
+        using (var own = DocumentSession.FromBytes(data, "made.pdf"))
+        {
+            Assert.False(own.Repaired);
+            Assert.Same(data, own.Data);
+        }
+        using var outside = DocumentSession.FromBytes(data, "attachment.pdf", repair: true);
+        Assert.True(outside.Repaired);
+    }
+
+    [Fact]
+    public void ARepairedCopyTheViewerRefusesIsNotUsed()
+    {
+        // MuPDF opened the file as it is but refuses the repaired copy: the file is opened as it is, not repaired.
+        var data = Truncated();
+        var (bytes, engine, repaired) = DocumentSession.OpenReadable(data, MuPDFCore.InputFileTypes.PDF, null,
+            b => ReferenceEquals(b, data) ? PdfEngine.Open(b, MuPDFCore.InputFileTypes.PDF, null) : throw new InvalidOperationException("refused"));
+        using (engine)
+        {
+            Assert.Same(data, bytes);
+            Assert.Equal(0, repaired);
+            Assert.Equal(1, engine.PageCount);
+        }
+    }
+
+    [Fact]
+    public void ARepairedFileIsNeverCertified()
+    {
+        using var session = DocumentSession.FromBytes(Truncated(), "damaged.pdf", repair: true);
+        using var cert = SigningTests.RsaCert();
+        var ex = Assert.Throws<SigningException>(() => Signing.Sign(session.Data, null,
+            new SignRequest { Certificate = cert, Certify = CertificationLevel.FormFilling, RepairedLength = session.RepairedLength }));
+        Assert.Contains("repaired", ex.Message);
+    }
+
+    [Fact]
+    public async Task LongTermDataIsNeverAddedForASignatureMadeBeforeTheRepair()
+    {
+        using var pki = new LtvTestPki();
+        var damaged = SavedOverALongerCopy(Signing.Sign(Core2Pdf.Build(Objects), null, new SignRequest { Certificate = pki.Signer }));
+        using var session = DocumentSession.FromBytes(damaged, "damaged.pdf", repair: true);
+        Assert.True(session.Repaired);
+        using (var client = pki.Client())
+        {
+            var ex = await Assert.ThrowsAsync<SigningException>(() => Ltv.AddVerificationAsync(session.Data, null, client, repairedLength: session.RepairedLength));
+            Assert.Contains("repaired", ex.Message);
+        }
+
+        // Batch: the file is skipped, saying why.
+        var dir = Directory.CreateTempSubdirectory("inkvolt-damaged-batch-").FullName;
+        try
+        {
+            var path = Path.Combine(dir, "damaged.pdf");
+            File.WriteAllBytes(path, damaged);
+            var plan = new BatchPlan { Steps = [new AddLongTermStep()], OutputFolder = Path.Combine(dir, "out") };
+            var summary = await BatchRunner.RunAsync([new BatchFile(path)], plan, new BatchHost { LongTermClient = () => pki.Client() }, null, CancellationToken.None);
+            var item = Assert.Single(summary.Items);
+            Assert.Equal(BatchItemState.Skipped, item.State);
+            Assert.Contains("repaired", item.Message);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
     }
 }

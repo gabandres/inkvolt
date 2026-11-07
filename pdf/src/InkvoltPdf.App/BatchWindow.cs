@@ -1032,6 +1032,7 @@ internal sealed class BatchWindow : Window
             {
                 var data = File.ReadAllBytes(path);
                 if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0 || !Signatures.Inspect(data, null).Any(f => f.Intact && f.Info.Certificate is not null)) continue;
+                if (PdfRepair.Normalize(data, null).Repaired) continue; // skipped in the run: a damaged file's signatures are never extended
                 signed++;
                 var plan = Ltv.Plan(data, null, client);
                 complete &= plan.Complete;

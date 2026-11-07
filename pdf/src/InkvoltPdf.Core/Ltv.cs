@@ -66,9 +66,10 @@ public static class Ltv
     /// <summary>What adding long-term data to <paramref name="data"/> would contact. Stays offline.</summary>
     /// <param name="client">The client that would go; addresses are judged as it would judge them.</param>
     /// <param name="onlyMissing">Leave out what the file already holds the answer to (false: what a check online would ask).</param>
-    public static LtvPlan Plan(byte[] data, string? password = null, LtvClient? client = null, bool onlyMissing = true)
+    /// <param name="repairedLength">The document's <see cref="DocumentSession.RepairedLength"/>: signatures made before the repair aren't extended.</param>
+    public static LtvPlan Plan(byte[] data, string? password = null, LtvClient? client = null, bool onlyMissing = true, long repairedLength = 0)
     {
-        var facts = Signatures.Inspect(data, password);
+        var facts = Signatures.Inspect(data, password, null, null, repairedLength);
         var pool = onlyMissing ? StoredPool(data, password) : new RevocationPool();
         var builder = new PlanBuilder(pool, client);
         var notes = new List<string>();
@@ -141,13 +142,18 @@ public static class Ltv
     /// uncovered; a server that can't be reached ends it all with an error, and nothing is changed.
     /// </summary>
     /// <param name="documentTimestamp">Adds a document timestamp over it all, with this exchange (<see cref="LtvClient.TimestampSender"/>).</param>
-    public static Task<LtvResult> AddVerificationAsync(byte[] data, string? password, LtvClient client, Func<byte[], CancellationToken, Task<byte[]>>? documentTimestamp = null, CancellationToken cancel = default) =>
-        ExtendAsync(data, password, client, documentTimestamp, strict: false, cancel);
+    /// <param name="repairedLength">
+    /// The document's <see cref="DocumentSession.RepairedLength"/>: a signature made before the repair is never extended,
+    /// and nothing is added to a file holding one.
+    /// </param>
+    public static Task<LtvResult> AddVerificationAsync(byte[] data, string? password, LtvClient client, Func<byte[], CancellationToken, Task<byte[]>>? documentTimestamp = null,
+        CancellationToken cancel = default, long repairedLength = 0) =>
+        ExtendAsync(data, password, client, documentTimestamp, strict: false, cancel, repairedLength);
 
-    /// <summary>Asks online about the certificates of a file's signatures, without changing the file: for <see cref="Signatures.Verify(byte[], string?, RevocationSnapshot?)"/>.</summary>
-    public static async Task<LtvOnlineResult> CheckOnlineAsync(byte[] data, string? password, LtvClient client, CancellationToken cancel = default)
+    /// <summary>Asks online about the certificates of a file's signatures, without changing the file: for <see cref="Signatures.Verify"/>.</summary>
+    public static async Task<LtvOnlineResult> CheckOnlineAsync(byte[] data, string? password, LtvClient client, CancellationToken cancel = default, long repairedLength = 0)
     {
-        var facts = Signatures.Inspect(data, password);
+        var facts = Signatures.Inspect(data, password, null, null, repairedLength);
         var gather = new Gatherer(client, new RevocationPool(), useStored: false);
         foreach (var f in facts.Where(f => f.Intact && f.Info.Certificate is not null)) // as Plan: what the person was shown is all that is asked
         {
@@ -159,12 +165,17 @@ public static class Ltv
         return new LtvOnlineResult(snapshot, gather.Results(), client.Contacts, gather.FirstFailure);
     }
 
-    /// <summary>The whole job. <paramref name="strict"/>: for signing, where a promise of B-LT can't be kept with a gap in it.</summary>
-    internal static async Task<LtvResult> ExtendAsync(byte[] data, string? password, LtvClient client, Func<byte[], CancellationToken, Task<byte[]>>? documentTimestamp, bool strict, CancellationToken cancel)
+    /// <summary>
+    /// The whole job. <paramref name="strict"/>: for signing, where a promise of B-LT can't be kept with a gap in it; there
+    /// only the new signature is extended in a repaired file (<paramref name="repairedLength"/>), else such a file is refused.
+    /// </summary>
+    internal static async Task<LtvResult> ExtendAsync(byte[] data, string? password, LtvClient client, Func<byte[], CancellationToken, Task<byte[]>>? documentTimestamp, bool strict,
+        CancellationToken cancel, long repairedLength = 0)
     {
         if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
             throw new SigningException(PdfStrings.Ltv_Encrypted);
-        var before = Signatures.Inspect(data, password);
+        var before = Signatures.Inspect(data, password, null, null, repairedLength);
+        if (!strict && before.Any(f => f.Info.InRepairedFile)) throw new SigningException(PdfStrings.Ltv_Repaired);
         var intact = before.Where(f => f.Intact && f.Info.Certificate is not null).ToList();
         if (intact.Count == 0)
             throw new SigningException(before.Any(f => f.Info.Status != SignatureStatus.Unsigned)

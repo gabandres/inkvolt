@@ -719,6 +719,7 @@ public static class BatchRunner
         private readonly List<string> _notes = [];
         private string? _password; // opens / edits the file (owner password once known)
         private string? _openPassword; // the open password, for KeptProtection (AES-256 opened with the owner password)
+        private long _repairedLength; // the file was damaged: its repaired copy's length (DocumentSession.RepairedLength)
         private string _baseName = "";
         /// <summary>What Redact Patterns removed (the text, the areas) and the file before it: for a later check.</summary>
         private readonly List<string> _redactedValues = [];
@@ -757,12 +758,16 @@ public static class BatchRunner
                     // As a document opens in a tab: a damaged file is worked on as its repaired copy, and the report says so.
                     var normal = await Task.Run(() => PdfRepair.Normalize(data, _password), cancel).ConfigureAwait(false);
                     data = normal.Data;
-                    if (normal.Repaired) _notes.Add(PdfStrings.Batch_Repaired);
+                    if (normal.Repaired)
+                    {
+                        _notes.Add(PdfStrings.Batch_Repaired);
+                        _repairedLength = normal.Data.LongLength;
+                    }
                 }
                 // Long-term data is for signed files: it never counts as a change that would leave them alone.
                 var changes = plan.Steps.Any(s => s.ChangesPdf && s is not AddLongTermStep);
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
-                var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password);
+                var keepSigned = changes && plan.SignedFiles == SignedFilePolicy.Skip && IsSigned(data, _password, _repairedLength);
                 // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
                 if (keepSigned && plan.Steps.Any(s => s is RedactPatternsStep))
                     return Result(BatchItemState.Skipped, PdfStrings.Batch_SignedNotRedacted);
@@ -836,6 +841,8 @@ public static class BatchRunner
         {
             if (data.AsSpan().IndexOf("/Encrypt"u8) >= 0)
                 throw new SkipException(PdfStrings.Batch_LongTermEncrypted);
+            // Its signatures can't be checked in the repaired copy: never extended.
+            if (_repairedLength > 0) throw new SkipException(PdfStrings.Batch_LongTermRepaired);
             var facts = await Task.Run(() => Signatures.Inspect(data, _password), cancel).ConfigureAwait(false);
             if (facts.All(f => f.Info.Status == SignatureStatus.Unsigned)) throw new SkipException(PdfStrings.Batch_LongTermUnsigned);
             if (!facts.Any(f => f.Intact && f.Info.Certificate is not null))
@@ -1257,12 +1264,12 @@ public static class BatchRunner
 
     private static bool LooksLikePdf(byte[] data) => data.AsSpan(0, Math.Min(data.Length, 1024)).IndexOf("%PDF-"u8) >= 0;
 
-    private static bool IsSigned(byte[] data, string? password)
+    private static bool IsSigned(byte[] data, string? password, long repairedLength)
     {
         if (!Incremental.LooksSigned(data)) return false;
         try
         {
-            return Signatures.Verify(data, password).Any(s => s.Status != SignatureStatus.Unsigned);
+            return Signatures.Verify(data, password, null, repairedLength).Any(s => s.Status != SignatureStatus.Unsigned);
         }
         catch (Exception ex) when (ex is InvalidOperationException or PdfSharp.PdfSharpException or MuPDFException)
         {

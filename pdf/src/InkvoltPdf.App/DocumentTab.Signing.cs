@@ -120,7 +120,7 @@ public partial class DocumentTab
         LtvResult? result = null;
         var outcome = await TryEdit(Strings.TabSign_EditAddVerification, (d, pw) =>
         {
-            result = Ltv.AddVerificationAsync(d, pw, client, timestampUrl is null ? null : client.TimestampSender(timestampUrl)).GetAwaiter().GetResult();
+            result = Ltv.AddVerificationAsync(d, pw, client, timestampUrl is null ? null : client.TimestampSender(timestampUrl), repairedLength: Session.RepairedLength).GetAwaiter().GetResult();
             return result.Pdf;
         }, quiet: true, contentOnly: true);
         if (outcome == EditOutcome.Done) _sigBarDismissed = false;

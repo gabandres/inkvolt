@@ -197,7 +197,7 @@ public sealed partial class DocumentSession
             if (SignedOnOpen && !request.SignaturesWarned && !rewrite)
             {
                 var pw = password;
-                var broken = await Task.Run(() => Signatures.BrokenByEdits(Signatures.Verify(data, pw), result, pw));
+                var broken = await Task.Run(() => Signatures.BrokenByEdits(Signatures.Verify(data, pw, null, RepairedLength), result, pw));
                 if (_disposed) return new(EditOutcome.Failed);
                 if (broken.Count > 0 && !prompts.ConfirmBreakingEdit(label, broken)) return new(EditOutcome.Declined);
             }

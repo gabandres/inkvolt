@@ -527,7 +527,7 @@ public partial class DocumentTab
         var layers = Try<IReadOnlyList<LayerInfo>>("layers", ["/OCProperties"], d => Layers.List(d, pw), [], []);
         var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", ["/OCProperties"], d => Layers.ReadOrder(d, pw), [], []) : [];
         // A repaired file's signatures are never presented as checked against the repaired bytes.
-        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.InRepairedFile(Signatures.Verify(d, pw, online), session.RepairedLength), null, []);
+        var sigs = Try<IReadOnlyList<SignatureInfo>?>("signatures", ["/ByteRange"], d => Signatures.Verify(d, pw, online, session.RepairedLength), null, []);
         var xfa = first ? Try<(bool, bool)?>("XFA", ["/XFA"], d => FormEditor.HasXfa(d, pw), null, (false, false)) : null;
         var prefs = first
             ? Try<ViewerPrefs?>("opening settings", ["/PageMode", "/PageLayout", "/ViewerPreferences", "/OpenAction"], d => DocumentFeatures.ReadViewerPrefs(d, pw), null,
@@ -871,7 +871,7 @@ public partial class DocumentTab
                 try
                 {
                     var p = password;
-                    session = await Task.Run(() => DocumentSession.FromBytes(bytes, SafeFileName(a.FileName), p));
+                    session = await Task.Run(() => DocumentSession.FromBytes(bytes, SafeFileName(a.FileName), p, repair: true));
                     break;
                 }
                 catch (PasswordRequiredException ex)

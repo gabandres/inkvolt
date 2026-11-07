@@ -2854,6 +2854,9 @@
   <data name="Sign_CertifyMustBeFirst" xml:space="preserve">
     <value>A certifying signature must be the document's first signature: this document is already signed.</value>
   </data>
+  <data name="Sign_CertifyRepaired" xml:space="preserve">
+    <value>This file was damaged and Inkvolt PDF repaired it to open it, so it can't be certified now. Save it, open the saved copy, then certify it.</value>
+  </data>
   <data name="Sign_CertifiedNoChanges" xml:space="preserve">
     <value>This document is certified with no changes allowed: another signature would invalidate the certification.</value>
   </data>
@@ -3204,6 +3207,9 @@
   </data>
   <data name="Ltv_Encrypted" xml:space="preserve">
     <value>Encrypted (password-protected) PDFs can't take long-term data, since an update can't be appended to them without breaking their signatures. Nothing was changed.</value>
+  </data>
+  <data name="Ltv_Repaired" xml:space="preserve">
+    <value>The file was damaged and Inkvolt PDF repaired it to open it, so its signatures can't be checked and long-term data can't be added to them. Add it to the original file. Nothing was changed.</value>
   </data>
   <data name="Ltv_NoValidSignature" xml:space="preserve">
     <value>None of this document's signatures checks out, so there is nothing to add long-term data for. Nothing was changed.</value>
@@ -6730,6 +6736,9 @@
   <data name="Batch_LongTermEncrypted" xml:space="preserve">
     <value>Protected: long-term data can't be added to an encrypted PDF without breaking its signatures</value>
     <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermRepaired" xml:space="preserve">
+    <value>Damaged: repaired to open it, so its signatures can't be checked and no long-term data was added</value>
   </data>
   <data name="Batch_LongTermUnsigned" xml:space="preserve">
     <value>No signature: nothing to add long-term data for</value>
