@@ -30,6 +30,11 @@ inline picture (BI…ID…EI) whose filters inflate then discard can still run l
 person to look at a refused page on screen. **Owner, 2026-11-06 night: ignore the usage gate for this work**; the order
 now: Print for Mac (5) → PDF for Mac hostile-input review and fixes → PDF for Mac 1.8 release → Print for Mac 1.3 (after
 1.2's approval) → 3.5, 3.3, 3.6, Office converter, the XL items.
+**2026-11-07:** PDF for Mac 1.8.0 published (DMG, appcast, Homebrew, website); Print for Mac's giant-scan fix (`1e7d079a`),
+PDF for Mac's hostile-input fixes (`cf3166ca`), 3.5 folder search on the Mac (`cd4ce066`) and Windows' long-run fix
+(`9cd5ed6c`) merged. Small Mac follow-up: the folder search's side-by-side (phrase) check cuts page words to 48, so a
+phrase starting at the end of a long run is dropped (Windows fixed it in `208bf79a`). ignia-mac has ~7 GB free (other
+projects' simulators and archives: the owner's call).
 Print for Mac 1.2 (build 6) submitted 2026-11-06 (owner), Waiting for Review.
 **Inkvolt PDF for Mac 1.8.0 published 2026-11-07** (`pdf-mac-v1.8.0` on `05017d9`, notarized DMG sha256 0a866eaa…4470d, appcast
 with Spanish notes, not Latest; Homebrew cask, website; Spanish, vector printing, page checks, the hostile-input fixes): an
