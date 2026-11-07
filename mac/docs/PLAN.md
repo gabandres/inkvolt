@@ -1369,7 +1369,9 @@ and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 f
   Vision's line order. Windows' recognizer skipping a line (`couldBeALostLine`) is kept as the heuristic it is.
 - **The compare read** (`PdfEngine.comparePage`, Windows' `GetComparePage`): the shim's `inkv_compare_page` reads the page's
   own content (no annotations), as `inkv_page_chars` does, with each character's font, size and color and the pictures'
-  boxes (no pixels, no paths); the text is the same as `text`'s (theLooksLineUpWithThePageTextOnEveryPage). Under the page
+  boxes (no pixels, no paths); the text is the same as `text`'s (theLooksLineUpWithThePageTextOnEveryPage). It keeps the
+  pictures (`FZ_STEXT_PRESERVE_IMAGES`, as Windows' `GetComparePage`) to tell a scan, so MuPDF may start a new line at a
+  picture set inline where `text` doesn't: the words compared are the same (wordsBesideAnInlinePictureAreTheTextsWords). Under the page
   checks: a bomb page is refused at its budget (PageCheckTests' list of bounded calls has `comparePage`).
 - **A page that can't be read** (refused by the page checks, or MuPDF fails on it) is read as an empty page and listed as
   "Not compared", its row headed "couldn't be read: not compared", and left out of the visual check; the rest of the
@@ -1386,6 +1388,17 @@ and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 f
   page against a picture of its changed version (the scan recognized with Vision, the changed amount read from the scan).
   `--edit --synthetic --only-compare` runs it alone. The scanned page needs Vision: it fails when Vision does (the Mac's
   known Vision flake, see 3.7).
+- **Review fixes (2026-11-07).** `DocumentCompare` counts each page's moved words in one pass (it walked every word once
+  per page only one side has: 2,000 pages against 1 took 16.5 s, now 0.7 s in a debug build) and checks Cancel in every
+  long loop; `CompareRunningLines` changes its per-line record in place (taking it out of the dictionary and putting it
+  back copied its places on every page: quadratic for "Page N" on every page). The move's label says "on page N" only
+  within one row (`CompareResult.place(ofMove:)`), else "page N → M", even for the same number. A page without area is
+  never a picture. `Math.Round`'s ports round half to even (the scans' slack, the skew's dpi, a line's place). In the app:
+  the selection follows an entry's identity (a "Looks different" entry stayed selected only by its change, which it hasn't);
+  a scan whose words came back as Skip was pressed counts as read; the visual check works out the pages' lines and the
+  areas under their text off the main thread, finds a scan row's alignment once for the check and the drawing (off the
+  render queue), and updates the summary ("1 page looks different (Visual shows where).") and tells VoiceOver. Windows
+  still has the per-page walk, the zero-area page and the label comparing page numbers.
 
 ### What a person must look at (unattended run, 2026-11-03)
 
