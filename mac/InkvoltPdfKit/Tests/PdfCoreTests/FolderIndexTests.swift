@@ -143,6 +143,35 @@ final class FolderIndexTests {
         #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)))
     }
 
+    /// A query's word is cut to a term's 48 units, a page's word read whole to 1,024 (`IndexTerms.words`): a phrase with a
+    /// 60-unit word first, between, or last is still side by side.
+    static let sixty = "pneumonoultramicroscopicsilicovolcanoconiosisandmoreletters" + "x"
+
+    @Test(arguments: [("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
+                      ("\(sixty) brass", "by the \(sixty) brass here", true),
+                      ("\(sixty) brass", "by the pre\(sixty) brass here", true),
+                      ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
+                      ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
+                      ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
+                      ("\(sixty) brass", "by the pneumono brass here", false)])
+    func A_phrase_with_a_word_longer_than_a_term_is_side_by_side(_ c: (query: String, page: String, expected: Bool)) {
+        #expect(Self.sixty.utf16.count == 60)
+        #expect(IndexTerms.of(c.query).contains { $0.utf16.count == IndexTerms.maxChars }, "a term cut")
+        let found = !PageText.findIn(c.page, c.query, matchCase: false, wholeWord: false, ignoreAccents: true).isEmpty
+        #expect(found == c.expected, "Find")
+        #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)) == c.expected)
+    }
+
+    @Test func A_phrase_with_a_long_word_is_found_in_the_folder() throws {
+        let index = try FolderIndex.open(base)
+        defer { index.dispose() }
+        try commit(index) { b in
+            add(b, "long.pdf", "by the lantern \(Self.sixty) brass here")
+            add(b, "apart.pdf", "brass by the lantern \(Self.sixty) and more")
+        }
+        #expect(try at(index, "lantern \(Self.sixty) brass") == ["long.pdf#1"])
+    }
+
     @Test(arguments: [("a a b", "a a c a b"), ("a b a c", "a b a a c")])
     func A_phrase_starting_again_doesn_t_join_what_isn_t_side_by_side(_ c: (query: String, page: String)) {
         #expect(!FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)))
