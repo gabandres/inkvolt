@@ -53,7 +53,8 @@ internal static class PdfShapeGuard
 
     /// <summary>
     /// Refuses <paramref name="data"/> until <paramref name="check"/> (a read of the same bytes that is taking too long)
-    /// ends: then they are read as they are, checked again, unless the check itself gave a verdict.
+    /// ends: then they are read as they are, checked again, unless the check itself gave a verdict. A check that failed
+    /// (it threw, not a refusal of the bytes' shape) leaves them refused: nothing says they are safe to read.
     /// </summary>
     public static void RefuseUntil(byte[] data, Task check)
     {
@@ -61,7 +62,9 @@ internal static class PdfShapeGuard
         Verdicts.TryAdd(data, Pending);
         check.ContinueWith(_ =>
         {
-            if (Verdicts.TryGetValue(data, out var verdict) && ReferenceEquals(verdict, Pending) && !check.IsFaulted) Verdicts.Remove(data);
+            if (!Verdicts.TryGetValue(data, out var verdict) || !ReferenceEquals(verdict, Pending)) return;
+            if (check.IsCompletedSuccessfully) Verdicts.Remove(data);
+            else Verdicts.AddOrUpdate(data, Refused);
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
