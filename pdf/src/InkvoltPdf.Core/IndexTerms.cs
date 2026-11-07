@@ -14,21 +14,56 @@ namespace InkvoltPdf.Core;
 /// </summary>
 internal static class IndexTerms
 {
-    /// <summary>The folding's version, kept in the index file's header.</summary>
-    public const int Version = 1;
+    /// <summary>The folding's version, kept in the index file's header. 2: a long run is filed in overlapping pieces (<see cref="File"/>).</summary>
+    public const int Version = 2;
 
-    /// <summary>A longer run (a base64 blob, hostile text) is filed under its start; a query's long word is cut the same way.</summary>
+    /// <summary>A term's length at most: a query's longer word is cut to it; a page's longer run is filed in pieces (<see cref="File"/>).</summary>
     public const int MaxChars = 48;
+
+    /// <summary>
+    /// A page's run longer than a term (an identifier, a hash, base64, a German compound) is filed in pieces of <see cref="MaxChars"/>,
+    /// one starting every <see cref="PieceStep"/> units, so Find's hit anywhere inside it (up to <see cref="LookupChars"/> long) is
+    /// inside a piece; its first <see cref="MaxRun"/> units at most. A run gives at most MaxRun / PieceStep + 1 = 43 terms, and
+    /// what is filed of it is at most twice what is read of it.
+    /// </summary>
+    public const int MaxRun = 1024;
+
+    /// <inheritdoc cref="MaxRun"/>
+    public const int PieceStep = 24;
+
+    /// <summary>
+    /// What a query's word looks up: its start, short enough to sit inside one piece wherever the piece begins (a piece starts at most
+    /// <see cref="PieceStep"/> before it, and may end a unit early to keep a surrogate pair whole).
+    /// </summary>
+    public const int LookupChars = MaxChars - PieceStep - 1;
 
     public delegate void TermAction(ReadOnlySpan<char> term);
 
     private const string Separator = " ";
     private static readonly string?[] Folded = new string?[0x10000];
 
-    /// <summary>Calls <paramref name="emit"/> with each term of <paramref name="text"/>, in order, repeats included.</summary>
-    public static void Read(ReadOnlySpan<char> text, TermAction emit)
+    /// <summary>Calls <paramref name="emit"/> with each term of <paramref name="text"/>, in order, repeats included; a run longer than a term is cut to its start.</summary>
+    public static void Read(ReadOnlySpan<char> text, TermAction emit) => Read(text, MaxChars, false, emit);
+
+    /// <summary>The terms a page is filed under: <see cref="Read"/>'s, with a run longer than a term in overlapping pieces.</summary>
+    public static void File(ReadOnlySpan<char> text, TermAction emit) => Read(text, MaxRun, true, emit);
+
+    /// <summary>A page's words in order, each whole up to <see cref="MaxRun"/> units: a phrase's first word may be the end of a long run.</summary>
+    public static void Words(ReadOnlySpan<char> text, TermAction emit) => Read(text, MaxRun, false, emit);
+
+    /// <summary>What a query's term is looked up by among the filed terms (each term with it inside counts).</summary>
+    public static string Lookup(string term)
     {
-        Span<char> word = stackalloc char[MaxChars];
+        if (term.Length <= LookupChars) return term;
+        var end = char.IsHighSurrogate(term[LookupChars - 1]) ? LookupChars - 1 : LookupChars;
+        return term[..end];
+    }
+
+    /// <param name="limit">The units of a run kept.</param>
+    /// <param name="pieces">A kept run longer than a term goes out in overlapping pieces.</param>
+    private static void Read(ReadOnlySpan<char> text, int limit, bool pieces, TermAction emit)
+    {
+        Span<char> word = limit <= MaxChars ? stackalloc char[MaxChars] : stackalloc char[MaxRun];
         Span<char> pair = stackalloc char[4];
         var length = 0;
         var full = false;
@@ -49,12 +84,12 @@ internal static class IndexTerms
                 if (cp is >= 'a' and <= 'z' or >= '0' and <= '9' or >= 'A' and <= 'Z')
                 {
                     if (previous >= 0) EndRun(ref previous, ref paired, pair, emit);
-                    if (length < MaxChars) word[length++] = (char)(cp is >= 'A' and <= 'Z' ? cp + 32 : cp);
+                    if (length < limit) word[length++] = (char)(cp is >= 'A' and <= 'Z' ? cp + 32 : cp);
                     else full = true;
                 }
                 else if (length > 0 || previous >= 0)
                 {
-                    EndWord(word, ref length, ref full, emit);
+                    EndWord(word, ref length, ref full, pieces, emit);
                     if (previous >= 0) EndRun(ref previous, ref paired, pair, emit);
                 }
                 continue;
@@ -67,12 +102,12 @@ internal static class IndexTerms
                 if (char.IsHighSurrogate((char)c) && f + 1 < folded.Length) c = char.ConvertToUtf32((char)c, folded[++f]);
                 if (c == ' ')
                 {
-                    EndWord(word, ref length, ref full, emit);
+                    EndWord(word, ref length, ref full, pieces, emit);
                     if (previous >= 0) EndRun(ref previous, ref paired, pair, emit);
                 }
                 else if (IsSpaceless(c))
                 {
-                    EndWord(word, ref length, ref full, emit);
+                    EndWord(word, ref length, ref full, pieces, emit);
                     if (previous >= 0)
                     {
                         var used = new Rune(previous).EncodeToUtf16(pair);
@@ -86,12 +121,12 @@ internal static class IndexTerms
                 {
                     if (previous >= 0) EndRun(ref previous, ref paired, pair, emit);
                     var units = c > 0xFFFF ? 2 : 1;
-                    if (!full && length + units <= MaxChars) length += new Rune(c).EncodeToUtf16(word[length..]);
+                    if (!full && length + units <= limit) length += new Rune(c).EncodeToUtf16(word[length..]);
                     else full = true;
                 }
             }
         }
-        EndWord(word, ref length, ref full, emit);
+        EndWord(word, ref length, ref full, pieces, emit);
         if (previous >= 0) EndRun(ref previous, ref paired, pair, emit);
     }
 
@@ -103,11 +138,27 @@ internal static class IndexTerms
         return terms;
     }
 
-    private static void EndWord(Span<char> word, ref int length, ref bool full, TermAction emit)
+    private static void EndWord(Span<char> word, ref int length, ref bool full, bool pieces, TermAction emit)
     {
-        if (length > 0) emit(word[..length]);
+        if (length > MaxChars && pieces) EmitPieces(word[..length], emit);
+        else if (length > 0) emit(word[..length]);
         length = 0;
         full = false;
+    }
+
+    /// <summary>A run longer than a term in pieces of <see cref="MaxChars"/>, one every <see cref="PieceStep"/>, a surrogate pair never split.</summary>
+    private static void EmitPieces(ReadOnlySpan<char> run, TermAction emit)
+    {
+        var start = 0;
+        while (true)
+        {
+            var end = Math.Min(start + MaxChars, run.Length);
+            if (end < run.Length && char.IsLowSurrogate(run[end])) end--;
+            emit(run[start..end]);
+            if (end == run.Length) return;
+            start += PieceStep;
+            if (char.IsLowSurrogate(run[start])) start++;
+        }
     }
 
     private static void EndRun(ref int previous, ref bool paired, Span<char> pair, TermAction emit)

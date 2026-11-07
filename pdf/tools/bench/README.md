@@ -55,7 +55,7 @@ dotnet run --project pdf/tools/bench -c Release -- index-run C:\somewhere\corpus
 ```
 
 Files of 1 to 24 pages (72,797 in all) of made-up prose: a 200-word bank and, one word in five, a vocabulary of 300,000 made-up
-words with a few common and most rare, and a reference number per page, so the list of terms grows as on real files (200,000
+words with a few common and most rare, a reference number per page and a 64-character checksum per file (a run longer than a term), so the list of terms grows as on real files (200,000
 terms); planted words a query knows about. The six bad ones: damaged, empty, cut short, password protected, over the size limit
 (a sparse file), an image with no text. Word queries are timed first, then again with the terms forgotten from memory, and again
 on the index opened anew; a query's target is 1 s to the last result listed (500 pages at most). Phrases are timed too but aren't

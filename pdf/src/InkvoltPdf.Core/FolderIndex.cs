@@ -981,7 +981,7 @@ public sealed class IndexBatch
         {
             if (string.IsNullOrEmpty(pages[page])) continue;
             var p = page;
-            IndexTerms.Read(PageText.SearchTextOf(pages[page]!), term =>
+            IndexTerms.File(PageText.SearchTextOf(pages[page]!), term =>
             {
                 if (!_lookup.TryGetValue(term, out var list))
                 {

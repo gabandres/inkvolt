@@ -391,6 +391,86 @@ public sealed class FolderIndexTests : IDisposable
         Assert.Equal(firstEnd, again.FileBytes);
     }
 
+    /// <summary>
+    /// A run longer than a term (an identifier, a hash, base64, a German compound) is found anywhere inside, as Find finds it:
+    /// its end, a piece from its middle, a phrase that starts at its end.
+    /// </summary>
+    [Fact]
+    public void The_end_of_a_long_run_is_found_as_Find_finds_it()
+    {
+        var shortRun = new string('k', 50) + "endmarker9";
+        var longRun = new string('x', 260) + "abcdefghijklmnopqrstuvwxyz0123456789abcd";
+        var id = "Donaudampfschifffahrtselektrizitätenhauptbetriebswerkbauunterbeamtengesellschaft";
+        using var index = FolderIndex.Open(Base);
+        Commit(index, b =>
+        {
+            Add(b, "a.pdf", $"intro {shortRun} outro", $"other {longRun} text", $"die {id} heute");
+            Add(b, "b.pdf", "endmarker nothing abcdefghijklmnopqrstuvw");
+        });
+        Assert.Equal(["a.pdf#1"], Where(index, "endmarker9"));
+        Assert.Equal(["a.pdf#1"], Where(index, shortRun[^10..]));
+        Assert.Equal(["a.pdf#1"], Where(index, "kkkkkendmarker"));
+        Assert.Equal(["a.pdf#2"], Where(index, longRun[^40..]));
+        Assert.Equal(["a.pdf#2"], Where(index, longRun.Substring(100, 48)));
+        Assert.Equal(["a.pdf#1", "b.pdf#1"], Where(index, "endmarker"));
+        Assert.Equal(["a.pdf#3"], Where(index, "gesellschaft"));
+        Assert.Equal(["a.pdf#3"], Where(index, "hauptbetriebswerk"));
+        Assert.Equal(["a.pdf#1"], Where(index, "marker9 outro"));
+        Assert.Equal(["a.pdf#3"], Where(index, "Gesellschaft heute"));
+    }
+
+    /// <summary>
+    /// The terms of a page of many long runs (random base64, 2 MB) are bounded: at most 43 pieces of 48 characters a run
+    /// (its first 1,024), so the index beside the page's own kept text stays within about 2 KB a run.
+    /// </summary>
+    [Fact]
+    public void A_page_of_many_long_runs_keeps_the_index_bounded()
+    {
+        var random = new Random(5);
+        var bytes = new byte[1500];
+        var runs = Enumerable.Range(0, 1000).Select(_ =>
+        {
+            random.NextBytes(bytes);
+            return Convert.ToBase64String(bytes).Replace('+', 'a').Replace('/', 'b').TrimEnd('=');
+        }).ToList();
+        var page = string.Join(' ', runs);
+        using var index = FolderIndex.Open(Base);
+        Commit(index, b => Add(b, "blob.pdf", page));
+        var file = Directory.GetFiles(_dir, "test.*.idx").Single();
+        var text = index.Files["blob.pdf"].TextLength;
+        var terms = new FileInfo(file).Length - text;
+        var bound = runs.Count * (IndexTerms.MaxRun / IndexTerms.PieceStep + 1) * (IndexTerms.MaxChars + 8);
+        Assert.True(terms <= bound, $"{terms} bytes beside {text} of text; bound {bound}");
+        Assert.Equal(["blob.pdf#1"], Where(index, runs[500].Substring(1000, 24)));
+        Assert.Equal(["blob.pdf#1"], Where(index, runs[999][..IndexTerms.MaxRun][^12..]));
+    }
+
+    /// <summary>An index written by an earlier folding (IndexTerms 1 filed only a long run's start) is thrown away on opening, once.</summary>
+    [Fact]
+    public void An_index_of_an_earlier_folding_starts_over_once()
+    {
+        using (var index = FolderIndex.Open(Base)) Commit(index, b => Add(b, "one.pdf", "alpha"));
+        var file = Directory.GetFiles(_dir, "test.*.idx").Single();
+        WriteFoldingVersion(file, IndexTerms.Version - 1);
+        using (var again = FolderIndex.Open(Base))
+        {
+            Assert.Empty(again.Files);
+            Commit(again, b => Add(b, "two.pdf", "beta"));
+        }
+        using var third = FolderIndex.Open(Base);
+        Assert.Single(third.Files);
+        Assert.Single(Search(third, "beta"));
+    }
+
+    /// <summary>Writes what an index of an earlier folding has in its header: the version in the stamp's high half.</summary>
+    internal static void WriteFoldingVersion(string file, int version)
+    {
+        var bytes = File.ReadAllBytes(file);
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(16), version);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(28), FolderIndex.Crc32.Of(bytes.AsSpan(0, 28)));
+        File.WriteAllBytes(file, bytes);
+    }
+
     [Fact]
     public void A_damaged_header_starts_over()
     {
