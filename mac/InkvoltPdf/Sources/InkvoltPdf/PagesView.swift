@@ -350,6 +350,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     private func layoutPages() {
+        readAhead.reset()
         let n = engine.pageCount
         let sizes = (0..<n).map { i -> (width: Double, height: Double) in
             let g = engine.page(i)
@@ -917,9 +918,20 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         wantedTiles = tiles
         renderer.keepTiles(Set(tiles))
+        // A page drawn ahead of those shown, the way the view last moved (ReadAhead): not in Single Page (no other page has
+        // a place), nor zoomed into tiles (the next page's tiles aren't known, and a whole page at that zoom is too large).
+        let ahead = readAhead.page(after: range, of: pageRects.count)
+        if readingMode != .single, tiles.isEmpty, let ahead {
+            renderer.requestAhead(ahead, scale: renderScale(for: ahead))
+        } else {
+            renderer.requestAhead(nil, scale: 0)
+        }
         let lo = max(range.lowerBound - 1, 0), hi = min(range.upperBound + 1, max(pageRects.count - 1, 0))
         renderer.keep(lo...hi)
     }
+
+    /// Which way the view moves, for the page drawn ahead; forgotten when the pages are laid out again.
+    private var readAhead = ReadAhead()
 
     // MARK: Links
 

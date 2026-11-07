@@ -169,20 +169,23 @@ extension FolderIndex {
 
     /// Whether a page has a phrase's terms one right after the other: the first the end of a word, the last the start of
     /// one, those between whole. Whatever Find finds has that (they are the same words, folded), so a page without it
-    /// needs no asking.
+    /// needs no asking. A query's word longer than a term was cut to its first `maxChars` units (a page's words are read
+    /// whole to `maxRun`): such a term between is the start of its word, and the first is somewhere in its word, whose
+    /// end the cut lost.
     static func sideBySide(_ text: String, _ terms: [String]) -> Bool {
         guard let head = terms.first else { return false }
+        let headCut = head.utf16.count >= IndexTerms.maxChars
         // Every count of terms matched so far that ends at the word before this one: a phrase can start again inside itself.
         var ends: [Int] = []
         var next: [Int] = []
         var found = false
-        IndexTerms.read(PageText.searchTextOf(text)) { word in
+        IndexTerms.words(PageText.searchTextOf(text)) { word in
             if found { return }
             next.removeAll(keepingCapacity: true)
             for at in ends where fits(word, terms, at) {
                 if at + 1 == terms.count { found = true } else { next.append(at + 1) }
             }
-            if word.hasSuffix(head) {
+            if headCut ? word.contains(head) : word.hasSuffix(head) {
                 if terms.count == 1 { found = true } else { next.append(1) }
             }
             swap(&ends, &next)
@@ -191,7 +194,9 @@ extension FolderIndex {
     }
 
     private static func fits(_ word: String, _ terms: [String], _ at: Int) -> Bool {
-        at == terms.count - 1 ? word.utf16.starts(with: terms[at].utf16) : word.utf16.elementsEqual(terms[at].utf16)
+        let term = terms[at].utf16
+        if at == terms.count - 1 || term.count >= IndexTerms.maxChars { return word.utf16.starts(with: term) }
+        return word.utf16.elementsEqual(term)
     }
 }
 
@@ -227,7 +232,7 @@ private final class Confirmer: @unchecked Sendable {
         self.bits = bits
         self.query = query
         self.options = options
-        filter = terms.count > 1 && terms.allSatisfy({ $0.utf16.count < IndexTerms.maxChars }) ? terms : nil
+        filter = terms.count > 1 ? terms : nil // a word cut to a term too (sideBySide)
         pending = bits.first ?? 0
     }
 
