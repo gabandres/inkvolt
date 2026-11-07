@@ -93,7 +93,9 @@ internal static class PdfObj
     /// Opens a document with PDFsharp, which decodes the file's object streams and cross-reference streams as it opens it:
     /// each at most <see cref="MaxStreamBytes"/>, and that much in all (<paramref name="maxBytes"/> in tests). Every PDFsharp
     /// open in Inkvolt PDF goes through here, on bytes already made readable when the document opened
-    /// (<see cref="PdfRepair.Normalize"/>): nothing here retries.
+    /// (<see cref="PdfRepair.Normalize"/>). The one retry: an encrypted file whose updates each name /Encrypt, which PDFsharp
+    /// fails to read with "Indirect reference without value", is read from a copy naming it in its newest section only
+    /// (<see cref="PdfRepair.NewestEncryptOnly"/>; the bytes themselves, which signatures cover, stay as they are).
     /// </summary>
     /// <exception cref="StreamTooLargeException">They decode to more, measured before the memory is spent.</exception>
     public static PdfDocument Read(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes = MaxStreamBytes)
@@ -103,7 +105,7 @@ internal static class PdfObj
             return ReadOnce(data, password, mode, maxBytes);
         }
         catch (InvalidOperationException ex) when (ex.Message.StartsWith("Indirect reference without value", StringComparison.Ordinal) &&
-                                                   NewestEncryptOnly(data) is { } patched)
+                                                   PdfRepair.NewestEncryptOnly(data) is { } patched)
         {
             return ReadOnce(patched, password, mode, maxBytes);
         }
@@ -115,22 +117,6 @@ internal static class PdfObj
             var stream = new MemoryStream(data, writable: false);
             return string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
         });
-
-    /// <summary>
-    /// PDFsharp can't read an encrypted file whose /Encrypt is named by three or more trailers (an encrypted form saved
-    /// incrementally twice, by Acrobat or by <see cref="UserPasswordEdits"/>): it fails with "Indirect reference without
-    /// value". The newest trailer is the one that counts, so the copy PDFsharp reads has the older trailers' /Encrypt
-    /// blanked out (same length: every offset stays). Null when there is nothing to blank.
-    /// </summary>
-    private static byte[]? NewestEncryptOnly(byte[] original)
-    {
-        var data = (byte[])original.Clone();
-        var text = Encoding.Latin1.GetString(data);
-        var refs = System.Text.RegularExpressions.Regex.Matches(text, @"/Encrypt\s*\d+\s+\d+\s+R");
-        if (refs.Count < 2) return null;
-        for (var i = 0; i < refs.Count - 1; i++) data.AsSpan(refs[i].Index, refs[i].Length).Fill((byte)' ');
-        return data;
-    }
 
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);

@@ -22,11 +22,19 @@ public static partial class PdfRepair
     private sealed class RawDict
     {
         private readonly Dictionary<string, string> _values = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (int Start, int Length)> _entries = new(StringComparer.Ordinal);
 
         /// <summary>Just past its "&gt;&gt;".</summary>
         public int End { get; init; }
 
-        public void Set(string key, string value) => _values[key] = value;
+        public void Set(string key, string value, int start, int length)
+        {
+            _values[key] = value;
+            _entries[key] = (start, length);
+        }
+
+        /// <summary>Where the entry (its key and its value) is in the bytes read, or null when the key isn't there.</summary>
+        public (int Start, int Length)? Entry(string key) => _entries.TryGetValue(key, out var e) ? e : null;
 
         public bool Has(string key) => _values.ContainsKey(key);
 
@@ -63,7 +71,7 @@ public static partial class PdfRepair
         if (at + 1 >= d.Length || d[at] != '<' || d[at + 1] != '<') return null;
         var end = (int)Math.Min(d.Length, (long)at + MaxDictChars);
         var p = at + 2;
-        var entries = new List<(string Key, string Value)>();
+        var entries = new List<(string Key, string Value, int Start, int Length)>();
         try
         {
             while (true)
@@ -73,16 +81,17 @@ public static partial class PdfRepair
                 if (d[p] == '>' && p + 1 < end && d[p + 1] == '>')
                 {
                     var dict = new RawDict { End = p + 2 };
-                    foreach (var (k, v) in entries) dict.Set(k, v);
+                    foreach (var (k, v, start, length) in entries) dict.Set(k, v, start, length);
                     return dict;
                 }
                 if (d[p] != '/') return null; // a key is a name
+                var keyStart = p;
                 var keyEnd = TokenEnd(d, p + 1, end);
                 var key = Encoding.Latin1.GetString(d, p, keyEnd - p);
                 p = SkipWhite(d, keyEnd, end);
                 var value = p;
                 if (!SkipValue(d, ref p, end)) return null;
-                entries.Add((key, Encoding.Latin1.GetString(d, value, p - value)));
+                entries.Add((key, Encoding.Latin1.GetString(d, value, p - value), keyStart, p - keyStart));
             }
         }
         finally
