@@ -198,22 +198,33 @@ struct DrawingBandsTests {
 
     static let topScale = 1200 / 612.0 * 1.5
 
-    /// Seconds a render takes when `cancel` fires 20 ms after it starts (the list made before).
+    /// Seconds a render takes when `cancel` fires 20 ms after it starts (the list made before). The cancelling thread is
+    /// running before the render starts, and a render that ends before the cancel came (the thread held back on CI's busy
+    /// runner: "1 bands: not cancelled" on master df75423b) is run again, at most 5 times.
     static func cancelled(_ engine: PdfEngine, bands: Int) -> Double {
-        let cancel = CancelToken()
-        Thread {
-            usleep(20_000)
-            cancel.cancel()
-        }.start()
-        return P.time {
-            do {
-                _ = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: topScale, cancel: cancel) }
-                Issue.record("\(bands) bands: not cancelled")
-            } catch is CancellationError {
-            } catch {
-                Issue.record("\(bands) bands: threw \(error)")
+        for attempt in 1...5 {
+            let cancel = CancelToken()
+            let go = DispatchSemaphore(value: 0)
+            Thread {
+                go.wait()
+                usleep(20_000)
+                cancel.cancel()
+            }.start()
+            var finished = false
+            let took = P.time {
+                go.signal()
+                do {
+                    _ = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: topScale, cancel: cancel) }
+                    finished = true
+                } catch is CancellationError {
+                } catch {
+                    Issue.record("\(bands) bands: threw \(error)")
+                }
             }
+            if !finished { return took }
+            if attempt == 5 { Issue.record("\(bands) bands: not cancelled, 5 times") }
         }
+        return .infinity
     }
 
     /// A list of `times` x 10,000 strokes below the page (a form drawn again and again), which every band skips, and
