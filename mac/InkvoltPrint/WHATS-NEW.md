@@ -6,6 +6,8 @@ collects what's done since the last release. Short lines, in the user's words. `
 for line, for the es-MX listing (`listing.json`'s `localizations`): an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.3
 - Inkvolt Print speaks Spanish: the whole app, its alerts and messages follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
 - SNMP access: a printer that answers only SNMP and whose administrator changed its read community can be added with that community (Add a Printer › Know its address? › SNMP access) and changed later (SNMP Access… in the printer's menu in the sidebar). It's kept in your keychain and used only to read the printer.
 - SNMPv3: the same SNMP access fields take a printer's SNMPv3 user and its two passphrases (SHA-256 authentication, AES-128 privacy). Every request is signed and encrypted, only reads, and a wrong user name or passphrase is named (an Inkvolt Pro feature, free for now).
