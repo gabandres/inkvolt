@@ -252,6 +252,12 @@ public enum CompareRunningLines {
         var pages = 0
         var texts: Set<String> = []
         var places: [(page: Int, raw: String)] = []
+
+        mutating func add(_ page: Int, _ raw: String, firstOnPage: Bool) {
+            texts.insert(raw)
+            places.append((page, raw))
+            if firstOnPage { pages += 1 }
+        }
     }
 
     /// For each page of each document, the [start, end) ranges of its text to leave out of the diff.
@@ -277,11 +283,10 @@ public enum CompareRunningLines {
             eligible += 1
             var counted = Set<String>()
             for e in edges[p] {
-                var entry = seen[e.masked] ?? Seen()
-                entry.texts.insert(e.raw)
-                entry.places.append((p, e.raw))
-                if counted.insert(e.masked).inserted { entry.pages += 1 }
-                seen[e.masked] = entry
+                // Changed in place: a copy taken out and put back copies its places on every page ("Page 7" on 10,000
+                // pages: 10,000 copies of up to 10,000).
+                let firstOnPage = counted.insert(e.masked).inserted
+                seen[e.masked, default: Seen()].add(p, e.raw, firstOnPage: firstOnPage)
             }
         }
 
@@ -290,6 +295,7 @@ public enum CompareRunningLines {
         var running = Set<String>()
         var lines = [[(key: String, start: Int, end: Int)]](repeating: [], count: pages.count)
         for p in pages.indices {
+            if p & 63 == 0 { try cancel?.check() }
             for e in edges[p] {
                 guard let entry = seen[e.masked], entry.pages >= needed else { continue }
                 // A number that counts up with the page is a page number; any other number must match, on every page: a

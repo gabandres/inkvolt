@@ -139,4 +139,28 @@ struct CompareContractTests {
             #expect(read.looks.at(amount - 2)?.bold == false)
         }
     }
+
+    /// A page without area isn't a picture of a page however few pictures it has.
+    @Test func aPageWithoutAreaIsNoPicture() {
+        #expect(!PdfEngine.isPictureOfAPage(0, 0, 0))
+        #expect(!PdfEngine.isPictureOfAPage(0, 612, 0))
+        #expect(!PdfEngine.isPictureOfAPage(612 * 792 * 0.5, 612, 792))
+        #expect(PdfEngine.isPictureOfAPage(612 * 792, 612, 792))
+    }
+
+    /// Compare reads a page with its pictures kept (as Windows' GetComparePage does, to tell a scan), where `text` leaves
+    /// them out, so MuPDF may start a new line at a picture set inline; the words compared are `text`'s words either way.
+    @Test func wordsBesideAnInlinePictureAreTheTextsWords() throws {
+        var canvas = ExportTestPdf.Canvas()
+        canvas.text("Before the", "F1", 12, 72, 100)
+        canvas.image("/Icon", 140, 90, 10, 10)
+        canvas.text("picture and after it", "F1", 12, 152, 100)
+        let engine = try PdfEngine.open(ExportTestPdf.written([canvas]))
+        defer { engine.close() }
+        let read = try engine.comparePage(0)
+        let plain = try engine.text(0, cache: false)
+        #expect(CompareWords.of(read.text, 0).map(\.key) == CompareWords.of(plain, 0).map(\.key))
+        #expect(CompareWords.of(read.text, 0).map(\.key) == ["Before", "the", "picture", "and", "after", "it"])
+        #expect(!read.isPicture)
+    }
 }

@@ -469,4 +469,78 @@ struct CompareTests {
         #expect(r.changedPixels == 60 * 20)
         #expect(r.regions.count == 1)
     }
+
+    // ---- The Mac's review of roadmap 3.3 ----
+
+    /// A limit sized for the Mac, five times longer on GitHub's shared runner (as `Timing.limit`).
+    private static func limit(_ seconds: Double) -> Double {
+        ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? seconds : seconds * 5
+    }
+
+    /// `count` pages of 25 words each, no word on two pages.
+    private static func longDocument(_ count: Int) -> [PageText] {
+        (0..<count).map { p in page((0..<5).map { l in (0..<5).map { "w\(p)l\(l)n\($0)" }.joined(separator: " ") }) }
+    }
+
+    /// Each page only the long side has is checked for having moved: counted page by page in one pass, not by walking
+    /// every word of the document once per such page (3e10 steps for 10,000 pages against 1). 0.7 s in a debug build on the
+    /// Mac alone (16.5 s before); the limit leaves room for the full parallel run.
+    @Test func manyPagesAgainstOneCompareFast() throws {
+        let oldPages = Self.longDocument(2000)
+        let started = Date()
+        let r = try DocumentCompare.run(oldPages, [oldPages[0]])
+        let took = Date().timeIntervalSince(started)
+        #expect(took < Self.limit(3), "took \(took) s")
+        #expect(r.pagesRemoved == 1999)
+        #expect(r.rows.count == 2000)
+    }
+
+    /// When Cancel was pressed, from another thread.
+    private final class Stamp: @unchecked Sendable {
+        private let lock = NSLock()
+        private var at: Date?
+
+        var time: Date? { lock.withLock { at } }
+
+        func set() { lock.withLock { at = Date() } }
+    }
+
+    /// Cancel (and closing the window) stops a long compare soon, whatever it is doing: it ends within half a second of
+    /// the cancel, stopped, or done if it got there first (a loaded machine may start the cancel late).
+    @Test func aLongCompareStopsSoonWhenCancelled() throws {
+        let oldPages = Self.longDocument(4000)
+        let token = CancelToken(), stamp = Stamp()
+        let canceller = Thread {
+            Thread.sleep(forTimeInterval: 0.05)
+            stamp.set()
+            token.cancel()
+        }
+        canceller.qualityOfService = .userInteractive
+        canceller.start()
+        do {
+            _ = try DocumentCompare.run(oldPages, [oldPages[0]], cancel: token)
+        } catch is CancellationError {
+            // stopped
+        }
+        let ended = Date()
+        if let at = stamp.time {
+            #expect(ended.timeIntervalSince(at) < Self.limit(0.5), "ran \(ended.timeIntervalSince(at)) s after the cancel")
+        }
+    }
+
+    /// Text moved from old page 2 to new page 2 once a page was inserted before them: the pages share a number, not a
+    /// row, so the label names both; a move within one pair of pages says the page.
+    @Test func aMoveAcrossRowsNamesBothPagesEvenWithTheSameNumber() throws {
+        let a = "alpha bravo charlie delta echo foxtrot", b = "golf hotel india juliet kilo lima", c = "mike november oscar papa quebec romeo"
+        let m = "the quick brown fox jumps over the lazy dog", x = "sierra tango uniform victor whiskey xray"
+        let r = try DocumentCompare.run(Self.pages(a, "\(b) \(m)", c), Self.pages(x, "\(m) \(a)", b, c))
+        #expect(Self.rows(r) == ["-/0", "0/1", "1/2", "2/3"])
+        let move = try #require(r.changes.first { $0.kind == .moved })
+        #expect(move.old.first?.page == 1 && move.new.first?.page == 1)
+        #expect(r.place(ofMove: move) == .pages(old: 1, new: 1))
+
+        let within = try DocumentCompare.run(Self.pages("\(b) \(m) \(c)"), Self.pages("\(b) \(c) \(m)"))
+        let inPlace = try #require(within.changes.first { $0.kind == .moved })
+        #expect(within.place(ofMove: inPlace) == .onPage(0))
+    }
 }

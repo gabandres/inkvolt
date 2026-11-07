@@ -131,6 +131,20 @@ struct CompareAlignTests {
         #expect(VisualAreas.sameLayout(.empty, Self.line("words", 100)))
     }
 
+    /// A line's place is rounded half to even, as Windows' Math.Round: 10.5 is 10, so it isn't 11.4's place but is 9.6's.
+    @Test func linesArePlacedRoundingHalfToEvenAsWindows() {
+        #expect(!VisualAreas.sameLayout(Self.line("the same words", 100, x: 10.5), Self.line("the same words", 100, x: 11.4)))
+        #expect(VisualAreas.sameLayout(Self.line("the same words", 100, x: 10.5), Self.line("the same words", 100, x: 9.6)))
+    }
+
+    /// Two scans' slack is a point and a half in pixels, half to even as Windows' Math.Round, within 2 to 6.
+    @Test func scanSlackRoundsHalfToEvenAsWindows() {
+        #expect(VisualCompare.scanSlack(3) == 4) // 4.5
+        #expect(VisualCompare.scanSlack(VisualCompare.scanCheckScale) == 2)
+        #expect(VisualCompare.scanSlack(100) == 6)
+        #expect(VisualCompare.scanSlack(.nan) == 2)
+    }
+
     @Test func theAnnotatedCopyHasMovesFormattingAndWhatLooksDifferent() throws {
         let before = "the first long part of this line stays where it was and so does"
         let after = "the last long part of this very line that also keeps its place here"

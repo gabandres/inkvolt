@@ -826,7 +826,13 @@ public final class PdfEngine: @unchecked Sendable {
             let on = box(i.x0, i.y0, i.x1, i.y1).intersect(page)
             if !on.isEmpty && on.width.isFinite && on.height.isFinite { pictures += on.width * on.height }
         }
-        return ComparePage(PageText(lines, directions: directions), PageLooks(runs), isPicture: pictures >= g.width * g.height * Self.scanPictureShare)
+        return ComparePage(PageText(lines, directions: directions), PageLooks(runs), isPicture: Self.isPictureOfAPage(pictures, g.width, g.height))
+    }
+
+    /// Pictures covering `pictures` square points of a page this size make it a scan; a page without area never is.
+    static func isPictureOfAPage(_ pictures: Double, _ width: Double, _ height: Double) -> Bool {
+        let area = width * height
+        return area > 0 && pictures >= area * scanPictureShare
     }
 
     /// A region of a page (page space) drawn on transparency as straight RGBA at `scale` pixels per point; nil when MuPDF

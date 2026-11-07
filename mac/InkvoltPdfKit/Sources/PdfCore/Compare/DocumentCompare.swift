@@ -221,6 +221,24 @@ public struct CompareResult: Sendable {
     public var maybeMisread = 0
     /// Rows pairing two pages whose text couldn't be compared, because one or both have none (scans).
     public var pairsWithoutText = 0
+    /// The row each old page and each new page is on.
+    public var rowOfOld: [Int] = []
+    public var rowOfNew: [Int] = []
+
+    /// Where a move's text went, for its label.
+    public enum MovePlace: Sendable, Equatable {
+        /// Within one pair of pages: the same row, the same page number on both sides.
+        case onPage(Int)
+        /// From an old page to a new one (on another row, or numbered differently).
+        case pages(old: Int, new: Int)
+    }
+
+    /// Where a `.moved` change went; nil for another kind.
+    public func place(ofMove c: CompareChange) -> MovePlace? {
+        guard c.kind == .moved, let from = c.old.first, let to = c.new.first else { return nil }
+        let sameRow = rowOfOld.indices.contains(from.page) && rowOfNew.indices.contains(to.page) && rowOfOld[from.page] == rowOfNew[to.page]
+        return sameRow && from.page == to.page ? .onPage(to.page) : .pages(old: from.page, new: to.page)
+    }
 
     /// No changes and every pair had text to compare.
     public var identical: Bool { changes.isEmpty && pairsWithoutText == 0 }
@@ -286,8 +304,14 @@ public enum DocumentCompare {
         var newHasText = [Bool](repeating: false, count: newPages.count)
         let running = try CompareRunningLines.find(oldPages, newPages, cancel: cancel)
         var oldWords: [CompareWord] = [], newWords: [CompareWord] = []
-        for p in oldPages.indices { addWords(&oldWords, oldPages[p], p, running.old[p], &oldHasText) }
-        for p in newPages.indices { addWords(&newWords, newPages[p], p, running.new[p], &newHasText) }
+        for p in oldPages.indices {
+            if p & 63 == 0 { try cancel?.check() }
+            addWords(&oldWords, oldPages[p], p, running.old[p], &oldHasText)
+        }
+        for p in newPages.indices {
+            if p & 63 == 0 { try cancel?.check() }
+            addWords(&newWords, newPages[p], p, running.new[p], &newHasText)
+        }
         try cancel?.check()
 
         let oldKeys = oldWords.map(\.key), newKeys = newWords.map(\.key)
@@ -338,10 +362,12 @@ public enum DocumentCompare {
                 inPlaceNew[op.b + k] = true
             }
         }
+        let oldMoved = try mostlyMoved(oldWords, inPlaceOld, oldPages.count, cancel)
+        let newMoved = try mostlyMoved(newWords, inPlaceNew, newPages.count, cancel)
         for r in rows.indices {
             let row = rows[r]
-            if row.text == .onlyOld, let o = row.oldPage, mostlyMoved(oldWords, inPlaceOld, o) { rows[r].pageMoved = true }
-            if row.text == .onlyNew, let n = row.newPage, mostlyMoved(newWords, inPlaceNew, n) { rows[r].pageMoved = true }
+            if row.text == .onlyOld, let o = row.oldPage, oldMoved[o] { rows[r].pageMoved = true }
+            if row.text == .onlyNew, let n = row.newPage, newMoved[n] { rows[r].pageMoved = true }
         }
 
         // Words that are the same on both sides: where they stayed, then where they moved.
@@ -352,18 +378,18 @@ public enum DocumentCompare {
 
         let oldUnits = oldPages.map { Array($0.text.utf16) }, newUnits = newPages.map { Array($0.text.utf16) }
         let sides = Sides(oldWords: oldWords, newWords: newWords, oldUnits: oldUnits, newUnits: newUnits, rowOfOld: rowOfOld, rowOfNew: rowOfNew)
-        var changes = wordChanges(ops, sides, rows)
+        var changes = try wordChanges(ops, sides, rows, cancel)
         var oldToNew: [Int: Int] = [:]
         for (o, n) in matched { oldToNew[o] = n }
         for m in moves {
             for op in m.inner where op.kind == .equal {
                 for k in 0..<op.length { matched.append((op.a + k, op.b + k)) }
             }
-            changes += wordChanges(m.inner, sides, rows, inMove: true)
+            changes += try wordChanges(m.inner, sides, rows, cancel, inMove: true)
             changes.append(moveChange(m, sides, oldToNew))
         }
         try cancel?.check()
-        changes += formatChanges(matched, sides, oldSide, newSide)
+        changes += try formatChanges(matched, sides, oldSide, newSide, cancel)
         for (r, row) in rows.enumerated() where !row.pageMoved {
             if row.text == .onlyOld, let o = row.oldPage {
                 changes.append(CompareChange(kind: .pageRemoved, row: r, old: [WordSpan(o, 0, 0)], new: [], oldText: excerpt(oldUnits[o]), newText: ""))
@@ -380,6 +406,8 @@ public enum DocumentCompare {
         for r in rows.indices { rows[r].changes = perRow[r] }
 
         var result = CompareResult(rows: rows, changes: changes)
+        result.rowOfOld = rowOfOld
+        result.rowOfNew = rowOfNew
         result.inserted = changes.filter { $0.kind == .inserted }.count
         result.deleted = changes.filter { $0.kind == .deleted }.count
         result.changed = changes.filter { $0.kind == .changed }.count
@@ -437,13 +465,16 @@ public enum DocumentCompare {
         for w in all where !skip.contains(where: { w.start >= $0.start && w.start < $0.end }) { words.append(w) }
     }
 
-    private static func mostlyMoved(_ words: [CompareWord], _ moved: [Bool], _ page: Int) -> Bool {
-        var all = 0, gone = 0
-        for (i, w) in words.enumerated() where w.page == page {
-            all += 1
-            if moved[i] { gone += 1 }
+    /// Per page, whether nearly all its words are elsewhere on the other side: counted in one pass over the words.
+    private static func mostlyMoved(_ words: [CompareWord], _ moved: [Bool], _ pageCount: Int, _ cancel: CancelToken?) throws -> [Bool] {
+        var all = [Int](repeating: 0, count: pageCount), gone = [Int](repeating: 0, count: pageCount)
+        for i in words.indices {
+            if i & 4095 == 0 { try cancel?.check() }
+            let p = words[i].page
+            all[p] += 1
+            if moved[i] { gone[p] += 1 }
         }
-        return all > 0 && Double(gone) >= Double(all) * 0.8
+        return (0..<pageCount).map { all[$0] > 0 && Double(gone[$0]) >= Double(all[$0]) * 0.8 }
     }
 
     /// Says whether a change was read from a scan, and whether it may be a misreading.
@@ -513,7 +544,8 @@ public enum DocumentCompare {
 
     /// Matched words whose look differs, in the new text's order, one change per run of neighbouring words with the same
     /// change. Words with no look on either side are skipped.
-    private static func formatChanges(_ matched: [(old: Int, new: Int)], _ s: Sides, _ oldSide: CompareSource, _ newSide: CompareSource) -> [CompareChange] {
+    private static func formatChanges(_ matched: [(old: Int, new: Int)], _ s: Sides, _ oldSide: CompareSource, _ newSide: CompareSource,
+                                      _ cancel: CancelToken?) throws -> [CompareChange] {
         var changes: [CompareChange] = []
         if oldSide.looks == nil || newSide.looks == nil { return changes }
         var open: LookRun?
@@ -527,7 +559,9 @@ public enum DocumentCompare {
             open = nil
         }
 
-        for (o, n) in matched.enumerated().sorted(by: { ($0.element.new, $0.offset) < ($1.element.new, $1.offset) }).map(\.element) {
+        let inNewOrder = matched.enumerated().sorted { ($0.element.new, $0.offset) < ($1.element.new, $1.offset) }.map(\.element)
+        for (k, (o, n)) in inNewOrder.enumerated() {
+            if k & 4095 == 0 { try cancel?.check() }
             guard let look = lookOf(s.oldWords[o], s.newWords[n], oldSide, newSide) else {
                 close()
                 continue
@@ -579,7 +613,8 @@ public enum DocumentCompare {
     /// either side and at a word of a row whose text isn't compared (a removed, inserted or textless page; a page whose
     /// text moved elsewhere is compared, so what is left on it shows). Words of a move aren't in the diff, and a group
     /// ends where one was. `inMove`: the diff inside a moved passage, whose two sides are on different rows and any page.
-    private static func wordChanges(_ ops: [DiffOp], _ s: Sides, _ rows: [CompareRow], inMove: Bool = false) -> [CompareChange] {
+    private static func wordChanges(_ ops: [DiffOp], _ s: Sides, _ rows: [CompareRow], _ cancel: CancelToken?, inMove: Bool = false) throws
+        -> [CompareChange] {
         var changes: [CompareChange] = []
         var open = Group() // word indices of the open group, and the last unchanged word before it
         var prevEqualOld: Int?, prevEqualNew: Int?
@@ -625,7 +660,8 @@ public enum DocumentCompare {
                                  newAnchor: kind == .deleted ? anchor(s.newWords, s.rowOfNew, g.prevNew, nextNew) : nil)
         }
 
-        for op in ops {
+        for (i, op) in ops.enumerated() {
+            if i & 255 == 0 { try cancel?.check() }
             for k in 0..<op.length {
                 switch op.kind {
                 case .equal:
@@ -705,6 +741,7 @@ public enum DocumentCompare {
             var score = [Int](repeating: 0, count: (p + 1) * cols)
             func pairValue(_ i: Int, _ j: Int) -> Int { 2 * (shared[PagePair(old: o0 + i - 1, new: n0 + j - 1)] ?? 0) + 1 }
             for i in 0...p {
+                if i & 63 == 0 { try cancel?.check() }
                 for j in 0...q where i > 0 || j > 0 {
                     var best = Int.min
                     if i > 0 { best = score[(i - 1) * cols + j] }
