@@ -1528,16 +1528,27 @@ Mac differences:
   Windows' checks on it (/Perms, handler consistency, /Encrypt written again).
 - **A stale tail** (`StaleTail`). Windows cuts a tail holding no object and rebuilds the cross-reference otherwise. MuPDF's repair
   takes the last copy of an object, so an old object in the tail replaced the real one (a whole form's fields, in `~tail`): here a
-  tail that doesn't start as an update would (an object or a table) is cut whatever it holds, unless a signature covers it.
-- **Junk after a signed file's %%EOF.** Windows keeps it and appends after it. MuPDF's update counts its offsets from the end of the
-  revision it read, so the update goes right there and the junk is dropped (appending after it, as the Mac did, gave wrong offsets:
-  the next open needed a repair). A revision that only lost its end isn't junk: nothing older is read in its place, and saving asks
-  for the rewrite as any signed file that can't take an update.
+  tail that doesn't start as an update would (an object or a table, after white space and comments) is left out whatever it holds,
+  unless a signature's /ByteRange covers it. Every MuPDF open is given the same bytes (`MuDoc.open`, `PdfEngine.open`), so Batch,
+  the merge and every reader agree with the view. A tail holding objects is left out only as a repair: the person is told, and
+  signatures made before it aren't shown valid.
+- **Junk after the last %%EOF** (more than 512 bytes of white space, or anything holding no object). Windows keeps it and appends
+  after it. MuPDF's update counts its offsets from the end of the revision it read, so every update (an edit, a signature) goes
+  right there and the junk is dropped (`MuDoc.appendsAfter`). A revision that only lost its end isn't junk: nothing older is read
+  in its place, and saving asks for the rewrite as any signed file that can't take an update.
+- **A repaired file** (`PdfRepair.normalize`, at a session's open and reload, `fromBytes(repair:)`, `recover(repair:)`, Batch and the
+  form merge): the copy MuPDF's repair reads is written out once, every object and the encryption kept, where Windows rebuilds
+  the cross-reference with PDFsharp. The rest is Windows': `DocumentSession.repairedLength`, a bar that says so until closed, a
+  signature over no more than the copy (or one that can't be placed in it) `.unsupported` and `inRepairedFile`, no certifying,
+  `RecoveryInfo.repairedLength`. `Signatures.verify` also takes bytes no session made sound (a damaged file read as it is) as
+  repaired whole. Windows' long-term data checks have no Mac counterpart yet (the Mac doesn't add long-term data).
 - **A repaired file written whole** has every object loaded first (`MuDoc.write`): MuPDF's writer takes a repaired cross-reference
   for one without object streams and, with garbage collection, silently dropped what they hold (bookmarks, structure trees).
 - **Comb cells under a format.** A format's separators that don't fit the cells (SSN in 9 cells) would push the last digits out;
   the cells show what was typed. Windows draws what fits. The field's value and `displayValue` are the same on both.
-- **Not ported:** Windows' repaired-file notice and its rule that signatures made before a repair never show valid.
+- **Pasted Zip, phone and SSN numbers** (`FieldKeystrokes.typed`): with room for just the digits, the separators that don't fit
+  are left out, so `123-45-6789` pasted into a MaxLen 9 SSN box goes in as its digits. Windows cuts the paste to the MaxLen
+  (`123-45-67`), which the commit then refuses.
 
 ## Open decisions
 

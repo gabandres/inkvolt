@@ -14,7 +14,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Protected forms that allow filling (many government forms, such as USCIS's) are filled and saved without asking for a password, and stay protected as they were.
 - Social Security, phone and ZIP boxes with room for just the digits take them all; the dashes appear when you leave the field.
 - More real forms work: radio buttons and fields their form lists oddly, check boxes that showed no tick, a list that kept showing its old choice, a field shown on several pages.
-- Damaged PDFs keep what they hold when filled and saved: bookmarks and fields are no longer lost, and leftovers of an older copy no longer replace the form's values.
+- Damaged PDFs keep what they hold when filled and saved: bookmarks and fields are no longer lost, and leftovers of an older copy no longer replace the form's values. A damaged file says so when it opens, and a signature made before the repair is never shown as valid.
 
 ## 1.8.0
 - Inkvolt PDF speaks Spanish: menus, windows, messages, reports and What's New follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.

@@ -198,7 +198,7 @@ public enum FormEditor {
     /// /Opt the export value of the widget having that state. "Off" stays "Off".
     static func buttonExport(_ f: FormField, _ state: String) -> String {
         guard state != "Off", !state.isEmpty, let opt = buttonOptions(f) else { return state }
-        for i in 0..<min(f.widgets.count, opt.count) where onStateOf(f.widgets[i]) == state { return opt[i] }
+        for i in 0..<min(f.widgets.count, opt.count) where onStateOf(f.widgets[i], in: f) == state { return opt[i] }
         if let k = Int(state), k >= 0, k < opt.count, state.allSatisfy(\.isNumber) { return opt[k] }
         return state
     }
@@ -207,7 +207,7 @@ public enum FormEditor {
     /// state of the (first) widget carrying it.
     private static func buttonState(_ f: FormField, _ value: String) -> String {
         if value == "Off" || value.isEmpty { return value }
-        let states = f.widgets.map(onStateOf)
+        let states = f.widgets.map { onStateOf($0, in: f) }
         guard !states.contains(value), let opt = buttonOptions(f), let i = opt.firstIndex(of: value) else { return value }
         return i < states.count ? states[i] ?? String(i) : String(i)
     }
@@ -220,7 +220,7 @@ public enum FormEditor {
         let radio = f.flags & ffRadio != 0
         let off = value == "Off" || value.isEmpty
         if off && radio && f.flags & ffNoToggleToOff != 0 { return } // the group must keep a selection
-        let states = f.widgets.map(onStateOf)
+        let states = f.widgets.map { onStateOf($0, in: f) }
         var on: String?
         if !off {
             if states.contains(where: { $0 == value }) {
@@ -235,7 +235,7 @@ public enum FormEditor {
         let unison = !radio || f.flags & ffRadiosInUnison != 0
         var turnedOn = false
         for w in f.widgets {
-            let isOn = on != nil && onStateOf(w) == on && (unison || !turnedOn)
+            let isOn = on != nil && onStateOf(w, in: f) == on && (unison || !turnedOn)
             turnedOn = turnedOn || isOn
             w.set("AS", doc.name(isOn ? on ?? "Off" : "Off"))
         }
@@ -379,7 +379,7 @@ public enum FormEditor {
         for w in f.widgets {
             let ap = w.dict("AP")
             let normal = ap?.dict("N")
-            let state = onStateOf(w) ?? "Yes"
+            let state = onStateOf(w, in: f) ?? "Yes"
             if let normal, !normal.isStream, drawsSomething(normal[state]) { continue }
             let shown = w.name("AS")
             // Taken before the redraw replaces /AP: the faces that stay.
@@ -388,6 +388,7 @@ public enum FormEditor {
                 guard let faces = ap?.dict(key), !faces.isStream else { return nil }
                 return (key, faces)
             }
+            let downStream = ap?["D"].flatMap { $0.isStream && drawsSomething($0) ? $0 : nil }
             let hadDown = ap?["D"] != nil
             let rollover = ap?["R"]
             let oldIdentity = ap?.identity
@@ -398,7 +399,8 @@ public enum FormEditor {
                     guard let faces = drawn.dict(key) else { continue }
                     for name in old.keys where drawsSomething(old[name]) { faces.set(name, old[name]) }
                 }
-                if single != nil && !hadDown { drawn.remove("D") } // it had no down look: none is added
+                if let downStream { drawn.set("D", downStream) }
+                if !hadDown { drawn.remove("D") } // it had no down look: none is added
                 if let rollover { drawn.set("R", rollover) }
             } else if let single, let ap, let normal {
                 // Nothing to draw in (no usable /Rect): the single face as "on" and an empty "off".
@@ -559,7 +561,7 @@ public enum FormEditor {
                     if rect.isEmpty { continue }
                     let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
                     result.append((FormWidget(
-                        fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onStateOf(w),
+                        fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onStateOf(w, in: f),
                         multiline: f.flags & ffMultiline != 0, readOnly: f.flags & ffReadOnly != 0 || annotFlags & annotReadOnly != 0,
                         editable: kind == .choice && f.flags & ffCombo != 0 && f.flags & ffEdit != 0,
                         maxLength: maxLen, options: options, value: value, tabOrder: 0,
@@ -689,7 +691,13 @@ public enum FormEditor {
                         ancestor = up
                         climb += 1
                     }
-                    walk(ancestor, nil, &into, &seen, 0)
+                    // A nameless ancestor (left out of /Fields) gets a made-up name, as a nameless root found on a page does.
+                    var ancestorName: String?
+                    if !ancestor.has("T") {
+                        unnamed += 1
+                        ancestorName = "field\(unnamed)_p\(p + 1)"
+                    }
+                    walk(ancestor, ancestorName, &into, &seen, 0)
                     if seen.contains(a.identity) { continue } // the parent's /Kids lists it: the walk made it one of its widgets
                 }
                 while indexed < into.count {
@@ -732,19 +740,21 @@ public enum FormEditor {
         var kids = node.array("Kids")?.elements.filter(\.isDict) ?? []
         let fieldKids = kids.filter { $0.has("T") }
         if !fieldKids.isEmpty {
-            for k in fieldKids { walk(k, name, &into, &seen, depth + 1) }
+            for k in fieldKids { walk(k, name.isEmpty ? nil : name, &into, &seen, depth + 1) }
             // Kids without a name next to named ones are this field's own widgets (qpdf's form-document-defaults; pdf.js
             // reads them so).
             kids = kids.filter { !$0.has("T") && isWidget($0) }
             if kids.isEmpty { return }
         }
 
-        // A terminal field: its widgets are the kids without names, or the field dictionary itself.
+        // A terminal field: its widgets are the kids without names, or the field dictionary itself. Its type and flags may be
+        // on the widgets alone. Widgets of no field (no name, no type) stay unclaimed: the page fallback names them.
         let widgets = !kids.isEmpty ? kids : node.has("Rect") ? [node] : []
+        let type = inherited(node, "FT")?.name ?? widgets.lazy.compactMap { $0.name("FT") }.first ?? ""
+        let flags = inherited(node, "Ff")?.int ?? widgets.lazy.compactMap { $0.int("Ff") }.first ?? 0
+        guard !name.isEmpty && !type.isEmpty else { return }
         for w in widgets { seen.insert(w.identity) }
-        let type = inherited(node, "FT")?.name ?? ""
-        let flags = inherited(node, "Ff")?.int ?? 0
-        if !name.isEmpty && !type.isEmpty { into.append(FormField(node, name, type, flags, widgets)) }
+        into.append(FormField(node, name, type, flags, widgets))
     }
 
     static func inherited(_ node: PObj, _ key: String) -> PObj? {
@@ -762,7 +772,9 @@ public enum FormEditor {
     /// its /AS. A single appearance stream is no state dictionary (its keys are /BBox, /Resources …): such a widget, or
     /// one without any appearance, gets its position as the name when the field has an /Opt (Acrobat's "0", "1" …), else
     /// "Yes". Nil for widgets of other fields.
-    static func onStateOf(_ widget: PObj) -> String? {
+    /// - Parameter field: the widget's field, when known: its position is its place among the field's widgets (a widget
+    ///   its parent's /Kids leaves out joins the field too), else among its parent's /Kids.
+    static func onStateOf(_ widget: PObj, in field: FormField? = nil) -> String? {
         let ap = widget.dict("AP")
         for key in ["N", "D"] {
             if let states = ap?.dict(key), !states.isStream, let state = states.keys.first(where: { $0 != "Off" }) { return state }
@@ -771,9 +783,9 @@ public enum FormEditor {
         let flags = inherited(widget, "Ff")?.int ?? 0
         guard inherited(widget, "FT")?.name == "Btn", flags & ffPushButton == 0 else { return nil }
         if let opt = inherited(widget, "Opt"), opt.isArray, opt.count > 0 {
+            if let i = field?.widgets.firstIndex(where: { $0.identity == widget.identity }) { return String(i) }
             let kids = widget.dict("Parent")?.array("Kids")?.elements ?? []
-            let index = kids.firstIndex { $0.identity == widget.identity } ?? -1
-            return String(max(0, index))
+            return String(kids.firstIndex { $0.identity == widget.identity } ?? 0)
         }
         return "Yes"
     }

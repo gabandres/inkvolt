@@ -44,11 +44,11 @@ extension DocumentWindowController {
     /// document's (the edit transaction then asks before an edit breaks one).
     func verifySignatures(onOpen: Bool) {
         guard let session = pdf.session else { return }
-        let data = session.data, password = session.password
+        let data = session.data, password = session.password, repaired = session.repairedLength
         signing.generation += 1
         let generation = signing.generation
         signing.verifying = Task { @MainActor in
-            let found = await Task.detached { SignatureProbe.mayHaveSignatures(data) ? Signatures.verify(data, password) : [] }.value
+            let found = await Task.detached { SignatureProbe.mayHaveSignatures(data) ? Signatures.verify(data, password, repairedLength: repaired) : [] }.value
             guard generation == self.signing.generation, !Task.isCancelled else { return }
             self.showSignatures(found, onOpen: onOpen)
             self.signing.verifying = nil
@@ -121,6 +121,7 @@ extension DocumentWindowController {
         case .modifiedAfterSigning where appendedByEdits(s): return loc("intact; your changes were added after signing")
         case .invalid: return loc("invalid")
         case .disallowedChanges: return loc("invalid: changed in ways the signature doesn't allow")
+        case .unsupported where s.inRepairedFile: return loc("not checked: the file was repaired")
         case .unsupported: return loc("can't be checked")
         case .modifiedAfterSigning: return loc("modified after signing")
         default: return s.certificateTrusted ? loc("valid") : loc("certificate not trusted")
@@ -148,6 +149,7 @@ extension DocumentWindowController {
         case .invalid: return loc("Invalid: the signed content was altered, or the signature is damaged.")
         case .disallowedChanges:
             return loc("Invalid: the signed bytes are intact, but the document was later changed in ways this signature doesn't allow, so what you see may not be what was signed.")
+        case .unsupported where s.inRepairedFile: return loc("Not checked: the file was damaged and Inkvolt PDF repaired it to open it.")
         case .unsupported: return loc("Not checked: Inkvolt PDF can't verify this kind of signature.")
         case .modifiedAfterSigning:
             return s.certificateTrusted ? loc("The signature is valid, but the document was modified after signing.")
@@ -201,6 +203,7 @@ extension DocumentWindowController {
                 }
             }
             var request = SignRequest(id: choice.id)
+            request.repairedLength = pdf.session?.repairedLength ?? 0
             request.fieldName = field
             request.pageIndex = place?.page ?? 0
             request.rect = choice.visible ? place?.rect : nil

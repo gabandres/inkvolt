@@ -8,11 +8,12 @@ import UniformTypeIdentifiers
 @MainActor
 enum NewDocuments {
     /// Opens `bytes` as an unsaved document named `name` (with `password` when it has an open password); nil (and the
-    /// error shown) when they aren't a readable PDF.
+    /// error shown) when they aren't a readable PDF. `repair`: bytes from outside the app (an attachment), opened as a file is
+    /// (a damaged one as its repaired copy).
     @discardableResult
-    static func open(_ bytes: [UInt8], name: String, password: String? = nil) -> PdfDocument? {
+    static func open(_ bytes: [UInt8], name: String, password: String? = nil, repair: Bool = false) -> PdfDocument? {
         do {
-            let session = try DocumentSession.recover(bytes, originalPath: nil, name, password: password)
+            let session = try DocumentSession.recover(bytes, originalPath: nil, name, password: password, repair: repair)
             let document = PdfDocument(recovered: session, page: 0, fileDate: nil)
             NSDocumentController.shared.addDocument(document)
             document.makeWindowControllers()

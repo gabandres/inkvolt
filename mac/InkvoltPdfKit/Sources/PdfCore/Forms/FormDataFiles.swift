@@ -46,7 +46,7 @@ extension FormEditor {
             if kind == .choice {
                 (options, labels) = readOptions(inherited(f.dict, "Opt"))
             } else if kind != .text {
-                for o in f.widgets.compactMap(onStateOf) + (buttonOptions(f) ?? []) where !options.contains(o) { options.append(o) }
+                for o in f.widgets.compactMap({ onStateOf($0, in: f) }) + (buttonOptions(f) ?? []) where !options.contains(o) { options.append(o) }
             }
             result.append(FormDataField(
                 name: f.name, kind: kind, value: exportValueOf(f), options: options, labels: labels,

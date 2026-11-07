@@ -485,7 +485,7 @@ final class JsFormHost {
             let current = FormEditor.valueOf(f)
             if current == "Off" || current.isEmpty { return .bool(false) }
             let i = I(a, 1, -1)
-            let states = f.widgets.map(FormEditor.onStateOf)
+            let states = f.widgets.map { FormEditor.onStateOf($0, in: f) }
             if states.allSatisfy({ $0 == nil }) { return .bool(true) } // no on looks to tell the widgets apart
             return .bool(i >= 0 && i < states.count && (states[i] ?? String(i)) == current)
         }
@@ -494,7 +494,7 @@ final class JsFormHost {
             guard !me.readOnly, let f = me.find(S(a, 0)), f.isToggle else { return .undefined }
             let i = I(a, 1, -1)
             if i < 0 || i >= f.widgets.count { return .undefined }
-            let state = FormEditor.onStateOf(f.widgets[i]) ?? String(i)
+            let state = FormEditor.onStateOf(f.widgets[i], in: f) ?? String(i)
             let current = FormEditor.valueOf(f)
             if B(a, 2) {
                 FormEditor.setButton(f, state)
@@ -630,7 +630,7 @@ final class JsFormHost {
             } else if f.type == "Btn", let opt = FormEditor.inherited(f.dict, "Opt"), opt.isArray, opt.count > 0 {
                 values = opt.elements.map { $0.text ?? "" }
             } else {
-                values = f.widgets.compactMap(FormEditor.onStateOf)
+                values = f.widgets.compactMap { FormEditor.onStateOf($0, in: f) }
             }
             return .array(values.map { .string($0) })
         case "numItems": return .number(Double(f.type == "Ch" ? FormEditor.readOptions(FormEditor.inherited(f.dict, "Opt")).exports.count : 0))

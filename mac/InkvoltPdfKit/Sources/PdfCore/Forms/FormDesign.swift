@@ -673,7 +673,7 @@ public enum FormDesign {
             return
         }
         // The value and default may have been the button that left: then they name no button of the group.
-        let states = Set(kids.elements.filter(\.isDict).compactMap(FormEditor.onStateOf))
+        let states = Set(kids.elements.filter(\.isDict).compactMap { FormEditor.onStateOf($0) })
         if let dv = field.name("DV"), dv != "Off", !states.contains(dv) { field.remove("DV") }
         if let v = field.name("V"), v != "Off", !states.contains(v) { field.set("V", doc.name("Off")) }
     }

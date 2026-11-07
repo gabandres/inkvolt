@@ -90,10 +90,10 @@ struct SignedEditTests {
     }
 
     @Test func findsTheLastValidStartxref() {
-        let head = "%PDF-1.7\n...startxref\n42\n%%EOF\n"
-        let data = Array((head + String(repeating: " ", count: 5000) + "startxref\nnot a number\n").utf8)
-        #expect(PdfEdit.lastEnd(data) == head.utf8.count)
-        #expect(PdfEdit.lastEnd(Array("%PDF-1.7\nno trailer".utf8)) == nil)
+        let pdf = Self.signed()
+        let data = pdf + Array((String(repeating: " ", count: 5000) + "% junk\nstartxref\nnot a number\n").utf8)
+        #expect(StaleTail.keepLength(data) == pdf.count)
+        #expect(StaleTail.keepLength(Array("%PDF-1.7\nno trailer".utf8)) == 19)
     }
 
     @Test func removalsAppendedToASignedFileAreReportedAndFlattenRemovesThem() throws {

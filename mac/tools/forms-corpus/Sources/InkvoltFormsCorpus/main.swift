@@ -30,7 +30,7 @@ func one() -> Int32 {
     let (outDir, name) = (arguments[2], arguments[3])
     try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
     // The bytes the app would open.
-    let report = FormsHarness.fillOne(name, StaleTail.normalized(file), outDir, password: arguments.count > 4 ? arguments[4] : nil)
+    let report = FormsHarness.fillOne(name, PdfRepair.normalize(file, arguments.count > 4 ? arguments[4] : nil).data, outDir, password: arguments.count > 4 ? arguments[4] : nil)
     writeReport(report, (outDir as NSString).appendingPathComponent(name + ".report.json"))
     return 0
 }
@@ -79,7 +79,22 @@ func run() -> Int32 {
     try? fm.createDirectory(atPath: synthDir, withIntermediateDirectories: true)
 
     var work: [(name: String, path: String, skip: String?)] = []
-    let corpus = (readBytes(corpusPath).flatMap { try? JSONDecoder().decode([CorpusEntry].self, from: Data($0)) }) ?? []
+    // A corpus that can't be read is an error, never an empty run (whose baseline would then be empty too).
+    guard let corpusBytes = readBytes(corpusPath) else {
+        print("The corpus \(corpusPath) can't be read: run from the repo's root, or give --corpus.")
+        return 2
+    }
+    let corpus: [CorpusEntry]
+    do {
+        corpus = try JSONDecoder().decode([CorpusEntry].self, from: Data(corpusBytes))
+    } catch {
+        print("The corpus \(corpusPath) isn't a list of forms: \(error)")
+        return 2
+    }
+    if corpus.isEmpty {
+        print("The corpus \(corpusPath) lists no forms.")
+        return 2
+    }
     for c in corpus where !c.url.hasPrefix("synthetic:") {
         if let only, !only.contains(c.name) { continue }
         let path = (pdfs as NSString).appendingPathComponent(c.name + ".pdf")
@@ -199,6 +214,11 @@ func run() -> Int32 {
     var now: [String: [String]] = [:]
     for r in reports where !r.failures.isEmpty { now[r.name] = Array(Set(r.failures.map(Summary.group))).sorted() }
     if arguments.contains("--update-baseline") {
+        // Only a whole run makes a baseline: not some forms, not a run that found none of the corpus's files.
+        guard only == nil, reports.contains(where: { $0.skip != "not downloaded" && !$0.name.hasPrefix("synth-") }) else {
+            print("--update-baseline needs a whole run with the corpus's files in --pdfs.")
+            return 2
+        }
         let e = JSONEncoder()
         e.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? e.encode(now) { fm.createFile(atPath: baselinePath, contents: data) }

@@ -6,7 +6,8 @@ import PrintCore
 /// here: masked fields (AFSpecial SSN, phone and ZIP+4 with a MaxLen of just their digits) typed in the page view's own
 /// editor, one character at a time through the keystroke script, Tab moving on after each fill and keeping the order; and a
 /// form encrypted as USCIS's are (no open password, an owner password, filling allowed), filled and saved without the owner
-/// password, the protection unchanged. Only values it made are written.
+/// password, the protection unchanged; and a damaged form (cut off before its cross-reference table) opened as a file from outside
+/// is: as its repaired copy, the person told, filled and saved. Only values it made are written.
 @MainActor
 struct FormFillTest {
     /// Running: the forms it opens get no self-test of their own.
@@ -51,8 +52,8 @@ struct FormFillTest {
 
     /// The form opened and ready for typing: its page placed, and the window having given the page view the keyboard (it
     /// does so just after showing, which would close an editor opened sooner).
-    private func open(_ bytes: [UInt8], _ name: String) async -> (document: PdfDocument, controller: DocumentWindowController)? {
-        guard let document = NewDocuments.open(bytes, name: name),
+    private func open(_ bytes: [UInt8], _ name: String, repair: Bool = false) async -> (document: PdfDocument, controller: DocumentWindowController)? {
+        guard let document = NewDocuments.open(bytes, name: name, repair: repair),
               let controller = document.windowControllers.first as? DocumentWindowController else { return nil }
         controller.form.reload()
         for _ in 0..<250 where controller.pages.pageRects.isEmpty || controller.window?.firstResponder !== controller.pages {
@@ -84,6 +85,7 @@ struct FormFillTest {
         lines.append("== Filling forms: masked fields, an encrypted form that allows filling")
         await masked()
         await encrypted()
+        await damaged()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -165,5 +167,28 @@ struct FormFillTest {
         check(saved.starts(with: protected), "the saved file is the original bytes and an update")
         check((try? PdfSecurity.readSecurity(saved, nil)) == before, "the same protection: \((try? PdfSecurity.readSecurity(saved, nil))?.summary ?? "-")")
         check(saved.firstRange(of: Array("Ada Lovelace".utf8)) == nil, "the value isn't in the file in the clear")
+    }
+
+    private mutating func damaged() async {
+        let sound = Self.form([("Nombre", "/V (Ana)", 760)])
+        guard let table = sound.firstRange(of: Array("xref\n".utf8)),
+              let (document, c) = await open(Array(sound[..<table.lowerBound]), "damaged.pdf", repair: true), let form = c.form else {
+            return check(false, "damaged form: opened")
+        }
+        defer { document.close() }
+        let note = loc("This file was damaged, and Inkvolt PDF repaired it to open it. Saving writes the repaired copy; the file on disk stays as it is until you save.")
+        check(c.pdf.session?.repaired == true && !c.noticeBar.isHidden && c.noticeBar.message == note, "damaged form: opened repaired, and the bar says so")
+        check(form.value("Nombre") == "Ana", "damaged form: its field read: \(form.value("Nombre") ?? "-")")
+        guard let name = form.widgets.first(where: { $0.fieldName == "Nombre" }) else { return check(false, "damaged form: no widget") }
+        form.focus(name, open: true)
+        form.editorView?.stringValue = ""
+        form.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification, object: form.editorView))
+        type(form, "Bea")
+        form.commitEditor()
+        await settle(c)
+        let saved = c.pdf.session?.data ?? []
+        check((try? FormEditor.read(saved, nil))?.first { $0.fieldName == "Nombre" }?.value == "Bea", "damaged form: filled, the value read back")
+        try? await Task.sleep(for: .seconds(13))
+        check(!c.noticeBar.isHidden, "damaged form: the bar stays until it is closed")
     }
 }

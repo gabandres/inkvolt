@@ -1,6 +1,39 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que esta firma no se puede comprobar con él. Abre el original en el programa con que se firmó para comprobar la firma."
+          }
+        }
+      }
+    },
+    "This file was damaged and Inkvolt PDF repaired it to open it, so it can't be certified now. Save it, open the saved copy, then certify it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que no se puede certificar ahora. Guárdalo, abre la copia guardada y certifícala."
+          }
+        }
+      }
+    },
+    "Damaged: repaired to open it; the results are made from the repaired copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dañado: se reparó para abrirlo; los resultados se hacen con la copia reparada"
+          }
+        }
+      }
+    },
     " (it is in a {0} tag)": {
       "extractionState": "manual",
       "localizations": {

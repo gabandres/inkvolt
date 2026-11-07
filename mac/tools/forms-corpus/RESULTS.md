@@ -70,4 +70,4 @@ Also: a form's `/ByteRange` search spent a quarter of a fill on a 575 KB file (`
   Windows' RESULTS.md explains them (a constant, taxpayer-number validators).
 - **Tab order** is the same after a fill on every form, damaged copies included; the app's self-test checks Tab moving on after each fill.
 - **What isn't checked**: how a value looks (font size, clipping) beyond its text being drawn; Acrobat itself (not on this Mac);
-  XFA-only forms; signing fields; whether a signature made before a repair shows valid (Windows' rule isn't ported).
+  XFA-only forms; signing fields (a signature made before a repair is never shown valid: `RepairedFileTests`).

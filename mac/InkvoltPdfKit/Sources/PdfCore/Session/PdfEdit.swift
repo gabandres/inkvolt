@@ -25,7 +25,7 @@ final class MuDoc {
     let doc: OpaquePointer
     /// Opened for an edit its permissions (/P) allow with just the user password.
     var editedWithUserPassword = false
-    /// Opened from the first bytes of a file with junk after its last revision: an update goes right after them.
+    /// Read without the file's tail (`StaleTail`): an update goes right after the bytes read.
     var appendsAfter: Int?
     /// A document opened in another's context (so pages and objects can be grafted between them) keeps that document,
     /// and so the context, alive.
@@ -49,20 +49,28 @@ final class MuDoc {
     static func open(_ data: [UInt8]) throws -> MuDoc {
         guard let ctx = inkv_new_context(64 << 20) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(ctx, $0.baseAddress, $0.count, 8, &err) }) else {
+        // Up to the end of the file's last good revision (`StaleTail`): a stale tail or junk after it reaches no reader, and
+        // an update goes right after it (`appendsAfter`).
+        let keep = StaleTail.keepLength(data)
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(ctx, $0.baseAddress, keep, 8, &err) }) else {
             inkv_drop_context(ctx)
             throw PdfEngineError(message: PdfEngine.message(err))
         }
-        return MuDoc(ctx: ctx, doc: doc)
+        let opened = MuDoc(ctx: ctx, doc: doc)
+        if keep < data.count { opened.appendsAfter = keep }
+        return opened
     }
 
     /// A PDF opened in `other`'s context, to graft pages and objects between them.
     static func open(_ data: [UInt8], in other: MuDoc) throws -> MuDoc {
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
-        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(other.ctx, $0.baseAddress, $0.count, 8, &err) }) else {
+        let keep = StaleTail.keepLength(data)
+        guard let doc = data.withUnsafeBufferPointer({ inkv_open_pdf(other.ctx, $0.baseAddress, keep, 8, &err) }) else {
             throw PdfEngineError(message: PdfEngine.message(err))
         }
-        return MuDoc(ctx: other.ctx, doc: doc, owner: other)
+        let opened = MuDoc(ctx: other.ctx, doc: doc, owner: other)
+        if keep < data.count { opened.appendsAfter = keep }
+        return opened
     }
 
     /// A new, empty PDF (no pages), in a context of its own.
@@ -128,11 +136,14 @@ final class MuDoc {
 
     var canAppend: Bool { inkv_can_append(ctx, doc) != 0 }
 
-    /// The original bytes and an incremental update with the edits (the encryption kept).
+    /// The original bytes and an incremental update with the edits (the encryption kept). A document read without the
+    /// file's tail (`appendsAfter`) gets the update right after the bytes it read: MuPDF's offsets count from there. Every
+    /// caller goes through here (edits, signing).
     func append(original: [UInt8]) throws -> [UInt8] {
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
-        try check { err in original.withUnsafeBufferPointer { inkv_append_pdf(ctx, doc, $0.baseAddress, $0.count, &out, &length, err) } != 0 }
+        let base = min(appendsAfter ?? original.count, original.count)
+        try check { err in original.withUnsafeBufferPointer { inkv_append_pdf(ctx, doc, $0.baseAddress, base, &out, &length, err) } != 0 }
         defer { inkv_free(out) }
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
@@ -171,21 +182,11 @@ enum UserEdit {
 /// (`encrypt=keep`).
 enum PdfEdit {
     static func open(_ data: [UInt8], _ password: String?, failure: String? = nil, userEdit: UserEdit = .none) throws -> MuDoc {
-        var doc: MuDoc
+        let doc: MuDoc
         do {
             doc = try MuDoc.open(data)
         } catch let e as PdfEngineError {
             throw PdfEditError("\(failure ?? loc("This PDF can't be edited")): \(e.message)")
-        }
-        // MuPDF looks for the last startxref only near the end of the file: junk after %%EOF (a mail gateway's padding)
-        // makes it repair the file, and a repaired file can't be appended to. A signed one is read again up to its last
-        // valid startxref and the update goes right there (`save`: MuPDF's offsets count from that length), when what is
-        // dropped holds no object (a revision that lost its end is the document the view shows) and no signature covers it.
-        if !doc.canAppend && SignedEdits.looksSigned(data), let end = lastEnd(data), end < data.count,
-           !StaleTail.holdsObjects(data, from: end), StaleTail.signedEnd(data) <= end,
-           let trimmed = try? MuDoc.open(Array(data[..<end])), trimmed.canAppend {
-            doc = trimmed
-            doc.appendsAfter = end
         }
         if doc.hasEncrypt {
             let bits = doc.authBits(password)
@@ -213,34 +214,11 @@ enum PdfEdit {
         }
     }
 
-    /// Where the file's last valid revision ends: after the last "startxref <offset> %%EOF" (and its line end); nil when
-    /// there is none (the Windows app's `Incremental.StartXref` search).
-    static func lastEnd(_ data: [UInt8]) -> Int? {
-        let key = Array("startxref".utf8), eof = Array("%%EOF".utf8)
-        func isSpace(_ b: UInt8) -> Bool { b == 32 || b == 9 || b == 10 || b == 13 || b == 12 || b == 0 }
-        var from = data.endIndex
-        while let r = data[..<from].lastRange(of: key) {
-            from = r.lowerBound
-            var i = r.upperBound
-            while i < data.count && isSpace(data[i]) { i += 1 }
-            let digits = i
-            while i < data.count && data[i] >= 48 && data[i] <= 57 { i += 1 }
-            if i == digits { continue }
-            while i < data.count && isSpace(data[i]) { i += 1 }
-            guard i + eof.count <= data.count, Array(data[i..<i + eof.count]) == eof else { continue }
-            var end = i + eof.count
-            if end < data.count && data[end] == 13 { end += 1 }
-            if end < data.count && data[end] == 10 { end += 1 }
-            return end
-        }
-        return nil
-    }
-
     /// The edited document's bytes. `rewrite`: always written whole (redaction, extraction), never appended.
     static func save(_ doc: MuDoc, original data: [UInt8], password: String?, rewrite: Bool = false) throws -> [UInt8] {
         if !rewrite && SignedEdits.looksSigned(data) {
             if doc.canAppend {
-                let appended = try doc.append(original: doc.appendsAfter.map { Array(data[..<min($0, data.count)]) } ?? data)
+                let appended = try doc.append(original: data)
                 SignedEdits.noteAppended()
                 return appended
             }

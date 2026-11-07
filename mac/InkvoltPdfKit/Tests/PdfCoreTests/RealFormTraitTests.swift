@@ -105,6 +105,52 @@ struct RealFormTraitTests {
         #expect(widgets.first?.fieldName == "field1_p2")
     }
 
+    /// /Fields leaves out a nameless parent whose /Kids lists its nameless widget: a field under a made-up name, never lost.
+    @Test func aNamelessParentsWidgetStaysAField() throws {
+        let data = doc("8 0 R", "7 0 R 8 0 R", [
+            "<< /FT /Tx /DA (/Helv 12 Tf 0 g) /Kids [7 0 R] >>",
+            widget("/Parent 6 0 R /Rect [72 700 272 720]"),
+            widget("/FT /Tx /T (other) /Rect [72 600 272 620] /DA (/Helv 12 Tf 0 g)"),
+        ])
+        #expect(try FormEditor.read(data, nil).map(\.fieldName).sorted() == ["field1_p1", "other"])
+        let saved = try FormEditor.fill(data, nil, ["field1_p1": "Kept"]).data
+        #expect(try FormEditor.read(saved, nil).first { $0.fieldName == "field1_p1" }?.value == "Kept")
+    }
+
+    /// A nameless root in /Fields with a named kid and a nameless one: the nameless one stays a field.
+    @Test func aNamelessWidgetBesideNamedKidsUnderANamelessRootStaysAField() throws {
+        let data = doc("6 0 R", "7 0 R 8 0 R", [
+            "<< /Kids [7 0 R 8 0 R] >>",
+            widget("/Parent 6 0 R /FT /Tx /T (a) /Rect [72 700 272 720] /DA (/Helv 12 Tf 0 g)"),
+            widget("/Parent 6 0 R /FT /Tx /Rect [72 600 272 620] /DA (/Helv 12 Tf 0 g)"),
+        ])
+        #expect(try FormEditor.read(data, nil).map(\.fieldName).sorted() == ["a", "field1_p1"])
+    }
+
+    /// /FT on the widgets and not on their parent: the parent's field, of the widgets' type.
+    @Test func aWidgetUnderAParentWithoutAFieldTypeStaysAField() throws {
+        let data = doc("6 0 R", "7 0 R", [
+            "<< /T (p) /Kids [7 0 R] >>",
+            widget("/Parent 6 0 R /FT /Tx /Rect [72 700 272 720] /DA (/Helv 12 Tf 0 g)"),
+        ])
+        #expect(try FormEditor.read(data, nil).map(\.fieldName) == ["p"])
+        let saved = try FormEditor.fill(data, nil, ["p": "Kept"]).data
+        #expect(try FormEditor.read(saved, nil).first?.value == "Kept")
+    }
+
+    /// With /Opt and no faces, a widget's on state is its position among the field's widgets, listed in /Kids or not.
+    @Test func aWidgetLeftOutOfKidsTakesItsOwnPositionAsItsOnState() throws {
+        let data = doc("6 0 R", "7 0 R 8 0 R", [
+            "<< /FT /Btn /Ff 49152 /T (r) /V /Off /Opt [(A) (B)] /Kids [7 0 R] >>",
+            widget("/Parent 6 0 R /Rect [72 700 90 718] /AS /Off"),
+            widget("/Parent 6 0 R /Rect [72 670 90 688] /AS /Off"),
+        ])
+        #expect(try FormEditor.read(data, nil).compactMap(\.onState) == ["0", "1"])
+        let saved = try FormEditor.fill(data, nil, ["r": "1"]).data
+        let after = try FormEditor.read(saved, nil)
+        #expect(after.first?.value == "1")
+    }
+
     // MARK: A choice field's widgets with their own /I (pdflib-fancy_fields)
 
     @Test func aChoiceFieldsWidgetsDontKeepTheirOldSelection() throws {
@@ -186,6 +232,22 @@ struct RealFormTraitTests {
         let on = try face(saved, "cb", "N", "Yes")
         #expect(on.contains(drawn))
         #expect(!on.contains("1 j"))
+    }
+
+    /// A down look that is one stream stays; a widget that had no down look gets none.
+    @Test func aCheckBoxKeepsItsStreamDownFaceAndGainsNoneItDidntHave() throws {
+        let data = doc("6 0 R 8 0 R", "6 0 R 8 0 R", [
+            widget("/FT /Btn /T (down) /Rect [100 600 140 640] /V /Off /AS /Off /MK << /CA (8) >> /AP << /N << /Yes 9 0 R >> /D 7 0 R >>"),
+            Core2Pdf.stream("0 0 1 RG 1 1 38 38 re S", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+            widget("/FT /Btn /T (none) /Rect [200 600 240 640] /V /Off /AS /Off /MK << /CA (8) >> /AP << /N << >> >>"),
+            Core2Pdf.stream(" ", "/Type /XObject /Subtype /Form /BBox [0 0 40 40]"),
+        ])
+        let saved = try FormEditor.fill(data, nil, ["down": "Yes", "none": "Yes"]).data
+        let d = try Core2Pdf.open(saved)
+        let kept = try #require(lastNamed(d, "down")?.dict("AP")?["D"])
+        #expect(kept.isStream)
+        #expect(latin1(kept.streamData ?? []).contains("0 0 1 RG 1 1 38 38 re S"))
+        #expect(lastNamed(d, "none")?.dict("AP")?["D"] == nil)
     }
 
     /// The content of a check box's face (/N or /D, the state's), "" when empty.
@@ -272,6 +334,28 @@ struct RealFormTraitTests {
         #expect(w.value == typed)
         #expect(w.displayValue == shown)
         #expect(try Core2Pdf.allText(result.data).contains(shown))
+    }
+
+    /// A number pasted with its dashes into a field with room for just the digits: they all go in, without the dashes (the
+    /// format shows them), and the commit takes it.
+    @Test func aPastedSpecialNumberGoesInWithoutItsSeparators() throws {
+        let data = Core2Pdf.form([
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (f) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) /MaxLen 9 /F 4 /P 3 0 R /AA << /K << /S /JavaScript /JS (AFSpecial_Keystroke\\(3\\);) >> /F << /S /JavaScript /JS (AFSpecial_Format\\(3\\);) >> >> >>",
+        ])
+        let keys = try #require(FieldKeystrokes.open(data, nil, "f"))
+        let pasted = FieldKeystrokes.typed(before: "", after: "123-45-6789", maxLength: 9, keys)
+        #expect(!pasted.refused)
+        #expect(pasted.text == "123456789")
+        let result = try FormEditor.fill(data, nil, ["f": pasted.text])
+        #expect(result.rejected.isEmpty)
+        // A plain field's paste is still cut to its MaxLen.
+        #expect(FieldKeystrokes.typed(before: "", after: "123-45-6789", maxLength: 9, nil).text == "123-45-67")
+        // A mask that holds its own dashes keeps them.
+        let masked = Core2Pdf.form([
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (f) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) /MaxLen 11 /F 4 /P 3 0 R /AA << /K << /S /JavaScript /JS (AFSpecial_KeystrokeEx\\('999-99-9999'\\);) >> >> >>",
+        ])
+        let maskKeys = try #require(FieldKeystrokes.open(masked, nil, "f"))
+        #expect(FieldKeystrokes.typed(before: "", after: "123-45-6789", maxLength: 11, maskKeys).text == "123-45-6789")
     }
 
     /// Comb cells for the digits alone: the format's dashes would push the last digits out of the cells, and they would

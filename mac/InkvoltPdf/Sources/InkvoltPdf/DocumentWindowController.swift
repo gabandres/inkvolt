@@ -207,6 +207,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.signatures.onGo = { [weak self] info in self?.goToSignature(info) }
         sidebar.signatures.onSign = { [weak self] field in self?.signDigitally(field: field) }
         verifySignatures(onOpen: true)
+        showRepairNotice()
         wireAttachmentsAndLayers()
         wireSuspectWords()
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
@@ -352,6 +353,14 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func notify(_ message: String, canUndo: Bool = false) {
         Report.progress("notice: \(message.prefix(160))")
         noticeBar.show(message, canUndo: canUndo)
+    }
+
+    /// Says once, as the file opens or is read again, that it was damaged and opened as a repaired copy (Windows' repair bar).
+    func showRepairNotice() {
+        guard pdf.session?.repaired == true else { return }
+        let text = loc("This file was damaged, and Inkvolt PDF repaired it to open it. Saving writes the repaired copy; the file on disk stays as it is until you save.")
+        Report.progress("notice: \(text.prefix(160))")
+        noticeBar.show(text, stays: true)
     }
 
     /// Runs a long task started from a menu (one at a time).
@@ -929,6 +938,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
                 let done = try await session.reloadFromDiskAsync(password: password)
                 if done {
                     pdf.syncFileDate()
+                    showRepairNotice()
                     hideDiskBar()
                 }
                 return done

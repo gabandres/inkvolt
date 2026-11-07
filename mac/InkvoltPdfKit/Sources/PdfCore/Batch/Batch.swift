@@ -642,6 +642,10 @@ public enum BatchRunner {
                 } else {
                     if !BatchRunner.looksLikePdf(data) { return result(.failed, loc("This file isn't a PDF.")) }
                     if PdfSecurity.needsOpenPassword(data) { try await unlock(data) }
+                    // As a document opens in a window: a damaged file is worked on as its repaired copy, and the report says so.
+                    let normal = PdfRepair.normalize(data, password)
+                    data = normal.data
+                    if normal.repaired { notes.append(loc("Damaged: repaired to open it; the results are made from the repaired copy")) }
                 }
                 let changes = plan.steps.contains { $0.changesPdf }
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.

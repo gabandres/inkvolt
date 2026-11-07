@@ -52,7 +52,8 @@ final class NoticeBar: NSView {
         dirtyRect.fill()
     }
 
-    func show(_ text: String, canUndo: Bool = false) {
+    /// `stays`: shown until closed (a document's state, not something that just happened).
+    func show(_ text: String, canUndo: Bool = false, stays: Bool = false) {
         label.stringValue = text
         history.append(text)
         undo.isHidden = !canUndo
@@ -60,6 +61,7 @@ final class NoticeBar: NSView {
         NSAccessibility.post(element: self, notification: .announcementRequested,
                              userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
         hideTimer?.invalidate()
+        if stays { return }
         hideTimer = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.isHidden = true }
         }

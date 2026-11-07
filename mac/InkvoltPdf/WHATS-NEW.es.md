@@ -13,7 +13,7 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 - Los formularios protegidos que permiten llenarse (muchos del gobierno, como los de USCIS) se llenan y se guardan sin pedir contraseña, y siguen protegidos como estaban.
 - Las casillas de Seguro Social, teléfono y código postal con espacio solo para los dígitos los aceptan todos; los guiones aparecen al salir del campo.
 - Funcionan más formularios reales: botones de opción y campos que el formulario enumera de forma rara, casillas de verificación que no mostraban la marca, una lista que seguía mostrando la opción anterior, un campo que aparece en varias páginas.
-- Los PDF dañados conservan lo que tienen al llenarlos y guardarlos: ya no se pierden marcadores ni campos, y los restos de una copia anterior ya no reemplazan los valores del formulario.
+- Los PDF dañados conservan lo que tienen al llenarlos y guardarlos: ya no se pierden marcadores ni campos, y los restos de una copia anterior ya no reemplazan los valores del formulario. Un archivo dañado lo indica al abrirse, y una firma hecha antes de la reparación nunca se muestra como válida.
 
 ## 1.8.0
 - Inkvolt PDF habla español: los menús, las ventanas, los mensajes, los informes y Novedades siguen el idioma que elijas para él en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.

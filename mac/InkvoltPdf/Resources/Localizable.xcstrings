@@ -1,6 +1,39 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "This file was damaged, and Inkvolt PDF repaired it to open it. Saving writes the repaired copy; the file on disk stays as it is until you save.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo. Al guardar se escribe la copia reparada; el archivo del disco no cambia hasta que guardes."
+          }
+        }
+      }
+    },
+    "Not checked: the file was damaged and Inkvolt PDF repaired it to open it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin comprobar: el archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo."
+          }
+        }
+      }
+    },
+    "not checked: the file was repaired": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin comprobar: el archivo se reparó"
+          }
+        }
+      }
+    },
     "% of the page": {
       "extractionState": "manual",
       "localizations": {

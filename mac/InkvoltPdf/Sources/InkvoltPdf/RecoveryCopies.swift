@@ -79,7 +79,8 @@ final class RecoveryCopies {
             while session == nil {
                 do {
                     session = try DocumentSession.recover([UInt8](bytes), originalPath: info.originalPath, info.displayName,
-                                                          diskStamp: stamp, password: password)
+                                                          diskStamp: stamp, password: password,
+                                                          repairedLength: Int(clamping: info.repairedLength ?? 0))
                 } catch is PasswordRequired {
                     guard let given = PasswordPrompt.ask(file: info.displayName, wrong: wrong) else { break }
                     password = given
@@ -123,7 +124,8 @@ final class RecoveryCopies {
         let stamp = session.diskStampWhenRead
         let page = (document.windowControllers.first as? DocumentWindowController)?.pages.currentPage ?? 0
         let info = RecoveryInfo(displayName: session.displayName, originalPath: session.filePath, originalLength: stamp?.length,
-                                originalWriteTime: stamp?.writeTime, saved: Date(), page: page)
+                                originalWriteTime: stamp?.writeTime, saved: Date(), page: page,
+                                repairedLength: session.repaired ? Int64(session.repairedLength) : nil)
         let bytes = session.data
         written.insert(id)
         writer.async {

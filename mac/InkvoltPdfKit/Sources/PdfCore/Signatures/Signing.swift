@@ -32,6 +32,9 @@ public struct SignatureLook: Sendable, Equatable {
 
 /// One digital signature to apply (the Windows app's `SignRequest`).
 public struct SignRequest: Sendable {
+    /// The document's `DocumentSession.repairedLength` (0 for a sound file): its signatures made before the repair aren't
+    /// checked, and a repaired file isn't certified.
+    public var repairedLength = 0
     /// The digital ID: a Keychain identity (software, smart card: macOS asks for the PIN or the keychain password).
     public var id: DigitalId
     /// An existing empty signature field to sign; nil → a new field.
@@ -75,7 +78,10 @@ public enum Signing {
         if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
             throw SigningError(loc("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign."))
         }
-        let existing = Signatures.verify(data, password)
+        if req.certify != .none && (req.repairedLength > 0 || PdfRepair.isDamaged(data, password)) {
+            throw SigningError(loc("This file was damaged and Inkvolt PDF repaired it to open it, so it can't be certified now. Save it, open the saved copy, then certify it."))
+        }
+        let existing = Signatures.verify(data, password, repairedLength: req.repairedLength)
         let signedBefore = existing.contains { $0.status != .unsigned }
         if req.certify != .none && signedBefore {
             throw SigningError(loc("A certifying signature must be the document's first signature: this document is already signed."))
@@ -220,7 +226,7 @@ public enum Signing {
         } catch {
             throw SigningError(loc("The signature can't be appended to this PDF: {0}", error))
         }
-        let from = source.count
+        let from = min(doc.appendsAfter ?? source.count, source.count) // the update goes after what MuPDF read
         let zeros = [60] + [UInt8](repeating: 48, count: reserve * 2) + [62]
         guard let gap = pdf[from...].lastRange(of: zeros),
               let rangeAt = pdf[from...].lastRange(of: Array(rangePlaceholder.utf8)) else {

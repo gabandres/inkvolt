@@ -480,7 +480,7 @@ final class FormActionRunner {
                 let state = dv?.kind == .name ? dv?.name ?? "Off" : "Off"
                 f.dict.set("V", doc.name(state))
                 for w in f.widgets where w.has("AS") || w.has("AP") {
-                    w.set("AS", doc.name(FormEditor.onStateOf(w) == state ? state : "Off"))
+                    w.set("AS", doc.name(FormEditor.onStateOf(w, in: f) == state ? state : "Off"))
                 }
             }
             js.touch(f)
@@ -591,9 +591,12 @@ public final class FieldKeystrokes: @unchecked Sendable {
 
     /// The script engine was started when this was opened (so the first keystroke doesn't wait for it).
     let warm: Bool
+    /// The script is AFSpecial_Keystroke (Zip, Zip+4, phone, SSN): the value is digits, the separators the format's.
+    let digitsOnly: Bool
 
-    private init(warm: Bool, _ run: @escaping (String, String, Int, Int) -> KeystrokeResult?) {
+    private init(warm: Bool, digitsOnly: Bool, _ run: @escaping (String, String, Int, Int) -> KeystrokeResult?) {
         self.warm = warm
+        self.digitsOnly = digitsOnly
         runBody = run
     }
 
@@ -635,7 +638,13 @@ public final class FieldKeystrokes: @unchecked Sendable {
     /// now, `refused` that the script said no.
     public static func typed(before: String, after: String, maxLength: Int, _ keystrokes: FieldKeystrokes?) -> (text: String, refused: Bool, alerts: [String]) {
         let d = diff(before, after)
-        let change = maxLength > 0 ? fit(before, d.start, d.end, d.change, maxLength) : d.change
+        var change = d.change
+        // A Zip, phone or SSN field (AFSpecial_Keystroke) with room for just its digits: separators that don't fit are left
+        // out (the format shows them), so a number pasted with its dashes goes in whole.
+        if maxLength > 0, keystrokes?.digitsOnly == true, before.utf16.count - (d.end - d.start) + change.utf16.count > maxLength {
+            change = String(change.filter { $0.isASCII && $0.isNumber })
+        }
+        if maxLength > 0 { change = fit(before, d.start, d.end, change, maxLength) }
         guard let keystrokes, let verdict = keystrokes.run(before, change, d.start, d.end) else {
             return (replacing(before, d.start, d.end, change), false, [])
         }
@@ -650,7 +659,8 @@ public final class FieldKeystrokes: @unchecked Sendable {
               let script = FormEditor.actionScript(field, "K"), !script.isEmpty else { return nil }
         let js = JsFormHost(doc, fields, readOnly: true)
         js.prewarm() // the engine and document scripts now, off the main thread
-        return FieldKeystrokes(warm: js.started) { value, change, selStart, selEnd in
+        let special = script.range(of: #"AFSpecial_Keystroke\s*\("#, options: .regularExpression) != nil
+        return FieldKeystrokes(warm: js.started, digitsOnly: special) { value, change, selStart, selEnd in
             _ = doc // the document stays open with the keystroke check
             let n = value.utf16.count
             let start = min(max(selStart, 0), n)

@@ -208,6 +208,7 @@ struct DamagedFormTests {
         defer { session.close() }
         try readable(session.data, value: "Ana")
         #expect(session.data == DamagedFile.sound())
+        #expect(session.repaired) // the tail held an object: the person is told
         try readable(try FormEditor.fill(session.data, nil, ["name": "Ana2"]).data, value: "Ana2")
     }
 
@@ -251,7 +252,8 @@ struct DamagedFormTests {
     @Test func aSignedFormsStaleTailIsCutWhenItsSignatureDoesntCoverIt() throws {
         let signed = SignedEditTests.signed()
         let tail = Array("ndobj\n4 0 obj\n<< /Length 0 >>\nendobj\n0000000099 00000 n \ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n\(signed.count - 30)\n%%EOF\n".utf8)
-        #expect(StaleTail.normalized(signed + tail) == signed)
+        #expect(PdfRepair.normalize(signed + tail, nil).data == signed)
+        #expect(PdfRepair.normalize(signed + tail, nil).repaired) // it held an object
     }
 
     /// A broken update (it starts as one, its startxref is wrong) is real work: its object is kept, by MuPDF's repair.
@@ -259,16 +261,16 @@ struct DamagedFormTests {
         let data = DamagedFile.sound()
         let update = "5 0 obj\n<< /Type /Annot /Subtype /Widget /F 4 /P 3 0 R /FT /Tx /T (name) /Rect [72 700 300 720] /DA (/Helv 0 Tf 0 g) /V (Newer) >>\nendobj\nstartxref\n\(data.count - 30)\n%%EOF\n"
         let updated = data + Array(update.utf8)
-        #expect(StaleTail.normalized(updated) == updated)
+        #expect(StaleTail.keepLength(updated) == updated.count)
         try readable(updated, value: "Newer")
     }
 
     /// A sound file with several revisions, and one whose only startxref is wrong, stay as they are.
     @Test func aSoundFileIsLeftAsItIs() throws {
         let sound = DamagedFile.sound()
-        #expect(StaleTail.cut(sound) == nil)
-        #expect(StaleTail.cut(DamagedFile.truncated()) == nil)
+        #expect(StaleTail.find(sound) == nil)
+        #expect(StaleTail.find(DamagedFile.truncated()) == nil)
         let edited = try FormEditor.fill(sound, nil, ["name": "Twice"]).data
-        #expect(StaleTail.cut(edited) == nil)
+        #expect(StaleTail.find(edited) == nil)
     }
 }
