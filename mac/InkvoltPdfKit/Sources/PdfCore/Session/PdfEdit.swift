@@ -148,16 +148,25 @@ final class MuDoc {
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
 
+    /// Every object in use was loaded (`loadAllObjects`): a write needn't walk them again.
+    private var objectsLoaded = false
+
     /// Loads every object in use (in C: free numbers are skipped without a look, so a repaired cross-reference that runs to
-    /// the largest number found costs nothing for the numbers between); how many are in use.
+    /// the largest number found costs nothing for the numbers between); how many are in use. `keepingThemIn`: each also
+    /// listed under that trailer key, so a garbage-collecting write keeps them all. Throws when the walk failed partway.
     @discardableResult
-    func loadAllObjects() -> Int { Int(inkv_obj_load_all(ctx, doc)) }
+    func loadAllObjects(keepingThemIn key: String? = nil) throws -> Int {
+        var used: Int32 = 0
+        try check { err in inkv_obj_load_all(ctx, doc, key, &used, err) != 0 }
+        objectsLoaded = true
+        return Int(used)
+    }
 
     /// A whole new file, written with MuPDF's write options. A repaired document's objects are loaded first: MuPDF's writer
     /// takes the repaired cross-reference for one without object streams, can't read what is compressed in them, and with
     /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
-        if !canAppend { _ = loadAllObjects() }
+        if !canAppend && !objectsLoaded { try loadAllObjects() }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }

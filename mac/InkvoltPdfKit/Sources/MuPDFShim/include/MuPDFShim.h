@@ -224,8 +224,10 @@ inkv_obj *inkv_obj_add(void *ctx, inkv_doc *doc, inkv_obj *obj, char *err);
 inkv_obj *inkv_obj_ref(void *ctx, inkv_doc *doc, int num, char *err);
 int inkv_obj_xref_len(void *ctx, inkv_doc *doc);
 /// Loads every object the cross-reference has in use (a repaired document's writer copies only what is loaded from object
-/// streams), skipping free numbers without a look; one that can't be loaded is left. Returns how many are in use.
-int inkv_obj_load_all(void *ctx, inkv_doc *doc);
+/// streams), skipping free numbers without a look; one that can't be loaded is left. `used`: how many are in use.
+/// `keep_key` (may be NULL): every one of them also listed in an array under that key in the trailer, so a garbage-collecting
+/// write keeps them all. 0 when the walk failed (nothing is known about the objects after the failure).
+int inkv_obj_load_all(void *ctx, inkv_doc *doc, const char *keep_key, int *used, char *err);
 /// Where the cross-reference table says object `num` is now: 1 in the file at `offset`; 2 in the object stream numbered
 /// `offset`; 0 anywhere else (free, or written by an edit).
 int inkv_obj_location(void *ctx, inkv_doc *doc, int num, int64_t *offset);
@@ -234,9 +236,9 @@ int inkv_obj_location(void *ctx, inkv_doc *doc, int num, int64_t *offset);
 int inkv_obj_replace(void *ctx, inkv_doc *doc, int num, const uint8_t *text, size_t length, int encrypted, char *err);
 /// A stream's data, decoded, or with `raw` as the file stores it (still encoded); malloc'ed. NULL on failure.
 uint8_t *inkv_obj_stream(void *ctx, inkv_doc *doc, inkv_obj *obj, int raw, size_t *length, char *err);
-/// At most `max` of a stream's decoded bytes, read no further (a stream that inflates to gigabytes costs `max`);
-/// `more`: 1 when it holds more than those. malloc'ed. NULL on failure.
-uint8_t *inkv_obj_stream_head(void *ctx, inkv_doc *doc, inkv_obj *obj, size_t max, size_t *length, int *more, char *err);
+/// At most `max` of a stream's decoded bytes (with `raw`, as the file stores them), read no further (a stream that inflates
+/// to gigabytes costs `max`); `more`: 1 when it holds more than those. malloc'ed. NULL on failure.
+uint8_t *inkv_obj_stream_head(void *ctx, inkv_doc *doc, inkv_obj *obj, int raw, size_t max, size_t *length, int *more, char *err);
 /// A new stream object (returns its reference): `dict`'s entries (may be NULL) and the bytes, deflated when `deflate`
 /// (/Filter /FlateDecode), else kept as they are (already encoded as `dict` says).
 inkv_obj *inkv_obj_add_stream(void *ctx, inkv_doc *doc, inkv_obj *dict, const uint8_t *bytes, size_t length, int deflate,

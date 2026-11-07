@@ -37,9 +37,18 @@ public enum FormEditor {
     static let ffComb = 1 << 24, ffRadiosInUnison = 1 << 25
     static let annotHidden = 2, annotPrint = 4, annotNoView = 32, annotReadOnly = 64
 
-    public static func read(_ data: [UInt8], _ password: String?) throws -> [FormWidget] {
+    public static func read(_ data: [UInt8], _ password: String?) throws -> [FormWidget] { try readForm(data, password).widgets }
+
+    /// The widgets, and how many places pages list them on beyond `maxPlaces` were left out (0 for any usual form): the
+    /// app says so (`placesLeftOutMessage`).
+    public static func readForm(_ data: [UInt8], _ password: String?) throws -> (widgets: [FormWidget], placesLeftOut: Int) {
         let doc = try PdfEdit.openToRead(data, password)
         return try readWidgets(doc)
+    }
+
+    /// What the person is told when a form's widgets were left off some of the pages that list them.
+    public static func placesLeftOutMessage(_ count: Int) -> String {
+        loc("This form lists its fields on more pages than Inkvolt PDF shows at once: {0} of those places are left out. Every field is still shown on its first page.", count)
     }
 
     /// Whether the document carries an XFA form, and whether it is XFA-only (no AcroForm widgets to fill, or a dynamic
@@ -425,13 +434,19 @@ public enum FormEditor {
     }
 
     /// True when an appearance is a stream with something in it (not a dictionary, not empty), told cheaply: its first
-    /// byte that isn't white space, within its first 64 KB decoded (no further: a face of a few bytes can inflate to
-    /// gigabytes, and many widgets share one). One with only white space there and more after, or that can't be read,
-    /// counts as drawing: it is kept.
+    /// byte that isn't white space, within its first 64 KB, decoded (no further: a face of a few bytes can inflate to
+    /// gigabytes, and many widgets share one). Kept as drawing: one that can't be read, a filtered one over 64 KB as stored,
+    /// one whose bytes decode to nothing (the filter failed: unreadable, not empty), one with only white space in its
+    /// first 64 KB and more after.
     private static func drawsSomething(_ face: PObj?) -> Bool {
         guard let face, face.isStream else { return false }
-        guard let head = face.streamHead(1 << 16) else { return true }
-        return head.more || head.bytes.contains { !PdfBytes.isWhite($0) }
+        let limit = 1 << 16
+        guard let raw = face.streamHead(limit, raw: true) else { return true }
+        if raw.bytes.isEmpty { return false }
+        if face["Filter"] == nil { return raw.more || raw.bytes.contains { !PdfBytes.isWhite($0) } }
+        if raw.more { return true }
+        guard let decoded = face.streamHead(limit), !decoded.bytes.isEmpty else { return true }
+        return decoded.more || decoded.bytes.contains { !PdfBytes.isWhite($0) }
     }
 
     /// Generates the normal appearance of every widget of a text or choice field from its current value. False when a
@@ -503,20 +518,84 @@ public enum FormEditor {
         if !acro.has("DA") { acro.set("DA", doc.text("/Helv 0 Tf 0 g")) }
     }
 
-    /// The most places a widget is shown on besides its first page, over the whole form (a widget is on one page; one that
-    /// several pages list is shown on each, up to this): pages sharing one /Annots array would make pages × widgets.
-    static let maxExtraPlaces = 10_000
+    /// The most places widgets are shown in, over the whole form, when pages list them more often than that (a widget is on
+    /// one page; one that several pages list is shown on each, as pdf.js and Acrobat show it: qpdf's
+    /// form-fields-and-annotations-shared). Pages sharing one /Annots array would make pages × widgets; past this, each
+    /// widget gets an equal share (the ones listed less often keep all their places) and never fewer than its first page.
+    static let maxPlaces = 50_000
 
-    private static func readWidgets(_ doc: MuDoc) throws -> [FormWidget] {
+    /// Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong), within `maxPlaces`; and
+    /// how many places were left out. Each /Annots array is read once however many pages share it.
+    static func widgetPlaces(_ pages: [PObj]) -> (places: [UInt: [(page: Int, index: Int)]], leftOut: Int) {
+        var listOf: [UInt: Int] = [:] // an /Annots array's identity → its list
+        var lists: [[(id: UInt, index: Int)]] = []
+        var uses: [Int] = []
+        var pageList: [Int] = []
+        for page in pages {
+            guard let annots = page.array("Annots") else {
+                pageList.append(-1)
+                continue
+            }
+            if let l = listOf[annots.identity] {
+                uses[l] += 1
+                pageList.append(l)
+                continue
+            }
+            var seen = Set<UInt>()
+            var list: [(id: UInt, index: Int)] = []
+            for (k, a) in annots.elements.enumerated() where a.isDict && seen.insert(a.identity).inserted { list.append((a.identity, k)) }
+            listOf[annots.identity] = lists.count
+            pageList.append(lists.count)
+            lists.append(list)
+            uses.append(1)
+        }
+        // How many pages list each widget, and the lists it is in.
+        var count: [UInt: Int] = [:]
+        var inLists: [UInt: [Int]] = [:]
+        for (l, list) in lists.enumerated() {
+            for w in list {
+                count[w.id, default: 0] += uses[l]
+                inLists[w.id, default: []].append(l)
+            }
+        }
+        // Each widget's share: all its places while they fit, else the largest equal share that fits (at least one).
+        let total = count.values.reduce(0, +)
+        var share = Int.max
+        if total > maxPlaces {
+            let sorted = count.values.sorted()
+            var spent = 0
+            share = 1
+            for (j, c) in sorted.enumerated() {
+                let left = sorted.count - j
+                if spent + c * left > maxPlaces {
+                    share = max(1, (maxPlaces - spent) / left)
+                    break
+                }
+                spent += c
+            }
+        }
+        var places: [UInt: [(page: Int, index: Int)]] = [:]
+        var placed = 0
+        // Lists with a widget still short of its share; a list with none is skipped on every later page.
+        var open = lists.map(\.count)
+        for (i, l) in pageList.enumerated() where l >= 0 && open[l] > 0 {
+            for w in lists[l] {
+                let goal = min(count[w.id] ?? 0, share)
+                let have = places[w.id]?.count ?? 0
+                if have >= goal { continue }
+                places[w.id, default: []].append((i, w.index))
+                placed += 1
+                if have + 1 == goal { for m in inLists[w.id] ?? [] { open[m] -= 1 } }
+            }
+        }
+        return (places, total - placed)
+    }
+
+    private static func readWidgets(_ doc: MuDoc) throws -> (widgets: [FormWidget], placesLeftOut: Int) {
         let acro = doc.catalog.dict("AcroForm")
         let fields = try collect(doc, acro)
-        if fields.isEmpty { return [] }
+        if fields.isEmpty { return ([], 0) }
 
-        // Which pages each widget sits on, and where in their /Annots (/P is optional and often wrong). A widget listed by
-        // several pages is shown on each, as pdf.js and Acrobat show it (qpdf's form-fields-and-annotations-shared), up to
-        // `maxExtraPlaces` places beyond each widget's first page.
-        var placesOf: [UInt: [(page: Int, index: Int)]] = [:]
-        var extraPlaces = 0
         let pageCount = try doc.pageCount()
         var tabs: [String?] = []
         var pages: [PObj] = []
@@ -524,14 +603,8 @@ public enum FormEditor {
             let page = doc.page(i)
             pages.append(page)
             tabs.append(page.name("Tabs"))
-            for (k, a) in (page.array("Annots")?.elements ?? []).enumerated() where a.isDict && placesOf[a.identity]?.last?.page != i {
-                if placesOf[a.identity] != nil {
-                    if extraPlaces >= maxExtraPlaces { continue }
-                    extraPlaces += 1
-                }
-                placesOf[a.identity, default: []].append((i, k))
-            }
         }
+        let (placesOf, leftOut) = widgetPlaces(pages)
         let structOrder = tabs.contains("S") ? structureOrder(doc) : [:]
         let calculated = Set(fields.filter { !(actionScript($0, "C") ?? "").allSatisfy(\.isWhitespace) })
         var js: JsFormHost? // made on the first format script
@@ -565,10 +638,10 @@ public enum FormEditor {
                 guard let places = placesOf[w.identity] else { continue }
                 let triggers = FormActions.triggersOf(f, w)
                 let onState = onStateOf(w, in: f)
+                let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
                 for (page, index) in places {
                     let rect = PageBoxes.toPageSpace(pages[page], r.num(0), r.num(1), r.num(2), r.num(3))
                     if rect.isEmpty { continue }
-                    let signed = kind == .signature && inherited(f.dict, "V")?.isDict == true
                     result.append((FormWidget(
                         fieldName: f.name, kind: kind, pageIndex: page, rect: rect, onState: onState,
                         multiline: f.flags & ffMultiline != 0, readOnly: f.flags & ffReadOnly != 0 || annotFlags & annotReadOnly != 0,
@@ -606,11 +679,12 @@ public enum FormEditor {
             }
             ordered += sorted.map(\.element.widget)
         }
-        return ordered.enumerated().map { i, w in
+        let widgets = ordered.enumerated().map { i, w in
             var w = w
             w.tabOrder = i
             return w
         }
+        return (widgets, leftOut)
     }
 
     /// A field's value as `read` reports it (a choice field without /V: its /I selection).

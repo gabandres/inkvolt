@@ -125,24 +125,66 @@ enum StaleTail {
         return nil
     }
 
-    /// Whether the bytes from `from` on hold an object header (a revision, whole or broken, not just junk): any "obj" keyword
-    /// standing alone, as MuPDF's repair reads one. Its lexer takes comments for white space and reads signed numbers, so
-    /// "5 0 %note↵obj" and "+5 +0 obj" are objects to it: no look back at the numbers, only at the word ("endobj",
-    /// "objects" aren't one).
+    /// Whether the bytes from `from` on hold an object header (a revision, whole or broken, not just junk), read as MuPDF's
+    /// repair reads a file (`pdf_repair_xref`, through `pdf_lex_no_string`): token by token, comments skipped as white space,
+    /// no strings (a parenthesis is a token of its own, so "(5 0 obj)" is a header to it), and an "obj" keyword is an object
+    /// when the last two integers before it make a positive number. Signed numbers count ("+5 +0 obj"), a comment between the
+    /// tokens doesn't hide one ("5 0 %note↵obj"), a comment holding the word isn't one ("% exported obj"). The integers read
+    /// before the tail are unknown here: taken as a positive number, so a lone "obj" counts.
     static func holdsObjects(_ data: [UInt8], from: Int) -> Bool {
-        var at = from
-        while let found = PdfBytes.first(objKey, in: data, from: at) {
-            let end = found + objKey.count
-            let alone = (found == 0 || !isRegular(data[found - 1])) && (end >= data.count || !isRegular(data[end]))
-            if alone { return true }
-            at = end
+        data.withUnsafeBufferPointer { b -> Bool in
+            let n = b.count
+            var i = max(from, 0)
+            var num = 1, gen = 1 // MuPDF's last two integers (`num`, `gen`)
+            while i < n {
+                let c = b[i]
+                if ContentLexer.isSpace(c) {
+                    i += 1
+                } else if c == UInt8(ascii: "%") {
+                    while i < n && b[i] != 10 && b[i] != 13 { i += 1 }
+                } else if c == UInt8(ascii: "/") {
+                    i += 1
+                    while i < n && ContentLexer.isRegular(b[i]) { i += 1 }
+                } else if ContentLexer.isDelim(c) {
+                    i += 1
+                } else if isNumberStart(c) {
+                    // lex_number: a run of regular bytes; any but digits, '.' and '-' after the first makes it a keyword,
+                    // a '.' a real; an integer's value stops at a '-' after its first byte.
+                    let start = i
+                    i += 1
+                    while i < n && ContentLexer.isRegular(b[i]) { i += 1 }
+                    var bad = false, real = c == UInt8(ascii: ".")
+                    for k in start + 1..<i {
+                        let d = b[k]
+                        if d == UInt8(ascii: ".") { real = true } else if d != UInt8(ascii: "-") && !(48...57).contains(d) { bad = true }
+                    }
+                    if bad || real { continue }
+                    var k = start + 1
+                    if c == UInt8(ascii: "-") { while k < i && b[k] == UInt8(ascii: "-") { k += 1 } }
+                    var value = c >= 48 && c <= 57 ? Int(c - 48) : 0
+                    while k < i && b[k] >= 48 && b[k] <= 57 && value < 1 << 40 {
+                        value = value * 10 + Int(b[k] - 48)
+                        k += 1
+                    }
+                    if c == UInt8(ascii: "-") && value > 0 {
+                        (num, gen) = (0, 0)
+                    } else {
+                        (num, gen) = (gen, value)
+                    }
+                } else {
+                    let start = i
+                    while i < n && ContentLexer.isRegular(b[i]) { i += 1 }
+                    if i - start == 3 && b[start] == UInt8(ascii: "o") && b[start + 1] == UInt8(ascii: "b") && b[start + 2] == UInt8(ascii: "j") && num > 0 {
+                        return true
+                    }
+                }
+            }
+            return false
         }
-        return false
     }
 
-    /// A byte that is neither white space nor a delimiter: part of a keyword, name or number.
-    private static func isRegular(_ b: UInt8) -> Bool {
-        !PdfBytes.isWhite(b) && !"()<>[]{}/%".utf8.contains(b)
+    private static func isNumberStart(_ c: UInt8) -> Bool {
+        (c >= 48 && c <= 57) || c == UInt8(ascii: "+") || c == UInt8(ascii: "-") || c == UInt8(ascii: ".")
     }
 
     /// Where the bytes the file's signatures cover end: the largest end of any /ByteRange in it, 0 without one.

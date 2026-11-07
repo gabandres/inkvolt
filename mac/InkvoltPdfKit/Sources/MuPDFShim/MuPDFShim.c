@@ -2270,22 +2270,34 @@ int inkv_obj_xref_len(void *vctx, inkv_doc *d) {
     return n;
 }
 
-int inkv_obj_load_all(void *vctx, inkv_doc *d) {
+int inkv_obj_load_all(void *vctx, inkv_doc *d, const char *keep_key, int *used, char *err) {
     fz_context *ctx = vctx;
-    int used = 0;
+    pdf_obj *keep = NULL;
+    fz_var(keep);
+    *used = 0;
     fz_try(ctx) {
         pdf_document *pdf = inkv_pdf(ctx, d);
         int n = pdf_xref_len(ctx, pdf);
+        if (keep_key) keep = pdf_new_array(ctx, pdf, 16);
         for (int i = 1; i < n; i++) {
             pdf_xref_entry *e = pdf_get_xref_entry_no_null(ctx, pdf, i);
             if (e->type != 'n' && e->type != 'o') continue;
-            used++;
+            (*used)++;
             fz_try(ctx) pdf_cache_object(ctx, pdf, i);
-            fz_catch(ctx) fz_ignore_error(ctx);
+            fz_catch(ctx) {
+                fz_rethrow_if(ctx, FZ_ERROR_SYSTEM);
+                fz_ignore_error(ctx); // that object alone can't be read
+            }
+            if (keep) pdf_array_push_drop(ctx, keep, pdf_new_indirect(ctx, pdf, i, 0));
         }
+        if (keep) pdf_dict_puts(ctx, pdf_trailer(ctx, pdf), keep_key, keep);
     }
-    fz_catch(ctx) fz_ignore_error(ctx);
-    return used;
+    fz_always(ctx) pdf_drop_obj(ctx, keep);
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
 }
 
 uint8_t *inkv_obj_stream(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t *length, char *err) {
@@ -2314,7 +2326,7 @@ uint8_t *inkv_obj_stream(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t *
     return copy;
 }
 
-uint8_t *inkv_obj_stream_head(void *vctx, inkv_doc *d, inkv_obj *o, size_t max, size_t *length, int *more, char *err) {
+uint8_t *inkv_obj_stream_head(void *vctx, inkv_doc *d, inkv_obj *o, int raw, size_t max, size_t *length, int *more, char *err) {
     fz_context *ctx = vctx;
     fz_stream *stm = NULL;
     uint8_t *head = NULL;
@@ -2326,7 +2338,7 @@ uint8_t *inkv_obj_stream_head(void *vctx, inkv_doc *d, inkv_obj *o, size_t max, 
     fz_try(ctx) {
         head = malloc(max ? max : 1);
         if (!head) fz_throw(ctx, FZ_ERROR_SYSTEM, "Not enough memory for the stream.");
-        stm = pdf_open_stream(ctx, OBJ(o));
+        stm = raw ? pdf_open_raw_stream(ctx, OBJ(o)) : pdf_open_stream(ctx, OBJ(o));
         size_t n = 0;
         while (n < max) {
             size_t got = fz_read(ctx, stm, head + n, max - n);
