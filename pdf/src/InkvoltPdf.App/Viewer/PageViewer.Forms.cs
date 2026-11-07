@@ -90,11 +90,11 @@ public sealed partial class PageViewer
             if (widgets.FirstOrDefault(w => w.FieldName == name) is { } w && w.Value == _pendingValues[name])
                 _pendingValues.Remove(name);
         if (_focusWidget is not null)
-            _focusWidget = widgets.FirstOrDefault(w => w.FieldName == _focusWidget.FieldName && w.Rect == _focusWidget.Rect);
+            _focusWidget = widgets.FirstOrDefault(w => w.IsSameWidget(_focusWidget));
         if (_hoverWidget is not null)
-            _hoverWidget = widgets.FirstOrDefault(w => w.FieldName == _hoverWidget.FieldName && w.Rect == _hoverWidget.Rect);
+            _hoverWidget = widgets.FirstOrDefault(w => w.IsSameWidget(_hoverWidget));
         if (_pressedWidget is not null)
-            _pressedWidget = widgets.FirstOrDefault(w => w.FieldName == _pressedWidget.FieldName && w.Rect == _pressedWidget.Rect);
+            _pressedWidget = widgets.FirstOrDefault(w => w.IsSameWidget(_pressedWidget));
         HookFormMouse();
         _surface.InvalidateVisual();
     }

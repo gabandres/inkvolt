@@ -77,6 +77,29 @@ public class StaleTailTests
     }
 
     [Fact]
+    public void AWidgetIsTheSameAfterAFillRewritesItsPageBox()
+    {
+        // The owner's form's A4 page is 841.90002 high; the filled file says 841.9, so every widget's distance from the top
+        // moves by 0.00002. The viewer finds the field it is editing in the refreshed list by this (Tab from a field opened
+        // before the refresh landed went back to the page's first field).
+        var form = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 4 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.20001 841.90002] /Annots [5 0 R 6 0 R] /Resources << >> >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            $"<< {W} /FT /Tx /T (a) /Rect [106.456001 697.494019 348.248993 714.523010] /DA (/Helv 0 Tf 0 g) >>",
+            $"<< {W} /FT /Tx /T (b) /Rect [399.476013 697.494019 558.971008 714.523010] /DA (/Helv 0 Tf 0 g) >>",
+        ]);
+        var before = FormEditor.Read(form, null);
+        var after = FormEditor.Read(FormEditor.SetValues(form, null, new Dictionary<string, string> { ["a"] = "Sur" }), null);
+        Assert.NotEqual(before[0].Rect, after[0].Rect); // what made the exact comparison miss
+        Assert.True(before[0].IsSameWidget(after[0]));
+        Assert.True(before[1].IsSameWidget(after[1]));
+        Assert.False(before[0].IsSameWidget(after[1]));
+        Assert.False(before[0].IsSameWidget(before[0] with { PageIndex = 1 }));
+    }
+
+    [Fact]
     public void OnlyAStaleTailIsCut()
     {
         var sound = Core2Pdf.Build(["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [] /Count 0 >>"]);

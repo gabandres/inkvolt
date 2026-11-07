@@ -53,7 +53,7 @@ public sealed partial class PageViewer
         _surface.InvalidateVisual();
     }
 
-    private static bool SameWidget(FormWidget a, FormWidget b) => a.FieldName == b.FieldName && a.Rect == b.Rect;
+    private static bool SameWidget(FormWidget a, FormWidget b) => a.IsSameWidget(b);
 
     private static (double Row, double X) ReadingKey(RectD r) => (Math.Round(r.Y / 6), r.X);
 

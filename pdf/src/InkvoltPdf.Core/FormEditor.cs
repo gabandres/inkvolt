@@ -40,7 +40,19 @@ public sealed record FormWidget(
     bool Calculated = false,
     bool Signed = false,
     FormTriggers Triggers = FormTriggers.None,
-    int AnnotIndex = -1);
+    int AnnotIndex = -1)
+{
+    /// <summary>
+    /// Whether <paramref name="other"/> is this widget as another read of the document has it: the same field on the same
+    /// page in the same place, to a hundredth of a point. Filling saves the file again, and the numbers it writes back
+    /// can lose their last digits (a rect's 106.456001 comes back as 106.456).
+    /// </summary>
+    public bool IsSameWidget(FormWidget other) =>
+        FieldName == other.FieldName && PageIndex == other.PageIndex && Near(Rect.X, other.Rect.X) && Near(Rect.Y, other.Rect.Y) &&
+        Near(Rect.Width, other.Rect.Width) && Near(Rect.Height, other.Rect.Height);
+
+    private static bool Near(double a, double b) => Math.Abs(a - b) < 0.01;
+}
 
 /// <summary>A value a field's keystroke or validate script refused, and the message it gave (or a generic one).</summary>
 public sealed record FieldRejection(string FieldName, string Message);
