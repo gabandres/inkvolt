@@ -55,7 +55,7 @@ and a PDF for Mac release too if the Mac run finds anything to fix.
 **Mac forms corpus merged 2026-11-07 (`9be94286`)**: 285/285 real, 32/32 synthetic, 887/887 with `--damaged`; two review
 rounds (medium: 10 findings, all fixed; low: clean); Windows' repaired-file bar and "no signature valid across a repair"
 ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release after its fixes are reviewed and merged.
-**Windows follow-up (after 1.11.0.0):** a comb field whose format adds separators (AFSpecial SSN, MaxLen 9) shows
+**Windows follow-up (after 1.11.0.0), done for 1.11.1.0 (`MaskedCombTests`):** a comb field whose format adds separators (AFSpecial SSN, MaxLen 9) shows
 "123-45-67": `Appearances.cs` draws what fits in the cells. The Mac draws the typed digits in the cells instead
 (`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
 separators; the Mac takes a pasted SSN, phone or ZIP as its digits.

@@ -142,6 +142,9 @@ public partial class DocumentTab
             return keys.Run(value, change, selStart, selEnd);
         }
 
+        public bool DigitsOnly(FormWidget widget) =>
+            widget.FieldName == _field && _open is { IsCompletedSuccessfully: true } t && t.Result is { DigitsOnly: true };
+
         public void Release()
         {
             var open = _open;

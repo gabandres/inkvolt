@@ -63,6 +63,23 @@ public sealed class FieldKeystrokes : IDisposable
         return text[..room];
     }
 
+    /// <summary>The script is AFSpecial_Keystroke (Zip, Zip+4, phone, SSN): the value is digits, the separators the format's.</summary>
+    public bool DigitsOnly { get; init; }
+
+    /// <summary>
+    /// What a paste of <paramref name="text"/> over [<paramref name="start"/>, <paramref name="end"/>) of
+    /// <paramref name="value"/> puts in: in a <paramref name="digitsOnly"/> field with room for just its digits, a number
+    /// that wouldn't fit with its separators goes in as its digits (the format shows them); then cut to the field's limit.
+    /// </summary>
+    public static string Pasted(string value, int start, int end, string text, int maxLength, bool digitsOnly)
+    {
+        start = Math.Clamp(start, 0, value.Length);
+        end = Math.Clamp(end, start, value.Length);
+        if (digitsOnly && maxLength > 0 && value.Length - (end - start) + text.Length > maxLength)
+            text = new string([.. text.Where(char.IsAsciiDigit)]);
+        return Fit(value, start, end, text, maxLength);
+    }
+
     /// <summary>The field's keystroke check, or null when it has no keystroke script.</summary>
     public static FieldKeystrokes? Open(byte[] data, string? password, string fieldName) => FormEditor.OpenKeystrokes(data, password, fieldName);
 
@@ -108,6 +125,7 @@ public static partial class FormEditor
             }
             var js = new JsFormHost(doc, fields, readOnly: true);
             js.Prewarm(script); // engine, document scripts and the parsed script now, off the UI thread
+            var digitsOnly = System.Text.RegularExpressions.Regex.IsMatch(script, @"AFSpecial_Keystroke\s*\(");
             return new FieldKeystrokes(doc, js.Started, (value, change, selStart, selEnd) =>
             {
                 selStart = Math.Clamp(selStart, 0, value.Length);
@@ -117,7 +135,7 @@ public static partial class FormEditor
                 var start = Math.Clamp(r.SelStart, 0, value.Length);
                 var end = Math.Clamp(r.SelEnd, start, value.Length);
                 return new KeystrokeResult(r.Rc, r.Change, start, end, r.Alerts);
-            });
+            }) { DigitsOnly = digitsOnly };
         }
         catch
         {
