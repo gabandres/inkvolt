@@ -29,7 +29,9 @@ extension DocumentWindowController {
         }
         // The layers chosen in the Layers pane print as they show (E9), as on Windows: the copy is made from the bytes
         // the layer engine draws, made again here rather than kept beside the document's.
-        let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layerEngine == nil ? [:] : layerVisibility)
+        let layers = layerEngine == nil ? [:] : layerVisibility
+        let rated = (0..<printed.pageCount).map { printed.verdictOf($0) }
+        let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layers, rated: rated)
         let shown = PrintSheetView.shownSizes(printed)
         let sheet = ProgressSheet(title: loc("Print"), text: loc("Getting the pages ready for the printer…"))
         let token = sheet.token
@@ -161,11 +163,13 @@ private final class PrintCopyBytes: @unchecked Sendable {
 /// many there are and draws each one in its rectangle.
 final class PrintSheetView: NSView {
     /// What the print copy is made from: the document's bytes and password, and the layers the Layers pane shows
-    /// differently (by object number; empty: the document's own), so the copy has the bytes `engine` draws.
+    /// differently (by object number; empty: the document's own), so the copy has the bytes `engine` draws; and what
+    /// `engine` found reading each page so far (a page it read within its bounds isn't read again for the copy).
     struct Source: Sendable {
         var data: [UInt8]
         var password: String?
         var layers: [Int: Bool]
+        var rated: [PageVerdict] = []
     }
 
     /// The print copy as Core Graphics opened it (nil when no page prints as vectors), and how each page prints.
@@ -281,8 +285,9 @@ final class PrintSheetView: NSView {
         NSRect(x: box.x, y: Double(top) + box.y, width: box.width, height: box.height)
     }
 
-    /// The print copy for a job (off the main thread, before it starts): the core's `PrintCopy` of `source` (always MuPDF's
-    /// rewrite, each vector page read through the bounded engine first), opened by Core Graphics, each page checked against
+    /// The print copy for a job (off the main thread, before it starts): the core's `PrintCopy` of `source` (MuPDF's
+    /// rewrite, each vector page the view engine hasn't read within its bounds read through the bounded engine first,
+    /// without drawing), opened by Core Graphics, each page checked against
     /// how Core Graphics reads its box and turn. Nil when cancelled, or when it couldn't be made or read (every page
     /// prints as a picture).
     nonisolated static func prepare(_ source: Source, shown: [(Double, Double)], cancel: CancelToken?) -> Prepared? {
@@ -292,7 +297,8 @@ final class PrintSheetView: NSView {
                 let layered = try Layers.withVisibility(bytes, password, source.layers)
                 if layered != bytes { (bytes, password) = (layered, nil) } // written decrypted
             }
-            let made = try PrintCopy.make(bytes, password, shown: shown, cancel: cancel)
+            // The layered copy's bytes go to the copy (let go of once it is written), not held here as well.
+            let made = try PrintCopy.make(consume bytes, password, shown: shown, rated: source.rated, cancel: cancel)
             guard made.hasVectors else { return Prepared(document: nil, pages: made.pages) }
             let document = open(made.data)
             if cancel?.isCancelled == true { return nil }
@@ -398,7 +404,7 @@ final class PrintSheetView: NSView {
             rendered = try engine.render(placed.page, scale: scale, region: placed.source)
         } catch let refused as PageRefused {
             // The engine won't draw it (a bomb, a picture too large): the sheet says why, as the screen does, not blank.
-            if !screen { pictureReasons[placed.page] = refused.message }
+            if !screen, !picturesOnly { pictureReasons[placed.page] = refused.message } // as `draw`: none when all are pictures
             drawRefusal(refused.message, rect(placed.box, top))
             return
         } catch {

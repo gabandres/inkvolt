@@ -330,4 +330,106 @@ struct PrintCopyTests {
         #expect(!(try Core2Pdf.allText(copy.data).contains("Paper only")))
         #expect(text.contains("\nxref\n") || text.contains("/Type /XRef") || text.contains("/Type/XRef"))
     }
+
+    /// The pages a test hook was asked to read.
+    private final class Reads: @unchecked Sendable {
+        private let lock = NSLock()
+        private var pages: [Int] = []
+        func add(_ page: Int) { lock.withLock { pages.append(page) } }
+        var list: [Int] { lock.withLock { pages.sorted() } }
+    }
+
+    /// Review of the hostile-input fixes: a page the view engine has read within its bounds already is not read again
+    /// (a 400-page scan waited minutes for every page to be drawn again before the print panel opened).
+    @Test func aPageTheViewEngineReadFineIsntReadAgain() throws {
+        let file = PageCheckTests.bomb("7 KB")
+        let copy = try PdfEngine.$budgetForTests.withValue(PageCheckTests.limit) {
+            try PrintCopy.make(file, nil, shown: try Self.shown(file), rated: [.fine, .fine, .fine])
+        }
+        #expect(copy.pages.allSatisfy(Self.isVector), "\(copy.pages)")
+    }
+
+    /// A page the view engine refused for a picture too large or a stream inflated too often prints its sentence, unread;
+    /// one it found too slow (its drawing may be what took the time) is read again, without drawing.
+    @Test func aPageTheViewEngineRefusedPrintsItsSentenceAndOneTooSlowIsReadAgain() throws {
+        let file = TestPdf.make(3)
+        let reads = Reads()
+        let copy = try PrintCopy.$readForTests.withValue({ reads.add($0) }) {
+            try PrintCopy.make(file, nil, shown: try Self.shown(file), rated: [.failed, .tooSlow, .unknown])
+        }
+        #expect(copy.pages[0] == .picture(PageRefused(page: 0, tooSlow: false).message))
+        #expect(Self.isVector(copy.pages[1]) && Self.isVector(copy.pages[2]))
+        #expect(reads.list == [1, 2])
+    }
+
+    /// Checking a page reads its content through every bound but draws nothing: its pictures are checked by their size,
+    /// never decoded (here 12 of 16,000 x 16,000 gray, seconds to decode, at the tests' 1 s budget), and one larger than
+    /// MuPDF may decode still refuses its page.
+    @Test func checkingAPageForPrintingDecodesNoPicture() throws {
+        func picture(_ side: Int) -> [UInt8] {
+            let dict = "/Type /XObject /Subtype /Image /Width \(side) /Height \(side) /BitsPerComponent 8 /ColorSpace /DeviceGray /Filter /FlateDecode"
+            return PageCheckTests.stream(PageCheckTests.zlib([], zeros: side * side), dict)
+        }
+        let count = 12
+        let names = (0..<count).map { "/I\($0) \($0 + 7) 0 R" }.joined(separator: " ")
+        let content = (0..<count).map { "q 40 0 0 40 \(50 + ($0 % 6) * 80) \(100 + ($0 / 6) * 80) cm /I\($0) Do Q" }.joined(separator: "\n")
+        let one = picture(16_000)
+        let objects: [[UInt8]] = [
+            PageCheckTests.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+            PageCheckTests.obj("<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>"),
+            PageCheckTests.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /XObject << \(names) >> >> >>"),
+            PageCheckTests.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /XObject << /Big \(count + 7) 0 R >> >> >>"),
+            PageCheckTests.stream(content),
+            PageCheckTests.stream("q 500 0 0 500 50 150 cm /Big Do Q"),
+        ]
+        let file = PageCheckTests.build(objects + Array(repeating: one, count: count) + [picture(17_000)])
+        var copy: PrintCopy?
+        let took = try PageCheckTests.time {
+            copy = try PdfEngine.$budgetForTests.withValue(PageCheckTests.limit) {
+                try PrintCopy.make(file, nil, shown: try Self.shown(file))
+            }
+        }
+        #expect(copy.map { Self.isVector($0.pages[0]) } == true, "\(copy?.pages ?? [])")
+        #expect(copy?.pages[1] == .picture(PageRefused(page: 1, tooSlow: false).message))
+        #expect(took < PageCheckTests.limit + PageCheckTests.slack, "\(took) s")
+    }
+
+    /// A page MuPDF fails on without refusing it (an error of its own, not a bound) prints as vectors, as before the
+    /// bound: a picture of it would fail too, and the sheet would come out blank.
+    @Test func aPageMuPdfFailsOnWithoutRefusingStillPrintsAsVectors() throws {
+        let file = TestPdf.make(2)
+        let failing: @Sendable (Int) throws -> Void = { page in
+            if page == 0 { throw PdfEngineError(message: "syntax error") }
+        }
+        let copy = try PrintCopy.$readForTests.withValue(failing) {
+            try PrintCopy.make(file, nil, shown: try Self.shown(file))
+        }
+        #expect(copy.pages.allSatisfy(Self.isVector), "\(copy.pages)")
+    }
+
+    /// No page in vectors: nothing for Core Graphics to read, so MuPDF writes no copy (the document's own bytes are kept).
+    @Test func noCopyIsWrittenWhenNoPagePrintsAsVectors() throws {
+        let pdf = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 45 >>",
+        ])
+        let copy = try PrintCopy.make(pdf, nil, shown: [(612, 792)])
+        #expect(!copy.hasVectors && copy.data == pdf)
+    }
+
+    /// MuPDF can't write the copy: the vector pages print from the document's own bytes, as before the copy was always
+    /// MuPDF's, when they are all Core Graphics needs (nothing flattened, not encrypted); else no copy at all.
+    @Test func aCopyMuPdfCantWritePrintsFromTheDocumentsOwnBytes() throws {
+        let plain = TestPdf.make(2)
+        let copy = try PrintCopy.$writeFailsForTests.withValue(true) {
+            try PrintCopy.make(plain, nil, shown: try Self.shown(plain))
+        }
+        #expect(copy.data == plain && copy.pages.allSatisfy(Self.isVector))
+        let locked = TestPdf.encrypted(2, "secret")
+        let shown = try Self.shown(locked, "secret")
+        #expect(throws: (any Error).self) {
+            try PrintCopy.$writeFailsForTests.withValue(true) { try PrintCopy.make(locked, "secret", shown: shown) }
+        }
+    }
 }

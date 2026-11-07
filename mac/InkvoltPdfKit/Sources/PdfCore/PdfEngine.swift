@@ -314,6 +314,36 @@ public final class PdfEngine: @unchecked Sendable {
         }
     }
 
+    /// Reads a page's content through every bound a drawing has (its streams checked first, the reading in pieces under
+    /// `pageBudget`, each picture's size by its header) without drawing it: no picture is decoded, no pixel made. What
+    /// it finds is the page's verdict, as for any reading.
+    /// - Throws: `PageRefused`; `CancellationError` when `cancel` fired; `PdfEngineError` when MuPDF fails on it.
+    public func readThrough(_ page: Int, cancel: CancelToken? = nil) throws {
+        try cancel.check()
+        gate.lock()
+        defer { gate.unlock() }
+        guard let main else { throw PdfEngineClosed() }
+        _ = try geometry(page)
+        try reading(page, cancel) { cookie in
+            var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+            let result = inkv_read_page(main.ctx, main.doc, Int32(page), cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
+        }
+    }
+
+    /// Another engine on the same bytes (shared, not copied), with a MuPDF context of its own and `store` bytes of
+    /// cache, so another thread can read its pages at the same time; its verdicts start empty, its budget is this one's.
+    func sibling(store: Int = 32 << 20) throws -> PdfEngine {
+        gate.lock()
+        let source = source
+        gate.unlock()
+        guard let source else { throw PdfEngineClosed() }
+        let engine = try PdfEngine(Instance.open(source, store: store, password: password), source: source, password: password)
+        engine.pageBudget = pageBudget
+        return engine
+    }
+
     /// Largest picture MuPDF may decode, width × height: 268 million pixels (16,384 × 16,384), where Windows' page check
     /// refuses one (half its 2 GB process at 4 bytes a pixel, `PageChecks.OutOfResources`). A 600 dpi scan of a D-size
     /// sheet (311 M) or the 20,000 × 20,000 picture that took 9 s a draw on Windows is larger. A page with a larger one is
