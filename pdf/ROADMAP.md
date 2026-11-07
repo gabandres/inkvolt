@@ -1051,10 +1051,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   about a second (red first: 74 s for both), the 20,000 × 20,000 picture at once, a 72,000-path sheet draws as without.
   Cost (bench `one`, the base commit against this one on the same Mac): the drawing set's first page and a sheet within
   1% (576 against 579 ms a sheet), Find 7.2 s either way; text and scan unchanged. After the code review's fixes the
-  sheets draw as before; Find on the drawing set measured 8-25% slower under another process's load, to measure again
-  on a quiet Mac (mac/docs/PLAN.md).
+  sheets draw as before; Find on the drawing set measured 8-25% slower under another process's load. After the
+  re-review's fixes, on a quiet Mac (three interleaved pairs, medians): sheets even (599/577 ms), Find on the drawing
+  set 7.63 against 7.92 s (+3.8%), on the text 0.60 against 0.63 s (+3.7%), scan unchanged (mac/docs/PLAN.md).
+  After the re-review: each object's streams are checked once a document (not on every call), the stream reads the CPU
+  clock once per 256 bytes, a pattern of no area or no step draws nothing (one with no step at all read for ever in
+  MuPDF's own tile loop: now stopped at the budget), and an inline or JPEG 2000 picture over the cap is refused before
+  it decodes (they're decoded while the content is read, before the device sees them).
   Not covered: a picture under the cap decodes in full (a second or two; the clock is looked at between pictures); an
-  inline picture's filters aren't counted; image files and `PdfEdit`'s editing documents run unbounded; a hostile page
+  inline picture's filters aren't counted (a patch to MuPDF, the owner's call); image files and `PdfEdit`'s editing documents run unbounded; a hostile page
   holds its engine (its neighbours, its thumbnails) for up to 10 s once.
   `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
