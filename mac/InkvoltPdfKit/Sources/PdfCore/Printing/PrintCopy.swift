@@ -91,17 +91,18 @@ public struct PageBox: Equatable, Sendable {
 
 /// The document as it prints in vectors: the bytes the print system draws its pages from (Core Graphics), and how
 /// each page goes. Every comment and form field (signatures too) is drawn into its page as MuPDF shows it, by its own
-/// appearance (`Flattener`); the copy is decrypted and stays in memory, never saved. A page prints as a picture when
-/// Core Graphics couldn't draw it as MuPDF shows it: a comment or field MuPDF draws with an appearance flattening can't
+/// appearance (`Flattener`); the copy is always MuPDF's rewrite of the document (decrypted, one version, a fresh
+/// cross-reference table), so Core Graphics reads the objects MuPDF shows, never its own repair of a broken file or its
+/// own pick of an object defined twice; it stays in memory, never saved. A page prints as a picture when Core Graphics
+/// couldn't draw it as MuPDF shows it: a comment or field MuPDF draws with an appearance flattening can't
 /// (`Flattener.Look.madeUp`), a /Rotate that isn't a quarter turn, a size read differently from MuPDF's (a /UserUnit,
-/// broken boxes), or a box or turn Core Graphics reads differently (`checked`).
+/// broken boxes), or a box or turn Core Graphics reads differently (`checked`); and when the bounded engine refuses it
+/// (`PageRefused`: a decompression bomb, a picture too large), since Core Graphics draws with no bound at all.
 /// Layers, redactions and Dark Pages need nothing here: the copy is made from the bytes the view engine shows (layers
 /// as chosen, redactions applied as edits), and Dark Pages only colors the screen.
 public struct PrintCopy: Sendable {
-    /// The copy's bytes (the document's own when nothing needed changing).
+    /// The copy's bytes: MuPDF's rewrite (the document's own only when no page prints as vectors).
     public let data: [UInt8]
-    /// Whether `data` was written by MuPDF (the document's own bytes otherwise).
-    public let rewritten: Bool
     public let pages: [PrintedPage]
     /// Each page's box and turn as MuPDF reads them (nil when the page counts disagree): Core Graphics must read the
     /// same for its page to print as vectors (`checked`).
@@ -123,7 +124,7 @@ public struct PrintCopy: Sendable {
         let pageObjects = try doc.pages()
         guard pageObjects.count == shown.count else {
             let why = "the document's page count reads \(pageObjects.count), not \(shown.count)"
-            return PrintCopy(data: data, rewritten: false, pages: shown.map { _ in .picture(why) }, boxes: shown.map { _ in nil })
+            return PrintCopy(data: data, pages: shown.map { _ in .picture(why) }, boxes: shown.map { _ in nil })
         }
         // The fields' appearances stay the file's own, as MuPDF shows them (it ignores /NeedAppearances): one made
         // here would differ from the screen's, and a field without one MuPDF makes up prints its page as a picture.
@@ -139,21 +140,36 @@ public struct PrintCopy: Sendable {
         }
         var options = FlattenOptions(annotations: true, formFields: true, links: false)
         options.signatureFields = true
-        let touched = try Flattener.flattenPages(doc, options, appearancesReady: true, cancel: cancel)
+        _ = try Flattener.flattenPages(doc, options, appearancesReady: true, cancel: cancel)
         try doc.checkFailure()
         try cancel.check()
-        guard touched || doc.hasEncrypt else { return PrintCopy(data: data, rewritten: false, pages: pages, boxes: boxes) }
-        return PrintCopy(data: try doc.write("decrypt=yes,encrypt=no"), rewritten: true, pages: pages, boxes: boxes)
+        let written = try doc.write("decrypt=yes,encrypt=no")
+        try bound(written, &pages, cancel)
+        return PrintCopy(data: written, pages: pages, boxes: boxes)
     }
 
-    /// This copy as MuPDF writes it (a repaired, plain file), for when Core Graphics couldn't open the document's own
-    /// bytes: nothing is made again, the pages print as they were going to. A copy MuPDF wrote already, or one with no
-    /// page in vectors, is itself.
-    public func rewrittenByMuPDF() throws -> PrintCopy {
-        if rewritten || !hasVectors { return self }
-        // Not rewritten: the document's own bytes, not encrypted, nothing flattened (`make`).
-        let doc = try PdfEdit.openToRead(data, nil)
-        return PrintCopy(data: try doc.write("decrypt=yes,encrypt=no"), rewritten: true, pages: pages, boxes: boxes)
+    /// The longest side, in pixels, of the small picture each vector page is drawn to through the bounded engine first.
+    static let probePixels = 24.0
+
+    /// Draws each vector page of `written` through the bounded engine (`PdfEngine.pageBudget`, its largest picture and
+    /// stream checks), small: a page it refuses prints as a picture, which the engine refuses too (nothing on paper but
+    /// the reason, as on screen), never as vectors Core Graphics would inflate without a bound.
+    private static func bound(_ written: [UInt8], _ pages: inout [PrintedPage], _ cancel: CancelToken?) throws {
+        guard pages.contains(where: { if case .vector = $0 { true } else { false } }) else { return }
+        let engine = try PdfEngine.open(written)
+        defer { engine.close() }
+        for i in pages.indices where i < engine.pageCount {
+            guard case .vector = pages[i] else { continue }
+            let g = engine.page(i)
+            let scale: Double = probePixels / max(g.width, g.height, 1)
+            do {
+                _ = try engine.render(i, scale: scale, cancel: cancel)
+            } catch let refused as PageRefused {
+                pages[i] = .picture(refused.message)
+            } catch let error as PdfEngineError {
+                pages[i] = .picture("MuPDF couldn't draw it: \(error.message)")
+            }
+        }
     }
 
     /// The pages as they print once Core Graphics has opened the copy: a vector page whose box or turn Core Graphics

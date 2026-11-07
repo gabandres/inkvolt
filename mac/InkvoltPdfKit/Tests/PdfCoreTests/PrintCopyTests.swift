@@ -55,18 +55,17 @@ struct PrintCopyTests {
         #expect(Self.near(tile.apply(0, 0), -600, -600))
     }
 
-    @Test func plainPagesPrintAsVectorsFromTheDocumentsOwnBytes() throws {
+    @Test func plainPagesPrintAsVectorsFromMuPdfsRewrite() throws {
         let pdf = TestPdf.make(3)
         let copy = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf))
         #expect(copy.pages.count == 3 && copy.pages.allSatisfy(Self.isVector))
-        #expect(!copy.rewritten && copy.data == pdf)
         #expect(copy.pages[0] == .vector(toPage: Affine(1, 0, 0, -1, 0, 792)))
-        // Core Graphics couldn't open the bytes: the same copy written by MuPDF, its pages as they were.
-        let written = try copy.rewrittenByMuPDF()
-        let writtenPages = try Self.shown(written.data).count
-        #expect(written.rewritten && written.data != pdf && writtenPages == 3)
-        #expect(written.pages == copy.pages && written.boxes == copy.boxes)
-        #expect(try Core2Pdf.allText(written.data, page: 1).contains("Page 2 alpha"))
+        // Never the document's own bytes (theCopyIsMuPdfsRewriteSoPaperReadsTheFileAsTheScreenDoes), its text kept.
+        let writtenPages = try Self.shown(copy.data).count
+        #expect(copy.data != pdf && writtenPages == 3)
+        #expect(try Core2Pdf.allText(copy.data, page: 1).contains("Page 2 alpha"))
+        // Its streams as they were (not inflated): about the document's size.
+        #expect(copy.data.count < pdf.count * 2 + 4096, "\(copy.data.count) bytes from \(pdf.count)")
     }
 
     /// The ink in a region of page 1 on screen (MuPDF, comments and fields drawn) and in the copy's page content.
@@ -185,7 +184,7 @@ struct PrintCopyTests {
         let form = Core2Pdf.form(["<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /Rect [72 600 300 630] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>"])
         let filled = try FormEditor.setValues(form, nil, ["Name": "Ada Lovelace"])
         let copy = try PrintCopy.make(filled, nil, shown: try Self.shown(filled))
-        #expect(copy.rewritten && copy.pages.allSatisfy(Self.isVector))
+        #expect(copy.pages.allSatisfy(Self.isVector))
         // The value is page text now, and nothing is left for a viewer to draw on top.
         #expect(try Core2Pdf.allText(copy.data, annotations: false).contains("Ada Lovelace"))
         #expect(try Core2Pdf.open(copy.data).page(0).array("Annots") == nil)
@@ -284,9 +283,51 @@ struct PrintCopyTests {
     @Test func anEncryptedDocumentsCopyOpensWithoutItsPassword() throws {
         let pdf = TestPdf.encrypted(2, "secret")
         let copy = try PrintCopy.make(pdf, "secret", shown: try Self.shown(pdf, "secret"))
-        #expect(copy.rewritten && copy.pages.allSatisfy(Self.isVector))
+        #expect(copy.pages.allSatisfy(Self.isVector))
         #expect(!PdfSecurity.needsOpenPassword(copy.data))
         #expect(try Core2Pdf.allText(copy.data, page: 1).contains("Page 2 alpha"))
         #expect(throws: PasswordRequired.self) { try PrintCopy.make(pdf, nil, shown: [(612, 792), (612, 792)]) }
+    }
+
+    /// A Mac addition from the hostile-input review: Core Graphics draws a page with no bound, so a page the bounded engine
+    /// refuses (a decompression bomb, here at the tests' budget) prints as a picture of what the screen shows (nothing),
+    /// never as vectors; the others still print as vectors.
+    @Test func aPageTheBoundedEngineRefusesPrintsAsAPicture() throws {
+        let file = PageCheckTests.bomb("7 KB")
+        let copy = try PdfEngine.$budgetForTests.withValue(PageCheckTests.limit) {
+            try PrintCopy.make(file, nil, shown: try Self.shown(file))
+        }
+        #expect(Self.isVector(copy.pages[0]) && Self.isVector(copy.pages[2]))
+        let refused = [true, false].map { PrintedPage.picture(PageRefused(page: 1, tooSlow: $0).message) }
+        #expect(refused.contains(copy.pages[1]), "\(copy.pages[1])")
+    }
+
+    /// A Mac addition from the hostile-input review: the paper must show what the screen shows, so Core Graphics draws
+    /// MuPDF's rewrite, never the document's own bytes, which it may read differently (an object defined twice, a broken
+    /// cross-reference table that each repairs its own way).
+    @Test func theCopyIsMuPdfsRewriteSoPaperReadsTheFileAsTheScreenDoes() throws {
+        var pdf = Array("%PDF-1.7\n".utf8)
+        let objects = [
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+            "4 0 obj\n" + Core2Pdf.stream("BT /F1 18 Tf 72 700 Td (Paper only) Tj ET") + "\nendobj\n",
+            "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+            "4 0 obj\n" + Core2Pdf.stream("BT /F1 18 Tf 72 700 Td (Screen text) Tj ET") + "\nendobj\n",
+        ]
+        for o in objects { pdf += Array(o.utf8) }
+        pdf += Array("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n999999\n%%EOF\n".utf8) // no table: each reader repairs
+        #expect(try Core2Pdf.allText(pdf).contains("Screen text"))
+        for data in [pdf, TestPdf.make(3)] {
+            let copy = try PrintCopy.make(data, nil, shown: try Self.shown(data))
+            #expect(copy.data != data && copy.pages.allSatisfy(Self.isVector))
+            #expect(try Self.shown(copy.data).count == (try Self.shown(data)).count)
+        }
+        let copy = try PrintCopy.make(pdf, nil, shown: try Self.shown(pdf))
+        let text = String(decoding: copy.data, as: UTF8.self)
+        #expect(text.components(separatedBy: "\n4 0 obj").count == 2, "one object 4, the one the screen shows")
+        #expect(try Core2Pdf.allText(copy.data).contains("Screen text"))
+        #expect(!(try Core2Pdf.allText(copy.data).contains("Paper only")))
+        #expect(text.contains("\nxref\n") || text.contains("/Type /XRef") || text.contains("/Type/XRef"))
     }
 }
