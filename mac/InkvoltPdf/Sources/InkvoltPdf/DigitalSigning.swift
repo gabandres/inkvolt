@@ -203,7 +203,7 @@ extension DocumentWindowController {
                 }
             }
             var request = SignRequest(id: choice.id)
-            request.repairedLength = pdf.session?.repairedLength ?? 0
+            request.repairedLength = self.pdf.session?.repairedLength ?? 0
             request.fieldName = field
             request.pageIndex = place?.page ?? 0
             request.rect = choice.visible ? place?.rect : nil
