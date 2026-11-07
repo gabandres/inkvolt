@@ -64,6 +64,9 @@ internal static class Incremental
     /// <summary>True when <see cref="TrySave"/> can write <paramref name="doc"/> as an incremental update.</summary>
     public static bool IsTracked(PdfDocument doc) => Tracked.TryGetValue(doc, out _);
 
+    /// <summary>True when <paramref name="doc"/> is an encrypted document opened with its user password (<see cref="UserPasswordEdits"/>).</summary>
+    public static bool IsUserPasswordEdit(PdfDocument doc) => Tracked.TryGetValue(doc, out var b) && b.Crypt is not null;
+
     /// <summary>
     /// Remembers how <paramref name="doc"/> (just opened in Modify mode) maps onto <paramref name="data"/>, when it is
     /// signed (or always, with <paramref name="force"/>: signing appends even to an unsigned file, so later signatures
@@ -200,7 +203,7 @@ internal static class Incremental
             return appended;
         }
         // Edited with the user password only: a rewrite would drop the encryption, and keeping it needs the owner password.
-        if (Tracked.TryGetValue(doc, out var b) && b.Crypt is not null) throw new OwnerPasswordRequiredException(false);
+        if (IsUserPasswordEdit(doc)) throw new OwnerPasswordRequiredException(false);
         if (!Signed.TryGetValue(doc, out var why) || SignedEdits.RewriteAllowed) return null;
         throw new SignaturesWouldBreakException(CountSignatures(doc), why.Value is { Length: > 0 } reason ? reason : PdfStrings.Doc_AppendCantWrite);
     }

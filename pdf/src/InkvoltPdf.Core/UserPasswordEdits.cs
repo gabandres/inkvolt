@@ -55,7 +55,9 @@ internal static class UserPasswordEdits
             if (h.Reference is { } r)
             {
                 encrypt = $"{r.ObjectNumber} {r.GenerationNumber} R";
-                encryptObject = (r.ObjectNumber, r.GenerationNumber, body);
+                // Written again only when every string reads back byte for byte (PDFsharp decodes one starting FE FF).
+                if (h.Elements.Values.All(v => PdfObj.Resolve(v) is not PdfString s || s.Encoding != PdfStringEncoding.Unicode && s.Value.All(c => c <= 0xFF)))
+                    encryptObject = (r.ObjectNumber, r.GenerationNumber, body);
             }
             else encrypt = Encoding.Latin1.GetString(body);
             plain = Plain(orig, h, tail);

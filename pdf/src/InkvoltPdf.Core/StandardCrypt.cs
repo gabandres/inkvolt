@@ -81,6 +81,13 @@ internal sealed class StandardCrypt
             using var aes = Aes.Create();
             aes.Key = intermediate;
             key = aes.DecryptCbc(ue.AsSpan(0, 32), new byte[16], PaddingMode.None);
+            // Algorithm 13: /Perms decrypted with the key holds "adb" at 9-11 (revision 5 files may lack it).
+            if (KeptProtection.RawBytes(h.Elements["/Perms"]) is { Length: >= 16 } perms)
+            {
+                aes.Key = key;
+                if (!aes.DecryptEcb(perms.AsSpan(0, 16), PaddingMode.None).AsSpan(9, 3).SequenceEqual("adb"u8)) return null;
+            }
+            else if (r == 6) return null;
         }
         return new StandardCrypt(key, strings, streams, encryptMetadata);
     }

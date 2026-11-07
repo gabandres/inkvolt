@@ -191,6 +191,8 @@ internal static class PdfObj
     /// <exception cref="SignaturesWouldBreakException">A signed document whose edit can't be appended (see <see cref="SignedEdits"/>).</exception>
     public static byte[] Save(PdfDocument doc, bool rewrite = false, bool bareXmp = false)
     {
+        // Opened with the user password only (UserPasswordEdits): a rewrite would drop the encryption.
+        if (rewrite && Incremental.IsUserPasswordEdit(doc)) throw new OwnerPasswordRequiredException(false);
         var xmp = Xmp.Read(doc);
         if (!rewrite && Incremental.Save(doc, xmp) is { } appended) return appended;
         KeptProtection.Reapply(doc);

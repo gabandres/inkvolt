@@ -152,6 +152,10 @@ public class EncryptedFormFillTests
         Assert.Throws<OwnerPasswordRequiredException>(() => PageEditor.Rotate(fillOnly, null, [0], 90));
         Assert.Throws<OwnerPasswordRequiredException>(() => TextStamps.Put(fillOnly, null, 0, new RectD(10, 10, 50, 20), StampKind.Text, "x", 11));
 
+        // Opened for filling, the document is never written whole (that would drop the encryption).
+        using (var doc = PdfObj.Open(fillOnly, null, PdfDocumentOpenMode.Modify, null, UserEdit.FillForms))
+            Assert.Throws<OwnerPasswordRequiredException>(() => PdfObj.Save(doc, rewrite: true));
+
         // With it, the edit works as before.
         var filled = FormEditor.Fill(noFill, "own", new Dictionary<string, string> { ["name"] = "Owner" }).Data;
         Assert.Equal("Owner", ValueByPdfSharp(filled));
