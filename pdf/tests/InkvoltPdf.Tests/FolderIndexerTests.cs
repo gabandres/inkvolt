@@ -384,6 +384,35 @@ public sealed class FolderIndexerTests : IDisposable
         Assert.Equal(id, second.Index!.Files["doc.pdf"].Id);
     }
 
+    /// <summary>
+    /// After an update that changes the folding (IndexTerms 2 files a long run in pieces), an index of the old one is read again
+    /// by itself, once: the end of a long run is then found; the next start reads nothing.
+    /// </summary>
+    [Fact]
+    public void An_index_of_an_earlier_folding_is_read_again_once_by_itself()
+    {
+        var run = "Kx9" + string.Concat(Enumerable.Range(0, 60).Select(i => (char)('a' + i * 7 % 26))) + "Zq7";
+        Put("doc.pdf", run);
+        using (var first = TakeOwnership(Start())) UpToDate(first, 1);
+        foreach (var file in Directory.GetFiles(Path.GetDirectoryName(Base)!, "folder.*.idx"))
+            FolderIndexTests.WriteFoldingVersion(file, IndexTerms.Version - 1);
+
+        var options = Quick() with { Rescan = TimeSpan.FromMinutes(10) }; // a pass's count of files read stays until the next look
+        long id;
+        using (var second = TakeOwnership(Start(options)))
+        {
+            UpToDate(second, 1);
+            Assert.Equal(1, second.Status.Done);
+            Assert.Single(Search(second, run[^10..]));
+            Assert.Single(Search(second, run.Substring(20, 20)));
+            id = second.Index!.Files["doc.pdf"].Id;
+        }
+        using var third = TakeOwnership(Start(options));
+        UpToDate(third, 1);
+        Assert.Equal(0, third.Status.Done);
+        Assert.Equal(id, third.Index!.Files["doc.pdf"].Id);
+    }
+
     [Fact]
     public void Rebuilding_reads_everything_again_and_gives_skipped_files_another_chance()
     {

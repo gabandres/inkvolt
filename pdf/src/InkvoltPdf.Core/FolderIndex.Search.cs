@@ -77,7 +77,7 @@ public sealed partial class FolderIndex
             foreach (var term in terms.Distinct())
             {
                 var bits = new ulong[(map.Total + 64) / 64];
-                MarkPages(state, map, Encoding.UTF8.GetBytes(term), bits, cancel);
+                MarkPages(state, map, Encoding.UTF8.GetBytes(IndexTerms.Lookup(term)), bits, cancel);
                 if (found is null) found = bits;
                 else
                     for (var i = 0; i < found.Length; i++)
@@ -227,7 +227,7 @@ public sealed partial class FolderIndex
         var ends = new List<int>();
         var next = new List<int>();
         var found = false;
-        IndexTerms.Read(PageText.SearchTextOf(text), word =>
+        IndexTerms.Words(PageText.SearchTextOf(text), word =>
         {
             if (found) return;
             next.Clear();
