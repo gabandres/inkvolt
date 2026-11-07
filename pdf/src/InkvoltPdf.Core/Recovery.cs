@@ -4,9 +4,11 @@ using InkvoltPrint.Core.Suite;
 namespace InkvoltPdf.Core;
 
 /// <summary>What a recovery copy is of: the tab's name, the file it came from (null for a document never saved, such as a
-/// combined or scanned one), that file's size and time when the copy was made, when it was made, and the page in view.</summary>
+/// combined or scanned one), that file's size and time when the copy was made, when it was made, the page in view, and
+/// the document's <see cref="DocumentSession.RepairedLength"/> (0 when it wasn't repaired, or in a description written
+/// before it was kept): the copy is the repaired bytes, sound, so opening it again can't tell they were repaired.</summary>
 public sealed record RecoveryInfo(string DisplayName, string? OriginalPath, long? OriginalLength, DateTime? OriginalWriteTimeUtc,
-    DateTime SavedUtc, int Page);
+    DateTime SavedUtc, int Page, long RepairedLength = 0);
 
 /// <summary>A recovery copy a run left behind: the copy's bytes are in <see cref="PdfPath"/>.</summary>
 public sealed record LeftOverDocument(string PdfPath, RecoveryInfo Info, string Folder);

@@ -1104,6 +1104,9 @@
   <data name="Batch_SignedExportedOnly" xml:space="preserve">
     <value>Firmado: solo se exportó; el PDF se dejó como está para que sus firmas sigan siendo válidas</value>
   </data>
+  <data name="Batch_Repaired" xml:space="preserve">
+    <value>Dañado: se reparó para abrirlo; los resultados se hacen con la copia reparada</value>
+  </data>
   <data name="Batch_DoneNothingSaved" xml:space="preserve">
     <value>Listo (nada que guardar)</value>
     <comment>A file's result in the list</comment>
@@ -2851,6 +2854,9 @@
   <data name="Sign_CertifyMustBeFirst" xml:space="preserve">
     <value>Una firma de certificación debe ser la primera firma del documento: este documento ya está firmado.</value>
   </data>
+  <data name="Sign_CertifyRepaired" xml:space="preserve">
+    <value>Este archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que no se puede certificar ahora. Guárdalo, abre la copia guardada y certifícala.</value>
+  </data>
   <data name="Sign_CertifiedNoChanges" xml:space="preserve">
     <value>Este documento está certificado sin permitir cambios: otra firma invalidaría la certificación.</value>
   </data>
@@ -2940,6 +2946,9 @@
   <data name="Sign_CantRead" xml:space="preserve">
     <value>La firma no se puede leer: {0}</value>
     <comment>{0} = the error message</comment>
+  </data>
+  <data name="Sign_RepairedFile" xml:space="preserve">
+    <value>El archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que esta firma no se puede comprobar con él. Abre el original en el programa con que se firmó para comprobar la firma.</value>
   </data>
   <data name="Sign_RangeDoesntFit" xml:space="preserve">
     <value>El intervalo de bytes de la firma no corresponde al archivo.</value>
@@ -3198,6 +3207,9 @@
   </data>
   <data name="Ltv_Encrypted" xml:space="preserve">
     <value>Los PDF cifrados (protegidos con contraseña) no pueden llevar datos a largo plazo, porque no se les puede anexar una actualización sin romper sus firmas. No se cambió nada.</value>
+  </data>
+  <data name="Ltv_Repaired" xml:space="preserve">
+    <value>El archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que sus firmas no se pueden comprobar ni se les pueden agregar datos a largo plazo. Agrégalos al archivo original. No se cambió nada.</value>
   </data>
   <data name="Ltv_NoValidSignature" xml:space="preserve">
     <value>Ninguna de las firmas de este documento es válida, así que no hay nada para lo que agregar datos a largo plazo. No se cambió nada.</value>
@@ -6724,6 +6736,9 @@
   <data name="Batch_LongTermEncrypted" xml:space="preserve">
     <value>Protegido: no se pueden agregar datos a largo plazo a un PDF cifrado sin romper sus firmas</value>
     <comment>Batch file outcome (skipped)</comment>
+  </data>
+  <data name="Batch_LongTermRepaired" xml:space="preserve">
+    <value>Dañado: se reparó para abrirlo, así que sus firmas no se pueden comprobar y no se agregaron datos a largo plazo</value>
   </data>
   <data name="Batch_LongTermUnsigned" xml:space="preserve">
     <value>Sin firma: no hay datos a largo plazo que agregar</value>

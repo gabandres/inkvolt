@@ -40,7 +40,48 @@ public sealed record FormWidget(
     bool Calculated = false,
     bool Signed = false,
     FormTriggers Triggers = FormTriggers.None,
-    int AnnotIndex = -1);
+    int AnnotIndex = -1)
+{
+    /// <summary>
+    /// What tells this widget apart across reads of the document (<see cref="WidgetKey"/>). Compare widgets by it, never
+    /// with == (which compares every field, the rect exactly).
+    /// </summary>
+    public WidgetKey Key => new(PageIndex, FieldName, ReadingOrder.Hundredths(Rect.X), ReadingOrder.Hundredths(Rect.Y),
+        ReadingOrder.Hundredths(Rect.Width), ReadingOrder.Hundredths(Rect.Height));
+}
+
+/// <summary>
+/// A widget as another read of the document has it: the same field on the same page in the same place, to a hundredth of
+/// a point (<see cref="ReadingOrder.Hundredths"/>). Filling saves the file again, and the numbers it writes back can lose
+/// their last digits (a rect's 106.456001 comes back as 106.456; a page 841.90002 high as 841.9, moving every place
+/// measured from the top).
+/// </summary>
+public readonly record struct WidgetKey(int Page, string Name, long X, long Y, long Width, long Height);
+
+/// <summary>
+/// The natural reading order of things on a page (fields, links): rows a few points high, top to bottom, then left to
+/// right. Coordinates are taken to a hundredth of a point first (<see cref="Hundredths"/>), so a value that lost its last
+/// digits in a save stays in its row (15.00001 and 15 were rows apart: 6-point rows meet at 15).
+/// </summary>
+public static class ReadingOrder
+{
+    /// <summary>
+    /// <paramref name="v"/> in whole hundredths of a point, its edges three quarters of the way between two (at …0075),
+    /// never at a midpoint: a value saved with three decimals or fewer is at least 0.0005 from an edge, far more than a save
+    /// changes it (106.455001 and 106.45499, either side of the midpoint 106.455, rounded to 106.46 and 106.45). Equal
+    /// keys, so a set or dictionary of them finds a widget; a tolerance (|Δ| ≤ 0.01) can't be hashed or chained.
+    /// </summary>
+    public static long Hundredths(double v) => double.IsFinite(v) ? (long)Math.Floor(Math.Clamp(v, -1e12, 1e12) * 100 + 0.25) : 0;
+
+    /// <summary>
+    /// The 6-point band <paramref name="v"/> (a distance from the top, or from the left for columns) is in: bands meet at
+    /// 3, 9, 15… in whole hundredths (<see cref="Hundredths"/>), so their edges are …0075 too, never a midpoint.
+    /// </summary>
+    public static double Band(double v) => Math.Floor((Hundredths(v) + 300) / 600.0);
+
+    /// <summary>The sort key of a rect in reading order: its row, then where it starts.</summary>
+    public static (double Row, double X) Key(RectD r) => (Band(r.Y), Hundredths(r.X));
+}
 
 /// <summary>A value a field's keystroke or validate script refused, and the message it gave (or a generic one).</summary>
 public sealed record FieldRejection(string FieldName, string Message);
@@ -629,8 +670,8 @@ public static partial class FormEditor
             {
                 "S" => group.OrderBy(x => structOrder!.TryGetValue(x.Annot, out var s) ? s : int.MaxValue).ThenBy(x => annotOrder.GetValueOrDefault(x.Annot)),
                 "A" or "W" => group.OrderBy(x => annotOrder.GetValueOrDefault(x.Annot)),
-                "C" => group.OrderBy(x => Math.Round(x.W.Rect.X / 6)).ThenBy(x => x.W.Rect.Y),
-                _ => group.OrderBy(x => Math.Round(x.W.Rect.Y / 6)).ThenBy(x => x.W.Rect.X),
+                "C" => group.OrderBy(x => ReadingOrder.Band(x.W.Rect.X)).ThenBy(x => ReadingOrder.Hundredths(x.W.Rect.Y)),
+                _ => group.OrderBy(x => ReadingOrder.Key(x.W.Rect)),
             };
             ordered.AddRange(items.Select(x => x.W));
         }

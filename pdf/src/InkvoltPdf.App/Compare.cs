@@ -157,7 +157,7 @@ internal static class Comparing
         }
         if (!choice.Saved && !path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
             return await LoadFile(owner, path);
-        return PdfFiles.LoadForImport(owner, path) is { } source
+        return (await PdfFiles.LoadForImportAsync(owner, path)) is { } source
             ? new CompareSide(choice.Saved ? Loc.Format(Strings.Compare_Saved, source.Name) : source.Name, source.Data, source.Password)
             : null;
     }
@@ -211,6 +211,6 @@ internal static class Comparing
                 return null;
             }
         }
-        return PdfFiles.LoadForImport(owner, path) is { } source ? new CompareSide(source.Name, source.Data, source.Password) : null;
+        return (await PdfFiles.LoadForImportAsync(owner, path)) is { } source ? new CompareSide(source.Name, source.Data, source.Password) : null;
     }
 }

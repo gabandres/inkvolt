@@ -1957,6 +1957,9 @@
   <data name="Tab_XfaNote" xml:space="preserve">
     <value>This form uses XFA, which Inkvolt PDF can't fill. What you see may be only a placeholder page; open it in Adobe Acrobat Reader to fill it in.</value>
   </data>
+  <data name="Tab_RepairedNote" xml:space="preserve">
+    <value>This file was damaged, and Inkvolt PDF repaired it to open it. Saving writes the repaired copy; the file on disk stays as it is until you save.</value>
+  </data>
   <data name="Tab_RedactLeaveTip" xml:space="preserve">
     <value>Leave the redaction tool (marks stay until you clear them)</value>
   </data>
@@ -3567,6 +3570,9 @@ Modified {1:g}</value>
   </data>
   <data name="Review_SigUnsupported" xml:space="preserve">
     <value>Not checked: Inkvolt PDF can't verify this kind of signature.</value>
+  </data>
+  <data name="Review_SigRepaired" xml:space="preserve">
+    <value>Not checked: the file was damaged and Inkvolt PDF repaired it to open it.</value>
   </data>
   <data name="Review_SigModified" xml:space="preserve">
     <value>The signature is valid, but the document was modified after signing.</value>

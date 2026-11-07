@@ -23,6 +23,7 @@ public partial class App : Application
         AppLanguage.UseEnglish(); // until the command line is ruled out (below): its output stays English
         TextScale.Start(this); // Windows' Text size, for every window from here on
         if (AppPaths.MovedLegacyData) Log.Write("Data folder carried over from its pre-rename location");
+        Core.DocumentSession.Log = Log.Write;
         // The Pro check reads the key from the file both Inkvolt apps share, then from the settings, in the window and on the command line.
         Core.Pro.Store = new InkvoltPrint.Core.Suite.SharedProStore(new SettingsProStore(), Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
 

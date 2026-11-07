@@ -46,6 +46,11 @@ public enum SignatureStatus
 /// <param name="Detail">Why a signature is invalid or unsupported, or what else to know (an ignored timestamp, disallowed changes).</param>
 /// <param name="CertificationLevel">For a certifying signature, its DocMDP permission (1 no changes, 2 form filling and signing, 3 also comments), else null.</param>
 /// <param name="LongTerm">What the file holds for checking this signature years from now (null for an empty field or one that didn't check out).</param>
+/// <param name="SignedLength">Where the signed bytes end (the revision the signature covers), or -1 when unknown.</param>
+/// <param name="InRepairedFile">
+/// Not checked because the file was damaged and these are its repaired bytes (<see cref="Signatures.Verify"/>):
+/// <see cref="Status"/> is then <see cref="SignatureStatus.Unsupported"/>.
+/// </param>
 public sealed record SignatureInfo(
     string FieldName,
     int PageIndex,
@@ -64,7 +69,9 @@ public sealed record SignatureInfo(
     string? Detail,
     X509Certificate2? Certificate,
     int? CertificationLevel = null,
-    LongTermInfo? LongTerm = null);
+    LongTermInfo? LongTerm = null,
+    long SignedLength = -1,
+    bool InRepairedFile = false);
 
 /// <summary>
 /// Verifies digital signatures on the raw file bytes: /ByteRange digests and CMS signatures
@@ -92,15 +99,35 @@ public static class Signatures
     }
 
     /// <param name="online">Revocation data the person asked for with <see cref="Ltv.CheckOnlineAsync"/>, for this check only.</param>
-    public static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password = null, RevocationSnapshot? online = null) =>
-        [.. Inspect(data, password, online).Select(f => f.Info)];
+    /// <param name="repairedLength">
+    /// The length of the repaired copy these bytes are when the file was damaged (<see cref="DocumentSession.RepairedLength"/>,
+    /// 0 when it wasn't): every check of a document's signatures says it, so a signature made before the repair is never valid.
+    /// </param>
+    public static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password = null, RevocationSnapshot? online = null, long repairedLength = 0) =>
+        [.. Inspect(data, password, online, null, repairedLength).Select(f => f.Info)];
 
     /// <summary>With roots trusted for this check alone, for tests: the generated ones are in no Windows store.</summary>
     internal static IReadOnlyList<SignatureInfo> Verify(byte[] data, string? password, X509Certificate2Collection anchors) =>
         [.. Inspect(data, password, null, anchors).Select(f => f.Info)];
 
-    /// <summary>Everything found checking each signature field, in the file's order.</summary>
-    internal static List<SignatureFacts> Inspect(byte[] data, string? password = null, RevocationSnapshot? online = null, X509Certificate2Collection? anchors = null)
+    /// <summary>
+    /// Everything found checking each signature field, in the file's order. In a damaged file opened as a repaired copy of
+    /// <paramref name="repairedLength"/> bytes, each signature made before the repair (its signed bytes end within the copy,
+    /// or where they end is unknown) is not checked, never valid or intact, since the repair may have changed what its
+    /// bytes mean; one made after (on the repaired copy) is checked as usual.
+    /// </summary>
+    internal static List<SignatureFacts> Inspect(byte[] data, string? password = null, RevocationSnapshot? online = null, X509Certificate2Collection? anchors = null,
+        long repairedLength = 0)
+    {
+        var facts = Check(data, password, online, anchors);
+        if (repairedLength > 0)
+            foreach (var f in facts)
+                if (f.Info.Status != SignatureStatus.Unsigned && f.Info.SignedLength <= repairedLength)
+                    f.Info = f.Info with { Status = SignatureStatus.Unsupported, InRepairedFile = true, LongTerm = null, Detail = PdfStrings.Sign_RepairedFile };
+        return facts;
+    }
+
+    private static List<SignatureFacts> Check(byte[] data, string? password, RevocationSnapshot? online, X509Certificate2Collection? anchors)
     {
         var results = new List<SignatureFacts>();
         PdfDocument? doc = null;
@@ -182,7 +209,7 @@ public static class Signatures
                         info = info with { Status = SignatureStatus.Valid, Detail = info.Detail == AfterSigning ? null : info.Detail };
                         facts.OnlyValidationDataAfter = true;
                     }
-                    facts.Info = info;
+                    facts.Info = info with { SignedLength = signedLength };
                     results.Add(facts);
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
