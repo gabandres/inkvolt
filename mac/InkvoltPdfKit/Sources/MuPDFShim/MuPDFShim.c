@@ -1158,6 +1158,40 @@ int inkv_save_image(void *vctx, inkv_doc *d, int index, float scale, const char 
     return 1;
 }
 
+int inkv_read_page(void *vctx, inkv_doc *d, int index, inkv_cookie *cookie, char *err) {
+    fz_context *ctx = vctx;
+    fz_device *dev = NULL, *guard = NULL;
+    fz_var(dev);
+    fz_var(guard);
+    inkv_begin(ctx, d, cookie);
+    fz_try(ctx) {
+        fz_page *page = inkv_page(ctx, d, index);
+        inkv_check_streams(ctx, d, page, cookie);
+        // A device that does nothing: the interpreter reads every operator, loads every font and picture (a picture's
+        // compressed bytes only), and the guard sees each picture's size; nothing is drawn or decoded.
+        dev = fz_new_device_of_size(ctx, sizeof(fz_device));
+        guard = cookie ? inkv_new_guard(ctx, dev, cookie) : NULL;
+        fz_run_page(ctx, page, guard ? guard : dev, fz_identity, cookie ? &cookie->cookie : NULL);
+        if (guard) fz_close_device(ctx, guard);
+        fz_close_device(ctx, dev);
+        if (inkv_halted(cookie)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's reading was stopped.");
+    }
+    fz_always(ctx) {
+        fz_drop_device(ctx, guard);
+        fz_drop_device(ctx, dev);
+        inkv_end(ctx, d);
+    }
+    fz_catch(ctx) {
+        if (inkv_halted(cookie)) {
+            fz_ignore_error(ctx);
+            return 2;
+        }
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
 /// Runs the page (its own content, or with its annotations and widgets) into a text device, under the cookie's
 /// bounds; throws when the reading was stopped. Throws.
 static void inkv_run_text(fz_context *ctx, inkv_doc *d, fz_page *page, int annotations, fz_device *dev, inkv_cookie *c) {

@@ -107,4 +107,14 @@ struct ImageImportTests {
         #expect(throws: PdfEditError.self) { try ImageImport.imagesToPdf([(Array("not an image".utf8), "notes.txt")]) }
         #expect(throws: PdfEditError.self) { try ImageImport.imagesToPdf([]) }
     }
+
+    /// A Mac addition (hostile-input review): a frame of a multi-frame TIFF sized from the first frame's header can work out
+    /// to more pixels than Int holds, or to infinity; saying it is too large must not stop the app.
+    @Test func aSizeTooLargeForAWholeNumberIsSaidWithoutStopping() {
+        for (w, h) in [(1e30, 5.0), (Double.infinity, 10), (Double.nan, 1), (-1e300, 2), (70_000.4, 80_000.6)] {
+            let e = ImageImport.tooLarge("scan.tif", w, h)
+            #expect(e.message.hasPrefix("\"scan.tif\" is too large"), "\(e.message)")
+        }
+        #expect(ImageImport.tooLarge("a.tif", 70_000.4, 80_000.6).message == "\"a.tif\" is too large (70,000 x 80,001 pixels).")
+    }
 }

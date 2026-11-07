@@ -108,6 +108,11 @@ int inkv_render_rgb_contents(void *ctx, inkv_doc *doc, int page, float scale, fl
 /// the cookie (nothing written); 0: failed.
 int inkv_save_image(void *ctx, inkv_doc *doc, int page, float scale, const char *path, int jpeg, inkv_cookie *cookie, char *err);
 
+/// Reads the page's content, with its annotations, under the cookie's bounds (its streams checked first, then every
+/// operator read through the guard) into a device that draws nothing: no picture is decoded and no pixel made. 1: read
+/// to the end; 2: stopped by the cookie; 0: failed.
+int inkv_read_page(void *ctx, inkv_doc *doc, int page, inkv_cookie *cookie, char *err);
+
 /// The page's text without its annotations: lines and characters (malloc'ed; inkv_free each). 1: read; 2: stopped by
 /// the cookie; 0: failed.
 int inkv_page_chars(void *ctx, inkv_doc *doc, int page, inkv_line **lines, int *line_count, inkv_char **chars,

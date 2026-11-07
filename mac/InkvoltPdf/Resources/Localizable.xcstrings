@@ -14983,6 +14983,17 @@
         }
       }
     },
+    "The redaction check couldn't look at everything: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación de eliminación no pudo revisarlo todo: {0}"
+          }
+        }
+      }
+    },
     "The redaction check couldn't run.": {
       "extractionState": "manual",
       "localizations": {

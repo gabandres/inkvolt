@@ -16,6 +16,9 @@ import Glibc
 /// and every lock taken checks that the file it locked is still the one at the path: one opened just before its last holder
 /// deleted it is a file nobody else will ever open, so a lock on it would keep nobody out while the next watcher made a new
 /// one. That lock is let go and the file at the path opened again.
+///
+/// A lock's path is never followed through a symbolic link, and must be a plain file: a link planted in a watched folder would
+/// otherwise make a file at its target (and delete the link's target's name on release), and a FIFO would block the open.
 public final class FileLock: Sendable {
     #if canImport(Darwin) || canImport(Glibc)
     private typealias Handle = Int32
@@ -43,10 +46,15 @@ public final class FileLock: Sendable {
     static func hold(_ path: String, create: Bool, deleteOnRelease: Bool, opened: (() -> Void)?) throws -> FileLock? {
         #if canImport(Darwin) || canImport(Glibc)
         for _ in 0..<8 {
-            let fd = create ? open(path, O_RDWR | O_CREAT | O_CLOEXEC, 0o644) : open(path, O_RDONLY | O_CLOEXEC)
+            let flags = O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK
+            let fd = create ? open(path, O_RDWR | O_CREAT | flags, 0o644) : open(path, O_RDONLY | flags)
             if fd < 0 {
                 if !create && errno == ENOENT { return nil }
                 throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            guard isPlainFile(fd) else {
+                close(fd)
+                throw POSIXError(notAFile)
             }
             opened?()
             guard flock(fd, LOCK_EX | LOCK_NB) == 0 else {
@@ -74,9 +82,10 @@ public final class FileLock: Sendable {
     /// True while someone holds the lock on `path` (false when there's no file).
     public static func isHeld(_ path: String) -> Bool {
         #if canImport(Darwin) || canImport(Glibc)
-        let fd = open(path, O_RDONLY | O_CLOEXEC)
+        let fd = open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)
         guard fd >= 0 else { return false }
         defer { close(fd) }
+        guard isPlainFile(fd) else { return false }
         guard flock(fd, LOCK_EX | LOCK_NB) == 0 else { return errno == EWOULDBLOCK }
         flock(fd, LOCK_UN)
         return false
@@ -103,6 +112,18 @@ public final class FileLock: Sendable {
     deinit { release() }
 
     #if canImport(Darwin) || canImport(Glibc)
+    /// The open file is a regular file (not a FIFO, device, socket or directory).
+    private static func isPlainFile(_ fd: Int32) -> Bool {
+        var st = stat()
+        return fstat(fd, &st) == 0 && (st.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG)
+    }
+
+    #if canImport(Darwin)
+    private static let notAFile = POSIXErrorCode.EFTYPE
+    #else
+    private static let notAFile = POSIXErrorCode.EINVAL
+    #endif
+
     /// The open file is the one at `path` now (not deleted, not replaced since it was opened).
     private static func same(_ fd: Int32, _ path: String) -> Bool {
         var held = stat(), now = stat()

@@ -210,6 +210,17 @@
         }
       }
     },
+    "\"{0}\" is too large.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"{0}\" es demasiado grande."
+          }
+        }
+      }
+    },
     "\"{0}\" isn't a signature field.": {
       "extractionState": "manual",
       "localizations": {
@@ -1581,6 +1592,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La apariencia de una marca de impresora no está marcada como artefacto."
+          }
+        }
+      }
+    },
+    "A redacted value was too long to look for in the rest of the file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un valor eliminado era demasiado largo para buscarlo en el resto del archivo."
           }
         }
       }
@@ -6634,6 +6656,17 @@
         }
       }
     },
+    "Looking for the redacted values took too long in part of the file, so that part wasn't searched to the end.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar los valores eliminados tardó demasiado en una parte del archivo, así que esa parte no se buscó hasta el final."
+          }
+        }
+      }
+    },
     "Looking for {0} took too long on page {1}.": {
       "extractionState": "manual",
       "localizations": {
@@ -7752,6 +7785,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Solo las notas y las marcas de texto (resaltado, subrayado, tachado) se mueven y cambian de color de esta forma."
+          }
+        }
+      }
+    },
+    "Only the first {0} of {1} redacted values were looked for as written in the rest of the file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se buscaron los primeros {0} de {1} valores eliminados tal como están escritos en el resto del archivo."
           }
         }
       }
@@ -9226,6 +9270,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comprobación de eliminación: {0}"
+          }
+        }
+      }
+    },
+    "Redaction check: {0} Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobación de eliminación: {0} No se guardó nada."
           }
         }
       }
@@ -19284,6 +19339,17 @@
         }
       }
     },
+    "{0} couldn't be read, so it wasn't searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no se pudo leer, así que no se buscó."
+          }
+        }
+      }
+    },
     "{0} couldn't be started.": {
       "extractionState": "manual",
       "localizations": {
@@ -20710,6 +20776,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0}: no hubo que cambiar nada"
+          }
+        }
+      }
+    },
+    "{0}: only its first {1} MB were searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: solo se buscaron sus primeros {1} MB."
           }
         }
       }

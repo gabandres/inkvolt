@@ -460,8 +460,22 @@ struct PageCheckTests {
             // The redaction check, and the values under areas before applying.
             let report = try RedactionCheck.run(file, nil, RedactionCheckOptions(values: ["Visit notes"]))
             #expect(report.notes.contains(note), "\(report.notes)")
+            #expect(report.incomplete)
             #expect(Set(report.findings.map(\.page)).isSuperset(of: [0, 2]))
-            #expect(try RedactionCheck.valuesUnder(engine, [0: [RectD(60, 60, 200, 60)], 1: [RectD(0, 0, 612, 792)]]) == ["Visit notes"])
+            let under = SkippedPages()
+            let areas = [0: [RectD(60, 60, 200, 60)], 1: [RectD(0, 0, 612, 792)]]
+            #expect(try RedactionCheck.valuesUnder(engine, areas, skipped: under) == ["Visit notes"])
+            #expect(under.list == [1])
+
+            // A page a search before the check skipped makes the check incomplete, even on a file it reads whole.
+            let plain = try RedactionCheck.run(Self.threePages(Self.obj("q Q"), ""), nil, RedactionCheckOptions(values: ["Nothing"], skipped: [1]))
+            #expect(plain.incomplete)
+            #expect(plain.notes.contains(note), "\(plain.notes)")
+
+            // Redact by pattern says which pages it didn't search.
+            let redacted = try RedactionPatterns.redact(file, nil, RedactionPatternOptions(patterns: [], phrases: ["Visit notes"]))
+            #expect(Set(redacted.matches.map(\.page)) == [0, 2])
+            #expect(redacted.skipped == [1])
 
             // Prepare Form.
             let looked = SkippedPages()
@@ -669,5 +683,26 @@ struct PageCheckTests {
         #expect(FileManager.default.fileExists(atPath: output + "/visit - page 3.png"))
         #expect(summary.items.first?.notes == [loc("Page {0} couldn't be read", CoreLanguage.number(2))])
         #expect(((try? FileManager.default.contentsOfDirectory(atPath: output)) ?? []).allSatisfy { !$0.hasSuffix(".tmp") })
+    }
+
+    @Test func BatchsRedactPatternsFailsAFileWithAPageItCouldntSearch() async throws {
+        // The 7 KB bomb's second page draws "Visit notes" too, and is refused: Redact Patterns can't search it, so the
+        // file fails and nothing is saved (Windows' Incomplete); Check Redaction alone can't read it either, and fails it.
+        let dir = NSTemporaryDirectory() + "inkvolt-check-redact-\(NewIds.hex().prefix(8))"
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        let file = dir + "/visit.pdf"
+        try Data(Self.bomb("7 KB")).write(to: URL(fileURLWithPath: file))
+        let redact = BatchStep.redactPatterns(RedactionPatternOptions(patterns: [], phrases: ["Visit notes"]))
+        for steps in [[redact, .checkRedaction], [redact], [.checkRedaction]] {
+            let output = dir + "/out\(steps.count)\(steps[0].title.count)"
+            let summary = try await PdfEngine.$budgetForTests.withValue(Self.limit) {
+                try await BatchRunner.run([BatchFile(file)], BatchPlan(steps: steps, outputFolder: output), BatchHost())
+            }
+            let item = try #require(summary.items.first)
+            #expect(item.state == .failed, "\(steps.map(\.title)): \(item.message)")
+            #expect(item.message.contains("Pages that couldn't be read were skipped: 2."), "\(item.message)")
+            #expect(!FileManager.default.fileExists(atPath: output + "/visit.pdf"))
+        }
     }
 }

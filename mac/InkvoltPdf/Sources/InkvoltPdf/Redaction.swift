@@ -263,7 +263,9 @@ extension DocumentWindowController {
         let pageList = Array(areas.keys).sorted()
         // What is about to be redacted, for the check afterwards: the text under the marks, the document as it is.
         let before = session.data
-        let values = check ? ((try? RedactionCheck.valuesUnder(engine, areasNow)) ?? []) : []
+        // A page under a mark the engine refused gave no values: the check afterwards says it is incomplete.
+        let unread = SkippedPages()
+        let values = check ? ((try? RedactionCheck.valuesUnder(engine, areasNow, skipped: unread)) ?? []) : []
         let sheet = ProgressSheet(title: loc("Applying redactions"), text: loc("Blacking out the marked areas…"))
         progressSheet = sheet
         sheet.begin(on: window)
@@ -304,7 +306,7 @@ extension DocumentWindowController {
         } else {
             notify(loc("Redacted {0} on {1}. Save to keep it.", Self.areaPhrase(marks.count), Self.pagePhrase(pageList.count)), canUndo: true)
         }
-        if check { checkAfterApply(RedactionCheckOptions(values: values, areas: areasNow, original: before)) }
+        if check { checkAfterApply(RedactionCheckOptions(values: values, areas: areasNow, original: before, skipped: unread.list)) }
         return true
     }
 
@@ -318,7 +320,9 @@ extension DocumentWindowController {
             defer { self.redaction.task = nil }
             guard let report = result, self.pdf.session?.data == data else { return }
             self.redaction.lastReport = report
-            if report.isClean {
+            if report.isClean && report.incomplete {
+                self.notify(loc("The redaction check couldn't look at everything: {0}", report.notes.joined(separator: " ")))
+            } else if report.isClean {
                 self.notify(loc("Redaction checked: nothing of what was redacted is left in the file."))
             } else {
                 self.showCheckReport(report, options)
@@ -332,7 +336,10 @@ extension DocumentWindowController {
     @objc func checkRedaction(_ sender: Any?) {
         startLongTask {
             guard let report = await self.runCheck(RedactionCheckOptions()) else { return }
-            if report.isClean {
+            if report.isClean && report.incomplete {
+                // Not "nothing was found": what it couldn't look at is said (the pages it skipped by number), as after Apply.
+                self.inform(loc("Redaction check"), loc("The redaction check couldn't look at everything: {0}", report.notes.joined(separator: " ")))
+            } else if report.isClean {
                 self.inform(loc("Redaction check"),
                             loc("Nothing recoverable was found: no text under boxes, highlights or redaction marks, no pictures under dark boxes, no text that doesn't show, and no earlier versions with text the pages no longer show.")
                                 + report.notes.map { "\n\n" + $0 }.joined())

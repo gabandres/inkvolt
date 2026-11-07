@@ -138,6 +138,16 @@ struct SuiteTests {
         #expect(SuitePrinters.parse(huge) == .empty)
     }
 
+    @Test func A_hand_off_nested_too_deep_reads_as_empty() {
+        // Within maxBytes, deep enough to run JSONSerialization out of stack: refused before it reads (`JsonNesting`).
+        let deep = String(repeating: "[", count: 200_000) + String(repeating: "]", count: 200_000)
+        #expect(SuitePrinters.parse(Data("{ \"printers\": [], \"pad\": \(deep) }".utf8)) == .empty)
+        let nested = String(repeating: "{\"a\":", count: JsonNesting.limit) + "1" + String(repeating: "}", count: JsonNesting.limit)
+        #expect(SuitePrinters.parse(Data("{ \"printers\": [], \"pad\": \(nested) }".utf8)) == .empty)
+        let fine = "{ \"printers\": [ { \"id\": \"\(Self.uuid)\", \"host\": \"192.0.2.10\" } ], \"pad\": [[[[1]]]] }"
+        #expect(SuitePrinters.parse(Data(fine.utf8)).printers.map(\.id) == [Self.uuid])
+    }
+
     // MARK: The queue behind a printer
 
     private static func queue(_ name: String, _ uri: String) -> CupsDestination {

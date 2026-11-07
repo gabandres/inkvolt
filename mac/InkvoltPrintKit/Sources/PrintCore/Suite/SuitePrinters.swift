@@ -91,7 +91,7 @@ public struct SuitePrinters: Equatable, Sendable {
     }
 
     public static func parse(_ data: Data) -> SuitePrinters {
-        guard data.count <= maxBytes, let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+        guard data.count <= maxBytes, JsonNesting.isSafe(data), let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let list = root["printers"] as? [Any] else { return .empty }
         var out: [SuitePrinter] = []
         for item in list {

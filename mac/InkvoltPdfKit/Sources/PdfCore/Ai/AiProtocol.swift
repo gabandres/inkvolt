@@ -19,38 +19,6 @@ public struct AiMessage: Sendable, Equatable {
     public static func assistant(_ content: String) -> AiMessage { AiMessage(role: "assistant", content: content) }
 }
 
-/// JSONSerialization recurses without a limit: a few kilobytes of {"a":{"a":... from a server or a preset file would run the
-/// thread out of stack and stop the app. So it reads only what nests within the depth Windows' System.Text.Json allows by
-/// default; no answer or preset nests anywhere near it.
-enum JsonNesting {
-    static let limit = 64
-
-    static func isSafe(_ json: Data) -> Bool {
-        var depth = 0
-        var inString = false
-        var escaped = false
-        for b in json {
-            if inString {
-                if escaped {
-                    escaped = false
-                } else if b == 0x5C {
-                    escaped = true
-                } else if b == 0x22 {
-                    inString = false
-                }
-            } else if b == 0x22 {
-                inString = true
-            } else if b == 0x5B || b == 0x7B {
-                depth += 1
-                if depth > limit { return false }
-            } else if b == 0x5D || b == 0x7D {
-                depth -= 1
-            }
-        }
-        return true
-    }
-}
-
 /// A failure talking to the AI endpoint, with a message meant for the user.
 public struct AiError: Error, Sendable, Equatable {
     public let message: String

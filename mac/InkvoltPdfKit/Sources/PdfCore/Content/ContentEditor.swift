@@ -443,6 +443,12 @@ public enum ContentEditor {
 
     static func contentBytes(_ page: PObj) -> [UInt8] { streams(page).bytes }
 
+    /// The page's content read as one, and whether part of it holds data but decodes to nothing (a damaged filter).
+    static func content(_ page: PObj) -> (bytes: [UInt8], unreadable: Bool) {
+        let s = streams(page)
+        return (s.bytes, s.parts.contains(where: \.unreadable))
+    }
+
     private static func streams(_ page: PObj) -> PageStreams {
         var parts: [ContentPart] = []
         var all: [UInt8] = []

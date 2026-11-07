@@ -29,7 +29,9 @@ extension DocumentWindowController {
         }
         // The layers chosen in the Layers pane print as they show (E9), as on Windows: the copy is made from the bytes
         // the layer engine draws, made again here rather than kept beside the document's.
-        let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layerEngine == nil ? [:] : layerVisibility)
+        let layers = layerEngine == nil ? [:] : layerVisibility
+        let rated = (0..<printed.pageCount).map { printed.verdictOf($0) }
+        let source = PrintSheetView.Source(data: session.data, password: session.password, layers: layers, rated: rated)
         let shown = PrintSheetView.shownSizes(printed)
         let sheet = ProgressSheet(title: loc("Print"), text: loc("Getting the pages ready for the printer…"))
         let token = sheet.token
@@ -161,11 +163,13 @@ private final class PrintCopyBytes: @unchecked Sendable {
 /// many there are and draws each one in its rectangle.
 final class PrintSheetView: NSView {
     /// What the print copy is made from: the document's bytes and password, and the layers the Layers pane shows
-    /// differently (by object number; empty: the document's own), so the copy has the bytes `engine` draws.
+    /// differently (by object number; empty: the document's own), so the copy has the bytes `engine` draws; and what
+    /// `engine` found reading each page so far (a page it read within its bounds isn't read again for the copy).
     struct Source: Sendable {
         var data: [UInt8]
         var password: String?
         var layers: [Int: Bool]
+        var rated: [PageVerdict] = []
     }
 
     /// The print copy as Core Graphics opened it (nil when no page prints as vectors), and how each page prints.
@@ -281,8 +285,9 @@ final class PrintSheetView: NSView {
         NSRect(x: box.x, y: Double(top) + box.y, width: box.width, height: box.height)
     }
 
-    /// The print copy for a job (off the main thread, before it starts): the core's `PrintCopy` of `source`, opened by
-    /// Core Graphics (MuPDF's rewrite of it when it can't open the document's own bytes), each page checked against
+    /// The print copy for a job (off the main thread, before it starts): the core's `PrintCopy` of `source` (MuPDF's
+    /// rewrite, each vector page the view engine hasn't read within its bounds read through the bounded engine first,
+    /// without drawing), opened by Core Graphics, each page checked against
     /// how Core Graphics reads its box and turn. Nil when cancelled, or when it couldn't be made or read (every page
     /// prints as a picture).
     nonisolated static func prepare(_ source: Source, shown: [(Double, Double)], cancel: CancelToken?) -> Prepared? {
@@ -292,13 +297,10 @@ final class PrintSheetView: NSView {
                 let layered = try Layers.withVisibility(bytes, password, source.layers)
                 if layered != bytes { (bytes, password) = (layered, nil) } // written decrypted
             }
-            var made = try PrintCopy.make(bytes, password, shown: shown, cancel: cancel)
+            // The layered copy's bytes go to the copy (let go of once it is written), not held here as well.
+            let made = try PrintCopy.make(consume bytes, password, shown: shown, rated: source.rated, cancel: cancel)
             guard made.hasVectors else { return Prepared(document: nil, pages: made.pages) }
-            var document = open(made.data)
-            if document == nil && !made.rewritten {
-                made = try made.rewrittenByMuPDF()
-                document = open(made.data)
-            }
+            let document = open(made.data)
             if cancel?.isCancelled == true { return nil }
             guard let document, document.numberOfPages == shown.count else {
                 NSLog("Inkvolt PDF printing: Core Graphics couldn't read the print copy; pages print as pictures")
@@ -397,8 +399,18 @@ final class PrintSheetView: NSView {
         var scale: Double = drawnW / source.width * dpi / 72
         let pixels: Double = source.width * source.height * scale * scale
         if pixels > 40_000_000 { scale *= (40_000_000 / pixels).squareRoot() }
-        guard let rendered = try? engine.render(placed.page, scale: scale, region: placed.source),
-              let image = PageRenderer.cgImage(rendered) else { return }
+        let rendered: RenderedImage
+        do {
+            rendered = try engine.render(placed.page, scale: scale, region: placed.source)
+        } catch let refused as PageRefused {
+            // The engine won't draw it (a bomb, a picture too large): the sheet says why, as the screen does, not blank.
+            if !screen, !picturesOnly { pictureReasons[placed.page] = refused.message } // as `draw`: none when all are pictures
+            drawRefusal(refused.message, rect(placed.box, top))
+            return
+        } catch {
+            return
+        }
+        guard let image = PageRenderer.cgImage(rendered) else { return }
         let box = rect(placed.box, top)
         cg.saveGState()
         cg.translateBy(x: box.midX, y: box.midY)
@@ -407,6 +419,30 @@ final class PrintSheetView: NSView {
         cg.interpolationQuality = .high
         cg.draw(image, in: CGRect(x: -drawnW / 2, y: -drawnH / 2, width: drawnW, height: drawnH))
         cg.restoreGState()
+    }
+}
+
+extension PrintSheetView {
+    /// A page the engine refused, in its box: the reason, centered, in gray, and a thin frame (a poster tile shows it too).
+    func drawRefusal(_ message: String, _ box: NSRect) {
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSBezierPath(rect: box).addClip()
+        NSColor.gray.setStroke()
+        let frame = NSBezierPath(rect: box.insetBy(dx: 0.5, dy: 0.5))
+        frame.lineWidth = 0.5
+        frame.stroke()
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let size: CGFloat = max(6, min(12, box.width / 30))
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: size), .foregroundColor: NSColor.darkGray,
+                                                          .paragraphStyle: style]
+        let text = NSAttributedString(string: message, attributes: attributes)
+        let inset = box.insetBy(dx: min(36, box.width / 10), dy: 0)
+        let height = text.boundingRect(with: NSSize(width: inset.width, height: .greatestFiniteMagnitude),
+                                       options: [.usesLineFragmentOrigin]).height
+        let place = NSRect(x: inset.minX, y: inset.midY - height / 2, width: inset.width, height: height)
+        text.draw(with: place, options: [.usesLineFragmentOrigin])
     }
 }
 
