@@ -350,6 +350,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     }
 
     private func layoutPages() {
+        readAhead.reset()
         let n = engine.pageCount
         let sizes = (0..<n).map { i -> (width: Double, height: Double) in
             let g = engine.page(i)
@@ -917,18 +918,20 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         wantedTiles = tiles
         renderer.keepTiles(Set(tiles))
-        // A page asked ahead, after those shown, the way the view last moved (roadmap 3.6, as Windows asks for the next
-        // pages): a drawing set's sheet takes a few hundred milliseconds, so the next is ready as it scrolls in.
-        let up = lastVisible.map { range.lowerBound < $0.lowerBound } ?? false
-        lastVisible = range
-        let ahead = up ? range.lowerBound - 1 : range.upperBound + 1
-        if readingMode != .single, pageRects.indices.contains(ahead) { renderer.request(ahead, scale: renderScale(for: ahead)) }
+        // A page drawn ahead of those shown, the way the view last moved (ReadAhead): not in Single Page (no other page has
+        // a place), nor zoomed into tiles (the next page's tiles aren't known, and a whole page at that zoom is too large).
+        let ahead = readAhead.page(after: range, of: pageRects.count)
+        if readingMode != .single, tiles.isEmpty, let ahead {
+            renderer.requestAhead(ahead, scale: renderScale(for: ahead))
+        } else {
+            renderer.requestAhead(nil, scale: 0)
+        }
         let lo = max(range.lowerBound - 1, 0), hi = min(range.upperBound + 1, max(pageRects.count - 1, 0))
         renderer.keep(lo...hi)
     }
 
-    /// The pages last shown, to tell which way the view moves.
-    private var lastVisible: ClosedRange<Int>?
+    /// Which way the view moves, for the page drawn ahead; forgotten when the pages are laid out again.
+    private var readAhead = ReadAhead()
 
     // MARK: Links
 
