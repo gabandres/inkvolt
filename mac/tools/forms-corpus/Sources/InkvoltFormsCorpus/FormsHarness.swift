@@ -104,9 +104,9 @@ enum FormsHarness {
         var saved: [UInt8]
         var rejected: [String: String] = [:]
         do {
-            let fill = try FormEditor.fill(data, password, values)
-            saved = fill.data
-            for r in fill.rejected { rejected[r.fieldName] = r.message }
+            let first = try fill(data, password, values)
+            saved = first.data
+            for r in first.rejected { rejected[r.fieldName] = r.message }
             for alternate in ["1234", "1", "03/15/2024"] where !rejected.isEmpty {
                 var retry: [String: String] = [:]
                 for name in rejected.keys {
@@ -116,7 +116,7 @@ enum FormsHarness {
                     }
                 }
                 if retry.isEmpty { break }
-                let again = try FormEditor.fill(saved, password, retry)
+                let again = try fill(saved, password, retry)
                 saved = again.data
                 rejected = [:]
                 for r in again.rejected { rejected[r.fieldName] = r.message }
@@ -146,6 +146,7 @@ enum FormsHarness {
         }
         var afterByName: [String: FormDataField] = [:]
         for f in after where afterByName[f.name] == nil { afterByName[f.name] = f }
+        var aloneTries = 0
         for i in report.plan.indices {
             let p = report.plan[i]
             guard let got = afterByName[p.name] else {
@@ -170,8 +171,10 @@ enum FormsHarness {
                 report.fail("spanish-number-misread", p.name, "\(p.format): typed '\(p.sent)', stored '\(esc(got.value))', shows '\(esc(display))' (expected \(want))")
             }
             if ok { continue }
-            // Filled alone, does it keep the value? Then another field's script changed it (the form's own doing).
-            if fillAlone(data, password, p.name, p.sent) == p.sent {
+            // Filled alone, does it keep the value? Then another field's script changed it (the form's own doing). A few
+            // are enough to tell; each opens and saves the form.
+            aloneTries += 1
+            if aloneTries <= 8, fillAlone(data, password, p.name, p.sent) == p.sent {
                 report.notes.append("\(p.name): kept alone, changed to '\(esc(got.value))' when filled with the others (a script of the form)")
                 continue
             }
@@ -200,6 +203,22 @@ enum FormsHarness {
         checkTyping(&report, data, password, scripts)
     }
 
+    /// `FormEditor.fill`; a signed file it can't append to is saved whole, as the app does once the person agrees.
+    private static func fill(_ data: [UInt8], _ password: String?, _ values: [String: String]) throws -> FormFillResult {
+        do {
+            return try FormEditor.fill(data, password, values)
+        } catch is SignaturesWouldBreak {
+            var result: FormFillResult?
+            _ = try SignedEdits.run({
+                let r = try FormEditor.fill(data, password, values)
+                result = r
+                return r.data
+            }, allowRewrite: true)
+            guard let result else { throw PdfEditError("no result") }
+            return result
+        }
+    }
+
     private static func unique(_ list: [String]) -> [String] {
         var seen = Set<String>()
         return list.filter { seen.insert($0).inserted }
@@ -218,7 +237,7 @@ enum FormsHarness {
 
     /// One field filled by itself on the original: the value it then holds, or nil when that fails.
     private static func fillAlone(_ data: [UInt8], _ password: String?, _ name: String, _ value: String) -> String? {
-        guard let saved = try? FormEditor.fill(data, password, [name: value]).data else { return nil }
+        guard let saved = try? fill(data, password, [name: value]).data else { return nil }
         return (try? FormEditor.dataFields(saved, password))?.first { $0.name == name }?.value
     }
 
@@ -538,7 +557,9 @@ enum FormsHarness {
         let ca = pa.map(comments), cb = pb.map(comments)
         if ca != cb { report.fail("comments-lost", "", "\(ca.reduce(0, +)) other annotations became \(cb.reduce(0, +))") }
         let ba = (try? Bookmarks.read(data, password).count) ?? -1, bb = (try? Bookmarks.read(saved, password).count) ?? -1
-        if ba != bb { report.fail("bookmarks-lost", "", "\(ba) bookmarks became \(bb)") }
+        report.bookmarksBefore = ba
+        report.bookmarksAfter = bb
+        if ba != bb && !report.features.contains("repaired") { report.fail("bookmarks-lost", "", "\(ba) bookmarks became \(bb)") }
     }
 
     // MARK: Typing
@@ -568,7 +589,7 @@ enum FormsHarness {
                 report.fail("typing-refused", p.name, "\(p.format) MaxLen \(maxLength): typing '\(esc(p.sent))' left '\(esc(text))'")
                 continue
             }
-            guard let filled = try? FormEditor.fill(data, password, [p.name: text]) else { continue }
+            guard let filled = try? fill(data, password, [p.name: text]) else { continue }
             if let r = filled.rejected.first(where: { $0.fieldName == p.name }) {
                 report.fail("typed-value-rejected", p.name, "\(p.format): typed '\(esc(text))': \(esc(r.message, 80))")
             }

@@ -1,5 +1,38 @@
 import Foundation
 
+/// A keyword in a whole file's bytes, without going through a generic collection byte by byte: `DataProtocol.firstRange`
+/// spent a quarter of a form fill on a 575 KB file looking for /ByteRange.
+enum PdfBytes {
+    /// Where `key` first is at or after `from`, before `to`.
+    static func first(_ key: [UInt8], in data: [UInt8], from: Int = 0, to: Int? = nil) -> Int? {
+        let end = min(to ?? data.count, data.count)
+        guard from >= 0, from < end, !key.isEmpty else { return nil }
+        return data.withUnsafeBytes { all -> Int? in
+            key.withUnsafeBytes { k -> Int? in
+                guard let base = all.baseAddress, let found = memmem(base + from, end - from, k.baseAddress, key.count) else { return nil }
+                return base.distance(to: UnsafeRawPointer(found))
+            }
+        }
+    }
+
+    /// Where `key` last starts before `end`.
+    static func last(_ key: [UInt8], in data: [UInt8], before end: Int) -> Int? {
+        guard !key.isEmpty, end >= key.count else { return nil }
+        return data.withUnsafeBufferPointer { b -> Int? in
+            var i = min(end, b.count) - key.count
+            while i >= 0 {
+                if b[i] == key[0] {
+                    var k = 1
+                    while k < key.count && b[i + k] == key[k] { k += 1 }
+                    if k == key.count { return i }
+                }
+                i -= 1
+            }
+            return nil
+        }
+    }
+}
+
 /// A file an editor saved over a longer copy of itself without cutting it to its new length keeps the old file's last bytes
 /// after its own %%EOF: an old object's end, rows of the old xref table, the old trailer, and a startxref that now points
 /// into the middle of the new file (the Windows app's `StaleTail`). MuPDF repairs such a file as it opens it, and the last
@@ -16,10 +49,14 @@ enum StaleTail {
 
     private static let maxXrefDictBytes = 64 * 1024
 
-    /// The bytes a document opens with: the file as it is, or without a stale tail when what remains opens soundly. A
-    /// signed file keeps its bytes (`PdfEdit.open` reads it up to its last valid revision and appends after all of it).
+    private static let startxref = Array("startxref".utf8), eof = Array("%%EOF".utf8), xref = Array("xref".utf8)
+    private static let objKey = Array("obj".utf8), stream = Array("stream".utf8), xrefType = Array("/XRef".utf8)
+    private static let byteRange = Array("/ByteRange".utf8)
+
+    /// The bytes a document opens with: the file as it is, or without a stale tail when what remains opens soundly and
+    /// no signature covers what is dropped.
     static func normalized(_ data: [UInt8]) -> [UInt8] {
-        guard let cut = cut(data), !SignedEdits.looksSigned(data), let doc = try? MuDoc.open(cut), doc.canAppend,
+        guard let cut = cut(data), signedEnd(data) <= cut.count, let doc = try? MuDoc.open(cut), doc.canAppend,
               doc.needsPassword || ((try? doc.pageCount()) ?? 0) > 0 else { return data }
         return cut
     }
@@ -27,34 +64,85 @@ enum StaleTail {
     /// The file up to the end of the last %%EOF whose startxref points at a cross-reference section, or nil when the last
     /// startxref already does, none does, or the bytes after that %%EOF start as a real (if broken) update would.
     static func cut(_ data: [UInt8]) -> [UInt8]? {
-        let key = Array("startxref".utf8), eof = Array("%%EOF".utf8)
         var end = data.count
         var last = true
         var budget = maxScanBytes
         var candidates = 0
         while candidates < maxCandidates && budget > 0 && end > 0 {
             candidates += 1
-            guard let r = data[..<end].lastRange(of: key) else { return nil }
-            end = r.lowerBound
-            guard let (at, after) = startXref(data, r.upperBound) else {
+            guard let at = PdfBytes.last(startxref, in: data, before: end) else { return nil }
+            end = at
+            guard let (offset, after) = startXref(data, at + startxref.count) else {
                 last = false
                 continue
             }
             let window = min(budget, maxXrefDictBytes)
             budget -= window
-            if !isXref(data, at, window) {
+            if !isXref(data, offset, window) {
                 last = false
                 continue
             }
             if last { return nil }
-            guard let found = data[after...].firstRange(of: eof) else { return nil }
-            var cut = found.upperBound
+            guard let found = PdfBytes.first(eof, in: data, from: after) else { return nil }
+            var cut = found + eof.count
             if cut < data.count && data[cut] == 13 { cut += 1 }
             if cut < data.count && data[cut] == 10 { cut += 1 }
             if cut >= data.count || startsAsUpdate(data, cut) { return nil }
             return Array(data[..<cut])
         }
         return nil
+    }
+
+    /// Whether the bytes from `from` on hold an object header (a revision, whole or broken, not just junk).
+    static func holdsObjects(_ data: [UInt8], from: Int) -> Bool {
+        var at = from
+        while let found = PdfBytes.first(objKey, in: data, from: at) {
+            // "n g obj": whitespace and digits just before the keyword (the "obj" of "endobj" has none).
+            var i = found
+            var numbers = 0
+            while numbers < 2 && i > from {
+                let spaces = i
+                while i > from && isWhite(data[i - 1]) { i -= 1 }
+                if i == spaces { break }
+                let digits = i
+                while i > from && data[i - 1] >= 48 && data[i - 1] <= 57 { i -= 1 }
+                if i == digits { break }
+                numbers += 1
+            }
+            if numbers == 2 { return true }
+            at = found + objKey.count
+        }
+        return false
+    }
+
+    /// Where the bytes the file's signatures cover end: the largest end of any /ByteRange in it, 0 without one.
+    static func signedEnd(_ data: [UInt8]) -> Int {
+        var end = 0
+        var at = 0
+        while let found = PdfBytes.first(byteRange, in: data, from: at) {
+            at = found + byteRange.count
+            var i = at
+            let limit = min(data.count, i + 128)
+            var numbers: [Int] = []
+            while i < limit && numbers.count < 4 {
+                let c = data[i]
+                if c >= 48 && c <= 57 {
+                    var v = 0, n = 0
+                    while i < limit && data[i] >= 48 && data[i] <= 57 && n < 15 {
+                        v = v * 10 + Int(data[i] - 48)
+                        i += 1
+                        n += 1
+                    }
+                    numbers.append(v)
+                } else if isWhite(c) || c == UInt8(ascii: "[") {
+                    i += 1
+                } else {
+                    break
+                }
+            }
+            if numbers.count == 4 { end = max(end, numbers[2] + numbers[3]) }
+        }
+        return end
     }
 
     private static func isWhite(_ b: UInt8) -> Bool { b == 32 || b == 9 || b == 10 || b == 13 || b == 12 || b == 0 }
@@ -83,8 +171,13 @@ enum StaleTail {
             while i < limit && isWhite(data[i]) { i += 1 }
             if i == spaces { return nil }
         }
-        guard i + 3 <= limit, Array(data[i..<i + 3]) == Array("obj".utf8) else { return nil }
-        return i + 3
+        return starts(data, objKey, i, limit) ? i + objKey.count : nil
+    }
+
+    private static func starts(_ data: [UInt8], _ key: [UInt8], _ at: Int, _ limit: Int) -> Bool {
+        guard at + key.count <= limit else { return false }
+        for k in key.indices where data[at + k] != key[k] { return false }
+        return true
     }
 
     /// A cross-reference table or stream at the offset.
@@ -92,9 +185,9 @@ enum StaleTail {
         let limit = min(data.count, at + maxBytes)
         var i = at
         while i < limit && isWhite(data[i]) { i += 1 }
-        if i + 4 <= limit && Array(data[i..<i + 4]) == Array("xref".utf8) { return true }
-        guard let dict = objectHeader(data, i, limit), let stream = data[dict..<limit].firstRange(of: Array("stream".utf8)) else { return false }
-        return data[dict..<stream.lowerBound].firstRange(of: Array("/XRef".utf8)) != nil
+        if starts(data, xref, i, limit) { return true }
+        guard let dict = objectHeader(data, i, limit), let body = PdfBytes.first(stream, in: data, from: dict, to: limit) else { return false }
+        return PdfBytes.first(xrefType, in: data, from: dict, to: body) != nil
     }
 
     /// A real update starts with an object or a table; a stale tail starts anywhere.
@@ -102,7 +195,6 @@ enum StaleTail {
         var i = from
         while i < data.count && isWhite(data[i]) { i += 1 }
         let limit = min(data.count, i + 64)
-        if i + 4 <= limit && Array(data[i..<i + 4]) == Array("xref".utf8) { return true }
-        return objectHeader(data, i, limit) != nil
+        return starts(data, xref, i, limit) || objectHeader(data, i, limit) != nil
     }
 }

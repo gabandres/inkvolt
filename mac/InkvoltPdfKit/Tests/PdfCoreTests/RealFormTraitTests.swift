@@ -283,8 +283,13 @@ struct RealFormTraitTests {
         let saved = try FormEditor.fill(data, nil, ["f": "123456789"]).data
         let d = try Core2Pdf.open(saved)
         let face = try #require(d.page(0).array("Annots")?.elements.first?.dict("AP")?["N"]?.streamData)
-        let shown = latin1(face).components(separatedBy: "Tj").compactMap { $0.split(separator: "(").last?.first }
-        #expect(String(shown) == "123456789")
+        let text = latin1(face)
+        let cells = try NSRegularExpression(pattern: #"\((.)\) Tj"#).matches(in: text, range: NSRange(text.startIndex..., in: text))
+        let digits: [String] = cells.compactMap { cell in
+            guard let r = Range(cell.range(at: 1), in: text) else { return nil }
+            return String(text[r])
+        }
+        #expect(digits.joined() == "123456789")
         #expect(try FormEditor.read(saved, nil).first?.displayValue == "123-45-6789")
     }
 

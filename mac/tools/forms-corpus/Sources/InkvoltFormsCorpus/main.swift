@@ -35,6 +35,16 @@ func one() -> Int32 {
     return 0
 }
 
+/// `probe <file.pdf>`: how MuPDF reads a file's trailer, catalog and bookmarks, for a failure the summary doesn't explain.
+func probe() -> Int32 {
+    guard arguments.count >= 2, let data = readBytes(arguments[1]), let doc = try? PdfEdit.openToRead(data, nil) else { return 2 }
+    let catalog = doc.catalog
+    print("appendable \(doc.canAppend), objects \(doc.objectCount), trailer \(doc.trailer.keys), catalog \(catalog.isRef ? catalog.num : -1) \(catalog.keys)")
+    print("outlines \(catalog.dict("Outlines")?.keys ?? []), first \(catalog.dict("Outlines")?.dict("First")?.keys ?? []), bookmarks \((try? Bookmarks.read(data, nil).count) ?? -1)")
+    print("widgets \((try? FormEditor.read(data, nil).count) ?? -1), struct tree \(catalog.dict("StructTreeRoot")?.keys ?? [])")
+    return 0
+}
+
 func synth() -> Int32 {
     guard arguments.count >= 2 else { return 2 }
     try? FileManager.default.createDirectory(atPath: arguments[1], withIntermediateDirectories: true)
@@ -141,9 +151,14 @@ func run() -> Int32 {
     let sound = Dictionary(reports.filter { !$0.name.contains("~") }.map { ($0.name, $0) }, uniquingKeysWith: { a, _ in a })
     for i in reports.indices {
         let parts = reports[i].name.split(separator: "~")
-        guard parts.count == 2, let base = sound[String(parts[0])], reports[i].fields != base.fields || reports[i].widgets != base.widgets else { continue }
-        reports[i].fail("damage-lost-fields", "", "\(base.fields) fields, \(base.widgets) widgets became \(reports[i].fields), \(reports[i].widgets)")
-        reports[i].status = "fail"
+        guard parts.count == 2, let base = sound[String(parts[0])] else { continue }
+        if reports[i].fields != base.fields || reports[i].widgets != base.widgets {
+            reports[i].fail("damage-lost-fields", "", "\(base.fields) fields, \(base.widgets) widgets became \(reports[i].fields), \(reports[i].widgets)")
+        }
+        if reports[i].bookmarksAfter != base.bookmarksBefore {
+            reports[i].fail("damage-lost-bookmarks", "", "\(base.bookmarksBefore) bookmarks became \(reports[i].bookmarksAfter)")
+        }
+        if !reports[i].failures.isEmpty { reports[i].status = "fail" }
     }
 
     // pdf.js over the originals and the filled files, unless there is no Node or pdf.js here.
@@ -160,7 +175,10 @@ func run() -> Int32 {
         }
         let listings = PdfJs.read(node: node, script: script, files: files, jobs: jobs)
         for i in reports.indices where reports[i].skip != "not downloaded" && reports[i].skip != "source changed" {
-            PdfJs.compare(&reports[i], original: paths[reports[i].name].flatMap { listings[$0] }, filled: listings[filled(reports[i].name)])
+            // A damaged copy's original is pdf.js's own repair, not the form: its fields were compared with the sound copy's above.
+            let damaged = reports[i].name.contains("~")
+            let original = damaged ? nil : paths[reports[i].name].flatMap { listings[$0] }
+            PdfJs.compare(&reports[i], original: original, filled: listings[filled(reports[i].name)])
         }
     } else {
         print("pdf.js not run (--no-pdfjs, no node, or `npm ci` not run in pdf/tools/pdfjs-check)")
@@ -250,6 +268,7 @@ func runChild(_ exe: String, _ path: String, _ outDir: String, _ name: String, _
 switch arguments.first {
 case "one": exit(one())
 case "synth": exit(synth())
+case "probe": exit(probe())
 case "run": exit(run())
 default:
     print("run --pdfs <dir> [--out dir] [--only a,b] [--files a.pdf,b.pdf] [--timeout s] [--jobs n] [--no-pdfjs] [--update-baseline]; one <in.pdf> <out-dir> <name> [password]; synth <out-dir>")

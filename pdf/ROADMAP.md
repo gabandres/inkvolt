@@ -241,7 +241,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
   and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
   makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac: done 2026-11-03.
+- **Effort** S-M. Windows; Mac: done 2026-11-03. Filling real forms, both platforms: `pdf/tools/forms-corpus` and, on the Mac,
+  `mac/tools/forms-corpus` (2026-11-07; its RESULTS.md; what differs: mac/docs/PLAN.md, "Filling real forms").
 
 ### 1.5 Redaction check (differentiator, done 2026-10-27)
 - **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case

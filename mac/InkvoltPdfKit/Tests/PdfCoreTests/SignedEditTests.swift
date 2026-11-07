@@ -78,12 +78,14 @@ struct SignedEditTests {
         // More than the 4 KB the Windows app used to search for the last startxref.
         let junk = "\n" + String(repeating: "% padding added by a mail gateway\n", count: 300)
         let pdf = Self.signed(junk: junk)
+        // Mac difference: the update goes right after the last revision, where MuPDF's offsets count from; the junk goes.
+        let signedBytes = Self.signed()
         let (rotated, report) = try SignedEdits.run { try PageEditor.rotate(pdf, nil, [0], 90) }
         #expect(report.appended)
-        #expect(Self.appended(pdf, rotated))
+        #expect(Self.appended(signedBytes, rotated))
         let (filled, fillReport) = try SignedEdits.run { try FormEditor.setValues(pdf, nil, ["Name": "Ada"]) }
         #expect(fillReport.appended)
-        #expect(Self.appended(pdf, filled))
+        #expect(Self.appended(signedBytes, filled))
         #expect(try Core2Pdf.allText(filled).contains("Ada"))
     }
 

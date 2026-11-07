@@ -131,7 +131,7 @@ public enum RubberStamps {
     public static func put(_ data: [UInt8], _ password: String?, _ pageIndex: Int, _ rect: RectD, _ design: StampDesign, author: String?,
                            replaceId: String? = nil) throws -> [UInt8] {
         if rect.isEmpty { throw PdfEditError(loc("The stamp needs a size.")) }
-        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
+        return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             var design = design
             var old: (page: Int, annot: PObj)?

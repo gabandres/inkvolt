@@ -211,6 +211,49 @@ struct DamagedFormTests {
         try readable(try FormEditor.fill(session.data, nil, ["name": "Ana2"]).data, value: "Ana2")
     }
 
+    /// Fields, comments and bookmarks compressed in object streams, the file's end cut off: what the repair found is all
+    /// in what is saved (MuPDF's writer doesn't read object streams of a repaired file by itself).
+    @Test func whatARepairFoundInObjectStreamsIsSaved() throws {
+        let compressed = try MuDoc.open(DamagedFile.sound()).write("objstms=yes,compress=yes")
+        #expect(PdfBytes.first(Array("/ObjStm".utf8), in: compressed) != nil)
+        let cut = Array(compressed.dropLast(64))
+        try readable(cut, value: "Ana")
+        let filled = try FormEditor.fill(cut, nil, ["name": "Filled"]).data
+        try readable(filled, value: "Filled")
+        #expect(try MuDoc.open(filled).canAppend)
+    }
+
+    /// A signed form whose last revision lost its end (a cut-off download): nothing is read from an older revision while
+    /// the view shows the repaired one. Saving needs the rewrite (the signed revision can't be appended to), and keeps the value.
+    @Test func aSignedFormCutOffAtTheEndIsFilledFromWhatTheViewShows() throws {
+        let signed = SignedEditTests.signed()
+        let updated = try FormEditor.fill(signed, nil, ["Name": "Second"]).data
+        let cut = Array(updated.dropLast(64))
+        #expect(try FormEditor.read(cut, nil).first { $0.fieldName == "Name" }?.value == "Second")
+        #expect(throws: SignaturesWouldBreak.self) { try FormEditor.fill(cut, nil, ["Name": "Third"]) }
+        let (saved, _) = try SignedEdits.run({ try FormEditor.fill(cut, nil, ["Name": "Third"]).data }, allowRewrite: true)
+        #expect(try FormEditor.read(saved, nil).first { $0.fieldName == "Name" }?.value == "Third")
+        #expect(try MuDoc.open(saved).canAppend)
+    }
+
+    /// Bytes after a signed file's %%EOF with no object in them (a mail gateway's padding, too much for MuPDF to look past):
+    /// the update goes right after the file's last revision, its offsets right, the signed bytes as they were.
+    @Test func aSignedFormWithPaddingAfterItsEndIsFilledAsAnUpdate() throws {
+        let signed = SignedEditTests.signed()
+        let padded = signed + [UInt8](repeating: 32, count: 4096)
+        let saved = try FormEditor.fill(padded, nil, ["Name": "Padded"]).data
+        #expect(Array(saved[..<signed.count]) == signed)
+        #expect(try FormEditor.read(saved, nil).first { $0.fieldName == "Name" }?.value == "Padded")
+        #expect(try MuDoc.open(saved).canAppend, "the update's offsets are right: no repair")
+    }
+
+    /// A stale tail after a signed form: cut as the document opens, when the signature doesn't cover it.
+    @Test func aSignedFormsStaleTailIsCutWhenItsSignatureDoesntCoverIt() throws {
+        let signed = SignedEditTests.signed()
+        let tail = Array("ndobj\n4 0 obj\n<< /Length 0 >>\nendobj\n0000000099 00000 n \ntrailer\n<< /Size 10 /Root 1 0 R >>\nstartxref\n\(signed.count - 30)\n%%EOF\n".utf8)
+        #expect(StaleTail.normalized(signed + tail) == signed)
+    }
+
     /// A broken update (it starts as one, its startxref is wrong) is real work: its object is kept, by MuPDF's repair.
     @Test func aBrokenUpdateIsNotCutAsATail() throws {
         let data = DamagedFile.sound()

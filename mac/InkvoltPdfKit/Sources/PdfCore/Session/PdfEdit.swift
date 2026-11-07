@@ -25,6 +25,8 @@ final class MuDoc {
     let doc: OpaquePointer
     /// Opened for an edit its permissions (/P) allow with just the user password.
     var editedWithUserPassword = false
+    /// Opened from the first bytes of a file with junk after its last revision: an update goes right after them.
+    var appendsAfter: Int?
     /// A document opened in another's context (so pages and objects can be grafted between them) keeps that document,
     /// and so the context, alive.
     private let owner: MuDoc?
@@ -135,8 +137,13 @@ final class MuDoc {
         return Array(UnsafeBufferPointer(start: out, count: length))
     }
 
-    /// A whole new file, written with MuPDF's write options.
+    /// A whole new file, written with MuPDF's write options. A repaired document's objects are loaded first: MuPDF's writer
+    /// takes the repaired cross-reference for one without object streams, can't read what is compressed in them, and with
+    /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
+        if !canAppend {
+            for n in 1..<max(objectCount, 1) { _ = object(n).kind }
+        }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }
@@ -172,10 +179,13 @@ enum PdfEdit {
         }
         // MuPDF looks for the last startxref only near the end of the file: junk after %%EOF (a mail gateway's padding)
         // makes it repair the file, and a repaired file can't be appended to. A signed one is read again up to its last
-        // valid startxref; the update still goes after all of it (`save` appends to the bytes as given).
+        // valid startxref and the update goes right there (`save`: MuPDF's offsets count from that length), when what is
+        // dropped holds no object (a revision that lost its end is the document the view shows) and no signature covers it.
         if !doc.canAppend && SignedEdits.looksSigned(data), let end = lastEnd(data), end < data.count,
+           !StaleTail.holdsObjects(data, from: end), StaleTail.signedEnd(data) <= end,
            let trimmed = try? MuDoc.open(Array(data[..<end])), trimmed.canAppend {
             doc = trimmed
+            doc.appendsAfter = end
         }
         if doc.hasEncrypt {
             let bits = doc.authBits(password)
@@ -230,7 +240,7 @@ enum PdfEdit {
     static func save(_ doc: MuDoc, original data: [UInt8], password: String?, rewrite: Bool = false) throws -> [UInt8] {
         if !rewrite && SignedEdits.looksSigned(data) {
             if doc.canAppend {
-                let appended = try doc.append(original: data)
+                let appended = try doc.append(original: doc.appendsAfter.map { Array(data[..<min($0, data.count)]) } ?? data)
                 SignedEdits.noteAppended()
                 return appended
             }
@@ -329,15 +339,15 @@ public enum SignedEdits {
     private static let byteRange = Array("/ByteRange".utf8)
 
     /// Signed-looking files carry a /ByteRange; signature dictionaries are never compressed into object streams.
-    static func looksSigned(_ data: [UInt8]) -> Bool { data.firstRange(of: byteRange) != nil }
+    static func looksSigned(_ data: [UInt8]) -> Bool { PdfBytes.first(byteRange, in: data) != nil }
 
     /// The signature dictionaries in the file, by their /ByteRange (at least 1 for a signed-looking file).
     static func countSignatures(_ data: [UInt8]) -> Int {
         var count = 0
-        var from = data.startIndex
-        while let r = data[from...].firstRange(of: byteRange) {
+        var from = 0
+        while let at = PdfBytes.first(byteRange, in: data, from: from) {
             count += 1
-            from = r.upperBound
+            from = at + byteRange.count
         }
         return max(count, 1)
     }

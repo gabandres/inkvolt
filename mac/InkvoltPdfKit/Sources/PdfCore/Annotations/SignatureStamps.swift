@@ -75,7 +75,7 @@ public enum SignatureStamps {
                       _ label: String, _ idPrefix: String, _ name: String, _ author: String?, subject: String? = nil) throws -> [UInt8] {
         if rect.isEmpty { throw PdfEditError(loc("The stamp needs a size.")) }
         if let image { try image.validate() }
-        return try PageEditor.edit(data, password, userEdit: .annotate) { doc in
+        return try PageEditor.edit(data, password) { doc in
             try Annotations.checkPage(doc, pageIndex)
             var imageRef: PObj?
             var old: (page: Int, annot: PObj)?

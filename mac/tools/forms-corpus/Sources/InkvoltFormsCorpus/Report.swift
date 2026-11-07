@@ -29,6 +29,8 @@ struct FormReport: Codable {
     var pdfJsFields = -1
     var filled = 0
     var typed = 0
+    var bookmarksBefore = 0
+    var bookmarksAfter = 0
     var ms = 0
     var features: [String] = []
     var plan: [Planned] = []
