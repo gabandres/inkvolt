@@ -22,9 +22,11 @@ public enum VisualCompare {
     /// Overlays two renders aligned at their top-left corners (the result is as large as the larger one; the smaller is
     /// white beyond its edge). A pixel differs when its brightness differs by more than `tolerance` (0-255), so faint
     /// scanner noise and tints don't count; a `block`-pixel square counts toward a region only with at least `minPixels`
-    /// differing pixels, so a lone speck doesn't either.
+    /// differing pixels, so a lone speck doesn't either. `slack`: pixels a difference may be off by and still be the same ink
+    /// (two scans never fall on exactly the same pixels): a pixel counts only if the other image has nothing like it this
+    /// close. 0 for pages made by a program.
     public static func overlay(_ oldImage: RenderedImage, _ newImage: RenderedImage, tolerance: Int = 48, block: Int = 8, minPixels: Int = 2,
-                               cancel: CancelToken? = nil) throws -> VisualDiff {
+                               cancel: CancelToken? = nil, slack: Int = 0) throws -> VisualDiff {
         let w = max(oldImage.width, newImage.width)
         let h = max(oldImage.height, newImage.height)
         let stride = w * 3
@@ -44,7 +46,7 @@ public enum VisualCompare {
                 let ln = luma(newImage, x, y)
                 let i = row + x * 3
                 let d = lo - ln
-                if abs(d) <= tolerance {
+                if abs(d) <= tolerance || (slack > 0 && (d < 0 ? near(newImage, x, y, lo, tolerance, slack) : near(oldImage, x, y, ln, tolerance, slack))) {
                     // Shared: grey, lightened so the colors stand out.
                     let g = UInt8(255 - (255 - ln) * 55 / 100)
                     output[i] = g
@@ -72,6 +74,28 @@ public enum VisualCompare {
         let regions = regionsOf(counts, bounds, bw, bh, minPixels)
         return VisualDiff(image: RenderedImage(w, h, output), changedPixels: changed, changedShare: w * h == 0 ? 0 : Double(changed) / Double(w * h),
                           regions: regions)
+    }
+
+    /// Scale to check two scans at: lower, the slack below takes in whole changed words.
+    public static let scanCheckScale = 1.5
+
+    /// The overlay of two scans rendered at `scale` pixels per point: ink may land a point and a half off, and a speck
+    /// doesn't count.
+    public static func overlayScans(_ oldImage: RenderedImage, _ newImage: RenderedImage, _ scale: Double, cancel: CancelToken? = nil) throws -> VisualDiff {
+        let slack = Int(min(6, max(2, (1.5 * scale).rounded())))
+        return try overlay(oldImage, newImage, minPixels: 6, cancel: cancel, slack: slack)
+    }
+
+    /// A scan's thin strokes come out this light where a program's are nearly black: still ink.
+    private static let faintInk = 205
+
+    /// Whether `image` has ink as dark as this within `slack` pixels of (x, y).
+    private static func near(_ image: RenderedImage, _ x: Int, _ y: Int, _ luma: Int, _ tolerance: Int, _ slack: Int) -> Bool {
+        let limit = max(luma + tolerance, faintInk)
+        for dy in -slack...slack {
+            for dx in -slack...slack where x + dx >= 0 && y + dy >= 0 && Self.luma(image, x + dx, y + dy) <= limit { return true }
+        }
+        return false
     }
 
     /// Brightness 0-255 of an RGB pixel; white outside the image.

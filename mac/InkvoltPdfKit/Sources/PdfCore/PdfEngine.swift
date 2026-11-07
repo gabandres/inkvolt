@@ -763,6 +763,72 @@ public final class PdfEngine: @unchecked Sendable {
         return read
     }
 
+    /// Pictures covering this much of a page (with or without text over them) make it a scan.
+    static let scanPictureShare = 0.7
+
+    /// What Compare reads from a page (the Windows engine's `GetComparePage`): its text, as `text` reads it, how each
+    /// character is set, and whether the page is a picture of a page. Not cached. Read under the page checks, as `text`.
+    /// - Throws: `CancellationError` when `cancel` fired before the page was read; `PageRefused`; `PdfEngineError`.
+    public func comparePage(_ page: Int, cancel: CancelToken? = nil) throws -> ComparePage {
+        try cancel.check()
+        try enterText(cancel)
+        defer { textGate.unlock() }
+        let instance = try text()
+        let g = try geometry(page)
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        var raw = inkv_export()
+        defer { inkv_free_export(&raw) }
+        try reading(page, cancel) { cookie in
+            let result = inkv_compare_page(instance.ctx, instance.doc, Int32(page), &raw, cookie, &err)
+            if result == 2 { throw CancellationError() }
+            guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
+        }
+        func box(_ x0: Float, _ y0: Float, _ x1: Float, _ y1: Float) -> RectD {
+            RectD.fromEdges(Double(x0) - g.originX, Double(y0) - g.originY, Double(x1) - g.originX, Double(y1) - g.originY)
+        }
+        // Each font once: its family, and bold or italic by its flags or its name.
+        var fonts: [(family: String, bold: Bool, italic: Bool)] = []
+        for k in 0..<Int(raw.font_count) {
+            let f = raw.fonts[k]
+            let name = f.name.map { String(cString: $0) } ?? ""
+            fonts.append((FontNames.family(name), f.bold != 0 || FontNames.looksBold(name), f.italic != 0 || FontNames.looksItalic(name)))
+        }
+        var lines: [[(String, RectD)]] = []
+        var directions: [(Double, Double)] = []
+        var runs: [(start: Int, look: WordLook)] = []
+        var last: (font: Int32, size: Float, color: UInt32)?
+        var units = 0
+        for li in 0..<Int(raw.line_count) {
+            let line = raw.lines[li]
+            var chars: [(String, RectD)] = []
+            for ci in Int(line.first)..<Int(line.first + line.count) {
+                let c = raw.chars[ci]
+                if chars.isEmpty && !lines.isEmpty { units += 1 } // the line break PageText puts between lines
+                let ch = Unicode.Scalar(UInt32(bitPattern: c.c)).map { String(Character($0)) } ?? "\u{FFFD}"
+                chars.append((ch, box(c.x0, c.y0, c.x1, c.y1)))
+                let color = c.argb & 0xFFFFFF
+                if last == nil || last?.font != c.font || abs((last?.size ?? 0) - c.size) > 0.001 || last?.color != color {
+                    let f = c.font >= 0 && Int(c.font) < fonts.count ? fonts[Int(c.font)] : (family: "", bold: false, italic: false)
+                    let size = c.size.isFinite ? Double(c.size) : 0
+                    runs.append((units, WordLook(f.family, size, f.bold, f.italic, color)))
+                    last = (c.font, c.size, color)
+                }
+                units += ch.utf16.count
+            }
+            if chars.isEmpty { continue }
+            lines.append(chars)
+            directions.append((Double(line.dx), Double(line.dy)))
+        }
+        let page = RectD(0, 0, g.width, g.height)
+        var pictures = 0.0
+        for k in 0..<Int(raw.image_count) {
+            let i = raw.images[k]
+            let on = box(i.x0, i.y0, i.x1, i.y1).intersect(page)
+            if !on.isEmpty && on.width.isFinite && on.height.isFinite { pictures += on.width * on.height }
+        }
+        return ComparePage(PageText(lines, directions: directions), PageLooks(runs), isPicture: pictures >= g.width * g.height * Self.scanPictureShare)
+    }
+
     /// A region of a page (page space) drawn on transparency as straight RGBA at `scale` pixels per point; nil when MuPDF
     /// can't draw it or it has no pixels.
     /// - Throws: `CancellationError` when `cancel` fired; `PageRefused`.
