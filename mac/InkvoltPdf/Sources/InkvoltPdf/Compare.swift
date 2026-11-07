@@ -1270,7 +1270,7 @@ final class CompareRowsView: NSView {
     /// Draws one picture on the render queue: a page, or a row's overlay with the changed page brought over by `alignment`.
     private func draw(_ key: Int, _ alignment: PageAlignment) {
         let r = key / 3, part = key % 3
-        guard let result, let old, let new, !token.isCancelled, layouts.indices.contains(r) else {
+        guard let result, let old, let new, !token.isCancelled, layouts.indices.contains(r), result.rows.indices.contains(r) else {
             pending.remove(key)
             return
         }
