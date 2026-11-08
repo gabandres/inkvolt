@@ -60,6 +60,17 @@ ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release aft
 (`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
 separators; the Mac takes a pasted SSN, phone or ZIP as its digits.
 Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) submitted 2026-11-07, Waiting for Review** (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
+**Office as the Mac's converter merged 2026-11-08 (`138f868a`), not released.** Word, Excel or PowerPoint for Mac convert
+when installed (AppleScript through osascript behind `OfficeScriptRunner`, staged in Office's group container, 3-minute
+limit, one at a time, Office left as found), LibreOffice the fallback when Office fails for a reason of its own (not
+activated, Automation denied, not started, timeout, over 512 MB, several PDFs from Excel); a password, damaged file or
+Cancel isn't retried. A stopped run is cleaned up by its own script, the lock held through it. Apple Events entitlement and
+`NSAppleEventsUsageDescription` (en, es). Reviews: medium (10 findings, all fixed; #5 half: Excel's per-sheet PDFs go to
+LibreOffice instead of being joined, sheet order needs a real Excel run), low clean. Kit 1535, Office tests 32 (47 cases),
+release build -warnaserror, check-int, self-test 27/27. **Ships only after a person with Microsoft 365 signed in on the Mac
+runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a password file, a timeout). Mac CI's flaky
+`DrawingBandsTests.ACancelStopsBandsThatOnlySkipAsSoonAsOneThread` made robust (`8b34d6f1`: best of 3, 0.25 s margin).
+**Autonomous run stopped 2026-11-08** until Tuesday's scheduled 08:05 start (2.1, then 3.1, on the Mac, on PPE).
 **Inkvolt PDF for Mac 1.9.0 published 2026-11-07** (`pdf-mac-v1.9.0` on `4768ae0c`, notarized DMG sha256 3e19aa8f…d8d2e07,
 38.8 MB, appcast with Spanish notes, not Latest; Homebrew cask `5ddcf54` (pushed from a clone: the tap is no longer tapped on
 ignia-mac), website `f1d2750` deployed; folder search, Compare's Office files and scans, drawing in bands, the forms corpus
@@ -122,7 +133,7 @@ Mac-only: do it in PrintMac, or a package by the owner's word).
 - **Lane 3, Windows partials:** ~~Flate bomb (page checks)~~, ~~1.8.0.0 released~~, ~~TWAIN in Print's Scan tab~~ (done
   11-05; the byte scanner `InflateGuard` on `t3/pdf-handoff-small-open-items` was rejected, don't merge it) → the small
   follow-ups above → Translate's "Still wrong" with a real model → `drawings.pdf` speed.
-- **Owner:** MS Office as the Mac's converter (Microsoft 365 on the Mac, the Automation prompt); ZapfDingbats needs font
+- **Owner:** MS Office as the Mac's converter: code merged 2026-11-08; run `mac/docs/PLAN.md`'s checklist with Microsoft 365 signed in on the Mac; ZapfDingbats needs font
   data (a package).
 
 # Handoff, 2026-11-04 (newest first)
@@ -303,7 +314,7 @@ Mac copy can be updated), `~/Repos/inkvolt/mac/InkvoltPrint/.env.local` (ASC key
 `~/.ssh/config` on the PC (or a new host name), and `mac.sh`'s `INKVOLT_MAC_HOST`. Other projects' files on the Air
 (Ignia, Callbook builds in `~/build-artifacts`) are outside this repo. The Mac runs macOS 27.2, Xcode 27.1, Swift 6.4.
 
-**Backlog (owner, 2026-11-02): Microsoft Word, Excel and PowerPoint as E12's converter on the Mac** (Windows converts through
+**Backlog (owner, 2026-11-02): Microsoft Word, Excel and PowerPoint as E12's converter on the Mac** (code merged 2026-11-08, `138f868a`; a person's checklist left) (Windows converts through
 Office first). About a day: AppleScript per app with a time limit, files staged in Office's group container
 (`~/Library/Group Containers/UBF8T346G9.Office/`) because Office for Mac is sandboxed, Word left as found, the
 `com.apple.security.automation.apple-events` entitlement and `NSAppleEventsUsageDescription` (`sign.sh` and `release.sh`
