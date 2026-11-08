@@ -7987,17 +7987,6 @@
         }
       }
     },
-    "Made from {0} with {1}. Save it to keep it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Creado a partir de {0} con {1}. Guárdalo para conservarlo."
-          }
-        }
-      }
-    },
     "Made from {0}. Save it to keep it.": {
       "extractionState": "manual",
       "localizations": {

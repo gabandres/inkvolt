@@ -22066,6 +22066,39 @@
           }
         }
       }
+    },
+    "{0} saved this file as {1} separate PDFs (one for each sheet, as it can), not one. Open it in {0} and save it as one PDF there.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} guardó este archivo como {1} PDF separados (uno por cada hoja, como puede hacerlo), no como uno solo. Ábrelo en {0} y guárdalo allí como un solo PDF."
+          }
+        }
+      }
+    },
+    "{0} couldn't convert it: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no pudo convertirlo: {1}"
+          }
+        }
+      }
+    },
+    "Made from {0} with {1}. Save it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creado a partir de {0} con {1}. Guárdalo para conservarlo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

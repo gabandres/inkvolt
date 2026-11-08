@@ -73,6 +73,19 @@ public struct OsascriptRunner: OfficeScriptRunner {
     }
 }
 
+/// Why Microsoft's app didn't convert a file. `aboutTheFile`: the file's own trouble (a password, a file the app couldn't
+/// open, a PDF too big), which another converter would have too; otherwise the app's (not activated, Automation denied,
+/// not started, a timeout, a copy too big to make), and `OfficeConversion` tries LibreOffice when it is installed.
+public struct OfficeAppFailure: Error, Equatable, Sendable, CustomStringConvertible {
+    public var message: String
+    public var aboutTheFile: Bool
+    public init(_ message: String, aboutTheFile: Bool = false) {
+        self.message = message
+        self.aboutTheFile = aboutTheFile
+    }
+    public var description: String { message }
+}
+
 /// An Office file made into a PDF by Microsoft Word, Excel or PowerPoint for Mac, through AppleScript (the Windows
 /// `OfficeConverter` drives Office through COM). Office for Mac is sandboxed, so a copy of the file goes in Office's group
 /// container (`stagingRoot`), in a folder of its own that is removed after (and at the next launch if a crash left it):
@@ -110,19 +123,24 @@ public struct MicrosoftOfficeConverter: OfficeConverter {
     }
 
     private static let oneAtATime = NSLock()
+    /// How long the probe and the clean-up script may take.
+    static let helperTimeout: TimeInterval = 20
 
+    /// - Throws: `OfficeAppFailure` (the message says why, and whether another converter is worth trying),
+    ///   `CancellationError`.
     public func toPdf(_ path: String, timeout: TimeInterval, cancel: CancelToken) throws -> [UInt8] {
         try cancel.check()
         let fm = FileManager.default
         guard path.hasPrefix("/"), let attributes = try? fm.attributesOfItem(atPath: path),
-              attributes[.type] as? FileAttributeType == .typeRegular else { throw PdfEditError(loc("That file couldn't be read.")) }
+              attributes[.type] as? FileAttributeType == .typeRegular else { throw OfficeAppFailure(loc("That file couldn't be read."), aboutTheFile: true) }
         if let size = (attributes[.size] as? NSNumber)?.int64Value, size > Self.maxInputBytes {
-            throw PdfEditError(loc("This file is too big to convert here (more than {0} MB).", CoreLanguage.number(Int(Self.maxInputBytes >> 20))))
+            throw OfficeAppFailure(loc("This file is too big to convert here (more than {0} MB).", CoreLanguage.number(Int(Self.maxInputBytes >> 20))))
         }
         // Office makes its group container the first time it runs; without it, the app hasn't been set up on this Mac.
         guard fm.fileExists(atPath: stagingRoot.deletingLastPathComponent().path) else {
-            throw PdfEditError(loc("{0} hasn't been set up on this Mac yet. Open it once and sign in, then try again.", appName))
+            throw OfficeAppFailure(loc("{0} hasn't been set up on this Mac yet. Open it once and sign in, then try again.", appName))
         }
+        // Held until the clean-up below is done: the app may still be busy with the last copy when osascript was stopped.
         while !Self.oneAtATime.lock(before: Date().addingTimeInterval(0.2)) { try cancel.check() }
         defer { Self.oneAtATime.unlock() }
 
@@ -131,36 +149,82 @@ public struct MicrosoftOfficeConverter: OfficeConverter {
             try fm.createDirectory(at: stagingRoot, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
         } catch where fm.fileExists(atPath: stagingRoot.path) {
         } catch {
-            throw PdfEditError(stagingDenied)
+            throw OfficeAppFailure(stagingDenied)
         }
         ConversionTemp.sweepLeftovers(root: stagingRoot) // what a crash left here
         do {
             folder = try ConversionTemp.make(ConversionTemp.officePrefix, root: stagingRoot)
         } catch {
-            throw PdfEditError(stagingDenied)
+            throw OfficeAppFailure(stagingDenied)
         }
-        defer { ConversionTemp.remove(folder) }
+        defer { ConversionTemp.remove(folder) } // after the clean-up, so never under a document the app still has open
         let name = Self.stagedName((path as NSString).lastPathComponent, tag: String(folder.lastPathComponent.suffix(8)))
         staged = folder.appendingPathComponent(name)
         pdf = folder.appendingPathComponent(((name as NSString).deletingPathExtension) + ".pdf")
         do {
             try fm.copyItem(at: URL(fileURLWithPath: path), to: staged)
         } catch {
-            throw PdfEditError(stagingDenied)
+            throw OfficeAppFailure(stagingDenied)
         }
+        let wasRunning = try isRunning(cancel)
         // The script's own limit ends a stuck event first, so it can still close what it opened; the process limit after.
         let scriptSeconds = max(5, Int(timeout.isFinite ? min(timeout, 3600) : 3600) - 10) // bounded: clamped, finite
-        let run = try runner.run(MicrosoftOfficeScripts.script(app), arguments: [staged.path, pdf.path, name, String(scriptSeconds)],
+        let run: ScriptRun
+        do {
+            run = try runner.run(MicrosoftOfficeScripts.script(app), arguments: [staged.path, pdf.path, name, String(scriptSeconds), wasRunning ? "true" : "false"],
                                  timeout: timeout, cancel: cancel, appName: appName)
+        } catch let error as PdfEditError {
+            throw OfficeAppFailure(error.message)
+        }
+        let outcome = Self.outcome(run, folder: folder, appName: appName, timeout: timeout, hiding: [name, folder.path])
+        if Self.needsCleanup(run) { cleanUp(name, wasRunning: wasRunning) }
+        return try outcome.get()
+    }
+
+    /// Whether the app is running now (so that it is quit after only if Inkvolt started it). When that can't be told, it
+    /// counts as running: never quit.
+    private func isRunning(_ cancel: CancelToken) throws -> Bool {
+        let probe = try? runner.run(MicrosoftOfficeScripts.probe(app), arguments: [], timeout: Self.helperTimeout, cancel: cancel, appName: appName)
+        if probe?.ending == .cancelled { throw CancellationError() }
+        return !(probe?.ending == .exited(0) && probe?.output.trimmingCharacters(in: .whitespacesAndNewlines) == "false")
+    }
+
+    /// After a run that didn't finish its own clean-up (a timeout, Cancel, osascript stopped, an error): closes the copy
+    /// by name and quits the app if Inkvolt started it and nothing else is open there. Not cancellable: it is short.
+    private func cleanUp(_ name: String, wasRunning: Bool) {
+        _ = try? runner.run(MicrosoftOfficeScripts.cleanup(app), arguments: [name, wasRunning ? "true" : "false"],
+                            timeout: Self.helperTimeout, cancel: CancelToken(), appName: appName)
+    }
+
+    /// Every ending but a success and a denial (where the app would refuse the clean-up too).
+    static func needsCleanup(_ run: ScriptRun) -> Bool {
+        guard case .exited(let code) = run.ending else { return true }
+        if code == 0 { return false }
+        let line = lastLine(run.errors)
+        return errorCode(line) != Code.notPermitted && errorCode(line) != Code.consentNeeded
+    }
+
+    private static func outcome(_ run: ScriptRun, folder: URL, appName: String, timeout: TimeInterval, hiding: [String]) -> Result<[UInt8], Error> {
         switch run.ending {
         case .cancelled:
-            throw CancellationError()
+            return .failure(CancellationError())
         case .timedOut:
-            throw PdfEditError(Self.timedOut(appName, timeout))
+            return .failure(OfficeAppFailure(timedOut(appName, timeout)))
         case .exited(let code):
-            if code != 0 { throw PdfEditError(Self.failure(run.errors, appName: appName, timeout: timeout)) }
-            guard let bytes = try ConvertedPdf.read(in: folder, appName: appName) else { throw PdfEditError(Self.notSaved(appName)) }
-            return bytes
+            if code != 0 { return .failure(failure(run.errors, appName: appName, timeout: timeout, hiding: hiding)) }
+            do {
+                if let bytes = try ConvertedPdf.read(in: folder, appName: appName) { return .success(bytes) }
+            } catch let error as PdfEditError {
+                return .failure(OfficeAppFailure(error.message, aboutTheFile: true))
+            } catch {
+                return .failure(error)
+            }
+            let count = ConvertedPdf.count(in: folder)
+            if count > 1 {
+                // Excel for Mac can save a sheet per PDF; their order can't be told from here, so they aren't joined.
+                return .failure(OfficeAppFailure(loc("{0} saved this file as {1} separate PDFs (one for each sheet, as it can), not one. Open it in {0} and save it as one PDF there.", appName, CoreLanguage.number(count))))
+            }
+            return .failure(OfficeAppFailure(notSaved(appName)))
         }
     }
 
@@ -194,22 +258,31 @@ public struct MicrosoftOfficeConverter: OfficeConverter {
         static let notStarted: Set<Int> = [-10810, -10814, -10661, -2740, -2741] // not launched; its dictionary unreadable
     }
 
-    /// The message for a script that ended with an error: osascript's last line ("…: execution error: inkvolt:save: … (-50)").
-    public static func failure(_ errors: String, appName: String, timeout: TimeInterval) -> String {
-        let line = errors.split(whereSeparator: \.isNewline).last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }).map(String.init) ?? ""
+    /// What a script that ended with an error means: osascript's last line ("…: execution error: inkvolt:save: … (-50)").
+    /// - Parameter hiding: the copy's name and folder, taken out of the line before its words are read (a file named
+    ///   "Passwords.docx" isn't a password error).
+    public static func failure(_ errors: String, appName: String, timeout: TimeInterval, hiding: [String] = []) -> OfficeAppFailure {
+        var line = lastLine(errors)
         let code = errorCode(line)
+        for text in hiding where !text.isEmpty { line = line.replacingOccurrences(of: text, with: "") }
         let stage = line.range(of: "inkvolt:").map { String(line[$0.upperBound...].prefix { $0 != ":" }) } ?? ""
         if code == Code.notPermitted || code == Code.consentNeeded {
-            return loc("macOS didn't let Inkvolt PDF use {0}. Turn on {0} under Inkvolt PDF in System Settings › Privacy & Security › Automation, then try again.", appName)
+            return OfficeAppFailure(loc("macOS didn't let Inkvolt PDF use {0}. Turn on {0} under Inkvolt PDF in System Settings › Privacy & Security › Automation, then try again.", appName))
         }
-        if code == Code.timedOut { return timedOut(appName, timeout) }
-        if let code, Code.notRunning.contains(code) { return loc("{0} closed before it finished. Try again.", appName) }
-        if let code, Code.notStarted.contains(code), stage != "save" { return loc("{0} couldn't be started.", appName) }
+        if code == Code.timedOut { return OfficeAppFailure(timedOut(appName, timeout)) }
+        if let code, Code.notRunning.contains(code) { return OfficeAppFailure(loc("{0} closed before it finished. Try again.", appName)) }
+        if let code, Code.notStarted.contains(code), stage != "save" { return OfficeAppFailure(loc("{0} couldn't be started.", appName)) }
         if line.lowercased().contains("password") {
-            return loc("{0} couldn't open this file without its password. Open it in {0} and save it as PDF there (or save a copy without the password).", appName)
+            return OfficeAppFailure(loc("{0} couldn't open this file without its password. Open it in {0} and save it as PDF there (or save a copy without the password).", appName), aboutTheFile: true)
         }
-        if stage == "open" { return loc("{0} couldn't open this file. It may be damaged, or protected with a password.", appName) }
-        return notSaved(appName)
+        if stage == "open" {
+            return OfficeAppFailure(loc("{0} couldn't open this file. It may be damaged, or protected with a password.", appName), aboutTheFile: true)
+        }
+        return OfficeAppFailure(notSaved(appName))
+    }
+
+    static func lastLine(_ errors: String) -> String {
+        errors.split(whereSeparator: \.isNewline).last(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }).map(String.init) ?? ""
     }
 
     /// The number at the end of osascript's error line, "(-1743)".
@@ -225,13 +298,12 @@ public struct MicrosoftOfficeConverter: OfficeConverter {
     }
 
     static func timedOut(_ appName: String, _ timeout: TimeInterval) -> String {
-        let seconds = timeout.isFinite ? Int(min(max(timeout, 0), 86400)) : 0 // bounded: clamped, finite
-        let limit = seconds >= 60 ? loc("{0} minutes", CoreLanguage.number(seconds / 60)) : loc("{0} seconds", CoreLanguage.number(seconds))
-        return loc("{0} didn't finish within {1}. It may be waiting in its window: to sign in, for a password, or with a question. Look at {0}, then try again.", appName, limit)
+        loc("{0} didn't finish within {1}. It may be waiting in its window: to sign in, for a password, or with a question. Look at {0}, then try again.", appName, OfficeConversion.limitText(timeout))
     }
 }
 
-/// The AppleScript each app runs. Its arguments: the copy, the PDF to save, the copy's name and the seconds it may take.
+/// The AppleScript each app runs. Its arguments: the copy, the PDF to save, the copy's name, the seconds it may take and
+/// whether the app was running before ("true" or "false", from `probe`).
 /// Nothing from the file or its name is written into the source. It opens the copy, waits until the app has it, saves it
 /// as PDF, closes it without saving, and quits the app only if it started it and nothing else is open there. An error
 /// comes back as "inkvolt:<stage>: <message>" with the app's number. No `activate`, no shell, no other document touched.
@@ -255,7 +327,7 @@ public enum MicrosoftOfficeScripts {
         \tset pdfPath to POSIX file (item 2 of argv)
         \tset docName to item 3 of argv
         \tset limit to (item 4 of argv) as integer
-        \tset wasRunning to application id "\(id)" is running
+        \tset wasRunning to (item 5 of argv) is "true"
         \tset failure to ""
         \tset failureCode to 0
         \twith timeout of limit seconds
@@ -268,14 +340,19 @@ public enum MicrosoftOfficeScripts {
         \t\t\tend try
         \t\t\tif failureCode is 0 then
         \t\t\t\tset found to false
-        \t\t\t\trepeat 120 times
-        \t\t\t\t\tif exists \(element) docName then
-        \t\t\t\t\t\tset found to true
-        \t\t\t\t\t\texit repeat
-        \t\t\t\t\tend if
-        \t\t\t\t\tdelay 0.25
-        \t\t\t\tend repeat
-        \t\t\t\tif not found then
+        \t\t\t\ttry
+        \t\t\t\t\trepeat 120 times
+        \t\t\t\t\t\tif exists \(element) docName then
+        \t\t\t\t\t\t\tset found to true
+        \t\t\t\t\t\t\texit repeat
+        \t\t\t\t\t\tend if
+        \t\t\t\t\t\tdelay 0.25
+        \t\t\t\t\tend repeat
+        \t\t\t\ton error message number code
+        \t\t\t\t\tset failure to "open: " & message
+        \t\t\t\t\tset failureCode to code
+        \t\t\t\tend try
+        \t\t\t\tif failureCode is 0 and not found then
         \t\t\t\t\tset failure to "open: the file didn't open"
         \t\t\t\t\tset failureCode to 1
         \t\t\t\tend if
@@ -301,6 +378,45 @@ public enum MicrosoftOfficeScripts {
         \t\tend tell
         \tend timeout
         \tif failureCode is not 0 then error "inkvolt:" & failure number failureCode
+        \treturn "ok"
+        end run
+
+        """
+    }
+
+    /// Prints whether the app is running, without starting it or sending it anything.
+    public static func probe(_ app: OfficeApp) -> String {
+        """
+        -- Inkvolt PDF: is \(OfficeFiles.appName(app)) running? (mac/docs/PLAN.md, E12)
+        return application id "\(MicrosoftOfficeConverter.bundleId(app))" is running
+
+        """
+    }
+
+    /// After a run that was stopped: closes the copy (argument 1, its name) without saving and quits the app when argument
+    /// 2 is "false" (Inkvolt started it) and nothing else is open there. Does nothing when the app isn't running.
+    public static func cleanup(_ app: OfficeApp) -> String {
+        let element = terms(app).element
+        let id = MicrosoftOfficeConverter.bundleId(app)
+        return """
+        -- Inkvolt PDF: closes its copy in \(OfficeFiles.appName(app)) after a conversion was stopped (mac/docs/PLAN.md, E12).
+        on run argv
+        \tset docName to item 1 of argv
+        \tset wasRunning to (item 2 of argv) is "true"
+        \tif application id "\(id)" is running then
+        \t\twith timeout of 15 seconds
+        \t\t\ttell application id "\(id)"
+        \t\t\t\ttry
+        \t\t\t\t\tif exists \(element) docName then close \(element) docName saving no
+        \t\t\t\tend try
+        \t\t\t\tif not wasRunning then
+        \t\t\t\t\ttry
+        \t\t\t\t\t\tif (count of \(element)s) is 0 then quit
+        \t\t\t\t\tend try
+        \t\t\t\tend if
+        \t\t\tend tell
+        \t\tend timeout
+        \tend if
         \treturn "ok"
         end run
 

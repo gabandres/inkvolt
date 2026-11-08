@@ -1556,9 +1556,14 @@ Windows converts Office files through Word, Excel or PowerPoint (COM, `OfficeCon
 AppleScript, with LibreOffice (E12's `OfficeConversion`) as the fallback. `PdfCore/Convert/MicrosoftOfficeConversion.swift`:
 
 - **The chooser** (`OfficeInstalls.route`): the Microsoft app for the file's kind when Launch Services finds it
-  (`com.microsoft.Word`, `.Excel`, `.Powerpoint`), else LibreOffice, else nothing and `missing` names both. **Mac
-  difference:** Windows uses Office only and has no fallback; a failed Office conversion is not retried with LibreOffice
-  (the message says why it failed).
+  (`com.microsoft.Word`, `.Excel`, `.Powerpoint`), else LibreOffice, else nothing and `missing` names both. Chosen once
+  (`OfficeConversion.job`, with the checks before anything starts), so the progress names the converter that runs; Open
+  and Compare share it (`Converting.prepareOffice`). **Mac difference:** Windows uses Office only and has no fallback.
+  Here, when Microsoft's app fails for a reason of its own (`OfficeAppFailure.aboutTheFile` false: not activated,
+  Automation denied, not started, a timeout, not set up, a copy over 512 MB, several PDFs), LibreOffice converts it when
+  installed, and the notice says why the app didn't; the file's own trouble (a password, a file it couldn't open, a PDF
+  over 1 GB) and Cancel aren't retried; when both fail, both reasons are said. The conversion runs on a thread of its
+  own (`OfficeConversion.run`), never one of Swift concurrency's pool.
 - **The seam** (`OfficeScriptRunner`): `OsascriptRunner` runs `/usr/bin/osascript` on a script file, as a program of its
   own through `ConverterProcess` (its own process group, ended at the 3-minute limit or on Cancel); the paths and the name
   go as the run handler's arguments, never into the source. Tests give a fake runner; `OsascriptRunner` itself is tested
@@ -1569,10 +1574,16 @@ AppleScript, with LibreOffice (E12's `OfficeConversion`) as the fallback. `PdfCo
   60 characters, without `:` and `/`, with a tag unique to the conversion: "Report (Inkvolt 1a2b3c4d).docx". Bounds: a file
   over 512 MB isn't copied; a PDF over 1 GB isn't read (LibreOffice's too, `ConvertedPdf`); one conversion at a time.
   No group container means the app was never opened: said so ("open it once and sign in").
-- **Office as found** (`MicrosoftOfficeScripts`): the script finds the copy by its unique name, never the active document;
-  saves it as PDF; closes only it, without saving; quits the app only if it wasn't running before and has no document
-  left. No `activate`, no shell. AppleScript's own `with timeout` (the limit less 10 s) ends a stuck event first; after a
-  timeout or a denial it sends nothing more. **Mac difference:** Windows opens a new hidden instance; on the Mac the app's
+- **Office as found** (`MicrosoftOfficeScripts`): a probe first asks whether the app is running (no event sent to it;
+  when that can't be told, it counts as running: never quit). The script finds the copy by its unique name, never the
+  active document; saves it as PDF; closes only it, without saving; quits the app only if it wasn't running before and
+  has no document left. Every event to the app sits in a `try`, so an error comes back tagged with its stage. No
+  `activate`, no shell. AppleScript's own `with timeout` (the limit less 10 s) ends a stuck event first; after a timeout
+  or a denial it sends nothing more. After any run that didn't succeed (but a denial): a timeout, Cancel, osascript
+  stopped at the limit, an error, a clean-up script (15 s, not cancellable) closes the copy by name and quits the app on
+  the same terms, if it is still running; only then is the copy removed and the next conversion let in. **Not joined:**
+  Excel saving one PDF per sheet is said as such ("saved this file as 3 separate PDFs") and LibreOffice tried; their
+  order can't be told without a run of Excel. **Mac difference:** Windows opens a new hidden instance; on the Mac the app's
   window shows the copy while it converts (Office for Mac has no hidden instance), and Word's own macro settings apply
   (Windows forces macros off); the question for a file from the internet says so.
 - **Entitlements:** `com.apple.security.automation.apple-events` in `InkvoltPdf.entitlements` (the hardened runtime blocks
@@ -1580,16 +1591,20 @@ AppleScript, with LibreOffice (E12's `OfficeConversion`) as the fallback. `PdfCo
   accepts it) and `NSAppleEventsUsageDescription` in Info.plist (Spanish in `InfoPlist.xcstrings`).
 - **Errors in words** (`MicrosoftOfficeConverter.failure`, from osascript's error number and the script's stage): Automation
   denied (-1743, -1744: where to turn it on), a timeout (-1712 or the process limit: "it may be waiting in its window: to
-  sign in, for a password, or with a question"), the app quit (-600, -609), not started (-10810, a dictionary it can't
-  read), a password, a file it couldn't open, and not saved (the save failed, or no PDF: "saves only when it is activated:
+  sign in, for a password, or with a question"; the limit said as LibreOffice's is, `OfficeConversion.limitText`), the app
+  quit (-600, -609), not started (-10810, a dictionary it can't read), a password (read from the error with the copy's
+  name and folder taken out: a file named "Passwords" isn't one), a file it couldn't open, and not saved (the save failed, or no PDF: "saves only when it is activated:
   sign in"), which is how an unlicensed Office (read-only mode) shows. An encrypted Office Open XML file is refused before
   anything starts, as with LibreOffice.
-- **Tests:** MicrosoftOfficeConversionTests (20 tests, 32 cases): the chooser, the LibreOffice fallback end to end, staging and
-  cleanup on success, failure, timeout and Cancel, the original unchanged, sizes, leftovers, one at a time, names, every
-  error, the scripts' text for each app, osascript's arguments, errors and time limit. OfficeConversionTests' three
+- **Tests:** MicrosoftOfficeConversionTests (32 tests, 47 cases): the chooser, the LibreOffice fallback end to end (no
+  Word, Word's own failures, too big, a timeout, several PDFs; not a password or a damaged file; not Cancel; both
+  failing), staging and cleanup on success, failure, timeout and Cancel, the clean-up script before the copy goes and the
+  lock held through it, an app that was running never quit, the original unchanged, sizes, leftovers, one at a time,
+  names, every error (and whose), "password" in a file's name, the scripts' text for each app (every event in a `try`),
+  the job chosen once, the thread of its own, osascript's arguments, errors and time limit. OfficeConversionTests' three
   "Word isn't used yet" checks changed to the new chooser. The self-test's `convertFiles` adds a made-up Word (its runner
-  faked, staging in the test's folder): the file opens converted by Microsoft Word, the copy gone; with only Excel, a Word
-  file goes to LibreOffice.
+  faked, staging in the test's folder): the file opens converted by Microsoft Word, the copy gone; with Word's Automation
+  denied, LibreOffice converts it and the notice says why; with only Excel, a Word file goes to LibreOffice.
 
 **Only a person with Microsoft 365 signed in on the Mac can check** (none of it has run; the scripts' Office terms come
 from Office's AppleScript dictionaries as published, not from a run). On the mini, with Word, Excel and PowerPoint:
@@ -1606,9 +1621,12 @@ from Office's AppleScript dictionaries as published, not from a run). On the min
 6. A legacy .doc with an open password: Word asks for it or fails; the message is the timeout's or the password's, and
    Word is left with no copy open once the question is dismissed.
 7. Signed out (or an unlicensed Office in read-only mode): the "saves only when it is activated" message, or the timeout's.
-8. A .docm with macros: what Word asks; Cancel at Inkvolt PDF's progress closes osascript; Word's question stays.
+8. A .docm with macros: what Word asks; Cancel at Inkvolt PDF's progress: the clean-up closes the copy if Word answers
+   (Word's question may keep it busy past the clean-up's 15 s).
 9. File › Compare Files… with a .docx on one side; opening a .docx from Finder with Inkvolt PDF.
 10. The release build: `codesign -d --entitlements - "/Applications/Inkvolt PDF.app"` lists apple-events; `release.sh` notarizes.
+11. A workbook of several sheets with different page setups: one PDF, or the "separate PDFs" message and LibreOffice's.
+12. With Word not activated and LibreOffice installed: LibreOffice converts and the notice says why Word didn't.
 
 ## Open decisions
 

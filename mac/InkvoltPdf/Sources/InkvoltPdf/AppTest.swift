@@ -646,6 +646,14 @@ struct AppTest {
               "with Word installed, an Office file opens converted by Word (\(wordPages) pages), its copy in Office's folder removed: \(Converting.lastNotice)")
         byWord?.close()
 
+        // Word installed but Automation denied: LibreOffice converts it, and the notice says why Word didn't.
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic, denies: true), staging: staging)
+        let denied = await Converting.openConverted(report)
+        check(denied != nil && Converting.lastNotice.contains("with LibreOffice") && Converting.lastNotice.contains("Microsoft Word couldn't convert it")
+              && Converting.lastNotice.contains("Automation"),
+              "with Word's Automation denied, LibreOffice converts the file and the notice says why Word didn't: \(Converting.lastNotice)")
+        denied?.close()
+
         // Only Excel installed: a Word file falls back to LibreOffice.
         Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.excel], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging)
         let opened = await Converting.openConverted(report)
@@ -666,8 +674,12 @@ struct AppTest {
     /// Word's side of the script, made up: the PDF it would save is a copy of the synthetic document.
     private struct MadeUpWord: OfficeScriptRunner {
         let pdf: String
+        var denies = false
         func run(_ script: String, arguments: [String], timeout: TimeInterval, cancel: CancelToken, appName: String) throws -> ScriptRun {
-            guard arguments.count == 4, (try? FileManager.default.copyItem(atPath: pdf, toPath: arguments[1])) != nil else {
+            if arguments.isEmpty { return ScriptRun(.exited(0), output: "false") } // the probe: Word wasn't running
+            if arguments.count == 2 { return ScriptRun(.exited(0), output: "ok") } // the clean-up
+            if denies { return ScriptRun(.exited(1), errors: "execution error: inkvolt:open: Not authorized to send Apple events to Microsoft Word. (-1743)") }
+            guard arguments.count == 5, (try? FileManager.default.copyItem(atPath: pdf, toPath: arguments[1])) != nil else {
                 return ScriptRun(.exited(1), errors: "execution error: inkvolt:save: made up (1)")
             }
             return ScriptRun(.exited(0), output: "ok")

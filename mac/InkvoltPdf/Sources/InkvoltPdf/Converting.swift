@@ -39,25 +39,38 @@ enum Converting {
         guard OfficeFiles.appFor(url.path) != nil else {
             let options = savedWebOptions()
             let done = loc("Made from {0} ({1}). File › New PDF from Web Page… has the page options. Save it to keep it.", name, describe(options))
-            return await run(title: loc("Opening {0}", name), text: loc("Opening the page…"), pdfName: OfficeFiles.pdfName(url.path), done: done) { token, status in
+            return await run(title: loc("Opening {0}", name), text: loc("Opening the page…"), pdfName: OfficeFiles.pdfName(url.path), done: { done }) { token, status in
                 try await WebCapture.print(url, options: options, status: status, cancel: token)
             }
         }
-        let installs = installs()
-        if let problem = OfficeConversion.precheck(url.path, installs) {
-            tell(loc("Can't open {0}", name), problem)
+        guard let (job, internet) = prepareOffice(url, cantTitle: loc("Can't open {0}", name)) else { return nil }
+        let made = Made()
+        return await run(title: loc("Opening {0}", name), text: loc("Converting with {0}…", job.appName), pdfName: OfficeFiles.pdfName(url.path),
+                         done: { made.result?.notice(name) ?? "" }) { token, _ in
+            let result = try await OfficeConversion.run(job, fromInternetConfirmed: internet, cancel: token)
+            made.result = result
+            return result.pdf
+        }
+    }
+
+    /// What converted an Office file, for the notice once the document is open.
+    @MainActor private final class Made { var result: OfficeResult? }
+
+    /// The checks before an Office file is converted, for Open and Compare alike: what converts it (chosen once, so the
+    /// progress names the converter that runs first), and the question for a file from the internet. Nil when it won't
+    /// be converted (said why, under `cantTitle`).
+    private static func prepareOffice(_ url: URL, cantTitle: String) -> (job: OfficeJob, internet: Bool)? {
+        let job: OfficeJob
+        do {
+            job = try OfficeConversion.job(url.path, installs())
+        } catch {
+            tell(cantTitle, (error as? PdfEditError)?.message ?? error.localizedDescription)
             return nil
         }
         // The converter's macros and links are off, but a file from the internet could still ask for things from elsewhere.
         let internet = OfficeFiles.isFromInternet(url.path)
-        let converter = installs.route(url.path)
-        if internet && !confirmInternet(name, converter) { return nil }
-        let converterName = converter?.appName ?? "LibreOffice"
-        let path = url.path
-        return await run(title: loc("Opening {0}", name), text: loc("Converting with {0}…", converterName), pdfName: OfficeFiles.pdfName(path),
-                         done: loc("Made from {0} with {1}. Save it to keep it.", name, converterName)) { token, _ in
-            try await Task.detached { try OfficeConversion.convert(path, installs: installs, fromInternetConfirmed: internet, cancel: token) }.value
-        }
+        if internet && !confirmInternet(url.lastPathComponent, job.converters.first) { return nil }
+        return (job, internet)
     }
 
     /// File › Compare Files' Office side (Windows' `Comparing.LoadFile`): the file made into PDF bytes behind a progress
@@ -65,17 +78,8 @@ enum Converting {
     /// and said so).
     static func pdfForCompare(_ url: URL) async -> [UInt8]? {
         let name = url.lastPathComponent
-        let installs = installs()
-        if let problem = OfficeConversion.precheck(url.path, installs) {
-            tell(loc("Can't compare {0}", name), problem)
-            return nil
-        }
-        let internet = OfficeFiles.isFromInternet(url.path)
-        let converter = installs.route(url.path)
-        if internet && !confirmInternet(name, converter) { return nil }
-        let converterName = converter?.appName ?? "LibreOffice"
-        let path = url.path
-        let sheet = ProgressSheet(title: loc("Comparing {0}", name), text: loc("Converting with {0}…", converterName))
+        guard let (job, internet) = prepareOffice(url, cantTitle: loc("Can't compare {0}", name)) else { return nil }
+        let sheet = ProgressSheet(title: loc("Comparing {0}", name), text: loc("Converting with {0}…", job.appName))
         let parent = NSApp.keyWindow ?? NSApp.mainWindow
         if let parent, parent.sheetParent == nil, parent.attachedSheet == nil, !(parent is NSPanel) { sheet.begin(on: parent) } else { sheet.showAlone() }
         let id = ObjectIdentifier(sheet), ended = DispatchSemaphore(value: 0)
@@ -87,7 +91,7 @@ enum Converting {
         }
         let token = sheet.token
         do {
-            return try await Task.detached { try OfficeConversion.convert(path, installs: installs, fromInternetConfirmed: internet, cancel: token) }.value
+            return try await OfficeConversion.run(job, fromInternetConfirmed: internet, cancel: token).pdf
         } catch is CancellationError {
             return nil
         } catch {
@@ -257,7 +261,8 @@ enum Converting {
 
     /// Runs a conversion behind a progress window with Cancel, then opens the PDF as a new document.
     @discardableResult
-    private static func run(title: String, text: String, pdfName: String, done: String,
+    /// - Parameter done: the notice once the document is open, worked out then (it can name what converted it).
+    private static func run(title: String, text: String, pdfName: String, done: () -> String,
                             convert: @escaping @MainActor (CancelToken, @escaping (String) -> Void) async throws -> [UInt8]) async -> PdfDocument? {
         let sheet = ProgressSheet(title: title, text: text)
         let parent = NSApp.keyWindow ?? NSApp.mainWindow
@@ -273,8 +278,8 @@ enum Converting {
             let pdf = try await convert(sheet.token) { sheet.update($0, nil) }
             sheet.end()
             guard let document = NewDocuments.open(pdf, name: pdfName) else { return nil }
-            lastNotice = done
-            (document.windowControllers.first as? DocumentWindowController)?.notify(done)
+            lastNotice = done()
+            (document.windowControllers.first as? DocumentWindowController)?.notify(lastNotice)
             return document
         } catch is CancellationError {
             sheet.end()
