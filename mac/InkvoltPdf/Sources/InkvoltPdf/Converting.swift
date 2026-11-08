@@ -173,7 +173,7 @@ enum Converting {
             let name = source.isFileURL ? OfficeFiles.pdfName(source.path) : WebFiles.pdfName(source)
             let label = source.isFileURL ? source.lastPathComponent : (source.host ?? source.absoluteString)
             await run(title: loc("New PDF from Web Page"), text: WebCaptureRules(source: source).loadingText, pdfName: name,
-                      done: loc("Made from {0}. Save it to keep it.", label)) { token, status in
+                      done: { loc("Made from {0}. Save it to keep it.", label) }) { token, status in
                 try await WebCapture.print(source, options: options, status: status, cancel: token)
             }
         }
