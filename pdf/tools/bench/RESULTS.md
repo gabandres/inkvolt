@@ -4,8 +4,8 @@ Written by `dotnet run --project pdf/tools/bench -c Release -- report` on 2026-1
 [README.md](README.md); run `make`, `run` and `report` again before a release and commit this file.
 
 - **PC:** Microsoft Surface Laptop, 7th Edition, Snapdragon(R) X 12-core X1E80100 @ 3.40 GHz (12 logical processors), 32 GB RAM, Microsoft Windows 10.0.26300 Arm64, .NET 10.0.14.
-- **Build:** commit 2aa0e077, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.
-- before Inkvolt PDF 1.11.0.0, 2026-11-07; PC about 60% busy with other sessions
+- **Build:** commit 9bbd0685, win-arm64, Release (optimized); each measure is the median of 3 runs, each in a fresh process.
+- before Inkvolt PDF 1.11.1.0, 2026-11-07; PC busy with other sessions
 
 ## The corpus
 
@@ -21,24 +21,26 @@ Written by `dotnet run --project pdf/tools/bench -c Release -- report` on 2026-1
 | Measure | Target | `text.pdf` | `scan.pdf` | `drawings.pdf` | `comments.pdf` |
 |---|---|---|---|---|---|
 | Pages |  | 5,000 | 500 | 400 | 250 |
-| First page (read + open + render) | < 1 s | 0.39 s pass | 0.27 s pass | 0.89 s pass | 1.20 s **miss** |
-|   of which: read the file / open / render |  | 4 / 271 / 117 ms | 0 / 37 / 236 ms | 0 / 20 / 871 ms | 3 / 825 / 368 ms |
-| Scrolling proxy: 20 pages after a cold open, ms/page (slowest) | no page > 200 ms | 11 ms (76) pass | 35 ms (157) pass | 821 ms (1,657) **miss**, 17 over | 27 ms (322) **miss**, 1 over |
-|   the same pages again, engine still holding them: ms/page |  | 6 ms | 30 ms | 1,113 ms | 11 ms |
-| Find a word across all pages | < 5 s | 3.12 s pass ("lantern": 11,011 hits) | 0.73 s pass ("lantern": 0 hits) | 36.39 s **miss** ("detail": 80 hits) | 1.36 s pass ("lantern": 579 hits) |
-|   find workers started, pages they read |  | 8 (4,932 pages) | 6 (451 pages) | 8 (396 pages) | 8 (210 pages) |
-| Comment list ready | < 2 s | 0.35 s pass (0 comments) | 0.20 s pass (0 comments) | 0.68 s pass (0 comments) | 0.83 s pass (10,000 comments) |
-| Peak working set | < 1.5 GB | 0.35 GB pass | 0.24 GB pass | 0.18 GB pass | 0.26 GB pass |
-|   with the find workers' peaks added (an upper bound) | < 1.5 GB | 0.95 GB pass | 0.64 GB pass | 0.62 GB pass | 0.26 GB pass |
-| On-screen scroll (app, 4 s at 1,500 px/s): frames per second | 60 fps | 52 fps **miss**, longest gap 55 ms | 57 fps pass, longest gap 43 ms | 59 fps pass, longest gap 67 ms | 45 fps **miss**, longest gap 127 ms |
-|   frames with a blank page |  | 0 of 207 | 0 of 229 | 48 of 236 | 0 of 180 |
-|   pages still blank 200 ms after the scroll stops | none | 0 pass | 0 pass | 0 pass | 0 pass |
+| First page (read + open + render) | < 1 s | 0.42 s pass | 0.24 s pass | 0.85 s pass | 1.27 s **miss** |
+|   of which: read the file / open / render |  | 3 / 303 / 118 ms | 0 / 27 / 212 ms | 0 / 20 / 834 ms | 4 / 901 / 367 ms |
+| Scrolling proxy: 20 pages after a cold open, ms/page (slowest) | no page > 200 ms | 11 ms (76) pass | 33 ms (221) **miss**, 1 over | 581 ms (1,102) **miss**, 16 over | 27 ms (325) **miss**, 1 over |
+|   the same pages again, engine still holding them: ms/page |  | 7 ms | 26 ms | 918 ms | 11 ms |
+| Find a word across all pages | < 5 s | 2.73 s pass ("lantern": 11,011 hits) | 0.69 s pass ("lantern": 0 hits) | 30.51 s **miss** ("detail": 80 hits) | 1.41 s pass ("lantern": 579 hits) |
+|   find workers started, pages they read |  | 8 (4,923 pages) | 6 (450 pages) | 8 (394 pages) | 0 (0 pages) |
+| Comment list ready | < 2 s | 0.42 s pass (0 comments) | 0.17 s pass (0 comments) | 0.64 s pass (0 comments) | 0.91 s pass (10,000 comments) |
+| Peak working set | < 1.5 GB | 0.33 GB pass | 0.20 GB pass | 0.21 GB pass | 0.26 GB pass |
+|   with the find workers' peaks added (an upper bound) | < 1.5 GB | 0.93 GB pass | 0.60 GB pass | 0.65 GB pass | 0.26 GB pass |
+| On-screen scroll (app, 4 s at 1,500 px/s): frames per second | 60 fps | 58 fps pass, longest gap 45 ms | 54 fps **miss**, longest gap 64 ms | 58 fps pass, longest gap 101 ms | 47 fps **miss**, longest gap 102 ms |
+|   frames with a blank page |  | 0 of 231 | 0 of 217 | 200 of 234 | 0 of 188 |
+|   pages still blank 200 ms after the scroll stops | none | 0 pass | 0 pass | 2 **miss** | 0 pass |
 
 ## What missed
 
-- `text.pdf`: on-screen scroll at 52 fps, 0 page(s) still blank 200 ms after the scroll stopped.
-- `drawings.pdf`: 17 of the first 20 pages took over 200 ms to render (slowest 1,657 ms; 821 ms on average).
-- `drawings.pdf`: find across 400 pages took 36.4 s.
-- `comments.pdf`: first page in 1.2 s (reading the file 0.0 s, opening 0.8 s, the render 0.4 s).
-- `comments.pdf`: 1 of the first 20 pages took over 200 ms to render (slowest 322 ms; 27 ms on average).
-- `comments.pdf`: on-screen scroll at 45 fps, 0 page(s) still blank 200 ms after the scroll stopped.
+- `scan.pdf`: 1 of the first 20 pages took over 200 ms to render (slowest 221 ms; 33 ms on average).
+- `scan.pdf`: on-screen scroll at 54 fps, 0 page(s) still blank 200 ms after the scroll stopped.
+- `drawings.pdf`: 16 of the first 20 pages took over 200 ms to render (slowest 1,102 ms; 581 ms on average).
+- `drawings.pdf`: find across 400 pages took 30.5 s.
+- `drawings.pdf`: on-screen scroll at 58 fps, 2 page(s) still blank 200 ms after the scroll stopped.
+- `comments.pdf`: first page in 1.3 s (reading the file 0.0 s, opening 0.9 s, the render 0.4 s).
+- `comments.pdf`: 1 of the first 20 pages took over 200 ms to render (slowest 325 ms; 27 ms on average).
+- `comments.pdf`: on-screen scroll at 47 fps, 0 page(s) still blank 200 ms after the scroll stopped.
