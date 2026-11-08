@@ -20,6 +20,13 @@ public enum UsbNodeKind
 public sealed record UsbPrinterNode(UsbNodeKind Kind, bool Present)
 {
     public string? FriendlyName { get; init; }
+
+    /// <summary>
+    /// What the device itself calls its product (<c>DEVPKEY_Device_BusReportedDeviceDesc</c>: "Epson Perfection V19"): a USB
+    /// device with no driver has only this for a name.
+    /// </summary>
+    public string? BusReportedName { get; init; }
+
     public string? DeviceIdName { get; init; }
     public IReadOnlyList<string> HardwareIds { get; init; } = [];
     public IReadOnlyList<string> CompatibleIds { get; init; } = [];
@@ -64,7 +71,18 @@ public sealed record NeedsDriverPrinter(string Id, string Name, string? Maker, s
 {
     /// <summary>Made up (demo mode): nothing about it is real.</summary>
     public bool IsMadeUp { get; init; }
+
+    /// <summary>A printer, or a scanner (<see cref="UsbScanners"/>): a scanner is never "set up", only given its driver.</summary>
+    public NeedsDriverKind Kind { get; init; } = NeedsDriverKind.Printer;
+
+    /// <summary>Its USB vendor and product ids ("04B8:013C"), the same for every one of the model: never its serial. Null: not known.</summary>
+    public string? UsbId { get; init; }
+
+    public bool IsScanner => Kind == NeedsDriverKind.Scanner;
 }
+
+/// <summary>What a device needing its driver is.</summary>
+public enum NeedsDriverKind { Printer, Scanner }
 
 /// <summary>What a look at the PC's USB printers found: those that need their driver, and whether Windows protected print mode is on.</summary>
 public sealed record NeedsDriverRead(IReadOnlyList<NeedsDriverPrinter> Printers, bool ProtectedPrint)
@@ -148,12 +166,23 @@ public static partial class NeedsDriver
                 continue;
             if (HasQueue(n, queues)) continue;
             var name = PrinterNames.ForDevice(n.FriendlyName, n.DeviceIdName, n.HardwareIds);
-            found.Add(new NeedsDriverPrinter(IdFor(null, name), name, PrinterNames.MakerOf(n.FriendlyName, n.DeviceIdName, n.HardwareIds), null, DriverStage.NoDriver));
+            found.Add(new NeedsDriverPrinter(IdFor(null, name), name, PrinterNames.MakerOf(n.FriendlyName, n.DeviceIdName, n.HardwareIds), null, DriverStage.NoDriver)
+                { UsbId = UsbScanners.UsbIdOf(n) });
+        }
+        // A scanner (or an all-in-one's scanner part) with no driver: listed unless its printer part already is (one entry a device).
+        foreach (var n in nodes.Where(n => n.Present && n.Kind == UsbNodeKind.UsbDevice && n.DriverProblem() && !IsPrinterClass(n) && UsbScanners.IsScanner(n)))
+        {
+            if (n.ContainerId is { Length: > 0 } c && (!seenContainers.Add(c) || printNodes.Any(p => string.Equals(p.ContainerId, c, StringComparison.OrdinalIgnoreCase))))
+                continue;
+            if (UsbScanners.UsbIdOf(n) is not { } usbId) continue;
+            found.Add(new NeedsDriverPrinter(IdPrefix + "scanner-" + usbId.Replace(':', '-').ToLowerInvariant(), UsbScanners.NameOf(n), UsbScanners.MakerOf(n), null,
+                DriverStage.NoDriver) { Kind = NeedsDriverKind.Scanner, UsbId = usbId });
         }
         return found.DistinctBy(p => p.Id, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private static bool DriverProblem(this UsbPrinterNode n) => DriverProblems.Contains(n.ProblemCode) || n.DriverInf is not { Length: > 0 };
+    /// <summary>No working driver: a problem code that says so, or no driver bound at all.</summary>
+    public static bool DriverProblem(this UsbPrinterNode n) => DriverProblems.Contains(n.ProblemCode) || n.DriverInf is not { Length: > 0 };
 
     private static string IdFor(string? port, string name) => IdPrefix + (port is { Length: > 0 } p ? p.Trim().TrimEnd(':') : name).ToLowerInvariant();
 

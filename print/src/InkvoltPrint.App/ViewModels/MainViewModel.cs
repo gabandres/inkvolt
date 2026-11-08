@@ -469,10 +469,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (ct.IsCancellationRequested) return;
         var ids = read.Printers.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id)).ToList())
+        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id) && !v.IsGettingDriver && !v.ShowConfirm).ToList())
         {
             if (SelectedNeedsDriver == gone) SelectedNeedsDriver = null;
             gone.SetUpDone -= RelistQueues;
+            gone.DriverInstalled -= OnDriverInstalled;
             NeedsDriver.Remove(gone);
             Log.Write($"[{gone.Name}] no longer needs its driver here (set up, or unplugged)");
         }
@@ -484,11 +485,65 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 listed.Update(p, read.ProtectedPrint);
                 continue;
             }
-            var vm = new NeedsDriverViewModel(p, read.ProtectedPrint, _pc.NeedsDriver);
+            var vm = new NeedsDriverViewModel(p, read.ProtectedPrint, _pc.NeedsDriver, IsThereAsync);
             vm.SetUpDone += RelistQueues;
+            vm.DriverInstalled += OnDriverInstalled;
             NeedsDriver.Add(vm);
             Log.Write(NeedsDriverText.LogLine(p) + (read.ProtectedPrint ? " (Windows protected print mode is on)" : ""));
         }
+        OnPropertyChanged(nameof(NeedsDriverScanners));
+        OnPropertyChanged(nameof(HasNeedsDriverScanners));
+    }
+
+    /// <summary>The scanners among them: the Scan tab says so too.</summary>
+    public IReadOnlyList<NeedsDriverViewModel> NeedsDriverScanners => NeedsDriver.Where(v => v.IsScanner).ToList();
+
+    public bool HasNeedsDriverScanners => NeedsDriver.Any(v => v.IsScanner);
+
+    [RelayCommand]
+    private void ShowNeedsDriver(NeedsDriverViewModel? which)
+    {
+        if (which is not null) SelectedNeedsDriver = which;
+    }
+
+    /// <summary>The WIA scanner a driver just went in for, once Windows lists it.</summary>
+    private WiaDeviceInfo? _installedScanner;
+
+    /// <summary>
+    /// Whether Windows has the device now, after its driver's installer: a scanner when WIA lists one of its model (never a TWAIN
+    /// source: WIA is what the Scan tab uses first), a printer when it no longer needs its driver.
+    /// </summary>
+    private async Task<bool> IsThereAsync(NeedsDriverPrinter device, CancellationToken ct)
+    {
+        if (device.IsScanner)
+        {
+            var listed = await _wia.ListNowAsync(ct);
+            _installedScanner = listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name));
+            if (_installedScanner is null) return false;
+            _scanners = listed;
+            _scannersRead = true;
+            return true;
+        }
+        var read = await _pc.NeedsDriver.ReadAsync(_queues, ct);
+        return !read.Printers.Any(p => string.Equals(p.Id, device.Id, StringComparison.OrdinalIgnoreCase) && p.Stage == DriverStage.NoDriver);
+    }
+
+    /// <summary>Its driver went in: the list reads Windows again, and a scanner is selected with its Scan tab shown.</summary>
+    private void OnDriverInstalled(NeedsDriverViewModel which)
+    {
+        RelistQueues();
+        if (!which.IsScanner || _installedScanner is not { } scanner) return;
+        var id = PrinterList.ScannerIdFor(scanner.Id);
+        _wantedScanner = id;
+        Reconcile(queues: false);
+        var shown = Printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))
+                    ?? Printers.FirstOrDefault(p => p.Scan is not null && UsbScanners.SameModel(which.Name, p.Name));
+        if (shown is null) return;
+        SelectedNeedsDriver = null;
+        IsFleetShown = false;
+        Selected = shown;
+        shown.SelectedSection = PrinterViewModel.ScanSection;
+        Log.Write($"[{which.Name}] driver installed: selected in the Scan tab as {scanner.Name}");
     }
 
     // ---------------------------------------------------------------- printers known only by their Windows queue

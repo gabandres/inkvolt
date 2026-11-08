@@ -159,6 +159,9 @@ switch (cmd)
                 Console.WriteLine($"{InkvoltPrint.Core.Queues.NeedsDriverText.QueuesLine(p)} (not plugged in now)");
         if (InkvoltPrint.Windows.Printing.UsbPrinters.ProtectedPrintOn()) Console.WriteLine("Windows protected print mode is on: makers' drivers won't install.");
         break;
+    case "scanners" when args.Contains("--needs-driver"):
+        Environment.ExitCode = await NeedsDriverScanners(args.Contains("--get-driver"), args.Contains("--yes"));
+        break;
     case "scanners":
         // Read-only: the WIA scanners Windows has drivers for and the 64-bit TWAIN sources beside them, as the app lists them;
         // --caps connects to each and prints what it offers (never scans).
@@ -212,6 +215,10 @@ switch (cmd)
                                                            that need their driver; --unplugged: also those not plugged in now;
                                                            --bidi: ask every queue's driver, also those the app doesn't)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners and TWAIN sources; --caps connects and reads what each offers)
+            inkvoltprint scanners --needs-driver [--get-driver [--yes]] [--model "Epson Perfection V19"]
+                                                           (USB scanners plugged in with no driver; --get-driver finds the maker's
+                                                           driver, downloads and checks it, and asks before running it, --yes
+                                                           without asking; then rescans and checks WIA lists the scanner)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]
                                                            (read-only: every reply the app reads, scrubbed, as test fixtures)
@@ -225,6 +232,62 @@ switch (cmd)
 }
 
 string? Opt(string name) => args.SkipWhile(a => a != name).Skip(1).FirstOrDefault();
+
+// USB scanners plugged in with no driver (names, USB ids and makers only: never a serial); --get-driver gets each one's driver as
+// the app's Get the driver does: found on the maker's site, downloaded and checked, shown, run only when confirmed (or --yes).
+async Task<int> NeedsDriverScanners(bool getDriver, bool yes)
+{
+    var nodes = await InkvoltPrint.Windows.Printing.UsbPrinters.NodesAsync(false, ct);
+    var scanners = InkvoltPrint.Core.Queues.NeedsDriver.Find(nodes, [], []).Where(p => p.IsScanner).ToList();
+    if (Opt("--model") is { Length: > 0 } model) // a model by name, as if plugged in with no driver (to try the lookup and the checks)
+        scanners = [new("usb-needs-driver:cli", model, InkvoltPrint.Core.Queues.PrinterNames.MakerOf(model, null, []), null,
+            InkvoltPrint.Core.Queues.DriverStage.NoDriver) { Kind = InkvoltPrint.Core.Queues.NeedsDriverKind.Scanner }];
+    if (scanners.Count == 0) Console.WriteLine("No USB scanner plugged in needs its driver.");
+    foreach (var s in scanners) Console.WriteLine(InkvoltPrint.Core.Queues.NeedsDriverText.ScannerLine(s));
+    if (!getDriver) return 0;
+    var flow = InkvoltPrint.Windows.Printing.WindowsDrivers.Create();
+    var wia = InkvoltPrint.Windows.Scanning.WindowsTwain.BesideWia(Console.Error.WriteLine);
+    var failed = 0;
+    foreach (var s in scanners)
+    {
+        Console.WriteLine($"{s.Name}: looking on {s.Maker ?? "its maker"}'s site ({InkvoltPrint.Windows.Printing.WindowsDrivers.Arch}, {InkvoltPrint.Windows.Printing.WindowsDrivers.Windows})");
+        var found = await flow.FindAsync(s, ct);
+        if (found.Offer is not { } offer)
+        {
+            Console.WriteLine($"  no download: {InkvoltPrint.Core.Drivers.DriverText.EnglishNoOffer(s, found)}");
+            Console.WriteLine($"  by hand: {InkvoltPrint.Core.Queues.DriverHelp.PageFor(s, found.Page)} or {InkvoltPrint.Core.Queues.DriverHelp.WindowsOptionalUpdates}");
+            failed++;
+            continue;
+        }
+        Console.WriteLine($"  found: {offer.Title} {offer.Version} ({offer.SizeText}) at {offer.Download}");
+        var got = await flow.DownloadAsync(offer, s, null, ct);
+        if (got.Ready is not { } ready)
+        {
+            Console.WriteLine($"  {InkvoltPrint.Core.Drivers.DriverText.EnglishRefused(got)}");
+            failed++;
+            continue;
+        }
+        Console.WriteLine($"  checked: {InkvoltPrint.Core.Drivers.DriverText.EnglishFacts(ready)}");
+        if (!yes)
+        {
+            Console.Write("  Run its installer now? [y/N] ");
+            if (!string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
+            {
+                flow.Discard(ready);
+                Console.WriteLine("  not installed; the download was deleted.");
+                continue;
+            }
+        }
+        var done = await flow.InstallAsync(ready, async c =>
+            (await wia.ListNowAsync(c)).Any(d => !d.IsTwain && InkvoltPrint.Core.Queues.UsbScanners.SameModel(s.Name, d.Name)), ct);
+        Console.WriteLine($"  {InkvoltPrint.Core.Drivers.DriverText.LogLine(s, done)}");
+        if (done.Outcome == InkvoltPrint.Core.Drivers.InstallOutcome.Done)
+            foreach (var d in (await wia.ListNowAsync(ct)).Where(d => !d.IsTwain && InkvoltPrint.Core.Queues.UsbScanners.SameModel(s.Name, d.Name)))
+                Console.WriteLine($"  WIA lists: {d.Name}");
+        else failed++;
+    }
+    return failed == 0 ? 0 : 1;
+}
 
 async Task Discover()
 {
