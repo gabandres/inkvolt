@@ -71,6 +71,16 @@ release build -warnaserror, check-int, self-test 27/27. **Ships only after a per
 runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a password file, a timeout). Mac CI's flaky
 `DrawingBandsTests.ACancelStopsBandsThatOnlySkipAsSoonAsOneThread` made robust (`8b34d6f1`: best of 3, 0.25 s margin).
 **Autonomous run stopped 2026-11-08** until Tuesday's scheduled 08:05 start (2.1, then 3.1, on the Mac, on PPE).
+**Owner, 2026-11-08 (evening), queued on PPE in this order:**
+1. **Inkvolt Print: scanners that need a driver** (agent running). Detect a USB scanner with no driver; "Get the driver" downloads the maker's signed driver from the maker's own host and installs it on the user's click. Found on an Epson Perfection V19 on this PC (ARM64); Epson Scan 3.9.5.0 installed by hand.
+2. **Then: a familiar but fresh command bar** (Windows, then Mac). People coming from Nitro, Foxit or Acrobat should find each task where they expect it, with a modern look, not a ribbon:
+   - **Groups:** Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR, in the competitors' order, with recognisable icons and shortcuts.
+   - **One click:** each group's main job runs at once with defaults. Convert › Word saves `name.docx` next to the PDF, never replaces a file, opens it, and its notice offers "Change options…"; Shift+click opens the options.
+   - **Look:** one row, icons and labels, flyouts with a line under each tool, the rarely used ones in "…", Ctrl+K for everything.
+   - **Design gate:** a map of where Nitro, Foxit, Acrobat and PDFgear put each task, then a real screenshot of the new bar for the owner to approve before anything merges.
+   - **Later:** Explorer's right-click "Convert to Word with Inkvolt PDF".
+
+   Research 2026-11-08: Nitro (Convert tab: To Word, To Excel, then an options window), Foxit (Convert › To MS Office, plus Explorer's right-click), PDF-XChange (Convert tab), PDFgear (Convert menu and a floating To Word button), Acrobat (Convert in the top bar, then a side panel; paid).
 **Inkvolt PDF for Mac 1.9.0 published 2026-11-07** (`pdf-mac-v1.9.0` on `4768ae0c`, notarized DMG sha256 3e19aa8f…d8d2e07,
 38.8 MB, appcast with Spanish notes, not Latest; Homebrew cask `5ddcf54` (pushed from a clone: the tap is no longer tapped on
 ignia-mac), website `f1d2750` deployed; folder search, Compare's Office files and scans, drawing in bands, the forms corpus
