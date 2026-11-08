@@ -9,7 +9,7 @@ Written 2026-10-30 from a gap review against those apps and their vendors' curre
 per item. What exists today: [README.md](README.md) (the feature table, "Not done / known limits"); the Mac app:
 [../mac/docs/PLAN.md](../mac/docs/PLAN.md).
 
-**Principles.** Free (MIT), local only: no account, no cloud service of ours, no telemetry, no driver download, no
+**Principles.** Free (MIT), local only: no account, no cloud service of ours, no telemetry, no driver download unless the person asks (then only the maker's own, signature checked), no
 shop links. Read-only toward the printer unless the person asks for a change, every write confirmed. Every claim is
 checked: each item has acceptance criteria that a test, a fixture captured from a real printer, or a check on a real
 printer can confirm.
@@ -535,6 +535,13 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Built (Inkvolt Print for Mac, 2026-11-06):** PrintCore's and PrintMac's sentences through `CoreLanguage` (`CoreStrings.xcstrings`, Windows' Spanish word for word where the sentence is the same), the app's in `Localizable.xcstrings`; the language follows macOS's per-app choice or Settings › Language (next launch); `--report --demo --strings` in Spanish complete, `check-strings.sh` and `CoreStringsTests` fail on an untranslated string (mac/docs/PLAN.md, P12). The Mac-only wording: `print/docs/SPANISH-REVIEW.md`, "Inkvolt Print for Mac".
 - **Built (What's New in Spanish for Inkvolt Print for Mac, 2026-11-06):** `mac/InkvoltPrint/WHATS-NEW.es.md` (every version, line for line, `PdfStringsTests`) and `listing.json`'s `localizations` › `es-MX` › `whatsNew`, which `asc-listing.mjs apply` sends once the version has an es-MX localization in App Store Connect (made there by the owner, with its description and keywords). Inkvolt PDF's Spanish interface is done on Windows and the Mac (`pdf/ROADMAP.md` 3.7).
 - **Next:** the owner reviews the wording (`print/docs/SPANISH-REVIEW.md`); the Store listings lose "La aplicación está en inglés." when it ships (the Mac listing's Spanish is the owner's call: an es-MX localization in App Store Connect); What's New in Spanish on Windows.
+
+### 3.8 Scanners that need their driver, and Get the driver
+- **Leader.** The makers' own setup apps (Epson's, Canon's, HP Smart) find their driver; Windows Update rarely has a scanner's.
+- **Built (Windows, 2026-11-08):** a USB scanner with no driver is listed as *Plugged in, needs its driver* (sidebar, Scan tab; `UsbScanners`), and *Get the driver* gets Epson's own driver for the model and this PC (x64 or ARM64), from Epson's hosts only, bounded, Authenticode valid and signed by Epson, shown and run on the user's click, then a rescan and a WIA check (`Core/Drivers`; Epson printers too). `UsbScannerTests`, `DriverDownloadTests` (a trimmed copy of Epson's real page). Found on a real Epson Perfection V19 on ARM64.
+- **Not yet seen:** the installer run through the app, the rescans after it and the scanner selected in the Scan tab (the owner's test); Windows 10 x64; a packaged (MSIX) copy running the installer.
+- **Next:** Canon, HP, Brother and PFU lookups (each needs its own page reader, hosts and signers); the Store's position (policy 10.1.5, 10.2.3, 10.2.4: `print/packaging/README.md`).
+- **Effort** M. Windows. Free.
 
 ## Where we already win
 

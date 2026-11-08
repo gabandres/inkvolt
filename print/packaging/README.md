@@ -120,6 +120,27 @@ apps. A feature that uninstalls other publishers' software is likely to draw Sto
   `HP_CLEANUP_IN_PACKAGE`), for sideloading or other direct distribution. Never upload such a package to the Store.
 - The developer CLI (`inkvoltprint hp`) is not packaged.
 
+## Get the driver and the Store
+
+*Get the driver* (print/README.md) downloads a maker's driver installer and runs it on the user's click. Read against
+Microsoft Store Policies **7.20** (2026-09-14), it does **not** fit certification as built, in a packaged build:
+
+- **10.1.5** lets a product, with consent, acquire "add-ons or extensions, **excluding non-Microsoft drivers or NT
+  services**". An Epson driver acquired in the app is exactly what it excludes.
+- **10.2.3**: a product "must not offer to install secondary software that is not developed by you and does not enhance
+  the functionality of your product". The driver does make the Scan tab work, but Epson's package also installs its own
+  scanning utility (EPSON Scan).
+- **10.2.4**: "dependency on non-Microsoft provided drivers ... is not allowed but may be considered case by case for
+  WHCP certified drivers", disclosed in the certification notes.
+- 10.2.2 (no dynamic code changing the described functionality) is not the problem: nothing of the app's own is downloaded.
+
+**Smallest change that would fit (proposed, not built; the owner decides):** gate the download and the run like the HP
+clean-up. With package identity, *Get the driver* still finds the model's driver on the maker's site and shows its title,
+version and size, but its button opens that download (the maker's own https address) in the browser instead, so the person
+downloads and runs Epson's installer themselves; the app then offers "Look again", which does the rescan and the WIA check
+as now. Unpackaged and sideloaded copies keep the whole flow. Until then, say in the certification notes that the app can
+download and run a maker's signed driver installer on the user's click, or don't upload a build with it.
+
 ## Values from Partner Center
 
 Reserve the name **Inkvolt Print** (or another) in Partner Center, then open the app's **Product management > Product
