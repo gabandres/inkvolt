@@ -250,11 +250,13 @@ struct DrawingBandsTests {
         let engine = try P.open(Self.skippedBelow, budget: 0)
         defer { engine.close() }
         _ = try engine.render(0, scale: 0.1) // the list, made once
-        let alone = Self.cancelled(engine, bands: 1)
-        let banded = Self.cancelled(engine, bands: 16)
-        // 0.05 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns (0.17 against 0.02 s
-        // seen, 6c6e72c7): the walk this guards against took 1.5 s.
-        let more = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 0.05 : 0.5
+        // The best of 3 each: a busy Mac (the whole suite, other sessions) only adds time, so the fastest run is the one
+        // that measures the stop (2026-11-08: 0.05 s more failed under the full suite).
+        let alone = (0..<3).map { _ in Self.cancelled(engine, bands: 1) }.min() ?? .infinity
+        let banded = (0..<3).map { _ in Self.cancelled(engine, bands: 16) }.min() ?? .infinity
+        // 0.25 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns (0.17 against 0.02 s
+        // seen, 6c6e72c7): the walk this guards against took 1.5 s, so either still catches it.
+        let more = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 0.25 : 0.5
         #expect(banded < alone + more, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
     }
 
