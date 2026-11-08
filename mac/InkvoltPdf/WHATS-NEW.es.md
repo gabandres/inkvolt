@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Los archivos de Word, Excel y PowerPoint se convierten en PDF con Microsoft Word, Excel o PowerPoint cuando están en este Mac (si no, con LibreOffice, que también se usa cuando una de ellas no puede, por ejemplo antes de activarla): Archivo › PDF nuevo › PDF nuevo desde un archivo de Office…, al abrir un archivo de Office y en Comparar archivos. macOS pregunta una vez si Inkvolt PDF puede usar cada app. Se usa una copia del archivo, que se borra después, y los documentos que tengas abiertos en ellas no se tocan.
 
 ## 1.9.0
 - Buscar en carpetas (Edición › Buscar › Buscar en carpetas…, ⌥⇧⌘F): agrega una carpeta e Inkvolt PDF indexa en este Mac todos los PDF que contiene, también en sus subcarpetas, y luego encuentra una palabra en todos ellos en un momento, con el texto alrededor de cada resultado. Un resultado se abre en su lugar. El índice se mantiene al día cuando cambian los archivos y dice qué archivos no pudo leer y por qué.

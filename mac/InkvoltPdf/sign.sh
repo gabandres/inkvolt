@@ -1,8 +1,10 @@
 #!/bin/sh
 # Signs "Inkvolt PDF.app" from the inside out, as Sparkle's documentation says for apps signed outside Xcode (never
 # --deep): Sparkle's Autoupdate and Updater.app, then Sparkle.framework, then the app; hardened runtime on each. Not
-# sandboxed: the app's one entitlement (InkvoltPdf.entitlements) is the app group it shares with Inkvolt Print, where the
-# Inkvolt Pro key is kept (mac/docs/research/print-v1-platform.md, "The Pro key's shared file"); Sparkle's code has none.
+# sandboxed: the app's entitlements (InkvoltPdf.entitlements) are the app group it shares with Inkvolt Print, where the
+# Inkvolt Pro key is kept (mac/docs/research/print-v1-platform.md, "The Pro key's shared file"), and Apple Events, for
+# Microsoft Word, Excel and PowerPoint as the Office converter (docs/PLAN.md, E12: the hardened runtime blocks the events
+# without it, and macOS asks the person once per app with NSAppleEventsUsageDescription); Sparkle's code has none.
 # The codesign options after the app (identity, keychain, timestamp) apply to every one.
 #   sh mac/InkvoltPdf/sign.sh <path/Inkvolt PDF.app> --sign <identity> [--keychain k] [--timestamp | --timestamp=none]
 set -eu

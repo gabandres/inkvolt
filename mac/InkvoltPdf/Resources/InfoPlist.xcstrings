@@ -14,6 +14,13 @@
         "es": { "stringUnit": { "state": "translated", "value": "Libro de Excel" } }
       }
     },
+    "NSAppleEventsUsageDescription": {
+      "comment": "Privacy - AppleEvents Sending Usage Description",
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF asks Microsoft Word, Excel or PowerPoint to save a copy of an Office file you open or convert as a PDF. The copy is removed afterwards, and documents you have open aren't touched." } },
+        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF pide a Microsoft Word, Excel o PowerPoint que guarden como PDF una copia del archivo de Office que abres o conviertes. La copia se borra después, y los documentos que tienes abiertos no se tocan." } }
+      }
+    },
     "NSHumanReadableCopyright": {
       "comment": "Copyright (human-readable)",
       "localizations": {

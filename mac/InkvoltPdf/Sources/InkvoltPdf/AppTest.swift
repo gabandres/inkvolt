@@ -591,8 +591,9 @@ struct AppTest {
     // MARK: PDF from Office files and web pages (E12)
 
     /// A saved web page and an Office file opened through the app's own document controller (as File › Open, the Dock or
-    /// Finder do): the page printed by WebKit with its scripts off, the Office file through a made-up LibreOffice that
-    /// writes a copy of the synthetic document, each a new unsaved document; then the menu items and document types.
+    /// Finder do): the page printed by WebKit with its scripts off, the Office file through a made-up Word (the script
+    /// runner faked, staging in a folder of the test's) and a made-up LibreOffice that each write a copy of the synthetic
+    /// document, each a new unsaved document; then the menu items and document types.
     private mutating func convertFiles() async {
         let menu = NSApp.mainMenu?.item(withTitle: loc("File"))?.submenu?.item(withTitle: loc("New PDF"))?.submenu
         let items = [loc("New PDF from Office File…"), loc("New PDF from Web Page…")].filter { menu?.item(withTitle: $0) != nil }
@@ -628,15 +629,38 @@ struct AppTest {
             + "cp '" + synthetic + #"' "$out/$(basename "$input" | sed 's/\.[^.]*$//').pdf""# + "\n"
         try? Data(script.utf8).write(to: soffice)
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: soffice.path)
-        Converting.testInstalls = OfficeInstalls(soffice: soffice.path)
         defer { Converting.testInstalls = nil }
         let report = url("Quarterly report.docx")
         try? Data("PK\u{3}\u{4}a made-up document".utf8).write(to: report)
+
+        // Word installed: Word converts it (a made-up runner in place of osascript), and its copy is gone after.
+        let group = url("UBF8T346G9.Office")
+        try? FileManager.default.createDirectory(at: group, withIntermediateDirectories: true)
+        let staging = group.appendingPathComponent(MicrosoftOfficeConverter.stagingFolder, isDirectory: true)
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging)
+        let byWord = await Converting.openConverted(report)
+        let wordPages = byWord?.engine?.pageCount ?? 0
+        let leftInStaging = (try? FileManager.default.contentsOfDirectory(atPath: staging.path)) ?? []
+        check(byWord != nil && byWord?.fileURL == nil && wordPages == PdfEngineCount.of(URL(fileURLWithPath: synthetic))
+              && Converting.lastNotice.contains("Microsoft Word") && leftInStaging.isEmpty,
+              "with Word installed, an Office file opens converted by Word (\(wordPages) pages), its copy in Office's folder removed: \(Converting.lastNotice)")
+        byWord?.close()
+
+        // Word installed but Automation denied: LibreOffice converts it, and the notice says why Word didn't.
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic, denies: true), staging: staging)
+        let denied = await Converting.openConverted(report)
+        check(denied != nil && Converting.lastNotice.contains("with LibreOffice") && Converting.lastNotice.contains("Microsoft Word couldn't convert it")
+              && Converting.lastNotice.contains("Automation"),
+              "with Word's Automation denied, LibreOffice converts the file and the notice says why Word didn't: \(Converting.lastNotice)")
+        denied?.close()
+
+        // Only Excel installed: a Word file falls back to LibreOffice.
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.excel], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging)
         let opened = await Converting.openConverted(report)
         let pages = opened?.engine?.pageCount ?? 0
         check(opened != nil && opened?.fileURL == nil && pages == PdfEngineCount.of(URL(fileURLWithPath: synthetic))
               && Converting.lastNotice.contains("LibreOffice") && opened?.displayName.hasPrefix("Quarterly report") == true,
-              "an Office file opens converted by LibreOffice as a new unsaved PDF named after it (\(pages) pages): \(Converting.lastNotice)")
+              "without Word, an Office file opens converted by LibreOffice as a new unsaved PDF named after it (\(pages) pages): \(Converting.lastNotice)")
         opened?.close()
 
         // Nothing installed: said in words, nothing opened.
@@ -645,6 +669,21 @@ struct AppTest {
         let none = await Converting.openConverted(report)
         check(none == nil && NSDocumentController.shared.documents.count == count && (Converting.lastMessage?.text.contains("LibreOffice") ?? false),
               "with no converter installed, an Office file opens nothing and the message names LibreOffice")
+    }
+
+    /// Word's side of the script, made up: the PDF it would save is a copy of the synthetic document.
+    private struct MadeUpWord: OfficeScriptRunner {
+        let pdf: String
+        var denies = false
+        func run(_ script: String, arguments: [String], timeout: TimeInterval, cancel: CancelToken, appName: String) throws -> ScriptRun {
+            if arguments.isEmpty { return ScriptRun(.exited(0), output: "false") } // the probe: Word wasn't running
+            if arguments.count == 2 { return ScriptRun(.exited(0), output: "ok") } // the clean-up
+            if denies { return ScriptRun(.exited(1), errors: "execution error: inkvolt:open: Not authorized to send Apple events to Microsoft Word. (-1743)") }
+            guard arguments.count == 5, (try? FileManager.default.copyItem(atPath: pdf, toPath: arguments[1])) != nil else {
+                return ScriptRun(.exited(1), errors: "execution error: inkvolt:save: made up (1)")
+            }
+            return ScriptRun(.exited(0), output: "ok")
+        }
     }
 
     // MARK: Open in Inkvolt PDF (from another app)

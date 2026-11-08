@@ -11,7 +11,7 @@ struct CompareSide: Sendable {
 }
 
 /// File › Compare Files… (the Windows app's `Compare` and `CompareWindow`): pick the original and the changed version
-/// (an open document, or a file: a PDF, an Office file made into a PDF by LibreOffice, a picture of a scanned page; Swap),
+/// (an open document, or a file: a PDF, an Office file made into a PDF by Microsoft's app or LibreOffice, a picture of a scanned page; Swap),
 /// then the Compare window: rows of lined-up pages side by side with one scroll bar, the text differences highlighted on
 /// both sides (inserted green, removed red, changed amber, moved violet, reformatted blue, a marker where words went
 /// missing on the other side), the list of changes to step through (⌘] and ⌘[, or the arrows), with a box per kind
@@ -746,7 +746,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
         let documents = NSDocumentController.shared.documents.compactMap { $0 as? PdfDocument }.filter { $0.session != nil }
         let alert = NSAlert()
         alert.messageText = loc("Compare Files")
-        alert.informativeText = loc("Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.")
+        alert.informativeText = loc("Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with Microsoft Word, Excel or PowerPoint, or LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.")
         func popup(_ select: Int) -> NSPopUpButton {
             let p = NSPopUpButton(frame: .zero, pullsDown: false)
             for d in documents { p.addItem(withTitle: d.name) }
@@ -807,7 +807,7 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     }
 
     /// A file as a side (Windows' `Comparing.LoadFile`): a PDF as it is (its password asked when it has one), an Office
-    /// file made into a PDF by LibreOffice, a picture as a page. Nil (after saying why) when it can't be.
+    /// file made into a PDF by Microsoft's app or LibreOffice, a picture as a page. Nil (after saying why) when it can't be.
     static func fileSide(_ url: URL) async -> CompareSide? {
         let name = url.lastPathComponent
         let ext = url.pathExtension.lowercased()

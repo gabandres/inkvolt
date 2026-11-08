@@ -7668,17 +7668,6 @@
         }
       }
     },
-    "LibreOffice isn't installed": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LibreOffice no está instalado"
-          }
-        }
-      }
-    },
     "Licence key": {
       "extractionState": "manual",
       "localizations": {
@@ -7994,17 +7983,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Creado a partir de {0} ({1}). Archivo › PDF nuevo desde una página web… tiene las opciones de página. Guárdalo para conservarlo."
-          }
-        }
-      }
-    },
-    "Made from {0} with {1}. Save it to keep it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Creado a partir de {0} con {1}. Guárdalo para conservarlo."
           }
         }
       }
@@ -10458,17 +10436,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Elige uno de los modelos del punto de conexión (Probar conexión los muestra) o escribe su nombre, como en \"ollama list\""
-          }
-        }
-      }
-    },
-    "Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elige el original y la versión modificada. Un documento abierto se compara tal como está ahora, con los cambios sin guardar. Cualquiera de los dos puede ser un archivo de Word, Excel o PowerPoint (convertido en PDF con LibreOffice) o una imagen de una página escaneada: sus palabras se reconocen en este Mac."
           }
         }
       }
@@ -20061,6 +20028,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "⅛ de pulgada de superposición"
+          }
+        }
+      }
+    },
+    "No app to convert Office files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna app para convertir archivos de Office"
+          }
+        }
+      }
+    },
+    "macOS marks this file as downloaded from the internet. {0} opens a copy of it with its own settings for macros and links, and a damaged or crafted file could try to run macros or fetch content from elsewhere. Convert it only if you trust where it came from.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS marca este archivo como descargado de Internet. {0} abre una copia con sus propios ajustes de macros y vínculos, y un archivo dañado o manipulado podría intentar ejecutar macros o traer contenido de otro lugar. Conviértelo solo si confías en su origen."
+          }
+        }
+      }
+    },
+    "Pick the original and the changed version. An open document is compared as it is now, unsaved changes included. Either one can be a Word, Excel or PowerPoint file (made into a PDF with Microsoft Word, Excel or PowerPoint, or LibreOffice) or a picture of a scanned page: its words are recognized on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el original y la versión modificada. Un documento abierto se compara tal como está ahora, con los cambios sin guardar. Cualquiera de los dos puede ser un archivo de Word, Excel o PowerPoint (convertido en PDF con Microsoft Word, Excel o PowerPoint, o con LibreOffice) o una imagen de una página escaneada: sus palabras se reconocen en este Mac."
           }
         }
       }
