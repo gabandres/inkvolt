@@ -198,31 +198,41 @@ struct DrawingBandsTests {
 
     static let topScale = 1200 / 612.0 * 1.5
 
-    /// Seconds a render takes when `cancel` fires 20 ms after it starts (the list made before). The cancelling thread is
-    /// running before the render starts, and a render that ends before the cancel came (the thread held back on CI's busy
-    /// runner: "1 bands: not cancelled" on master df75423b) is run again, at most 5 times.
+    /// Seconds from Cancel to the render's stop, Cancel firing 20 ms after the render starts (the list made before). The
+    /// time is taken from the moment Cancel fired, not from the start: on CI's busy runner the cancelling thread woke
+    /// late, so the start-to-stop time held its wait, and it woke after the render had ended in all 5 tries ("1 bands: not
+    /// cancelled, 5 times" on master 95194a75, 2026-11-07). It runs at the highest quality of service, so a runner whose
+    /// cores the other tests hold schedules it first; a render that ends before Cancel came is run again, at most 10 times.
     static func cancelled(_ engine: PdfEngine, bands: Int) -> Double {
-        for attempt in 1...5 {
-            let cancel = CancelToken()
+        final class FiredAt: @unchecked Sendable {
+            private let lock = NSLock()
+            private var date: Date?
+            func set() { lock.withLock { date = Date() } }
+            var value: Date? { lock.withLock { date } }
+        }
+        for attempt in 1...10 {
+            let cancel = CancelToken(), fired = FiredAt()
             let go = DispatchSemaphore(value: 0)
-            Thread {
+            let canceller = Thread {
                 go.wait()
                 usleep(20_000)
+                fired.set()
                 cancel.cancel()
-            }.start()
-            var finished = false
-            let took = P.time {
-                go.signal()
-                do {
-                    _ = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: topScale, cancel: cancel) }
-                    finished = true
-                } catch is CancellationError {
-                } catch {
-                    Issue.record("\(bands) bands: threw \(error)")
-                }
             }
-            if !finished { return took }
-            if attempt == 5 { Issue.record("\(bands) bands: not cancelled, 5 times") }
+            canceller.qualityOfService = .userInteractive
+            canceller.start()
+            var finished = false
+            go.signal()
+            do {
+                _ = try PdfEngine.$bandsForTests.withValue(bands) { try engine.render(0, scale: topScale, cancel: cancel) }
+                finished = true
+            } catch is CancellationError {
+            } catch {
+                Issue.record("\(bands) bands: threw \(error)")
+            }
+            let stopped = Date()
+            if !finished, let at = fired.value { return max(0, stopped.timeIntervalSince(at)) }
+            if attempt == 10 { Issue.record("\(bands) bands: not cancelled, 10 times") }
         }
         return .infinity
     }
@@ -254,8 +264,8 @@ struct DrawingBandsTests {
         // that measures the stop (2026-11-08: 0.05 s more failed under the full suite).
         let alone = (0..<3).map { _ in Self.cancelled(engine, bands: 1) }.min() ?? .infinity
         let banded = (0..<3).map { _ in Self.cancelled(engine, bands: 16) }.min() ?? .infinity
-        // 0.25 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns (0.17 against 0.02 s
-        // seen, 6c6e72c7): the walk this guards against took 1.5 s, so either still catches it.
+        // From Cancel to the stop: 0.25 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns
+        // (0.17 against 0.02 s seen, 6c6e72c7): the walk this guards against took 1.5 s, so either still catches it.
         let more = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 0.25 : 0.5
         #expect(banded < alone + more, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
     }
