@@ -21,6 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ProSetup.configure(selfTest: Report.isRunning)
         AppSettings.applyTheme()
         FolderWatches.shared.startSaved()
+        // What a crashed conversion left in the temp folder (copies of documents); Office's folder is swept when used.
+        DispatchQueue.global(qos: .utility).async { ConversionTemp.sweepLeftovers() }
         FolderSearches.shared.startSaved()
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }

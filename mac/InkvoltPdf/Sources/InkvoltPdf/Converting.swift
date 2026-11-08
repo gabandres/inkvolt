@@ -20,8 +20,9 @@ enum Converting {
     /// Files Open converts instead of reading itself.
     static func handles(_ url: URL) -> Bool { OfficeFiles.appFor(url.path) != nil || WebFiles.isWebFile(url.path) }
 
-    /// Finds what is installed, each time: LibreOffice may have been installed since. Launch Services knows an app wherever
-    /// it was put; the usual places cover a copy it hasn't seen.
+    /// Finds what is installed, each time: an app may have been installed since. Launch Services knows an app wherever
+    /// it was put; the usual places cover a LibreOffice it hasn't seen. Word, Excel and PowerPoint convert their own kinds
+    /// first (driven through AppleScript, `MicrosoftOfficeConverter`), LibreOffice the rest.
     static func installs() -> OfficeInstalls {
         if let testInstalls { return testInstalls }
         let workspace = NSWorkspace.shared
@@ -49,8 +50,9 @@ enum Converting {
         }
         // The converter's macros and links are off, but a file from the internet could still ask for things from elsewhere.
         let internet = OfficeFiles.isFromInternet(url.path)
-        if internet && !confirmInternet(name) { return nil }
-        let converterName = installs.route(url.path)?.appName ?? "LibreOffice"
+        let converter = installs.route(url.path)
+        if internet && !confirmInternet(name, converter) { return nil }
+        let converterName = converter?.appName ?? "LibreOffice"
         let path = url.path
         return await run(title: loc("Opening {0}", name), text: loc("Converting with {0}…", converterName), pdfName: OfficeFiles.pdfName(path),
                          done: loc("Made from {0} with {1}. Save it to keep it.", name, converterName)) { token, _ in
@@ -69,8 +71,9 @@ enum Converting {
             return nil
         }
         let internet = OfficeFiles.isFromInternet(url.path)
-        if internet && !confirmInternet(name) { return nil }
-        let converterName = installs.route(url.path)?.appName ?? "LibreOffice"
+        let converter = installs.route(url.path)
+        if internet && !confirmInternet(name, converter) { return nil }
+        let converterName = converter?.appName ?? "LibreOffice"
         let path = url.path
         let sheet = ProgressSheet(title: loc("Comparing {0}", name), text: loc("Converting with {0}…", converterName))
         let parent = NSApp.keyWindow ?? NSApp.mainWindow
@@ -110,12 +113,17 @@ enum Converting {
         return options.landscape ? loc("{0} landscape, {1}", paper, margins) : loc("{0}, {1}", paper, margins)
     }
 
-    private static func confirmInternet(_ name: String) -> Bool {
+    private static func confirmInternet(_ name: String, _ converter: (any OfficeConverter)?) -> Bool {
         if Report.skipsDialogs { return testConfirmsInternet ?? false }
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = loc("{0} came from the internet", name)
-        alert.informativeText = loc("macOS marks this file as downloaded from the internet. LibreOffice opens it here with its macros and link updates off, but it is still read by another program, and a damaged or crafted file could try to fetch content from elsewhere. Convert it only if you trust where it came from.")
+        if let converter, converter is MicrosoftOfficeConverter {
+            // Word, Excel and PowerPoint open the copy with the person's own settings for macros and links.
+            alert.informativeText = loc("macOS marks this file as downloaded from the internet. {0} opens a copy of it with its own settings for macros and links, and a damaged or crafted file could try to run macros or fetch content from elsewhere. Convert it only if you trust where it came from.", converter.appName)
+        } else {
+            alert.informativeText = loc("macOS marks this file as downloaded from the internet. LibreOffice opens it here with its macros and link updates off, but it is still read by another program, and a damaged or crafted file could try to fetch content from elsewhere. Convert it only if you trust where it came from.")
+        }
         alert.addButton(withTitle: loc("Convert Anyway"))
         alert.addButton(withTitle: loc("Cancel"))
         return alert.runModal() == .alertFirstButtonReturn
@@ -134,8 +142,8 @@ enum Converting {
     /// File › New PDF from Office File…: always in the menu (Windows hides it without Office), so what is missing gets said.
     static func fromOfficeFile() {
         let installs = installs()
-        guard installs.soffice != nil else {
-            tell(loc("LibreOffice isn't installed"), installs.missing(nil))
+        guard installs.hasAny else {
+            tell(loc("No app to convert Office files"), installs.missing(nil))
             return
         }
         let panel = NSOpenPanel()

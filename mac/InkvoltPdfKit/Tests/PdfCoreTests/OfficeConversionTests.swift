@@ -274,22 +274,23 @@ private final class FakeOffice {
     @Test func nothingInstalledSaysWhatIsMissing() throws {
         let fake = try FakeOffice(FakeOffice.writesPdf)
         let problem = try #require(OfficeConversion.precheck(fake.document.path, OfficeInstalls()))
-        #expect(problem.contains("LibreOffice, which isn't installed on this Mac"))
+        #expect(problem.contains("Microsoft Word or LibreOffice, and neither is installed on this Mac"))
         #expect(problem.contains("libreoffice.org"))
-        #expect(!problem.contains("Microsoft"))
+        #expect(OfficeInstalls().missing(nil).contains("Microsoft Word, Excel or PowerPoint, or with LibreOffice"))
+        #expect(!OfficeInstalls().hasAny)
     }
 
-    /// Word for Mac isn't used yet: it is said so, with what to do instead, and only for the file kind it could open.
-    @Test func wordAloneSaysItCantBeUsedYet() throws {
+    /// Word alone converts Word's files (through AppleScript, MicrosoftOfficeConversionTests); Excel's are said missing.
+    @Test func wordAloneConvertsWordFilesOnly() throws {
         let installs = OfficeInstalls(microsoft: [.word])
-        #expect(installs.route("/a/x.docx") == nil)
-        #expect(installs.missing(.word).contains("can't use Microsoft Word yet"))
-        #expect(installs.missing(.word).contains("save it as PDF there"))
-        #expect(!installs.missing(.excel).contains("Microsoft"))
+        #expect(installs.hasAny)
+        #expect((installs.route("/a/x.docx") as? MicrosoftOfficeConverter)?.app == .word)
+        #expect(installs.route("/a/x.xlsx") == nil)
+        #expect(installs.missing(.excel).contains("Microsoft Excel or LibreOffice"))
     }
 
     @Test func libreOfficeTakesEveryKind() throws {
-        let installs = OfficeInstalls(soffice: "/x/soffice", microsoft: [.word])
+        let installs = OfficeInstalls(soffice: "/x/soffice")
         for path in ["/a/x.docx", "/a/x.xlsx", "/a/x.pptx", "/a/x.odt"] { #expect(installs.route(path)?.appName == "LibreOffice") }
     }
 

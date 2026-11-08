@@ -48,6 +48,8 @@
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Inkvolt PDF looks for scanners on your network for File › Scan, asks the printer you print to for its status when Inkvolt Print knows it, and connects to an AI server on your network only if you set one up.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>Inkvolt PDF asks Microsoft Word, Excel or PowerPoint to save a copy of an Office file you open or convert as a PDF. The copy is removed afterwards, and documents you have open aren't touched.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software.</string>
 	<key>CFBundleDocumentTypes</key>

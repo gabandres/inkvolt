@@ -36,8 +36,8 @@ public enum ConversionTemp {
     }
 }
 
-/// Turns an Office file into PDF bytes with a program of the user's. The seam for Word for Mac: `LibreOfficeConverter` is
-/// the one there is, tests give it a fake program, and `OfficeInstalls.route` is where another would be chosen.
+/// Turns an Office file into PDF bytes with a program of the user's: Microsoft's own app (`MicrosoftOfficeConverter`)
+/// or LibreOffice (`LibreOfficeConverter`), as `OfficeInstalls.route` chooses. Tests give each a fake.
 public protocol OfficeConverter: Sendable {
     /// The program's name, for messages.
     var appName: String { get }
@@ -45,17 +45,32 @@ public protocol OfficeConverter: Sendable {
     func toPdf(_ path: String, timeout: TimeInterval, cancel: CancelToken) throws -> [UInt8]
 }
 
-/// The office apps found on this Mac.
+/// The office apps found on this Mac, and how Microsoft's are driven.
 public struct OfficeInstalls: Equatable, Sendable {
     /// LibreOffice's program, when installed.
     public var soffice: String?
-    /// Microsoft's apps that are installed. Inkvolt PDF can't drive them yet (`docs/PLAN.md`, E12); messages name them.
+    /// Microsoft's apps that are installed: each converts its own kind of file, before LibreOffice (Windows converts
+    /// through Office only).
     public var microsoft: Set<OfficeApp>
+    /// What runs the AppleScript that drives Microsoft's apps (`osascript`; tests give a fake).
+    public var scriptRunner: any OfficeScriptRunner
+    /// Where a copy of the file is put for Microsoft's apps, which are sandboxed (`MicrosoftOfficeConverter.stagingRoot`).
+    public var staging: URL
 
-    public init(soffice: String? = nil, microsoft: Set<OfficeApp> = []) {
+    public init(soffice: String? = nil, microsoft: Set<OfficeApp> = [], scriptRunner: any OfficeScriptRunner = OsascriptRunner(),
+                staging: URL = MicrosoftOfficeConverter.stagingRoot()) {
         self.soffice = soffice
         self.microsoft = microsoft
+        self.scriptRunner = scriptRunner
+        self.staging = staging
     }
+
+    public static func == (a: OfficeInstalls, b: OfficeInstalls) -> Bool {
+        a.soffice == b.soffice && a.microsoft == b.microsoft && a.staging == b.staging
+    }
+
+    /// Something can convert some kind of Office file.
+    public var hasAny: Bool { soffice != nil || !microsoft.isEmpty }
 
     public static let libreOfficeBundleId = "org.libreoffice.script"
     public static let microsoftBundleIds: [(OfficeApp, String)] = [(.word, "com.microsoft.Word"), (.excel, "com.microsoft.Excel"), (.powerPoint, "com.microsoft.Powerpoint")]
@@ -70,18 +85,21 @@ public struct OfficeInstalls: Equatable, Sendable {
         bundles.map { ($0 as NSString).appendingPathComponent("Contents/MacOS/soffice") }.first(where: isExecutable)
     }
 
-    /// What converts `path`; nil when nothing can (`missing` says what to do).
+    /// What converts `path`: Microsoft's app for its kind when installed, else LibreOffice; nil when nothing can
+    /// (`missing` says what to do).
     public func route(_ path: String) -> (any OfficeConverter)? {
-        // Word for Mac would be chosen here. It takes Apple Events (with the entitlement and the prompt PLAN.md's E12 lists).
-        soffice.map { LibreOfficeConverter(soffice: $0) }
+        if let app = OfficeFiles.appFor(path), microsoft.contains(app) {
+            return MicrosoftOfficeConverter(app: app, runner: scriptRunner, stagingRoot: staging)
+        }
+        return soffice.map { LibreOfficeConverter(soffice: $0) }
     }
 
-    /// The honest message when no converter can take a file of this kind.
+    /// The honest message when no converter can take a file of this kind (nil: any kind).
     public func missing(_ app: OfficeApp?) -> String {
-        if let app, microsoft.contains(app) {
-            return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use {0} yet. Open the file in {0} and save it as PDF there, or install LibreOffice. LibreOffice is free, from libreoffice.org.", OfficeFiles.appName(app))
+        if let app {
+            return loc("Inkvolt PDF makes PDFs from Office files with {0} or LibreOffice, and neither is installed on this Mac. LibreOffice is free, from libreoffice.org.", OfficeFiles.appName(app))
         }
-        return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.")
+        return loc("Inkvolt PDF makes PDFs from Office files with Microsoft Word, Excel or PowerPoint, or with LibreOffice, and none of them is installed on this Mac. LibreOffice is free, from libreoffice.org.")
     }
 }
 
@@ -198,21 +216,32 @@ public struct LibreOfficeConverter: OfficeConverter {
             let limit = timeout >= 60 ? loc("{0} minutes", CoreLanguage.number(Int(timeout / 60))) : loc("{0} seconds", CoreLanguage.number(Int(timeout)))
             throw PdfEditError(loc("{0} didn't finish within {1} (the file may be damaged). It was closed.", appName, limit) + reason)
         case .exited(let code):
-            guard code == 0, let pdf = Self.readPdf(in: out) else {
+            guard code == 0, let pdf = try ConvertedPdf.read(in: out, appName: appName) else {
                 throw PdfEditError(loc("{0} couldn't save this file as PDF. A file protected with a password can't be converted here.", appName) + reason)
             }
             return pdf
         }
     }
+}
 
-    /// The PDF in `folder`, however the program named it: a regular file (no link) that starts as a PDF does.
-    private static func readPdf(in folder: URL) -> [UInt8]? {
+/// The PDF a converter left in its output folder.
+enum ConvertedPdf {
+    /// The largest PDF read back: a converter's output is bounded before it is loaded.
+    static let maxBytes = 1 << 30
+
+    /// The PDF in `folder`, however the program named it: a regular file (no link) that starts as a PDF does; nil when
+    /// there is none (or more than one).
+    /// - Throws: `PdfEditError` when it is larger than `maxBytes`.
+    static func read(in folder: URL, appName: String, maxBytes: Int = maxBytes) throws -> [UInt8]? {
         let fm = FileManager.default
         let names = ((try? fm.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.lowercased().hasSuffix(".pdf") }
         guard names.count == 1 else { return nil }
         let file = folder.appendingPathComponent(names[0])
-        guard (try? fm.attributesOfItem(atPath: file.path))?[.type] as? FileAttributeType == .typeRegular,
-              let data = try? Data(contentsOf: file), data.starts(with: Array("%PDF-".utf8)) else { return nil }
+        guard let attributes = try? fm.attributesOfItem(atPath: file.path), attributes[.type] as? FileAttributeType == .typeRegular else { return nil }
+        if let size = (attributes[.size] as? NSNumber)?.int64Value, size > Int64(maxBytes) {
+            throw PdfEditError(loc("{0} made a PDF of more than {1} MB, too big to open here.", appName, CoreLanguage.number(maxBytes >> 20)))
+        }
+        guard let data = try? Data(contentsOf: file), data.count <= maxBytes, data.starts(with: Array("%PDF-".utf8)) else { return nil }
         return [UInt8](data)
     }
 }
@@ -229,17 +258,22 @@ enum ConverterProcess {
     /// How long a program gets to end after SIGTERM, and to be gone after SIGKILL.
     private static let termGrace: TimeInterval = 2, killGrace: TimeInterval = 3
 
-    static func run(_ program: String, _ arguments: [String], environment: [String: String], errors: URL, timeout: TimeInterval, cancel: CancelToken, appName: String) throws -> Outcome {
+    /// - Parameter output: where the program's standard output goes (nowhere when nil).
+    static func run(_ program: String, _ arguments: [String], environment: [String: String], errors: URL, output: URL? = nil, timeout: TimeInterval, cancel: CancelToken, appName: String) throws -> Outcome {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: program)
         process.arguments = arguments
         process.environment = environment
         process.currentDirectoryURL = errors.deletingLastPathComponent()
         process.standardInput = FileHandle.nullDevice
-        process.standardOutput = FileHandle.nullDevice
+        let outputHandle = output.flatMap { try? FileHandle(forWritingTo: $0) }
+        process.standardOutput = outputHandle ?? FileHandle.nullDevice
         let errorHandle = try? FileHandle(forWritingTo: errors)
         process.standardError = errorHandle ?? FileHandle.nullDevice
-        defer { try? errorHandle?.close() }
+        defer {
+            try? errorHandle?.close()
+            try? outputHandle?.close()
+        }
         let exited = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exited.signal() }
         do {

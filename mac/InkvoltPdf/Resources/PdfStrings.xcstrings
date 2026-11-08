@@ -6304,28 +6304,6 @@
         }
       }
     },
-    "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con LibreOffice, que no está instalado en este Mac. LibreOffice es gratis, en libreoffice.org."
-          }
-        }
-      }
-    },
-    "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use {0} yet. Open the file in {0} and save it as PDF there, or install LibreOffice. LibreOffice is free, from libreoffice.org.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con LibreOffice, que no está instalado en este Mac; todavía no puede usar {0}. Abre el archivo en {0} y guárdalo como PDF allí, o instala LibreOffice. LibreOffice es gratis, en libreoffice.org."
-          }
-        }
-      }
-    },
     "Inkvolt PDF on GitHub": {
       "extractionState": "manual",
       "localizations": {
@@ -21953,6 +21931,138 @@
           "stringUnit": {
             "state": "translated",
             "value": "… y {0} más sin comprobar (ver el informe)"
+          }
+        }
+      }
+    },
+    "Inkvolt PDF makes PDFs from Office files with {0} or LibreOffice, and neither is installed on this Mac. LibreOffice is free, from libreoffice.org.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con {0} o con LibreOffice, y ninguno de los dos está instalado en este Mac. LibreOffice es gratis, en libreoffice.org."
+          }
+        }
+      }
+    },
+    "Inkvolt PDF makes PDFs from Office files with Microsoft Word, Excel or PowerPoint, or with LibreOffice, and none of them is installed on this Mac. LibreOffice is free, from libreoffice.org.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con Microsoft Word, Excel o PowerPoint, o con LibreOffice, y ninguno de ellos está instalado en este Mac. LibreOffice es gratis, en libreoffice.org."
+          }
+        }
+      }
+    },
+    "{0} made a PDF of more than {1} MB, too big to open here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} creó un PDF de más de {1} MB, demasiado grande para abrirlo aquí."
+          }
+        }
+      }
+    },
+    "This file is too big to convert here (more than {0} MB).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo es demasiado grande para convertirlo aquí (más de {0} MB)."
+          }
+        }
+      }
+    },
+    "{0} hasn't been set up on this Mac yet. Open it once and sign in, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} aún no se ha configurado en este Mac. Ábrelo una vez e inicia sesión, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Inkvolt PDF couldn't put a copy of the file where {0} can read it. If macOS asked whether Inkvolt PDF may use other apps' data, allow it, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF no pudo dejar una copia del archivo donde {0} puede leerla. Si macOS preguntó si Inkvolt PDF puede usar datos de otras apps, permítelo y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "macOS didn't let Inkvolt PDF use {0}. Turn on {0} under Inkvolt PDF in System Settings › Privacy & Security › Automation, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no dejó que Inkvolt PDF usara {0}. Activa {0} debajo de Inkvolt PDF en Configuración del Sistema › Privacidad y seguridad › Automatización, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "{0} closed before it finished. Try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} se cerró antes de terminar. Vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "{0} couldn't open this file without its password. Open it in {0} and save it as PDF there (or save a copy without the password).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no pudo abrir este archivo sin su contraseña. Ábrelo en {0} y guárdalo como PDF allí (o guarda una copia sin la contraseña)."
+          }
+        }
+      }
+    },
+    "{0} couldn't open this file. It may be damaged, or protected with a password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no pudo abrir este archivo. Puede que esté dañado o protegido con contraseña."
+          }
+        }
+      }
+    },
+    "{0} opened the file but didn't save it as PDF. {0} saves only when it is activated: open {0}, sign in with a Microsoft account that includes Office, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} abrió el archivo pero no lo guardó como PDF. {0} solo guarda cuando está activado: abre {0}, inicia sesión con una cuenta de Microsoft que incluya Office y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "{0} didn't finish within {1}. It may be waiting in its window: to sign in, for a password, or with a question. Look at {0}, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no terminó en {1}. Puede que esté esperando en su ventana: para iniciar sesión, por una contraseña o con una pregunta. Mira {0} y vuelve a intentarlo."
           }
         }
       }

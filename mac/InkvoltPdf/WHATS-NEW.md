@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Word, Excel and PowerPoint files become PDFs through Microsoft Word, Excel or PowerPoint when they're on this Mac (LibreOffice otherwise): File › New PDF › New PDF from Office File…, opening an Office file, and Compare Files. macOS asks once whether Inkvolt PDF may use each app. A copy of the file is used and removed after, and documents you have open in them are left alone.
 
 ## 1.9.0
 - Search Folders (Edit › Find › Search Folders…, ⌥⇧⌘F): add a folder and Inkvolt PDF indexes every PDF in it and its subfolders on this Mac, then finds a word across all of them in a moment, with the text around each hit. A result opens at the hit. The index keeps up as files change, and says which files it couldn't read and why.
