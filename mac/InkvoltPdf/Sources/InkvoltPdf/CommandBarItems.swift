@@ -13,7 +13,7 @@ extension DocumentWindowController {
 
     /// The toolbar item of the command bar group `id`.
     func barItem(_ id: String, identifier: NSToolbarItem.Identifier) -> NSToolbarItem? {
-        guard let group = CommandBar.group(id) else { return nil }
+        guard let group = BarTable.group(id) else { return nil }
         if !group.hasMainJob { return pointerItem(group, identifier) }
         let item = NSMenuToolbarItem(itemIdentifier: identifier)
         item.title = group.label // shown beside the icon: the label always stays
@@ -112,6 +112,12 @@ extension DocumentWindowController {
     // MARK: Running
 
     @objc func pointerClicked(_ sender: NSToolbarItemGroup) {
+        // Organize Pages' grid has no page tools: the pointer group is disabled there (`validateBarItem`), and a click
+        // that gets through anyway changes nothing.
+        guard pdf.session != nil, !organizerShown else {
+            updatePointerGroup()
+            return NSSound.beep()
+        }
         switch sender.selectedIndex {
         case 0: choose(.hand)
         case 1: choose(.text)
@@ -124,7 +130,7 @@ extension DocumentWindowController {
     /// A group's body: its main job, at once (Option: asking first).
     @objc func barGroupClicked(_ sender: Any?) {
         guard let raw = (sender as? NSToolbarItem)?.itemIdentifier.rawValue, let id = ToolbarLayout.groupId(raw),
-              let group = CommandBar.group(id) else { return }
+              let group = BarTable.group(id) else { return }
         runBar(group.main, option: NSEvent.modifierFlags.contains(.option))
     }
 
@@ -134,9 +140,7 @@ extension DocumentWindowController {
         runBar(entry, option: NSEvent.modifierFlags.contains(.option))
     }
 
-    static func barEntry(_ id: String) -> CommandBar.Item? {
-        CommandBar.groups.lazy.flatMap(\.items).first { $0.id == id }
-    }
+    static func barEntry(_ id: String) -> CommandBar.Item? { BarTable.item(id) }
 
     /// Runs `entry`: its at-once form unless Option is held, else what its menu bar command or tool does.
     func runBar(_ entry: CommandBar.Item, option: Bool) {
@@ -157,10 +161,34 @@ extension DocumentWindowController {
             default: break
             }
         }
-        if let title = entry.tool, let tool = Tool.allCases.first(where: { $0.title == title }) {
-            choose(tool)
+        if let tool = entry.tool {
+            choose(Self.tool(tool))
         } else if let action = entry.action {
-            NSApp.sendAction(NSSelectorFromString(action), to: self, from: nil)
+            // The window's own commands come here; the app's (Combine Files…, Scan…) go along the responder chain to the
+            // app delegate, as the menu bar sends them.
+            let selector = NSSelectorFromString(action)
+            NSApp.sendAction(selector, to: barTarget(selector), from: self)
+        }
+    }
+
+    /// Who runs `selector`: this window when it implements it, else nil (the responder chain, ending at the app delegate).
+    func barTarget(_ selector: Selector) -> AnyObject? { responds(to: selector) ? self : nil }
+
+    /// The page tool a bar item picks (a stable key; every case mapped, so a renamed tool fails to build).
+    static func tool(_ tool: CommandBar.BarTool) -> Tool {
+        switch tool {
+        case .hand: .hand
+        case .selectText: .text
+        case .editContent: .editContent
+        case .image: .image
+        case .link: .link
+        case .note: .note
+        case .stamp: .stamp
+        case .signature: .signature
+        case .addText: .fillText
+        case .checkMark: .fillCheck
+        case .cross: .fillCross
+        case .redact: .redact
         }
     }
 
@@ -174,8 +202,8 @@ extension DocumentWindowController {
 
     /// The body of a group: enabled when its main job can run.
     func validateBarItem(_ identifier: String) -> Bool? {
-        guard let id = ToolbarLayout.groupId(identifier), let group = CommandBar.group(id) else { return nil }
-        return group.hasMainJob ? barEnabled(group.main) : pdf.session != nil
+        guard let id = ToolbarLayout.groupId(identifier), let group = BarTable.group(id) else { return nil }
+        return group.hasMainJob ? barEnabled(group.main) : pdf.session != nil && !organizerShown
     }
 
     // MARK: One-click jobs
@@ -246,27 +274,35 @@ extension DocumentWindowController {
     /// Convert › Word (Excel, PowerPoint, text, HTML) in one click: name.docx next to the PDF, never over a file
     /// ("name (2).docx", reserved by an exclusive create), or in Documents when the PDF isn't saved or its folder refuses
     /// it; all pages, scans read with the saved recognition settings; the file opened, and a notice to find it or redo it
-    /// with options. The document is busy from the reservation on, so no edit starts meanwhile and a second click (a
-    /// double-click) converts nothing more.
+    /// with options. The document is busy (`isBusy`, the window's long task) from before the reservation on, so no edit
+    /// starts meanwhile and a second click (a double-click) converts nothing more: `startLongTask` sets the task before
+    /// it returns, and nothing between the check and it lets another click in (the password question is app-modal).
     func convertAtOnce(_ format: ExportFormat) {
-        guard let session = pdf.session, !convertingAtOnce, !isBusy else { return }
+        guard let session = pdf.session, !isBusy else { return }
         if session.openPassword != nil && !confirmUnprotected() { return }
-        convertingAtOnce = true
         startLongTask {
-            defer { self.convertingAtOnce = false }
             let name = (session.displayName as NSString).deletingPathExtension + DocumentExport.fileExtension(format)
             let pdfPath = self.pdf.fileURL?.path
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?.path
-            let target = await Task.detached { ExportTarget.reserve(pdfPath: pdfPath, fileName: name, documents: documents) }.value
+            let outcome = await Task.detached { ExportTarget.reservation(pdfPath: pdfPath, fileName: name, documents: documents) }.value
+            let target: ExportTarget.Reserved?
+            if case .reserved(let r) = outcome { target = r } else { target = nil }
             // Closed meanwhile: the empty reserved file goes.
             guard self.window != nil, self.pdf.session != nil else {
                 if let target { ExportTarget.deleteIfEmpty(target.path) }
                 return
             }
             guard let target else {
-                self.problemAlert(loc("Can't save the export"),
-                                  loc("The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it."))
-                DispatchQueue.main.async { MainActor.assumeIsolated { self.askExport(format) } }
+                // Why nothing was reserved, then the export's own options and save panel, never offering a device name.
+                let why: String
+                switch outcome {
+                case .deviceName: why = loc("“{0}” can't be a file name on Windows, so it isn't used. Choose where to save it, and under what name.", name)
+                case .refused(documentsTried: true): why = loc("Neither the PDF's folder nor Documents accepts new files. Choose where to save it.")
+                default: why = loc("The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it.")
+                }
+                self.problemAlert(loc("Can't save the export"), why)
+                let suggested = ExportTarget.allowedName(name)
+                DispatchQueue.main.async { MainActor.assumeIsolated { self.askExport(format, fileName: suggested) } }
                 return
             }
             let url = URL(fileURLWithPath: target.path)
@@ -297,6 +333,19 @@ extension DocumentWindowController {
             }),
         ]
     }
+}
+
+/// The command bar's table, built once: the interface's language is chosen at launch and stays for the run (Settings ›
+/// Language applies from the next launch), so menu validation and clicks look items up here instead of rebuilding every
+/// group's sentences each time. PdfCore's `CommandBar.groups` stays computed, so its tests can switch languages per task.
+@MainActor
+enum BarTable {
+    static let groups = CommandBar.groups
+    private static let byGroup = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
+    private static let byItem = Dictionary(uniqueKeysWithValues: groups.flatMap(\.items).map { ($0.id, $0) })
+
+    static func group(_ id: String) -> CommandBar.Group? { byGroup[id] }
+    static func item(_ id: String) -> CommandBar.Item? { byItem[id] }
 }
 
 private extension NSFont {

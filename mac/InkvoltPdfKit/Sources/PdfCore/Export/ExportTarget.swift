@@ -22,17 +22,44 @@ public enum ExportTarget {
     /// What creating a file found: made it, a file of that name is there, or the folder refused it.
     public enum CreateResult: Sendable { case created, exists, refused }
 
-    /// Reserves `fileName` (made unique by `uniquePath`) next to `pdfPath`, else in `documents`; nil when neither takes it
-    /// (no Documents folder, both refused, a device name).
+    /// What a reservation came to: the file, or why there is none, so the app says the right reason.
+    public enum Reservation: Equatable, Sendable {
+        case reserved(Reserved)
+        /// The name opens a device on Windows (a PDF named CON.pdf): the save panel asks, offering `allowedName`.
+        case deviceName
+        /// No folder took it: the PDF's refused (or it isn't saved) and Documents refused too (`documentsTried`), or there
+        /// is no Documents folder to try.
+        case refused(documentsTried: Bool)
+    }
+
+    /// `reservation`'s file, or nil when there is none.
+    public static func reserve(pdfPath: String?, fileName: String, documents: String?,
+                               uniquePath: (String, String) throws -> String = defaultUniquePath,
+                               create: (String) -> CreateResult = tryCreate) -> Reserved? {
+        if case .reserved(let r) = reservation(pdfPath: pdfPath, fileName: fileName, documents: documents, uniquePath: uniquePath, create: create) {
+            return r
+        }
+        return nil
+    }
+
+    /// `fileName` as a name every Windows takes: a device name gets "_" after its stem ("CON.docx" → "CON_.docx",
+    /// Inkvolt Print's rule); anything else as it is.
+    public static func allowedName(_ fileName: String) -> String {
+        guard ReservedFileNames.isDevice(fileName) else { return fileName }
+        guard let dot = fileName.firstIndex(of: ".") else { return fileName + "_" }
+        return String(fileName[..<dot]) + "_" + String(fileName[dot...])
+    }
+
+    /// Reserves `fileName` (made unique by `uniquePath`) next to `pdfPath`, else in `documents`.
     /// - Parameters:
     ///   - pdfPath: The PDF's file, or nil while it isn't saved.
     ///   - documents: The user's Documents folder; nil or empty when there is none.
     ///   - uniquePath: A free path for the name in a folder ("name (2).docx" when taken).
     ///   - create: Creates the file if nothing is there (`tryCreate`; a seam for tests).
-    public static func reserve(pdfPath: String?, fileName: String, documents: String?,
-                               uniquePath: (String, String) throws -> String = defaultUniquePath,
-                               create: (String) -> CreateResult = tryCreate) -> Reserved? {
-        guard !ReservedFileNames.isDevice(fileName) else { return nil }
+    public static func reservation(pdfPath: String?, fileName: String, documents: String?,
+                                   uniquePath: (String, String) throws -> String = defaultUniquePath,
+                                   create: (String) -> CreateResult = tryCreate) -> Reservation {
+        guard !ReservedFileNames.isDevice(fileName) else { return .deviceName }
         let own = pdfPath.flatMap { $0.isEmpty ? nil : ($0 as NSString).deletingLastPathComponent }
         var folders: [(folder: String, inDocuments: Bool)] = []
         if let own, !own.isEmpty { folders.append((own, false)) }
@@ -45,14 +72,15 @@ public enum ExportTarget {
             for _ in 0..<8 {
                 guard let path = try? uniquePath(folder, fileName) else { break } // no name fits there
                 switch create(path) {
-                case .created: return Reserved(path: path, inDocuments: inDocuments)
+                case .created: return .reserved(Reserved(path: path, inDocuments: inDocuments))
                 case .exists: continue
                 case .refused: break
                 }
                 break
             }
         }
-        return nil
+        // Documents was tried when it is there, as the fallback or as the PDF's own folder.
+        return .refused(documentsTried: !(documents ?? "").trimmingCharacters(in: .whitespaces).isEmpty)
     }
 
     /// "name.docx" in `folder`, else "name (2).docx", "name (3).docx"… (`SplitFiles.uniquePath`'s rule).

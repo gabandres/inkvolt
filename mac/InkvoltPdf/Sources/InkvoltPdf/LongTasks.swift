@@ -424,7 +424,8 @@ extension DocumentWindowController {
         }
     }
 
-    func askExport(_ format: ExportFormat) {
+    /// `fileName`: the save panel's suggested name (the document's name with the format's extension when nil).
+    func askExport(_ format: ExportFormat, fileName: String? = nil) {
         guard let window, let session = pdf.session else { return }
         let alert = NSAlert()
         alert.messageText = Self.exportTitle(format)
@@ -454,7 +455,7 @@ extension DocumentWindowController {
                 if session.openPassword != nil && !self.confirmUnprotected() { return }
                 let panel = NSSavePanel()
                 let name = (session.displayName as NSString).deletingPathExtension
-                panel.nameFieldStringValue = name + DocumentExport.fileExtension(format)
+                panel.nameFieldStringValue = fileName ?? ExportTarget.allowedName(name + DocumentExport.fileExtension(format))
                 if let type = UTType(filenameExtension: String(DocumentExport.fileExtension(format).dropFirst())) { panel.allowedContentTypes = [type] }
                 if let path = session.filePath { panel.directoryURL = URL(fileURLWithPath: (path as NSString).deletingLastPathComponent) }
                 DispatchQueue.main.async {
@@ -578,8 +579,13 @@ extension DocumentWindowController {
             if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", CoreLanguage.number(unreadable))) }
             let file = url.lastPathComponent, count = chosen.count
             if let inDocuments = atOnce {
-                let saved = inDocuments ? loc("Saved {0} in Documents", file) : loc("Saved {0}", file)
-                let text = notes.isEmpty ? saved : "\(saved) (\(notes.joined(separator: ", ")))" // English: the two sentences joined
+                let list = notes.joined(separator: ", ")
+                let text: String
+                if notes.isEmpty {
+                    text = inDocuments ? loc("Saved {0} in Documents", file) : loc("Saved {0}", file)
+                } else {
+                    text = inDocuments ? loc("Saved {0} in Documents ({1})", file, list) : loc("Saved {0} ({1})", file, list)
+                }
                 Report.progress("notice: \(text.prefix(160))")
                 noticeBar.show(text, links: atOnceLinks(format, url))
             } else if notes.isEmpty {

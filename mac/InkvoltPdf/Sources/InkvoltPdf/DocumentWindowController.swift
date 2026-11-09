@@ -47,8 +47,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var lastExport: ExportReport?
     /// A long task started from a menu (the self-test awaits it).
     private(set) var longTask: Task<Void, Never>?
-    /// A one-click conversion is reserving its file or exporting: a second click (a double-click) converts nothing more.
-    var convertingAtOnce = false
     private var signatureSheet: SignatureSheet?
     let split = NSSplitViewController()
     private var diskTimer: Timer?

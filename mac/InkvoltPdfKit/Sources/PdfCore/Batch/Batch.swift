@@ -131,7 +131,7 @@ public enum BatchNames {
         while s.hasSuffix(".") || s.hasSuffix(" ") { s.removeLast() }
         if s.isEmpty { s = fallback.isEmpty ? "file" : fallback }
         // CON, NUL, COM1, COM¹, CONIN$… can't be file names on Windows, with or without an extension (one rule for both apps).
-        if ReservedFileNames.isDevice(s.trimmingCharacters(in: .whitespaces)) { s = "_" + s }
+        if ReservedFileNames.isDevice(s) { s = "_" + s }
         return s
     }
 }

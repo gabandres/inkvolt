@@ -13,9 +13,15 @@ public enum CommandBar {
         case word, excel, powerPoint, pdfA, applyRedactions
     }
 
+    /// A page tool a group picks, by a stable key: the app maps each to its `Tool` in an exhaustive switch, so a renamed
+    /// or removed tool fails to build instead of silently doing nothing.
+    public enum BarTool: String, Sendable, CaseIterable {
+        case hand, selectText, editContent, image, link, note, stamp, signature, addText, checkMark, cross, redact
+    }
+
     /// One command of a group: what its menu item says (`title`, and `note`, the line under it), its SF Symbol, and what
     /// it runs: a menu bar command (`action`, a `DocumentCommands` selector such as "exportWord:") or a page tool (`tool`,
-    /// the app's `Tool` by its English title, picked as Tools › that tool picks it).
+    /// picked as Tools › that tool picks it).
     public struct Item: Sendable, Hashable {
         /// Windows' command name ("ExportWord"), what the tests and the self-test know the item by.
         public let id: String
@@ -23,14 +29,14 @@ public enum CommandBar {
         public let note: String
         public let symbol: String
         public let action: String?
-        public let tool: String?
+        public let tool: BarTool?
         /// Run with the defaults, no questions but what can't be defaulted (Option-click asks as the menus do).
         public let atOnce: Bool
         public let tint: Tint?
         /// A line above it in the menu, setting the rarer or riskier commands apart.
         public let startsSection: Bool
 
-        init(_ id: String, _ title: String, _ note: String, _ symbol: String, action: String? = nil, tool: String? = nil,
+        init(_ id: String, _ title: String, _ note: String, _ symbol: String, action: String? = nil, tool: BarTool? = nil,
              atOnce: Bool = false, tint: Tint? = nil, startsSection: Bool = false) {
             self.id = id
             self.title = title
@@ -78,14 +84,14 @@ public enum CommandBar {
     public static var groups: [Group] {
         [
             Group(id: pointer, label: loc("Select"), symbol: "cursorarrow", priority: 79, items: [
-                Item("ToolHand", loc("Hand"), loc("Drag the page to move around it"), "hand.raised", tool: "Hand"),
-                Item("ToolSelect", loc("Select Text"), loc("Select text to copy, mark or look up"), "character.cursor.ibeam", tool: "Select Text"),
+                Item("ToolHand", loc("Hand"), loc("Drag the page to move around it"), "hand.raised", tool: .hand),
+                Item("ToolSelect", loc("Select Text"), loc("Select text to copy, mark or look up"), "character.cursor.ibeam", tool: .selectText),
                 Item("ToolSnapshot", loc("Snapshot"), loc("Copy an area of the page as a picture"), "camera.viewfinder", action: "chooseSnapshot:"),
             ]),
             Group(id: "Edit", label: loc("Edit", context: "toolbar"), symbol: "pencil.and.outline", priority: 84, items: [
-                Item("EditContent", loc("Edit Text & Images"), loc("Change the text and pictures on the page"), "pencil.and.outline", tool: "Edit Text & Images"),
-                Item("AddImage", loc("Image"), loc("Place a picture on the page"), "photo", tool: "Image"),
-                Item("ToolLink", loc("Link"), loc("Draw a box that opens a page or web address"), "link", tool: "Link"),
+                Item("EditContent", loc("Edit Text & Images"), loc("Change the text and pictures on the page"), "pencil.and.outline", tool: .editContent),
+                Item("AddImage", loc("Image"), loc("Place a picture on the page"), "photo", tool: .image),
+                Item("ToolLink", loc("Link"), loc("Draw a box that opens a page or web address"), "link", tool: .link),
                 Item("AddHeaderFooter", loc("Add Header & Footer…"), loc("Page numbers, dates or text on every page"), "text.append",
                      action: "addHeaderFooter:", startsSection: true),
                 Item("AddWatermark", loc("Add Watermark…"), loc("Write DRAFT or a logo across the pages"), "drop", action: "addWatermark:"),
@@ -96,16 +102,16 @@ public enum CommandBar {
                 Item("Highlight", loc("Highlight"), loc("Mark the selected text in color"), "highlighter", action: "highlightText:", atOnce: true),
                 Item("Underline", loc("Underline"), loc("Draw a line under the selected text"), "underline", action: "underlineText:"),
                 Item("StrikeOut", loc("Strike Out"), loc("Cross out the selected text"), "strikethrough", action: "strikeOutText:"),
-                Item("AddNote", loc("Note"), loc("Pin a note to the page"), "note.text", tool: "Note"),
-                Item("AddStamp", loc("Stamp"), loc("Stamp Approved, Draft, Confidential or your own"), "seal", tool: "Stamp"),
+                Item("AddNote", loc("Note"), loc("Pin a note to the page"), "note.text", tool: .note),
+                Item("AddStamp", loc("Stamp"), loc("Stamp Approved, Draft, Confidential or your own"), "seal", tool: .stamp),
             ]),
             Group(id: "FillSign", label: loc("Fill & Sign"), symbol: "signature",
                   priority: fillSignPriority(language: CoreLanguage.table?.language ?? "en"), items: [
                 // Your saved signature, placed with the next click; the first time, it asks you to make one.
-                Item("AddSignature", loc("Signature"), loc("Draw, type or pick your signature or initials"), "signature", tool: "Signature", atOnce: true),
-                Item("ToolAddText", loc("Add Text"), loc("Type in a blank or anywhere on the page"), "character.cursor.ibeam", tool: "Add Text", startsSection: true),
-                Item("ToolCheck", loc("Check Mark"), loc("Put a check mark in a box"), "checkmark", tool: "Check Mark"),
-                Item("ToolCross", loc("Cross"), loc("Put a cross in a box"), "xmark", tool: "Cross"),
+                Item("AddSignature", loc("Signature"), loc("Draw, type or pick your signature or initials"), "signature", tool: .signature, atOnce: true),
+                Item("ToolAddText", loc("Add Text"), loc("Type in a blank or anywhere on the page"), "character.cursor.ibeam", tool: .addText, startsSection: true),
+                Item("ToolCheck", loc("Check Mark"), loc("Put a check mark in a box"), "checkmark", tool: .checkMark),
+                Item("ToolCross", loc("Cross"), loc("Put a cross in a box"), "xmark", tool: .cross),
                 Item("PrepareForm", loc("Prepare Form"), loc("Add fields that others can fill in"), "rectangle.and.pencil.and.ellipsis",
                      action: "togglePrepareForm:", startsSection: true),
             ]),
@@ -122,7 +128,7 @@ public enum CommandBar {
                 // Asks only for the password (AES-256, nothing restricted); Option-click opens the full sheet.
                 Item("ProtectPassword", loc("Password"), loc("Ask for a password to open or change it"), "lock", action: "protectDocument:", atOnce: true),
                 // The selected text marked at once; with none, the marking tool.
-                Item("Redact", loc("Redact"), loc("Black out text or areas for good"), "rectangle.fill", tool: "Redact", atOnce: true, startsSection: true),
+                Item("Redact", loc("Redact"), loc("Black out text or areas for good"), "rectangle.fill", tool: .redact, atOnce: true, startsSection: true),
                 Item("ApplyRedactions", loc("Apply Redactions…"), loc("Remove what you marked, for good"), "checkmark.rectangle.fill",
                      action: "applyRedactions:", tint: .applyRedactions),
                 Item("RedactPatterns", loc("Redact by Pattern…"), loc("Find and remove numbers, phones, emails"), "text.magnifyingglass",

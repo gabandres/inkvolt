@@ -88,6 +88,36 @@ struct CommandBarTest {
             .compactMap { $0.representedObject as? String }.sorted()
         check(tinted == ["ApplyRedactions", "ExportExcel", "ExportPowerPoint", "ExportWord", "SaveAsPdfA"], "coloured icons: \(tinted.joined(separator: ", "))")
 
+        // Every command reaches whoever runs it: this window, or along the responder chain the app delegate (Combine
+        // Files…, Scan…); every tool maps to a page tool.
+        var lost: [String] = []
+        var app: [String] = []
+        for entry in BarTable.groups.flatMap(\.items) {
+            guard let action = entry.action else { continue }
+            let selector = NSSelectorFromString(action)
+            let target = controller.barTarget(selector) ?? NSApp.target(forAction: selector, to: nil, from: controller) as AnyObject?
+            if (target as? NSObject)?.responds(to: selector) != true { lost.append(entry.id) }
+            if target != nil && target !== controller { app.append(entry.id) }
+        }
+        check(lost.isEmpty, "every bar command finds who runs it\(lost.isEmpty ? "" : "; none for \(lost.joined(separator: ", "))") (the app's: \(app.joined(separator: ", ")))")
+
+        // Organize Pages' grid: the pointer tools are disabled and a click on them changes nothing.
+        let pointerId = ToolbarLayout.group(CommandBar.pointer)
+        let toolBefore = controller.activePages.tool
+        controller.toggleOrganizer(nil)
+        await settle(400)
+        let pointerGroup = window.toolbar?.items.first { $0.itemIdentifier.rawValue == pointerId } as? NSToolbarItemGroup
+        let disabled = controller.validateBarItem(pointerId) == false
+        if let pointerGroup {
+            pointerGroup.selectedIndex = toolBefore == .hand ? 1 : 0
+            controller.pointerClicked(pointerGroup)
+        }
+        let unchanged = controller.activePages.tool == toolBefore
+        controller.toggleOrganizer(nil)
+        await settle(400)
+        check(disabled && unchanged && controller.validateBarItem(pointerId) == true,
+              "with Organize Pages shown the pointer tools are disabled and a click changes no tool; enabled again after")
+
         if Report.snapshots != nil { await shoot(window) }
         await convertInOneClick(window)
 
@@ -149,7 +179,7 @@ struct CommandBarTest {
     }
 
     private func waitIdle() async {
-        for _ in 0..<600 where controller.isBusy || controller.convertingAtOnce { await settle(100) }
+        for _ in 0..<600 where controller.isBusy { await settle(100) }
         await settle(200)
     }
 
@@ -163,9 +193,9 @@ struct CommandBarTest {
             await settle(700)
             await shootRetrying(window, "toolbar-\(look)\(suffix)")
             await shootMenu(window, group: "Convert", name: "convert-menu-\(look)\(suffix)")
-            if look == "light" && language == "en" {
-                await shootMenu(window, group: "Protect", name: "protect-menu-light")
-                await shootMenu(window, group: "Comment", name: "comment-menu-light")
+            if language == "en" {
+                await shootMenu(window, group: "Protect", name: "protect-menu-\(look)")
+                await shootMenu(window, group: "Comment", name: "comment-menu-\(look)")
             }
         }
         // Narrow: the toolbar's » overflow takes Scan & OCR, Protect and Organize first.
@@ -241,14 +271,22 @@ struct CommandBarTest {
             let windowRect = NSRect(x: windowFrame.minX - union.minX, y: windowFrame.minY - union.minY, width: windowFrame.width, height: windowFrame.height)
             UxShots.opaque(baseRep, window)?.draw(in: windowRect)
             let menuRect = NSRect(x: menuFrame.minX - union.minX, y: menuFrame.minY - union.minY, width: menuFrame.width, height: menuFrame.height)
+            // The menu's material is drawn by the window server, not by cacheDisplay: the capture holds only the items
+            // (white text in dark) over nothing. A flat stand-in of the menu's colour goes under them, chosen from the
+            // window's appearance by name: a dynamic colour resolved white here, which hid the dark menu's text.
             let shade = NSBezierPath(roundedRect: menuRect, xRadius: 10, yRadius: 10)
-            NSColor.windowBackgroundColor.setFill()
+            let dark = window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            (dark ? NSColor(srgbRed: 0.16, green: 0.16, blue: 0.17, alpha: 1) : NSColor(srgbRed: 0.97, green: 0.97, blue: 0.97, alpha: 1)).setFill()
             shade.fill()
             menuRep.draw(in: menuRect)
-            NSColor.separatorColor.setStroke()
+            (dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.15)).setStroke()
             shade.stroke()
         }
         NSGraphicsContext.restoreGraphicsState()
+        if ProcessInfo.processInfo.environment["INKVOLT_BAR_RAW"] != nil {
+            // Diagnosis: the menu window as cacheDisplay drew it, alone.
+            try? menuRep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: (dir as NSString).appendingPathComponent(name + "-raw.png")))
+        }
         let url = URL(fileURLWithPath: (dir as NSString).appendingPathComponent(name + ".png"))
         let written = (try? out.representation(using: .png, properties: [:])?.write(to: url)) != nil
         check(written, "shot \(name): \(id)'s menu open, \(Int(menuFrame.width)) x \(Int(menuFrame.height)) pt")

@@ -93,6 +93,39 @@ struct ExportTargetTests {
         #expect(FileManager.default.fileExists(atPath: r!.path))
     }
 
+    @Test func WhyNothingWasReservedIsSaid() {
+        // The app says the right reason: a device name, both folders refusing, or no Documents folder to fall back on.
+        #expect(ExportTarget.reservation(pdfPath: "/work/CON.pdf", fileName: "CON.docx", documents: Self.documents,
+                                         uniquePath: Self.unique { [] }) { _ in .created } == .deviceName)
+        #expect(ExportTarget.reservation(pdfPath: "/Volumes/CD/report.pdf", fileName: "report.docx", documents: Self.documents,
+                                         uniquePath: Self.unique { [] }) { _ in .refused } == .refused(documentsTried: true))
+        #expect(ExportTarget.reservation(pdfPath: "/Volumes/CD/report.pdf", fileName: "report.docx", documents: nil,
+                                         uniquePath: Self.unique { [] }) { _ in .refused } == .refused(documentsTried: false))
+        #expect(ExportTarget.reservation(pdfPath: nil, fileName: "report.docx", documents: Self.documents,
+                                         uniquePath: Self.unique { [] }) { _ in .created }
+                == .reserved(ExportTarget.Reserved(path: Self.documents + "/report.docx", inDocuments: true)))
+    }
+
+    @Test func ADeviceNameIsOfferedWithAnUnderscore() {
+        // The save panel a device name falls back to never suggests the device: Inkvolt Print's rule, "CON_".
+        #expect(ExportTarget.allowedName("CON.docx") == "CON_.docx")
+        #expect(ExportTarget.allowedName("nul.tar.gz") == "nul_.tar.gz")
+        #expect(ExportTarget.allowedName("COM¹") == "COM¹_")
+        #expect(ExportTarget.allowedName("report.docx") == "report.docx")
+    }
+
+    @Test func ADanglingLinkCountsAsTakenSoTheNextNameIsUsed() throws {
+        // A symbolic link pointing nowhere is a name in the folder: the next name is chosen there, not Documents.
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-link-\(UUID().uuidString.prefix(8))").path
+        try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try FileManager.default.createSymbolicLink(atPath: (dir as NSString).appendingPathComponent("report.docx"),
+                                                   withDestinationPath: (dir as NSString).appendingPathComponent("gone.docx"))
+        let r = ExportTarget.reserve(pdfPath: (dir as NSString).appendingPathComponent("report.pdf"), fileName: "report.docx",
+                                     documents: Self.documents + "-missing")
+        #expect(r == ExportTarget.Reserved(path: (dir as NSString).appendingPathComponent("report (2).docx"), inDocuments: false))
+    }
+
     @Test func ADeviceIsNeverAReservedFile() {
         // Windows opens a device for "COM¹.docx" or "nul.docx": a file made with such a name on a Mac can't reach a PC
         // (a synced or copied folder). Refused, so the conversion asks where and under what name.

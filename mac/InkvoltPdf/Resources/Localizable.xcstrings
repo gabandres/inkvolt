@@ -19910,6 +19910,50 @@
           }
         }
       }
+    },
+    "“{0}” can't be a file name on Windows, so it isn't used. Choose where to save it, and under what name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» no puede ser un nombre de archivo en Windows, así que no se usa. Elige dónde guardarlo y con qué nombre."
+          }
+        }
+      }
+    },
+    "Neither the PDF's folder nor Documents accepts new files. Choose where to save it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la carpeta del PDF ni Documentos aceptan archivos nuevos. Elige dónde guardarlo."
+          }
+        }
+      }
+    },
+    "Saved {0} in Documents ({1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0} en Documentos ({1})"
+          }
+        }
+      }
+    },
+    "Saved {0} ({1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0} ({1})"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

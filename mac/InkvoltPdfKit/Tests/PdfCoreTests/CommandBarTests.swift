@@ -60,6 +60,8 @@ struct CommandBarTests {
     @Test func EveryBarCommandIsInTheMenusSoThePaletteListsIt() {
         // A command item sends a menu bar command (its enabling is the menu's: `DocumentCommands`); a tool item names a
         // tool the Tools menu picks (the app's `Tool` titles, checked by the self-test).
+        // Tools by a stable key (`BarTool`, each mapped to the app's `Tool` in an exhaustive switch), never by a title.
+        #expect(Set(items.compactMap(\.tool)) == Set(CommandBar.BarTool.allCases))
         for item in items {
             #expect((item.action == nil) != (item.tool == nil), "\(item.id): one command or one tool")
             if let action = item.action { #expect(DocumentCommands.command(action: action) != nil, "\(item.id): \(action) isn't in the menus") }
