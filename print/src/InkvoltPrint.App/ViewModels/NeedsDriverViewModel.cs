@@ -323,11 +323,8 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
         var device = Printer;
         try
         {
-            if (await _isThere(device, CancellationToken.None)) Found(device);
-        }
-        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.Runtime.InteropServices.COMException)
-        {
-            Log.Write($"[{device.Name}] looking for it failed: {ex.Message}");
+            // A failed read (WIA not answering while its service restarts) is "not yet": it never ends the list's loop that calls this.
+            if (await DriverFlow.IsThereNowAsync(ct => _isThere(device, ct), CancellationToken.None)) Found(device);
         }
         finally
         {

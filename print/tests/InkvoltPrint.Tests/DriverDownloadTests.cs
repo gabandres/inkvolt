@@ -620,7 +620,52 @@ public sealed class DriverDownloadTests : IDisposable
         Assert.Equal(0, pc.ElevatedRuns);
     }
 
+    [Fact]
+    public async Task A_damaged_compressed_answer_from_epsons_site_is_unreachable_never_a_crash()
+    {
+        // The real handler unpacks gzip as it reads: a damaged body throws InvalidDataException from the read, not an IOException.
+        var web = new FakeWeb();
+        web.Respond("https://epson.com/search/autocomplete/SearchBox?term=perfection%20v19",
+            () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new Damaged()) });
+        var found = await new EpsonDrivers(new BoundedHttp(web)).FindAsync(Query(), CancellationToken.None);
+        Assert.Equal(NoOffer.Unreachable, found.Why);
+        web.Respond(Installer.AbsoluteUri, () => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new Damaged()) });
+        var got = await Flow(web).DownloadAsync(Offer, V19, null, CancellationToken.None);
+        Assert.Equal(Refusal.Fetch, got.Why);
+        Assert.True(LeftNothing());
+    }
+
+    [Fact]
+    public async Task WIA_not_answering_while_watching_or_looking_again_is_not_there_yet()
+    {
+        // While the user runs the maker's installer WIA's service restarts: its list fails with nothing else to list.
+        var wia = new InkvoltPrint.Core.Wia.WiaException(InkvoltPrint.Core.Wia.WiaErrors.NotAnswering, "Windows' list of scanners didn't answer in time.");
+        Assert.False(await DriverFlow.IsThereNowAsync(_ => throw wia, CancellationToken.None));
+        Assert.False(await DriverFlow.IsThereNowAsync(_ => Task.FromException<bool>(wia), CancellationToken.None));
+        var flow = Flow(new FakeWeb(), mode: DriverMode.OpenLink);
+        Assert.False(await flow.LookAgainAsync(_ => throw wia, CancellationToken.None));
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => DriverFlow.IsThereNowAsync(ct => Task.FromCanceled<bool>(ct), cancelled.Token));
+    }
+
     // ---------------------------------------------------------------- fakes
+
+    /// <summary>A body whose unpacking fails part way, as GZipStream does on damaged data.</summary>
+    private sealed class Damaged : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new InvalidDataException("The archive entry was compressed using an unsupported compression method.");
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default) => ValueTask.FromException<int>(new InvalidDataException("Found invalid data while decoding."));
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
 
     private sealed class FakeWeb : HttpMessageHandler
     {
