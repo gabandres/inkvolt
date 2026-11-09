@@ -4,7 +4,7 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// The command bar's only colors (the owner, 2026-11-08); the rest of it is monochrome. Convert's file types (our own
-/// document glyphs, never the Office logos) in their usual colors, Word blue, Excel green, PowerPoint orange and PDF/A
+/// filled document glyph, never the Office logos, so the color reads at 16 px) in their usual colors, Word blue, Excel green, PowerPoint orange and PDF/A
 /// grey, and Apply Redactions' icon red. Text, HTML and pictures stay the text color. The tool in use takes Windows'
 /// accent from the theme, not from here. Each color has a dark-theme variant, and every one keeps 3:1 against the
 /// flyout's and the bar's backgrounds in its theme (WCAG's non-text contrast). Under high contrast none is used: the
@@ -17,11 +17,11 @@ public static class BarColors
 
     public static readonly IReadOnlyList<Tint> All =
     [
-        new("FormatWordBrush", "#185ABD", "#6AA6EE"),
-        new("FormatExcelBrush", "#107C41", "#3BB26B"),
-        new("FormatPowerPointBrush", "#C43E1C", "#F0805C"),
+        new("FormatWordBrush", "#185ABD", "#4A9EFF"),
+        new("FormatExcelBrush", "#107C41", "#2ECC71"),
+        new("FormatPowerPointBrush", "#C43E1C", "#FF7A50"),
         new("FormatPdfABrush", "#6B6B6B", "#A0A0A0"),
-        new("ApplyRedactionsBrush", "#C42B1C", "#FF99A4"),
+        new("ApplyRedactionsBrush", "#D13438", "#FF6B6B"),
     ];
 
     /// <summary>The backgrounds an icon sits on: the flyout, the bar (Mica), a hovered item; light, then dark.</summary>

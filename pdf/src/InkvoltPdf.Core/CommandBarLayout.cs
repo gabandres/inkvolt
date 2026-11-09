@@ -74,6 +74,12 @@ public static class CommandBarLayout
     /// </summary>
     public static int FillSignPriority(System.Globalization.CultureInfo culture) => culture.TwoLetterISOLanguageName == "es" ? 75 : 86;
 
+    /// <summary>
+    /// Convert's colored file types (Word, Excel, PowerPoint, PDF/A): a filled page (Segoe Fluent Icons' PageSolid), so
+    /// their color reads at 16 px; the label says which. The other items keep outline glyphs in the text color.
+    /// </summary>
+    public const string FilledDocument = "";
+
     /// <summary>The bar, left to right; null is a separator between groups.</summary>
     public static IReadOnlyList<Entry?> Bar => BarTable.Value;
 
@@ -104,13 +110,13 @@ public static class CommandBarLayout
              new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)], "\uE70F"),
         // The editable formats run at once (name.docx next to the PDF, opened); pictures and PDF/A ask, as in the menus.
         new("Convert", PdfStrings.Bar_Convert, 90,
-            [new("ExportWord", "\uE8A5", Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord, AtOnce: true, IconBrush: "FormatWordBrush"),
-             new("ExportExcel", "\uE80A", Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel, AtOnce: true, IconBrush: "FormatExcelBrush"),
-             new("ExportPowerPoint", "\uE7F4", Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint, AtOnce: true, IconBrush: "FormatPowerPointBrush"),
+            [new("ExportWord", FilledDocument, Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord, AtOnce: true, IconBrush: "FormatWordBrush"),
+             new("ExportExcel", FilledDocument, Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel, AtOnce: true, IconBrush: "FormatExcelBrush"),
+             new("ExportPowerPoint", FilledDocument, Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint, AtOnce: true, IconBrush: "FormatPowerPointBrush"),
              new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText, AtOnce: true, IconBrush: "FormatTextBrush", StartsSection: true),
              new("ExportHtml", "\uE774", Description: PdfStrings.Bar_ToHtmlDesc, Title: PdfStrings.Bar_ToHtml, AtOnce: true, IconBrush: "FormatHtmlBrush"),
              new("ExportImages", "\uE91B", Description: PdfStrings.Bar_ToImagesDesc, Title: PdfStrings.Bar_ToImages, IconBrush: "FormatImagesBrush"),
-             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA, IconBrush: "FormatPdfABrush", StartsSection: true)], "\uEDE1"),
+             new("SaveAsPdfA", FilledDocument, Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA, IconBrush: "FormatPdfABrush", StartsSection: true)], "\uEDE1"),
         new("Comment", PdfStrings.Bar_Comment, 80,
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
