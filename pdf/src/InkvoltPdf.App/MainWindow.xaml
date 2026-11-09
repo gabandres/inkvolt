@@ -354,7 +354,6 @@
                                               ToolTip="{x:Static loc:Strings.Main_PointerTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_PointerTools}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="PointerIcon" Style="{StaticResource Icon}" Text="&#xE7C9;" FontSize="15" />
-                                        <TextBlock x:Name="PointerLabel" Text="{x:Static loc:Strings.Main_Hand}" Margin="8,0,0,0" VerticalAlignment="Center" Visibility="Collapsed" /><!-- icons only: Hand, Select and Snapshot are known by their icons (Acrobat, Foxit); the name is the tooltip -->
                                         <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,2,0,0" />
                                     </StackPanel>
                                 </ToggleButton>

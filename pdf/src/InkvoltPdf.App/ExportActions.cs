@@ -66,30 +66,84 @@ internal static class ExportActions
     /// <summary>
     /// The command bar's Convert › Word (and Excel, PowerPoint, text, HTML): no questions. Every page, scanned pages
     /// recognized when Windows has a recognizer, saved as name.docx next to the PDF (never over a file: "name (2).docx"),
-    /// in Documents when the PDF isn't saved yet or its folder can't be written to (<see cref="ExportTarget"/>), then
-    /// opened; the notice offers Show in folder and Change options… (the <see cref="Export"/> window).
+    /// in Documents when the PDF isn't saved yet or its folder refuses it (<see cref="ExportTarget"/>: the name is reserved
+    /// off the UI thread by creating the file), then opened; the notice offers Show in folder and Change options… (the
+    /// <see cref="Export"/> window). With nowhere to write (no Documents either) it says so and asks where. A second click
+    /// while one runs on the same document is ignored.
     /// </summary>
     public static async Task ConvertAtOnce(Window owner, DocumentTab tab, MainWindow host, ExportFormat format)
     {
-        if (!await tab.SettleAsync()) return;
-        var (folder, inDocuments) = ExportTarget.Folder(tab.Session.FilePath,
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), ExportTarget.CanWrite);
-        int[] pages = [.. Enumerable.Range(0, tab.PageView.PageCount)];
-        if (pages.Length == 0) return;
-        if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
-        var kind = Describe(format);
-        string path;
+        if (!Converting.Add(tab)) return;
+        string? reserved = null;
         try
         {
-            path = DevScript.TakeSavePath(out var scripted) && scripted is not null ? scripted
-                : PdfFiles.UniquePath(folder, Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + kind.Extension);
+            if (!await tab.SettleAsync()) return;
+            int[] pages = [.. Enumerable.Range(0, tab.PageView.PageCount)];
+            if (pages.Length == 0) return;
+            if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
+            string path;
+            var inDocuments = false;
+            if (DevScript.TakeSavePath(out var scripted))
+            {
+                if (scripted is null) return; // a script's "savepath cancel", as the Save dialog's Cancel
+                path = scripted;
+            }
+            else
+            {
+                var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + Describe(format).Extension;
+                var pdf = tab.Session.FilePath;
+                var documents = DocumentsFolder();
+                if (await Task.Run(() => ExportTarget.Reserve(pdf, name, documents, (folder, file) => PdfFiles.UniquePath(folder, file))) is not { } target)
+                {
+                    Log.Write($"Convert {format}: nowhere to write (the PDF's folder refused it, no Documents folder)");
+                    Prompt.Info(owner, Strings.Export_CantSave, Strings.Export_NowhereToSave);
+                    Converting.Remove(tab);
+                    await Export(owner, tab, host, format);
+                    return;
+                }
+                (path, inDocuments, reserved) = (target.Path, target.InDocuments, target.Path);
+            }
+            await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true, inDocuments);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            Prompt.Error(owner, Strings.Export_CantSave, Loc.Format(Strings.PdfA_SaveFailed, ex.Message));
-            return;
+            // Run catches its own; this is what comes before it (a settle or reservation that failed), never lost silently.
+            Log.Write($"Convert {format} failed: {ex}");
+            Prompt.Error(owner, Strings.Export_Failed, ex.Message);
         }
-        await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true, inDocuments);
+        finally
+        {
+            Converting.Remove(tab);
+            // The reserved, still empty file of a conversion that wrote nothing (cancelled, failed, nothing to export).
+            if (reserved is not null) DeleteIfEmpty(reserved);
+        }
+    }
+
+    // The documents converting at once: a second click meanwhile is ignored rather than started twice.
+    private static readonly HashSet<DocumentTab> Converting = [];
+
+    private static string? DocumentsFolder()
+    {
+        try
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        }
+        catch (Exception ex) when (ex is PlatformNotSupportedException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+
+    private static void DeleteIfEmpty(string path)
+    {
+        try
+        {
+            if (new FileInfo(path) is { Exists: true, Length: 0 } empty) empty.Delete();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Convert: the empty reserved file stays ({ex.Message})");
+        }
     }
 
     private static async Task Run(Window owner, DocumentTab tab, MainWindow host, ExportFormat format, int[] pages,

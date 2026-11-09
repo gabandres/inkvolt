@@ -915,15 +915,11 @@ public partial class MainWindow : Window
         AutomationProperties.SetHelpText(mi, description);
     }
 
-    // Where a group's flyout starts a new section: after the main jobs, before the rarer or riskier ones.
-    private static readonly HashSet<string> SectionStarts =
-        ["AddHeaderFooter", "ExportText", "SaveAsPdfA", "ToolAddText", "PrepareForm", "Combine", "Redact", "Sign", "RemoveProtection", "ReviewSuspectWords"];
-
     private void FillGroupMenu(ItemsControl menu, CommandBarLayout.Entry group)
     {
         foreach (var c in group.Commands)
         {
-            if (SectionStarts.Contains(c.Name) && menu.Items.Count > 0) menu.Items.Add(new Separator());
+            if (c.StartsSection && menu.Items.Count > 0) menu.Items.Add(new Separator());
             var mi = CommandMenuItem(c);
             // The group's main job (what its button runs) first, in semibold.
             if (group.HasMainJob && c == group.Main && mi.Header is StackPanel { Children: [AccessText main, ..] }) main.FontWeight = FontWeights.SemiBold;
@@ -1776,10 +1772,10 @@ public partial class MainWindow : Window
     private void BindAtOnce(ICommand command, Action<DocumentTab, bool> execute, Func<DocumentTab, bool, bool> can) =>
         CommandBindings.Add(new CommandBinding(command,
             (_, e) => { if (ActiveTab is { } t) execute(t, RunsAtOnce(e.Parameter)); e.Handled = true; },
-            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && can(t, e.Parameter is CommandBarLayout.RunAtOnce); e.Handled = true; }));
+            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && can(t, RunsAtOnce(e.Parameter)); e.Handled = true; }));
 
     internal static bool RunsAtOnce(object? parameter) =>
-        parameter is CommandBarLayout.RunAtOnce && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+        CommandBarLayout.RunsAtOnce(parameter, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
 
     private void BindEdit(ICommand command, Func<DocumentTab, Task> run, Func<DocumentTab, bool>? can = null) =>
         Bind(command, t => _ = run(t), t => t.Session.IsPdf && t.PageView.PageCount > 0 && (can?.Invoke(t) ?? true));
@@ -2489,7 +2485,11 @@ public partial class MainWindow : Window
         var pointer = CommandBarLayout.Group(CommandBarLayout.Pointer).Commands.FirstOrDefault(c => IsToolOn(c.Name))
                       ?? CommandBarLayout.Group(CommandBarLayout.Pointer).Commands[0];
         PointerIcon.Text = pointer.Glyph;
-        PointerLabel.Text = pointer.Name switch { "ToolSelect" => Strings.Main_PointerSelect, "ToolSnapshot" => Strings.Main_PointerSnapshot, _ => Strings.Main_PointerHand };
+        // Icons only: the tool in use is in its name and tooltip ("Pointer tools: Select").
+        var pointerName = Loc.Format(Strings.Main_BarMainTip, Strings.Main_PointerTools,
+            pointer.Name switch { "ToolSelect" => Strings.Main_PointerSelect, "ToolSnapshot" => Strings.Main_PointerSnapshot, _ => Strings.Main_PointerHand });
+        AutomationProperties.SetName(PointerButton, pointerName);
+        PointerButton.ToolTip = pointerName + "\n" + Strings.Main_PointerTip;
         PointerButton.IsChecked = pointer.Name != "ToolHand";
         SplitHorizontalMenu.IsChecked = t?.Split == SplitMode.TopAndBottom;
         SplitVerticalMenu.IsChecked = t?.Split == SplitMode.SideBySide;

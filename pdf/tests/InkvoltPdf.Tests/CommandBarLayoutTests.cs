@@ -52,6 +52,36 @@ public class CommandBarLayoutTests
     }
 
     [Fact]
+    public void ProtectsRedactMarksTheSelectionAtOnce()
+    {
+        // Picked from Protect's flyout with text selected, Redact marks it (run with RunAtOnce), not the box tool.
+        Assert.True(CommandBarLayout.Group("Protect").Commands.Single(c => c.Name == "Redact").AtOnce);
+    }
+
+    [Fact]
+    public void ShiftMakesACommandAskInsteadOfRunningAtOnce()
+    {
+        // Enabling and running use the same rule, so Shift+click on Comment with nothing selected is disabled, not a no-op.
+        Assert.True(CommandBarLayout.RunsAtOnce(CommandBarLayout.RunAtOnce, shift: false));
+        Assert.False(CommandBarLayout.RunsAtOnce(CommandBarLayout.RunAtOnce, shift: true));
+        Assert.False(CommandBarLayout.RunsAtOnce(null, shift: false));
+        Assert.False(CommandBarLayout.RunsAtOnce("other", shift: false));
+    }
+
+    [Fact]
+    public void FlyoutsAreSplitIntoSectionsByTheTable()
+    {
+        // A line sets the rarer or riskier commands apart: never above a group's first command, and the long flyouts have one.
+        var groups = CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Where(e => e.IsGroup).ToList();
+        Assert.All(groups, g => Assert.False(g.Commands[0].StartsSection, g.Id));
+        // Comment's line is above its Draw submenu (added with it), so it needs none in the table.
+        Assert.All(groups.Where(g => g.Commands.Count > 4 && g.Id != CommandBarLayout.DrawsIn), g => Assert.Contains(g.Commands, c => c.StartsSection));
+        Assert.Equal(["Redact", "Sign", "RemoveProtection"],
+            CommandBarLayout.Group("Protect").Commands.Where(c => c.StartsSection).Select(c => c.Name));
+        Assert.Equal(["ExportText", "SaveAsPdfA"], CommandBarLayout.Group("Convert").Commands.Where(c => c.StartsSection).Select(c => c.Name));
+    }
+
+    [Fact]
     public void ConvertNamesTheFormatsAndRunsTheEditableOnesAtOnce()
     {
         // Convert's flyout names the format ("Word (.docx)"), not the command ("Export to Word…"); Word, Excel, PowerPoint,

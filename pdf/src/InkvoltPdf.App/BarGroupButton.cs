@@ -51,7 +51,9 @@ public sealed class BarGroupButton : StackPanel
         var name = Loc.Format(Strings.Main_BarMainTip, label, job);
         AutomationProperties.SetName(Body, name);
         AutomationProperties.SetHelpText(Body, group.Main.Description);
-        var tip = Cmd.GestureText(main) is { } gesture ? $"{name} ({gesture})" : name;
+        // The command's shortcut only where it does what the click does: an at-once job's shortcut runs the menus' version
+        // (Ctrl+Shift+H only marks a selection; the click starts the highlighter without one).
+        var tip = !group.Main.AtOnce && Cmd.GestureText(main) is { } gesture ? $"{name} ({gesture})" : name;
         // One click runs with the defaults where the menus open a window of options ("…"); Shift+click opens it.
         Body.ToolTip = group.Main.AtOnce && main.Text.EndsWith('…') ? tip + "\n" + Strings.Main_BarShiftTip : tip;
 

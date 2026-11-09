@@ -832,9 +832,6 @@
   <data name="Main_PointerTools" xml:space="preserve">
     <value>Pointer tools</value>
   </data>
-  <data name="Main_Hand" xml:space="preserve">
-    <value>Hand</value>
-  </data>
   <data name="Main_FillSignTip" xml:space="preserve">
     <value>Fill &amp; Sign: add text (A), a check mark (K) or a cross (X), or sign</value>
   </data>
@@ -11436,5 +11433,9 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
   <data name="Security_QuickNote" xml:space="preserve">
     <value>Anyone who opens the PDF will need this password. To restrict printing or copying instead: File › {0}</value>
     <comment>{0} the File menu's Protect with Password command</comment>
+  </data>
+  <data name="Export_NowhereToSave" xml:space="preserve">
+    <value>The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it.</value>
+    <comment>One-click Convert couldn't write anywhere; the Export window (with Save As) opens next</comment>
   </data>
 </root>

@@ -832,9 +832,6 @@
   <data name="Main_PointerTools" xml:space="preserve">
     <value>Herramientas de puntero</value>
   </data>
-  <data name="Main_Hand" xml:space="preserve">
-    <value>Mano</value>
-  </data>
   <data name="Main_FillSignTip" xml:space="preserve">
     <value>Llenar y firmar: agrega texto (A), una marca de verificación (K) o una cruz (X), o firma</value>
   </data>
@@ -11436,5 +11433,9 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Security_QuickNote" xml:space="preserve">
     <value>Quien abra el PDF necesitará esta contraseña. Para limitar la impresión o la copia: Archivo › {0}</value>
     <comment>{0} the File menu's Protect with Password command</comment>
+  </data>
+  <data name="Export_NowhereToSave" xml:space="preserve">
+    <value>La carpeta del PDF no acepta archivos nuevos y no hay una carpeta Documentos que usar en su lugar. Elige dónde guardarlo.</value>
+    <comment>One-click Convert couldn't write anywhere; the Export window (with Save As) opens next</comment>
   </data>
 </root>

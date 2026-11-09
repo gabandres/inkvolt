@@ -17,15 +17,22 @@ public static class CommandBarLayout
     /// <remarks><paramref name="Title"/>: the name in the flyout when the command's own (menu) name would repeat the
     /// group's (Convert › "Word (.docx)", not "Export to Word…"). <paramref name="AtOnce"/>: the flyout runs it with
     /// <see cref="RunAtOnce"/>, no questions (Shift asks). <paramref name="IconBrush"/>: the resource key its icon is drawn
-    /// with when defined (one per file type, so Convert's icons can take the formats' colors); unset, the text color.</remarks>
+    /// with when defined (one per file type, so Convert's icons can take the formats' colors); unset, the text color.
+    /// <paramref name="StartsSection"/>: a line above it in the flyout, setting the rarer or riskier commands apart.</remarks>
     public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "", string? Title = null,
-        bool AtOnce = false, string? IconBrush = null);
+        bool AtOnce = false, string? IconBrush = null, bool StartsSection = false);
 
     /// <summary>
     /// The parameter a command gets from a group's main-job button (and Convert's at-once items): run with the defaults,
     /// asking only for what can't be defaulted (a password, a signature not made yet). Shift held asks as the menus do.
     /// </summary>
     public const string RunAtOnce = "AtOnce";
+
+    /// <summary>
+    /// Whether a command run with <paramref name="parameter"/> goes at once: <see cref="RunAtOnce"/>, and Shift not held
+    /// (Shift+click asks). Both a command's enabling and its running ask this, so they agree.
+    /// </summary>
+    public static bool RunsAtOnce(object? parameter, bool shift) => parameter is RunAtOnce && !shift;
 
     /// <summary>
     /// Under this many logical DIPs (the window's width over Windows' Text size) the bar's right end makes room: the
@@ -93,17 +100,17 @@ public static class CommandBarLayout
             [new("EditContent", "\uE70F", Description: PdfStrings.Bar_EditContentDesc),
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
-             new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc),
+             new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc, StartsSection: true),
              new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)], "\uE70F"),
         // The editable formats run at once (name.docx next to the PDF, opened); pictures and PDF/A ask, as in the menus.
         new("Convert", PdfStrings.Bar_Convert, 90,
             [new("ExportWord", "\uE8A5", Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord, AtOnce: true, IconBrush: "FormatWordBrush"),
              new("ExportExcel", "\uE80A", Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel, AtOnce: true, IconBrush: "FormatExcelBrush"),
              new("ExportPowerPoint", "\uE7F4", Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint, AtOnce: true, IconBrush: "FormatPowerPointBrush"),
-             new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText, AtOnce: true, IconBrush: "FormatTextBrush"),
+             new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText, AtOnce: true, IconBrush: "FormatTextBrush", StartsSection: true),
              new("ExportHtml", "\uE774", Description: PdfStrings.Bar_ToHtmlDesc, Title: PdfStrings.Bar_ToHtml, AtOnce: true, IconBrush: "FormatHtmlBrush"),
              new("ExportImages", "\uE91B", Description: PdfStrings.Bar_ToImagesDesc, Title: PdfStrings.Bar_ToImages, IconBrush: "FormatImagesBrush"),
-             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA, IconBrush: "FormatPdfABrush")], "\uEDE1"),
+             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA, IconBrush: "FormatPdfABrush", StartsSection: true)], "\uEDE1"),
         new("Comment", PdfStrings.Bar_Comment, 80,
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
@@ -114,30 +121,30 @@ public static class CommandBarLayout
         // labels (the owner, 2026-11-08), rather than shortening it.
         new("FillSign", PdfStrings.Bar_FillSign, FillSignPriority(PdfLanguage.Culture),
             [new("AddSignature", "\uE76D", Description: PdfStrings.Bar_SignatureDesc),
-             new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc),
+             new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc, StartsSection: true),
              new("ToolCheck", "\uE73E", "K", PdfStrings.Bar_CheckDesc),
              new("ToolCross", "\uE711", "X", PdfStrings.Bar_CrossDesc),
-             new("PrepareForm", "\uE8A9", Description: PdfStrings.Bar_PrepareFormDesc)], "\uE76D"),
+             new("PrepareForm", "\uE8A9", Description: PdfStrings.Bar_PrepareFormDesc, StartsSection: true)], "\uE76D"),
         new("Organize", PdfStrings.Bar_Organize, 70,
             [new("Organize", "\uE8B3", Description: PdfStrings.Bar_OrganizeDesc),
              new("InsertPages", "\uE8B5", Description: PdfStrings.Bar_InsertPagesDesc),
              new("ExtractPages", "\uEDE1", Description: PdfStrings.Bar_ExtractPagesDesc),
              new("SplitDocument", "\uE8C6", Description: PdfStrings.Bar_SplitDesc),
-             new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc),
+             new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc, StartsSection: true),
              new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)], ""),
         new("Protect", PdfStrings.Bar_Protect, 60,
             [new("ProtectPassword", "\uE72E", Description: PdfStrings.Bar_PasswordDesc, AtOnce: true),
-             new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc),
+             new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc, AtOnce: true, StartsSection: true),
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
-             new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc),
-             new("RemoveProtection", "\uE785", Description: PdfStrings.Bar_RemoveProtectionDesc)], ""),
+             new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc, StartsSection: true),
+             new("RemoveProtection", "\uE785", Description: PdfStrings.Bar_RemoveProtectionDesc, StartsSection: true)], ""),
         new("ScanOcr", PdfStrings.Bar_ScanOcr, 50,
             [new("RecognizeText", "\uE8C1", Description: PdfStrings.Bar_RecognizeDesc, AtOnce: true),
              new("Scan", "\uE8FE", Description: PdfStrings.Bar_ScanDesc),
              new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
-             new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc)], ""),
+             new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc, StartsSection: true)], ""),
     ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>
