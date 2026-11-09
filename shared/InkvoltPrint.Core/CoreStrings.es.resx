@@ -3289,4 +3289,48 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="GetDriver_Demo" xml:space="preserve">
     <value>Demo: un controlador inventado. No se descarga ni se instala nada.</value>
   </data>
+  <data name="GetDriver_FactFrom" xml:space="preserve">
+    <value>Desde: {0}</value>
+    <comment>{0} = the maker's download host</comment>
+  </data>
+  <data name="GetDriver_FoundTitleLink" xml:space="preserve">
+    <value>Encontrado en el sitio web de {0}</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkButton" xml:space="preserve">
+    <value>Descargarlo de {0}</value>
+    <comment>{0} = maker; opens the browser</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNoteScanner" xml:space="preserve">
+    <value>Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente del escáner y te avisa cuando esté listo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNotePrinter" xml:space="preserve">
+    <value>Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente de la impresora y te avisa cuando esté lista.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_LookAgainButton" xml:space="preserve">
+    <value>Volver a buscar</value>
+  </data>
+  <data name="GetDriver_Waiting" xml:space="preserve">
+    <value>Esperando el controlador: ejecuta el instalador que descargaste.</value>
+  </data>
+  <data name="GetDriver_LookingAgain" xml:space="preserve">
+    <value>Buscando de nuevo…</value>
+  </data>
+  <data name="GetDriver_FoundItScanner" xml:space="preserve">
+    <value>Encontrado: {0} está listo para escanear. Está seleccionado en la pestaña Escanear.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_FoundItPrinter" xml:space="preserve">
+    <value>Encontrado: el controlador está instalado. La impresora aparecerá en la lista en un momento.</value>
+  </data>
+  <data name="GetDriver_NotYet" xml:space="preserve">
+    <value>Windows todavía no lo tiene. Cuando el instalador termine, desconecta el {0}, vuelve a conectarlo y pulsa Volver a buscar.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_CouldntStart" xml:space="preserve">
+    <value>Windows no dejó que el instalador se iniciara: puede que SmartScreen, un antivirus o una directiva de este PC lo hayan detenido. No se instaló nada. Inténtalo de nuevo u obtén el controlador del sitio web de {0} más abajo.</value>
+    <comment>{0} = maker</comment>
+  </data>
 </root>

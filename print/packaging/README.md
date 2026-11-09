@@ -122,8 +122,8 @@ apps. A feature that uninstalls other publishers' software is likely to draw Sto
 
 ## Get the driver and the Store
 
-*Get the driver* (print/README.md) downloads a maker's driver installer and runs it on the user's click. Read against
-Microsoft Store Policies **7.20** (2026-09-14), it does **not** fit certification as built, in a packaged build:
+*Get the driver* (print/README.md) in an unpackaged copy downloads a maker's driver installer and runs it on the user's
+click. Read against Microsoft Store Policies **7.20** (2026-09-14), that would **not** fit certification in a Store package:
 
 - **10.1.5** lets a product, with consent, acquire "add-ons or extensions, **excluding non-Microsoft drivers or NT
   services**". An Epson driver acquired in the app is exactly what it excludes.
@@ -134,12 +134,19 @@ Microsoft Store Policies **7.20** (2026-09-14), it does **not** fit certificatio
   WHCP certified drivers", disclosed in the certification notes.
 - 10.2.2 (no dynamic code changing the described functionality) is not the problem: nothing of the app's own is downloaded.
 
-**Smallest change that would fit (proposed, not built; the owner decides):** gate the download and the run like the HP
-clean-up. With package identity, *Get the driver* still finds the model's driver on the maker's site and shows its title,
-version and size, but its button opens that download (the maker's own https address) in the browser instead, so the person
-downloads and runs Epson's installer themselves; the app then offers "Look again", which does the rescan and the WIA check
-as now. Unpackaged and sideloaded copies keep the whole flow. Until then, say in the certification notes that the app can
-download and run a maker's signed driver installer on the user's click, or don't upload a build with it.
+**What each build does** (`Features.DriverMode`, decided by `DriverModes.For`, gated like the HP clean-up):
+
+- **Store package (default):** the app never downloads or runs anything. *Get the driver* finds the model's driver on the
+  maker's site and shows its title, version, size and host; **Download it from Epson** opens that file's own https address
+  (Epson's hosts only) in the browser, and the person runs Epson's installer themselves. The page then watches for the device
+  (each read of the list after the PnP watcher or the 30 s timer: WIA for a scanner, the USB read for a printer) and says
+  *Found it*, selecting a scanner in the Scan tab; **Look again** asks Windows to look for devices as the user (never elevated).
+  In the certification notes: "the app opens the printer or scanner maker's own driver download page in the browser; it
+  doesn't download or install drivers itself."
+- **`pack-msix.ps1 -App Print -IncludeDriverInstall`** (MSBuild `DriverInstallInPackage=true`, constant
+  `DRIVER_INSTALL_IN_PACKAGE`): a package that keeps the whole flow, for sideloading or other direct distribution. Never
+  upload it to the Store.
+- **Unpackaged copies and the developer CLI:** the whole flow (download, checks, Install, rescans, WIA check).
 
 ## Values from Partner Center
 

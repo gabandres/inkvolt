@@ -4,7 +4,8 @@ namespace InkvoltPrint.Core.Queues;
 
 /// <summary>
 /// Which USB devices with no driver are scanners (or an all-in-one's scanner part), for "Plugged in, needs its driver": one of the
-/// still-image class (<c>USB\Class_06</c>), or one from a maker of scanners whose own name or ids say scanner or all-in-one. Most
+/// still-image class (<c>USB\Class_06</c>) or from a maker of scanners whose own name or ids say scanner or all-in-one, or a scanner
+/// maker's still-image device that isn't named as a camera (that class is mostly cameras and phones). Most
 /// scanners report a vendor-specific class (<c>USB\Class_FF</c>), so the maker and the name decide. A phone, a camera or a webcam
 /// (Samsung and HP make those too) is never one. Read from the device's ids and the name it reports, never its serial.
 /// </summary>
@@ -26,7 +27,7 @@ public static partial class UsbScanners
     private static partial Regex ScannerWords();
 
     /// <summary>Words that make a device a phone, a camera or a webcam, whoever made it: never listed as a scanner.</summary>
-    [GeneratedRegex(@"phone|android|galaxy|\bipad\b|\bmtp\b|\bptp\b|camera|webcam|\bcam\b|video|\badb\b|tablet|headset|audio|mouse|keyboard",
+    [GeneratedRegex(@"phone|android|galaxy|\bipad\b|\bmtp\b|\bptp\b|camera|webcam|\bcam\b|video|\badb\b|tablet|headset|audio|mouse|keyboard|\beos\b|powershot|\bixus\b|\bixy\b|coolpix|lumix|cyber-shot|finepix|easyshare|\bdsc\b|dslr|mirrorless|gopro|instax|\brebel\b",
         RegexOptions.IgnoreCase)]
     private static partial Regex NotScannerWords();
 
@@ -45,10 +46,13 @@ public static partial class UsbScanners
     {
         var said = string.Join(' ', new[] { n.BusReportedName, n.FriendlyName }.Where(s => s is { Length: > 0 }).Concat(n.HardwareIds).Concat(n.CompatibleIds));
         if (NotScannerWords().IsMatch(said)) return false;
-        if (n.CompatibleIds.Any(c => c.StartsWith(@"USB\Class_06", StringComparison.OrdinalIgnoreCase))) return true;
-        if (Vid(n) is not { } vid || !Makers.ContainsKey(vid)) return false;
         var name = string.Join(' ', new[] { n.BusReportedName, n.FriendlyName }.Where(s => s is { Length: > 0 }).Concat(n.HardwareIds));
-        return ScannerWords().IsMatch(name);
+        var stillImage = n.CompatibleIds.Any(c => c.StartsWith(@"USB\Class_06", StringComparison.OrdinalIgnoreCase));
+        var fromMaker = Vid(n) is { } vid && Makers.ContainsKey(vid);
+        // A name that says scanner, from a scanner maker or of the still-image class. That class alone is mostly cameras and phones
+        // (PTP), so without such a name only a scanner maker's still-image device that names itself, and not as a camera, counts.
+        if (ScannerWords().IsMatch(name)) return stillImage || fromMaker;
+        return stillImage && fromMaker && n.BusReportedName is { Length: > 0 };
     }
 
     /// <summary>The maker's short name, from its vendor id ("Epson"), else from its name; null when not known.</summary>

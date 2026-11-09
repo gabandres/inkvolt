@@ -32,6 +32,25 @@ public static class DriverText
             F(CoreStrings.GetDriver_FactSize, Megabytes(r.Bytes)),
             F(CoreStrings.GetDriver_FactSigner, r.Signer));
 
+    /// <summary>What a Store copy shows of a download it will only link to: title, version, size as the page says, and its host.</summary>
+    public static string OfferFacts(DriverOffer o) =>
+        string.Join(Environment.NewLine,
+            F(CoreStrings.GetDriver_FactDriver, o.Title),
+            F(CoreStrings.GetDriver_FactVersion, o.Version ?? CoreStrings.GetDriver_NotSaid),
+            F(CoreStrings.GetDriver_FactSize, o.SizeText ?? CoreStrings.GetDriver_NotSaid),
+            F(CoreStrings.GetDriver_FactFrom, o.Download.IdnHost));
+
+    public static string FoundTitleLink(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_FoundTitleLink, Maker(d));
+    public static string OpenLinkButton(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_OpenLinkButton, Maker(d));
+    public static string OpenLinkNote(NeedsDriverPrinter d) => F(d.IsScanner ? CoreStrings.GetDriver_OpenLinkNoteScanner : CoreStrings.GetDriver_OpenLinkNotePrinter, Maker(d));
+    public static string LookAgainButton => CoreStrings.GetDriver_LookAgainButton;
+    public static string Waiting => CoreStrings.GetDriver_Waiting;
+    public static string LookingAgain => CoreStrings.GetDriver_LookingAgain;
+
+    public static string FoundIt(NeedsDriverPrinter d) => d.IsScanner ? F(CoreStrings.GetDriver_FoundItScanner, d.Name) : CoreStrings.GetDriver_FoundItPrinter;
+
+    public static string NotYet(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_NotYet, d.Name);
+
     public static string InstallButton => CoreStrings.GetDriver_InstallButton;
     public static string CancelButton => CoreStrings.GetDriver_CancelButton;
     public static string InstallNote => CoreStrings.GetDriver_InstallNote;
@@ -45,6 +64,7 @@ public static class DriverText
         InstallOutcome.NotSeen => F(CoreStrings.GetDriver_NotSeen, d.Name),
         InstallOutcome.Declined => CoreStrings.GetDriver_Declined,
         InstallOutcome.TimedOut => CoreStrings.GetDriver_TimedOut,
+        InstallOutcome.CouldntStart => F(CoreStrings.GetDriver_CouldntStart, Maker(d)),
         _ => F(CoreStrings.GetDriver_Failed, Maker(d)),
     };
 

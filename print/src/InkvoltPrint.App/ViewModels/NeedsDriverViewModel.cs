@@ -142,11 +142,13 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
 
     /// <summary>A checked download waiting for the user's click.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowConfirm), nameof(FoundTitle), nameof(Facts))]
+    [NotifyPropertyChangedFor(nameof(ShowConfirm), nameof(FoundTitle), nameof(Facts), nameof(ShowGetDriverButton))]
     [NotifyCanExecuteChangedFor(nameof(GetDriverCommand), nameof(InstallDriverCommand), nameof(DiscardDriverCommand))]
     public partial DriverReady? Ready { get; set; }
 
     public bool ShowConfirm => Ready is not null;
+
+    public bool ShowGetDriverButton => Ready is null && Offered is null;
     public string FoundTitle => DriverText.FoundTitle(Printer);
     public string Facts => Ready is { } r ? DriverText.Facts(r) : "";
 
@@ -160,12 +162,16 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     /// <summary>The driver went in and Windows has the device: the list reads Windows again, a scanner is shown in the Scan tab.</summary>
     public event Action<NeedsDriverViewModel>? DriverInstalled;
 
-    private bool CanStartGetDriver() => DriverProgress is null && Ready is null;
+    private bool CanStartGetDriver() => DriverProgress is null && Ready is null && !IsWaitingForInstall;
+
+    /// <summary>A Store copy: it finds the download and opens the maker's link; it never downloads or runs anything itself.</summary>
+    public bool OpensLink => _pc.Drivers.Mode == DriverMode.OpenLink;
 
     [RelayCommand(CanExecute = nameof(CanStartGetDriver))]
     private async Task GetDriverAsync()
     {
         DriverResult = null;
+        Offered = null;
         var device = Printer;
         try
         {
@@ -176,6 +182,12 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
             {
                 Log.Write($"[{device.Name}] get the driver: {DriverText.EnglishNoOffer(device, found)}");
                 DriverResult = DriverText.Unavailable(device, found);
+                return;
+            }
+            if (OpensLink)
+            {
+                Log.Write($"[{device.Name}] driver found (link only): {offer.Title} {offer.Version} at {offer.Download.Host}");
+                Offered = offer;
                 return;
             }
             DriverProgress = DriverText.Downloading(0);
@@ -221,6 +233,13 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
             DriverResult = DriverText.Outcome(device, done);
             if (done.Outcome == InstallOutcome.Done) DriverInstalled?.Invoke(this);
         }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception
+                                       or InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            // DriverFlow says these itself; anything that still gets here is said the same way, never a crash.
+            Log.Write($"[{device.Name}] driver install failed: {ex.GetType().Name}: {ex.Message}");
+            DriverResult = DriverText.Outcome(device, new InstallResult(InstallOutcome.CouldntStart));
+        }
         finally
         {
             Ready = null;
@@ -233,5 +252,95 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     {
         if (Ready is { } ready) _pc.Drivers.Discard(ready);
         Ready = null;
+    }
+
+    // ---------------------------------------------------------------- a Store copy: the maker's link, then watching for the device
+
+    /// <summary>The download found, shown with the maker's link (a Store copy).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowOffered), nameof(OfferFacts), nameof(ShowGetDriverButton))]
+    [NotifyCanExecuteChangedFor(nameof(GetDriverCommand))]
+    public partial DriverOffer? Offered { get; set; }
+
+    public bool ShowOffered => Offered is not null;
+    public string OfferFacts => Offered is { } o ? DriverText.OfferFacts(o) : "";
+    public string FoundTitleLink => DriverText.FoundTitleLink(Printer);
+    public string OpenLinkButton => DriverText.OpenLinkButton(Printer);
+    public string OpenLinkNote => DriverText.OpenLinkNote(Printer);
+    public string LookAgainButton => DriverText.LookAgainButton;
+
+    /// <summary>The link was opened: the page watches for the device (the list's PnP and WIA reads call <see cref="CheckAgainAsync"/>).</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(GetDriverCommand))]
+    public partial bool IsWaitingForInstall { get; set; }
+
+    private bool _checking;
+
+    [RelayCommand]
+    private void OpenLink()
+    {
+        if (Offered is not { } offer) return;
+        if (_pc.Drivers.LinkFor(offer, Printer) is not { } link)
+        {
+            DriverResult = DriverText.Refused(Printer, new DriverDownload(null, Refusal.Fetch, FetchProblem.NotMakersSite));
+            return;
+        }
+        if (!_pc.Open(link.AbsoluteUri))
+        {
+            DriverResult = NeedsDriverText.DemoFor(Printer);
+            return;
+        }
+        Log.Write($"[{Printer.Name}] driver link opened in the browser ({link.Host}); watching for the device");
+        IsWaitingForInstall = true;
+        DriverResult = DriverText.Waiting;
+    }
+
+    [RelayCommand]
+    private async Task LookAgainAsync()
+    {
+        if (_checking) return;
+        _checking = true;
+        var device = Printer;
+        DriverProgress = DriverText.LookingAgain;
+        try
+        {
+            var there = await _pc.Drivers.LookAgainAsync(ct => _isThere(device, ct), CancellationToken.None);
+            if (there) Found(device);
+            else DriverResult = DriverText.NotYet(device);
+        }
+        finally
+        {
+            DriverProgress = null;
+            _checking = false;
+        }
+    }
+
+    /// <summary>While waiting for the user's install, a change Windows reported (PnP, WIA): is the device there now?</summary>
+    public async Task CheckAgainAsync()
+    {
+        if (!IsWaitingForInstall || _checking) return;
+        _checking = true;
+        var device = Printer;
+        try
+        {
+            if (await _isThere(device, CancellationToken.None)) Found(device);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or InvalidOperationException or System.Runtime.InteropServices.COMException)
+        {
+            Log.Write($"[{device.Name}] looking for it failed: {ex.Message}");
+        }
+        finally
+        {
+            _checking = false;
+        }
+    }
+
+    private void Found(NeedsDriverPrinter device)
+    {
+        IsWaitingForInstall = false;
+        Offered = null;
+        DriverResult = DriverText.FoundIt(device);
+        Log.Write($"[{device.Name}] driver installed by the user: found");
+        DriverInstalled?.Invoke(this);
     }
 }

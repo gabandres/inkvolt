@@ -67,6 +67,12 @@ public class UsbScannerTests
     [InlineData("03F0", "HP USB Optical Mouse", @"USB\Class_FF")]
     [InlineData("04B8", "EPSON USB Device", @"USB\Class_FF")] // an Epson that says nothing of scanning
     [InlineData("04A9", "Canon EOS R6 camera", @"USB\Class_06")] // a camera
+    [InlineData("04A9", "Canon EOS R6", @"USB\Class_06")] // a camera that doesn't say so
+    [InlineData("04A9", "Canon PowerShot G7 X Mark III", @"USB\Class_06")]
+    [InlineData("04B0", "Nikon Z 6II", @"USB\Class_06")]
+    [InlineData("05AC", "Apple iPhone", @"USB\Class_06")]
+    [InlineData("2717", "Redmi Note 13", @"USB\Class_06")] // a phone in PTP mode, named by its model only
+    [InlineData("04E8", "SM-S921B", @"USB\Class_06")]
     [InlineData("18D1", "Pixel 9", @"USB\Class_FF")] // not a scanner maker
     public void A_phone_a_camera_a_webcam_or_an_unnamed_device_is_not_a_scanner(string vid, string name, string compatible)
     {
@@ -85,6 +91,28 @@ public class UsbScannerTests
     {
         var node = new UsbPrinterNode(UsbNodeKind.UsbDevice, true) { BusReportedName = name, HardwareIds = [$@"USB\VID_{vid}&PID_0001"], CompatibleIds = [@"USB\Class_FF"], ProblemCode = 28 };
         Assert.Equal(maker, Assert.Single(Find(node)).Maker);
+    }
+
+    [Fact]
+    public void An_all_in_ones_scanner_part_is_listed_when_its_printer_part_prints()
+    {
+        // The usual case: an Epson ET prints through its queue (Windows' class driver), its scanner part has no driver.
+        var printer = new UsbPrinterNode(UsbNodeKind.UsbPrint, true)
+        {
+            FriendlyName = "EPSON ET-2800 Series", DeviceIdName = "EPSONET-2800_SERIES", DriverInf = "oem12.inf", Port = "USB003", ContainerId = Container,
+        };
+        var scannerPart = V19 with { BusReportedName = "EPSON ET-2800 Series MFP", HardwareIds = [@"USB\VID_04B8&PID_1186&MI_01"] };
+        var queue = new SpoolerQueue("EPSON ET-2800 Series", "USB003", "Microsoft IPP Class Driver", 0, SpoolerFlags.AttributeLocal, 0);
+        var s = Assert.Single(NeedsDriver.Find([printer, scannerPart], [queue], []));
+        Assert.True(s.IsScanner);
+        Assert.Equal("Epson ET-2800 Series MFP", s.Name);
+    }
+
+    [Fact]
+    public void A_still_image_device_from_a_scanner_maker_that_says_nothing_of_cameras_is_a_scanner()
+    {
+        var node = new UsbPrinterNode(UsbNodeKind.UsbDevice, true) { BusReportedName = "Canon DR-C225", HardwareIds = [@"USB\VID_04A9&PID_1234"], CompatibleIds = [@"USB\Class_06"], ProblemCode = 28 };
+        Assert.Single(Find(node));
     }
 
     [Fact]

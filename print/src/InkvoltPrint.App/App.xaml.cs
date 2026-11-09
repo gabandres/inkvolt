@@ -187,6 +187,7 @@ public partial class App : Application
         if (!devRun)
         {
             _ = Task.Run(ShellIntegration.RegisterOpenWith);
+            _ = Task.Run(InkvoltPrint.Windows.Printing.WindowsDrivers.SweepLeftovers); // driver downloads an earlier run left
             var vm = _vm;
             PresetJumpList.Update(this, vm.Presets.Items);
             vm.Presets.Changed += () => PresetJumpList.Update(this, vm.Presets.Items);

@@ -32,4 +32,17 @@ public static class Features
     /// Offline, cancel their own jobs) and show the steps for the rest.
     /// </summary>
     public static bool ElevatedRepairs { get; } = !AppPackage.IsPackaged;
+
+    /// <summary>
+    /// "Get the driver": unpackaged copies download the maker's driver, check it and run it on the user's click. Store policy 10.1.5
+    /// excludes acquiring non-Microsoft drivers in the app, so packaged copies only find it and open the maker's own download link
+    /// in the browser, then watch for the device (<see cref="Core.Drivers.DriverMode.OpenLink"/>), unless the package was built with
+    /// <c>pack-msix.ps1 -App Print -IncludeDriverInstall</c> (sideloading, outside the Store).
+    /// </summary>
+    public static Core.Drivers.DriverMode DriverMode { get; } = Core.Drivers.DriverModes.For(AppPackage.IsPackaged,
+#if DRIVER_INSTALL_IN_PACKAGE
+        true);
+#else
+        false);
+#endif
 }

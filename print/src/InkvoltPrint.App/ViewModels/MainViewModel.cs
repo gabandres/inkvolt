@@ -469,7 +469,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (ct.IsCancellationRequested) return;
         var ids = read.Printers.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id) && !v.IsGettingDriver && !v.ShowConfirm).ToList())
+        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id) && !v.IsGettingDriver && !v.ShowConfirm && !v.IsWaitingForInstall).ToList())
         {
             if (SelectedNeedsDriver == gone) SelectedNeedsDriver = null;
             gone.SetUpDone -= RelistQueues;
@@ -506,20 +506,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (which is not null) SelectedNeedsDriver = which;
     }
 
-    /// <summary>The WIA scanner a driver just went in for, once Windows lists it.</summary>
-    private WiaDeviceInfo? _installedScanner;
+    /// <summary>The WIA scanner each device's driver went in for (by the device's id), once Windows lists it. UI thread only.</summary>
+    private readonly Dictionary<string, WiaDeviceInfo> _installedScanners = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// Whether Windows has the device now, after its driver's installer: a scanner when WIA lists one of its model (never a TWAIN
-    /// source: WIA is what the Scan tab uses first), a printer when it no longer needs its driver.
+    /// source: WIA is what the Scan tab uses first), a printer when it no longer needs its driver. Asked from any thread (the
+    /// driver flow's); run on the UI thread, as the list's own reads are, so the scanners and queues it reads and keeps are never
+    /// touched off it.
     /// </summary>
-    private async Task<bool> IsThereAsync(NeedsDriverPrinter device, CancellationToken ct)
+    private Task<bool> IsThereAsync(NeedsDriverPrinter device, CancellationToken ct) =>
+        Application.Current?.Dispatcher is { } ui && !ui.CheckAccess()
+            ? ui.InvokeAsync(() => IsThereOnUiAsync(device, ct)).Task.Unwrap()
+            : IsThereOnUiAsync(device, ct);
+
+    private async Task<bool> IsThereOnUiAsync(NeedsDriverPrinter device, CancellationToken ct)
     {
         if (device.IsScanner)
         {
             var listed = await _wia.ListNowAsync(ct);
-            _installedScanner = listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name));
-            if (_installedScanner is null) return false;
+            if (listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name)) is not { } match) return false;
+            _installedScanners[device.Id] = match;
             _scanners = listed;
             _scannersRead = true;
             return true;
@@ -532,7 +539,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private void OnDriverInstalled(NeedsDriverViewModel which)
     {
         RelistQueues();
-        if (!which.IsScanner || _installedScanner is not { } scanner) return;
+        if (!which.IsScanner || !_installedScanners.Remove(which.Id, out var scanner)) return;
         var id = PrinterList.ScannerIdFor(scanner.Id);
         _wantedScanner = id;
         Reconcile(queues: false);
@@ -592,6 +599,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     // WIA failing with nothing in its place (no TWAIN source either): the scanner list said it, once.
                     if (!ReferenceEquals(ex, _wia.WiaFailure)) Log.Write($"Reading Windows' scanners failed: {ex.Message}");
                 }
+                // A driver the user is installing from the maker's link (a Store copy): is the device there now?
+                foreach (var waiting in NeedsDriver.Where(v => v.IsWaitingForInstall).ToList()) await waiting.CheckAgainAsync();
                 await _relist.WaitAsync(QueueListInterval, ct);
             }
         }

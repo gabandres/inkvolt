@@ -173,8 +173,12 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
         return s.Length > max ? s[..max].TrimEnd() + "…" : s;
     }
 
-    [GeneratedRegex(@"\bARM(64)?\b")]
+    /// <summary>ARM as Epson and Microsoft write it: "ARM", "Arm64", "Windows on Arm", "arm-based".</summary>
+    [GeneratedRegex(@"\b(arm|arm64|aarch64)\b", RegexOptions.IgnoreCase)]
     private static partial Regex Arm();
+
+    [GeneratedRegex(@"\b(x64|x86-64|x86_64|amd64|intel|amd)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex X64();
 
     [GeneratedRegex(@"\bv(\d{1,4}(?:\.\d{1,6}){1,4})\b", RegexOptions.IgnoreCase)]
     private static partial Regex Version();
@@ -182,8 +186,9 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
     /// <summary>
     /// The download to offer: under "driver", the kind's own (a scanner driver for a scanner, a printer driver for a printer), not a
     /// combo package, listed for this Windows (the page's own list of systems), from one of Epson's download hosts: the first in
-    /// Epson's order, and on ARM64 the first that says it is for ARM. None for ARM64 when the page has the kind's drivers but none
-    /// for ARM (an x64 driver doesn't load on ARM64 Windows).
+    /// Epson's order; on ARM64 the first that says it is for ARM, on x64 the first that isn't for ARM only (one that names ARM and not
+    /// x64, Intel or AMD). None for ARM64 when the page has the kind's drivers but none for ARM (an x64 driver doesn't load on ARM64
+    /// Windows).
     /// </summary>
     public static DriverLookup Choose(IReadOnlyList<EpsonDownload> downloads, DriverQuery query, Uri page)
     {
@@ -195,7 +200,8 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
                                         && (d.Systems.Length == 0 || d.Systems.Contains(os, StringComparison.OrdinalIgnoreCase))
                                         && BoundedHttp.IsAllowed(d.Href, Source.DownloadHosts)).ToList();
         static bool ForArm(EpsonDownload d) => Arm().IsMatch(d.Title) || Arm().IsMatch(d.Description);
-        var pick = query.Arch == PcArch.Arm64 ? fits.FirstOrDefault(ForArm) : fits.FirstOrDefault();
+        static bool ArmOnly(EpsonDownload d) => ForArm(d) && !X64().IsMatch(d.Title) && !X64().IsMatch(d.Description);
+        var pick = query.Arch == PcArch.Arm64 ? fits.FirstOrDefault(ForArm) : fits.FirstOrDefault(d => !ArmOnly(d));
         if (pick is null) return DriverLookup.None(fits.Count > 0 ? NoOffer.NoArm64 : NoOffer.NotFound, page);
         var title = Version().Replace(pick.Title, "").Trim();
         var version = Version().Match(pick.Title) is { Success: true } v ? v.Groups[1].Value : null;

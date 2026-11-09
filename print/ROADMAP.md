@@ -539,8 +539,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 ### 3.8 Scanners that need their driver, and Get the driver
 - **Leader.** The makers' own setup apps (Epson's, Canon's, HP Smart) find their driver; Windows Update rarely has a scanner's.
 - **Built (Windows, 2026-11-08):** a USB scanner with no driver is listed as *Plugged in, needs its driver* (sidebar, Scan tab; `UsbScanners`), and *Get the driver* gets Epson's own driver for the model and this PC (x64 or ARM64), from Epson's hosts only, bounded, Authenticode valid and signed by Epson, shown and run on the user's click, then a rescan and a WIA check (`Core/Drivers`; Epson printers too). `UsbScannerTests`, `DriverDownloadTests` (a trimmed copy of Epson's real page). Found on a real Epson Perfection V19 on ARM64.
-- **Not yet seen:** the installer run through the app, the rescans after it and the scanner selected in the Scan tab (the owner's test); Windows 10 x64; a packaged (MSIX) copy running the installer.
-- **Next:** Canon, HP, Brother and PFU lookups (each needs its own page reader, hosts and signers); the Store's position (policy 10.1.5, 10.2.3, 10.2.4: `print/packaging/README.md`).
+- **Store copy (2026-11-08):** policy 10.1.5 excludes acquiring non-Microsoft drivers in the app, so a packaged copy only finds the download, opens Epson's link in the browser and watches for the device (*Found it*, *Look again*); unpackaged and `-IncludeDriverInstall` copies install it for you (`print/packaging/README.md`).
+- **Not yet seen:** the installer run through the app, the rescans after it and the scanner selected in the Scan tab, and the Store copy's link and *Found it* (the owner's test); Windows 10 x64.
+- **Next:** Canon, HP, Brother and PFU lookups (each needs its own page reader, hosts and signers).
 - **Effort** M. Windows. Free.
 
 ## Where we already win

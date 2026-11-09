@@ -14,6 +14,8 @@
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <!-- packaging/pack-msix.ps1 -App Print -IncludeHpCleanup: keeps HP clean-up in an MSIX meant for sideloading (Features.HpCleanup) -->
     <DefineConstants Condition="'$(HpCleanupInPackage)' == 'true'">$(DefineConstants);HP_CLEANUP_IN_PACKAGE</DefineConstants>
+    <!-- packaging/pack-msix.ps1 -App Print -IncludeDriverInstall: keeps Get the driver's download and install in an MSIX meant for sideloading (Features.DriverMode) -->
+    <DefineConstants Condition="'$(DriverInstallInPackage)' == 'true'">$(DefineConstants);DRIVER_INSTALL_IN_PACKAGE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Using Include="System.Net.Http" />

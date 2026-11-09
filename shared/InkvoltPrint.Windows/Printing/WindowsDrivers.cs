@@ -22,8 +22,20 @@ public static class WindowsDrivers
 
     private static readonly Lazy<BoundedHttp> Http = new(() => new BoundedHttp(BoundedHttp.CreateHandler()));
 
-    public static DriverFlow Create(TimeSpan? wait = null) =>
-        new(new MakerCatalogs(new EpsonDrivers(Http.Value)), Http.Value, new WindowsSignatures(), new WindowsDriverPc(), DownloadFolder, Arch, Windows, wait);
+    /// <param name="mode">The app's: <see cref="DriverMode.OpenLink"/> in a Store package (it never downloads or runs anything).</param>
+    public static DriverFlow Create(DriverMode mode = DriverMode.InstallForYou) =>
+        new(new MakerCatalogs(new EpsonDrivers(Http.Value)), Http.Value, new WindowsSignatures(), new WindowsDriverPc(), DownloadFolder, Arch, Windows, mode);
+
+    /// <summary>Deletes downloads left from an earlier run (not touched for an hour); at start-up, off the UI thread.</summary>
+    public static void SweepLeftovers()
+    {
+        try
+        {
+            var gone = DriverFlow.SweepLeftovers(DownloadFolder, TimeSpan.FromHours(1), DateTime.UtcNow);
+            if (gone > 0) Trace.WriteLine($"driver downloads: {gone} left over, deleted");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Trace.WriteLine($"driver downloads: {ex.Message}"); }
+    }
 }
 
 /// <summary>A file's Authenticode signature (<c>WinVerifyTrust</c>, chain and revocation checked, no UI) and its signer's organization.</summary>
@@ -121,9 +133,7 @@ public sealed class WindowsSignatures : ISignatureCheck
 /// <summary>The installer run as the user asked (its own prompt), and Windows asked to look for devices again.</summary>
 public sealed class WindowsDriverPc : IDriverPc
 {
-    private static readonly TimeSpan InstallerLimit = TimeSpan.FromMinutes(45);
-
-    public async Task<InstallerExit> RunInstallerAsync(string path, CancellationToken ct)
+    public async Task<InstallerProcess?> StartInstallerAsync(string path, CancellationToken ct)
     {
         var psi = new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path) };
         Process? p;
@@ -131,26 +141,69 @@ public sealed class WindowsDriverPc : IDriverPc
         {
             p = await Task.Run(() => Process.Start(psi), CancellationToken.None).ConfigureAwait(false); // returns once its prompt is answered
         }
-        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223)
+        catch (Win32Exception ex) when (ex.NativeErrorCode == 1223) // declined
         {
-            return new InstallerExit(InstallerEnd.Declined);
+            return null;
         }
-        if (p is null) return new InstallerExit(InstallerEnd.Exited, -1);
+        if (p is null) throw new InvalidOperationException("The installer didn't start.");
+        return new InstallerProcess(p.Id, ExitOf(p));
+    }
+
+    private static async Task<int> ExitOf(Process p)
+    {
         using (p)
         {
-            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            limit.CancelAfter(InstallerLimit);
-            try
-            {
-                await p.WaitForExitAsync(limit.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                return new InstallerExit(InstallerEnd.TimedOut);
-            }
-            return new InstallerExit(InstallerEnd.Exited, p.ExitCode);
+            await p.WaitForExitAsync().ConfigureAwait(false);
+            return p.ExitCode;
         }
     }
+
+    /// <summary>Every process with its parent (a Toolhelp snapshot: elevated ones included, nothing opened).</summary>
+    public IReadOnlyList<ProcessLink> Processes()
+    {
+        var snapshot = CreateToolhelp32Snapshot(2 /* processes */, 0);
+        if (snapshot == new IntPtr(-1)) throw new Win32Exception(Marshal.GetLastWin32Error());
+        try
+        {
+            var list = new List<ProcessLink>(512);
+            var entry = new ProcessEntry { Size = (uint)Marshal.SizeOf<ProcessEntry>() };
+            for (var more = Process32FirstW(snapshot, ref entry); more && list.Count < 100_000; more = Process32NextW(snapshot, ref entry))
+                list.Add(new ProcessLink((int)entry.ProcessId, (int)entry.ParentProcessId));
+            return list;
+        }
+        finally
+        {
+            CloseHandle(snapshot);
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ProcessEntry
+    {
+        public uint Size, Usage, ProcessId;
+        public IntPtr DefaultHeapId;
+        public uint ModuleId, Threads, ParentProcessId;
+        public int PriorityClassBase;
+        public uint Flags;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string ExeFile;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr CreateToolhelp32Snapshot(uint flags, uint processId);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32FirstW(IntPtr snapshot, ref ProcessEntry entry);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool Process32NextW(IntPtr snapshot, ref ProcessEntry entry);
+
+    [DllImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
 
     public Task<bool> RescanAsUserAsync(CancellationToken ct) => Task.Run(() =>
     {

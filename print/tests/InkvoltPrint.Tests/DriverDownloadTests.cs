@@ -65,18 +65,42 @@ public sealed class DriverDownloadTests : IDisposable
     [InlineData("""{"products":[{"name":"Perfection V19 Scanner","productType":"PRINTER","supportProductId":"/Support/Printers/x/s/SPT_X"}]}""")]
     public void A_hostile_or_odd_search_answer_gives_no_page(string json) => Assert.Null(EpsonDrivers.SupportPage(json, "Epson Perfection V19", NeedsDriverKind.Scanner));
 
-    [Theory]
-    [InlineData(PcArch.Arm64, PcWindows.Windows11)]
-    [InlineData(PcArch.X64, PcWindows.Windows10)]
-    [InlineData(PcArch.X64, PcWindows.Windows11)]
-    public void The_scanner_driver_for_this_pc_is_offered_never_the_combo_package(PcArch arch, PcWindows windows)
+    [Fact]
+    public void On_ARM64_the_ARM_scanner_driver_is_offered_never_the_combo_package()
     {
-        var offer = EpsonDrivers.Choose(EpsonDrivers.ParsePage(Page), Query(arch, windows), V19Page).Offer!;
+        var offer = EpsonDrivers.Choose(EpsonDrivers.ParsePage(Page), Query(PcArch.Arm64, PcWindows.Windows11), V19Page).Offer!;
         Assert.Equal("Scanner Driver and EPSON Scan Utility", offer.Title);
         Assert.Equal("3.9.5.0", offer.Version);
         Assert.Equal("29.5 MB", offer.SizeText);
         Assert.Equal(Installer, offer.Download);
         Assert.Equal("V19_EScan_3950_AM.exe", offer.FileName);
+    }
+
+    [Theory]
+    [InlineData(PcWindows.Windows10)]
+    [InlineData(PcWindows.Windows11)]
+    public void On_x64_a_download_only_for_ARM_is_never_offered(PcWindows windows)
+    {
+        var offer = EpsonDrivers.Choose(EpsonDrivers.ParsePage(Page), Query(PcArch.X64, windows), V19Page).Offer!;
+        Assert.Equal(("Scanner Driver and Epson Scan 2 Utility", "6.6.60.0"), (offer.Title, offer.Version));
+        Assert.Equal("V19_EScan2_66600_AM.exe", offer.FileName);
+    }
+
+    [Fact]
+    public void On_x64_a_download_for_both_ARM_and_x64_is_offered()
+    {
+        var both = EpsonDrivers.ParsePage(Page.Replace("compatible with ARM devices", "compatible with x64 and ARM devices", StringComparison.Ordinal));
+        Assert.Equal("3.9.5.0", EpsonDrivers.Choose(both, Query(PcArch.X64), V19Page).Offer!.Version);
+    }
+
+    [Theory]
+    [InlineData("compatible with Windows on Arm devices")]
+    [InlineData("compatible with Arm64 PCs")]
+    [InlineData("compatible with arm-based devices")]
+    public void Microsofts_spelling_of_Arm_counts_on_ARM64(string words)
+    {
+        var page = EpsonDrivers.ParsePage(Page.Replace("compatible with ARM devices", words, StringComparison.Ordinal));
+        Assert.Equal("3.9.5.0", EpsonDrivers.Choose(page, Query(PcArch.Arm64), V19Page).Offer?.Version);
     }
 
     [Fact]
@@ -151,9 +175,10 @@ public sealed class DriverDownloadTests : IDisposable
 
     private static readonly byte[] Program = [(byte)'M', (byte)'Z', .. new byte[4000]];
 
-    private DriverFlow Flow(FakeWeb web, Func<string, SignatureFacts>? signature = null, FakePc? pc = null) =>
+    private DriverFlow Flow(FakeWeb web, Func<string, SignatureFacts>? signature = null, FakePc? pc = null, DriverMode mode = DriverMode.InstallForYou) =>
         new(new MakerCatalogs(new EpsonDrivers(new BoundedHttp(web))), new BoundedHttp(web), new FakeSignatures(signature ?? (_ => Signed("Epson America, Inc."))),
-            pc ?? new FakePc(), _folder, PcArch.Arm64, PcWindows.Windows11, TimeSpan.FromMilliseconds(200));
+            pc ?? new FakePc(), _folder, PcArch.Arm64, PcWindows.Windows11, mode,
+            new DriverTiming(TimeSpan.FromMilliseconds(200), TimeSpan.FromMilliseconds(500), TimeSpan.FromMilliseconds(5)));
 
     private static SignatureFacts Signed(string org) => new(SignatureState.Valid, org);
 
@@ -332,6 +357,54 @@ public sealed class DriverDownloadTests : IDisposable
     }
 
     [Fact]
+    public async Task A_self_extractor_that_exits_before_its_setup_is_waited_for_with_its_setup_and_its_folder_kept_till_then()
+    {
+        var web = new FakeWeb();
+        var pc = new FakePc { ChildLooks = 4 }; // the root exits at once (0); its setup.exe and that one's child run 4 more looks
+        var flow = Flow(web, pc: pc);
+        var ready = await ReadyAsync(flow, web);
+        var folderThereWhileSetupRan = true;
+        pc.OnLook = alive => { if (alive) folderThereWhileSetupRan &= File.Exists(ready.Path); };
+        var askedWhileSetupRan = false;
+        var done = await flow.InstallAsync(ready, _ =>
+        {
+            askedWhileSetupRan |= pc.ChildLooks > 0;
+            return Task.FromResult(true);
+        }, CancellationToken.None);
+        Assert.Equal(InstallOutcome.Done, done.Outcome);
+        Assert.True(folderThereWhileSetupRan);
+        Assert.False(askedWhileSetupRan);
+        Assert.True(pc.Looks >= 5);
+        Assert.True(LeftNothing());
+    }
+
+    [Fact]
+    public async Task An_installer_whose_setup_outlives_the_limit_times_out_and_leaves_its_folder()
+    {
+        var web = new FakeWeb();
+        var pc = new FakePc { ChildLooks = int.MaxValue };
+        var flow = Flow(web, pc: pc);
+        var ready = await ReadyAsync(flow, web);
+        var asked = 0;
+        var done = await flow.InstallAsync(ready, _ => { asked++; return Task.FromResult(true); }, CancellationToken.None)
+            .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        Assert.Equal(InstallOutcome.TimedOut, done.Outcome);
+        Assert.Equal(0, asked);
+        Assert.True(File.Exists(ready.Path)); // the next start-up's sweep takes it
+    }
+
+    [Fact]
+    public async Task A_process_that_isnt_the_installers_is_never_waited_for()
+    {
+        var web = new FakeWeb();
+        var pc = new FakePc { Others = [new ProcessLink(500, 4), new ProcessLink(501, 500)] };
+        var flow = Flow(web, pc: pc);
+        var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None)
+            .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        Assert.Equal(InstallOutcome.Done, done.Outcome);
+    }
+
+    [Fact]
     public async Task A_device_that_shows_only_after_a_rescan_is_found_by_asking_as_the_user_first()
     {
         var web = new FakeWeb();
@@ -366,20 +439,52 @@ public sealed class DriverDownloadTests : IDisposable
     }
 
     [Theory]
-    [InlineData(InstallerEnd.Declined, 0, InstallOutcome.Declined)]
-    [InlineData(InstallerEnd.TimedOut, 0, InstallOutcome.TimedOut)]
-    [InlineData(InstallerEnd.Exited, 1603, InstallOutcome.Failed)]
-    [InlineData(InstallerEnd.Exited, 3010, InstallOutcome.Done)]
-    public async Task How_the_installer_ends_is_said_without_its_code(InstallerEnd end, int code, InstallOutcome outcome)
+    [InlineData("declined", InstallOutcome.Declined)]
+    [InlineData("1603", InstallOutcome.Failed)]
+    [InlineData("3010", InstallOutcome.Done)]
+    public async Task How_the_installer_ends_is_said_without_its_code(string how, InstallOutcome outcome)
     {
         var web = new FakeWeb();
-        var pc = new FakePc { Exit = new InstallerExit(end, code) };
+        var pc = how == "declined" ? new FakePc { Decline = true } : new FakePc { ExitCode = int.Parse(how, System.Globalization.CultureInfo.InvariantCulture) };
         var flow = Flow(web, pc: pc);
         var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None);
         Assert.Equal(outcome, done.Outcome);
         Assert.DoesNotContain("1603", DriverText.Outcome(V19, done));
         Assert.True(LeftNothing());
         if (outcome != InstallOutcome.Done) Assert.Equal(0, pc.AsUser + pc.ElevatedRuns);
+    }
+
+    public static TheoryData<Exception> WindowsRefusals => new()
+    {
+        new System.ComponentModel.Win32Exception(5), // a policy: access denied
+        new System.ComponentModel.Win32Exception(225), // an antivirus: the file contains a virus
+        new IOException("The process cannot access the file because it is being used by another process."),
+        new InvalidOperationException("No process is associated with this object."),
+    };
+
+    [Theory]
+    [MemberData(nameof(WindowsRefusals))]
+    public async Task An_installer_windows_wont_start_is_said_in_words_not_a_crash(Exception refusal)
+    {
+        var web = new FakeWeb();
+        var pc = new FakePc { StartThrows = refusal };
+        var flow = Flow(web, pc: pc);
+        var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None);
+        Assert.Equal(InstallOutcome.CouldntStart, done.Outcome);
+        var words = DriverText.Outcome(V19, done);
+        Assert.Contains("start", words);
+        Assert.DoesNotContain(refusal.Message, words);
+        Assert.True(LeftNothing());
+    }
+
+    [Fact]
+    public async Task A_check_or_a_rescan_that_throws_is_taken_as_not_there_yet()
+    {
+        var web = new FakeWeb();
+        var pc = new FakePc { RescanThrows = new System.Runtime.InteropServices.COMException("WIA is not answering") };
+        var flow = Flow(web, pc: pc);
+        var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => throw new System.Runtime.InteropServices.COMException("WIA"), CancellationToken.None);
+        Assert.Equal(InstallOutcome.NotSeen, done.Outcome);
     }
 
     [Fact]
@@ -391,9 +496,42 @@ public sealed class DriverDownloadTests : IDisposable
         var ready = await ReadyAsync(flow, web);
         File.WriteAllBytes(ready.Path, [(byte)'M', (byte)'Z', 1, 2, 3]);
         var done = await flow.InstallAsync(ready, _ => Task.FromResult(true), CancellationToken.None);
-        Assert.Equal(InstallOutcome.Failed, done.Outcome);
+        Assert.Equal(InstallOutcome.CouldntStart, done.Outcome);
         Assert.Equal(0, pc.Runs);
         Assert.True(LeftNothing());
+    }
+
+    [Fact]
+    public void Discard_never_deletes_a_folder_beside_the_download_folder()
+    {
+        var sibling = Directory.CreateDirectory(_folder + "-old").FullName;
+        try
+        {
+            var inside = Directory.CreateDirectory(Path.Combine(sibling, "x")).FullName;
+            File.WriteAllBytes(Path.Combine(inside, "keep.exe"), Program);
+            Flow(new FakeWeb()).Discard(new DriverReady(Offer, "Epson", Path.Combine(inside, "keep.exe"), Program.Length, "Epson America, Inc."));
+            Assert.True(File.Exists(Path.Combine(inside, "keep.exe")));
+            Assert.False(DriverFlow.IsInside(inside, _folder));
+            Assert.False(DriverFlow.IsInside(_folder, _folder));
+            Assert.True(DriverFlow.IsInside(Path.Combine(_folder, "a"), _folder + Path.DirectorySeparatorChar));
+        }
+        finally
+        {
+            Directory.Delete(sibling, true);
+        }
+    }
+
+    [Fact]
+    public void Leftover_downloads_are_swept_at_start_up_but_not_one_in_use_now()
+    {
+        var old = Directory.CreateDirectory(Path.Combine(_folder, "old")).FullName;
+        File.WriteAllBytes(Path.Combine(old, "V19.exe"), Program);
+        Directory.SetLastWriteTimeUtc(old, DateTime.UtcNow.AddDays(-2));
+        var fresh = Directory.CreateDirectory(Path.Combine(_folder, "fresh")).FullName;
+        Assert.Equal(1, DriverFlow.SweepLeftovers(_folder, TimeSpan.FromHours(1), DateTime.UtcNow));
+        Assert.False(Directory.Exists(old));
+        Assert.True(Directory.Exists(fresh));
+        Assert.Equal(0, DriverFlow.SweepLeftovers(_folder + "-missing", TimeSpan.FromHours(1), DateTime.UtcNow));
     }
 
     [Fact]
@@ -403,6 +541,57 @@ public sealed class DriverDownloadTests : IDisposable
         var flow = Flow(web);
         flow.Discard(await ReadyAsync(flow, web));
         Assert.True(LeftNothing());
+    }
+
+    // ---------------------------------------------------------------- a Store (packaged) copy: the maker's link, nothing run
+
+    [Theory]
+    [InlineData(false, false, DriverMode.InstallForYou)]
+    [InlineData(false, true, DriverMode.InstallForYou)]
+    [InlineData(true, false, DriverMode.OpenLink)]
+    [InlineData(true, true, DriverMode.InstallForYou)] // a sideloading package built with the flow kept
+    public void A_packaged_copy_opens_the_link_unless_built_to_keep_the_flow(bool packaged, bool kept, DriverMode mode) =>
+        Assert.Equal(mode, DriverModes.For(packaged, kept));
+
+    [Fact]
+    public async Task A_packaged_copy_finds_the_download_and_gives_epsons_own_link_but_never_downloads_or_runs_it()
+    {
+        var web = new FakeWeb();
+        web.Text("https://epson.com/search/autocomplete/SearchBox?term=perfection%20v19", Search);
+        web.Text(V19Page.AbsoluteUri + "?review-filter=Windows+11", Page);
+        web.Bytes(Installer.AbsoluteUri, Program);
+        var pc = new FakePc();
+        var flow = Flow(web, pc: pc, mode: DriverMode.OpenLink);
+        var offer = (await flow.FindAsync(V19, CancellationToken.None)).Offer!;
+        Assert.Equal(Installer, flow.LinkFor(offer, V19));
+        Assert.Equal(Refusal.NotLookedUp, (await flow.DownloadAsync(offer, V19, null, CancellationToken.None)).Why);
+        Assert.Equal(InstallOutcome.CouldntStart,
+            (await flow.InstallAsync(new DriverReady(offer, "Epson", Path.Combine(_folder, "x.exe"), 1, "Epson America, Inc."), _ => Task.FromResult(true), CancellationToken.None)).Outcome);
+        Assert.DoesNotContain(web.Asked, u => u == Installer);
+        Assert.Equal(0, pc.Runs);
+        Assert.True(LeftNothing());
+        Assert.Contains("ftp.epson.com", DriverText.OfferFacts(offer));
+        Assert.Contains("29.5 MB", DriverText.OfferFacts(offer));
+    }
+
+    [Fact]
+    public void A_link_off_the_makers_hosts_is_never_opened()
+    {
+        var flow = Flow(new FakeWeb(), mode: DriverMode.OpenLink);
+        Assert.Null(flow.LinkFor(Offer with { Download = new Uri("https://drivers.example/V19.exe") }, V19));
+        Assert.Null(flow.LinkFor(Offer with { Download = new Uri("http://ftp.epson.com/drivers/V19.exe") }, V19));
+        Assert.Null(flow.LinkFor(Offer, V19 with { Maker = "Canon" }));
+    }
+
+    [Fact]
+    public async Task Look_again_asks_then_has_windows_look_as_the_user_never_elevated()
+    {
+        var pc = new FakePc();
+        var flow = Flow(new FakeWeb(), pc: pc, mode: DriverMode.OpenLink);
+        Assert.True(await flow.LookAgainAsync(_ => Task.FromResult(pc.AsUser > 0), CancellationToken.None));
+        Assert.Equal((1, 0), (pc.AsUser, pc.ElevatedRuns));
+        Assert.False(await flow.LookAgainAsync(_ => Task.FromResult(false), CancellationToken.None));
+        Assert.Equal(0, pc.ElevatedRuns);
     }
 
     // ---------------------------------------------------------------- fakes
@@ -459,26 +648,49 @@ public sealed class DriverDownloadTests : IDisposable
         public SignatureFacts Check(string path) => check(path);
     }
 
+    /// <summary>
+    /// The PC: the installer (process 100) exits at once with <see cref="ExitCode"/>; its setup (101) and that one's child (102) run
+    /// for <see cref="ChildLooks"/> more looks at the processes.
+    /// </summary>
     private sealed class FakePc : IDriverPc
     {
-        public InstallerExit Exit { get; init; } = new(InstallerEnd.Exited, 0);
+        public int ExitCode { get; init; }
+        public bool Decline { get; init; }
+        public Exception? StartThrows { get; init; }
+        public Exception? RescanThrows { get; init; }
         public bool AsUserWorks { get; init; } = true;
-        public int Runs, AsUser, ElevatedRuns;
+        public int ChildLooks { get; set; }
+        public IReadOnlyList<ProcessLink> Others { get; init; } = [];
+        public Action<bool>? OnLook { get; set; }
+        public int Runs, AsUser, ElevatedRuns, Looks;
 
-        public Task<InstallerExit> RunInstallerAsync(string path, CancellationToken ct)
+        public Task<InstallerProcess?> StartInstallerAsync(string path, CancellationToken ct)
         {
+            if (StartThrows is { } ex) throw ex;
+            if (Decline) return Task.FromResult<InstallerProcess?>(null);
             Runs++;
-            return Task.FromResult(Exit);
+            return Task.FromResult<InstallerProcess?>(new InstallerProcess(100, Task.FromResult(ExitCode)));
+        }
+
+        public IReadOnlyList<ProcessLink> Processes()
+        {
+            Looks++;
+            var alive = ChildLooks > 0;
+            OnLook?.Invoke(alive);
+            if (alive && ChildLooks != int.MaxValue) ChildLooks--;
+            return [new ProcessLink(4, 0), .. Others, .. alive ? new[] { new ProcessLink(101, 100), new ProcessLink(102, 101) } : []];
         }
 
         public Task<bool> RescanAsUserAsync(CancellationToken ct)
         {
+            if (RescanThrows is { } ex) throw ex;
             if (AsUserWorks) AsUser++;
             return Task.FromResult(AsUserWorks);
         }
 
         public Task<bool> RescanElevatedAsync(CancellationToken ct)
         {
+            if (RescanThrows is { } ex) throw ex;
             ElevatedRuns++;
             return Task.FromResult(true);
         }

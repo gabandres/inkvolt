@@ -58,7 +58,7 @@ internal sealed class RealNeedsDriverPc : INeedsDriverPc
 
     public IDriverGetter Drivers => _drivers.Value;
 
-    private readonly Lazy<IDriverGetter> _drivers = new(() => WindowsDrivers.Create());
+    private readonly Lazy<IDriverGetter> _drivers = new(() => WindowsDrivers.Create(Features.DriverMode));
 }
 
 /// <summary>The made-up PC's: a made-up USB laser and a made-up USB scanner with no driver, so the pages show in demo mode and its screenshots.</summary>
@@ -92,7 +92,17 @@ internal sealed class DemoDriverGetter : IDriverGetter
 {
     private static readonly Uri Page = new("https://epson.com/Support/sl/s");
 
+    /// <summary>The flow this copy has (a Store copy's demo shows the link), so either can be seen in demo mode.</summary>
+    public DriverMode Mode => Forced ?? Features.DriverMode;
+
+    /// <summary>Set by the snapshot aid (<c>--driver-link</c>) to show the Store copy's flow from any build.</summary>
+    internal static DriverMode? Forced { get; set; }
+
     public bool LooksUp(NeedsDriverPrinter device) => device.IsMadeUp && device.IsScanner;
+
+    public Uri? LinkFor(DriverOffer offer, NeedsDriverPrinter device) => offer.Download;
+
+    public Task<bool> LookAgainAsync(Func<CancellationToken, Task<bool>> isThere, CancellationToken ct) => Task.FromResult(false);
 
     public async Task<DriverLookup> FindAsync(NeedsDriverPrinter device, CancellationToken ct)
     {

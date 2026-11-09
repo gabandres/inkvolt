@@ -3997,4 +3997,48 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="GetDriver_Demo" xml:space="preserve">
     <value>Demo: a made-up driver. Nothing is downloaded or installed.</value>
   </data>
+  <data name="GetDriver_FactFrom" xml:space="preserve">
+    <value>From: {0}</value>
+    <comment>{0} = the maker's download host</comment>
+  </data>
+  <data name="GetDriver_FoundTitleLink" xml:space="preserve">
+    <value>Found on {0}'s website</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkButton" xml:space="preserve">
+    <value>Download it from {0}</value>
+    <comment>{0} = maker; opens the browser</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNoteScanner" xml:space="preserve">
+    <value>Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the scanner and says when it's ready.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNotePrinter" xml:space="preserve">
+    <value>Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the printer and says when it's ready.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_LookAgainButton" xml:space="preserve">
+    <value>Look again</value>
+  </data>
+  <data name="GetDriver_Waiting" xml:space="preserve">
+    <value>Waiting for the driver: run the installer you downloaded.</value>
+  </data>
+  <data name="GetDriver_LookingAgain" xml:space="preserve">
+    <value>Looking again…</value>
+  </data>
+  <data name="GetDriver_FoundItScanner" xml:space="preserve">
+    <value>Found it: {0} is ready to scan. It's selected in the Scan tab.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_FoundItPrinter" xml:space="preserve">
+    <value>Found it: the driver is installed. The printer shows in the list in a moment.</value>
+  </data>
+  <data name="GetDriver_NotYet" xml:space="preserve">
+    <value>Windows doesn't have it yet. Once the installer has finished, unplug the {0}, plug it back in and press Look again.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_CouldntStart" xml:space="preserve">
+    <value>Windows didn't let the installer start: SmartScreen, an antivirus or a policy on this PC may have stopped it. Nothing was installed. Try again, or get the driver from {0}'s website below.</value>
+    <comment>{0} = maker</comment>
+  </data>
 </root>

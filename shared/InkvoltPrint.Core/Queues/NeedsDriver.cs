@@ -172,8 +172,7 @@ public static partial class NeedsDriver
         // A scanner (or an all-in-one's scanner part) with no driver: listed unless its printer part already is (one entry a device).
         foreach (var n in nodes.Where(n => n.Present && n.Kind == UsbNodeKind.UsbDevice && n.DriverProblem() && !IsPrinterClass(n) && UsbScanners.IsScanner(n)))
         {
-            if (n.ContainerId is { Length: > 0 } c && (!seenContainers.Add(c) || printNodes.Any(p => string.Equals(p.ContainerId, c, StringComparison.OrdinalIgnoreCase))))
-                continue;
+            if (n.ContainerId is { Length: > 0 } c && !seenContainers.Add(c)) continue; // its printer part is listed: one entry a device
             if (UsbScanners.UsbIdOf(n) is not { } usbId) continue;
             found.Add(new NeedsDriverPrinter(IdPrefix + "scanner-" + usbId.Replace(':', '-').ToLowerInvariant(), UsbScanners.NameOf(n), UsbScanners.MakerOf(n), null,
                 DriverStage.NoDriver) { Kind = NeedsDriverKind.Scanner, UsbId = usbId });
