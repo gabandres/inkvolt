@@ -137,15 +137,42 @@ struct ExportTargetTests {
         #expect(ExportTarget.tryCreate("/dev/null") == .exists)
     }
 
-    @Test func ANameThatShortensToADeviceIsRefused() {
+    @Test func ANameThatShortensToADeviceGetsAnUnderscore() {
         // A PDF named "CON", 200 spaces and "x": the name is cut to fit (SplitFiles.uniquePath) and its spaces trimmed,
-        // which leaves "CON.docx". The name that would be created is checked, not only the one asked for.
+        // which would leave "CON.docx". It is reserved as "CON_.docx", still in one click.
         let name = "CON" + String(repeating: " ", count: 200) + "x.docx"
-        #expect(ExportTarget.allowedName(name) == name) // not a device name as asked
         var created: [String] = []
         let r = ExportTarget.reservation(pdfPath: "/work/x.pdf", fileName: name, documents: Self.documents,
-                                       create: { created.append($0); return .created })
-        #expect(r == .deviceName)
-        #expect(created.isEmpty)
+                                         create: { created.append($0); return .created })
+        #expect(r == .reserved(ExportTarget.Reserved(path: "/work/CON_.docx", inDocuments: false)))
+        #expect(created == ["/work/CON_.docx"])
+    }
+
+    @Test func TheExportIsSwappedInOnlyForItsOwnEmptyFile() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("inkvolt-swap-\(UUID().uuidString.prefix(8))").path
+        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(atPath: dir) }
+        let path = dir + "/report.docx", made = dir + "/made.tmp"
+        func make() throws { try Data("the export".utf8).write(to: URL(fileURLWithPath: made)) }
+
+        #expect(ExportTarget.tryCreate(path) == .created)
+        try make()
+        try ExportTarget.moveIntoReserved(made, path)
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "the export")
+        #expect(!fm.fileExists(atPath: made)) // the empty file that came out is gone
+
+        // Another app's content there now: swapped back, theirs untouched, the export left at `made` for the caller.
+        try Data("someone else's".utf8).write(to: URL(fileURLWithPath: path))
+        try make()
+        #expect(throws: PdfEditError.self) { try ExportTarget.moveIntoReserved(made, path) }
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "someone else's")
+        #expect(try String(contentsOfFile: made, encoding: .utf8) == "the export")
+
+        // Removed meanwhile: moved there while the name is free.
+        try fm.removeItem(atPath: path)
+        try ExportTarget.moveIntoReserved(made, path)
+        #expect(try String(contentsOfFile: path, encoding: .utf8) == "the export")
+        #expect(ExportTarget.isStillReserved(path) == false)
     }
 }

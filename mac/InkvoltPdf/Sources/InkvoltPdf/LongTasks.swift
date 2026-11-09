@@ -503,10 +503,11 @@ extension DocumentWindowController {
     /// Exports `pages` to `url` with the progress sheet (from a copy of the document's bytes, so edits meanwhile don't
     /// matter); the report, or nil when cancelled or failed (said in the notice bar or an alert).
     /// `atOnce`: a one-click conversion (the command bar's Convert), whether its file went to Documents: its notice says
-    /// "Saved name.docx · Show in Finder · Change options…".
+    /// "Saved name.docx · Show in Finder · Change options…". `reserved`: `url` is the empty file `ExportTarget` reserved
+    /// for it, swapped in only while it is still that (`DocumentExport.exportToFile`'s overReservedOnly).
     @discardableResult
     func runExport(_ format: ExportFormat, to url: URL, pages chosen: [Int], recognize: Bool, recognizer: Recognizer? = nil,
-                   atOnce: Bool? = nil) async -> ExportReport? {
+                   atOnce: Bool? = nil, reserved: Bool = false) async -> ExportReport? {
         guard let session = pdf.session else { return nil }
         let title = Self.exportTitle(format)
         let sheet = ProgressSheet(title: title, text: loc("Reading the pages…"))
@@ -535,7 +536,6 @@ extension DocumentWindowController {
         let path = url.path
         // What is shown: the layers chosen in the Layers pane, as Windows exports from its view engine.
         let layers = shownLayerVisibility
-        let reserved = atOnce != nil // the one-click file, reserved empty: never written over once something else is there
         let result: Result<ExportReport, Error> = await Task.detached {
             do {
                 let engine = try Self.exportEngine(data, password, layers)

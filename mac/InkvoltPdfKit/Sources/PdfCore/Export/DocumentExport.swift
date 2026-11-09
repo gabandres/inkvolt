@@ -1,5 +1,4 @@
 import Foundation
-import PrintCore
 
 /// What `DocumentExport` makes: a Word document, an Excel workbook of the tables found, plain text, a PowerPoint
 /// presentation or a web page.
@@ -138,7 +137,7 @@ public enum DocumentExport {
     /// cancelled export, or one with nothing to save, leaves the folder as it was.
     /// - Parameter overReservedOnly: `path` is a file reserved empty for this export (`ExportTarget`, a one-click
     ///   conversion): it is replaced only while it is still an empty file, never once something else wrote there or put a
-    ///   link or folder in its place (the export can take minutes).
+    ///   link or folder in its place (the export can take minutes; `ExportTarget.moveIntoReserved` swaps in one step).
     /// - Throws: `CancellationError` when `cancel` fires; a file error when the file can't be written; `PdfEditError` when
     ///   the reserved file was changed meanwhile.
     public static func exportToFile(_ engine: PdfEngine, _ format: ExportFormat, _ path: String, options: ExportOptions = ExportOptions(),
@@ -161,10 +160,9 @@ public enum DocumentExport {
             }
             try cancel.check()
             if report.saved {
-                if overReservedOnly && !isEmptyFile(full.path) {
-                    throw PdfEditError(loc("{0} was changed by something else while it was being made, so it wasn't written over. Convert again.", full.lastPathComponent))
-                }
-                if FileManager.default.fileExists(atPath: full.path) {
+                if overReservedOnly {
+                    try ExportTarget.moveIntoReserved(tmp.path, full.path)
+                } else if FileManager.default.fileExists(atPath: full.path) {
                     _ = try FileManager.default.replaceItemAt(full, withItemAt: tmp)
                 } else {
                     try FileManager.default.moveItem(at: tmp, to: full)
@@ -177,14 +175,6 @@ public enum DocumentExport {
             try? FileManager.default.removeItem(at: tmp)
             throw error
         }
-    }
-
-    /// Whether `path` is an empty regular file (a link, even to one, isn't), or nothing at all: the reserved file that was
-    /// removed meanwhile is written anew, through the same exclusive move as any new file.
-    static func isEmptyFile(_ path: String) -> Bool {
-        var info = stat()
-        guard lstat(path, &info) == 0 else { return errno == ENOENT }
-        return (info.st_mode & S_IFMT) == S_IFREG && info.st_size == 0
     }
 
     /// Reads the pages one at a time (Word stores each page's pictures as it arrives), counting as it goes.

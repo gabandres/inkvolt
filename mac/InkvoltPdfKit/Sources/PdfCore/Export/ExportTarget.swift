@@ -70,9 +70,7 @@ public enum ExportTarget {
         for (folder, inDocuments) in folders {
             // A few tries: another conversion may take the free name between choosing it and creating it.
             for _ in 0..<8 {
-                guard let path = try? uniquePath(folder, fileName) else { break } // no name fits there
-                // The name as made safe and shortened: "CON" and 200 spaces and "x" is cut to "CON".
-                if ReservedFileNames.isDevice((path as NSString).lastPathComponent) { return .deviceName }
+                guard let path = try? uniquePath(folder, fileName) else { break } // no name fits there (never a device's)
                 switch create(path) {
                 case .created: return .reserved(Reserved(path: path, inDocuments: inDocuments))
                 case .exists: continue
@@ -109,8 +107,43 @@ public enum ExportTarget {
     /// is still empty, so a file the export wrote is never removed.
     @discardableResult
     public static func deleteIfEmpty(_ path: String) -> Bool {
-        var info = stat()
-        guard lstat(path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG, info.st_size == 0 else { return false }
+        guard isStillReserved(path) else { return false }
         return unlink(path) == 0
+    }
+
+    /// Whether `path` is still what `tryCreate` made: an empty regular file (a link, even to one, isn't).
+    public static func isStillReserved(_ path: String) -> Bool {
+        var info = stat()
+        return lstat(path, &info) == 0 && (info.st_mode & S_IFMT) == S_IFREG && info.st_size == 0
+    }
+
+    /// Moves the finished export `made` in place of its reserved file `path`, never over anything else: the two are
+    /// swapped in one step (`renamex_np`'s RENAME_SWAP), then what came out is checked, and swapped back when it wasn't
+    /// the empty reserved file (another app wrote there, or put a link or folder in its place). A reserved file removed
+    /// meanwhile is moved to only while the name is still free (RENAME_EXCL). A disk that can't swap (some network and
+    /// FAT volumes) gets the check, then the replace.
+    /// - Throws: `PdfEditError` when the reserved file was changed meanwhile; `POSIXError` for the disk's own errors.
+    public static func moveIntoReserved(_ made: String, _ path: String) throws {
+        let changed = PdfEditError(loc("{0} was changed by something else while it was being made, so it wasn't written over. Convert again.",
+                                       (path as NSString).lastPathComponent))
+        if renamex_np(made, path, UInt32(RENAME_SWAP)) == 0 {
+            if isStillReserved(made) { // `made` now names what was at `path`
+                unlink(made)
+                return
+            }
+            // Theirs back in place, the export at `made` (the caller removes it); if the swap back fails, theirs replaces
+            // the export, so `made` never names their file when the caller removes it.
+            if renamex_np(made, path, UInt32(RENAME_SWAP)) != 0 { _ = rename(made, path) }
+            throw changed
+        }
+        let swapError = errno
+        if swapError == ENOENT {
+            if renamex_np(made, path, UInt32(RENAME_EXCL)) == 0 { return }
+            if errno == EEXIST { throw changed }
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        guard swapError == ENOTSUP || swapError == EINVAL else { throw POSIXError(POSIXErrorCode(rawValue: swapError) ?? .EIO) }
+        guard isStillReserved(path) else { throw changed }
+        guard rename(made, path) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
     }
 }

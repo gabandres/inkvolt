@@ -308,7 +308,7 @@ extension DocumentWindowController {
             let url = URL(fileURLWithPath: target.path)
             let report = await self.runExport(format, to: url, pages: Array(0..<self.engine.pageCount),
                                               recognize: UserDefaults.standard.object(forKey: "ExportOcr") as? Bool != false,
-                                              recognizer: Self.atOnceRecognizer, atOnce: target.inDocuments)
+                                              recognizer: Self.atOnceRecognizer, atOnce: target.inDocuments, reserved: true)
             guard report?.saved == true else {
                 ExportTarget.deleteIfEmpty(target.path)
                 return

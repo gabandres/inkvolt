@@ -7,7 +7,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Algo más cambió {0} mientras se creaba, así que no se sobrescribió. Vuelve a convertirlo."
+            "value": "Otro programa cambió {0} mientras se creaba, así que no se escribió encima. Vuelve a convertirlo."
           }
         }
       }

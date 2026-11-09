@@ -321,17 +321,30 @@ enum ConvertedPdf {
     static func read(in folder: URL, appName: String, maxBytes: Int = maxBytes) throws -> [UInt8]? {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.lowercased().hasSuffix(".pdf") }
         guard names.count == 1 else { return nil }
+        // O_NONBLOCK: a FIFO named x.pdf can't hang the open (fstat refuses it next).
         let fd = open(folder.appendingPathComponent(names[0]).path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
         guard fd >= 0 else { return nil }
-        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        defer { close(fd) }
         var info = stat()
         guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
-        let tooBig = PdfEditError(loc("{0} made a PDF of more than {1} MB, too big to open here.", appName, CoreLanguage.number(maxBytes >> 20)))
-        if info.st_size > Int64(maxBytes) { throw tooBig }
-        guard let data = try? handle.read(upToCount: maxBytes + 1) else { return nil }
-        if data.count > maxBytes { throw tooBig }
-        guard data.starts(with: Array("%PDF-".utf8)) else { return nil }
-        return [UInt8](data)
+        if info.st_size > Int64(maxBytes) {
+            throw PdfEditError(loc("{0} made a PDF of more than {1} MB, too big to open here.", appName, CoreLanguage.number(maxBytes >> 20)))
+        }
+        // Read straight into the bytes returned (one copy of up to 1 GB, not two), one byte more than its size: a file
+        // that grew or shrank meanwhile is still being written, and isn't taken.
+        let size = Int(info.st_size)
+        var bytes = [UInt8](repeating: 0, count: size + 1)
+        var got = 0
+        while got < bytes.count {
+            let n = bytes.withUnsafeMutableBytes { Darwin.read(fd, $0.baseAddress! + got, $0.count - got) }
+            if n < 0 && errno == EINTR { continue }
+            if n <= 0 { break }
+            got += n
+        }
+        guard got == size else { return nil }
+        bytes.removeLast()
+        guard bytes.starts(with: Array("%PDF-".utf8)) else { return nil }
+        return bytes
     }
 }
 
