@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "{0} was changed by something else while it was being made, so it wasn't written over. Convert again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo más cambió {0} mientras se creaba, así que no se sobrescribió. Vuelve a convertirlo."
+          }
+        }
+      }
+    },
     "This form lists its fields on more pages than Inkvolt PDF shows at once: {0} of those places are left out. Every field is still shown on its first page.": {
       "extractionState": "manual",
       "localizations": {

@@ -315,18 +315,22 @@ enum ConvertedPdf {
     }
 
     /// The PDF in `folder`, however the program named it: a regular file (no link) that starts as a PDF does; nil when
-    /// there is none (or more than one).
+    /// there is none (or more than one). Checked and read through one descriptor, never past `maxBytes`: a file swapped
+    /// for a link or grown after the check (the folder is the converter's to write) is never read whole.
     /// - Throws: `PdfEditError` when it is larger than `maxBytes`.
     static func read(in folder: URL, appName: String, maxBytes: Int = maxBytes) throws -> [UInt8]? {
-        let fm = FileManager.default
-        let names = ((try? fm.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.lowercased().hasSuffix(".pdf") }
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.lowercased().hasSuffix(".pdf") }
         guard names.count == 1 else { return nil }
-        let file = folder.appendingPathComponent(names[0])
-        guard let attributes = try? fm.attributesOfItem(atPath: file.path), attributes[.type] as? FileAttributeType == .typeRegular else { return nil }
-        if let size = (attributes[.size] as? NSNumber)?.int64Value, size > Int64(maxBytes) {
-            throw PdfEditError(loc("{0} made a PDF of more than {1} MB, too big to open here.", appName, CoreLanguage.number(maxBytes >> 20)))
-        }
-        guard let data = try? Data(contentsOf: file), data.count <= maxBytes, data.starts(with: Array("%PDF-".utf8)) else { return nil }
+        let fd = open(folder.appendingPathComponent(names[0]).path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
+        guard fd >= 0 else { return nil }
+        let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+        var info = stat()
+        guard fstat(fd, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        let tooBig = PdfEditError(loc("{0} made a PDF of more than {1} MB, too big to open here.", appName, CoreLanguage.number(maxBytes >> 20)))
+        if info.st_size > Int64(maxBytes) { throw tooBig }
+        guard let data = try? handle.read(upToCount: maxBytes + 1) else { return nil }
+        if data.count > maxBytes { throw tooBig }
+        guard data.starts(with: Array("%PDF-".utf8)) else { return nil }
         return [UInt8](data)
     }
 }

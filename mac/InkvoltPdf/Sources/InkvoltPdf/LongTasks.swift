@@ -535,11 +535,12 @@ extension DocumentWindowController {
         let path = url.path
         // What is shown: the layers chosen in the Layers pane, as Windows exports from its view engine.
         let layers = shownLayerVisibility
+        let reserved = atOnce != nil // the one-click file, reserved empty: never written over once something else is there
         let result: Result<ExportReport, Error> = await Task.detached {
             do {
                 let engine = try Self.exportEngine(data, password, layers)
                 defer { engine.close() }
-                return .success(try DocumentExport.exportToFile(engine, format, path, options: options, cancel: token))
+                return .success(try DocumentExport.exportToFile(engine, format, path, options: options, cancel: token, overReservedOnly: reserved))
             } catch {
                 return .failure(error)
             }

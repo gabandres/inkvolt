@@ -40,6 +40,37 @@ struct ExportPipelineTests {
         }
     }
 
+    @Test func aReservedFileIsReplacedOnlyWhileItIsStillEmpty() throws {
+        // A one-click conversion reserves report.docx empty (ExportTarget), then exports for as long as it takes; whatever
+        // another app put there meanwhile (its own file, a link, a folder) is never written over.
+        try inFolder { dir in
+            let engine = try PdfEngine.open(ExportTestPdf.make())
+            defer { engine.close() }
+            let fm = FileManager.default
+            let path = dir + "/report.docx"
+
+            #expect(ExportTarget.tryCreate(path) == .created)
+            #expect(try DocumentExport.exportToFile(engine, .word, path, overReservedOnly: true).saved)
+            #expect(((try fm.attributesOfItem(atPath: path))[.size] as? NSNumber)?.intValue ?? 0 > 0)
+
+            try Data("someone else's".utf8).write(to: URL(fileURLWithPath: path))
+            let error = try #require(throws: PdfEditError.self) { _ = try DocumentExport.exportToFile(engine, .word, path, overReservedOnly: true) }
+            #expect(error.message.contains("report.docx was changed by something else"))
+            #expect(try String(contentsOfFile: path, encoding: .utf8) == "someone else's")
+
+            let link = dir + "/linked.docx", elsewhere = dir + "/elsewhere.txt"
+            fm.createFile(atPath: elsewhere, contents: nil)
+            try fm.createSymbolicLink(atPath: link, withDestinationPath: elsewhere) // a link to an empty file isn't the reserved file
+            #expect(throws: PdfEditError.self) { _ = try DocumentExport.exportToFile(engine, .word, link, overReservedOnly: true) }
+            #expect(try fm.destinationOfSymbolicLink(atPath: link) == elsewhere)
+            #expect(((try fm.attributesOfItem(atPath: elsewhere))[.size] as? NSNumber)?.intValue == 0)
+
+            // Removed meanwhile: written anew. And nothing of the export's own is left behind.
+            #expect(try DocumentExport.exportToFile(engine, .word, dir + "/gone.docx", overReservedOnly: true).saved)
+            #expect(try files(dir) == ["elsewhere.txt", "gone.docx", "linked.docx", "report.docx"])
+        }
+    }
+
     @Test(arguments: ExportFormat.allCases) func nothingExtractedSavesNothing(_ format: ExportFormat) throws {
         try inFolder { dir in
             let engine = try PdfEngine.open(ExportTestPdf.blank(2))

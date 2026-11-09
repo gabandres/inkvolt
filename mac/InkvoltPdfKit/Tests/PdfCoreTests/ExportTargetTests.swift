@@ -136,4 +136,16 @@ struct ExportTargetTests {
         // And a device node is never a reserved file: it exists, nothing is created over it.
         #expect(ExportTarget.tryCreate("/dev/null") == .exists)
     }
+
+    @Test func ANameThatShortensToADeviceIsRefused() {
+        // A PDF named "CON", 200 spaces and "x": the name is cut to fit (SplitFiles.uniquePath) and its spaces trimmed,
+        // which leaves "CON.docx". The name that would be created is checked, not only the one asked for.
+        let name = "CON" + String(repeating: " ", count: 200) + "x.docx"
+        #expect(ExportTarget.allowedName(name) == name) // not a device name as asked
+        var created: [String] = []
+        let r = ExportTarget.reservation(pdfPath: "/work/x.pdf", fileName: name, documents: Self.documents,
+                                       create: { created.append($0); return .created })
+        #expect(r == .deviceName)
+        #expect(created.isEmpty)
+    }
 }

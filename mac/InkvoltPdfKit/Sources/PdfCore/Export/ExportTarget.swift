@@ -71,6 +71,8 @@ public enum ExportTarget {
             // A few tries: another conversion may take the free name between choosing it and creating it.
             for _ in 0..<8 {
                 guard let path = try? uniquePath(folder, fileName) else { break } // no name fits there
+                // The name as made safe and shortened: "CON" and 200 spaces and "x" is cut to "CON".
+                if ReservedFileNames.isDevice((path as NSString).lastPathComponent) { return .deviceName }
                 switch create(path) {
                 case .created: return .reserved(Reserved(path: path, inDocuments: inDocuments))
                 case .exists: continue
