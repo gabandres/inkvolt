@@ -583,6 +583,27 @@
 
         <!-- ===================== Scan ===================== -->
         <DataTemplate DataType="{x:Type vm:ScanViewModel}">
+            <DockPanel>
+            <!-- A USB scanner plugged in that has no driver yet: said here too, with the way to its page -->
+            <ItemsControl DockPanel.Dock="Top" Margin="0,0,16,12" Focusable="False"
+                          ItemsSource="{Binding DataContext.NeedsDriverScanners, RelativeSource={RelativeSource AncestorType=Window}}"
+                          Visibility="{Binding DataContext.HasNeedsDriverScanners, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type vm:NeedsDriverViewModel}">
+                        <Border CornerRadius="8" Padding="16,10" Margin="0,0,0,6" BorderThickness="1"
+                                Background="{DynamicResource SystemFillColorCautionBackgroundBrush}" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE7BA;" FontSize="16" Margin="0,0,12,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                                <Button DockPanel.Dock="Right" Content="{Binding GetDriverButton}" Padding="14,4" Margin="12,0,0,0" VerticalAlignment="Center"
+                                        Command="{Binding DataContext.ShowNeedsDriverCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding}"
+                                        AutomationProperties.Name="{Binding ScanTabLine}" />
+                                <TextBlock Text="{Binding ScanTabLine}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
             <Grid Margin="0,0,16,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />
@@ -795,6 +816,7 @@
                     </DockPanel>
                 </Border>
             </Grid>
+            </DockPanel>
         </DataTemplate>
 
         <!-- ===================== Print ===================== -->
@@ -1620,7 +1642,7 @@
                     <DataTemplate DataType="{x:Type vm:NeedsDriverViewModel}">
                         <DockPanel>
                             <Grid DockPanel.Dock="Left" Width="40" Height="40" Margin="0,0,12,0">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="22" HorizontalAlignment="Center" />
+                                <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="22" HorizontalAlignment="Center" />
                                 <Ellipse Width="11" Height="11" HorizontalAlignment="Right" VerticalAlignment="Bottom" Stroke="{DynamicResource SolidBackgroundFillColorBaseBrush}"
                                          StrokeThickness="1.5" Fill="{DynamicResource SystemFillColorCautionBrush}" />
                             </Grid>

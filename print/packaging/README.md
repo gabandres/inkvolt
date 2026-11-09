@@ -120,6 +120,34 @@ apps. A feature that uninstalls other publishers' software is likely to draw Sto
   `HP_CLEANUP_IN_PACKAGE`), for sideloading or other direct distribution. Never upload such a package to the Store.
 - The developer CLI (`inkvoltprint hp`) is not packaged.
 
+## Get the driver and the Store
+
+*Get the driver* (print/README.md) in an unpackaged copy downloads a maker's driver installer and runs it on the user's
+click. Read against Microsoft Store Policies **7.20** (2026-09-14), that would **not** fit certification in a Store package:
+
+- **10.1.5** lets a product, with consent, acquire "add-ons or extensions, **excluding non-Microsoft drivers or NT
+  services**". An Epson driver acquired in the app is exactly what it excludes.
+- **10.2.3**: a product "must not offer to install secondary software that is not developed by you and does not enhance
+  the functionality of your product". The driver does make the Scan tab work, but Epson's package also installs its own
+  scanning utility (EPSON Scan).
+- **10.2.4**: "dependency on non-Microsoft provided drivers ... is not allowed but may be considered case by case for
+  WHCP certified drivers", disclosed in the certification notes.
+- 10.2.2 (no dynamic code changing the described functionality) is not the problem: nothing of the app's own is downloaded.
+
+**What each build does** (`Features.DriverMode`, decided by `DriverModes.For`, gated like the HP clean-up):
+
+- **Store package (default):** the app never downloads or runs anything. *Get the driver* finds the model's driver on the
+  maker's site and shows its title, version, size and host; **Download it from Epson** opens that file's own https address
+  (Epson's hosts only) in the browser, and the person runs Epson's installer themselves. The page then watches for the device
+  (each read of the list after the PnP watcher or the 30 s timer: WIA for a scanner, the USB read for a printer) and says
+  *Found it*, selecting a scanner in the Scan tab; **Look again** asks Windows to look for devices as the user (never elevated).
+  In the certification notes: "the app opens the printer or scanner maker's own driver download page in the browser; it
+  doesn't download or install drivers itself."
+- **`pack-msix.ps1 -App Print -IncludeDriverInstall`** (MSBuild `DriverInstallInPackage=true`, constant
+  `DRIVER_INSTALL_IN_PACKAGE`): a package that keeps the whole flow, for sideloading or other direct distribution. Never
+  upload it to the Store.
+- **Unpackaged copies and the developer CLI:** the whole flow (download, checks, Install, rescans, WIA check).
+
 ## Values from Partner Center
 
 Reserve the name **Inkvolt Print** (or another) in Partner Center, then open the app's **Product management > Product

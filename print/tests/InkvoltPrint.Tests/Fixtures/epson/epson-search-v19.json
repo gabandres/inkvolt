@@ -1,0 +1,33 @@
+{
+ "suggestions": [
+  {
+   "term": "Perfection v4000"
+  }
+ ],
+ "products": [
+  {
+   "code": "B11B267201",
+   "name": "Perfection V19 II Photo Scanner",
+   "productType": "SCANNER",
+   "supportProductId": "/Support/Scanners/Perfection-Series/Epson-Perfection-V19-II/s/SPT_B11B267201"
+  },
+  {
+   "code": "B11B267201-N",
+   "name": "Perfection V19 II - Certified ReNew",
+   "productType": "SCANNER",
+   "supportProductId": "/Support/Scanners/Perfection-Series/Epson-Perfection-V19-II/s/SPT_B11B267201"
+  },
+  {
+   "code": "B11B231201",
+   "name": "Perfection V19 Scanner",
+   "productType": "SCANNER",
+   "supportProductId": "/Support/Scanners/Perfection-Series/Epson-Perfection-V19-Photo/s/SPT_B11B231201"
+  },
+  {
+   "code": "B11B231201-N",
+   "name": "Perfection V19 Scanner - Certified ReNew",
+   "productType": "SCANNER",
+   "supportProductId": "/Support/Scanners/Perfection-Series/Epson-Perfection-V19-Photo/s/SPT_B11B231201"
+  }
+ ]
+}

@@ -15,23 +15,33 @@ public static class NeedsDriverText
     public static string ListStatusNoDriver => CoreStrings.NeedsDriver_ListStatusNoDriver;
     public static string ListStatusNotSetUp => CoreStrings.NeedsDriver_ListStatusNotSetUp;
 
-    public static string ListStatus(NeedsDriverPrinter p) => p.Stage == DriverStage.NoDriver ? ListStatusNoDriver : ListStatusNotSetUp;
+    public static string ListStatus(NeedsDriverPrinter p) =>
+        p.IsScanner ? CoreStrings.NeedsDriver_ListStatusNoDriverScanner : p.Stage == DriverStage.NoDriver ? ListStatusNoDriver : ListStatusNotSetUp;
 
     /// <summary>The page's heading under the name.</summary>
     public static string Headline(NeedsDriverPrinter p) =>
-        p.Stage == DriverStage.NoDriver ? CoreStrings.NeedsDriver_HeadlineNoDriver : CoreStrings.NeedsDriver_HeadlineNotSetUp;
+        p.IsScanner ? CoreStrings.NeedsDriver_HeadlineNoDriverScanner
+        : p.Stage == DriverStage.NoDriver ? CoreStrings.NeedsDriver_HeadlineNoDriver : CoreStrings.NeedsDriver_HeadlineNotSetUp;
 
     /// <summary>"USB (USB001)", or "USB".</summary>
     public static string Where(NeedsDriverPrinter p) => p.Port is { Length: > 0 } port ? F(CoreStrings.NeedsDriver_WherePort, port.TrimEnd(':')) : "USB";
 
-    public static string WhyMakersDriver => CoreStrings.NeedsDriver_WhyMakersDriver;
+    public static string WhyMakersDriver(NeedsDriverPrinter p) => p.IsScanner ? CoreStrings.NeedsDriver_WhyMakersDriverScanner : CoreStrings.NeedsDriver_WhyMakersDriver;
     public static string StepsTitle => CoreStrings.NeedsDriver_StepsTitle;
 
     public static string StepGetDriver(NeedsDriverPrinter p) => p.Maker is { } maker && DriverHelp.HasDriverPage(maker)
-        ? F(CoreStrings.NeedsDriver_StepGetDriverFromMaker, p.Name, maker) : F(CoreStrings.NeedsDriver_StepGetDriver, p.Name);
+        ? F(p.IsScanner ? CoreStrings.NeedsDriver_StepGetDriverFromMakerScanner : CoreStrings.NeedsDriver_StepGetDriverFromMaker, p.Name, maker)
+        : F(p.IsScanner ? CoreStrings.NeedsDriver_StepGetDriverScanner : CoreStrings.NeedsDriver_StepGetDriver, p.Name);
 
-    public static string StepPlugIn => CoreStrings.NeedsDriver_StepPlugIn;
-    public static string StepInstall => CoreStrings.NeedsDriver_StepInstall;
+    public static string StepPlugIn(NeedsDriverPrinter p) => p.IsScanner ? CoreStrings.NeedsDriver_StepPlugInScanner : CoreStrings.NeedsDriver_StepPlugIn;
+    public static string StepInstall(NeedsDriverPrinter p) => p.IsScanner ? CoreStrings.NeedsDriver_StepInstallScanner : CoreStrings.NeedsDriver_StepInstall;
+
+    /// <summary>The Scan tab's line about a scanner plugged in that needs its driver.</summary>
+    public static string ScanTabLine(NeedsDriverPrinter p) => F(CoreStrings.NeedsDriver_ScanTabNeedsDriver, p.Name);
+
+    public static string CheckWindowsNoteFor(NeedsDriverPrinter p) => p.IsScanner ? CoreStrings.NeedsDriver_CheckWindowsNoteScanner : CheckWindowsNote;
+
+    public static string DemoFor(NeedsDriverPrinter p) => p.IsScanner ? CoreStrings.NeedsDriver_DemoScanner : Demo;
 
     public static string MakerButton(NeedsDriverPrinter p) => p.Maker is { } maker && DriverHelp.HasDriverPage(maker)
         ? F(CoreStrings.NeedsDriver_MakerButton, maker) : CoreStrings.NeedsDriver_SearchButton;
@@ -74,20 +84,26 @@ public static class NeedsDriverText
 
     private static string EnglishWhere(NeedsDriverPrinter p) => p.Port is { Length: > 0 } port ? $"USB ({port.TrimEnd(':')})" : "USB";
 
+    /// <summary>"Epson Perfection V19 | USB 04B8:013C | maker Epson | plugged in, needs its driver": the CLI's <c>scanners --needs-driver</c> line.</summary>
+    public static string ScannerLine(NeedsDriverPrinter p) =>
+        $"{p.Name} | USB{(p.UsbId is { } id ? " " + id : "")} | maker {p.Maker ?? "unknown"} | {EnglishStatus(p)}";
+
+    private static string EnglishKind(NeedsDriverPrinter p) => p.IsScanner ? "scanner" : "printer";
+
     /// <summary>"HP LaserJet P1006 | USB (USB001) | needs its driver": the CLI's <c>queues</c> line.</summary>
     public static string QueuesLine(NeedsDriverPrinter p) =>
         $"{p.Name} | {EnglishWhere(p)} | {(p.Stage == DriverStage.NoDriver ? "needs its driver" : $"driver installed, no queue{(p.Driver is { } d ? $" (driver: {d})" : "")}")}";
 
     /// <summary>status --all's note: the printer list shows it, the fleet has nothing to read from it.</summary>
     public static string StatusNote(NeedsDriverPrinter p) =>
-        $"{p.Name} ({EnglishWhere(p)}): {(p.Stage == DriverStage.NoDriver ? "plugged in, needs its driver" : "driver installed, not set up in Windows")}, so it can't be read or printed to.";
+        $"{p.Name} ({EnglishWhere(p)}): {(p.Stage == DriverStage.NoDriver ? "plugged in, needs its driver" : "driver installed, not set up in Windows")}, so it can't be {(p.IsScanner ? "scanned with" : "read or printed to")}.";
 
     /// <summary>The log's line when one is found or moves on.</summary>
-    public static string LogLine(NeedsDriverPrinter p) => $"[{p.Name}] USB printer on {EnglishWhere(p)}: {EnglishStatus(p)}";
+    public static string LogLine(NeedsDriverPrinter p) => $"[{p.Name}] USB {EnglishKind(p)} on {EnglishWhere(p)}: {EnglishStatus(p)}";
 
     /// <summary>Report a problem's settings line.</summary>
     public static string ReportLine(IReadOnlyList<NeedsDriverPrinter> list, bool protectedPrint) =>
-        (list.Count == 0 ? "none" : $"{list.Count}: {string.Join(", ", list.Select(p => $"{p.Name} on {EnglishWhere(p)}, {EnglishStatus(p)}"))}")
+        (list.Count == 0 ? "none" : $"{list.Count}: {string.Join(", ", list.Select(p => $"{p.Name} ({EnglishKind(p)}) on {EnglishWhere(p)}, {EnglishStatus(p)}"))}")
         + $"; Windows protected print {(protectedPrint ? "on" : "off")}";
 }
 
@@ -101,14 +117,19 @@ public static class DriverHelp
         ["Brother"] = "https://support.brother.com/",
         ["Lexmark"] = "https://support.lexmark.com/",
         ["Xerox"] = "https://www.support.xerox.com/",
+        ["Epson"] = "https://epson.com/Support/sl/s",
+        ["Canon"] = "https://www.usa.canon.com/support",
+        ["Fujitsu"] = "https://www.pfu.ricoh.com/global/scanners/downloads/",
+        ["Plustek"] = "https://plustek.com/us/support/",
+        ["Visioneer"] = "https://www.visioneer.com/support/",
     };
 
     public static bool HasDriverPage(string maker) => Pages.ContainsKey(maker);
 
-    /// <summary>The maker's driver page, else a web search for "&lt;model&gt; driver".</summary>
-    public static Uri PageFor(NeedsDriverPrinter p) =>
-        p.Maker is { } maker && Pages.TryGetValue(maker, out var page) ? new Uri(page)
-            : new Uri("https://www.bing.com/search?q=" + Uri.EscapeDataString($"{p.Name} driver"));
+    /// <summary>The model's own support page when a lookup found one, else the maker's driver page, else a web search for "&lt;model&gt; driver".</summary>
+    public static Uri PageFor(NeedsDriverPrinter p, Uri? modelPage = null) =>
+        modelPage ?? (p.Maker is { } maker && Pages.TryGetValue(maker, out var page) ? new Uri(page)
+            : new Uri("https://www.bing.com/search?q=" + Uri.EscapeDataString($"{p.Name} driver")));
 
     /// <summary>Windows Update's optional updates (drivers it has but doesn't install by itself).</summary>
     public const string WindowsOptionalUpdates = "ms-settings:windowsupdate-optionalupdates";

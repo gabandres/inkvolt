@@ -469,10 +469,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (ct.IsCancellationRequested) return;
         var ids = read.Printers.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id)).ToList())
+        foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id) && !v.IsGettingDriver && !v.ShowConfirm && !v.IsWaitingForInstall).ToList())
         {
             if (SelectedNeedsDriver == gone) SelectedNeedsDriver = null;
             gone.SetUpDone -= RelistQueues;
+            gone.DriverInstalled -= OnDriverInstalled;
             NeedsDriver.Remove(gone);
             Log.Write($"[{gone.Name}] no longer needs its driver here (set up, or unplugged)");
         }
@@ -484,11 +485,74 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                 listed.Update(p, read.ProtectedPrint);
                 continue;
             }
-            var vm = new NeedsDriverViewModel(p, read.ProtectedPrint, _pc.NeedsDriver);
+            var vm = new NeedsDriverViewModel(p, read.ProtectedPrint, _pc.NeedsDriver, IsThereAsync);
             vm.SetUpDone += RelistQueues;
+            vm.DriverInstalled += OnDriverInstalled;
             NeedsDriver.Add(vm);
             Log.Write(NeedsDriverText.LogLine(p) + (read.ProtectedPrint ? " (Windows protected print mode is on)" : ""));
         }
+        OnPropertyChanged(nameof(NeedsDriverScanners));
+        OnPropertyChanged(nameof(HasNeedsDriverScanners));
+    }
+
+    /// <summary>The scanners among them: the Scan tab says so too.</summary>
+    public IReadOnlyList<NeedsDriverViewModel> NeedsDriverScanners => NeedsDriver.Where(v => v.IsScanner).ToList();
+
+    public bool HasNeedsDriverScanners => NeedsDriver.Any(v => v.IsScanner);
+
+    [RelayCommand]
+    private void ShowNeedsDriver(NeedsDriverViewModel? which)
+    {
+        if (which is not null) SelectedNeedsDriver = which;
+    }
+
+    /// <summary>The WIA scanner each device's driver went in for (by the device's id), once Windows lists it. UI thread only.</summary>
+    private readonly Dictionary<string, WiaDeviceInfo> _installedScanners = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Whether Windows has the device now, after its driver's installer: a scanner when WIA lists one of its model (never a TWAIN
+    /// source: WIA is what the Scan tab uses first), a printer when it no longer needs its driver. Asked from any thread (the
+    /// driver flow's); run on the UI thread, as the list's own reads are, so the scanners and queues it reads and keeps are never
+    /// touched off it.
+    /// </summary>
+    private Task<bool> IsThereAsync(NeedsDriverPrinter device, CancellationToken ct) =>
+        Application.Current?.Dispatcher is { } ui && !ui.CheckAccess()
+            ? ui.InvokeAsync(() => IsThereOnUiAsync(device, ct)).Task.Unwrap()
+            : IsThereOnUiAsync(device, ct);
+
+    private async Task<bool> IsThereOnUiAsync(NeedsDriverPrinter device, CancellationToken ct)
+    {
+        // Plugged in and working: an unplugged device (as an installer may ask) is still waited for, never "found".
+        var nodes = await _pc.NeedsDriver.DeviceNodesAsync(device, ct);
+        IReadOnlyList<SpoolerDriver> drivers = device.IsScanner ? [] : await _pc.NeedsDriver.SpoolerDriversAsync(ct);
+        var now = DeviceState.Of(device, nodes, _queues, drivers);
+        if (now != DeviceNow.Working) return false;
+        if (!device.IsScanner) return DeviceState.Found(device, now, wiaLists: false);
+        var listed = await _wia.ListNowAsync(ct);
+        var match = listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name));
+        if (!DeviceState.Found(device, now, match is not null)) return false;
+        _installedScanners[device.Id] = match!;
+        _scanners = listed;
+        _scannersRead = true;
+        return true;
+    }
+
+    /// <summary>Its driver went in: the list reads Windows again, and a scanner is selected with its Scan tab shown.</summary>
+    private void OnDriverInstalled(NeedsDriverViewModel which)
+    {
+        RelistQueues();
+        if (!which.IsScanner || !_installedScanners.Remove(which.Id, out var scanner)) return;
+        var id = PrinterList.ScannerIdFor(scanner.Id);
+        _wantedScanner = id;
+        Reconcile(queues: false);
+        var shown = Printers.FirstOrDefault(p => string.Equals(p.Uuid, id, StringComparison.OrdinalIgnoreCase))
+                    ?? Printers.FirstOrDefault(p => p.Scan is not null && UsbScanners.SameModel(which.Name, p.Name));
+        if (shown is null) return;
+        SelectedNeedsDriver = null;
+        IsFleetShown = false;
+        Selected = shown;
+        shown.SelectedSection = PrinterViewModel.ScanSection;
+        Log.Write($"[{which.Name}] driver installed: selected in the Scan tab as {scanner.Name}");
     }
 
     // ---------------------------------------------------------------- printers known only by their Windows queue
@@ -537,6 +601,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     // WIA failing with nothing in its place (no TWAIN source either): the scanner list said it, once.
                     if (!ReferenceEquals(ex, _wia.WiaFailure)) Log.Write($"Reading Windows' scanners failed: {ex.Message}");
                 }
+                // A driver the user is installing from the maker's link (a Store copy): is the device there now?
+                foreach (var waiting in NeedsDriver.Where(v => v.IsWaitingForInstall).ToList()) await waiting.CheckAgainAsync();
                 await _relist.WaitAsync(QueueListInterval, ct);
             }
         }

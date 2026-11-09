@@ -21,9 +21,10 @@ public static class UsbPrinters
     private const string Present = "System.Devices.Present", Container = "System.Devices.ContainerId", HardwareIds = "System.Devices.HardwareIds",
         CompatibleIds = "System.Devices.CompatibleIds",
         DriverDescription = "{a8b865dd-2e3d-4094-ad97-e593a70c75d6} 4", DriverInf = "{a8b865dd-2e3d-4094-ad97-e593a70c75d6} 5",
-        DriverSection = "{a8b865dd-2e3d-4094-ad97-e593a70c75d6} 6", ProblemCode = "{4340a6c5-93fa-4706-972c-7b648008a5a7} 3";
+        DriverSection = "{a8b865dd-2e3d-4094-ad97-e593a70c75d6} 6", ProblemCode = "{4340a6c5-93fa-4706-972c-7b648008a5a7} 3",
+        BusReportedName = "{540b947e-8b40-45bc-a8a2-6a0b894cbda2} 4";
 
-    private static readonly string[] Properties = [Present, Container, HardwareIds, CompatibleIds, DriverDescription, DriverInf, DriverSection, ProblemCode];
+    private static readonly string[] Properties = [Present, Container, HardwareIds, CompatibleIds, DriverDescription, DriverInf, DriverSection, ProblemCode, BusReportedName];
 
     /// <summary>The printers needing their driver now (none when Windows can't be asked), given the queues just read.</summary>
     public static Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct = default) => Reader.ReadAsync(queues, ct);
@@ -44,11 +45,42 @@ public static class UsbPrinters
             list.AddRange(printNodes.Select(d => Node(d, UsbNodeKind.UsbPrint)));
             // AQS can't match one entry of a list property (compatible ids): the USB devices are few, picked here.
             var usb = await DeviceInformation.FindAllAsync($"System.Devices.DeviceInstanceId:~<\"USB\\\"{present}", Properties, DeviceInformationKind.Device).AsTask(ct);
-            list.AddRange(usb.Select(d => Node(d, UsbNodeKind.UsbDevice)).Where(n => NeedsDriver.IsPrinterClass(n) && (n.ProblemCode != 0 || n.DriverInf is null)));
+            // Scanners too (and an all-in-one's scanner part): a USB device with no driver that UsbScanners takes for one.
+            list.AddRange(usb.Select(d => Node(d, UsbNodeKind.UsbDevice))
+                .Where(n => (n.ProblemCode != 0 || n.DriverInf is null) && (NeedsDriver.IsPrinterClass(n) || UsbScanners.IsScanner(n))));
         }
         catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
         {
             System.Diagnostics.Trace.WriteLine($"usb printers: {ex.Message}"); // no PnP answer: nothing listed
+        }
+        return list;
+    }
+
+    /// <summary>
+    /// The device nodes of one device that needed its driver, whatever their driver now, plugged in only (for
+    /// <see cref="DeviceState.Of"/>): the USBPRINT nodes, and the USB nodes with its vendor and product ids. None when Windows can't be asked.
+    /// </summary>
+    public static async Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct = default)
+    {
+        var present = $" AND {Present}:=System.StructuredQueryType.Boolean#True";
+        var list = new List<UsbPrinterNode>();
+        try
+        {
+            if (!device.IsScanner)
+            {
+                var printNodes = await DeviceInformation.FindAllAsync($"System.Devices.DeviceInstanceId:~<\"USBPRINT\\\"{present}", Properties, DeviceInformationKind.Device).AsTask(ct);
+                list.AddRange(printNodes.Select(d => Node(d, UsbNodeKind.UsbPrint)));
+            }
+            if (device.UsbId is { Length: 9 } id && id[4] == ':' && id.Where((c, i) => i != 4).All(Uri.IsHexDigit))
+            {
+                var usb = await DeviceInformation.FindAllAsync($"System.Devices.DeviceInstanceId:~<\"USB\\VID_{id[..4]}&PID_{id[5..]}\"{present}", Properties,
+                    DeviceInformationKind.Device).AsTask(ct);
+                list.AddRange(usb.Select(d => Node(d, UsbNodeKind.UsbDevice)));
+            }
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
+        {
+            System.Diagnostics.Trace.WriteLine($"usb device: {ex.Message}");
         }
         return list;
     }
@@ -62,6 +94,7 @@ public static class UsbPrinters
         return new UsbPrinterNode(kind, d.Properties.TryGetValue(Present, out var p) && p is true)
         {
             FriendlyName = d.Name,
+            BusReportedName = Text(BusReportedName),
             DeviceIdName = kind == UsbNodeKind.UsbPrint && parts.Length >= 2 ? parts[1] : null,
             HardwareIds = Texts(HardwareIds),
             CompatibleIds = Texts(CompatibleIds),
@@ -222,37 +255,54 @@ public static class UsbPrinters
 /// </summary>
 public sealed class UsbPrinterWatcher : IDisposable
 {
-    private readonly DeviceWatcher _watcher;
-    private bool _enumerated;
+    private readonly DeviceWatcher[] _watchers;
+    private readonly bool[] _enumerated;
 
     public event Action? Changed;
 
+    /// <summary>USBPRINT nodes, and the USB devices of scanner makers' vendor ids (a scanner with no driver has no other node).</summary>
     public UsbPrinterWatcher()
     {
-        _watcher = DeviceInformation.CreateWatcher("System.Devices.DeviceInstanceId:~<\"USBPRINT\\\"", ["System.Devices.Present"], DeviceInformationKind.Device);
-        _watcher.Added += (_, _) => Raise();
-        _watcher.Updated += (_, _) => Raise();
-        _watcher.Removed += (_, _) => Raise();
-        _watcher.EnumerationCompleted += (_, _) => _enumerated = true;
+        var scanners = string.Join(" OR ", UsbScanners.MakerVendorIds.Select(v => $"System.Devices.DeviceInstanceId:~<\"USB\\VID_{v}\""));
+        _watchers =
+        [
+            DeviceInformation.CreateWatcher("System.Devices.DeviceInstanceId:~<\"USBPRINT\\\"", ["System.Devices.Present"], DeviceInformationKind.Device),
+            DeviceInformation.CreateWatcher($"({scanners})", ["System.Devices.Present"], DeviceInformationKind.Device),
+        ];
+        _enumerated = new bool[_watchers.Length];
+        for (var i = 0; i < _watchers.Length; i++)
+        {
+            var at = i;
+            _watchers[i].Added += (_, _) => Raise(at);
+            _watchers[i].Updated += (_, _) => Raise(at);
+            _watchers[i].Removed += (_, _) => Raise(at);
+            _watchers[i].EnumerationCompleted += (_, _) => _enumerated[at] = true;
+        }
     }
 
-    private void Raise()
+    private void Raise(int at)
     {
-        if (_enumerated) Changed?.Invoke(); // not for the nodes already there at the start
+        if (_enumerated[at]) Changed?.Invoke(); // not for the nodes already there at the start
     }
 
     public void Start()
     {
-        try { _watcher.Start(); }
-        catch (Exception ex) when (ex is not OutOfMemoryException) { System.Diagnostics.Trace.WriteLine($"usb printer watcher: {ex.Message}"); }
+        foreach (var w in _watchers)
+        {
+            try { w.Start(); }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { System.Diagnostics.Trace.WriteLine($"usb printer watcher: {ex.Message}"); }
+        }
     }
 
     public void Dispose()
     {
-        try
+        foreach (var w in _watchers)
         {
-            if (_watcher.Status is DeviceWatcherStatus.Started or DeviceWatcherStatus.EnumerationCompleted) _watcher.Stop();
+            try
+            {
+                if (w.Status is DeviceWatcherStatus.Started or DeviceWatcherStatus.EnumerationCompleted) w.Stop();
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException) { System.Diagnostics.Trace.WriteLine($"usb printer watcher: {ex.Message}"); }
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException) { System.Diagnostics.Trace.WriteLine($"usb printer watcher: {ex.Message}"); }
     }
 }

@@ -3077,7 +3077,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Demo: una impresora inventada. No se abre, instala ni configura nada.</value>
   </data>
   <data name="NeedsDriver_ListName" xml:space="preserve">
-    <value>Impresoras a las que les falta su controlador</value>
+    <value>Impresoras y escáneres a los que les falta su controlador</value>
   </data>
   <data name="Queue_FromPrinterOverUsb" xml:space="preserve">
     <value>la impresora por USB (IPP, a través de Windows)</value>
@@ -3135,5 +3135,202 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Monitor_ElsewhereDetail" xml:space="preserve">
     <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Esta es mi impresora.</value>
+  </data>
+  <data name="NeedsDriver_ListStatusNoDriverScanner" xml:space="preserve">
+    <value>Conectado, le falta su controlador</value>
+    <comment>a scanner (masculine in Spanish)</comment>
+  </data>
+  <data name="NeedsDriver_HeadlineNoDriverScanner" xml:space="preserve">
+    <value>Windows encontró este escáner, pero no tiene un controlador para él, así que todavía no se puede escanear con él.</value>
+  </data>
+  <data name="NeedsDriver_WhyMakersDriverScanner" xml:space="preserve">
+    <value>La mayoría de los escáneres solo funcionan con el controlador de su fabricante: Windows no tiene uno propio para ellos. Cuando esté instalado, el escáner aparecerá en la lista de impresoras y en la pestaña Escanear.</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriverFromMakerScanner" xml:space="preserve">
+    <value>Descarga el controlador del {0} del sitio web de {1}: elige tu versión de Windows.</value>
+    <comment>{0} = scanner, {1} = maker</comment>
+  </data>
+  <data name="NeedsDriver_StepGetDriverScanner" xml:space="preserve">
+    <value>Descarga el controlador del {0} del sitio web de su fabricante: elige tu versión de Windows.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="NeedsDriver_StepPlugInScanner" xml:space="preserve">
+    <value>Conecta el escáner.</value>
+  </data>
+  <data name="NeedsDriver_StepInstallScanner" xml:space="preserve">
+    <value>Ejecuta el instalador del controlador y luego desconecta el escáner y vuelve a conectarlo. Inkvolt Print lo mostrará por sí solo.</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsNoteScanner" xml:space="preserve">
+    <value>A veces Windows Update tiene el controlador de un escáner en Actualizaciones opcionales.</value>
+  </data>
+  <data name="NeedsDriver_DemoScanner" xml:space="preserve">
+    <value>Demo: un escáner inventado. No se abre, descarga ni instala nada.</value>
+  </data>
+  <data name="NeedsDriver_ScanTabNeedsDriver" xml:space="preserve">
+    <value>{0} está conectado, pero Windows todavía no tiene un controlador para él.</value>
+    <comment>{0} = a scanner's name; shown in the Scan tab</comment>
+  </data>
+  <data name="GetDriver_Button" xml:space="preserve">
+    <value>Obtener el controlador</value>
+  </data>
+  <data name="GetDriver_NoteScanner" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para este escáner y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_NotePrinter" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para esta impresora y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_Looking" xml:space="preserve">
+    <value>Buscando en el sitio web de {0}…</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_Downloading" xml:space="preserve">
+    <value>Descargando… {0}</value>
+    <comment>{0} = megabytes so far</comment>
+  </data>
+  <data name="GetDriver_Megabytes" xml:space="preserve">
+    <value>{0} MB</value>
+  </data>
+  <data name="GetDriver_FoundTitle" xml:space="preserve">
+    <value>Encontrado en el sitio web de {0}, con la firma comprobada</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_FactDriver" xml:space="preserve">
+    <value>Controlador: {0}</value>
+  </data>
+  <data name="GetDriver_FactVersion" xml:space="preserve">
+    <value>Versión: {0}</value>
+  </data>
+  <data name="GetDriver_FactSize" xml:space="preserve">
+    <value>Tamaño: {0}</value>
+  </data>
+  <data name="GetDriver_FactSigner" xml:space="preserve">
+    <value>Firmado por: {0}</value>
+  </data>
+  <data name="GetDriver_NotSaid" xml:space="preserve">
+    <value>no indicada</value>
+    <comment>a version the page doesn't give</comment>
+  </data>
+  <data name="GetDriver_InstallButton" xml:space="preserve">
+    <value>Instalar</value>
+  </data>
+  <data name="GetDriver_CancelButton" xml:space="preserve">
+    <value>No instalar</value>
+  </data>
+  <data name="GetDriver_InstallNote" xml:space="preserve">
+    <value>El instalador pide permiso de administrador y tiene sus propios pasos. Inkvolt Print lo espera y luego comprueba que Windows tenga el dispositivo.</value>
+  </data>
+  <data name="GetDriver_Installing" xml:space="preserve">
+    <value>Instalando: sigue los pasos del instalador…</value>
+  </data>
+  <data name="GetDriver_DoneScanner" xml:space="preserve">
+    <value>{0} está listo para escanear. Está seleccionado en la pestaña Escanear.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_DonePrinter" xml:space="preserve">
+    <value>El controlador está instalado. La impresora aparecerá en la lista en un momento.</value>
+  </data>
+  <data name="GetDriver_NotSeen" xml:space="preserve">
+    <value>El controlador está instalado, pero Windows todavía no muestra el {0}. Desconéctalo, vuelve a conectarlo y espera un momento.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_Declined" xml:space="preserve">
+    <value>No se instaló nada: no se permitió que el instalador se ejecutara.</value>
+  </data>
+  <data name="GetDriver_TimedOut" xml:space="preserve">
+    <value>El instalador sigue en marcha. Cuando termine, desconecta el dispositivo y vuelve a conectarlo.</value>
+  </data>
+  <data name="GetDriver_Failed" xml:space="preserve">
+    <value>El instalador se detuvo sin terminar. Inténtalo de nuevo u obtén el controlador del sitio web de {0} más abajo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_NotFound" xml:space="preserve">
+    <value>El sitio web de {0} no tiene un controlador del {1} para esta versión de Windows. Prueba con las actualizaciones opcionales de Windows Update más abajo.</value>
+    <comment>{0} = maker, {1} = device</comment>
+  </data>
+  <data name="GetDriver_NoArm64" xml:space="preserve">
+    <value>{0} no tiene un controlador del {1} que funcione con el procesador ARM de este PC, solo para PC con procesadores Intel o AMD. Puede que las actualizaciones opcionales de Windows Update tengan uno.</value>
+    <comment>{0} = maker, {1} = device</comment>
+  </data>
+  <data name="GetDriver_Unreachable" xml:space="preserve">
+    <value>El sitio web de {0} no respondió. Comprueba la conexión a internet e inténtalo de nuevo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedNotProgram" xml:space="preserve">
+    <value>La descarga no es un programa de Windows, así que se eliminó y no se ejecutó nada.</value>
+  </data>
+  <data name="GetDriver_RefusedNotSigned" xml:space="preserve">
+    <value>La descarga no está firmada, así que se eliminó y no se ejecutó nada.</value>
+  </data>
+  <data name="GetDriver_RefusedBadSignature" xml:space="preserve">
+    <value>La firma de la descarga no coincide con el archivo (se modificó o quedó incompleto), así que se eliminó y no se ejecutó nada.</value>
+  </data>
+  <data name="GetDriver_RefusedUntrusted" xml:space="preserve">
+    <value>La firma de la descarga no viene de un certificado en el que Windows confíe, así que se eliminó y no se ejecutó nada.</value>
+  </data>
+  <data name="GetDriver_RefusedWrongSigner" xml:space="preserve">
+    <value>La descarga está firmada por "{0}", no por {1}, así que se eliminó y no se ejecutó nada.</value>
+    <comment>{0} = signer, {1} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedOtherSite" xml:space="preserve">
+    <value>La descarga llevaba a un sitio que no es de {0}, así que no se descargó nada.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedTooBig" xml:space="preserve">
+    <value>La descarga es más grande de lo que puede ser un controlador, así que se detuvo y se eliminó.</value>
+  </data>
+  <data name="GetDriver_RefusedCutShort" xml:space="preserve">
+    <value>La descarga quedó incompleta, así que se eliminó. Inténtalo de nuevo.</value>
+  </data>
+  <data name="GetDriver_RefusedTimedOut" xml:space="preserve">
+    <value>La descarga tardó demasiado, así que se detuvo y se eliminó. Inténtalo de nuevo.</value>
+  </data>
+  <data name="GetDriver_Demo" xml:space="preserve">
+    <value>Demo: un controlador inventado. No se descarga ni se instala nada.</value>
+  </data>
+  <data name="GetDriver_FactFrom" xml:space="preserve">
+    <value>Desde: {0}</value>
+    <comment>{0} = the maker's download host</comment>
+  </data>
+  <data name="GetDriver_FoundTitleLink" xml:space="preserve">
+    <value>Encontrado en el sitio web de {0}</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkButton" xml:space="preserve">
+    <value>Descargarlo de {0}</value>
+    <comment>{0} = maker; opens the browser</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNoteScanner" xml:space="preserve">
+    <value>Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente del escáner y te avisa cuando esté listo.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNotePrinter" xml:space="preserve">
+    <value>Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente de la impresora y te avisa cuando esté lista.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_LookAgainButton" xml:space="preserve">
+    <value>Volver a buscar</value>
+  </data>
+  <data name="GetDriver_Waiting" xml:space="preserve">
+    <value>Esperando el controlador: ejecuta el instalador que descargaste.</value>
+  </data>
+  <data name="GetDriver_LookingAgain" xml:space="preserve">
+    <value>Buscando de nuevo…</value>
+  </data>
+  <data name="GetDriver_FoundItScanner" xml:space="preserve">
+    <value>Encontrado: {0} está listo para escanear. Está seleccionado en la pestaña Escanear.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_FoundItPrinter" xml:space="preserve">
+    <value>Encontrado: el controlador está instalado. La impresora aparecerá en la lista en un momento.</value>
+  </data>
+  <data name="GetDriver_NotYet" xml:space="preserve">
+    <value>Windows todavía no lo tiene. Cuando el instalador termine, desconecta el {0}, vuelve a conectarlo y pulsa Volver a buscar.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_CouldntStart" xml:space="preserve">
+    <value>Windows no dejó que el instalador se iniciara: puede que SmartScreen, un antivirus o una directiva de este PC lo hayan detenido. No se instaló nada. Inténtalo de nuevo u obtén el controlador del sitio web de {0} más abajo.</value>
+    <comment>{0} = maker</comment>
   </data>
 </root>

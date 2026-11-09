@@ -10,6 +10,8 @@
 #                                                                   the output folder; installed nowhere) for sideloading
 #   pwsh -File packaging/pack-msix.ps1 -App Print -IncludeHpCleanup keeps the HP clean-up in the package (sideloading only;
 #                                                                   Store builds leave it out, see print/packaging/README.md)
+#   pwsh -File packaging/pack-msix.ps1 -App Print -IncludeDriverInstall keeps Get the driver's download and install in the
+#                                                                   package (sideloading only; Store builds only open the maker's link)
 #   pwsh -File packaging/pack-msix.ps1 -App Pdf -NoSmoke            skips installing and running this PC's layout
 #                                                                   (packaging/smoke-msix.ps1; needs Developer Mode)
 #   pwsh -File packaging/pack-msix.ps1 -App Pdf -SmokeSideBySide    builds the real package, then smoke-tests a renamed copy
@@ -43,6 +45,9 @@ param(
     # Inkvolt Print only: keep the HP clean-up (removes HP's apps and services) in the package. Off by default: Store builds
     # leave it out.
     [switch]$IncludeHpCleanup,
+    # Inkvolt Print only: keep Get the driver's download and install (runs a maker's driver installer) in the package. Off by
+    # default: Store builds only open the maker's download link (Store policy 10.1.5).
+    [switch]$IncludeDriverInstall,
     # Skip the smoke test (packaging/smoke-msix.ps1), which installs this PC's layout in Developer Mode and runs it
     [switch]$NoSmoke,
     # Smoke-test a renamed copy of the layout (smoke-msix.ps1 -SmokeSideBySide) instead of the layout itself: needed while
@@ -92,6 +97,9 @@ if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesV
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }
+if ($IncludeDriverInstall -and $App -ne 'Print') { throw '-IncludeDriverInstall is for Inkvolt Print (-App Print).' }
+if ($IncludeDriverInstall) { Write-Warning 'Driver install included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
+if ($IncludeDriverInstall -and $NoBuild) { throw '-IncludeDriverInstall changes the build: run without -NoBuild.' }
 if ($SmokeSideBySide -and $NoSmoke) { throw '-SmokeSideBySide and -NoSmoke: pick one.' }
 
 # ───── Tools ─────
@@ -205,6 +213,7 @@ Invoke-Tool $makepri @('new', '/pr', $priRoot, '/cf', $priConfig, '/mn', (Join-P
 
 $publishProps = @('-p:PublishSingleFile=false', "-p:Version=$Version", '-p:CopyOutputSymbolsToPublishDirectory=false')
 if ($App -eq 'Print') { $publishProps += "-p:HpCleanupInPackage=$(if ($IncludeHpCleanup) { 'true' } else { 'false' })" }
+if ($App -eq 'Print') { $publishProps += "-p:DriverInstallInPackage=$(if ($IncludeDriverInstall) { 'true' } else { 'false' })" }
 
 # Every project in the app's graph is built afresh: its bin\Release and obj\Release, which a plain Release build (the
 # bench's, a test run) shares, are deleted first. The 1.8.0.0 pack took InkvoltPdf.Core and InkvoltPrint.Core at 1.0.0.0

@@ -31,7 +31,7 @@ namespace InkvoltPrint.App;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
-/// <c>--needs-driver</c> shows the first USB printer that needs its driver (with <c>--demo</c>: a made-up one); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
+/// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry.
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
@@ -67,9 +67,14 @@ internal static class DevSnapshot
             main.Selected = main.Printers[printer - 1];
         await Task.Delay(TimeSpan.FromSeconds(5));
         // --needs-driver: shows the first USB printer that needs its driver (with --demo: the made-up USB laser).
-        if (args.Contains("--needs-driver") && window.DataContext is ViewModels.MainViewModel { NeedsDriver: [var needing, ..] } withUsb)
+        // --needs-driver scanner: the first scanner instead (with --demo: the made-up Epson scanner); --get-driver then presses
+        // Get the driver (with --demo: a made-up find, nothing downloaded).
+        if (args.Contains("--needs-driver") && window.DataContext is ViewModels.MainViewModel { NeedsDriver: [var first, ..] } withUsb)
         {
+            var needing = Value(args, "--needs-driver") == "scanner" ? withUsb.NeedsDriver.FirstOrDefault(v => v.IsScanner) ?? first : first;
             withUsb.SelectedNeedsDriver = needing;
+            if (args.Contains("--driver-link")) DemoDriverGetter.Forced = Core.Drivers.DriverMode.OpenLink; // the Store copy's flow
+            if (args.Contains("--get-driver") && needing.CanGetDriver) await needing.GetDriverCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
         if (tab is not null && FindTabs(window) is { } tabs)

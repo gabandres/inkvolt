@@ -3779,7 +3779,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Demo: a made-up printer. Nothing is opened, installed or set up.</value>
   </data>
   <data name="NeedsDriver_ListName" xml:space="preserve">
-    <value>Printers that need their driver</value>
+    <value>Printers and scanners that need their driver</value>
   </data>
   <data name="Queue_FromPrinterOverUsb" xml:space="preserve">
     <value>the printer over USB (IPP, through Windows)</value>
@@ -3843,5 +3843,202 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Monitor_ElsewhereDetail" xml:space="preserve">
     <value>Another device now has {0}, so its status isn't shown here. The printer probably got a new address: Inkvolt Print watches for it on the network, or choose Fix it… to find it. If the printer was repaired or reset and this really is it, choose This is my printer.</value>
     <comment>{0} = address; 'Fix it…' and 'This is my printer' are buttons</comment>
+  </data>
+  <data name="NeedsDriver_ListStatusNoDriverScanner" xml:space="preserve">
+    <value>Plugged in, needs its driver</value>
+    <comment>a scanner (masculine in Spanish)</comment>
+  </data>
+  <data name="NeedsDriver_HeadlineNoDriverScanner" xml:space="preserve">
+    <value>Windows found this scanner but has no driver for it, so nothing can scan with it yet.</value>
+  </data>
+  <data name="NeedsDriver_WhyMakersDriverScanner" xml:space="preserve">
+    <value>Most scanners only work with their maker's driver: Windows has none of its own for them. Once it's installed, the scanner shows in the printer list and the Scan tab.</value>
+  </data>
+  <data name="NeedsDriver_StepGetDriverFromMakerScanner" xml:space="preserve">
+    <value>Get the driver for the {0} from {1}'s website: choose your version of Windows.</value>
+    <comment>{0} = scanner, {1} = maker</comment>
+  </data>
+  <data name="NeedsDriver_StepGetDriverScanner" xml:space="preserve">
+    <value>Get the driver for the {0} from its maker's website: choose your version of Windows.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="NeedsDriver_StepPlugInScanner" xml:space="preserve">
+    <value>Plug the scanner in.</value>
+  </data>
+  <data name="NeedsDriver_StepInstallScanner" xml:space="preserve">
+    <value>Run the driver's installer, then unplug the scanner and plug it back in. Inkvolt Print lists it by itself.</value>
+  </data>
+  <data name="NeedsDriver_CheckWindowsNoteScanner" xml:space="preserve">
+    <value>Windows Update sometimes has a scanner's driver under Optional updates.</value>
+  </data>
+  <data name="NeedsDriver_DemoScanner" xml:space="preserve">
+    <value>Demo: a made-up scanner. Nothing is opened, downloaded or installed.</value>
+  </data>
+  <data name="NeedsDriver_ScanTabNeedsDriver" xml:space="preserve">
+    <value>{0} is plugged in, but Windows has no driver for it yet.</value>
+    <comment>{0} = a scanner's name; shown in the Scan tab</comment>
+  </data>
+  <data name="GetDriver_Button" xml:space="preserve">
+    <value>Get the driver</value>
+  </data>
+  <data name="GetDriver_NoteScanner" xml:space="preserve">
+    <value>Inkvolt Print looks for {0}'s own driver for this scanner and this PC on {0}'s website, checks that {0} signed it, and asks you before installing it.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_NotePrinter" xml:space="preserve">
+    <value>Inkvolt Print looks for {0}'s own driver for this printer and this PC on {0}'s website, checks that {0} signed it, and asks you before installing it.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_Looking" xml:space="preserve">
+    <value>Looking on {0}'s website…</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_Downloading" xml:space="preserve">
+    <value>Downloading… {0}</value>
+    <comment>{0} = megabytes so far</comment>
+  </data>
+  <data name="GetDriver_Megabytes" xml:space="preserve">
+    <value>{0} MB</value>
+  </data>
+  <data name="GetDriver_FoundTitle" xml:space="preserve">
+    <value>Found on {0}'s website, signature checked</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_FactDriver" xml:space="preserve">
+    <value>Driver: {0}</value>
+  </data>
+  <data name="GetDriver_FactVersion" xml:space="preserve">
+    <value>Version: {0}</value>
+  </data>
+  <data name="GetDriver_FactSize" xml:space="preserve">
+    <value>Size: {0}</value>
+  </data>
+  <data name="GetDriver_FactSigner" xml:space="preserve">
+    <value>Signed by: {0}</value>
+  </data>
+  <data name="GetDriver_NotSaid" xml:space="preserve">
+    <value>not given</value>
+    <comment>a version the page doesn't give</comment>
+  </data>
+  <data name="GetDriver_InstallButton" xml:space="preserve">
+    <value>Install</value>
+  </data>
+  <data name="GetDriver_CancelButton" xml:space="preserve">
+    <value>Don't install</value>
+  </data>
+  <data name="GetDriver_InstallNote" xml:space="preserve">
+    <value>The installer asks for an administrator's permission and has steps of its own. Inkvolt Print waits for it, then checks that Windows has the device.</value>
+  </data>
+  <data name="GetDriver_Installing" xml:space="preserve">
+    <value>Installing: follow the installer's steps…</value>
+  </data>
+  <data name="GetDriver_DoneScanner" xml:space="preserve">
+    <value>{0} is ready to scan. It's selected in the Scan tab.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_DonePrinter" xml:space="preserve">
+    <value>The driver is installed. The printer shows in the list in a moment.</value>
+  </data>
+  <data name="GetDriver_NotSeen" xml:space="preserve">
+    <value>The driver is installed, but Windows doesn't show the {0} yet. Unplug it, plug it back in and wait a moment.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_Declined" xml:space="preserve">
+    <value>Nothing was installed: the installer wasn't allowed to run.</value>
+  </data>
+  <data name="GetDriver_TimedOut" xml:space="preserve">
+    <value>The installer is still running. When it finishes, unplug the device and plug it back in.</value>
+  </data>
+  <data name="GetDriver_Failed" xml:space="preserve">
+    <value>The installer stopped without finishing. Try again, or get the driver from {0}'s website below.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_NotFound" xml:space="preserve">
+    <value>{0}'s website has no driver for the {1} for this version of Windows. Try Windows Update's optional updates below.</value>
+    <comment>{0} = maker, {1} = device</comment>
+  </data>
+  <data name="GetDriver_NoArm64" xml:space="preserve">
+    <value>{0} has no driver for the {1} that runs on this PC's ARM processor, only for PCs with Intel or AMD processors. Windows Update's optional updates may have one.</value>
+    <comment>{0} = maker, {1} = device</comment>
+  </data>
+  <data name="GetDriver_Unreachable" xml:space="preserve">
+    <value>{0}'s website didn't answer. Check the internet connection and try again.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedNotProgram" xml:space="preserve">
+    <value>The download isn't a Windows program, so it was deleted and nothing ran.</value>
+  </data>
+  <data name="GetDriver_RefusedNotSigned" xml:space="preserve">
+    <value>The download isn't signed, so it was deleted and nothing ran.</value>
+  </data>
+  <data name="GetDriver_RefusedBadSignature" xml:space="preserve">
+    <value>The download's signature doesn't match the file (it was changed or cut short), so it was deleted and nothing ran.</value>
+  </data>
+  <data name="GetDriver_RefusedUntrusted" xml:space="preserve">
+    <value>The download's signature doesn't come from a certificate Windows trusts, so it was deleted and nothing ran.</value>
+  </data>
+  <data name="GetDriver_RefusedWrongSigner" xml:space="preserve">
+    <value>The download is signed by "{0}", not by {1}, so it was deleted and nothing ran.</value>
+    <comment>{0} = signer, {1} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedOtherSite" xml:space="preserve">
+    <value>The download led to a site that isn't {0}'s, so nothing was downloaded.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_RefusedTooBig" xml:space="preserve">
+    <value>The download is larger than a driver can be, so it was stopped and deleted.</value>
+  </data>
+  <data name="GetDriver_RefusedCutShort" xml:space="preserve">
+    <value>The download was cut short, so it was deleted. Try again.</value>
+  </data>
+  <data name="GetDriver_RefusedTimedOut" xml:space="preserve">
+    <value>The download took too long, so it was stopped and deleted. Try again.</value>
+  </data>
+  <data name="GetDriver_Demo" xml:space="preserve">
+    <value>Demo: a made-up driver. Nothing is downloaded or installed.</value>
+  </data>
+  <data name="GetDriver_FactFrom" xml:space="preserve">
+    <value>From: {0}</value>
+    <comment>{0} = the maker's download host</comment>
+  </data>
+  <data name="GetDriver_FoundTitleLink" xml:space="preserve">
+    <value>Found on {0}'s website</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkButton" xml:space="preserve">
+    <value>Download it from {0}</value>
+    <comment>{0} = maker; opens the browser</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNoteScanner" xml:space="preserve">
+    <value>Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the scanner and says when it's ready.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_OpenLinkNotePrinter" xml:space="preserve">
+    <value>Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the printer and says when it's ready.</value>
+    <comment>{0} = maker</comment>
+  </data>
+  <data name="GetDriver_LookAgainButton" xml:space="preserve">
+    <value>Look again</value>
+  </data>
+  <data name="GetDriver_Waiting" xml:space="preserve">
+    <value>Waiting for the driver: run the installer you downloaded.</value>
+  </data>
+  <data name="GetDriver_LookingAgain" xml:space="preserve">
+    <value>Looking again…</value>
+  </data>
+  <data name="GetDriver_FoundItScanner" xml:space="preserve">
+    <value>Found it: {0} is ready to scan. It's selected in the Scan tab.</value>
+    <comment>{0} = scanner</comment>
+  </data>
+  <data name="GetDriver_FoundItPrinter" xml:space="preserve">
+    <value>Found it: the driver is installed. The printer shows in the list in a moment.</value>
+  </data>
+  <data name="GetDriver_NotYet" xml:space="preserve">
+    <value>Windows doesn't have it yet. Once the installer has finished, unplug the {0}, plug it back in and press Look again.</value>
+    <comment>{0} = device</comment>
+  </data>
+  <data name="GetDriver_CouldntStart" xml:space="preserve">
+    <value>Windows didn't let the installer start: SmartScreen, an antivirus or a policy on this PC may have stopped it. Nothing was installed. Try again, or get the driver from {0}'s website below.</value>
+    <comment>{0} = maker</comment>
   </data>
 </root>

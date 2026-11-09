@@ -12,7 +12,7 @@
             <!-- Hero, as a printer's page has it -->
             <DockPanel Margin="0,0,0,20">
                 <Grid DockPanel.Dock="Left" Width="88" Height="88" Margin="0,0,20,0">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE749;" FontSize="48" HorizontalAlignment="Center"
+                    <TextBlock Style="{StaticResource Icon}" Text="{Binding Glyph}" FontSize="48" HorizontalAlignment="Center"
                                Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                 </Grid>
                 <StackPanel VerticalAlignment="Center">
@@ -40,6 +40,46 @@
                         <TextBlock Text="{Binding ProtectedPrintNote}" TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
                 </DockPanel>
+            </Border>
+
+            <!-- Get the driver: the maker's own download found, checked and shown; run only on Install -->
+            <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding CanGetDriver, Converter={StaticResource VisibleWhen}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding GetDriverNote}" TextWrapping="Wrap" />
+                    <Button Command="{Binding GetDriverCommand}" Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left"
+                            Padding="20,6" Margin="0,10,0,0" Content="{Binding GetDriverButton}"
+                            Visibility="{Binding ShowGetDriverButton, Converter={StaticResource VisibleWhen}}" />
+                    <TextBlock Text="{Binding DriverProgress}" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding IsGettingDriver, Converter={StaticResource VisibleWhen}}" />
+                    <StackPanel Margin="0,12,0,0" Visibility="{Binding ShowConfirm, Converter={StaticResource VisibleWhen}}">
+                        <TextBlock Text="{Binding FoundTitle}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Facts}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding InstallNote}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Content="{Binding InstallButton}" Command="{Binding InstallDriverCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="20,6" />
+                            <Button Content="{Binding DontInstallButton}" Command="{Binding DiscardDriverCommand}" Padding="16,6" Margin="8,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                    <!-- A Store copy: what was found, and the maker's own link; the app downloads and runs nothing -->
+                    <StackPanel Margin="0,12,0,0" Visibility="{Binding ShowOffered, Converter={StaticResource VisibleWhen}}">
+                        <TextBlock Text="{Binding FoundTitleLink}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding OfferFacts}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                        <TextBlock Text="{Binding OpenLinkNote}" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Command="{Binding OpenLinkCommand}" Style="{DynamicResource AccentButtonStyle}" Padding="20,6"
+                                    AutomationProperties.Name="{Binding OpenLinkButton}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding OpenLinkButton}" />
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
+                                </StackPanel>
+                            </Button>
+                            <Button Content="{Binding LookAgainButton}" Command="{Binding LookAgainCommand}" Padding="16,6" Margin="8,0,0,0"
+                                    Visibility="{Binding IsWaitingForInstall, Converter={StaticResource VisibleWhen}}" />
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Text="{Binding DriverResult}" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ShowDriverResult, Converter={StaticResource VisibleWhen}}" />
+                </StackPanel>
             </Border>
 
             <!-- No driver yet: the maker's driver, step by step -->
