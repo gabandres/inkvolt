@@ -127,7 +127,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     public bool CanGetDriver => IsNoDriver && _pc.Drivers.LooksUp(Printer);
 
     public string GetDriverButton => DriverText.Button;
-    public string GetDriverNote => DriverText.Note(Printer);
+    public string GetDriverNote => DriverText.Note(Printer, _pc.Drivers.Mode);
     public string InstallButton => DriverText.InstallButton;
     public string DontInstallButton => DriverText.CancelButton;
     public string InstallNote => DriverText.InstallNote;

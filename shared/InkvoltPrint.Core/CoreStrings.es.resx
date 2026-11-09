@@ -3177,6 +3177,14 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Inkvolt Print busca el controlador de {0} para este escáner y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="GetDriver_NoteLinkScanner" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para este escáner y este PC en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
+  <data name="GetDriver_NoteLinkPrinter" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para esta impresora y este PC en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
   <data name="GetDriver_NotePrinter" xml:space="preserve">
     <value>Inkvolt Print busca el controlador de {0} para esta impresora y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
     <comment>{0} = maker</comment>

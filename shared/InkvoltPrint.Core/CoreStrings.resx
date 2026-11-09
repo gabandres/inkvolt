@@ -3885,6 +3885,14 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Inkvolt Print looks for {0}'s own driver for this scanner and this PC on {0}'s website, checks that {0} signed it, and asks you before installing it.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="GetDriver_NoteLinkScanner" xml:space="preserve">
+    <value>Inkvolt Print looks for {0}'s own driver for this scanner and this PC on {0}'s website and gives you {0}'s download link. It doesn't download or install drivers itself.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
+  <data name="GetDriver_NoteLinkPrinter" xml:space="preserve">
+    <value>Inkvolt Print looks for {0}'s own driver for this printer and this PC on {0}'s website and gives you {0}'s download link. It doesn't download or install drivers itself.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
   <data name="GetDriver_NotePrinter" xml:space="preserve">
     <value>Inkvolt Print looks for {0}'s own driver for this printer and this PC on {0}'s website, checks that {0} signed it, and asks you before installing it.</value>
     <comment>{0} = maker</comment>

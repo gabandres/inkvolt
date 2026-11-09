@@ -15,7 +15,10 @@ public static class DriverText
 
     public static string Button => CoreStrings.GetDriver_Button;
 
-    public static string Note(NeedsDriverPrinter d) => F(d.IsScanner ? CoreStrings.GetDriver_NoteScanner : CoreStrings.GetDriver_NotePrinter, Maker(d));
+    /// <summary>What Get the driver does in this copy: a Store copy (<see cref="DriverMode.OpenLink"/>) only finds the maker's link.</summary>
+    public static string Note(NeedsDriverPrinter d, DriverMode mode) => mode == DriverMode.OpenLink
+        ? F(d.IsScanner ? CoreStrings.GetDriver_NoteLinkScanner : CoreStrings.GetDriver_NoteLinkPrinter, Maker(d))
+        : F(d.IsScanner ? CoreStrings.GetDriver_NoteScanner : CoreStrings.GetDriver_NotePrinter, Maker(d));
 
     public static string Looking(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_Looking, Maker(d));
 

@@ -621,6 +621,19 @@ public sealed class DriverDownloadTests : IDisposable
     }
 
     [Fact]
+    public void A_Store_copys_note_says_it_gives_the_makers_link_never_that_it_installs()
+    {
+        // Store certification reads the page: a Store copy never checks a signature or installs anything (packaging/README.md).
+        var store = DriverText.Note(V19, DriverMode.OpenLink);
+        Assert.Contains("link", store);
+        Assert.DoesNotContain("signed", store);
+        Assert.DoesNotContain("before installing", store);
+        Assert.Contains("before installing", DriverText.Note(V19, DriverMode.InstallForYou));
+        var printer = V19 with { Kind = NeedsDriverKind.Printer };
+        Assert.Contains("printer", DriverText.Note(printer, DriverMode.OpenLink));
+    }
+
+    [Fact]
     public async Task A_damaged_compressed_answer_from_epsons_site_is_unreachable_never_a_crash()
     {
         // The real handler unpacks gzip as it reads: a damaged body throws InvalidDataException from the read, not an IOException.
