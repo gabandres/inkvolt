@@ -30,7 +30,7 @@ enum Converting {
         var bundles = OfficeInstalls.libreOfficeBundles()
         if let found = workspace.urlForApplication(withBundleIdentifier: OfficeInstalls.libreOfficeBundleId) { bundles.append(found.path) }
         let microsoft = OfficeInstalls.microsoftBundleIds.filter { workspace.urlForApplication(withBundleIdentifier: $0.1) != nil }.map(\.0)
-        return OfficeInstalls.found(soffice: OfficeInstalls.soffice(in: bundles), microsoft: Set(microsoft))
+        return OfficeInstalls(soffice: OfficeInstalls.soffice(in: bundles), microsoft: Set(microsoft))
     }
 
     /// Converts `url` and opens the PDF as a new document. Nil when it wasn't (cancelled or failed; said so).

@@ -1553,11 +1553,13 @@ Mac differences:
 
 ### Microsoft Office as E12's converter (2026-11-07)
 
-**Off in 1.10.0 (2026-11-09):** `OfficeInstalls.drivesMicrosoftOffice` is false, so what the app finds
-(`OfficeInstalls.found`) never drives Word, Excel or PowerPoint: LibreOffice converts every Office file as in 1.9.0, and
-1.9.0's messages name a Microsoft app as not used yet. The code below stays in and its tests drive it (`drives: true`);
-`OfficeConversionTests.microsoftOfficeIsOffForNowAndLibreOfficeConvertsAsIn1_9` and the self-test's `AppTest` check the
-gate. Turn it on (and announce it in What's New) only after a person with Microsoft 365 signed in on a Mac has run this
+**Off in 1.10.0 (2026-11-09):** `OfficeInstalls.drivesMicrosoftOffice` is false and every `OfficeInstalls` takes it
+unless told otherwise; the converters are chosen from `driven` (Microsoft's apps only when driven), so nothing built or
+changed later drives Word, Excel or PowerPoint: LibreOffice converts every Office file as in 1.9.0, and 1.9.0's messages
+name a Microsoft app as not used yet. The Apple Events entitlement is left out of `InkvoltPdf.entitlements` meanwhile
+(put it back when turning this on; `NSAppleEventsUsageDescription` stays, unused). The code below stays in and its tests
+drive it (`drivesMicrosoft: true`); `OfficeConversionTests.microsoftOfficeIsOffForNowAndLibreOfficeConvertsAsIn1_9` and
+the self-test's `AppTest` (a made-up Word installed is sent no script) check the gate. Turn it on (and announce it in What's New) only after a person with Microsoft 365 signed in on a Mac has run this
 section's checklist: the Automation prompt needs a person, which no ssh run can be.
 
 Windows converts Office files through Word, Excel or PowerPoint (COM, `OfficeConverter.cs`); the Mac now does too, through

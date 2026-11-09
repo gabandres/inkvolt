@@ -636,15 +636,25 @@ struct AppTest {
         // routes every Office file to LibreOffice, whichever of Word, Excel or PowerPoint is installed.
         Converting.testInstalls = nil
         let detected = Converting.installs()
-        check(!detected.drivesMicrosoft && detected.microsoft.isEmpty && (detected.route(report.path).map { $0 is LibreOfficeConverter } ?? true),
-              "Microsoft Office is off for this release: the installs found convert with LibreOffice only (Word, Excel and PowerPoint found: \(detected.microsoftNotDriven.count))")
+        check(!detected.drivesMicrosoft && detected.driven.isEmpty,
+              "Microsoft Office is off for this release: the installs found drive none of Word, Excel and PowerPoint (\(detected.microsoft.count) found)")
         try? Data("PK\u{3}\u{4}a made-up document".utf8).write(to: report)
 
-        // Word installed: Word converts it (a made-up runner in place of osascript), and its copy is gone after.
+        // And end to end: Word "installed" (a made-up one that would convert), yet LibreOffice converts and Word gets nothing.
         let group = url("UBF8T346G9.Office")
         try? FileManager.default.createDirectory(at: group, withIntermediateDirectories: true)
         let staging = group.appendingPathComponent(MicrosoftOfficeConverter.stagingFolder, isDirectory: true)
-        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging)
+        let untouched = MadeUpWord(pdf: synthetic)
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: untouched, staging: staging)
+        let offWord = await Converting.openConverted(report)
+        check(offWord != nil && Converting.lastNotice.contains("with LibreOffice") && !Converting.lastNotice.contains("Microsoft Word")
+              && untouched.calls.value == 0,
+              "with Word installed and Office off, LibreOffice converts the file and Word is sent nothing (\(untouched.calls.value) scripts): \(Converting.lastNotice)")
+        offWord?.close()
+
+        // The code kept for when Office is turned on, driven only here (drivesMicrosoft: true):
+        // Word installed: Word converts it (a made-up runner in place of osascript), and its copy is gone after.
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging, drivesMicrosoft: true)
         let byWord = await Converting.openConverted(report)
         let wordPages = byWord?.engine?.pageCount ?? 0
         let leftInStaging = (try? FileManager.default.contentsOfDirectory(atPath: staging.path)) ?? []
@@ -654,7 +664,7 @@ struct AppTest {
         byWord?.close()
 
         // Word installed but Automation denied: LibreOffice converts it, and the notice says why Word didn't.
-        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic, denies: true), staging: staging)
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic, denies: true), staging: staging, drivesMicrosoft: true)
         let denied = await Converting.openConverted(report)
         check(denied != nil && Converting.lastNotice.contains("with LibreOffice") && Converting.lastNotice.contains("Microsoft Word couldn't convert it")
               && Converting.lastNotice.contains("Automation"),
@@ -662,7 +672,7 @@ struct AppTest {
         denied?.close()
 
         // Only Excel installed: a Word file falls back to LibreOffice.
-        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.excel], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging)
+        Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.excel], scriptRunner: MadeUpWord(pdf: synthetic), staging: staging, drivesMicrosoft: true)
         let opened = await Converting.openConverted(report)
         let pages = opened?.engine?.pageCount ?? 0
         check(opened != nil && opened?.fileURL == nil && pages == PdfEngineCount.of(URL(fileURLWithPath: synthetic))
@@ -682,7 +692,16 @@ struct AppTest {
     private struct MadeUpWord: OfficeScriptRunner {
         let pdf: String
         var denies = false
+        /// How many scripts it was given (a shared count: the runner is copied into the installs).
+        let calls = Calls()
+        final class Calls: @unchecked Sendable {
+            private let lock = NSLock()
+            private var count = 0
+            var value: Int { lock.withLock { count } }
+            func add() { lock.withLock { count += 1 } }
+        }
         func run(_ script: String, arguments: [String], timeout: TimeInterval, cancel: CancelToken, appName: String) throws -> ScriptRun {
+            calls.add()
             if arguments.isEmpty { return ScriptRun(.exited(0), output: "false") } // the probe: Word wasn't running
             if arguments.count == 2 { return ScriptRun(.exited(0), output: "ok") } // the clean-up
             if denies { return ScriptRun(.exited(1), errors: "execution error: inkvolt:open: Not authorized to send Apple events to Microsoft Word. (-1743)") }

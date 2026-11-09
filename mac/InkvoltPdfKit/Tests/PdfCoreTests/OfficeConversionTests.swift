@@ -273,10 +273,10 @@ private final class FakeOffice {
 
     @Test func nothingInstalledSaysWhatIsMissing() throws {
         let fake = try FakeOffice(FakeOffice.writesPdf)
-        let problem = try #require(OfficeConversion.precheck(fake.document.path, OfficeInstalls()))
+        let problem = try #require(OfficeConversion.precheck(fake.document.path, OfficeInstalls(drivesMicrosoft: true)))
         #expect(problem.contains("Microsoft Word or LibreOffice, and neither is installed on this Mac"))
         #expect(problem.contains("libreoffice.org"))
-        #expect(OfficeInstalls().missing(nil).contains("Microsoft Word, Excel or PowerPoint, or with LibreOffice"))
+        #expect(OfficeInstalls(drivesMicrosoft: true).missing(nil).contains("Microsoft Word, Excel or PowerPoint, or with LibreOffice"))
         #expect(!OfficeInstalls().hasAny)
     }
 
@@ -284,8 +284,9 @@ private final class FakeOffice {
         // On only after a person with Microsoft 365 runs mac/docs/PLAN.md's checklist (E12): turning it on is this change.
         #expect(!OfficeInstalls.drivesMicrosoftOffice)
         let all: Set<OfficeApp> = [.word, .excel, .powerPoint]
-        let both = OfficeInstalls.found(soffice: "/x/soffice", microsoft: all)
-        #expect(both.microsoft.isEmpty && both.microsoftNotDriven == all && !both.drivesMicrosoft)
+        var both = OfficeInstalls(soffice: "/x/soffice", microsoft: [])
+        both.microsoft = all // set after it was made: still not driven
+        #expect(both.driven.isEmpty && !both.drivesMicrosoft)
         for path in ["/a/x.docx", "/a/x.xlsx", "/a/x.pptx"] {
             let converters = both.converters(for: path)
             #expect(converters.count == 1 && converters.first is LibreOfficeConverter, "\(path)")
@@ -293,23 +294,24 @@ private final class FakeOffice {
 
         // Word alone, no LibreOffice: nothing converts, and the words are 1.9.0's.
         let fake = try FakeOffice(FakeOffice.writesPdf)
-        let wordOnly = OfficeInstalls.found(soffice: nil, microsoft: [.word])
+        let wordOnly = OfficeInstalls(microsoft: [.word])
         #expect(!wordOnly.hasAny && wordOnly.route(fake.document.path) == nil)
         let problem = try #require(OfficeConversion.precheck(fake.document.path, wordOnly))
         #expect(problem.contains("with LibreOffice, which isn't installed on this Mac; it can't use Microsoft Word yet"))
-        #expect(OfficeInstalls.found(soffice: nil, microsoft: []).missing(nil)
+        #expect(OfficeInstalls(microsoft: [.excel]).missing(nil).contains("it can't use Microsoft Excel yet")) // New PDF from Office File…
+        #expect(OfficeInstalls().missing(nil)
                 == "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.")
         #expect(!fake.wasStarted)
 
         // The code stays in: turned on, Word converts Word's files first.
-        let on = OfficeInstalls.found(soffice: "/x/soffice", microsoft: [.word], drives: true)
+        let on = OfficeInstalls(soffice: "/x/soffice", microsoft: [.word], drivesMicrosoft: true)
         #expect((on.route("/a/x.docx") as? MicrosoftOfficeConverter)?.app == .word)
         #expect(on.converters(for: "/a/x.docx").count == 2)
     }
 
     /// Word alone converts Word's files (through AppleScript, MicrosoftOfficeConversionTests); Excel's are said missing.
     @Test func wordAloneConvertsWordFilesOnly() throws {
-        let installs = OfficeInstalls(microsoft: [.word])
+        let installs = OfficeInstalls(microsoft: [.word], drivesMicrosoft: true)
         #expect(installs.hasAny)
         #expect((installs.route("/a/x.docx") as? MicrosoftOfficeConverter)?.app == .word)
         #expect(installs.route("/a/x.xlsx") == nil)
