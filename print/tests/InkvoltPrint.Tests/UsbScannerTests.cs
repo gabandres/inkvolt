@@ -215,4 +215,13 @@ public class UsbScannerTests
         Assert.True(DeviceState.Found(Laser, DeviceNow.Working, wiaLists: false));
         Assert.False(DeviceState.Found(Laser, DeviceNow.Absent, wiaLists: false));
     }
+
+    [Fact]
+    public void A_printer_whose_driver_the_installer_put_in_the_spooler_is_working_though_its_node_keeps_the_placeholder()
+    {
+        // The list's own rule (Find's NotSetUp): a matching spooler driver means "set it up", not "needs its driver".
+        Assert.Equal(DeviceNow.Working, DeviceState.Of(Laser, [LaserNode], [], [new SpoolerDriver("HP LaserJet P1006")]));
+        Assert.Equal(DeviceNow.NeedsDriver, DeviceState.Of(Laser, [LaserNode], [], [new SpoolerDriver("Microsoft IPP Class Driver")]));
+        Assert.Equal(DeviceNow.Absent, DeviceState.Of(Laser, [LaserNode with { Present = false }], [], [new SpoolerDriver("HP LaserJet P1006")]));
+    }
 }

@@ -16,6 +16,9 @@ public interface INeedsDriverPc
     /// <summary>One device's nodes, whatever their driver, plugged in only (whether it is there and working: <see cref="DeviceState"/>).</summary>
     Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct);
 
+    /// <summary>The spooler's printer drivers, off the UI thread and cut off at 7 s; none when the spooler doesn't answer.</summary>
+    Task<IReadOnlyList<SpoolerDriver>> SpoolerDriversAsync(CancellationToken ct);
+
     Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer);
 
     /// <summary>Calls <paramref name="changed"/> (from any thread) when a USB printer or scanner comes or goes; null where nothing changes.</summary>
@@ -38,6 +41,14 @@ internal sealed class RealNeedsDriverPc : INeedsDriverPc
     public Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct) => UsbPrinters.ReadAsync(queues, ct);
 
     public Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct) => UsbPrinters.DeviceNodesAsync(device, ct);
+
+    private readonly TimedCalls<int, IReadOnlyList<SpoolerDriver>> _spoolerDrivers = new(TimeSpan.FromSeconds(7));
+
+    public async Task<IReadOnlyList<SpoolerDriver>> SpoolerDriversAsync(CancellationToken ct)
+    {
+        var (answered, drivers) = await _spoolerDrivers.RunAsync(0, UsbPrinters.Drivers, ct).ConfigureAwait(false);
+        return answered ? drivers! : [];
+    }
 
     public Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer) => UsbPrinters.SetUpAsync(printer);
 
@@ -84,6 +95,8 @@ internal sealed class DemoNeedsDriverPc : INeedsDriverPc
     public Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer) => Task.FromResult(new UsbSetUpResult(UsbSetUpOutcome.Failed, NeedsDriverText.Demo));
 
     public Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct) => Task.FromResult<IReadOnlyList<UsbPrinterNode>>([]);
+
+    public Task<IReadOnlyList<SpoolerDriver>> SpoolerDriversAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<SpoolerDriver>>([]);
 
     public IDisposable? Watch(Action changed) => null;
 

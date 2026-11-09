@@ -21,12 +21,17 @@ public enum DeviceNow
 /// </summary>
 public static class DeviceState
 {
-    public static DeviceNow Of(NeedsDriverPrinter device, IReadOnlyList<UsbPrinterNode> nodes, IReadOnlyList<SpoolerQueue> queues)
+    /// <param name="drivers">The spooler's printer drivers (printers only): one matching the printer counts as working even while its
+    /// node keeps Microsoft's placeholder, as the list itself has it ("Driver installed, not set up").</param>
+    public static DeviceNow Of(NeedsDriverPrinter device, IReadOnlyList<UsbPrinterNode> nodes, IReadOnlyList<SpoolerQueue> queues,
+        IReadOnlyList<SpoolerDriver>? drivers = null)
     {
         var mine = nodes.Where(n => n.Present && IsMine(device, n)).ToList();
         if (mine.Count == 0) return DeviceNow.Absent;
         if (device.IsScanner) return mine.Any(n => !n.DriverProblem()) ? DeviceNow.Working : DeviceNow.NeedsDriver;
-        return mine.Any(n => NeedsDriver.HasQueue(n, queues) || !NeedsDriver.HasOnlyPlaceholder(n)) ? DeviceNow.Working : DeviceNow.NeedsDriver;
+        return mine.Any(n => NeedsDriver.HasQueue(n, queues) || !NeedsDriver.HasOnlyPlaceholder(n)
+                             || drivers is { Count: > 0 } && NeedsDriver.MatchDriver(n, PrinterNames.ForDevice(n.FriendlyName, n.DeviceIdName, n.HardwareIds), drivers) is not null)
+            ? DeviceNow.Working : DeviceNow.NeedsDriver;
     }
 
     /// <summary>Found: plugged in and working, and a scanner listed by WIA too (what the Scan tab uses).</summary>

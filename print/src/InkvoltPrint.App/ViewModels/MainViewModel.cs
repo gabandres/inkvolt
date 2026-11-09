@@ -523,7 +523,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task<bool> IsThereOnUiAsync(NeedsDriverPrinter device, CancellationToken ct)
     {
         // Plugged in and working: an unplugged device (as an installer may ask) is still waited for, never "found".
-        var now = DeviceState.Of(device, await _pc.NeedsDriver.DeviceNodesAsync(device, ct), _queues);
+        var nodes = await _pc.NeedsDriver.DeviceNodesAsync(device, ct);
+        IReadOnlyList<SpoolerDriver> drivers = device.IsScanner ? [] : await _pc.NeedsDriver.SpoolerDriversAsync(ct);
+        var now = DeviceState.Of(device, nodes, _queues, drivers);
         if (now != DeviceNow.Working) return false;
         if (!device.IsScanner) return DeviceState.Found(device, now, wiaLists: false);
         var listed = await _wia.ListNowAsync(ct);
