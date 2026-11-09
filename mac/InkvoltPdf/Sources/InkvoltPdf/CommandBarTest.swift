@@ -192,10 +192,10 @@ struct CommandBarTest {
             NSApp.appearance = NSAppearance(named: appearance)
             await settle(700)
             await shootRetrying(window, "toolbar-\(look)\(suffix)")
-            await shootMenu(window, group: "Convert", name: "convert-menu-\(look)\(suffix)")
+            await shootMenu(window, group: "Convert", name: "convert-menu-\(look)\(suffix)", dark: look == "dark")
             if language == "en" {
-                await shootMenu(window, group: "Protect", name: "protect-menu-\(look)")
-                await shootMenu(window, group: "Comment", name: "comment-menu-\(look)")
+                await shootMenu(window, group: "Protect", name: "protect-menu-\(look)", dark: look == "dark")
+                await shootMenu(window, group: "Comment", name: "comment-menu-\(look)", dark: look == "dark")
             }
         }
         // Narrow: the toolbar's » overflow takes Scan & OCR, Protect and Organize first.
@@ -227,7 +227,7 @@ struct CommandBarTest {
 
     /// The window with `group`'s menu open under its arrow: the arrow pressed (its accessibility press, as VoiceOver's),
     /// the menu's window drawn while it shows, then closed; both drawn into one picture where they are on screen.
-    private mutating func shootMenu(_ window: NSWindow, group id: String, name: String) async {
+    private mutating func shootMenu(_ window: NSWindow, group id: String, name: String, dark: Bool) async {
         guard let dir = Report.snapshots, let group = CommandBar.group(id),
               let arrow = elements().first(where: { $0.role == "AXMenuButton" && $0.label == loc("{0}: more commands", group.label) }) else {
             return check(false, "\(name): \(id)'s arrow found")
@@ -272,13 +272,14 @@ struct CommandBarTest {
             UxShots.opaque(baseRep, window)?.draw(in: windowRect)
             let menuRect = NSRect(x: menuFrame.minX - union.minX, y: menuFrame.minY - union.minY, width: menuFrame.width, height: menuFrame.height)
             // The menu's material is drawn by the window server, not by cacheDisplay: the capture holds only the items
-            // (white text in dark) over nothing. A flat stand-in of the menu's colour goes under them, chosen from the
-            // window's appearance by name: a dynamic colour resolved white here, which hid the dark menu's text.
+            // (white text in dark) over nothing. A flat stand-in of the menu's colour goes under them, for the look the
+            // test set (`dark`).
             let shade = NSBezierPath(roundedRect: menuRect, xRadius: 10, yRadius: 10)
-            let dark = window.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             (dark ? NSColor(srgbRed: 0.16, green: 0.16, blue: 0.17, alpha: 1) : NSColor(srgbRed: 0.97, green: 0.97, blue: 0.97, alpha: 1)).setFill()
             shade.fill()
-            menuRep.draw(in: menuRect)
+            // Over the stand-in: an image rep's plain draw(in:) copies, which put the capture's transparent background
+            // back (a viewer shows it white: the dark menu's white text vanished; the light one only looked right).
+            menuRep.draw(in: menuRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: false, hints: nil)
             (dark ? NSColor(white: 1, alpha: 0.18) : NSColor(white: 0, alpha: 0.15)).setStroke()
             shade.stroke()
         }

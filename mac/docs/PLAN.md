@@ -1666,8 +1666,17 @@ Shots for the owner: `docs/design/mac/`.
   time; Comment › Highlight marks the selection (none: the highlighter); Protect › Password asks only for the password
   (AES-256, nothing restricted; a protected document gets the full sheet); Redact marks the selection (none: the tool);
   Scan & OCR recognizes every page with the last settings.
-- **Reserved names, one rule.** `ReservedFileNames` (PrintCore) holds Windows' device names with COM¹ COM² COM³ LPT¹ LPT²
-  LPT³, CONIN$ and CONOUT$; Batch's names (`BatchNames`), Inkvolt Print's (`FileNameTemplate`) and `ExportTarget` use it.
+- **Review (2026-11-09).** A bar command goes to the window when it implements it, else along the responder chain
+  (Combine Files… and Scan… are the app delegate's; the self-test checks every one finds who runs it). The pointer tools
+  are off while Organize Pages is shown. When nothing is reserved the alert says why (a device name, offered again as
+  "CON_.docx"; both folders refusing; no Documents). A dangling symbolic link counts as a taken name (`SplitFiles.isTaken`,
+  lstat). Tools are named by `CommandBar.BarTool`, mapped to `Tool` in an exhaustive switch. The app builds the table
+  once (`BarTable`: the language is fixed for a run); PdfCore's stays computed so tests can switch languages. The busy
+  rule is `isBusy` alone: `startLongTask` sets the task before returning and nothing between the check and it lets a
+  click in. The notice is one `loc` template per case ("Saved {0} ({1})").
+- **Reserved names, one rule.** `ReservedFileNames` (PrintCore) is Windows' `DeviceNames.IsReserved` (shared/InkvoltPrint.Core):
+  COM0–9, LPT0–9, COM¹ COM² COM³ LPT¹ LPT² LPT³, CONIN$, CONOUT$, trailing dots and spaces trimmed, cut at a colon, its
+  tests' cases ported; Batch's names (`BatchNames`), Inkvolt Print's (`FileNameTemplate`) and `ExportTarget` use it.
 
 ## Open decisions
 

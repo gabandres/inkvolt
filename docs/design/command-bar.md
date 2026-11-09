@@ -160,7 +160,7 @@ Sign stay longest). Option-click asks first (the Mac's Shift+click). Save, Print
 on Mac toolbars. Details and the Mac differences: `mac/docs/PLAN.md`, "Command bar". Screenshots, taken by the app's
 self-test (`--edit --only-command-bar --snapshots`, menus drawn while open):
 - Toolbar: [light](mac/toolbar-light.png) · [dark](mac/toolbar-dark.png) · [1000 pt, the » overflow](mac/toolbar-1000-light.png)
-- Menus: [Convert light](mac/convert-menu-light.png) · [Convert dark](mac/convert-menu-dark.png) · [Protect, Apply Redactions in red](mac/protect-menu-light.png) · [Comment, with Draw](mac/comment-menu-light.png)
+- Menus: [Convert light](mac/convert-menu-light.png) · [Convert dark](mac/convert-menu-dark.png) · [Protect, Apply Redactions in red](mac/protect-menu-light.png) ([dark](mac/protect-menu-dark.png)) · [Comment, with Draw](mac/comment-menu-light.png) ([dark](mac/comment-menu-dark.png)). A menu's material is drawn by the window server, which the app can't capture: the shots paint a flat stand-in of its colour under the items
 - One click: [Word's notice](mac/saved-notice-light.png)
 - Spanish: [toolbar](mac/toolbar-light-es.png) · [1000 pt](mac/toolbar-1000-light-es.png) · [Convert](mac/convert-menu-light-es.png) · [notice](mac/saved-notice-light-es.png)
 
