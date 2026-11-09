@@ -110,7 +110,8 @@ public enum SplitFiles {
         if stem.isEmpty { stem = loc("Untitled") }
         // A name cut and trimmed into a device name ("CON", 200 spaces, "x" → "CON") gets "_" (Inkvolt Print's rule):
         // Windows opens CON.pdf as a device. Callers that refuse a device name outright check the name before this.
-        if ReservedFileNames.isDevice(stem + dotExt) { stem += "_" }
+        // Before the stem's first dot, where Windows ends the device's name ("CON.tar.pdf" → "CON_.tar.pdf").
+        if ReservedFileNames.isDevice(stem + dotExt) { stem.insert("_", at: stem.firstIndex(of: ".") ?? stem.endIndex) }
         var path = (folder as NSString).appendingPathComponent(stem + dotExt)
         var n = 2
         while isTaken(path) || reserved.contains(path.lowercased()) {

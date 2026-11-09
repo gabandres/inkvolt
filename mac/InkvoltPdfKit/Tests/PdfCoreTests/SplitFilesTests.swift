@@ -36,6 +36,7 @@ struct SplitFilesTests {
         var reserved = Set<String>()
         #expect(SplitFiles.uniquePath("/work", "CON" + String(repeating: " ", count: 200) + "x.pdf", &reserved) == "/work/CON_.pdf")
         #expect(SplitFiles.uniquePath("/work", "aux.pdf", &reserved) == "/work/aux_.pdf")
+        #expect(SplitFiles.uniquePath("/work", "CON.tar.pdf", &reserved) == "/work/CON_.tar.pdf") // Windows stops at the first dot
         #expect(SplitFiles.uniquePath("/work", "CON (page 1).pdf", &reserved) == "/work/CON (page 1).pdf")
     }
 
