@@ -1,7 +1,7 @@
-# Command bar: familiar groups, one click (design, for the owner's approval)
+# Command bar: familiar groups, one click
 
-Status: **proposal + prototype** on branch `t3/2df29816`. Nothing is merged. The owner's brief is `docs/HANDOFF.md`,
-"Owner, 2026-11-08 (evening)", item 2.
+Status: **approved by the owner 2026-11-08 and built for Windows** on branch `t3/2df29816` (not merged; the Mac comes
+next, as its own task). The owner's brief is `docs/HANDOFF.md`, "Owner, 2026-11-08 (evening)", item 2.
 
 ## 1. Map: where the others put each task
 
@@ -48,7 +48,7 @@ is in "…". To Word is File › Export › Word… › Export (options window) 
 Protect and OCR are not on the bar at all, and those are exactly the tasks the others put first (Acrobat: Edit, Convert;
 Nitro and PDFgear: Convert).
 
-## 2. Proposal
+## 2. Design
 
 **Groups, in order:** (Save, Print, Undo, Redo) | Pointer | **Edit · Convert · Comment · Fill & Sign · Organize ·
 Protect · Scan & OCR** | … . This is the starting point, unchanged: the map backs Edit and Convert first (Acrobat's bar,
@@ -63,80 +63,81 @@ existing shortcut, shown by the menu.
 | Group | Main job (one click) | Flyout (rest) |
 |---|---|---|
 | Edit (E70F) | Edit Text & Images: the tool turns on | Add Image (I), Add Link (N) · Header & Footer, Watermark |
-| Convert (EDE1) | **Word (.docx)**: see below | Excel (.xlsx)…, PowerPoint (.pptx)… · Plain text, Web page, Images · PDF/A for archiving |
+| Convert (EDE1) | **Word (.docx)**: see below | Excel (.xlsx), PowerPoint (.pptx) · Plain text, Web page (at once too) · Images…, PDF/A for archiving… |
 | Comment (E90A) | Highlight the selection (Ctrl+Shift+H); with no selection, the highlighter tool | Underline, Strike out, Note, Stamp (S) · Draw › (pen P, highlighter M, rectangle R…) |
 | Fill & Sign (E76D) | Sign: places your saved signature; **asks** the first time, to make one | Add text (A), Check (K), Cross (X) · Prepare Form |
 | Organize (E8B3) | Organize Pages (Ctrl+Shift+O) | Insert (Ctrl+Shift+I), Extract (Ctrl+Shift+E), Split · Combine files, Reduce size |
-| Protect (E72E) | Password: **asks** for the password (nothing to default) | Redact (**needs a selection** or marks; Apply asks to confirm), Redact by Pattern, Check Redaction, Sanitize · Sign with certificate (**asks** for the ID) · Remove protection |
+| Protect (E72E) | Password: **asks** only for the password (a small window; AES-256, nothing restricted) | Redact (the selection marked at once; with none, the marking tool; Apply asks to confirm), Redact by Pattern, Check Redaction, Sanitize · Sign with certificate (**asks** for the ID) · Remove protection |
 | Scan & OCR (E8C1) | Recognize Text on every scanned page, with Windows' recognizer; already-text pages are skipped | Scan to PDF (**asks** for the scanner), Insert from Scanner · Review Suspect Words |
 
-**One click, Convert › Word** (prototyped). It saves `name.docx` next to the PDF, never over a file (`name (2).docx`,
-through `PdfFiles.UniquePath`). It uses all pages, with scanned pages recognized when Windows has a recognizer, and then
-opens the file. The notice says **"Saved name.docx · Show in folder · Change options…"**; the last link opens today's
-Export window. **Shift+click** opens that window first. It still asks when the document has no folder (new or unsaved:
-the Save dialog), when the file is protected (today's "export anyway?"), and when nothing could be read (today's
-message). Not yet handled: a read-only folder (proposal: fall back to the Save dialog instead of the error). Excel and
-PowerPoint should get the same one click (`name.xlsx`, `name.pptx`); the prototype only does Word. File › Export keeps
-its "…" items, which open the window, and the palette lists both "Convert to Word" (at once) and "Export to Word…"
-(asks).
+**One click, Convert › Word** (Excel, PowerPoint, text and HTML too, from their flyout items). It saves `name.docx`
+next to the PDF, never over a file (`name (2).docx`, through `PdfFiles.UniquePath`). It goes to Documents when the PDF
+isn't saved yet or its folder can't be written to (`ExportTarget`), and the notice then says "Saved name.docx in
+Documents". It uses all pages, with scanned pages recognized when Windows has a recognizer, and then opens the file.
+The notice says **"Saved name.docx · Show in folder · Change options…"**; the last link opens the Export window.
+**Shift+click** opens that window first, and so do File › Export and Ctrl+K. It still asks when the file is protected
+(the "export anyway?" question) and says so when nothing could be read.
 
-**Split button or dropdown?** Recommended: a Fluent **split button**. Its body runs the main job and its chevron opens
-the flyout, so Word is 1 click (Nitro 3, Acrobat 4). The prototype keeps today's dropdown (Convert › Word = 2 clicks).
+**Split button** (the owner's choice): every group with a main job is a Fluent split button. The body runs the main
+job, so Convert › Word takes 1 click (Nitro 3, Acrobat 4), and the arrow opens the flyout. The pointer group is a plain
+dropdown.
 
 **Fitting** (`CommandBarLayout` rules, unchanged: lowest priority into "…" first; icons-only only when a group of
-priority 80 or more would go). Priorities: Save, Undo 100 · Convert 90 · Fill & Sign 86 · Pointer 85 · Edit 84 ·
-Comment 80 · Organize 70 · Protect 60 · Print 55 · Scan & OCR 50 · Redo 45. Measured in the app at 100 %:
+priority 80 or more would go). Priorities: Save, Undo 100 · Convert 90 · Fill & Sign 86 (Spanish 75) · Edit 84 ·
+Comment 80 · Pointer 79 · Organize 70 · Protect 60 · Print 55 · Scan & OCR 50 · Redo 45. Measured in the app at 100 %:
 
 | Window | Bar | In "…" |
 |---|---|---|
 | 1700 | every group labeled | Redo |
 | 1280 | Save, Undo, Pointer, Edit, Convert, Comment, Fill & Sign, labeled | Print, Redo, Organize, Protect, Scan & OCR |
-| 1100 | icons only (3 DIPs short of the five labels) | Redo |
-| 1200 at Text size 150 % | icons: Save, Undo, Pointer, Convert, Fill & Sign | the rest |
+| 1100 | Save, Undo, Edit, Convert, Comment, Fill & Sign, labeled | the above and the pointer tools (H, T, G still work) |
+| 1200 at Text size 150 % | icons: Save, Undo, Edit, Convert, Fill & Sign | the rest |
+| Spanish 1280 and 1100 | Save, Undo, Pointer, Edit, Convert, Comment, labeled | Llenar y firmar goes first, then the same |
 
 Then "…" lists rotate, delete pages and find, and Appearance under 1100. Every command stays in the menus and Ctrl+K.
 
-**Keyboard and screen readers:** every group is a toggle button named after its label (`ShowBarGroups`, from the
-table), with tooltip "Convert: Convert to Word (click for more)". Flyout items keep their name and a help text (the
-line), and Tab and the menu keys work as today. No new letter keys: U for highlight (Acrobat) would be free, but
-Ctrl+Shift+H already exists.
+**Keyboard and screen readers:** a group's body and arrow are both tab stops. Enter or Space runs the body; Alt+Down,
+on either part, opens the flyout, and so does the arrow. Names: "Convert: Word (.docx)" (help text: the main job's
+line) and "Convert: more commands (Alt+Down)". The arrow is 24 DIPs wide, the audit's smallest target (`a11yaudit`: 0
+findings).
 
-**Spanish:** Editar, Convertir, Comentar, Llenar y firmar (146 DIPs, the longest), Organizar, Proteger, Escanear y OCR.
-At 1700, Scan & OCR goes into "…"; at 1280 the bar is icons only. A shorter "Firmar" would win back about 50 DIPs (open
-question 3).
+**Spanish:** Editar, Convertir, Comentar, Llenar y firmar (147 DIPs, the longest), Organizar, Proteger, Escanear y OCR.
+The label stays, and the group goes into "…" before the others lose their labels.
 
-**Mac:** the same groups as `NSMenuToolbarItem`s. With an action and `showsIndicator`, the body runs the main job and
-the arrow opens the menu: the split button for free. Proposed defaults: sidebar, Edit, Convert, Comment (today's
-Highlight/Markup), Fill & Sign, Organize, Protect, Search. Scan & OCR goes in View › Customize Toolbar…, and the system's
-» chevron is the overflow. Cmd replaces Ctrl.
+**Colour:** monochrome for now. Each of Convert's file types has its own icon brush key (`FormatWordBrush`,
+`FormatExcelBrush`, … in App.xaml); defining one colors that icon.
 
-## 3. Prototype and screenshots
+**Mac** (its own task): the same groups as `NSMenuToolbarItem`s. With an action and `showsIndicator`, the body runs
+the main job and the arrow opens the menu. Proposed defaults: sidebar, Edit, Convert, Comment, Fill & Sign, Organize,
+Protect, Search. Scan & OCR goes in View › Customize Toolbar…, and the system's » chevron is the overflow.
 
-Branch `t3/2df29816`: the new table in `CommandBarLayout` (tests updated, 43/43 green with `LocalizationTests`), the
-groups in `MainWindow.xaml`, flyouts with sections, Draw inside Comment, and one-click Word (`Cmd.ConvertWord`,
-`ExportActions.ConvertAtOnce`, a second link in `Toast`). Dev step `shellopen off` keeps a script from launching Word.
-Taken with `--script`: `contract.docx`, then `contract (2).docx` on a second run.
+## 3. Built (Windows) and screenshots
 
-- Bar: [1700 light](bar-1700-light.png) · [1700 dark](bar-1700-dark.png) · [1280](bar-1280-light.png) · [1100](bar-1100-light.png)
-- Convert flyout: [light](convert-flyout-light.png) · [dark](convert-flyout-dark.png) · [Spanish](convert-flyout-es.png)
-- "…": [1700 dark](more-1700-dark.png) · [1100 dark](more-1100-dark.png)
-- One-click Word's notice: [light](convert-word-notice-light.png)
-- Spanish bar: [1700](bar-1700-es.png) · [1280](bar-1280-es.png)
+Branch `t3/2df29816`, as approved on 2026-11-08:
+- `CommandBarLayout`: the groups, each group's main job (`Entry.Main`, `HasMainJob`) and icon, `Command.AtOnce` and
+  `IconBrush`, `RunAtOnce`, and `FillSignPriority`.
+- `BarGroupButton`: the split button.
+- `ExportTarget`: next to the PDF, or Documents.
+- One-click paths: `ExportActions.ConvertAtOnce`, `SecurityActions.ProtectAtOnce`, `SignAtOnce`,
+  `RecognizeText(atOnce)`, and Highlight with no selection.
+- Dev steps: `barclick Id main` and `shellopen off`.
 
-Left for the real change: split buttons; one-click Excel and PowerPoint; the main-job click of each group; the
-read-only folder; removing the strings left unused (Bar_Draw, Bar_Redact, Main_Draw, Main_DrawTip, Main_RedactTip);
-README "Command bar"; the Mac.
+Screenshots, taken with `--script`:
+- Bar: [1700 light](bar-1700-light.png) · [1700 dark](bar-1700-dark.png) · [1280](bar-1280-light.png) · [1100](bar-1100-light.png) · ["…" at 1100](more-1100-light.png)
+- Flyouts: [Convert light](convert-flyout-light.png) · [Convert dark](convert-flyout-dark.png) · [Comment, with Draw](comment-flyout-light.png)
+- One click: [Word's notice](convert-word-notice-light.png) · [Protect's password](protect-password-light.png) · [Comment with no selection: the highlighter](comment-main-light.png)
+- Spanish: [1700](bar-1700-es.png) · [1280](bar-1280-es.png) · [1100](bar-1100-es.png) · [Convert](convert-flyout-es.png)
 
-## 4. Open questions for the owner
+## 4. The owner's answers (2026-11-08)
 
-1. **Split button** (1 click, recommended) or dropdown (2 clicks)?
-2. **Narrow windows:** between about 1100 and 1270 DIPs the bar is icons only (today labels hold to about 1150). Accept
-   this, or demote Edit below 80 so it goes into "…" first and the labels hold to about 1180?
-3. **Spanish:** "Llenar y firmar" or a shorter "Firmar"?
-4. The menu bar's **Edit** and **Organize** sit next to the bar's Edit and Organize groups. Keep both, or rename the
-   bar's (e.g. "Edit text")?
-5. Fill & Sign's main job: **Sign** (proposed) or Add text?
-6. Are Pointer as icons only and Draw inside Comment OK?
+1. Split buttons for every group with a main job (done).
+2. Labels kept at the middle widths: lower-priority groups go into "…" first (done; the pointer tools give way at 1100).
+3. Spanish keeps "Llenar y firmar" and lets it go into "…" sooner (done).
+4. Both the menu bar's and the bar's Edit and Organize stay.
+5. Fill & Sign's main job is Sign.
+6. Yes to the icon-only pointer group and to Draw inside Comment.
+
+Pending: colour (monochrome until the owner decides), and the Mac.
 
 ## Sources
 

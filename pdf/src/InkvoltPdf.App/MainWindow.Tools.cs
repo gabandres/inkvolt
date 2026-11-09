@@ -21,7 +21,9 @@ public partial class MainWindow
         Bind(Cmd.SaveAsPdfA, t => _ = PdfAActions.SaveAs(this, t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.SaveAsPdfA2a, t => _ = PdfAActions.SaveAs(this, t, PdfAConformance.A), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         BindAlways(Cmd.Batch, () => BatchWindow.Open(this, ActiveTab?.Session.FilePath is { } open && System.IO.File.Exists(open) ? [open] : null));
-        BindEdit(Cmd.ProtectPassword, t => SecurityActions.Protect(this, t));
+        // Protect's one click asks only for the password; Shift+click and the menus, the full window (permissions too).
+        BindAtOnce(Cmd.ProtectPassword, (t, now) => _ = now ? SecurityActions.ProtectAtOnce(this, t) : SecurityActions.Protect(this, t),
+            (t, _) => t.Session.IsPdf && t.PageView.PageCount > 0);
         BindEdit(Cmd.RemoveProtection, t => SecurityActions.RemoveProtection(this, t), t => t.Session.HasEncryption);
         BindEdit(Cmd.ReduceSize, t => FileTools.ReduceSize(this, t));
         BindEdit(Cmd.Flatten, t => FileTools.Flatten(this, t));

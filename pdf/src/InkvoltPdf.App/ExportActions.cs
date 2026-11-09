@@ -64,20 +64,16 @@ internal static class ExportActions
     }
 
     /// <summary>
-    /// The command bar's Convert › Word: no questions. Every page, scanned pages recognized when Windows has a recognizer,
-    /// saved as name.docx next to the PDF (never over a file: "name (2).docx"), then opened; the notice offers Show in
-    /// folder and Change options… (the <see cref="Export"/> window). A document with no folder of its own (a new,
-    /// unsaved one) asks where, as Export does.
+    /// The command bar's Convert › Word (and Excel, PowerPoint, text, HTML): no questions. Every page, scanned pages
+    /// recognized when Windows has a recognizer, saved as name.docx next to the PDF (never over a file: "name (2).docx"),
+    /// in Documents when the PDF isn't saved yet or its folder can't be written to (<see cref="ExportTarget"/>), then
+    /// opened; the notice offers Show in folder and Change options… (the <see cref="Export"/> window).
     /// </summary>
     public static async Task ConvertAtOnce(Window owner, DocumentTab tab, MainWindow host, ExportFormat format)
     {
         if (!await tab.SettleAsync()) return;
-        var folder = Path.GetDirectoryName(tab.Session.FilePath);
-        if (folder is null || !Directory.Exists(folder))
-        {
-            await Export(owner, tab, host, format);
-            return;
-        }
+        var (folder, inDocuments) = ExportTarget.Folder(tab.Session.FilePath,
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), ExportTarget.CanWrite);
         int[] pages = [.. Enumerable.Range(0, tab.PageView.PageCount)];
         if (pages.Length == 0) return;
         if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
@@ -93,11 +89,11 @@ internal static class ExportActions
             Prompt.Error(owner, Strings.Export_CantSave, Loc.Format(Strings.PdfA_SaveFailed, ex.Message));
             return;
         }
-        await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true);
+        await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true, inDocuments);
     }
 
     private static async Task Run(Window owner, DocumentTab tab, MainWindow host, ExportFormat format, int[] pages,
-        bool recognize, bool open, string path, bool atOnce)
+        bool recognize, bool open, string path, bool atOnce, bool inDocuments = false)
     {
         var kind = Describe(format);
         var ocr = PageOcr.Engine;
@@ -166,7 +162,7 @@ internal static class ExportActions
             if (atOnce)
             {
                 // "Saved report.docx · Show in folder · Change options…" (the notes after the name, as the export's own notice).
-                var saved = Loc.Format(Strings.Export_Saved, Path.GetFileName(path)) + (notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : "");
+                var saved = Loc.Format(inDocuments ? Strings.Export_SavedDocuments : Strings.Export_Saved, Path.GetFileName(path)) + (notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : "");
                 host.ShowToast(new Toast(saved, Strings.Export_ShowInFolder, () => Shell.ShowInFolder(path),
                     Action2Label: Strings.Export_ChangeOptions, Action2: () => _ = Export(owner, tab, host, format)), tab);
             }

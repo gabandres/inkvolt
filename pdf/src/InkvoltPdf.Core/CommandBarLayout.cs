@@ -15,8 +15,17 @@ public static class CommandBarLayout
     /// line under its name in the group's flyout, saying in a few plain words what it does.
     /// </summary>
     /// <remarks><paramref name="Title"/>: the name in the flyout when the command's own (menu) name would repeat the
-    /// group's (Convert › "Word (.docx)", not "Convert to Word").</remarks>
-    public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "", string? Title = null);
+    /// group's (Convert › "Word (.docx)", not "Export to Word…"). <paramref name="AtOnce"/>: the flyout runs it with
+    /// <see cref="RunAtOnce"/>, no questions (Shift asks). <paramref name="IconBrush"/>: the resource key its icon is drawn
+    /// with when defined (one per file type, so Convert's icons can take the formats' colors); unset, the text color.</remarks>
+    public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "", string? Title = null,
+        bool AtOnce = false, string? IconBrush = null);
+
+    /// <summary>
+    /// The parameter a command gets from a group's main-job button (and Convert's at-once items): run with the defaults,
+    /// asking only for what can't be defaulted (a password, a signature not made yet). Shift held asks as the menus do.
+    /// </summary>
+    public const string RunAtOnce = "AtOnce";
 
     /// <summary>
     /// Under this many logical DIPs (the window's width over Windows' Text size) the bar's right end makes room: the
@@ -29,10 +38,19 @@ public static class CommandBarLayout
     /// A place on the bar. <see cref="Priority"/>: when room runs short the lowest goes into the overflow first (on a tie,
     /// the later one). <see cref="Label"/> null: an icon whose meaning is universal (save, print, undo, redo).
     /// </summary>
-    public sealed record Entry(string Id, string? Label, int Priority, IReadOnlyList<Command> Commands)
+    public sealed record Entry(string Id, string? Label, int Priority, IReadOnlyList<Command> Commands, string? Glyph = null)
     {
         /// <summary>A labeled button that drops a menu of its commands, rather than running one.</summary>
         public bool IsGroup => Commands.Count > 1;
+
+        /// <summary>
+        /// A split button: its body runs <see cref="Main"/> at once (<see cref="RunAtOnce"/>), its arrow (or Alt+Down)
+        /// drops the flyout. The pointer group has no main job: it shows the tool in use and only drops its menu.
+        /// </summary>
+        public bool HasMainJob => IsGroup && Id != Pointer;
+
+        /// <summary>The group's main job: its first command.</summary>
+        public Command Main => Commands[0];
     }
 
     /// <summary>Priority from which a command keeps the bar labeled: if one of these would overflow with labels, the bar goes icons-only first.</summary>
@@ -42,6 +60,12 @@ public static class CommandBarLayout
     public const string Pointer = "Pointer";
     /// <summary>The group whose flyout ends with the drawing tools (a Draw submenu: Foxit's Comment › Drawing).</summary>
     public const string DrawsIn = "Comment";
+
+    /// <summary>
+    /// Fill &amp; Sign's priority: a key group (it keeps the bar labeled) in English; in Spanish, where "Llenar y firmar" is
+    /// the bar's longest label, under <see cref="KeepsLabels"/>, so it goes into "…" before the other labels do.
+    /// </summary>
+    public static int FillSignPriority(System.Globalization.CultureInfo culture) => culture.TwoLetterISOLanguageName == "es" ? 75 : 86;
 
     /// <summary>The bar, left to right; null is a separator between groups.</summary>
     public static IReadOnlyList<Entry?> Bar => BarTable.Value;
@@ -55,7 +79,10 @@ public static class CommandBarLayout
         new("Undo", null, 100, [new("Undo", "\uE7A7")]),
         new("Redo", null, 45, [new("Redo", "\uE7A6")]),
         null,
-        new(Pointer, PdfStrings.Bar_Select, 85,
+        // Icons only (Hand, Select and Snapshot are known by their icons, as in Acrobat and Foxit): its label shows only in
+        // "…". Under KeepsLabels, so where room is short it goes into "…" (H, T and G still pick the tools) before Edit,
+        // Convert, Comment and Fill & Sign lose their labels (the owner, 2026-11-08).
+        new(Pointer, PdfStrings.Bar_Select, 79,
             [new("ToolHand", "\uE7C9", "H", PdfStrings.Bar_HandDesc),
              new("ToolSelect", "\uE8E9", "T", PdfStrings.Bar_SelectDesc),
              new("ToolSnapshot", "\uE722", "G", PdfStrings.Bar_SnapshotDesc)]),
@@ -67,47 +94,50 @@ public static class CommandBarLayout
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
              new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc),
-             new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)]),
+             new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)], "\uE70F"),
+        // The editable formats run at once (name.docx next to the PDF, opened); pictures and PDF/A ask, as in the menus.
         new("Convert", PdfStrings.Bar_Convert, 90,
-            [new("ConvertWord", "\uEDE1", Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord),
-             new("ExportExcel", "\uE80A", Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel),
-             new("ExportPowerPoint", "\uE7F4", Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint),
-             new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText),
-             new("ExportHtml", "\uE774", Description: PdfStrings.Bar_ToHtmlDesc, Title: PdfStrings.Bar_ToHtml),
-             new("ExportImages", "\uE91B", Description: PdfStrings.Bar_ToImagesDesc, Title: PdfStrings.Bar_ToImages),
-             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA)]),
+            [new("ExportWord", "\uE8A5", Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord, AtOnce: true, IconBrush: "FormatWordBrush"),
+             new("ExportExcel", "\uE80A", Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel, AtOnce: true, IconBrush: "FormatExcelBrush"),
+             new("ExportPowerPoint", "\uE7F4", Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint, AtOnce: true, IconBrush: "FormatPowerPointBrush"),
+             new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText, AtOnce: true, IconBrush: "FormatTextBrush"),
+             new("ExportHtml", "\uE774", Description: PdfStrings.Bar_ToHtmlDesc, Title: PdfStrings.Bar_ToHtml, AtOnce: true, IconBrush: "FormatHtmlBrush"),
+             new("ExportImages", "\uE91B", Description: PdfStrings.Bar_ToImagesDesc, Title: PdfStrings.Bar_ToImages, IconBrush: "FormatImagesBrush"),
+             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA, IconBrush: "FormatPdfABrush")], "\uEDE1"),
         new("Comment", PdfStrings.Bar_Comment, 80,
-            [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc),
+            [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
-             new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)]),
-        new("FillSign", PdfStrings.Bar_FillSign, 86,
+             new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)], "\uE7E6"),
+        // "Llenar y firmar" is the bar's longest label: in Spanish Fill & Sign goes into "\u2026" before the bar drops its
+        // labels (the owner, 2026-11-08), rather than shortening it.
+        new("FillSign", PdfStrings.Bar_FillSign, FillSignPriority(PdfLanguage.Culture),
             [new("AddSignature", "\uE76D", Description: PdfStrings.Bar_SignatureDesc),
              new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc),
              new("ToolCheck", "\uE73E", "K", PdfStrings.Bar_CheckDesc),
              new("ToolCross", "\uE711", "X", PdfStrings.Bar_CrossDesc),
-             new("PrepareForm", "\uE8A9", Description: PdfStrings.Bar_PrepareFormDesc)]),
+             new("PrepareForm", "\uE8A9", Description: PdfStrings.Bar_PrepareFormDesc)], "\uE76D"),
         new("Organize", PdfStrings.Bar_Organize, 70,
             [new("Organize", "\uE8B3", Description: PdfStrings.Bar_OrganizeDesc),
              new("InsertPages", "\uE8B5", Description: PdfStrings.Bar_InsertPagesDesc),
              new("ExtractPages", "\uEDE1", Description: PdfStrings.Bar_ExtractPagesDesc),
              new("SplitDocument", "\uE8C6", Description: PdfStrings.Bar_SplitDesc),
              new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc),
-             new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)]),
+             new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)], ""),
         new("Protect", PdfStrings.Bar_Protect, 60,
-            [new("ProtectPassword", "\uE72E", Description: PdfStrings.Bar_PasswordDesc),
+            [new("ProtectPassword", "\uE72E", Description: PdfStrings.Bar_PasswordDesc, AtOnce: true),
              new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc),
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
              new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc),
-             new("RemoveProtection", "\uE785", Description: PdfStrings.Bar_RemoveProtectionDesc)]),
+             new("RemoveProtection", "\uE785", Description: PdfStrings.Bar_RemoveProtectionDesc)], ""),
         new("ScanOcr", PdfStrings.Bar_ScanOcr, 50,
-            [new("RecognizeText", "\uE8C1", Description: PdfStrings.Bar_RecognizeDesc),
+            [new("RecognizeText", "\uE8C1", Description: PdfStrings.Bar_RecognizeDesc, AtOnce: true),
              new("Scan", "\uE8FE", Description: PdfStrings.Bar_ScanDesc),
              new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
-             new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc)]),
+             new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc)], ""),
     ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>

@@ -1503,8 +1503,10 @@ public partial class DocumentTab
     /// so the pages become searchable and selectable while looking the same. Each page is straightened, turned upright,
     /// despeckled and whitened first (unless the user turns that off); the cleaned page can replace the scan (off by
     /// default). Suspect words are marked for review in the Suspect words pane. One undo step; Cancel changes nothing.
+    /// <paramref name="atOnce"/> (the command bar's Scan &amp; OCR): no window, every page without text, with the language
+    /// and cleaning chosen last time.
     /// </summary>
-    public async Task<bool> RecognizeText()
+    public async Task<bool> RecognizeText(bool atOnce = false)
     {
         if (!Session.IsPdf || IsBusy || Window.GetWindow(this) is not { } owner) return false;
         if (PageOcr.Engine is not { } fallback)
@@ -1514,6 +1516,22 @@ public partial class DocumentTab
         }
         var count = Viewer.PageCount;
         var current = Viewer.CurrentPage;
+        var settings = AppSettings.Current;
+        int[] pages = [.. Enumerable.Range(0, count)];
+        var keepCleaned = false;
+        if (!atOnce)
+        {
+            if (AskRecognize(owner, count, current, fallback) is not { } asked) return false;
+            (pages, keepCleaned) = asked;
+        }
+        var ocr = PageOcr.For(settings.OcrLanguage) ?? fallback;
+        var reader = PageOcr.Pages(ocr, new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: keepCleaned));
+        return await Recognize(owner, pages, reader);
+    }
+
+    /// <summary>Recognize Text's window: the pages, language and options (saved for next time); null if cancelled.</summary>
+    private (int[] Pages, bool KeepCleaned)? AskRecognize(Window owner, int count, int current, InkvoltPrint.Windows.Ocr.WindowsRecognizer fallback)
+    {
         var settings = AppSettings.Current;
         var dlg = new FormDialog(owner, Strings.Review_OcrTitle, Strings.Review_OcrButton, 480);
         var which = dlg.AddChoice(Strings.Common_Pages, [Strings.Review_OcrAllWithoutText, Loc.Format(Strings.Review_OcrCurrentPage, PageLabel(current)), Strings.Review_OcrPageRange]);
@@ -1550,15 +1568,17 @@ public partial class DocumentTab
                     return Core.PageRange.TryParse(range.Text, count, out pages, out var err) ? null : err;
             }
         });
-        if (!dlg.ShowModal()) return false;
+        if (!dlg.ShowModal()) return null;
 
         if (language.SelectedIndex >= 0 && language.SelectedIndex < languages.Count) settings.OcrLanguage = languages[language.SelectedIndex].Tag;
         settings.OcrClean = clean.IsChecked == true;
         settings.OcrSuspects = suspects.IsChecked == true;
         settings.Save();
-        var ocr = PageOcr.For(settings.OcrLanguage) ?? fallback;
-        var reader = PageOcr.Pages(ocr, new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: writeBack.IsChecked == true));
+        return (pages, writeBack.IsChecked == true);
+    }
 
+    private async Task<bool> Recognize(Window owner, int[] pages, PageRecognizer reader)
+    {
         var found = 0;
         var suspect = 0;
         var pagesWithWords = 0;

@@ -850,17 +850,8 @@
   <data name="Main_Comment" xml:space="preserve">
     <value>Comentar</value>
   </data>
-  <data name="Main_Draw" xml:space="preserve">
-    <value>Dibujar</value>
-  </data>
-  <data name="Main_DrawTip" xml:space="preserve">
-    <value>Dibujar: pluma, rotulador, rectángulo, elipse, línea, flecha, cuadro de texto, llamada</value>
-  </data>
   <data name="Main_Redact" xml:space="preserve">
     <value>Eliminar información</value>
-  </data>
-  <data name="Main_RedactTip" xml:space="preserve">
-    <value>Eliminar información confidencial: arrastra sobre las áreas que quieres tapar y luego aplica (quita el contenido para siempre)</value>
   </data>
   <data name="Main_OrganizeTip" xml:space="preserve">
     <value>Organizar páginas: reordenar, girar y eliminar en una cuadrícula</value>
@@ -11414,10 +11405,6 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>La pieza {0} es ahora: {1}</value>
     <comment>Reading order pane: the selected piece kind</comment>
   </data>
-  <data name="Cmd_ConvertWord" xml:space="preserve">
-    <value>Convertir a _Word</value>
-    <comment>Runs at once: name.docx next to the PDF, all pages, scans recognized</comment>
-  </data>
   <data name="Export_Saved" xml:space="preserve">
     <value>Se guardó {0}</value>
     <comment>{0} a file name, e.g. Saved report.docx</comment>
@@ -11430,8 +11417,24 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>Cambiar opciones…</value>
     <comment>Link in the notice after a conversion: opens the export options</comment>
   </data>
-  <data name="Main_BarGroupTip" xml:space="preserve">
-    <value>{0}: {1} (haz clic para ver más)</value>
-    <comment>Tooltip of a command bar group: {0} the group, {1} its main command</comment>
+  <data name="Main_BarMainTip" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>Tooltip and screen-reader name of a command bar group's main button: {0} the group (Convert), {1} what one click does (Word (.docx))</comment>
+  </data>
+  <data name="Main_BarMoreTip" xml:space="preserve">
+    <value>{0}: más comandos (Alt+Abajo)</value>
+    <comment>Tooltip and screen-reader name of the arrow next to a command bar group: {0} the group</comment>
+  </data>
+  <data name="Main_BarShiftTip" xml:space="preserve">
+    <value>Mayús+clic: elegir las opciones antes</value>
+    <comment>Second line of a bar button's tooltip, when one click runs with the defaults</comment>
+  </data>
+  <data name="Export_SavedDocuments" xml:space="preserve">
+    <value>Se guardó {0} en Documentos</value>
+    <comment>{0} a file name. The PDF's folder can't be written to, or the PDF isn't saved yet</comment>
+  </data>
+  <data name="Security_QuickNote" xml:space="preserve">
+    <value>Quien abra el PDF necesitará esta contraseña. Para limitar la impresión o la copia: Archivo › {0}</value>
+    <comment>{0} the File menu's Protect with Password command</comment>
   </data>
 </root>

@@ -10,8 +10,7 @@ namespace InkvoltPdf.App;
 /// <see cref="IsOverflowButtonProperty"/>, which shows when something overflowed (or always, with
 /// <see cref="MoreAlways"/>). Which children go is <see cref="CommandBarLayout.Layout"/>'s: the lowest
 /// <see cref="PriorityProperty"/> first (on a tie, the later one); labels go only when keeping them would push out a
-/// child of priority <see cref="KeepsLabels"/> or more. Separators (any non-button child) show only between two shown
-/// commands.
+/// child of priority <see cref="KeepsLabels"/> or more. Separators (<see cref="IsSeparator"/>) show only between two shown commands.
 /// </summary>
 public sealed class ToolbarPanel : Panel
 {
@@ -74,7 +73,7 @@ public sealed class ToolbarPanel : Panel
                 : (w, w - LabelWidth(item));
         }
         var fit = CommandBarLayout.Layout(
-            [.. items.Select(c => new CommandBarLayout.Item(_widths[c].Full, _widths[c].Compact, GetPriority(c), c is not System.Windows.Controls.Primitives.ButtonBase))],
+            [.. items.Select(c => new CommandBarLayout.Item(_widths[c].Full, _widths[c].Compact, GetPriority(c), IsSeparator(c)))],
             availableSize.Width, more?.DesiredSize.Width ?? 0, MoreAlways, KeepsLabels);
         if (fit.Compact != _compact)
         {
@@ -87,13 +86,16 @@ public sealed class ToolbarPanel : Panel
         _overflow.Clear();
         for (var i = 0; i < items.Count; i++)
             if (fit.Shown[i]) _shown.Add(items[i]);
-            else if (items[i] is System.Windows.Controls.Primitives.ButtonBase) _overflow.Add(items[i]);
-            else if (_overflow.Count > 0 && _overflow[^1] is System.Windows.Controls.Primitives.ButtonBase) _overflow.Add(items[i]); // a group break in the menu
+            else if (!IsSeparator(items[i])) _overflow.Add(items[i]);
+            else if (_overflow.Count > 0 && !IsSeparator(_overflow[^1])) _overflow.Add(items[i]); // a group break in the menu
         _moreShown = fit.MoreShown;
 
         var width = _shown.Sum(c => c.DesiredSize.Width) + (_moreShown ? more?.DesiredSize.Width ?? 0 : 0);
         return new Size(double.IsInfinity(availableSize.Width) ? width : Math.Min(width, availableSize.Width), height);
     }
+
+    /// <summary>A separator between groups (a <see cref="Border"/>); everything else is a command: a button, or a group's split button.</summary>
+    public static bool IsSeparator(UIElement child) => child is Border;
 
     private bool _moreShown;
 

@@ -46,17 +46,28 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   check, Batch's steps); a sentence is one format string (`Loc.Format`), a count two (`Loc.Plural`). The command palette
   also finds a command by its English name. Stay English: the command line's output (scripts read it), logs, dev scripts,
   file formats and columns, What's New. Wording to review: `docs/SPANISH-REVIEW.md`.
-- **Command bar** (Fluent 2's pattern, one row): save, print, undo and redo as icons, then labeled groups in the order of
-  the menus: **Hand / Select / Snapshot** (named after the tool in use), **Fill & Sign** (add text, check mark, cross,
-  sign), **Comment** (highlight, underline, strike out, note, image, link, stamp), **Draw**, **Redact** and **Organize**.
-  A group drops a flyout of its tools: each with its icon, key and a line under its name saying what it does; the group
-  shows the one in use. "…" holds what doesn't fit (a
-  group as a submenu), then rotate, delete selected pages, find and combine, all with labels. Labels show from about
-  1150 DIPs (Select, Fill & Sign, Comment at 1200; Draw and Organize from 1400; everything at 1700); the bar goes
-  icons-only only when Fill & Sign or Comment wouldn't fit with theirs. Under 1100 logical DIPs (a 1200-DIP window at Text
-  size 150 %) the palette button keeps only its icon and Appearance moves into "…". Every bar command is in the menus, so the command
-  palette (Ctrl+K) lists it. The table (order, groups, priorities, icons) and the fitting are `CommandBarLayout` (Core,
-  tested); `ToolbarPanel` lays it out; dev steps `barstate`, `barclick Id|More`, `menushot out.png`.
+- **Command bar** (Fluent 2's pattern, one row; the groups where Nitro, Foxit and Acrobat put them,
+  `docs/design/command-bar.md`): save, print, undo and redo as icons, the pointer tools (Hand / Select / Snapshot, an icon
+  showing the one in use), then **Edit**, **Convert**, **Comment**, **Fill & Sign**, **Organize**, **Protect** and **Scan &
+  OCR**. Each group is a split button: one click on it runs its main job at once (Edit Text & Images; Convert to Word;
+  highlight the selected text, or the highlighter with none; place your signature, or make one first; Organize Pages; a
+  password to open the PDF, the only question; recognize every scanned page with the last language and cleaning), Shift+click
+  asks as the menus do, and its arrow (or Alt+Down) drops the flyout: each command with its icon, key and a line under its
+  name saying what it does, the main job first. Draw is a submenu of Comment, Redact is in Protect (the selection marked at
+  once; with none, the marking tool). **Convert › Word, Excel, PowerPoint, text and HTML** run at once: `name.docx` next
+  to the PDF (never over a file: `name (2).docx`; in Documents when the PDF isn't saved yet or its folder can't be
+  written to), every page, scanned pages recognized, then opened; the notice says "Saved name.docx · Show in folder ·
+  Change options…" (the Export window). File › Export and Ctrl+K still ask first. Screen readers hear both parts of a
+  group ("Convert: Word (.docx)", "Convert: more commands"). "…" holds what doesn't fit (a group as a submenu), then
+  rotate, delete selected pages and find. Room runs out in this order: Redo, Scan & OCR, Print, Protect, Organize, then the
+  pointer tools (H, T, G still work); Edit, Convert, Comment and Fill & Sign keep their labels down to a 1100-DIP window
+  (everything shows from about 1700), and the bar goes icons-only only when even they can't (Text size 150 % on a
+  1200-DIP window). In Spanish "Llenar y firmar" goes into "…" before the labels do. Under 1100 logical DIPs the palette
+  button keeps only its icon and Appearance moves into "…". Convert's file-type icons take a color from App.xaml when one
+  is defined (`FormatWordBrush` and the like; none is). Every bar command is in the menus, so the command palette (Ctrl+K)
+  lists it. The table (order, groups, main jobs, priorities, icons) and the fitting are `CommandBarLayout` (Core,
+  tested); `BarGroupButton` is a group's split button and `ToolbarPanel` lays the bar out; dev steps `barstate`,
+  `barclick Id[ main]|More`, `menushot out.png`, `shellopen off`.
 - **Tabs**: next / previous with Ctrl+Tab / Ctrl+Shift+Tab or Ctrl+PgDn / Ctrl+PgUp, Ctrl+Alt+1…9 picks one,
   Ctrl+Shift+T reopens the last closed tab at its page (the last 10). A file opened from Explorer while Inkvolt PDF is
   asking about unsaved changes before closing waits, and keeps the window open for itself. Right-click a tab (or Shift+F10)

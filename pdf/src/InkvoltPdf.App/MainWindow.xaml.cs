@@ -135,7 +135,7 @@ public partial class MainWindow : Window
         DocCommands.KeepsLabels = CommandBarLayout.KeepsLabels;
         foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>())
             if (b.Tag is string id) ToolbarPanel.SetPriority(b, CommandBarLayout.Group(id).Priority);
-        ShowBarGroups();
+        BuildBarGroups();
         ScaleTitleBar();
         TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
@@ -824,18 +824,21 @@ public partial class MainWindow : Window
         var menu = IconButtonMenu(MoreButton);
         foreach (var item in DocCommands.OverflowItems)
         {
-            if (item is not System.Windows.Controls.Primitives.ButtonBase b)
+            if (ToolbarPanel.IsSeparator(item))
             {
                 if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator()); // a bar separator
                 continue;
             }
-            if (b.Tag is string id && CommandBarLayout.Group(id) is { IsGroup: true } group)
+            if (item is FrameworkElement { Tag: string id } && CommandBarLayout.Group(id) is { IsGroup: true } group)
             {
-                var sub = new MenuItem { Header = group.Label, Icon = GlyphOf(b) is { } g ? MenuIcon(g) : null };
+                // A group as a submenu of its commands, its main job first (as in its flyout).
+                var icon = item is BarGroupButton split ? split.Icon.Text : item is System.Windows.Controls.Primitives.ButtonBase gb ? GlyphOf(gb) : null;
+                var sub = new MenuItem { Header = group.Label, Icon = icon is not null ? MenuIcon(icon) : null };
                 FillGroupMenu(sub, group);
                 menu.Items.Add(sub);
                 continue;
             }
+            if (item is not System.Windows.Controls.Primitives.ButtonBase b) continue;
             // A command shows its own name and shortcut; the icon is the button's.
             var mi = new MenuItem { Command = b.Command, CommandTarget = b.CommandTarget };
             if (b.Command is not RoutedUICommand) mi.Header = b.ToolTip as string ?? AutomationProperties.GetName(b);
@@ -870,14 +873,22 @@ public partial class MainWindow : Window
         PaletteLabel.Visibility = PaletteKey.Visibility = AppearanceButton.Visibility = shown;
     }
 
-    private TextBlock MenuIcon(string glyph) => new() { Text = glyph, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 };
+    private TextBlock MenuIcon(string glyph, string? brush = null)
+    {
+        var icon = new TextBlock { Text = glyph, FontFamily = (FontFamily)FindResource("Icons"), FontSize = 14 };
+        // A file type's color when App.xaml defines one (CommandBarLayout.Command.IconBrush); otherwise the text color.
+        if (brush is not null && TryFindResource(brush) is not null) icon.SetResourceReference(TextBlock.ForegroundProperty, brush);
+        return icon;
+    }
 
     private static RoutedUICommand CommandNamed(string name) => (RoutedUICommand)typeof(Cmd).GetField(name)!.GetValue(null)!;
 
     /// <summary>A menu item for one of the bar's commands: its name and shortcut (or page-view letter), icon, and whether its tool is on.</summary>
     private MenuItem CommandMenuItem(CommandBarLayout.Command c)
     {
-        var mi = new MenuItem { Command = CommandNamed(c.Name), Icon = MenuIcon(c.Glyph), IsChecked = IsToolOn(c.Name) };
+        var mi = new MenuItem { Command = CommandNamed(c.Name), Icon = MenuIcon(c.Glyph, c.IconBrush), IsChecked = IsToolOn(c.Name) };
+        // Convert's editable formats run at once from here (Shift+click asks), as the group's own button does.
+        if (c.AtOnce) mi.CommandParameter = CommandBarLayout.RunAtOnce;
         if (c.Description.Length > 0) Describe(mi, c.Title ?? ((RoutedUICommand)mi.Command).Text, c.Description);
         if (c.Key is { } key && Cmd.GestureText(mi.Command) is null) mi.InputGestureText = key;
         if (c.Name == "RotateRight" && mi.Icon is TextBlock mirrored)
@@ -914,8 +925,8 @@ public partial class MainWindow : Window
         {
             if (SectionStarts.Contains(c.Name) && menu.Items.Count > 0) menu.Items.Add(new Separator());
             var mi = CommandMenuItem(c);
-            // The group's main job (what one click on the group will run) first, in semibold.
-            if (c == group.Commands[0] && group.Id != CommandBarLayout.Pointer && mi.Header is StackPanel { Children: [AccessText main, ..] }) main.FontWeight = FontWeights.SemiBold;
+            // The group's main job (what its button runs) first, in semibold.
+            if (group.HasMainJob && c == group.Main && mi.Header is StackPanel { Children: [AccessText main, ..] }) main.FontWeight = FontWeights.SemiBold;
             menu.Items.Add(mi);
         }
         if (group.Id == CommandBarLayout.DrawsIn)
@@ -927,20 +938,51 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>The groups' labels, screen-reader names and tooltips, from the bar's table (the XAML has their icons).</summary>
-    private void ShowBarGroups()
+    private readonly List<BarGroupButton> _barGroups = [];
+
+    /// <summary>A group's split button on the bar (where its menus drop from), by its CommandBarLayout id.</summary>
+    private BarGroupButton? BarGroup(string id) => _barGroups.FirstOrDefault(g => g.Group.Id == id);
+
+    /// <summary>
+    /// The groups with a main job (Edit to Scan &amp; OCR), as split buttons from the bar's table, after the pointer group
+    /// and before "…"; a null in the table is a separator. Their priorities are the table's.
+    /// </summary>
+    private void BuildBarGroups()
     {
-        foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
+        var at = DocCommands.Children.IndexOf(MoreButton);
+        foreach (var entry in CommandBarLayout.Bar.SkipWhile(e => e?.Id != CommandBarLayout.Pointer).Skip(1))
         {
-            if (b.Tag is not string id || id == CommandBarLayout.Pointer || CommandBarLayout.Group(id) is not { IsGroup: true, Label: { } label } group) continue;
-            if (b.Content is Panel panel && panel.Children.OfType<TextBlock>().FirstOrDefault(ToolbarPanel.GetIsLabel) is { } text) text.Text = label;
-            AutomationProperties.SetName(b, label);
-            var main = group.Commands[0];
-            b.ToolTip ??= Loc.Format(Strings.Main_BarGroupTip, label, (main.Title ?? CommandNamed(main.Name).Text).Replace("_", "", StringComparison.Ordinal).TrimEnd('…'));
+            if (entry is null)
+            {
+                if (at > 0 && !ToolbarPanel.IsSeparator(DocCommands.Children[at - 1]))
+                    DocCommands.Children.Insert(at++, new Border { Style = (Style)FindResource("BarSeparator") });
+                continue;
+            }
+            if (!entry.HasMainJob) continue;
+            var group = new BarGroupButton(entry, CommandNamed(entry.Main.Name));
+            ToolbarPanel.SetPriority(group, entry.Priority);
+            group.FlyoutRequested += OpenGroupFlyout;
+            group.Body.Click += (_, _) => UpdateUi(); // checked shows the tool in use, not the click
+            _barGroups.Add(group);
+            DocCommands.Children.Insert(at++, group);
         }
     }
 
-    /// <summary>A labeled group of the command bar (Pointer, Fill &amp; Sign, Comment): its tools drop down under it.</summary>
+    /// <summary>A group's flyout, under the whole split button; its arrow shows checked while it is open.</summary>
+    private void OpenGroupFlyout(BarGroupButton group)
+    {
+        var menu = IconButtonMenu(group);
+        FillGroupMenu(menu, group.Group);
+        group.Arrow.IsChecked = true;
+        menu.Closed += (_, _) =>
+        {
+            group.Arrow.IsChecked = false;
+            UpdateUi();
+        };
+        menu.IsOpen = true;
+    }
+
+    /// <summary>The pointer group (Hand, Select text, Snapshot): no main job, its tools drop down under it.</summary>
     private void OnBarGroupClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Primitives.ToggleButton { Tag: string id } button) return;
@@ -977,12 +1019,20 @@ public partial class MainWindow : Window
         };
     }
 
-    /// <summary>A group button shows the tool of its group in use (its icon, and checked), else its own icon.</summary>
-    private void ShowGroupState(System.Windows.Controls.Primitives.ToggleButton button, TextBlock icon, string id, string glyph)
+    /// <summary>
+    /// Each group's button shows the tool of its group in use (its icon, and checked), else the group's own icon; a
+    /// drawing tool is Comment's (its Draw submenu).
+    /// </summary>
+    private void ShowGroupStates(ViewerTool? drawTool)
     {
-        var on = CommandBarLayout.Group(id).Commands.FirstOrDefault(c => IsToolOn(c.Name));
-        button.IsChecked = on is not null;
-        icon.Text = on?.Glyph ?? glyph;
+        foreach (var group in _barGroups)
+        {
+            var on = group.Group.Commands.FirstOrDefault(c => IsToolOn(c.Name));
+            var glyph = on?.Glyph;
+            if (glyph is null && drawTool is { } dt && group.Group.Id == CommandBarLayout.DrawsIn) glyph = DrawTools.Glyph(dt);
+            group.Body.IsChecked = glyph is not null;
+            group.Icon.Text = glyph ?? group.Group.Glyph ?? group.Group.Main.Glyph;
+        }
     }
 
     /// <summary>The icon a button shows (a Segoe Fluent Icons character), alone or before its label; null if it has none.</summary>
@@ -1719,6 +1769,18 @@ public partial class MainWindow : Window
     private void BindAlways(ICommand command, Action execute) =>
         CommandBindings.Add(new CommandBinding(command, (_, e) => { execute(); e.Handled = true; }, (_, e) => { e.CanExecute = true; e.Handled = true; }));
 
+    /// <summary>
+    /// Like <see cref="Bind"/>, for a command a bar group's button (or Convert's flyout) runs with
+    /// <see cref="CommandBarLayout.RunAtOnce"/>: <c>now</c> is true then, unless Shift is held (Shift+click asks, as the menus do).
+    /// </summary>
+    private void BindAtOnce(ICommand command, Action<DocumentTab, bool> execute, Func<DocumentTab, bool, bool> can) =>
+        CommandBindings.Add(new CommandBinding(command,
+            (_, e) => { if (ActiveTab is { } t) execute(t, RunsAtOnce(e.Parameter)); e.Handled = true; },
+            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && can(t, e.Parameter is CommandBarLayout.RunAtOnce); e.Handled = true; }));
+
+    internal static bool RunsAtOnce(object? parameter) =>
+        parameter is CommandBarLayout.RunAtOnce && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+
     private void BindEdit(ICommand command, Func<DocumentTab, Task> run, Func<DocumentTab, bool>? can = null) =>
         Bind(command, t => _ = run(t), t => t.Session.IsPdf && t.PageView.PageCount > 0 && (can?.Invoke(t) ?? true));
 
@@ -1775,15 +1837,11 @@ public partial class MainWindow : Window
         Bind(Cmd.PrintWithOptions, t => _ = FileActions.Print(this, t, withOptions: true), t => t.PageView.PageCount > 0);
         BindAlways(Cmd.Scan, () => Scanning.ScanToNewTab(this));
         Bind(Cmd.ExportImages, t => _ = FileActions.ExportImages(this, t, this), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportWord, t => _ = ExportActions.Export(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
-        // Shift+click (or Shift+Enter in the flyout) asks for the options first.
-        Bind(Cmd.ConvertWord, t => _ = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
-            ? ExportActions.Export(this, t, this, ExportFormat.Word)
-            : ExportActions.ConvertAtOnce(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportExcel, t => _ = ExportActions.Export(this, t, this, ExportFormat.Excel), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportText, t => _ = ExportActions.Export(this, t, this, ExportFormat.Text), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportPowerPoint, t => _ = ExportActions.Export(this, t, this, ExportFormat.PowerPoint), t => t.PageView.PageCount > 0);
-        Bind(Cmd.ExportHtml, t => _ = ExportActions.Export(this, t, this, ExportFormat.Html), t => t.PageView.PageCount > 0);
+        // The menus and Ctrl+K ask (the Export window); the bar's Convert runs at once: name.docx next to the PDF, opened.
+        foreach (var (command, format) in new[] { (Cmd.ExportWord, ExportFormat.Word), (Cmd.ExportExcel, ExportFormat.Excel),
+                     (Cmd.ExportText, ExportFormat.Text), (Cmd.ExportPowerPoint, ExportFormat.PowerPoint), (Cmd.ExportHtml, ExportFormat.Html) })
+            BindAtOnce(command, (t, now) => _ = now ? ExportActions.ConvertAtOnce(this, t, this, format) : ExportActions.Export(this, t, this, format),
+                (t, _) => t.PageView.PageCount > 0);
         Bind(Cmd.Properties, t => _ = FileActions.ShowProperties(this, t));
 
         Bind(Cmd.Undo, t => t.Undo(), t => t.Session.CanUndo);
@@ -1806,7 +1864,8 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolAddText, t => ToggleTool(t, ViewerTool.AddText), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCheck, t => ToggleTool(t, ViewerTool.AddCheck), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCross, t => ToggleTool(t, ViewerTool.AddCross), t => !t.IsOrganizing && t.Session.IsPdf);
-        Bind(Cmd.AddSignature, t => ShowSignatureMenu(t), t => t.Session.IsPdf && t.PageView.PageCount > 0);
+        BindAtOnce(Cmd.AddSignature, (t, now) => { if (now) SignAtOnce(t); else ShowSignatureMenu(t); },
+            (t, _) => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.Sign, t => _ = SignDigitallyAsync(t, null), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !_signing);
         Bind(Cmd.AddVerification, t => _ = AddVerificationAsync(t), t => t.Session.IsPdf && t.IsSigned && !_signing);
         Bind(Cmd.CheckSignaturesOnline, t => _ = CheckSignaturesOnlineAsync(t), t => t.Session.IsPdf && t.IsSigned && !_signing);
@@ -1862,7 +1921,13 @@ public partial class MainWindow : Window
         Bind(Cmd.ShowAttachments, t => t.ShowReviewPane(ReviewPane.Attachments), t => t.Session.IsPdf);
         Bind(Cmd.ShowLayers, t => t.ShowReviewPane(ReviewPane.Layers), t => t.LayerList.Count > 0);
         Bind(Cmd.ShowSignatures, t => t.ShowReviewPane(ReviewPane.Signatures), t => t.SignatureResults.Count > 0);
-        Bind(Cmd.Highlight, t => _ = t.MarkupSelection(TextMarkupKind.Highlight), t => t.CanMarkup);
+        // Comment's one click: highlights the selected text; with none, the highlighter (drag over what to mark).
+        BindAtOnce(Cmd.Highlight, (t, now) =>
+            {
+                if (t.CanMarkup) _ = t.MarkupSelection(TextMarkupKind.Highlight);
+                else if (now) Cmd.DrawTool(ViewerTool.Highlighter).Execute(null, this);
+            },
+            (t, now) => t.CanMarkup || now && Cmd.DrawTool(ViewerTool.Highlighter).CanExecute(null, this));
         Bind(Cmd.Underline, t => _ = t.MarkupSelection(TextMarkupKind.Underline), t => t.CanMarkup);
         Bind(Cmd.StrikeOut, t => _ = t.MarkupSelection(TextMarkupKind.StrikeOut), t => t.CanMarkup);
         Bind(Cmd.AddNote, t => ToggleTool(t, ViewerTool.AddNote), t => !t.IsOrganizing && t.Session.IsPdf);
@@ -1878,10 +1943,16 @@ public partial class MainWindow : Window
         Bind(Cmd.DetectFields, t => _ = t.DetectFieldsCommand(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
         Bind(Cmd.LinkSelection, t => _ = t.LinkSelection(), t => t.CanMarkup);
         Bind(Cmd.AddStamp, ShowStampMenu, t => t.Session.IsPdf && t.PageView.PageCount > 0);
-        Bind(Cmd.Redact, t => ToggleTool(t, ViewerTool.Redact), t => !t.IsOrganizing && t.Session.IsPdf);
+        // From Protect's flyout: the selected text is marked at once; with nothing selected, the marking tool (drag a box).
+        BindAtOnce(Cmd.Redact, (t, now) =>
+            {
+                if (now && t.PageView.HasSelection) OnRedactText(this, new RoutedEventArgs());
+                else ToggleTool(t, ViewerTool.Redact);
+            },
+            (t, _) => !t.IsOrganizing && t.Session.IsPdf);
         foreach (var tool in DrawTools.All)
             Bind(Cmd.DrawTool(tool), t => ToggleTool(t, tool), t => !t.IsOrganizing && t.Session.IsPdf);
-        Bind(Cmd.RecognizeText, t => _ = t.RecognizeText(), t => t.Session.IsPdf);
+        BindAtOnce(Cmd.RecognizeText, (t, now) => _ = t.RecognizeText(atOnce: now), (t, _) => t.Session.IsPdf);
         Bind(Cmd.ReviewSuspectWords, t => _ = t.ShowSuspectWordsAsync(), t => t.Session.IsPdf);
     }
 
@@ -2420,11 +2491,6 @@ public partial class MainWindow : Window
         PointerIcon.Text = pointer.Glyph;
         PointerLabel.Text = pointer.Name switch { "ToolSelect" => Strings.Main_PointerSelect, "ToolSnapshot" => Strings.Main_PointerSnapshot, _ => Strings.Main_PointerHand };
         PointerButton.IsChecked = pointer.Name != "ToolHand";
-        ShowGroupState(EditButton, EditIcon, "Edit", "\uE70F");
-        ShowGroupState(FillSignButton, FillSignIcon, "FillSign", "\uE76D");
-        ShowGroupState(CommentButton, CommentIcon, "Comment", "\uE90A");
-        ShowGroupState(OrganizeButton, OrganizeIcon, "Organize", "\uE8B3");
-        ShowGroupState(ProtectButton, ProtectIcon, "Protect", "\uE72E");
         SplitHorizontalMenu.IsChecked = t?.Split == SplitMode.TopAndBottom;
         SplitVerticalMenu.IsChecked = t?.Split == SplitMode.SideBySide;
         AddTextMenu.IsChecked = v?.Tool == ViewerTool.AddText;
@@ -2436,12 +2502,7 @@ public partial class MainWindow : Window
         EditContentMenu.IsChecked = v?.Tool == ViewerTool.EditContent;
         RedactMenu.IsChecked = v?.Tool == ViewerTool.Redact;
         var drawTool = v is not null && DrawTools.IsDrawTool(v.Tool) ? v.Tool : (ViewerTool?)null;
-        if (drawTool is { } dt)
-        {
-            // A drawing tool is one of Comment's (its Draw submenu).
-            CommentButton.IsChecked = true;
-            CommentIcon.Text = DrawTools.Glyph(dt);
-        }
+        ShowGroupStates(drawTool);
         foreach (var mi in DrawMenu.Items.OfType<MenuItem>()) mi.IsChecked = drawTool is { } d && mi.Command == Cmd.DrawTool(d);
         var pdf = t is { IsBusy: false, IsOrganizing: false, Session.IsPdf: true };
         AttachMenu.IsEnabled = pdf;

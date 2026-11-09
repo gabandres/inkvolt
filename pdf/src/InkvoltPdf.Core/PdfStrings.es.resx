@@ -5793,14 +5793,6 @@
     <value>Comentar</value>
     <comment>Command bar group button: keep short</comment>
   </data>
-  <data name="Bar_Draw" xml:space="preserve">
-    <value>Dibujar</value>
-    <comment>Command bar group button: keep short</comment>
-  </data>
-  <data name="Bar_Redact" xml:space="preserve">
-    <value>Eliminar información</value>
-    <comment>Command bar button (Redact: remove confidential information): keep short</comment>
-  </data>
   <data name="Bar_Organize" xml:space="preserve">
     <value>Organizar</value>
     <comment>Command bar button (organize pages): keep short</comment>
@@ -6805,19 +6797,19 @@
     <comment>Name of a command in the bar's Convert menu: keep short</comment>
   </data>
   <data name="Bar_ToExcel" xml:space="preserve">
-    <value>Excel (.xlsx)…</value>
+    <value>Excel (.xlsx)</value>
     <comment>Name of a command in the bar's Convert menu: keep short</comment>
   </data>
   <data name="Bar_ToPowerPoint" xml:space="preserve">
-    <value>PowerPoint (.pptx)…</value>
+    <value>PowerPoint (.pptx)</value>
     <comment>Name of a command in the bar's Convert menu: keep short</comment>
   </data>
   <data name="Bar_ToText" xml:space="preserve">
-    <value>Texto sin formato (.txt)…</value>
+    <value>Texto sin formato (.txt)</value>
     <comment>Name of a command in the bar's Convert menu: keep short</comment>
   </data>
   <data name="Bar_ToHtml" xml:space="preserve">
-    <value>Página web (.html)…</value>
+    <value>Página web (.html)</value>
     <comment>Name of a command in the bar's Convert menu: keep short</comment>
   </data>
   <data name="Bar_ToImages" xml:space="preserve">

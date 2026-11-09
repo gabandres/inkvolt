@@ -69,6 +69,22 @@
         <Style x:Key="CommandButton" TargetType="ButtonBase" BasedOn="{StaticResource FlatButtonBase}">
             <Setter Property="Padding" Value="10,6" />
         </Style>
+        <!-- A command bar group as a split button (BarGroupButton): the body runs the main job, the arrow drops the flyout;
+             the two touch, so they read as one button with two parts. -->
+        <Style x:Key="SplitBodyButton" TargetType="ButtonBase" BasedOn="{StaticResource FlatButtonBase}">
+            <Setter Property="Padding" Value="8,6,4,6" />
+            <Setter Property="Margin" Value="1,0,0,0" />
+        </Style>
+        <Style x:Key="SplitArrowButton" TargetType="ButtonBase" BasedOn="{StaticResource FlatButtonBase}">
+            <Setter Property="Padding" Value="4,7,6,5" />
+            <Setter Property="Margin" Value="0,0,1,0" />
+            <Setter Property="MinWidth" Value="24" /><!-- a 24 × 24 target at least (a11yaudit) -->
+            <Setter Property="FontFamily" Value="{StaticResource Icons}" />
+            <Setter Property="FontSize" Value="9" />
+        </Style>
+        <!-- Convert's file-type icons are drawn with these keys when they are defined (CommandBarLayout's IconBrush):
+             FormatWordBrush, FormatExcelBrush, FormatPowerPointBrush, FormatTextBrush, FormatHtmlBrush, FormatImagesBrush,
+             FormatPdfABrush. None is, so they take the text color; a SolidColorBrush here (per theme if needed) colors one. -->
         <Style x:Key="BarSeparator" TargetType="Border">
             <Setter Property="Width" Value="1" />
             <Setter Property="Height" Value="20" />

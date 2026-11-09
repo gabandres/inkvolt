@@ -78,6 +78,38 @@ public static class SecurityActions
                 : Strings.Security_RestrictionsSet);
     }
 
+    /// <summary>
+    /// The command bar's Protect: the smallest question, a password to open the PDF (typed twice), AES-256, nothing
+    /// restricted. A PDF already protected gets the full window (<see cref="Protect"/>), which shows what it has now.
+    /// </summary>
+    public static async Task ProtectAtOnce(Window owner, DocumentTab tab)
+    {
+        if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
+        if (Read(tab.Session)?.IsEncrypted == true)
+        {
+            await Protect(owner, tab);
+            return;
+        }
+        var dlg = new FormDialog(owner, Strings.Security_ProtectTitle, Strings.Security_Protect, 420);
+        dlg.AddNote(Loc.Format(Strings.Security_QuickNote, Cmd.ProtectPassword.Text.Replace("_", "", StringComparison.Ordinal)));
+        var openBox = new PasswordBox { MaxLength = 127 };
+        var openConfirm = new PasswordBox { MaxLength = 127 };
+        var meter = new StrengthMeter();
+        var panel = Fields((Strings.Security_OpenPassword, openBox), (Strings.Security_Confirm, openConfirm));
+        panel.Children.Add(meter);
+        dlg.Add(null, panel);
+        openBox.PasswordChanged += (_, _) => meter.Show(openBox.Password);
+        openBox.Loaded += (_, _) => openBox.Focus();
+        dlg.Validate(() => openBox.Password.Length == 0 ? Strings.Security_EnterOpen
+            : openBox.Password != openConfirm.Password ? Strings.Security_OpenMismatch : null);
+        if (!dlg.ShowModal()) return;
+        var user = openBox.Password;
+        if (await tab.RunEdit(Strings.Security_ProtectLabel,
+                (d, pw) => PdfSecurity.Protect(d, pw, user, null, PdfPermissions.All, EncryptionMethod.Aes256), quiet: true,
+                newPasswords: (user, user)))
+            tab.ShowNotice(Strings.Security_ProtectedSave);
+    }
+
     /// <summary>Passwords and permissions chosen in <see cref="AskProtection"/> (null passwords: not set).</summary>
     internal sealed record ProtectionChoice(string? UserPassword, string? OwnerPassword, PdfPermissions Permissions, EncryptionMethod Method)
     {

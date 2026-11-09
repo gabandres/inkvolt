@@ -41,15 +41,28 @@ public class CommandBarLayoutTests
     [Fact]
     public void EachGroupLeadsWithItsMainJob()
     {
-        // The first command of a group is the one its click will run (docs/design/command-bar.md, "One click").
-        Assert.Equal(
-            ["ToolHand", "EditContent", "ConvertWord", "Highlight", "AddSignature", "Organize", "ProtectPassword", "RecognizeText"],
-            CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Where(e => e.IsGroup).Select(e => e.Commands[0].Name));
-        // Convert's flyout names the format ("Word (.docx)"), not the command ("Convert to Word"), and asks first only
-        // where the name ends with "…".
+        // Every group but the pointer tools is a split button whose body runs its first command at once
+        // (docs/design/command-bar.md, "One click"); each has an icon of its own.
+        var groups = CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Where(e => e.IsGroup).ToList();
+        Assert.Equal(["Edit", "Convert", "Comment", "FillSign", "Organize", "Protect", "ScanOcr"], groups.Where(g => g.HasMainJob).Select(g => g.Id));
+        Assert.Equal(["EditContent", "ExportWord", "Highlight", "AddSignature", "Organize", "ProtectPassword", "RecognizeText"],
+            groups.Where(g => g.HasMainJob).Select(g => g.Main.Name));
+        Assert.All(groups.Where(g => g.HasMainJob), g => Assert.True(g.Glyph is { Length: 1 }, g.Id));
+        Assert.False(CommandBarLayout.Group(CommandBarLayout.Pointer).HasMainJob);
+    }
+
+    [Fact]
+    public void ConvertNamesTheFormatsAndRunsTheEditableOnesAtOnce()
+    {
+        // Convert's flyout names the format ("Word (.docx)"), not the command ("Export to Word…"); Word, Excel, PowerPoint,
+        // text and HTML run at once (no "…"), pictures and PDF/A ask. Each file type has its own icon brush key, so a color
+        // per format can be given later in App.xaml.
         var convert = CommandBarLayout.Group("Convert").Commands;
         Assert.All(convert, c => Assert.False(string.IsNullOrEmpty(c.Title), c.Name));
-        Assert.Equal(["ConvertWord"], convert.Where(c => !c.Title!.EndsWith('…')).Select(c => c.Name));
+        Assert.Equal(["ExportWord", "ExportExcel", "ExportPowerPoint", "ExportText", "ExportHtml"], convert.Where(c => c.AtOnce).Select(c => c.Name));
+        Assert.All(convert, c => Assert.Equal(!c.AtOnce, c.Title!.EndsWith('…')));
+        Assert.All(convert, c => Assert.StartsWith("Format", c.IconBrush));
+        Assert.Equal(convert.Count, convert.Select(c => c.IconBrush).Distinct().Count());
     }
 
     [Fact]
@@ -158,19 +171,21 @@ public class CommandBarLayoutTests
         Assert.Equal([true, false], tight.Shown);
     }
 
-    // The bar's own table with its children's widths as measured in the app at 100 % (barstate, plus the buttons' 1-DIP
-    // margins): icons 36, groups 52 as icons; separators 13. The room is what the bar has beside the menus and the
-    // Commands button in a window of that width (under 1100 the Commands button keeps only its icon).
+    // The bar's own table with its children's widths as measured in the app at 100 % (barstate: with their margins):
+    // icons 36, the pointer group 52, a group's split button 60 as icons (body and arrow); separators 13. The room is
+    // what the bar has beside the menus and the Commands button in a window of that width (under 1100 the Commands
+    // button keeps only its icon).
     private static readonly Dictionary<string, (double Full, double Compact)> English = new()
     {
         ["Save"] = (36, 36), ["Print"] = (36, 36), ["Undo"] = (36, 36), ["Redo"] = (36, 36), ["Pointer"] = (52, 52),
-        ["Edit"] = (83, 52), ["Convert"] = (108, 52), ["Comment"] = (121, 52), ["FillSign"] = (123, 52),
-        ["Organize"] = (116, 52), ["Protect"] = (104, 52), ["ScanOcr"] = (135, 52),
+        ["Edit"] = (82, 60), ["Convert"] = (107, 60), ["Comment"] = (120, 60), ["FillSign"] = (122, 60),
+        ["Organize"] = (115, 60), ["Protect"] = (103, 60), ["ScanOcr"] = (134, 60),
     };
 
-    private static (bool Compact, string[] Shown) FitBar(Dictionary<string, (double Full, double Compact)> widths, double room)
+    private static (bool Compact, string[] Shown) FitBar(Dictionary<string, (double Full, double Compact)> widths, double room,
+        Func<CommandBarLayout.Entry, int>? priority = null)
     {
-        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id].Full, e.Priority, widths[e.Id].Compact)).ToList();
+        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id].Full, priority?.Invoke(e) ?? e.Priority, widths[e.Id].Compact)).ToList();
         var fit = CommandBarLayout.Layout(items, room, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
         return (fit.Compact, [.. CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id)]);
     }
@@ -185,7 +200,7 @@ public class CommandBarLayoutTests
     }
 
     [Fact]
-    public void At1280DipsTheFiveCommonGroupsKeepTheirLabels()
+    public void At1280DipsTheFourCommonGroupsKeepTheirLabels()
     {
         // Print and Redo, then Scan & OCR, Protect and Organize go into "…" before any label does.
         var (compact, shown) = FitBar(English, 632);
@@ -194,36 +209,47 @@ public class CommandBarLayoutTests
     }
 
     [Fact]
-    public void At1100DipsTheBarGoesIconsOnly()
+    public void ShorterStillThePointerToolsGoBeforeTheLabels()
     {
-        // 3 DIPs short of the five labels: icons only, and then all but Redo fit.
-        var (compact, shown) = FitBar(English, 618);
-        Assert.True(compact);
-        Assert.Equal(["Save", "Print", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign", "Organize", "Protect", "ScanOcr"], shown);
+        // At 1100 DIPs (a little under the 617 the labeled groups and the pointer take): Hand, Select and Snapshot go into
+        // "…" (H, T and G still work) and Edit, Convert, Comment and Fill & Sign keep their labels (the owner, 2026-11-08).
+        var (compact, shown) = FitBar(English, 610);
+        Assert.False(compact);
+        Assert.Equal(["Save", "Undo", "Edit", "Convert", "Comment", "FillSign"], shown);
     }
 
     [Fact]
-    public void AtTextSize150OnA1200DipWindowThePointerConvertAndFillSignStay()
+    public void AtTextSize150OnA1200DipWindowTheBarGoesIconsOnly()
     {
-        // 318 DIPs of room, icons only: the highest priorities stay (save and undo, the pointer tools, Convert, Fill & Sign);
-        // Edit and Comment are in "…".
+        // 318 DIPs of room: the four labels can't fit, so icons only; the highest priorities stay (save and undo,
+        // Edit, Convert, Fill & Sign) and Comment and the pointer tools are in "…".
         var (compact, shown) = FitBar(English, 318);
         Assert.True(compact);
-        Assert.Equal(["Save", "Undo", "Pointer", "Convert", "FillSign"], shown);
+        Assert.Equal(["Save", "Undo", "Edit", "Convert", "FillSign"], shown);
     }
 
-    [Fact]
-    public void InSpanishAt1700DipsScanAndOcrGoesIntoTheOverflow()
+    // Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger as measured in Spanish; Escanear y OCR estimated
+    // (it never showed at these widths).
+    private static readonly Dictionary<string, (double Full, double Compact)> Spanish = new(English)
     {
-        // Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger as measured; Escanear y OCR estimated (it
-        // never showed): about a tenth longer than English, so Scan & OCR and Redo give way in the 985 DIPs there.
-        var spanish = new Dictionary<string, (double Full, double Compact)>(English)
-        {
-            ["Edit"] = (95, 52), ["Convert"] = (117, 52), ["Comment"] = (121, 52), ["FillSign"] = (148, 52),
-            ["Organize"] = (120, 52), ["Protect"] = (113, 52), ["ScanOcr"] = (150, 52),
-        };
-        var (compact, shown) = FitBar(spanish, 985);
+        ["Edit"] = (94, 60), ["Convert"] = (116, 60), ["Comment"] = (120, 60), ["FillSign"] = (147, 60),
+        ["Organize"] = (119, 60), ["Protect"] = (112, 60), ["ScanOcr"] = (150, 60),
+    };
+
+    private static int InSpanish(CommandBarLayout.Entry e) =>
+        e.Id == "FillSign" ? CommandBarLayout.FillSignPriority(new System.Globalization.CultureInfo("es")) : e.Priority;
+
+    [Fact]
+    public void InSpanishLlenarYFirmarGoesIntoTheOverflowBeforeTheLabels()
+    {
+        // The owner (2026-11-08): keep "Llenar y firmar", and let it go into "…" sooner rather than drop every label.
+        Assert.True(CommandBarLayout.FillSignPriority(new System.Globalization.CultureInfo("es")) < CommandBarLayout.KeepsLabels);
+        Assert.True(CommandBarLayout.FillSignPriority(System.Globalization.CultureInfo.InvariantCulture) >= CommandBarLayout.KeepsLabels);
+        var (compact, shown) = FitBar(Spanish, 985, InSpanish); // 1700 DIPs: Scan & OCR and Redo give way
         Assert.False(compact);
         Assert.Equal(["Save", "Print", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign", "Organize", "Protect"], shown);
+        (compact, shown) = FitBar(Spanish, 584, InSpanish); // 1280 DIPs
+        Assert.False(compact);
+        Assert.Equal(["Save", "Undo", "Pointer", "Edit", "Convert", "Comment"], shown);
     }
 }
