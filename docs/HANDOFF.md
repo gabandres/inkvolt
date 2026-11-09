@@ -68,7 +68,7 @@ Cancel isn't retried. A stopped run is cleaned up by its own script, the lock he
 `NSAppleEventsUsageDescription` (en, es). Reviews: medium (10 findings, all fixed; #5 half: Excel's per-sheet PDFs go to
 LibreOffice instead of being joined, sheet order needs a real Excel run), low clean. Kit 1535, Office tests 32 (47 cases),
 release build -warnaserror, check-int, self-test 27/27. **Ships only after a person with Microsoft 365 signed in on the Mac
-runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a password file, a timeout). Mac CI's flaky
+runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a password file, a timeout). **Off in 1.10.0, waiting on the owner's checklist** (`OfficeInstalls.drivesMicrosoftOffice` false, the Apple Events entitlement left out; turning it on: the flag, the entitlement back in `InkvoltPdf.entitlements`, What's New). Mac CI's flaky
 `DrawingBandsTests.ACancelStopsBandsThatOnlySkipAsSoonAsOneThread` made robust (`8b34d6f1`: best of 3, 0.25 s margin).
 **Autonomous run stopped 2026-11-08** until Tuesday's scheduled 08:05 start (2.1, then 3.1, on the Mac, on PPE).
 **Owner, 2026-11-08 (evening), queued on PPE in this order:**
@@ -81,6 +81,20 @@ runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a passwo
    - **Later:** Explorer's right-click "Convert to Word with Inkvolt PDF".
 
    Research 2026-11-08: Nitro (Convert tab: To Word, To Excel, then an options window), Foxit (Convert › To MS Office, plus Explorer's right-click), PDF-XChange (Convert tab), PDFgear (Convert menu and a floating To Word button), Acrobat (Convert in the top bar, then a side panel; paid).
+**Inkvolt PDF for Mac 1.10.0 published 2026-11-09** (`pdf-mac-v1.10.0` on `537261d8`, notarized DMG sha256 04d4130a…db34f6326,
+38.9 MB, appcast with Spanish notes, not Latest; Homebrew cask `38a5e71` (pushed from a clone), website `5c3d0bc` deployed; the
+command bar, with Microsoft Office as the converter **off** (`6e1f0081`, `45525c98`: LibreOffice converts as in 1.9.0, no Apple
+Events entitlement; waiting on the owner's PLAN checklist with Microsoft 365 signed in; not in What's New)): hostile-input review
+since 1.9.0 first (`2cab8b50`, `55537fe1`, `3e59cc31`, merged `399352c0`): one-click Convert swaps its export into its own empty
+reserved file in one step (`ExportTarget.moveIntoReserved`, renamex_np RENAME_SWAP, swapped back over another app's file, link
+or folder), a name cut into a Windows device name gets "_" in `SplitFiles.uniquePath` (Convert, Split, Extract), a converter's PDF
+read through one descriptor (no link, bounded, one copy). Reviews: medium (10 findings, all fixed), low (1, fixed); Office off:
+medium (7, 6 fixed, the kept code by the owner's choice), low clean. Kit 1566 (PageCheckTests' bounds and OcrTests' Vision limit
+failed under load, 37/37 alone), check-int clean, PdfStringsTests green. Installed release: self-test en 625/0; es strings complete
+(PdfStrings 2082, CoreStrings 925), its two Office checks read English notices (self-test fix `80395fb6`, green on a dev build in es),
+command bar 24/24 and export 4/4 in es. **Vision's checks (redaction, Compare's scan) fail when ignia-mac is at load 300–425**
+(another project's ~470 simulator processes): they passed on the same binary in en at load 6 and in the first es run. The released
+1.9.0 finds 1.10.0 in the feed (en, es); /Applications holds 1.10.0 from the DMG. Next: Tuesday's scheduled 2.1, then 3.1.
 **Inkvolt PDF for Mac 1.9.0 published 2026-11-07** (`pdf-mac-v1.9.0` on `4768ae0c`, notarized DMG sha256 3e19aa8f…d8d2e07,
 38.8 MB, appcast with Spanish notes, not Latest; Homebrew cask `5ddcf54` (pushed from a clone: the tap is no longer tapped on
 ignia-mac), website `f1d2750` deployed; folder search, Compare's Office files and scans, drawing in bands, the forms corpus
