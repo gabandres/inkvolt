@@ -31,6 +31,15 @@ struct SplitFilesTests {
         #expect(SplitFiles.parts(.bookmarks, pageCount: 5, pagesPerFile: "", ranges: "", outline: []).error == "This document has no bookmarks.")
     }
 
+    @Test func aNameCutIntoADeviceNameGetsAnUnderscore() {
+        // "CON", 200 spaces and "x" is cut to fit and its spaces trimmed: "CON.pdf", which Windows opens as a device.
+        var reserved = Set<String>()
+        #expect(SplitFiles.uniquePath("/work", "CON" + String(repeating: " ", count: 200) + "x.pdf", &reserved) == "/work/CON_.pdf")
+        #expect(SplitFiles.uniquePath("/work", "aux.pdf", &reserved) == "/work/aux_.pdf")
+        #expect(SplitFiles.uniquePath("/work", "CON.tar.pdf", &reserved) == "/work/CON_.tar.pdf") // Windows stops at the first dot
+        #expect(SplitFiles.uniquePath("/work", "CON (page 1).pdf", &reserved) == "/work/CON (page 1).pdf")
+    }
+
     @Test func namesEveryPartBeforeWriting() throws {
         let dir = try Self.folder()
         defer { try? FileManager.default.removeItem(atPath: dir) }

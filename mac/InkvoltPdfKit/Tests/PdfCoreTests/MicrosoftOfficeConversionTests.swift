@@ -214,6 +214,11 @@ private final class FakeHome {
         #expect(try ConvertedPdf.read(in: folder, appName: "Microsoft Word", maxBytes: 500) != nil)
         try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("b.pdf").path, withDestinationPath: home.document.path)
         #expect(try ConvertedPdf.read(in: folder, appName: "Microsoft Word") == nil)
+        // The only PDF a link, even to a real PDF: never followed (the converter's folder could swap one in after a check).
+        try FileManager.default.moveItem(at: folder.appendingPathComponent("a.pdf"), to: home.root.appendingPathComponent("real.pdf"))
+        try FileManager.default.removeItem(at: folder.appendingPathComponent("b.pdf"))
+        try FileManager.default.createSymbolicLink(atPath: folder.appendingPathComponent("c.pdf").path, withDestinationPath: home.root.appendingPathComponent("real.pdf").path)
+        #expect(try ConvertedPdf.read(in: folder, appName: "Microsoft Word") == nil)
     }
 
     @Test func noPdfSavedSaysToActivateOffice() throws {

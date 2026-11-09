@@ -93,7 +93,7 @@ public enum SplitFiles {
     }
 
     /// `fileName` made safe and unique in `folder`: "/", ":" and control characters become "_", the name is shortened
-    /// to fit, and a name that exists (or is in `reserved`, case ignored as the Mac's disks do) gets a number. The
+    /// to fit (never into a Windows device name: "CON_.pdf"), and a name that exists (or is in `reserved`, case ignored as the Mac's disks do) gets a number. The
     /// result is added to `reserved`, so a batch picks all its names before writing.
     public static func uniquePath(_ folder: String, _ fileName: String, _ reserved: inout Set<String>) -> String {
         let safe = String(fileName.map { $0 == "/" || $0 == ":" || ($0.asciiValue.map { $0 < 32 || $0 == 127 } ?? false) ? "_" : $0 })
@@ -108,6 +108,10 @@ public enum SplitFiles {
         while stem.utf8.count + 6 + dotExt.utf8.count > maxNameBytes { stem.removeLast() }
         stem = trimmedEnd(stem)
         if stem.isEmpty { stem = loc("Untitled") }
+        // A name cut and trimmed into a device name ("CON", 200 spaces, "x" → "CON") gets "_" (Inkvolt Print's rule):
+        // Windows opens CON.pdf as a device. Callers that refuse a device name outright check the name before this.
+        // Before the stem's first dot, where Windows ends the device's name ("CON.tar.pdf" → "CON_.tar.pdf").
+        if ReservedFileNames.isDevice(stem + dotExt) { stem.insert("_", at: stem.firstIndex(of: ".") ?? stem.endIndex) }
         var path = (folder as NSString).appendingPathComponent(stem + dotExt)
         var n = 2
         while isTaken(path) || reserved.contains(path.lowercased()) {

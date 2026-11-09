@@ -135,9 +135,13 @@ public enum DocumentExport {
 
     /// `export` to `path`, through a temporary file in the same folder that is swapped in at the end: a failed or
     /// cancelled export, or one with nothing to save, leaves the folder as it was.
-    /// - Throws: `CancellationError` when `cancel` fires; a file error when the file can't be written.
+    /// - Parameter overReservedOnly: `path` is a file reserved empty for this export (`ExportTarget`, a one-click
+    ///   conversion): it is replaced only while it is still an empty file, never once something else wrote there or put a
+    ///   link or folder in its place (the export can take minutes; `ExportTarget.moveIntoReserved` swaps in one step).
+    /// - Throws: `CancellationError` when `cancel` fires; a file error when the file can't be written; `PdfEditError` when
+    ///   the reserved file was changed meanwhile.
     public static func exportToFile(_ engine: PdfEngine, _ format: ExportFormat, _ path: String, options: ExportOptions = ExportOptions(),
-                                    cancel: CancelToken? = nil) throws -> ExportReport {
+                                    cancel: CancelToken? = nil, overReservedOnly: Bool = false) throws -> ExportReport {
         let full = URL(fileURLWithPath: path).standardizedFileURL
         let tmp = full.deletingLastPathComponent().appendingPathComponent("~inkvoltpdf-\(UUID().uuidString.replacingOccurrences(of: "-", with: "")).tmp")
         guard FileManager.default.createFile(atPath: tmp.path, contents: nil, attributes: nil) else {
@@ -156,7 +160,9 @@ public enum DocumentExport {
             }
             try cancel.check()
             if report.saved {
-                if FileManager.default.fileExists(atPath: full.path) {
+                if overReservedOnly {
+                    try ExportTarget.moveIntoReserved(tmp.path, full.path)
+                } else if FileManager.default.fileExists(atPath: full.path) {
                     _ = try FileManager.default.replaceItemAt(full, withItemAt: tmp)
                 } else {
                     try FileManager.default.moveItem(at: tmp, to: full)
