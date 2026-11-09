@@ -647,7 +647,9 @@ struct AppTest {
         let untouched = MadeUpWord(pdf: synthetic)
         Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: untouched, staging: staging)
         let offWord = await Converting.openConverted(report)
-        check(offWord != nil && Converting.lastNotice.contains("with LibreOffice") && !Converting.lastNotice.contains("Microsoft Word")
+        // The notices in the run's language (`loc`), so the Spanish run checks the same.
+        let byLibreOffice = loc("Made from {0} with {1}. Save it to keep it.", report.lastPathComponent, "LibreOffice")
+        check(offWord != nil && Converting.lastNotice == byLibreOffice
               && untouched.calls.value == 0,
               "with Word installed and Office off, LibreOffice converts the file and Word is sent nothing (\(untouched.calls.value) scripts): \(Converting.lastNotice)")
         offWord?.close()
@@ -666,8 +668,9 @@ struct AppTest {
         // Word installed but Automation denied: LibreOffice converts it, and the notice says why Word didn't.
         Converting.testInstalls = OfficeInstalls(soffice: soffice.path, microsoft: [.word], scriptRunner: MadeUpWord(pdf: synthetic, denies: true), staging: staging, drivesMicrosoft: true)
         let denied = await Converting.openConverted(report)
-        check(denied != nil && Converting.lastNotice.contains("with LibreOffice") && Converting.lastNotice.contains("Microsoft Word couldn't convert it")
-              && Converting.lastNotice.contains("Automation"),
+        check(denied != nil && Converting.lastNotice.hasPrefix(byLibreOffice)
+              && Converting.lastNotice.contains(loc("{0} couldn't convert it: {1}", "Microsoft Word", ""))
+              && Converting.lastNotice.contains(loc("macOS didn't let Inkvolt PDF use {0}. Turn on {0} under Inkvolt PDF in System Settings › Privacy & Security › Automation, then try again.", "Microsoft Word")),
               "with Word's Automation denied, LibreOffice converts the file and the notice says why Word didn't: \(Converting.lastNotice)")
         denied?.close()
 
