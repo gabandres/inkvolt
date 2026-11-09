@@ -6,8 +6,10 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.10.0
 - The toolbar is the command bar Windows has: Edit, Convert, Comment, Fill & Sign, Organize, Protect and Scan & OCR, each with its label. A click on a group does its main job; its arrow lists the rest, each with a line saying what it does. Convert › Word saves name.docx next to the PDF in one click (never over a file), opens it, and says "Saved name.docx · Show in Finder · Change options…"; Excel, PowerPoint, text and web page too. Option-click asks first. Sign, Highlight, Password and Recognize Text work in one click as well. Draw is in Comment, Redact in Protect.
-- Word, Excel and PowerPoint files become PDFs through Microsoft Word, Excel or PowerPoint when they're on this Mac (LibreOffice otherwise, and when one of them can't, for example before it's activated): File › New PDF › New PDF from Office File…, opening an Office file, and Compare Files. macOS asks once whether Inkvolt PDF may use each app. A copy of the file is used and removed after, and documents you have open in them are left alone.
+- A one-click conversion never writes over a file another app saved under its name meanwhile, and a PDF whose name is cut to a name Windows can't use (such as CON) gets one it can, for Convert, Split and Extract alike.
 
 ## 1.9.0
 - Search Folders (Edit › Find › Search Folders…, ⌥⇧⌘F): add a folder and Inkvolt PDF indexes every PDF in it and its subfolders on this Mac, then finds a word across all of them in a moment, with the text around each hit. A result opens at the hit. The index keeps up as files change, and says which files it couldn't read and why.

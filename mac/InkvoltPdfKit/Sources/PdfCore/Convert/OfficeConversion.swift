@@ -50,27 +50,41 @@ public struct OfficeInstalls: Equatable, Sendable {
     /// LibreOffice's program, when installed.
     public var soffice: String?
     /// Microsoft's apps that are installed: each converts its own kind of file, before LibreOffice (Windows converts
-    /// through Office only).
+    /// through Office only), when `drivesMicrosoft`; otherwise they are only named in `missing`.
     public var microsoft: Set<OfficeApp>
     /// What runs the AppleScript that drives Microsoft's apps (`osascript`; tests give a fake).
     public var scriptRunner: any OfficeScriptRunner
     /// Where a copy of the file is put for Microsoft's apps, which are sandboxed (`MicrosoftOfficeConverter.stagingRoot`).
     public var staging: URL
+    /// Whether these installs drive Microsoft's apps: `drivesMicrosoftOffice` unless a test says otherwise. Checked where
+    /// the converters are chosen, so nothing built or changed later drives them while it is off.
+    public let drivesMicrosoft: Bool
+
+    /// Whether Word, Excel and PowerPoint convert (E12's Office converter, `MicrosoftOfficeConverter`). **Off for 1.10.0:**
+    /// it ships once a person with Microsoft 365 signed in on a Mac has run `mac/docs/PLAN.md`'s checklist (the
+    /// Automation question, each app, a password file, a timeout), which no test or ssh run can stand in for. Until then
+    /// LibreOffice converts every Office file as in 1.9.0; the code stays in, its tests drive it (`drivesMicrosoft: true`).
+    /// Turning it on also needs the Apple Events entitlement back in `InkvoltPdf.entitlements` (left out while it is off).
+    public static let drivesMicrosoftOffice = false
 
     public init(soffice: String? = nil, microsoft: Set<OfficeApp> = [], scriptRunner: any OfficeScriptRunner = OsascriptRunner(),
-                staging: URL = MicrosoftOfficeConverter.stagingRoot()) {
+                staging: URL = MicrosoftOfficeConverter.stagingRoot(), drivesMicrosoft: Bool = OfficeInstalls.drivesMicrosoftOffice) {
         self.soffice = soffice
         self.microsoft = microsoft
         self.scriptRunner = scriptRunner
         self.staging = staging
+        self.drivesMicrosoft = drivesMicrosoft
     }
 
     public static func == (a: OfficeInstalls, b: OfficeInstalls) -> Bool {
-        a.soffice == b.soffice && a.microsoft == b.microsoft && a.staging == b.staging
+        a.soffice == b.soffice && a.microsoft == b.microsoft && a.staging == b.staging && a.drivesMicrosoft == b.drivesMicrosoft
     }
 
+    /// Microsoft's apps that convert: those installed, when they are driven.
+    public var driven: Set<OfficeApp> { drivesMicrosoft ? microsoft : [] }
+
     /// Something can convert some kind of Office file.
-    public var hasAny: Bool { soffice != nil || !microsoft.isEmpty }
+    public var hasAny: Bool { soffice != nil || !driven.isEmpty }
 
     public static let libreOfficeBundleId = "org.libreoffice.script"
     public static let microsoftBundleIds: [(OfficeApp, String)] = [(.word, "com.microsoft.Word"), (.excel, "com.microsoft.Excel"), (.powerPoint, "com.microsoft.Powerpoint")]
@@ -89,7 +103,7 @@ public struct OfficeInstalls: Equatable, Sendable {
     /// when the first fails for a reason of its own, `OfficeConversion.convert`). Empty when nothing can (`missing`).
     public func converters(for path: String) -> [any OfficeConverter] {
         var all: [any OfficeConverter] = []
-        if let app = OfficeFiles.appFor(path), microsoft.contains(app) {
+        if let app = OfficeFiles.appFor(path), driven.contains(app) {
             all.append(MicrosoftOfficeConverter(app: app, runner: scriptRunner, stagingRoot: staging))
         }
         if let soffice { all.append(LibreOfficeConverter(soffice: soffice)) }
@@ -101,6 +115,14 @@ public struct OfficeInstalls: Equatable, Sendable {
 
     /// The honest message when no converter can take a file of this kind (nil: any kind).
     public func missing(_ app: OfficeApp?) -> String {
+        if !drivesMicrosoft { // 1.9.0's words: LibreOffice alone converts
+            // Any kind (File › New PDF from Office File…): the first Microsoft app installed, if any, is named.
+            let named: OfficeApp? = if let app { microsoft.contains(app) ? app : nil } else { OfficeInstalls.microsoftBundleIds.map(\.0).first(where: microsoft.contains) }
+            if let named {
+                return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use {0} yet. Open the file in {0} and save it as PDF there, or install LibreOffice. LibreOffice is free, from libreoffice.org.", OfficeFiles.appName(named))
+            }
+            return loc("Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.")
+        }
         if let app {
             return loc("Inkvolt PDF makes PDFs from Office files with {0} or LibreOffice, and neither is installed on this Mac. LibreOffice is free, from libreoffice.org.", OfficeFiles.appName(app))
         }

@@ -90,7 +90,7 @@ private final class FakeHome {
         MicrosoftOfficeConverter(app: app, runner: runner, stagingRoot: staging)
     }
 
-    var installs: OfficeInstalls { OfficeInstalls(microsoft: [.word], staging: staging) }
+    var installs: OfficeInstalls { OfficeInstalls(microsoft: [.word], staging: staging, drivesMicrosoft: true) }
 
     /// A made-up LibreOffice that writes a PDF holding `marker` (or fails with `exit 1` when `fails`).
     func soffice(marker: String = "%libre", fails: Bool = false) throws -> String {
@@ -106,7 +106,7 @@ private final class FakeHome {
     }
 
     func installs(_ runner: FakeRunner, soffice: String?) -> OfficeInstalls {
-        OfficeInstalls(soffice: soffice, microsoft: [.word], scriptRunner: runner, staging: staging)
+        OfficeInstalls(soffice: soffice, microsoft: [.word], scriptRunner: runner, staging: staging, drivesMicrosoft: true)
     }
     var stagingIsEmpty: Bool { ((try? FileManager.default.contentsOfDirectory(atPath: staging.path)) ?? []).isEmpty }
 }
@@ -115,7 +115,7 @@ private final class FakeHome {
     // MARK: Which app converts
 
     @Test func microsoftsAppConvertsItsOwnKindFirst_LibreOfficeTheRest() {
-        let installs = OfficeInstalls(soffice: "/x/soffice", microsoft: [.word, .powerPoint])
+        let installs = OfficeInstalls(soffice: "/x/soffice", microsoft: [.word, .powerPoint], drivesMicrosoft: true)
         #expect((installs.route("/a/x.docx") as? MicrosoftOfficeConverter)?.app == .word)
         #expect((installs.route("/a/x.RTF") as? MicrosoftOfficeConverter)?.app == .word)
         #expect((installs.route("/a/x.pptx") as? MicrosoftOfficeConverter)?.app == .powerPoint)
@@ -139,7 +139,7 @@ private final class FakeHome {
     @Test func withoutWordAWordFileFallsBackToLibreOffice() throws {
         let home = try FakeHome(documentName: "Report.docx")
         let runner = FakeRunner(FakeRunner.savesPdf)
-        let installs = OfficeInstalls(soffice: try home.soffice(), microsoft: [.excel], scriptRunner: runner, staging: home.staging)
+        let installs = OfficeInstalls(soffice: try home.soffice(), microsoft: [.excel], scriptRunner: runner, staging: home.staging, drivesMicrosoft: true)
         let pdf = try OfficeConversion.convert(home.document.path, installs: installs, fromInternetConfirmed: true, cancel: CancelToken())
         #expect(String(decoding: pdf, as: UTF8.self).contains("%libre"))
         #expect(runner.calls.isEmpty)
@@ -542,7 +542,7 @@ private final class FakeHome {
         }
         let failure = try #require(throws: OfficeAppFailure.self) { _ = try home.converter(runner, .excel).toPdf(home.document.path, timeout: 180, cancel: CancelToken()) }
         #expect(failure.message.contains("2 separate PDFs") && !failure.message.contains("activated") && !failure.aboutTheFile)
-        let installs = OfficeInstalls(soffice: try home.soffice(), microsoft: [.excel], scriptRunner: runner, staging: home.staging)
+        let installs = OfficeInstalls(soffice: try home.soffice(), microsoft: [.excel], scriptRunner: runner, staging: home.staging, drivesMicrosoft: true)
         let result = try OfficeConversion.convert(try OfficeConversion.job(home.document.path, installs), fromInternetConfirmed: true, cancel: CancelToken())
         #expect(result.appName == "LibreOffice" && result.firstFailure?.contains("separate PDFs") == true)
     }

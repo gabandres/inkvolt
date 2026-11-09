@@ -4,8 +4,8 @@
 # <version> (1.0 or 1.0.1) becomes CFBundleShortVersionString and CFBundleVersion (Sparkle compares the latter).
 # Steps: assemble.sh (release build, warnings as errors, icons, Sparkle.framework); sign.sh with the Developer ID
 # Application identity in ~/Library/Keychains/inkvolt-devid.keychain-db (mac/InkvoltPrint/devid-cert.sh), inside out
-# (Sparkle's helpers, its framework, the app), hardened runtime, secure timestamp, two entitlements: the app group shared
-# with Inkvolt Print for the Pro key and Apple Events for Microsoft Office as the converter (not sandboxed, MuPDF linked statically, no JIT or library loading to allow); notarize the app (zipped) and staple it; a DMG of the app and
+# (Sparkle's helpers, its framework, the app), hardened runtime, secure timestamp, one entitlement: the app group shared
+# with Inkvolt Print for the Pro key (Apple Events joins it when Microsoft Office converts, sign.sh) (not sandboxed, MuPDF linked statically, no JIT or library loading to allow); notarize the app (zipped) and staple it; a DMG of the app and
 # an /Applications link; sign, notarize and staple the DMG; Gatekeeper checks on both.
 # --appcast: signs the DMG with Sparkle's sign_update and the EdDSA private key in ~/.inkvolt-sparkle/ed25519.key
 # (SPARKLE_KEY_FILE names another; never in the repo, back it up: without it no installed copy can be updated), then adds
