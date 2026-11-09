@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- La barra de herramientas es la barra de comandos de Windows: Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger y Escanear y OCR, cada uno con su nombre. Un clic en un grupo hace su tarea principal; su flecha muestra el resto, cada uno con una línea que dice qué hace. Convertir › Word guarda nombre.docx junto al PDF con un clic (sin escribir nunca sobre un archivo), lo abre y dice «Se guardó nombre.docx · Mostrar en Finder · Cambiar opciones…»; también Excel, PowerPoint, texto y página web. Con Opción pulsada, pregunta antes. Firmar, Resaltar, Contraseña y Reconocer texto también funcionan con un clic. Dibujar está en Comentar y Eliminar información confidencial en Proteger.
 - Los archivos de Word, Excel y PowerPoint se convierten en PDF con Microsoft Word, Excel o PowerPoint cuando están en este Mac (si no, con LibreOffice, que también se usa cuando una de ellas no puede, por ejemplo antes de activarla): Archivo › PDF nuevo › PDF nuevo desde un archivo de Office…, al abrir un archivo de Office y en Comparar archivos. macOS pregunta una vez si Inkvolt PDF puede usar cada app. Se usa una copia del archivo, que se borra después, y los documentos que tengas abiertos en ellas no se tocan.
 
 ## 1.9.0

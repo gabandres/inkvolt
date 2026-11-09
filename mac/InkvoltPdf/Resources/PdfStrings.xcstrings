@@ -22099,6 +22099,776 @@
           }
         }
       }
+    },
+    "Select": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccionar"
+          }
+        }
+      }
+    },
+    "Hand": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mano"
+          }
+        }
+      }
+    },
+    "Drag the page to move around it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra la página para moverte por ella"
+          }
+        }
+      }
+    },
+    "Select Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccionar texto"
+          }
+        }
+      }
+    },
+    "Select text to copy, mark or look up": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona texto para copiarlo, marcarlo o buscarlo"
+          }
+        }
+      }
+    },
+    "Copy an area of the page as a picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia un área de la página como imagen"
+          }
+        }
+      }
+    },
+    "Edit [toolbar]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar"
+          }
+        }
+      }
+    },
+    "Edit Text & Images": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar texto e imágenes"
+          }
+        }
+      }
+    },
+    "Change the text and pictures on the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia el texto y las imágenes de la página"
+          }
+        }
+      }
+    },
+    "Image": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagen"
+          }
+        }
+      }
+    },
+    "Place a picture on the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coloca una imagen en la página"
+          }
+        }
+      }
+    },
+    "Draw a box that opens a page or web address": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dibuja un cuadro que abre una página o una dirección web"
+          }
+        }
+      }
+    },
+    "Page numbers, dates or text on every page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Números, fechas o texto en cada página"
+          }
+        }
+      }
+    },
+    "Write DRAFT or a logo across the pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe BORRADOR o un logo sobre las páginas"
+          }
+        }
+      }
+    },
+    "Comment [bar]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comentar"
+          }
+        }
+      }
+    },
+    "Highlight": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar"
+          }
+        }
+      }
+    },
+    "Mark the selected text in color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca el texto seleccionado con color"
+          }
+        }
+      }
+    },
+    "Underline": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar"
+          }
+        }
+      }
+    },
+    "Draw a line under the selected text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dibuja una línea debajo del texto seleccionado"
+          }
+        }
+      }
+    },
+    "Strike Out": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar"
+          }
+        }
+      }
+    },
+    "Cross out the selected text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tacha el texto seleccionado"
+          }
+        }
+      }
+    },
+    "Note": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nota"
+          }
+        }
+      }
+    },
+    "Pin a note to the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fija una nota en la página"
+          }
+        }
+      }
+    },
+    "Stamp": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sello"
+          }
+        }
+      }
+    },
+    "Stamp Approved, Draft, Confidential or your own": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sella Aprobado, Borrador, Confidencial o uno tuyo"
+          }
+        }
+      }
+    },
+    "Signature": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firma"
+          }
+        }
+      }
+    },
+    "Draw, type or pick your signature or initials": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dibuja, escribe o elige tu firma o tus iniciales"
+          }
+        }
+      }
+    },
+    "Add Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar texto"
+          }
+        }
+      }
+    },
+    "Type in a blank or anywhere on the page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe en un espacio en blanco o en cualquier lugar de la página"
+          }
+        }
+      }
+    },
+    "Check Mark": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca de verificación"
+          }
+        }
+      }
+    },
+    "Put a check mark in a box": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon una marca de verificación en una casilla"
+          }
+        }
+      }
+    },
+    "Cross": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cruz"
+          }
+        }
+      }
+    },
+    "Put a cross in a box": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon una cruz en una casilla"
+          }
+        }
+      }
+    },
+    "Add fields that others can fill in": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agrega campos para que otros los llenen"
+          }
+        }
+      }
+    },
+    "Organize": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organizar"
+          }
+        }
+      }
+    },
+    "Move, turn, delete and insert pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mueve, gira, elimina e inserta páginas"
+          }
+        }
+      }
+    },
+    "Add the pages of another file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agrega las páginas de otro archivo"
+          }
+        }
+      }
+    },
+    "Save some pages as a new PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda algunas páginas como un PDF nuevo"
+          }
+        }
+      }
+    },
+    "Cut the PDF into several files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Divide el PDF en varios archivos"
+          }
+        }
+      }
+    },
+    "Join several files into one PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une varios archivos en un PDF"
+          }
+        }
+      }
+    },
+    "Make the file smaller to send it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz el archivo más pequeño para enviarlo"
+          }
+        }
+      }
+    },
+    "Protect": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Proteger"
+          }
+        }
+      }
+    },
+    "Password": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contraseña"
+          }
+        }
+      }
+    },
+    "Ask for a password to open or change it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pide una contraseña para abrirlo o cambiarlo"
+          }
+        }
+      }
+    },
+    "Black out text or areas for good": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tapa texto o áreas para siempre"
+          }
+        }
+      }
+    },
+    "Remove what you marked, for good": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita para siempre lo que marcaste"
+          }
+        }
+      }
+    },
+    "Find and remove numbers, phones, emails": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca y quita números, teléfonos, correos"
+          }
+        }
+      }
+    },
+    "Make sure nothing removed can be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprueba que no quede nada legible"
+          }
+        }
+      }
+    },
+    "Remove hidden data, metadata and scripts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita datos ocultos, metadatos y scripts"
+          }
+        }
+      }
+    },
+    "Sign with a digital ID (certificate)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firma con un ID digital (certificado)"
+          }
+        }
+      }
+    },
+    "Take the password off the file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quita la contraseña del archivo"
+          }
+        }
+      }
+    },
+    "Scan & OCR": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear y OCR"
+          }
+        }
+      }
+    },
+    "Recognize Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reconocer texto"
+          }
+        }
+      }
+    },
+    "Make scanned pages searchable": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz que se pueda buscar en lo escaneado"
+          }
+        }
+      }
+    },
+    "A new PDF from your scanner": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un PDF nuevo desde tu escáner"
+          }
+        }
+      }
+    },
+    "Scanned pages added to this PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas escaneadas agregadas a este PDF"
+          }
+        }
+      }
+    },
+    "Check the words OCR wasn't sure of": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa las palabras dudosas del OCR"
+          }
+        }
+      }
+    },
+    "Convert": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convertir"
+          }
+        }
+      }
+    },
+    "Word (.docx)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Word (.docx)"
+          }
+        }
+      }
+    },
+    "Saved next to the PDF and opened in Word": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guarda junto al PDF y se abre en Word"
+          }
+        }
+      }
+    },
+    "Excel (.xlsx)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Excel (.xlsx)"
+          }
+        }
+      }
+    },
+    "The tables as an Excel workbook": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las tablas en un libro de Excel"
+          }
+        }
+      }
+    },
+    "PowerPoint (.pptx)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PowerPoint (.pptx)"
+          }
+        }
+      }
+    },
+    "Each page as a slide you can edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada página como una diapositiva editable"
+          }
+        }
+      }
+    },
+    "Plain text (.txt)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto sin formato (.txt)"
+          }
+        }
+      }
+    },
+    "Just the words, in a plain text file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo las palabras, en un archivo de texto"
+          }
+        }
+      }
+    },
+    "Web page (.html)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página web (.html)"
+          }
+        }
+      }
+    },
+    "Headings, lists and tables as a web page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Títulos, listas y tablas como página web"
+          }
+        }
+      }
+    },
+    "PDF/A for archiving…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF/A para archivar…"
+          }
+        }
+      }
+    },
+    "A copy that opens the same for years": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una copia que se verá igual por años"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

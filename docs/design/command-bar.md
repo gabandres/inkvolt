@@ -149,7 +149,20 @@ themes.
 5. Fill & Sign's main job is Sign.
 6. Yes to the icon-only pointer group and to Draw inside Comment.
 
-Pending: the Mac.
+Pending: the Mac (built 2026-11-09, below; for the owner to look at before it ships).
+
+## 5. Mac (built 2026-11-09, branch `t3/b9736669`)
+
+The same groups, order, main jobs and colours in the Mac's own toolbar: each group an `NSMenuToolbarItem` (icon and
+label side by side, the body runs the main job, the arrow opens the menu, each item with its line under it), the
+pointer tools an icon-only group, the toolbar's » as the overflow (labels never drop; Edit, Convert, Comment and Fill &
+Sign stay longest). Option-click asks first (the Mac's Shift+click). Save, Print, Undo and Redo stay in the menus, as
+on Mac toolbars. Details and the Mac differences: `mac/docs/PLAN.md`, "Command bar". Screenshots, taken by the app's
+self-test (`--edit --only-command-bar --snapshots`, menus drawn while open):
+- Toolbar: [light](mac/toolbar-light.png) · [dark](mac/toolbar-dark.png) · [1000 pt, the » overflow](mac/toolbar-1000-light.png)
+- Menus: [Convert light](mac/convert-menu-light.png) · [Convert dark](mac/convert-menu-dark.png) · [Protect, Apply Redactions in red](mac/protect-menu-light.png) ([dark](mac/protect-menu-dark.png)) · [Comment, with Draw](mac/comment-menu-light.png) ([dark](mac/comment-menu-dark.png)). A menu's material is drawn by the window server, which the app can't capture: the shots paint a flat stand-in of its colour under the items
+- One click: [Word's notice](mac/saved-notice-light.png)
+- Spanish: [toolbar](mac/toolbar-light-es.png) · [1000 pt](mac/toolbar-1000-light-es.png) · [Convert](mac/convert-menu-light-es.png) · [notice](mac/saved-notice-light-es.png)
 
 ## Sources
 

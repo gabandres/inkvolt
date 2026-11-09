@@ -87,8 +87,6 @@ public enum BatchNames {
     /// format after a colon), <<folder>> the folder it is in.
     public static let tokens = ["<<name>>", "<<n>>", "<<date>>", "<<folder>>"]
 
-    private static let deviceNames: Set<String> = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-                                                   "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"]
     private static let tokenPattern = try! NSRegularExpression(pattern: #"<<\s*(name|n|date|folder)\s*(?::([^<>]*))?>>"#, options: [.caseInsensitive])
     private static let invalid = Set("<>:\"/\\|?*")
 
@@ -132,9 +130,8 @@ public enum BatchNames {
         if s.count > maxLength { s = String(s.prefix(maxLength)) }
         while s.hasSuffix(".") || s.hasSuffix(" ") { s.removeLast() }
         if s.isEmpty { s = fallback.isEmpty ? "file" : fallback }
-        // CON, NUL, COM1 ... can't be file names on Windows, with or without an extension.
-        let stem = s.split(separator: ".", omittingEmptySubsequences: false).first.map(String.init) ?? s
-        if deviceNames.contains(stem.trimmingCharacters(in: .whitespaces).uppercased()) { s = "_" + s }
+        // CON, NUL, COM1, COM¹, CONIN$… can't be file names on Windows, with or without an extension (one rule for both apps).
+        if ReservedFileNames.isDevice(s) { s = "_" + s }
         return s
     }
 }

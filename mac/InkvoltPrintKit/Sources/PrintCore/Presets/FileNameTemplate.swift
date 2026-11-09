@@ -40,13 +40,6 @@ public enum FileNameTemplate {
     // Windows' reserved characters, whatever the OS (a Mac's names may sync to a PC).
     private static let reserved: Set<Character> = ["<", ">", ":", "\"", "/", "\\", "|", "?", "*"]
 
-    private static let deviceNames: Set<String> = [
-        "con", "prn", "aux", "nul",
-        "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
-        "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
-        // Windows also maps the superscript digits (Latin-1's ¹ ² ³) and the console handles.
-        "com¹", "com²", "com³", "lpt¹", "lpt²", "lpt³", "conin$", "conout$",
-    ]
 
     private enum Kind { case text, token, separator }
 
@@ -155,9 +148,7 @@ public enum FileNameTemplate {
         if s.isEmpty { return fallback ?? "" }
         // "CON", "nul.txt": Windows maps these to devices whatever the extension.
         let stem = s.firstIndex(of: ".").map { String(s[..<$0]) } ?? s
-        var trimmedStem = stem
-        while trimmedStem.last == " " { trimmedStem.removeLast() }
-        if deviceNames.contains(trimmedStem.lowercased()) {
+        if ReservedFileNames.isDevice(stem) {
             let rest = s.firstIndex(of: ".").map { String(s[$0...]) } ?? ""
             s = stem + "_" + rest
         }

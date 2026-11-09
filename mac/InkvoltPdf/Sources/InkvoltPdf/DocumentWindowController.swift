@@ -461,7 +461,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
     }
 
-    private func problemAlert(_ message: String, _ detail: String) {
+    func problemAlert(_ message: String, _ detail: String) {
         if Report.skipsDialogs { return notify("\(message). \(detail)") }
         let alert = NSAlert()
         alert.messageText = message
@@ -530,6 +530,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
         revealMarkup(for: tool)
+        updatePointerGroup()
         toolStrip.show(tool, style: style, stamp: pages.stamp.label)
         design.toolChanged()
         updateRedactBar()
@@ -580,6 +581,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Tools › a tool (its single key while the pages have the focus).
     @objc func chooseTool(_ sender: NSMenuItem) {
         guard let tool = Tool(rawValue: sender.tag) else { return }
+        choose(tool)
+    }
+
+    /// Picks `tool` as Tools › that tool does (the command bar's tools too): the stamp's and picture's choices, the
+    /// signature to place, a word on what Edit Text & Images does.
+    func choose(_ tool: Tool) {
         pickTool(tool)
         if tool == .stamp, let spot = toolStrip.frame(of: .stamp) { popUp(stampMenu(), spot.0, spot.1) }
         if tool == .image && pages.pendingImage == nil { chooseImageFile(nil) }
@@ -753,6 +760,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// checkmarks and the titles that change are set here first.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         markMenuItem(item)
+        if item.action == #selector(barItemClicked(_:)) {
+            return (item.representedObject as? String).flatMap(Self.barEntry).map(barEnabled) ?? false
+        }
         guard let action = item.action, let command = DocumentCommands.command(action: NSStringFromSelector(action)) else { return true }
         return command.isEnabled(in: commandState(for: command))
     }

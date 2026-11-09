@@ -10,6 +10,9 @@ final class NoticeBar: NSView {
     private let label = NSTextField(labelWithString: "")
     private let undo = NSButton(title: loc("Undo"), target: nil, action: nil)
     private var hideTimer: Timer?
+    /// The notice's links ("Show in Finder · Change options…"), after its text.
+    private let links = NSStackView()
+    private var linkActions: [() -> Void] = []
     var onUndo: (() -> Void)?
     /// What it says now (the self-test reads it).
     var message: String { label.stringValue }
@@ -31,7 +34,9 @@ final class NoticeBar: NSView {
         undo.action = #selector(undoClicked)
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let stack = NSStackView(views: [icon, label, spacer, undo, close])
+        links.spacing = 4
+        links.setHuggingPriority(.required, for: .horizontal)
+        let stack = NSStackView(views: [icon, label, links, spacer, undo, close])
         stack.edgeInsets = NSEdgeInsets(top: 5, left: 12, bottom: 5, right: 8)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
@@ -53,9 +58,36 @@ final class NoticeBar: NSView {
     }
 
     /// `stays`: shown until closed (a document's state, not something that just happened).
-    func show(_ text: String, canUndo: Bool = false, stays: Bool = false) {
+    /// The links shown now, by title (the self-test reads them).
+    var linkTitles: [String] { links.arrangedSubviews.compactMap { ($0 as? NSButton)?.title } }
+
+    /// Runs the link titled `title` (the self-test clicks it); false when there is none.
+    @discardableResult
+    func clickLink(_ title: String) -> Bool {
+        guard let button = links.arrangedSubviews.compactMap({ $0 as? NSButton }).first(where: { $0.title == title }) else { return false }
+        linkClicked(button)
+        return true
+    }
+
+    /// `links`: actions after the text, each a link-styled button, set apart by a middle dot.
+    func show(_ text: String, canUndo: Bool = false, stays: Bool = false, links shown: [(String, () -> Void)] = []) {
         label.stringValue = text
         history.append(text)
+        for v in links.arrangedSubviews { v.removeFromSuperview() }
+        linkActions = shown.map(\.1)
+        for (i, (title, _)) in shown.enumerated() {
+            let dot = NSTextField(labelWithString: "·") // English: a separator, no words
+            dot.textColor = .secondaryLabelColor
+            dot.setAccessibilityElement(false)
+            links.addArrangedSubview(dot)
+            let button = NSButton(title: title, target: self, action: #selector(linkClicked(_:)))
+            button.isBordered = false
+            button.tag = i
+            button.attributedTitle = NSAttributedString(string: title, attributes: [.foregroundColor: NSColor.linkColor, .font: NSFont.systemFont(ofSize: NSFont.systemFontSize)])
+            button.setAccessibilityLabel(title)
+            links.addArrangedSubview(button)
+        }
+        links.isHidden = shown.isEmpty
         undo.isHidden = !canUndo
         isHidden = false
         NSAccessibility.post(element: self, notification: .announcementRequested,
@@ -65,6 +97,11 @@ final class NoticeBar: NSView {
         hideTimer = Timer.scheduledTimer(withTimeInterval: 12, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.isHidden = true }
         }
+    }
+
+    @objc private func linkClicked(_ sender: NSButton) {
+        guard linkActions.indices.contains(sender.tag) else { return }
+        linkActions[sender.tag]()
     }
 
     @objc private func closeClicked() { isHidden = true }
@@ -374,6 +411,9 @@ extension DocumentWindowController {
         }
     }
 
+    /// The self-test's stand-in for text recognition in a one-click conversion (nil: the saved settings, Vision).
+    static var atOnceRecognizer: Recognizer?
+
     private static func exportNote(_ format: ExportFormat) -> String {
         switch format {
         case .word: loc("An editable Word document: paragraphs, headings, lists, tables and pictures. Complex layouts may need tidying.")
@@ -384,7 +424,8 @@ extension DocumentWindowController {
         }
     }
 
-    private func askExport(_ format: ExportFormat) {
+    /// `fileName`: the save panel's suggested name (the document's name with the format's extension when nil).
+    func askExport(_ format: ExportFormat, fileName: String? = nil) {
         guard let window, let session = pdf.session else { return }
         let alert = NSAlert()
         alert.messageText = Self.exportTitle(format)
@@ -414,7 +455,7 @@ extension DocumentWindowController {
                 if session.openPassword != nil && !self.confirmUnprotected() { return }
                 let panel = NSSavePanel()
                 let name = (session.displayName as NSString).deletingPathExtension
-                panel.nameFieldStringValue = name + DocumentExport.fileExtension(format)
+                panel.nameFieldStringValue = fileName ?? ExportTarget.allowedName(name + DocumentExport.fileExtension(format))
                 if let type = UTType(filenameExtension: String(DocumentExport.fileExtension(format).dropFirst())) { panel.allowedContentTypes = [type] }
                 if let path = session.filePath { panel.directoryURL = URL(fileURLWithPath: (path as NSString).deletingLastPathComponent) }
                 DispatchQueue.main.async {
@@ -440,7 +481,7 @@ extension DocumentWindowController {
         }
     }
 
-    private func confirmUnprotected() -> Bool {
+    func confirmUnprotected() -> Bool {
         let alert = NSAlert()
         alert.messageText = loc("The exported file is saved without its password protection: anyone can open it.")
         alert.addButton(withTitle: loc("Export Anyway"))
@@ -461,8 +502,11 @@ extension DocumentWindowController {
 
     /// Exports `pages` to `url` with the progress sheet (from a copy of the document's bytes, so edits meanwhile don't
     /// matter); the report, or nil when cancelled or failed (said in the notice bar or an alert).
+    /// `atOnce`: a one-click conversion (the command bar's Convert), whether its file went to Documents: its notice says
+    /// "Saved name.docx · Show in Finder · Change options…".
     @discardableResult
-    func runExport(_ format: ExportFormat, to url: URL, pages chosen: [Int], recognize: Bool, recognizer: Recognizer? = nil) async -> ExportReport? {
+    func runExport(_ format: ExportFormat, to url: URL, pages chosen: [Int], recognize: Bool, recognizer: Recognizer? = nil,
+                   atOnce: Bool? = nil) async -> ExportReport? {
         guard let session = pdf.session else { return nil }
         let title = Self.exportTitle(format)
         let sheet = ProgressSheet(title: title, text: loc("Reading the pages…"))
@@ -534,7 +578,17 @@ extension DocumentWindowController {
             if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", CoreLanguage.number(failed))) }
             if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", CoreLanguage.number(unreadable))) }
             let file = url.lastPathComponent, count = chosen.count
-            if notes.isEmpty {
+            if let inDocuments = atOnce {
+                let list = notes.joined(separator: ", ")
+                let text: String
+                if notes.isEmpty {
+                    text = inDocuments ? loc("Saved {0} in Documents", file) : loc("Saved {0}", file)
+                } else {
+                    text = inDocuments ? loc("Saved {0} in Documents ({1})", file, list) : loc("Saved {0} ({1})", file, list)
+                }
+                Report.progress("notice: \(text.prefix(160))")
+                noticeBar.show(text, links: atOnceLinks(format, url))
+            } else if notes.isEmpty {
                 notify(count == 1 ? loc("Exported {0} page to {1}.", CoreLanguage.number(count), file) : loc("Exported {0} pages to {1}.", CoreLanguage.number(count), file))
             } else {
                 let list = notes.joined(separator: ", ")

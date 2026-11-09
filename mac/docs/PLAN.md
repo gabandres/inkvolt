@@ -444,6 +444,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 30 tests (42 cases), red first, with the code review's and the re-review's fixes. |
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests | Done (2026-11-07, on `ignia-mac`). PdfCore `FolderIndex/`: `IndexTerms`, `FolderIndex` (+ `FolderIndexSearch`), `FolderIndexer`, ported with their tests' names (75 tests): Windows' file layout and commit order, its search (terms narrow, Find confirms on the kept text), its limits; the app's `FolderSearch.swift` (`FolderSearches`, the window) and `FolderSearchTest` (`--only-folder-search`). Pro: `ProFeature.folderSearch` (the gate stays off). See "Indexed folder search" below for what differs. |
 | 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) | Done (2026-11-07, on `ignia-mac`). PdfCore `Compare/`: `CompareLooks` (`WordLook`, `LookChange`, `PageLooks`, `ComparePage`, `CompareSource`), `CompareMoves` and `CompareRunningLines`, `CompareScan`, `CompareAlign` and `VisualAreas`, `DocumentCompare` on each side's `CompareSource`, `VisualCompare`'s slack and `overlayScans`, `CompareReport`'s moves, formatting and visual areas; `PdfEngine.comparePage` (the shim's `inkv_compare_page`); `ProFeature.compareOfficeAndScans` (the gate stays off). The app's `Compare.swift`: Office files (LibreOffice) and pictures on either side, scans recognized with Vision (Compare Without Reading Them), the kinds' boxes, the visual check of pages with text and of scans lined up, the annotated copy with what looks different; `CompareTest` adds a word set in bold and a scanned page (`--only-compare`). 49 tests added in the 3 suites (and comparePage in a page check); on `ignia-mac` InkvoltPdfKit's 1,422 tests pass, warnings as errors with the 150 ms flag, the release app built the same way, `--edit --synthetic --only-compare` 13 checks pass (Vision read the scan); check-int clean; the PC's string tests green. See "Compare: Office files, scans and formatting" below for what differs. |
+| CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) | Done (2026-11-09, branch `t3/b9736669`): see "Command bar" below |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
 command line runs (it was set only in `applicationDidFinishLaunching`, after `--batch` and `--watch` had exited), and
@@ -1627,6 +1628,55 @@ from Office's AppleScript dictionaries as published, not from a run). On the min
 10. The release build: `codesign -d --entitlements - "/Applications/Inkvolt PDF.app"` lists apple-events; `release.sh` notarizes.
 11. A workbook of several sheets with different page setups: one PDF, or the "separate PDFs" message and LibreOffice's.
 12. With Word not activated and LibreOffice installed: LibreOffice converts and the notice says why Word didn't.
+
+### Command bar (CB, 2026-11-09)
+
+Windows' command bar (1.12, approved by the owner 2026-11-08) in the Mac's own toolbar. PdfCore `Ux/CommandBar.swift`
+(`CommandBar`: the groups, their commands with the line under each, main jobs, at-once items, tints, priorities;
+`BarColors`), `Export/ExportTarget.swift`, `ToolbarLayout` (UxRules.swift); the app's `CommandBarItems.swift`, the notice
+bar's links (LongTasks.swift) and the self-test's `CommandBarTest` (`--edit --only-command-bar`; shots with `--snapshots`).
+Shots for the owner: `docs/design/mac/`.
+
+- **Native form.** Each group is an `NSMenuToolbarItem` with `title` set, so AppKit draws its icon and label side by side
+  with a split arrow, in the toolbar's Liquid Glass; the body sends the main job, the arrow opens the menu. The pointer
+  tools are an `NSToolbarItemGroup` (select one) of three icons, showing the tool in use. Menu items carry the Windows
+  flyout's line as `NSMenuItem.subtitle`, the main job in semibold. Comment ends with a Draw submenu (the Tools menu's
+  drawing tools), Protect holds Redact. VoiceOver: the body is named by its label ("Convert"), the arrow by its menu's
+  accessibility label ("Convert: more commands"); the body's tooltip says the main job and Option-click. Keyboard: the
+  toolbar's items with Full Keyboard Access (Tab, Space; the arrow is its own element), and every command is in the menu
+  bar and the command palette.
+- **Mac differences.** Option-click asks first where Windows uses Shift+click (Option is the Mac's alternate action). The
+  fitting is the toolbar's own: groups go into its » overflow whole, labels never drop; `CommandBar.visibilityPriority`
+  keeps Edit, Convert, Comment and Fill & Sign longest (Fill & Sign under them in Spanish, as Windows), then the pointer
+  tools, Organize, Protect, Scan & OCR first; Save, Print, Undo and Redo stay in the menus (⌘S, ⌘P, ⌘Z), as Mac
+  toolbars do. Convert has no Images… item: the Mac has no export to pictures yet. Under Increase Contrast the colours
+  give way to the label colour (Windows: high contrast); Differentiate Without Color changes nothing, since every
+  coloured icon has its label. The toolbar's identifier changed (`InkvoltPdfDocumentBar`), so a toolbar customized
+  before starts from the new defaults; the old Highlight, Fill & Sign, Edit, Redact and Organize buttons are replaced by
+  their groups (Markup, Zoom, Share and the rest stay in Customize Toolbar…).
+- **One-click jobs.** Convert › Word, Excel, PowerPoint, text, HTML: `ExportTarget.reserve` makes name.docx next to the PDF
+  with `open(O_CREAT | O_EXCL | O_NOFOLLOW)` (a regular file or nothing), "name (2).docx" when taken, Documents when the
+  PDF isn't saved or its folder refuses; a Windows device name (`ReservedFileNames`: CON, COM¹, CONIN$…) is refused, so
+  it asks with the save panel. The reservation runs off the main thread inside the window's long task, so the document is
+  busy from then on (no edit, a second click converts nothing: `convertingAtOnce`); a closed window or a failed or empty
+  export deletes the reserved file while it is still empty. All pages, scans read with the saved setting; the file opens;
+  the notice says "Saved name.docx · Show in Finder · Change options…", and Change options… does nothing on a closed
+  window and says "Wait a moment: … is still busy." on a busy one. Fill & Sign › Sign arms the first saved signature
+  (a damaged one: "Couldn't read … Its picture can't be read. Delete it and add it again.") or opens the pad the first
+  time; Comment › Highlight marks the selection (none: the highlighter); Protect › Password asks only for the password
+  (AES-256, nothing restricted; a protected document gets the full sheet); Redact marks the selection (none: the tool);
+  Scan & OCR recognizes every page with the last settings.
+- **Review (2026-11-09).** A bar command goes to the window when it implements it, else along the responder chain
+  (Combine Files… and Scan… are the app delegate's; the self-test checks every one finds who runs it). The pointer tools
+  are off while Organize Pages is shown. When nothing is reserved the alert says why (a device name, offered again as
+  "CON_.docx"; both folders refusing; no Documents). A dangling symbolic link counts as a taken name (`SplitFiles.isTaken`,
+  lstat). Tools are named by `CommandBar.BarTool`, mapped to `Tool` in an exhaustive switch. The app builds the table
+  once (`BarTable`: the language is fixed for a run); PdfCore's stays computed so tests can switch languages. The busy
+  rule is `isBusy` alone: `startLongTask` sets the task before returning and nothing between the check and it lets a
+  click in. The notice is one `loc` template per case ("Saved {0} ({1})").
+- **Reserved names, one rule.** `ReservedFileNames` (PrintCore) is Windows' `DeviceNames.IsReserved` (shared/InkvoltPrint.Core):
+  COM0–9, LPT0–9, COM¹ COM² COM³ LPT¹ LPT² LPT³, CONIN$, CONOUT$, trailing dots and spaces trimmed, cut at a colon, its
+  tests' cases ported; Batch's names (`BatchNames`), Inkvolt Print's (`FileNameTemplate`) and `ExportTarget` use it.
 
 ## Open decisions
 

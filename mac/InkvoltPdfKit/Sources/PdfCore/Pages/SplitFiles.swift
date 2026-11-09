@@ -110,12 +110,19 @@ public enum SplitFiles {
         if stem.isEmpty { stem = loc("Untitled") }
         var path = (folder as NSString).appendingPathComponent(stem + dotExt)
         var n = 2
-        while FileManager.default.fileExists(atPath: path) || reserved.contains(path.lowercased()) {
+        while isTaken(path) || reserved.contains(path.lowercased()) {
             path = (folder as NSString).appendingPathComponent("\(stem) (\(n))\(dotExt)")
             n += 1
         }
         reserved.insert(path.lowercased())
         return path
+    }
+
+    /// Whether anything is at `path`, a symbolic link included even when it points nowhere (`fileExists` follows links,
+    /// so a dangling one looked free and every retry picked its name).
+    static func isTaken(_ path: String) -> Bool {
+        var info = stat()
+        return lstat(path, &info) == 0
     }
 
     private static func trimmedEnd(_ s: String) -> String {

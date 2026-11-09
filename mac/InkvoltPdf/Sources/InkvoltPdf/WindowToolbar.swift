@@ -2,16 +2,16 @@ import AppKit
 import PdfCore
 import PrintCore
 
-/// The document window's toolbar (UX review, 2026-11-03): a short set by default, as Preview's (the sidebar, zoom,
-/// Highlight, Markup, Fill & Sign, Share, Search; `ToolbarLayout.defaults`), the rest in View › Customize Toolbar….
-/// The 26 markup tools moved off the always-shown strip into the markup toolbar, shown when asked for (the Markup
-/// button, View › Show Markup Toolbar ⇧⌘A, or any markup tool picked from the Tools menu or its key).
+/// The document window's toolbar: the sidebar, the command bar's groups (CommandBarItems.swift, approved 2026-11-08)
+/// and Search by default (`ToolbarLayout.defaults`), the rest in View › Customize Toolbar…. The markup tools stay in
+/// the markup toolbar, shown when asked for (the Markup button, View › Show Markup Toolbar ⇧⌘A, or any markup tool
+/// picked from the Tools menu, its key or a group's menu).
 extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToolbarItemDelegate {
     private static func id(_ raw: String) -> NSToolbarItem.Identifier { NSToolbarItem.Identifier(raw) }
 
     func makeToolbar() {
         guard let window else { return }
-        let toolbar = NSToolbar(identifier: "InkvoltPdfDocument")
+        let toolbar = NSToolbar(identifier: ToolbarLayout.toolbarIdentifier)
         toolbar.delegate = self
         toolbar.allowsUserCustomization = true
         toolbar.autosavesConfiguration = !Report.isRunning
@@ -35,6 +35,7 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
 
     func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier identifier: NSToolbarItem.Identifier,
                  willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        if let bar = ToolbarLayout.groupId(identifier.rawValue) { return barItem(bar, identifier: identifier) }
         switch identifier.rawValue {
         case ToolbarLayout.sidebar:
             return button(identifier, loc("Sidebar"), "sidebar.leading", loc("Show or hide the sidebar (⌃⌘S)"),
@@ -50,25 +51,12 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
             return group
         case ToolbarLayout.pageNumber:
             return button(identifier, loc("Go to Page"), "number", loc("Go to a page (⌥⌘G)"), #selector(goToPage(_:)))
-        case ToolbarLayout.highlight:
-            return button(identifier, loc("Highlight"), "highlighter", loc("Highlight the selected text, or pick the highlighter (Y)"),
-                          #selector(highlightClicked(_:)))
         case ToolbarLayout.markup:
             let item = button(identifier, loc("Markup"), "pencil.tip.crop.circle", loc("Show or hide the markup tools (⇧⌘A)"),
                               #selector(toggleMarkup(_:)))
             (item.view as? NSButton)?.setButtonType(.pushOnPushOff)
             (item.view as? NSButton)?.state = AppSettings.markupShown ? .on : .off
             return item
-        case ToolbarLayout.fillSign:
-            return button(identifier, loc("Fill & Sign"), "signature", loc("Type on the form, add check marks and your signature (A)"),
-                          #selector(fillSignClicked(_:)))
-        case ToolbarLayout.editContent:
-            return button(identifier, loc("Edit", context: "toolbar"), "pencil.line", loc("Edit text and images (J)"), #selector(editContentClicked(_:)))
-        case ToolbarLayout.redact:
-            return button(identifier, loc("Redact", context: "toolbar"), "rectangle.fill.badge.xmark", loc("Mark text or areas to remove for good (F)"),
-                          #selector(redactClicked(_:)))
-        case ToolbarLayout.organize:
-            return button(identifier, loc("Organize"), "square.grid.2x2", loc("Organize pages (⌥⌘O)"), #selector(toggleOrganizer(_:)))
         case ToolbarLayout.rotate:
             return button(identifier, loc("Rotate"), "rotate.right", loc("Rotate the chosen pages right (⌘R)"), #selector(rotatePagesRight(_:)))
         case ToolbarLayout.inspector:
@@ -123,13 +111,6 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
         if sender.selectedIndex == 0 { zoomOut(sender) } else { zoomIn(sender) }
     }
 
-    /// Highlight: the selected text highlighted at once (as Preview's button); with nothing selected, the highlighter.
-    @objc func highlightClicked(_ sender: Any?) { highlightText(sender) }
-
-    @objc func fillSignClicked(_ sender: Any?) { pickTool(.fillText) }
-    @objc func editContentClicked(_ sender: Any?) { pickTool(.editContent) }
-    @objc func redactClicked(_ sender: Any?) { pickTool(.redact) }
-
     /// View › Show Markup Toolbar (⇧⌘A) and the toolbar's Markup button.
     @objc func toggleMarkup(_ sender: Any?) {
         let show = toolStrip.isHidden || !AppSettings.markupShown
@@ -156,8 +137,9 @@ extension DocumentWindowController: NSToolbarDelegate, NSSharingServicePickerToo
     }
 
     func validateToolbarItem(_ item: NSToolbarItem) -> Bool {
+        if let enabled = validateBarItem(item.itemIdentifier.rawValue) { return enabled }
         switch item.itemIdentifier.rawValue {
-        case ToolbarLayout.highlight, ToolbarLayout.fillSign, ToolbarLayout.editContent, ToolbarLayout.redact, ToolbarLayout.markup:
+        case ToolbarLayout.markup:
             return pdf.session != nil && !organizerShown
         default:
             return engine.pageCount > 0
