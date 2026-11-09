@@ -81,12 +81,15 @@ public static partial class UsbScanners
     /// The scanner Windows lists under this name is this one: the same model words, the maker's way of writing its name aside
     /// ("EPSON Perfection V19" is "Epson Perfection V19"; "Epson Perfection V19 II" isn't).
     /// </summary>
+    private const int MaxModelName = 200;
+
     public static bool SameModel(string shown, string listed)
     {
         static string Words(string s) => Regex.Replace(PrinterNames.ForDevice(s, null, []).ToLowerInvariant(), @"[^a-z0-9]+", " ").Trim();
         var a = Words(shown);
         var b = Words(listed);
-        if (a.Length == 0 || b.Length == 0) return false;
+        // No model's name is this long: a driver's name that is (it can be anything) is never compared by the rule below.
+        if (a.Length is 0 or > MaxModelName || b.Length is 0 or > MaxModelName) return false;
         // A WIA name may add the kind ("Epson Perfection V19 Scanner") or a number for a second one ("… #2").
         static string Trimmed(string s) => Regex.Replace(s, @"( (scanner|series|photo|\d))+$", "");
         return Trimmed(a) == Trimmed(b);

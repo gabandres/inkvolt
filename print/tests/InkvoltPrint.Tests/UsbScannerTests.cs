@@ -147,6 +147,15 @@ public class UsbScannerTests
     public void WIA_lists_it_by_its_model(string shown, string listed, bool same) => Assert.Equal(same, UsbScanners.SameModel(shown, listed));
 
     [Fact]
+    public async Task A_huge_name_from_a_scanners_driver_is_compared_at_once()
+    {
+        // A driver's WIA name can be anything: a long run of " 1" ending in another word made the trailing-number rule quadratic.
+        var hostile = "Epson Perfection V19" + string.Concat(Enumerable.Repeat(" 1", 60_000)) + "x";
+        var same = await Task.Run(() => UsbScanners.SameModel("Epson Perfection V19", hostile)).WaitAsync(Inkvolt.Testing.Timing.Limit(TimeSpan.FromSeconds(2)));
+        Assert.False(same);
+    }
+
+    [Fact]
     public void Its_serial_and_container_are_never_in_what_is_kept_or_shown()
     {
         var withSerial = V19 with { DeviceIdName = $@"USB\VID_04B8&PID_013C\{Serial}" };

@@ -217,9 +217,13 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
         }
     }
 
-    /// <summary>What Windows may throw when a program is started or a device read: said as "couldn't start" or "not there yet", never a crash.</summary>
+    /// <summary>
+    /// What Windows may throw when a program is started or a device read (WIA's list too, which fails while its service restarts
+    /// during an install): said as "couldn't start" or "not there yet", never a crash.
+    /// </summary>
     private static bool Expected(Exception ex) =>
-        ex is IOException or UnauthorizedAccessException or Win32Exception or InvalidOperationException or System.Runtime.InteropServices.COMException;
+        ex is IOException or UnauthorizedAccessException or Win32Exception or InvalidOperationException or System.Runtime.InteropServices.COMException
+            or Wia.WiaException;
 
     public async Task<InstallResult> InstallAsync(DriverReady ready, Func<CancellationToken, Task<bool>> isThere, CancellationToken ct)
     {
@@ -258,7 +262,7 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
             if (!keepFolder) Discard(ready);
         }
         if (code is not (0 or 3010 or 1641)) return new InstallResult(InstallOutcome.Failed, code);
-        if (await IsThereAsync(isThere, ct).ConfigureAwait(false)) return new InstallResult(InstallOutcome.Done, code);
+        if (await IsThereNowAsync(isThere, ct).ConfigureAwait(false)) return new InstallResult(InstallOutcome.Done, code);
         // The device node can be gone until Windows looks again (a driver installed while it was plugged in).
         var asUser = await RescanAsync(pc.RescanAsUserAsync, ct).ConfigureAwait(false);
         if (asUser && await WaitForAsync(isThere, ct).ConfigureAwait(false)) return new InstallResult(InstallOutcome.Done, code, Rescanned: true);
@@ -328,7 +332,8 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
         }
     }
 
-    private static async Task<bool> IsThereAsync(Func<CancellationToken, Task<bool>> isThere, CancellationToken ct)
+    /// <summary>Whether Windows has the device now; a read that fails (WIA not answering, a COM error) is "not yet", a cancellation still ends it.</summary>
+    public static async Task<bool> IsThereNowAsync(Func<CancellationToken, Task<bool>> isThere, CancellationToken ct)
     {
         try
         {
@@ -360,7 +365,7 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
         var step = TimeSpan.FromMilliseconds(Math.Clamp(_timing.Wait.TotalMilliseconds / 10, 1, 2000));
         while (true)
         {
-            if (await IsThereAsync(isThere, ct).ConfigureAwait(false)) return true;
+            if (await IsThereNowAsync(isThere, ct).ConfigureAwait(false)) return true;
             if (DateTime.UtcNow >= until) return false;
             await Task.Delay(step, ct).ConfigureAwait(false);
         }
@@ -368,7 +373,7 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
 
     public async Task<bool> LookAgainAsync(Func<CancellationToken, Task<bool>> isThere, CancellationToken ct)
     {
-        if (await IsThereAsync(isThere, ct).ConfigureAwait(false)) return true;
+        if (await IsThereNowAsync(isThere, ct).ConfigureAwait(false)) return true;
         return await RescanAsync(pc.RescanAsUserAsync, ct).ConfigureAwait(false) && await WaitForAsync(isThere, ct).ConfigureAwait(false);
     }
 

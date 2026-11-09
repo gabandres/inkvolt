@@ -126,6 +126,11 @@ public sealed class BoundedHttp(HttpMessageHandler handler)
         {
             throw new FetchException(FetchProblem.Unreachable, ex.Message);
         }
+        catch (InvalidDataException ex)
+        {
+            // A compressed answer that can't be unpacked (the handler unpacks gzip and deflate as it reads).
+            throw new FetchException(FetchProblem.Unreachable, ex.Message);
+        }
         catch (IOException ex) when (ex is not FileNotFoundException)
         {
             // The connection dropped part way (the stream ends with an error rather than short).
