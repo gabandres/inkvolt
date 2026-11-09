@@ -177,6 +177,8 @@ public static class Cmd
     public static readonly RoutedUICommand StrikeOut = Make(Strings.Cmd_StrikeOut, nameof(StrikeOut), K(Key.X, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand AddNote = Make(Strings.Cmd_AddNote, nameof(AddNote), K(Key.C, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand Redact = Make(Strings.Cmd_Redact, nameof(Redact));
+    // Applies the redaction marks (DocumentTab.ApplyRedactions): its icon is the bar's only red (BarColors)
+    public static readonly RoutedUICommand ApplyRedactions = Make(Strings.Main_MenuApplyRedactions, nameof(ApplyRedactions));
     public static readonly RoutedUICommand RedactPatterns = Make(Strings.Cmd_RedactPatterns, nameof(RedactPatterns));
     public static readonly RoutedUICommand CheckRedaction = Make(Strings.Cmd_CheckRedaction, nameof(CheckRedaction));
     public static readonly RoutedUICommand CheckAccessibility = Make(Strings.Cmd_CheckAccessibility, nameof(CheckAccessibility));

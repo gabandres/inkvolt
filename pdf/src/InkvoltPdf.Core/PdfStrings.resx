@@ -5793,14 +5793,6 @@
     <value>Comment</value>
     <comment>Command bar group button: keep short</comment>
   </data>
-  <data name="Bar_Draw" xml:space="preserve">
-    <value>Draw</value>
-    <comment>Command bar group button: keep short</comment>
-  </data>
-  <data name="Bar_Redact" xml:space="preserve">
-    <value>Redact</value>
-    <comment>Command bar button (Redact: remove confidential information): keep short</comment>
-  </data>
   <data name="Bar_Organize" xml:space="preserve">
     <value>Organize</value>
     <comment>Command bar button (organize pages): keep short</comment>
@@ -6783,5 +6775,165 @@
   <data name="Doc_ShapeRefused" xml:space="preserve">
     <value>This PDF is built in a way that could stop the app, so only its pages can be shown. It can't be filled or edited.</value>
     <comment>A file whose nesting or page tree would crash the reader: shown when something tries to read or edit its objects</comment>
+  </data>
+  <data name="Bar_Edit" xml:space="preserve">
+    <value>Edit</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_Convert" xml:space="preserve">
+    <value>Convert</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_Protect" xml:space="preserve">
+    <value>Protect</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_ScanOcr" xml:space="preserve">
+    <value>Scan &amp; OCR</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_ToWord" xml:space="preserve">
+    <value>Word (.docx)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToExcel" xml:space="preserve">
+    <value>Excel (.xlsx)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToPowerPoint" xml:space="preserve">
+    <value>PowerPoint (.pptx)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToText" xml:space="preserve">
+    <value>Plain text (.txt)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToHtml" xml:space="preserve">
+    <value>Web page (.html)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToImages" xml:space="preserve">
+    <value>Images (PNG, JPEG)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToPdfA" xml:space="preserve">
+    <value>PDF/A for archiving…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_EditContentDesc" xml:space="preserve">
+    <value>Change the text and pictures on the page</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_HeaderFooterDesc" xml:space="preserve">
+    <value>Page numbers, dates or text on every page</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_WatermarkDesc" xml:space="preserve">
+    <value>Write DRAFT or a logo across the pages</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToWordDesc" xml:space="preserve">
+    <value>Saved next to the PDF and opened in Word</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToExcelDesc" xml:space="preserve">
+    <value>The tables as an Excel workbook</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToPowerPointDesc" xml:space="preserve">
+    <value>Each page as a slide you can edit</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToTextDesc" xml:space="preserve">
+    <value>Just the words, in a plain text file</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToHtmlDesc" xml:space="preserve">
+    <value>Headings, lists and tables as a web page</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToImagesDesc" xml:space="preserve">
+    <value>Each page as a picture</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToPdfADesc" xml:space="preserve">
+    <value>A copy that opens the same for years</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_PrepareFormDesc" xml:space="preserve">
+    <value>Add fields that others can fill in</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_OrganizeDesc" xml:space="preserve">
+    <value>Move, turn, delete and insert pages</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_InsertPagesDesc" xml:space="preserve">
+    <value>Add the pages of another file</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ExtractPagesDesc" xml:space="preserve">
+    <value>Save some pages as a new PDF</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SplitDesc" xml:space="preserve">
+    <value>Cut the PDF into several files</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CombineDesc" xml:space="preserve">
+    <value>Join several files into one PDF</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ReduceSizeDesc" xml:space="preserve">
+    <value>Make the file smaller to send it</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_PasswordDesc" xml:space="preserve">
+    <value>Ask for a password to open or change it</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RedactDesc" xml:space="preserve">
+    <value>Black out text or areas for good</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RedactPatternsDesc" xml:space="preserve">
+    <value>Find and remove numbers, phones, emails</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CheckRedactionDesc" xml:space="preserve">
+    <value>Make sure nothing removed can be read</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SanitizeDesc" xml:space="preserve">
+    <value>Remove hidden data, metadata and scripts</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_DigitalSignDesc" xml:space="preserve">
+    <value>Sign with a digital ID (certificate)</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RemoveProtectionDesc" xml:space="preserve">
+    <value>Take the password off the file</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RecognizeDesc" xml:space="preserve">
+    <value>Make scanned pages searchable</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanDesc" xml:space="preserve">
+    <value>A new PDF from your scanner</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanInsertDesc" xml:space="preserve">
+    <value>Scanned pages added to this PDF</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SuspectWordsDesc" xml:space="preserve">
+    <value>Check the words OCR wasn't sure of</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ApplyRedactionsDesc" xml:space="preserve">
+    <value>Remove what you marked, for good</value>
+    <comment>Line under a command in the bar's menu</comment>
   </data>
 </root>

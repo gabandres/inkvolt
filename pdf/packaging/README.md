@@ -96,7 +96,8 @@ Version: four numbers, the last one 0 (the Store reserves it), higher than every
 A release, in order (the owner says when; Inkvolt Print's the same with its own ID `9PNR76HJ62SK`):
 
 1. `pdf/tools/bench` `run` and commit its `RESULTS.md` (an idle PC; root `CLAUDE.md`).
-2. `pdf/WHATS-NEW.md`: `## Next` becomes `## x.y.z`, a new empty `## Next` above it.
+2. `pdf/WHATS-NEW.md`: `## Next` becomes `## x.y.z`, a new empty `## Next` above it; the same in `pdf/WHATS-NEW.es.md`,
+   which the Store's es release notes come from (the app shows What's New in English).
 3. Pack with the smoke test (Build, above; `-SmokeSideBySide` while the Store copy is installed).
 4. `msstore publish pdf/publish/msix/InkvoltPdf_<ver>.msixupload -id 9MXDTSFJ9W28 -nc -ut 3000`: the package goes up as
    a draft, not committed.

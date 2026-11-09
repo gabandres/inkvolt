@@ -69,8 +69,8 @@ public sealed class ThumbItem(int index, double width, double height, Action<Thu
 /// <summary>Drag payload for thumbnails: pages of a document, possibly dropped into another tab.</summary>
 public sealed record PageDragData(DocumentTab Source, int[] Pages);
 
-/// <summary>A transient message for the toast area, optionally with an action such as Undo.</summary>
-public sealed record Toast(string Message, string? ActionLabel = null, Action? Action = null, bool IsError = false);
+/// <summary>A transient message for the toast area, optionally with an action such as Undo, and a second one after it ("Show in folder · Change options…").</summary>
+public sealed record Toast(string Message, string? ActionLabel = null, Action? Action = null, bool IsError = false, string? Action2Label = null, Action? Action2 = null);
 
 public enum NavPaneKind { None, Pages, Bookmarks, Search, Comments, Attachments, Layers, Signatures, Accessibility, ReadingOrder, SuspectWords }
 
