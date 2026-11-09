@@ -964,17 +964,12 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>A group's flyout, under the whole split button; its arrow shows checked while it is open.</summary>
+    /// <summary>A group's flyout, under the whole split button (its arrow isn't checked: the accent means a tool in use).</summary>
     private void OpenGroupFlyout(BarGroupButton group)
     {
         var menu = IconButtonMenu(group);
         FillGroupMenu(menu, group.Group);
-        group.Arrow.IsChecked = true;
-        menu.Closed += (_, _) =>
-        {
-            group.Arrow.IsChecked = false;
-            UpdateUi();
-        };
+        menu.Closed += (_, _) => UpdateUi();
         menu.IsOpen = true;
     }
 
@@ -1948,6 +1943,7 @@ public partial class MainWindow : Window
             (t, _) => !t.IsOrganizing && t.Session.IsPdf);
         foreach (var tool in DrawTools.All)
             Bind(Cmd.DrawTool(tool), t => ToggleTool(t, tool), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.ApplyRedactions, t => _ = t.ApplyRedactions(), t => t.Session.IsPdf && !t.IsOrganizing && t.PageView.Redactions.Count > 0);
         BindAtOnce(Cmd.RecognizeText, (t, now) => _ = t.RecognizeText(atOnce: now), (t, _) => t.Session.IsPdf);
         Bind(Cmd.ReviewSuspectWords, t => _ = t.ShowSuspectWordsAsync(), t => t.Session.IsPdf);
     }
@@ -1991,10 +1987,6 @@ public partial class MainWindow : Window
         if (ActiveTab is { IsBusy: false } t && t.RedactSearchHits() == 0) ShowStatus(Strings.Main_RedactSearchFirst);
     }
 
-    private void OnApplyRedactions(object sender, RoutedEventArgs e)
-    {
-        if (ActiveTab is { IsBusy: false } t) _ = t.ApplyRedactions();
-    }
 
     /// <summary>The drawing tools as menu items (the Review menu's Draw submenu, the Draw button's dropdown, the More menu).</summary>
     private void FillDrawMenu(ItemsControl menu)
@@ -2508,7 +2500,6 @@ public partial class MainWindow : Window
         AttachMenu.IsEnabled = pdf;
         RedactTextMenu.IsEnabled = pdf && v!.HasSelection;
         RedactHitsMenu.IsEnabled = pdf && t!.HasSearchResults;
-        ApplyRedactMenu.IsEnabled = pdf && v!.Redactions.Count > 0;
         HighlightFieldsMenu.IsChecked = v is { HasFormFields: true, HighlightFields: true };
         FitWidthMenu.IsChecked = v?.ZoomMode == ZoomMode.FitWidth;
         FitPageMenu.IsChecked = v?.ZoomMode == ZoomMode.FitPage;

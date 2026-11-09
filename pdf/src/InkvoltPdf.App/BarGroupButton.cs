@@ -21,8 +21,8 @@ public sealed class BarGroupButton : StackPanel
     /// <summary>Runs the main job (its <see cref="ButtonBase.Command"/>, with <see cref="CommandBarLayout.RunAtOnce"/>).</summary>
     public ToggleButton Body { get; }
 
-    /// <summary>Drops the flyout; checked while it is open.</summary>
-    public ToggleButton Arrow { get; }
+    /// <summary>Drops the flyout (a plain button: on the bar, the accent color means only a tool in use).</summary>
+    public Button Arrow { get; }
 
     /// <summary>The body's icon: the group's own, or the tool of the group in use.</summary>
     public TextBlock Icon { get; }
@@ -57,7 +57,7 @@ public sealed class BarGroupButton : StackPanel
         // One click runs with the defaults where the menus open a window of options ("…"); Shift+click opens it.
         Body.ToolTip = group.Main.AtOnce && main.Text.EndsWith('…') ? tip + "\n" + Strings.Main_BarShiftTip : tip;
 
-        Arrow = new ToggleButton { Content = "" };
+        Arrow = new Button { Content = "" };
         Arrow.SetResourceReference(StyleProperty, "SplitArrowButton");
         var more = Loc.Format(Strings.Main_BarMoreTip, label);
         AutomationProperties.SetName(Arrow, more);

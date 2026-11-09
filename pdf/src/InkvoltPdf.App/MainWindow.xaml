@@ -303,7 +303,7 @@
                                     <MenuItem x:Name="RedactTextMenu" Header="{x:Static loc:Strings.Main_MenuMarkSelectedText}" Click="OnRedactText" />
                                     <MenuItem x:Name="RedactHitsMenu" Header="{x:Static loc:Strings.Main_MenuMarkSearchMatches}" Click="OnRedactHits" />
                                     <MenuItem Command="app:Cmd.RedactPatterns" />
-                                    <MenuItem x:Name="ApplyRedactMenu" Header="{x:Static loc:Strings.Main_MenuApplyRedactions}" Click="OnApplyRedactions" />
+                                    <MenuItem x:Name="ApplyRedactMenu" Command="app:Cmd.ApplyRedactions" />
                                     <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
                                     <MenuItem Command="app:Cmd.WhatsInThisPdf" />

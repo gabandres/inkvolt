@@ -135,6 +135,7 @@ public static class CommandBarLayout
         new("Protect", PdfStrings.Bar_Protect, 60,
             [new("ProtectPassword", "\uE72E", Description: PdfStrings.Bar_PasswordDesc, AtOnce: true),
              new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc, AtOnce: true, StartsSection: true),
+             new("ApplyRedactions", "", Description: PdfStrings.Bar_ApplyRedactionsDesc, IconBrush: "ApplyRedactionsBrush"), // the bar's only red
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),

@@ -82,9 +82,9 @@
             <Setter Property="FontFamily" Value="{StaticResource Icons}" />
             <Setter Property="FontSize" Value="9" />
         </Style>
-        <!-- Convert's file-type icons are drawn with these keys when they are defined (CommandBarLayout's IconBrush):
-             FormatWordBrush, FormatExcelBrush, FormatPowerPointBrush, FormatTextBrush, FormatHtmlBrush, FormatImagesBrush,
-             FormatPdfABrush. None is, so they take the text color; a SolidColorBrush here (per theme if needed) colors one. -->
+        <!-- The bar's colors (Convert's Word, Excel, PowerPoint and PDF/A icons; Apply Redactions' red) are application
+             resources set in code for the theme shown, the system's text color under high contrast (App.ApplyBarColors,
+             Core's BarColors). Text, HTML and pictures have keys too (CommandBarLayout's IconBrush) but no color. -->
         <Style x:Key="BarSeparator" TargetType="Border">
             <Setter Property="Width" Value="1" />
             <Setter Property="Height" Value="20" />

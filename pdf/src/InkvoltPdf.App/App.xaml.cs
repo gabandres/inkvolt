@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using InkvoltPdf.Core;
 
@@ -150,6 +151,61 @@ public partial class App : Application
             _ => ThemeMode.System,
         };
         foreach (Window w in Current.Windows) ApplyFrame(w);
+        ApplyBarColors();
+    }
+
+    private static bool _barColorsWatched;
+
+    /// <summary>A dev script's high contrast (<c>highcontrast on</c>): Fluent's high-contrast resources and no bar colors, without Windows' setting.</summary>
+    internal static bool? DevHighContrast { get; private set; }
+
+    private static ResourceDictionary? _devHighContrast;
+
+    /// <summary>
+    /// The command bar's few colors (<see cref="BarColors"/>: Convert's file types, Apply Redactions' red) for the theme
+    /// shown, each an application resource by its key. Under high contrast every key is the system's text color, so the
+    /// icons follow Windows' high-contrast theme like the rest. Again when the theme, Windows' light/dark or its high
+    /// contrast changes.
+    /// </summary>
+    public static void ApplyBarColors()
+    {
+        if (!_barColorsWatched)
+        {
+            _barColorsWatched = true;
+            SystemParameters.StaticPropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SystemParameters.HighContrast)) Current.Dispatcher.BeginInvoke(ApplyBarColors);
+            };
+            Microsoft.Win32.SystemEvents.UserPreferenceChanged += (_, e) =>
+            {
+                if (e.Category is Microsoft.Win32.UserPreferenceCategory.General or Microsoft.Win32.UserPreferenceCategory.Color)
+                    Current.Dispatcher.BeginInvoke(ApplyBarColors);
+            };
+        }
+        var highContrast = DevHighContrast ?? SystemParameters.HighContrast;
+        var colors = BarColors.For(IsDark, highContrast);
+        foreach (var tint in BarColors.All)
+        {
+            Brush brush = colors.TryGetValue(tint.Key, out var hex) && BarColors.Rgb(hex) is var (r, g, b)
+                ? new SolidColorBrush(Color.FromRgb(r, g, b))
+                : SystemColors.WindowTextBrush;
+            brush.Freeze();
+            Current.Resources[tint.Key] = brush;
+        }
+    }
+
+    /// <summary>Dev aid: Fluent's own high-contrast dictionary over the current theme, and the bar's colors given way.</summary>
+    internal static void SetDevHighContrast(bool? on)
+    {
+        DevHighContrast = on;
+        if (_devHighContrast is not null) Current.Resources.MergedDictionaries.Remove(_devHighContrast);
+        _devHighContrast = null;
+        if (on == true)
+        {
+            _devHighContrast = new ResourceDictionary { Source = new Uri("pack://application:,,,/PresentationFramework.Fluent;component/Resources/Theme/HC.xaml") };
+            Current.Resources.MergedDictionaries.Add(_devHighContrast);
+        }
+        ApplyBarColors();
     }
 
     /// <summary>True when the app shows dark (an explicit choice, or Windows' app mode when following the system).</summary>

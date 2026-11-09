@@ -50,7 +50,7 @@ namespace InkvoltPdf.App;
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
-/// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (the page view's
+/// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (Fluent's high-contrast resources on the window, no bar colors, and the page view's
 /// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
@@ -941,7 +941,8 @@ internal static class DevScript
             case "highcontrast":
                 // highcontrast on|off|system: the page view's high-contrast palette without changing Windows' setting.
                 PageViewer.DevForceHighContrast = arg switch { "on" => true, "off" => false, _ => null };
-                v!.DevApplyContrast();
+                v?.DevApplyContrast();
+                App.SetDevHighContrast(PageViewer.DevForceHighContrast); // and the window: Fluent's high-contrast resources, no bar colors
                 break;
             case "copyfile":
             {
@@ -959,7 +960,7 @@ internal static class DevScript
                 var parts = arg.Split(' ', 2);
                 var target = bar.Children.OfType<FrameworkElement>()
                     .First(b => parts[0] == "More" ? ToolbarPanel.GetIsOverflowButton(b) : b.Tag as string == parts[0]);
-                var button = target is BarGroupButton group ? (parts is [_, "main"] ? group.Body : group.Arrow) : (System.Windows.Controls.Primitives.ButtonBase)target;
+                var button = target is BarGroupButton group ? (parts is [_, "main"] ? (System.Windows.Controls.Primitives.ButtonBase)group.Body : group.Arrow) : (System.Windows.Controls.Primitives.ButtonBase)target;
                 if (button.Command is { } command)
                 {
                     // A command button runs as a click would (a raised Click event skips the command).

@@ -104,8 +104,17 @@ findings).
 **Spanish:** Editar, Convertir, Comentar, Llenar y firmar (147 DIPs, the longest), Organizar, Proteger, Escanear y OCR.
 The label stays, and the group goes into "…" before the others lose their labels.
 
-**Colour:** monochrome for now. Each of Convert's file types has its own icon brush key (`FormatWordBrush`,
-`FormatExcelBrush`, … in App.xaml); defining one colors that icon.
+**Colour** (approved 2026-11-08; the rest of the bar is monochrome). There are three touches:
+- **File types:** Convert's Word blue, Excel green, PowerPoint orange and PDF/A grey, on our own document glyphs.
+- **The tool in use:** Windows' accent, the same on the pointer group (when it isn't the hand) and on a group's body.
+  The arrow is a plain button, so the accent never marks an open flyout.
+- **Apply Redactions:** its icon is red, in Protect's flyout, in "…" and on the Redact bar's Apply button. That button
+  is no longer an accent button, which a red icon couldn't sit on.
+
+`BarColors` (Core) holds each colour with a dark-theme variant, tested at 3:1 or more against the flyout's and the
+bar's backgrounds in both themes. `App.ApplyBarColors` sets them as resources, again when the theme, Windows'
+light/dark or its high contrast changes. Under high contrast every one is the system text colour, and the accent comes
+from Fluent's high-contrast theme. Labels always stay, so colour never carries meaning alone.
 
 **Mac** (its own task): the same groups as `NSMenuToolbarItem`s. With an action and `showsIndicator`, the body runs
 the main job and the arrow opens the menu. Proposed defaults: sidebar, Edit, Convert, Comment, Fill & Sign, Organize,
@@ -123,8 +132,9 @@ Branch `t3/2df29816`, as approved on 2026-11-08:
 - Dev steps: `barclick Id main` and `shellopen off`.
 
 Screenshots, taken with `--script`:
-- Bar: [1700 light](bar-1700-light.png) · [1700 dark](bar-1700-dark.png) · [1280](bar-1280-light.png) · [1100](bar-1100-light.png) · ["…" at 1100](more-1100-light.png)
-- Flyouts: [Convert light](convert-flyout-light.png) · [Convert dark](convert-flyout-dark.png) · [Comment, with Draw](comment-flyout-light.png)
+- Bar: [1700 light, Select in use](bar-1700-light.png) · [1700 dark, Edit in use](bar-1700-dark.png) · [1280](bar-1280-light.png) · [1100](bar-1100-light.png) · ["…" at 1100](more-1100-light.png)
+- Flyouts: [Convert light](convert-flyout-light.png) · [Convert dark](convert-flyout-dark.png) · [Comment, with Draw](comment-flyout-light.png) · [Protect, Apply Redactions in red](protect-flyout-light.png)
+- High contrast: [Convert](convert-flyout-highcontrast.png). This shot is the dev step `highcontrast on`: Fluent's own high-contrast resources over the light theme. Windows' High Contrast isn't switched on, because this PC is shared.
 - One click: [Word's notice](convert-word-notice-light.png) · [Protect's password](protect-password-light.png) · [Comment with no selection: the highlighter](comment-main-light.png)
 - Spanish: [1700](bar-1700-es.png) · [1280](bar-1280-es.png) · [1100](bar-1100-es.png) · [Convert](convert-flyout-es.png)
 
@@ -137,7 +147,7 @@ Screenshots, taken with `--script`:
 5. Fill & Sign's main job is Sign.
 6. Yes to the icon-only pointer group and to Draw inside Comment.
 
-Pending: colour (monochrome until the owner decides), and the Mac.
+Pending: the Mac.
 
 ## Sources
 

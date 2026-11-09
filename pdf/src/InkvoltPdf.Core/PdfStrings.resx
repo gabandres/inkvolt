@@ -6932,4 +6932,8 @@
     <value>Check the words OCR wasn't sure of</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_ApplyRedactionsDesc" xml:space="preserve">
+    <value>Remove what you marked, for good</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

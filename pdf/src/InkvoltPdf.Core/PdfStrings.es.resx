@@ -6932,4 +6932,8 @@
     <value>Revisa las palabras dudosas del OCR</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_ApplyRedactionsDesc" xml:space="preserve">
+    <value>Quita para siempre lo que marcaste</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

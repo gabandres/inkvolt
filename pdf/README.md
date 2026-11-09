@@ -63,8 +63,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   pointer tools (H, T, G still work); Edit, Convert, Comment and Fill & Sign keep their labels down to a 1100-DIP window
   (everything shows from about 1700), and the bar goes icons-only only when even they can't (Text size 150 % on a
   1200-DIP window). In Spanish "Llenar y firmar" goes into "…" before the labels do. Under 1100 logical DIPs the palette
-  button keeps only its icon and Appearance moves into "…". Convert's file-type icons take a color from App.xaml when one
-  is defined (`FormatWordBrush` and the like; none is). Every bar command is in the menus, so the command palette (Ctrl+K)
+  button keeps only its icon and Appearance moves into "…". Color only in three places (`BarColors`, a dark variant each, 3:1 or more in both themes): Convert's
+  Word, Excel, PowerPoint and PDF/A icons, the tool in use in Windows' accent, and Apply Redactions' red icon; under high
+  contrast the system's colors. Every bar command is in the menus, so the command palette (Ctrl+K)
   lists it. The table (order, groups, main jobs, priorities, icons) and the fitting are `CommandBarLayout` (Core,
   tested); `BarGroupButton` is a group's split button and `ToolbarPanel` lays the bar out; dev steps `barstate`,
   `barclick Id[ main]|More`, `menushot out.png`, `shellopen off`.
