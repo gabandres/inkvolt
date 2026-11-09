@@ -75,7 +75,7 @@ FileHorse contact form (subject "Program submission: Inkvolt PDF for Mac"; Windo
 DMG is offered):
 
 > I'm the developer (Bermudez Systems LLC). Inkvolt PDF for Mac 1.5.0, https://bermudezsystems.com/products/inkvolt/ ·
-> download: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.9.0 (notarized DMG) · licence: open source,
+> download: https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.10.0 (notarized DMG) · licence: open source,
 > AGPL-3.0, free · icon and screenshots: https://github.com/gabandres/inkvolt/tree/master/docs/screenshots · a PDF
 > editor: read, annotate, fill forms, edit text, organize pages, OCR with Apple's text recognition, export to Word, Excel
 > and PowerPoint, digital signatures, compare, redaction with a check of the whole file, Sanitize, What's in This PDF,
