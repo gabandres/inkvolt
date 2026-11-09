@@ -54,14 +54,15 @@ public static class ExportTarget
     }
 
     /// <summary>
-    /// Creates an empty file at <paramref name="path"/> only if nothing is there (FileMode.CreateNew). A device the name
-    /// opens instead (NUL, a COM port: names Windows 10 maps to devices whatever the extension) is refused: it isn't a
-    /// file the export could replace.
+    /// Creates an empty file at <paramref name="path"/> only if nothing is there (FileMode.CreateNew). A device name
+    /// (NUL, COM¹: <see cref="InkvoltPrint.Core.DeviceNames"/>) is refused without opening it; a device the path opens
+    /// all the same (not seekable, no file left behind) is refused too: it isn't a file the export could replace.
     /// </summary>
     public static CreateResult TryCreate(string path)
     {
         try
         {
+            if (InkvoltPrint.Core.DeviceNames.IsReserved(System.IO.Path.GetFileName(path))) return CreateResult.Refused;
             bool isFile;
             using (var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 isFile = fs.CanSeek;

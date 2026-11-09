@@ -90,5 +90,21 @@ public class ExportTargetTests
         // Opening a device (NUL, a COM port behind "COM¹.docx" on Windows 10) succeeds, but nothing can replace it: the
         // export would fail after all its work. A device refuses, so the conversion goes to Documents or asks.
         Assert.Equal(CreateResult.Refused, TryCreate(@"\\.\NUL"));
+        // The name check refuses before opening anything: nothing is made, whatever this Windows maps.
+        var dir = Directory.CreateTempSubdirectory("inkvolt-export-");
+        try
+        {
+            foreach (var name in new[] { "COM¹.docx", "nul.txt", "CONOUT$.xlsx", "lpt0.pptx" })
+            {
+                Assert.Equal(CreateResult.Refused, TryCreate(Path.Combine(dir.FullName, name)));
+                Assert.Empty(dir.GetFileSystemInfos());
+            }
+        }
+        finally
+        {
+            dir.Delete(true);
+        }
+        // A device the name check can't know (no device name in it) is still refused: it opens unseekable.
+        Assert.Equal(CreateResult.Refused, TryCreate(@"\\.\GLOBALROOT\Device\Null"));
     }
 }

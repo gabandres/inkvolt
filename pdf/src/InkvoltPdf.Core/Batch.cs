@@ -81,12 +81,6 @@ public static partial class BatchNames
     /// &lt;&lt;date&gt;&gt; (yyyy-MM-dd, or a .NET format after a colon), &lt;&lt;folder&gt;&gt; the folder it is in.</summary>
     public static readonly IReadOnlyList<string> Tokens = ["<<name>>", "<<n>>", "<<date>>", "<<folder>>"];
 
-    private static readonly HashSet<string> DeviceNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    };
-
     [GeneratedRegex(@"<<\s*(name|n|date|folder)\s*(?::([^<>]*))?>>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TokenPattern();
 
@@ -136,8 +130,7 @@ public static partial class BatchNames
         s = s.TrimEnd('.', ' ');
         if (s.Length == 0) s = fallback.Length > 0 ? fallback : "file";
         // CON, NUL, COM1 ... can't be file names, with or without an extension.
-        var stem = s.Split('.')[0];
-        if (DeviceNames.Contains(stem.TrimEnd())) s = "_" + s;
+        if (InkvoltPrint.Core.DeviceNames.IsReserved(s)) s = "_" + s;
         return s;
     }
 }

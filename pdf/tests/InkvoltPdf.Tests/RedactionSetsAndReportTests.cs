@@ -55,12 +55,17 @@ public sealed class RedactionSetsAndReportTests : IDisposable
     [InlineData("CON")]
     [InlineData("nul")]
     [InlineData("LPT1")]
+    [InlineData("COM¹")]
+    [InlineData("lpt³")]
+    [InlineData("CONIN$")]
+    [InlineData("com0")]
     [InlineData("...")]
     public void ASetsNameNeverEscapesItsFolderOrNamesADevice(string name)
     {
         var file = RedactionPatternSets.FileName(name);
         Assert.Equal(file, Path.GetFileName(file));
         Assert.DoesNotContain("..", file[..^5]);
+        Assert.False(InkvoltPrint.Core.DeviceNames.IsReserved(file));
         var stem = Path.GetFileNameWithoutExtension(file);
         Assert.False(stem.ToUpperInvariant() is "CON" or "NUL" or "LPT1" or "...");
         var path = RedactionPatternSets.Save(new RedactionPatternSet(name, Sample), _root);

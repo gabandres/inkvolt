@@ -46,6 +46,10 @@ public sealed class BatchTests : IDisposable
         Assert.Equal("a_b_c", BatchNames.Expand("a:b?c", @"C:\in\x.pdf", 1, When));
         Assert.Equal("x", BatchNames.Expand("   ", @"C:\in\x.pdf", 1, When)); // empty: the original name
         Assert.Equal("_CON", BatchNames.Expand("CON", @"C:\in\x.pdf", 1, When)); // a device name can't be a file name
+        Assert.Equal("_COM¹", BatchNames.Expand("COM¹", @"C:\in\x.pdf", 1, When));
+        Assert.Equal("_conout$.signed", BatchNames.Expand("conout$.signed", @"C:\in\x.pdf", 1, When));
+        Assert.Equal("_nul", BatchNames.Expand("<<name>>", @"C:\in\nul.pdf", 1, When));
+        Assert.Equal("COM10", BatchNames.Expand("COM10", @"C:\in\x.pdf", 1, When));
         Assert.Equal("x", BatchNames.Expand("<<name>>...", @"C:\in\x.pdf", 1, When)); // Windows drops trailing dots
         Assert.Equal("__other__ x", BatchNames.Expand("<<other>> <<name>>", @"C:\in\x.pdf", 1, When));
         Assert.True(BatchNames.Expand(new string('a', 400), @"C:\in\x.pdf", 1, When).Length <= BatchNames.MaxLength);

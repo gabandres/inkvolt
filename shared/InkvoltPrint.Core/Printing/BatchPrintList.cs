@@ -194,12 +194,7 @@ public static class BatchPrintList
             return Refuse(string.Format(CoreStrings.Batch_PathNotAllowed, shown), out why);
         }
         foreach (var part in full.Split('\\', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var stem = part.Split('.')[0].TrimEnd(' ');
-            if (stem.ToUpperInvariant() is "CON" or "PRN" or "AUX" or "NUL" or "CONIN$" or "CONOUT$"
-                || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || stem.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)) && (char.IsDigit(stem[3]) || stem[3] is '¹' or '²' or '³')))
-                return Refuse(string.Format(CoreStrings.Batch_PathDevice, shown), out why);
-        }
+            if (DeviceNames.IsReserved(part)) return Refuse(string.Format(CoreStrings.Batch_PathDevice, shown), out why);
         if (relative)
         {
             var below = System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(listFolder)) + "\\";
