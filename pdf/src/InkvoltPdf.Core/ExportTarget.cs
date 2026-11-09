@@ -53,13 +53,19 @@ public static class ExportTarget
         return null;
     }
 
-    /// <summary>Creates an empty file at <paramref name="path"/> only if nothing is there (FileMode.CreateNew).</summary>
+    /// <summary>
+    /// Creates an empty file at <paramref name="path"/> only if nothing is there (FileMode.CreateNew). A device the name
+    /// opens instead (NUL, a COM port: names Windows 10 maps to devices whatever the extension) is refused: it isn't a
+    /// file the export could replace.
+    /// </summary>
     public static CreateResult TryCreate(string path)
     {
         try
         {
-            using (new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { }
-            return CreateResult.Created;
+            bool isFile;
+            using (var fs = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                isFile = fs.CanSeek;
+            return isFile && File.Exists(path) ? CreateResult.Created : CreateResult.Refused;
         }
         catch (IOException) when (File.Exists(path) || Directory.Exists(path))
         {

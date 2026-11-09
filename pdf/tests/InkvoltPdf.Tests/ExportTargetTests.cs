@@ -83,4 +83,12 @@ public class ExportTargetTests
             dir.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void ADeviceIsNeverAReservedFile()
+    {
+        // Opening a device (NUL, a COM port behind "COM¹.docx" on Windows 10) succeeds, but nothing can replace it: the
+        // export would fail after all its work. A device refuses, so the conversion goes to Documents or asks.
+        Assert.Equal(CreateResult.Refused, TryCreate(@"\\.\NUL"));
+    }
 }
