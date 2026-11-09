@@ -397,11 +397,37 @@ public sealed class DriverDownloadTests : IDisposable
     public async Task A_process_that_isnt_the_installers_is_never_waited_for()
     {
         var web = new FakeWeb();
-        var pc = new FakePc { Others = [new ProcessLink(500, 4), new ProcessLink(501, 500)] };
+        var pc = new FakePc { Others = t0 => [(500, 4, t0.AddHours(-1)), (501, 500, t0.AddMinutes(-5))] };
         var flow = Flow(web, pc: pc);
         var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None)
             .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
         Assert.Equal(InstallOutcome.Done, done.Outcome);
+    }
+
+    [Fact]
+    public async Task A_process_still_naming_a_long_dead_parent_whose_pid_the_installer_got_is_not_its_child()
+    {
+        // explorer.exe names userinit's PID, long gone; the installer was given that PID again.
+        var web = new FakeWeb();
+        var pc = new FakePc { Others = t0 => [(300, 100, t0.AddDays(-1)), (301, 300, t0.AddHours(-2))] };
+        var flow = Flow(web, pc: pc);
+        var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None)
+            .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        Assert.Equal(InstallOutcome.Done, done.Outcome); // not TimedOut after the limit
+        Assert.True(LeftNothing());
+    }
+
+    [Fact]
+    public async Task A_finished_childs_pid_taken_by_a_new_process_is_not_waited_for()
+    {
+        // setup.exe (101) ends; a new process gets 101 (named as the installer's child, or not), and one starts under it.
+        var web = new FakeWeb();
+        var pc = new FakePc { ChildLooks = 2, ReusedAfterChildren = now => [(101, 100, now), (103, 101, now.AddMilliseconds(1))] };
+        var flow = Flow(web, pc: pc);
+        var done = await flow.InstallAsync(await ReadyAsync(flow, web), _ => Task.FromResult(true), CancellationToken.None)
+            .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        Assert.Equal(InstallOutcome.Done, done.Outcome);
+        Assert.True(pc.Looks >= 3);
     }
 
     [Fact]
@@ -649,8 +675,9 @@ public sealed class DriverDownloadTests : IDisposable
     }
 
     /// <summary>
-    /// The PC: the installer (process 100) exits at once with <see cref="ExitCode"/>; its setup (101) and that one's child (102) run
-    /// for <see cref="ChildLooks"/> more looks at the processes.
+    /// The PC: the installer (process 100) starts at t0 and exits at once with <see cref="ExitCode"/>; its setup (101, started
+    /// just after it) and that one's child (102) run for <see cref="ChildLooks"/> more looks at the processes. <see cref="Others"/>
+    /// run throughout (their start times from t0); <see cref="ReusedAfterChildren"/> start once the children have ended.
     /// </summary>
     private sealed class FakePc : IDriverPc
     {
@@ -660,16 +687,22 @@ public sealed class DriverDownloadTests : IDisposable
         public Exception? RescanThrows { get; init; }
         public bool AsUserWorks { get; init; } = true;
         public int ChildLooks { get; set; }
-        public IReadOnlyList<ProcessLink> Others { get; init; } = [];
+        public Func<DateTime, IEnumerable<(int Id, int Parent, DateTime Started)>> Others { get; init; } = _ => [];
+        public Func<DateTime, IEnumerable<(int Id, int Parent, DateTime Started)>>? ReusedAfterChildren { get; init; }
         public Action<bool>? OnLook { get; set; }
         public int Runs, AsUser, ElevatedRuns, Looks;
+
+        private DateTime _t0;
+        private DateTime? _reusedAt;
+        private Dictionary<int, DateTime> _started = [];
 
         public Task<InstallerProcess?> StartInstallerAsync(string path, CancellationToken ct)
         {
             if (StartThrows is { } ex) throw ex;
             if (Decline) return Task.FromResult<InstallerProcess?>(null);
             Runs++;
-            return Task.FromResult<InstallerProcess?>(new InstallerProcess(100, Task.FromResult(ExitCode)));
+            _t0 = DateTime.UtcNow;
+            return Task.FromResult<InstallerProcess?>(new InstallerProcess(100, _t0, Task.FromResult(new InstallerExited(ExitCode, _t0.AddMilliseconds(2)))));
         }
 
         public IReadOnlyList<ProcessLink> Processes()
@@ -678,8 +711,15 @@ public sealed class DriverDownloadTests : IDisposable
             var alive = ChildLooks > 0;
             OnLook?.Invoke(alive);
             if (alive && ChildLooks != int.MaxValue) ChildLooks--;
-            return [new ProcessLink(4, 0), .. Others, .. alive ? new[] { new ProcessLink(101, 100), new ProcessLink(102, 101) } : []];
+            var all = new List<(int Id, int Parent, DateTime Started)> { (4, 0, _t0.AddDays(-3)) };
+            all.AddRange(Others(_t0));
+            if (alive) all.AddRange([(101, 100, _t0.AddMilliseconds(1)), (102, 101, _t0.AddMilliseconds(1.5))]);
+            else if (ReusedAfterChildren is { } reused) all.AddRange(reused(_reusedAt ??= DateTime.UtcNow.AddMilliseconds(50)));
+            _started = all.ToDictionary(p => p.Id, p => p.Started);
+            return all.Select(p => new ProcessLink(p.Id, p.Parent)).ToList();
         }
+
+        public DateTime? StartedAt(int id) => _started.TryGetValue(id, out var t) ? t : null;
 
         public Task<bool> RescanAsUserAsync(CancellationToken ct)
         {

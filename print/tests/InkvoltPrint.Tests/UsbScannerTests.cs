@@ -159,4 +159,60 @@ public class UsbScannerTests
         }
         Assert.Contains("scanner", NeedsDriverText.LogLine(s));
     }
+
+    // ---------------------------------------------------------------- after its driver's installer: is it there and working?
+
+    private static readonly NeedsDriverPrinter V19Listed = Assert.Single(Find(V19));
+
+    private static readonly NeedsDriverPrinter Laser =
+        new("usb-needs-driver:usb001", "HP LaserJet P1006", "HP", "USB001", DriverStage.NoDriver);
+
+    private static readonly UsbPrinterNode LaserNode = new(UsbNodeKind.UsbPrint, true)
+    {
+        FriendlyName = "Hewlett-Packard HP LaserJet P1006", CompatibleIds = ["CID_MS_GENERICPRINT"], DriverInf = "prnms013.inf",
+        DriverSection = "MS_GENERICPRINT", Port = "USB001",
+    };
+
+    [Fact]
+    public void A_scanner_unplugged_while_waiting_is_absent_not_found()
+    {
+        Assert.Equal(DeviceNow.Absent, DeviceState.Of(V19Listed, [], []));
+        Assert.Equal(DeviceNow.Absent, DeviceState.Of(V19Listed, [V19 with { Present = false, ProblemCode = 0, DriverInf = "oem196.inf" }], []));
+        Assert.False(DeviceState.Found(V19Listed, DeviceNow.Absent, wiaLists: true));
+    }
+
+    [Fact]
+    public void A_scanner_is_found_only_plugged_in_with_a_working_driver_and_listed_by_WIA()
+    {
+        Assert.Equal(DeviceNow.NeedsDriver, DeviceState.Of(V19Listed, [V19], []));
+        var working = V19 with { ProblemCode = 0, DriverInf = "oem196.inf", DriverSection = "ES010C" };
+        Assert.Equal(DeviceNow.Working, DeviceState.Of(V19Listed, [working], []));
+        Assert.True(DeviceState.Found(V19Listed, DeviceNow.Working, wiaLists: true));
+        Assert.False(DeviceState.Found(V19Listed, DeviceNow.Working, wiaLists: false));
+        Assert.False(DeviceState.Found(V19Listed, DeviceNow.NeedsDriver, wiaLists: true));
+    }
+
+    [Fact]
+    public void An_all_in_ones_composite_parent_with_its_driver_doesnt_make_its_scanner_part_working()
+    {
+        var parent = new UsbPrinterNode(UsbNodeKind.UsbDevice, true)
+            { HardwareIds = [@"USB\VID_04B8&PID_1186"], CompatibleIds = [@"USB\COMPOSITE", @"USB\Class_00"], DriverInf = "usb.inf" };
+        var printerPart = parent with { HardwareIds = [@"USB\VID_04B8&PID_1186&MI_00"], CompatibleIds = [@"USB\Class_07&SubClass_01"], DriverInf = "usbprint.inf" };
+        var scannerPart = V19 with { BusReportedName = "EPSON ET-2800 Series MFP", HardwareIds = [@"USB\VID_04B8&PID_1186&MI_01"] };
+        var device = Assert.Single(Find(scannerPart));
+        Assert.Equal(DeviceNow.NeedsDriver, DeviceState.Of(device, [parent, printerPart, scannerPart], []));
+    }
+
+    [Fact]
+    public void A_printer_unplugged_while_waiting_is_absent_and_one_with_a_queue_or_a_real_driver_is_working()
+    {
+        Assert.Equal(DeviceNow.Absent, DeviceState.Of(Laser, [], []));
+        Assert.Equal(DeviceNow.Absent, DeviceState.Of(Laser, [LaserNode with { Present = false }], []));
+        Assert.Equal(DeviceNow.NeedsDriver, DeviceState.Of(Laser, [LaserNode], []));
+        Assert.Equal(DeviceNow.Working, DeviceState.Of(Laser, [LaserNode with { DriverInf = "oem55.inf", DriverSection = "HPLJP1006" }], []));
+        var queue = new SpoolerQueue("HP LaserJet P1006", "USB001", "HP LaserJet P1006", 0, SpoolerFlags.AttributeLocal, 0);
+        Assert.Equal(DeviceNow.Working, DeviceState.Of(Laser, [LaserNode], [queue]));
+        Assert.True(DeviceState.Found(Laser, DeviceNow.Working, wiaLists: false));
+        Assert.False(DeviceState.Found(Laser, DeviceNow.Absent, wiaLists: false));
+    }
 }

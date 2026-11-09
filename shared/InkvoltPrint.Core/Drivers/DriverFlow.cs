@@ -25,8 +25,10 @@ public interface ISignatureCheck
     SignatureFacts Check(string path);
 }
 
-/// <summary>An installer started: its process id, and its exit code once it ends.</summary>
-public sealed record InstallerProcess(int Id, Task<int> Exited);
+/// <summary>An installer started: its process id, when it started (UTC), and its exit code and time once it ends.</summary>
+public sealed record InstallerProcess(int Id, DateTime StartedUtc, Task<InstallerExited> Exited);
+
+public sealed record InstallerExited(int Code, DateTime AtUtc);
 
 /// <summary>One process running on the PC: its id and its parent's (what a snapshot of the processes gives).</summary>
 public readonly record struct ProcessLink(int Id, int Parent);
@@ -42,6 +44,9 @@ public interface IDriverPc
 
     /// <summary>Every process running now, with its parent: how the installer's own processes are followed after it exits.</summary>
     IReadOnlyList<ProcessLink> Processes();
+
+    /// <summary>When the process with this id now started (UTC); null when it's gone or can't be asked.</summary>
+    DateTime? StartedAt(int id);
 
     /// <summary>Asks Windows to look for new devices as the user (<c>CM_Reenumerate_DevNode</c>); false when it can't.</summary>
     Task<bool> RescanAsUserAsync(CancellationToken ct);
@@ -246,7 +251,7 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
                 keepFolder = true; // something it started may still be reading it
                 return new InstallResult(InstallOutcome.TimedOut);
             }
-            code = await started.Exited.ConfigureAwait(false);
+            code = (await started.Exited.ConfigureAwait(false)).Code;
         }
         finally
         {
@@ -262,26 +267,59 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
         return new InstallResult(InstallOutcome.NotSeen, code, asUser || elevated, elevated);
     }
 
+    /// <summary>One process of the installer's: its id and start, and when it was first seen gone (its exit, for the installer itself).</summary>
+    private sealed class Member(int id, DateTime started)
+    {
+        public int Id { get; } = id;
+        public DateTime Started { get; } = started;
+        public DateTime? Gone { get; set; }
+    }
+
     /// <summary>
     /// Waits for the installer to exit and then for every process it started (and they started) to end, at most until
-    /// <paramref name="until"/>: false when something is still running then. Followed by parent id from snapshots taken while it runs.
+    /// <paramref name="until"/>: false when something is still running then. Followed from snapshots taken while it runs, by
+    /// process id and start time, since Windows reuses ids and a process keeps naming its parent's id after the parent is gone: a
+    /// process is the child of a member only when it started after the member did and before the member ended (the installer's
+    /// own exit time; another member's, the first look that found it gone), and a member is running only while its id belongs to
+    /// a process with its start time.
     /// </summary>
     private async Task<bool> WaitForInstallerAsync(InstallerProcess started, DateTime until, CancellationToken ct)
     {
-        var tree = new HashSet<int> { started.Id };
+        var root = new Member(started.Id, started.StartedUtc);
+        var members = new List<Member> { root };
         while (true)
         {
             IReadOnlyList<ProcessLink> now;
             try { now = pc.Processes(); }
             catch (Exception ex) when (Expected(ex)) { now = []; }
+            var lookedAt = DateTime.UtcNow;
+            if (root.Gone is null && started.Exited.IsCompletedSuccessfully) root.Gone = started.Exited.Result.AtUtc;
+            var startTimes = new Dictionary<int, DateTime?>();
+            DateTime? StartOf(int id)
+            {
+                if (startTimes.TryGetValue(id, out var t)) return t;
+                try { t = pc.StartedAt(id); }
+                catch (Exception ex) when (Expected(ex)) { t = null; }
+                return startTimes[id] = t;
+            }
+            var ids = now.Select(p => p.Id).ToHashSet();
+            foreach (var m in members.Where(m => m != root && m.Gone is null))
+                if (!ids.Contains(m.Id) || StartOf(m.Id) != m.Started) m.Gone = lookedAt;
             bool grew;
             do
             {
                 grew = false;
                 foreach (var p in now)
-                    if (p.Id != p.Parent && tree.Contains(p.Parent) && tree.Add(p.Id)) grew = true;
-            } while (grew);
-            var running = !started.Exited.IsCompleted || now.Any(p => p.Id != started.Id && tree.Contains(p.Id));
+                {
+                    if (p.Id == p.Parent || p.Id == root.Id && root.Gone is null || members.Any(m => m.Id == p.Id && m.Gone is null)) continue;
+                    var parents = members.Where(m => m.Id == p.Parent).ToList();
+                    if (parents.Count == 0 || StartOf(p.Id) is not { } s) continue;
+                    if (!parents.Any(m => s >= m.Started && (m.Gone is not { } gone || s <= gone))) continue;
+                    members.Add(new Member(p.Id, s));
+                    grew = true;
+                }
+            } while (grew && members.Count < 10_000);
+            var running = !started.Exited.IsCompleted || members.Any(m => m != root && m.Gone is null);
             if (!running) return true;
             if (DateTime.UtcNow >= until) return false;
             if (started.Exited.IsCompleted) await Task.Delay(_timing.Poll, ct).ConfigureAwait(false);

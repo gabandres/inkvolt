@@ -13,6 +13,9 @@ public interface INeedsDriverPc
 {
     Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct);
 
+    /// <summary>One device's nodes, whatever their driver, plugged in only (whether it is there and working: <see cref="DeviceState"/>).</summary>
+    Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct);
+
     Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer);
 
     /// <summary>Calls <paramref name="changed"/> (from any thread) when a USB printer or scanner comes or goes; null where nothing changes.</summary>
@@ -33,6 +36,8 @@ internal sealed class RealNeedsDriverPc : INeedsDriverPc
     public static RealNeedsDriverPc Instance { get; } = new();
 
     public Task<NeedsDriverRead> ReadAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct) => UsbPrinters.ReadAsync(queues, ct);
+
+    public Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct) => UsbPrinters.DeviceNodesAsync(device, ct);
 
     public Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer) => UsbPrinters.SetUpAsync(printer);
 
@@ -77,6 +82,8 @@ internal sealed class DemoNeedsDriverPc : INeedsDriverPc
         Task.FromResult(new NeedsDriverRead([Printer, Scanner], ProtectedPrint: false));
 
     public Task<UsbSetUpResult> SetUpAsync(NeedsDriverPrinter printer) => Task.FromResult(new UsbSetUpResult(UsbSetUpOutcome.Failed, NeedsDriverText.Demo));
+
+    public Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct) => Task.FromResult<IReadOnlyList<UsbPrinterNode>>([]);
 
     public IDisposable? Watch(Action changed) => null;
 

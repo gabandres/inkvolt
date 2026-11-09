@@ -136,6 +136,7 @@ public sealed class WindowsDriverPc : IDriverPc
     public async Task<InstallerProcess?> StartInstallerAsync(string path, CancellationToken ct)
     {
         var psi = new ProcessStartInfo(path) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(path) };
+        var before = DateTime.UtcNow; // its start, if Windows won't say: every process it starts starts after this
         Process? p;
         try
         {
@@ -146,17 +147,45 @@ public sealed class WindowsDriverPc : IDriverPc
             return null;
         }
         if (p is null) throw new InvalidOperationException("The installer didn't start.");
-        return new InstallerProcess(p.Id, ExitOf(p));
+        DateTime started;
+        try { started = p.StartTime.ToUniversalTime(); }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or NotSupportedException) { started = before; }
+        return new InstallerProcess(p.Id, started, ExitOf(p));
     }
 
-    private static async Task<int> ExitOf(Process p)
+    private static async Task<InstallerExited> ExitOf(Process p)
     {
         using (p)
         {
             await p.WaitForExitAsync().ConfigureAwait(false);
-            return p.ExitCode;
+            DateTime at;
+            try { at = p.ExitTime.ToUniversalTime(); }
+            catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or NotSupportedException) { at = DateTime.UtcNow; }
+            return new InstallerExited(p.ExitCode, at);
         }
     }
+
+    /// <summary>When the process with this id started (<c>GetProcessTimes</c>, opened for limited query only: elevated ones too).</summary>
+    public DateTime? StartedAt(int id)
+    {
+        var h = OpenProcess(0x1000 /* PROCESS_QUERY_LIMITED_INFORMATION */, false, (uint)id);
+        if (h == IntPtr.Zero) return null;
+        try
+        {
+            return GetProcessTimes(h, out var created, out _, out _, out _) ? DateTime.FromFileTimeUtc(created) : null;
+        }
+        finally
+        {
+            CloseHandle(h);
+        }
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inherit, uint id);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetProcessTimes(IntPtr process, out long creation, out long exit, out long kernel, out long user);
 
     /// <summary>Every process with its parent (a Toolhelp snapshot: elevated ones included, nothing opened).</summary>
     public IReadOnlyList<ProcessLink> Processes()

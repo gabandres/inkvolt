@@ -522,17 +522,17 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     private async Task<bool> IsThereOnUiAsync(NeedsDriverPrinter device, CancellationToken ct)
     {
-        if (device.IsScanner)
-        {
-            var listed = await _wia.ListNowAsync(ct);
-            if (listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name)) is not { } match) return false;
-            _installedScanners[device.Id] = match;
-            _scanners = listed;
-            _scannersRead = true;
-            return true;
-        }
-        var read = await _pc.NeedsDriver.ReadAsync(_queues, ct);
-        return !read.Printers.Any(p => string.Equals(p.Id, device.Id, StringComparison.OrdinalIgnoreCase) && p.Stage == DriverStage.NoDriver);
+        // Plugged in and working: an unplugged device (as an installer may ask) is still waited for, never "found".
+        var now = DeviceState.Of(device, await _pc.NeedsDriver.DeviceNodesAsync(device, ct), _queues);
+        if (now != DeviceNow.Working) return false;
+        if (!device.IsScanner) return DeviceState.Found(device, now, wiaLists: false);
+        var listed = await _wia.ListNowAsync(ct);
+        var match = listed.FirstOrDefault(d => !d.IsTwain && UsbScanners.SameModel(device.Name, d.Name));
+        if (!DeviceState.Found(device, now, match is not null)) return false;
+        _installedScanners[device.Id] = match!;
+        _scanners = listed;
+        _scannersRead = true;
+        return true;
     }
 
     /// <summary>Its driver went in: the list reads Windows again, and a scanner is selected with its Scan tab shown.</summary>

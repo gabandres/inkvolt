@@ -278,8 +278,10 @@ async Task<int> NeedsDriverScanners(bool getDriver, bool yes)
                 continue;
             }
         }
-        var done = await flow.InstallAsync(ready, async c =>
-            (await wia.ListNowAsync(c)).Any(d => !d.IsTwain && InkvoltPrint.Core.Queues.UsbScanners.SameModel(s.Name, d.Name)), ct);
+        // Found only plugged in with a working driver and listed by WIA: unplugged (as an installer may ask) is still waiting.
+        var done = await flow.InstallAsync(ready, async c => InkvoltPrint.Core.Queues.DeviceState.Found(s,
+            InkvoltPrint.Core.Queues.DeviceState.Of(s, await InkvoltPrint.Windows.Printing.UsbPrinters.DeviceNodesAsync(s, c), []),
+            (await wia.ListNowAsync(c)).Any(d => !d.IsTwain && InkvoltPrint.Core.Queues.UsbScanners.SameModel(s.Name, d.Name))), ct);
         Console.WriteLine($"  {InkvoltPrint.Core.Drivers.DriverText.LogLine(s, done)}");
         if (done.Outcome == InkvoltPrint.Core.Drivers.InstallOutcome.Done)
             foreach (var d in (await wia.ListNowAsync(ct)).Where(d => !d.IsTwain && InkvoltPrint.Core.Queues.UsbScanners.SameModel(s.Name, d.Name)))

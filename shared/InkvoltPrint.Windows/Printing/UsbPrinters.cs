@@ -56,6 +56,35 @@ public static class UsbPrinters
         return list;
     }
 
+    /// <summary>
+    /// The device nodes of one device that needed its driver, whatever their driver now, plugged in only (for
+    /// <see cref="DeviceState.Of"/>): the USBPRINT nodes, and the USB nodes with its vendor and product ids. None when Windows can't be asked.
+    /// </summary>
+    public static async Task<IReadOnlyList<UsbPrinterNode>> DeviceNodesAsync(NeedsDriverPrinter device, CancellationToken ct = default)
+    {
+        var present = $" AND {Present}:=System.StructuredQueryType.Boolean#True";
+        var list = new List<UsbPrinterNode>();
+        try
+        {
+            if (!device.IsScanner)
+            {
+                var printNodes = await DeviceInformation.FindAllAsync($"System.Devices.DeviceInstanceId:~<\"USBPRINT\\\"{present}", Properties, DeviceInformationKind.Device).AsTask(ct);
+                list.AddRange(printNodes.Select(d => Node(d, UsbNodeKind.UsbPrint)));
+            }
+            if (device.UsbId is { Length: 9 } id && id[4] == ':' && id.Where((c, i) => i != 4).All(Uri.IsHexDigit))
+            {
+                var usb = await DeviceInformation.FindAllAsync($"System.Devices.DeviceInstanceId:~<\"USB\\VID_{id[..4]}&PID_{id[5..]}\"{present}", Properties,
+                    DeviceInformationKind.Device).AsTask(ct);
+                list.AddRange(usb.Select(d => Node(d, UsbNodeKind.UsbDevice)));
+            }
+        }
+        catch (Exception ex) when (ex is not (OperationCanceledException or OutOfMemoryException))
+        {
+            System.Diagnostics.Trace.WriteLine($"usb device: {ex.Message}");
+        }
+        return list;
+    }
+
     private static UsbPrinterNode Node(DeviceInformation d, UsbNodeKind kind)
     {
         string? Text(string key) => d.Properties.TryGetValue(key, out var v) && v is string s && s.Length > 0 ? s : null;
