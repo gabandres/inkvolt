@@ -68,6 +68,10 @@ final class BatchTests {
         #expect(BatchNames.expand("a:b?c", "/in/x.pdf", 1, Self.when) == "a_b_c")
         #expect(BatchNames.expand("   ", "/in/x.pdf", 1, Self.when) == "x") // empty: the original name
         #expect(BatchNames.expand("CON", "/in/x.pdf", 1, Self.when) == "_CON") // a device name can't be a file name on Windows
+        // The same rule as Inkvolt Print's names (`ReservedFileNames`): the superscript ports and the console handles too.
+        #expect(BatchNames.expand("COM¹", "/in/x.pdf", 1, Self.when) == "_COM¹")
+        #expect(BatchNames.expand("<<name>>", "/in/conout$.pdf", 1, Self.when) == "_conout$")
+        #expect(BatchNames.expand("COM10", "/in/x.pdf", 1, Self.when) == "COM10")
         #expect(BatchNames.expand("<<name>>...", "/in/x.pdf", 1, Self.when) == "x") // Windows drops trailing dots
         #expect(BatchNames.expand("<<other>> <<name>>", "/in/x.pdf", 1, Self.when) == "__other__ x")
         #expect(BatchNames.expand(String(repeating: "a", count: 400), "/in/x.pdf", 1, Self.when).count <= BatchNames.maxLength)
