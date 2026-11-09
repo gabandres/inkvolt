@@ -86,32 +86,42 @@
             <Border Style="{StaticResource Card}" Margin="0,0,0,16" Visibility="{Binding IsNoDriver, Converter={StaticResource VisibleWhen}}">
                 <StackPanel>
                     <TextBlock Text="{Binding StepsTitle}" Style="{StaticResource CardTitle}" />
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="28" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Text="1" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <StackPanel Grid.Column="1" Margin="0,0,0,14">
-                            <TextBlock Text="{Binding StepGetDriver}" TextWrapping="Wrap" />
-                            <Button Command="{Binding OpenMakerPageCommand}" Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left"
-                                    Padding="16,6" Margin="0,8,0,0" AutomationProperties.Name="{Binding MakerButton}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding MakerButton}" />
-                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
-                                </StackPanel>
-                            </Button>
-                        </StackPanel>
-                        <TextBlock Grid.Row="1" Text="2" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StepPlugIn}" TextWrapping="Wrap" Margin="0,0,0,14" />
-                        <TextBlock Grid.Row="2" Text="3" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding StepInstall}" TextWrapping="Wrap" />
-                    </Grid>
+                    <!-- Numbered in order (Core DriverSteps): "plug it in" only while it isn't; the maker's page is the accent button only
+                         where Get the driver doesn't apply (there, Get the driver and Download it from the maker are) -->
+                    <ItemsControl ItemsSource="{Binding Steps}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding NumberText}" FontWeight="SemiBold" Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}" />
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                                        <Button Command="{Binding DataContext.OpenMakerPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Style="{DynamicResource AccentButtonStyle}" HorizontalAlignment="Left" Padding="16,6" Margin="0,8,0,0"
+                                                AutomationProperties.Name="{Binding DataContext.MakerButton, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Visibility="{Binding ShowMainButton, Converter={StaticResource VisibleWhen}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding DataContext.MakerButton, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Command="{Binding DataContext.OpenMakerPageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                HorizontalAlignment="Left" Padding="16,6" Margin="0,8,0,0"
+                                                AutomationProperties.Name="{Binding DataContext.MakerButton, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Visibility="{Binding ShowPlainButton, Converter={StaticResource VisibleWhen}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding DataContext.MakerButton, RelativeSource={RelativeSource AncestorType=UserControl}}" />
+                                                <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" FontSize="12" Margin="8,0,0,0" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

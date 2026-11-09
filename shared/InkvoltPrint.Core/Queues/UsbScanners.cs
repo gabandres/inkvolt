@@ -77,12 +77,13 @@ public static partial class UsbScanners
         s.StartsWith("Unknown USB Device", StringComparison.OrdinalIgnoreCase) || s.Equals("USB Composite Device", StringComparison.OrdinalIgnoreCase)
         || s.Equals("USB Device", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The longest name <see cref="SameModel"/> compares: no model's is longer, and a driver's name can be anything.</summary>
+    private const int MaxModelName = 200;
+
     /// <summary>
     /// The scanner Windows lists under this name is this one: the same model words, the maker's way of writing its name aside
     /// ("EPSON Perfection V19" is "Epson Perfection V19"; "Epson Perfection V19 II" isn't).
     /// </summary>
-    private const int MaxModelName = 200;
-
     public static bool SameModel(string shown, string listed)
     {
         static string Words(string s) => Regex.Replace(PrinterNames.ForDevice(s, null, []).ToLowerInvariant(), @"[^a-z0-9]+", " ").Trim();

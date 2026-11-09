@@ -469,6 +469,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         }
         if (ct.IsCancellationRequested) return;
         var ids = read.Printers.Select(p => p.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Gone from the read but kept mid-way through Get the driver: unplugged, so its steps say to plug it in.
+        foreach (var kept in NeedsDriver.Where(v => !ids.Contains(v.Id))) kept.IsPresent = false;
         foreach (var gone in NeedsDriver.Where(v => !ids.Contains(v.Id) && !v.IsGettingDriver && !v.ShowConfirm && !v.IsWaitingForInstall).ToList())
         {
             if (SelectedNeedsDriver == gone) SelectedNeedsDriver = null;

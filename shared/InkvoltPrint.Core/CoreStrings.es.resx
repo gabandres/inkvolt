@@ -3177,6 +3177,22 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Inkvolt Print busca el controlador de {0} para este escáner y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="NeedsDriver_StepInstallLinkScanner" xml:space="preserve">
+    <value>Ejecuta el instalador de {0}. Inkvolt Print está pendiente del escáner y te avisa cuando esté listo. Si no, desconecta el escáner y vuelve a conectarlo, o pulsa {1}.</value>
+    <comment>{0} = maker, {1} = the Look again button's words. A Store copy, after it opened the maker's download.</comment>
+  </data>
+  <data name="NeedsDriver_StepInstallLinkPrinter" xml:space="preserve">
+    <value>Ejecuta el instalador de {0}. Inkvolt Print está pendiente de la impresora y te avisa cuando esté lista. Si no, desconecta la impresora y vuelve a conectarla, o pulsa {1}.</value>
+    <comment>{0} = maker, {1} = the Look again button's words. A Store copy, after it opened the maker's download.</comment>
+  </data>
+  <data name="GetDriver_NoteLinkScanner" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para este escáner y este PC en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
+  <data name="GetDriver_NoteLinkPrinter" xml:space="preserve">
+    <value>Inkvolt Print busca el controlador de {0} para esta impresora y este PC en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta.</value>
+    <comment>{0} = maker. A Store copy: it opens the maker's link in the browser.</comment>
+  </data>
   <data name="GetDriver_NotePrinter" xml:space="preserve">
     <value>Inkvolt Print busca el controlador de {0} para esta impresora y este PC en el sitio web de {0}, comprueba que {0} lo firmó y te pregunta antes de instalarlo.</value>
     <comment>{0} = maker</comment>
