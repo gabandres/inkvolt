@@ -30,8 +30,16 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Id), nameof(Name), nameof(ListStatus), nameof(Headline), nameof(Where), nameof(StepGetDriver), nameof(MakerButton),
         nameof(IsNoDriver), nameof(IsNotSetUp), nameof(SetUpNote), nameof(CanSetUp), nameof(CanGetDriver), nameof(GetDriverNote), nameof(WhyMakersDriver),
-        nameof(StepPlugIn), nameof(StepInstall), nameof(CheckWindowsNote), nameof(ScanTabLine), nameof(IsScanner))]
+        nameof(CheckWindowsNote), nameof(ScanTabLine), nameof(IsScanner), nameof(Steps))]
     public partial NeedsDriverPrinter Printer { get; set; }
+
+    /// <summary>Plugged in now: false once a read of the PC's devices no longer has it (kept on the list mid-way through Get the driver).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Steps))]
+    public partial bool IsPresent { get; set; } = true;
+
+    /// <summary>"What to do", numbered (<see cref="DriverSteps"/>).</summary>
+    public IReadOnlyList<DriverStep> Steps => DriverSteps.For(Printer, IsPresent, CanGetDriver ? _pc.Drivers.Mode : null);
 
     /// <summary>Shown only while Windows protected print mode is on (it keeps makers' drivers out).</summary>
     [ObservableProperty]
@@ -65,8 +73,6 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     public string ScanTabLine => NeedsDriverText.ScanTabLine(Printer);
 
     public string WhyMakersDriver => NeedsDriverText.WhyMakersDriver(Printer);
-    public string StepPlugIn => NeedsDriverText.StepPlugIn(Printer);
-    public string StepInstall => NeedsDriverText.StepInstall(Printer);
     public string ProtectedPrintTitle => NeedsDriverText.ProtectedPrintTitle;
     public string CheckWindowsButton => NeedsDriverText.CheckWindowsButton;
     public string CheckWindowsNote => NeedsDriverText.CheckWindowsNoteFor(Printer);
@@ -80,6 +86,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     public void Update(NeedsDriverPrinter printer, bool protectedPrint)
     {
         if (printer != Printer) Printer = printer;
+        IsPresent = true;
         ProtectedPrintNote = printer.IsScanner ? null : NeedsDriverText.ProtectedPrint(protectedPrint);
     }
 

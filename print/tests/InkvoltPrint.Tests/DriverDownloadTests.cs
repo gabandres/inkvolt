@@ -634,6 +634,50 @@ public sealed class DriverDownloadTests : IDisposable
     }
 
     [Fact]
+    public void A_plugged_in_device_isnt_told_to_plug_in_and_the_steps_are_numbered_in_order()
+    {
+        var plugged = DriverSteps.For(V19, present: true, DriverMode.OpenLink);
+        Assert.Equal([1, 2], plugged.Select(s => s.Number));
+        Assert.DoesNotContain(plugged, s => s.Text == NeedsDriverText.StepPlugIn(V19));
+        var unplugged = DriverSteps.For(V19, present: false, DriverMode.OpenLink);
+        Assert.Equal([1, 2, 3], unplugged.Select(s => s.Number));
+        Assert.Equal(NeedsDriverText.StepPlugIn(V19), unplugged[1].Text);
+        var printer = new NeedsDriverPrinter("usb-needs-driver:usb001", "HP LaserJet P1006", "HP", "USB001", DriverStage.NoDriver);
+        Assert.Equal(NeedsDriverText.StepPlugIn(printer), DriverSteps.For(printer, present: false, null)[1].Text);
+        Assert.Equal(2, DriverSteps.For(printer, present: true, null).Count);
+    }
+
+    [Fact]
+    public void The_makers_page_is_the_main_button_only_where_get_the_driver_isnt()
+    {
+        // Where Get the driver applies, its own button (and then Download it from Epson) is the page's one accent button.
+        Assert.Equal(StepButton.Plain, DriverSteps.For(V19, true, DriverMode.OpenLink)[0].Button);
+        Assert.Equal(StepButton.Plain, DriverSteps.For(V19, true, DriverMode.InstallForYou)[0].Button);
+        var printer = new NeedsDriverPrinter("usb-needs-driver:usb001", "HP LaserJet P1006", "HP", "USB001", DriverStage.NoDriver);
+        var steps = DriverSteps.For(printer, true, null);
+        Assert.Equal(StepButton.Main, steps[0].Button);
+        Assert.All(steps.Skip(1), s => Assert.Equal(StepButton.None, s.Button));
+    }
+
+    [Fact]
+    public void The_install_step_says_what_this_copy_does()
+    {
+        // A Store copy watches for the device after its link: the last step says so, and names Look again as its button reads.
+        var store = DriverSteps.For(V19, true, DriverMode.OpenLink)[^1].Text;
+        Assert.Contains("Epson's installer", store);
+        Assert.Contains(DriverText.LookAgainButton, store);
+        Assert.Contains("scanner", store);
+        var spanish = System.Globalization.CultureInfo.GetCultureInfo("es");
+        var es = InkvoltPrint.Core.CoreStrings.ResourceManager.GetString("NeedsDriver_StepInstallLinkScanner", spanish)!;
+        Assert.Contains("{1}", es); // the Look again button's own words go in, in either language
+        var printer = V19 with { Kind = NeedsDriverKind.Printer };
+        Assert.Contains("printer", DriverSteps.For(printer, true, DriverMode.OpenLink)[^1].Text);
+        // Run by hand where the app installs it itself, or where Get the driver doesn't apply: the steps as they were.
+        Assert.Equal(NeedsDriverText.StepInstall(V19), DriverSteps.For(V19, true, DriverMode.InstallForYou)[^1].Text);
+        Assert.Equal(NeedsDriverText.StepInstall(V19), DriverSteps.For(V19, true, null)[^1].Text);
+    }
+
+    [Fact]
     public async Task A_damaged_compressed_answer_from_epsons_site_is_unreachable_never_a_crash()
     {
         // The real handler unpacks gzip as it reads: a damaged body throws InvalidDataException from the read, not an IOException.
