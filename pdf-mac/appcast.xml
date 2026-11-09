@@ -6,6 +6,26 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.10.0</title>
+      <pubDate>Mon, 09 Nov 2026 21:41:08 GMT</pubDate>
+      <sparkle:version>1.10.0</sparkle:version>
+      <sparkle:shortVersionString>1.10.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Inkvolt PDF has the command bar of Inkvolt PDF for Windows: seven groups in the toolbar, each doing its main job in one click, with Convert › Word saving a Word document next to the PDF.
+
+- The toolbar is the command bar: Edit, Convert, Comment, Fill &amp; Sign, Organize, Protect and Scan &amp; OCR, each with its label. A click on a group does its main job; its arrow lists the rest, each with a line saying what it does. Option-click asks first.
+- Convert › Word saves name.docx next to the PDF in one click (never over a file), opens it, and says "Saved name.docx · Show in Finder · Change options…"; Excel, PowerPoint, text and web page too.
+- Sign, Highlight, Password and Recognize Text work in one click as well. Draw is in Comment, Redact in Protect.
+- A one-click conversion never writes over a file another app saved under its name meanwhile, and a name Windows can't use (such as CON) is never made.</description>
+      <description sparkle:format="markdown" xml:lang="es">Inkvolt PDF tiene la barra de comandos de Inkvolt PDF para Windows: siete grupos en la barra de herramientas, cada uno hace su tarea principal con un clic, y Convertir › Word guarda un documento de Word junto al PDF.
+
+- La barra de herramientas es la barra de comandos: Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger y Escanear y OCR, cada uno con su nombre. Un clic en un grupo hace su tarea principal; su flecha muestra el resto, cada uno con una línea que dice qué hace. Con Opción pulsada, pregunta antes.
+- Convertir › Word guarda nombre.docx junto al PDF con un clic (sin escribir nunca sobre un archivo), lo abre y dice «Se guardó nombre.docx · Mostrar en Finder · Cambiar opciones…»; también Excel, PowerPoint, texto y página web.
+- Firmar, Resaltar, Contraseña y Reconocer texto también funcionan con un clic. Dibujar está en Comentar y Eliminar información confidencial en Proteger.
+- Una conversión con un clic nunca escribe sobre un archivo que otra app guardó con su nombre mientras tanto, y nunca crea un nombre que Windows no puede usar (como CON).</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.10.0/Inkvolt-PDF-1.10.0.dmg" length="38899876" type="application/octet-stream" sparkle:edSignature="2T9A6+Jyq6mnplnVNmpHRhwb9ps6DEGiKYPrn9DEQxy7OGYg79Ghu0i0CmuVJTMt/lMu1WiD6iwnLU3oLLKLBw==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.9.0</title>
       <pubDate>Sat, 07 Nov 2026 23:23:14 GMT</pubDate>
       <sparkle:version>1.9.0</sparkle:version>
