@@ -5,8 +5,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.5.0
 - A USB scanner plugged in with no driver now shows on the printer list and in the Scan tab as "Plugged in, needs its driver", the moment it's plugged in.
-- Get the driver: for Epson scanners and printers, Inkvolt Print finds Epson's own driver for your model and your PC on Epson's website, checks that Epson signed it, shows you what it found and installs it when you say so. Then it checks that Windows has the scanner and opens its Scan tab.
+- Get the driver: for Epson scanners and printers, Inkvolt Print finds Epson's own driver for your model and your PC on Epson's website and shows its name, version and size. Download it from Epson opens that download in your browser; run Epson's installer, and Inkvolt Print sees the scanner arrive and opens its Scan tab. (Installed from Inkvolt's own installer rather than the Store, it downloads the driver, checks that Epson signed it and installs it when you say so.)
 
 ## 1.4.0
 - Scanners with only a TWAIN driver (film scanners, older flatbeds and document scanners) now show on the printer list, with their printer or on their own, and scan in the Scan tab like any other: glass or feeder, both sides, color, grey or black and white, and the same review, clean up and presets. The driver's own window doesn't open. A scanner with a Windows driver too is listed once.
