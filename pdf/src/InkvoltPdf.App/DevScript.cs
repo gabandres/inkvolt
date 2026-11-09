@@ -51,7 +51,7 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (Fluent's high-contrast resources on the window, no bar colors, and the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· iconcolors</c> (the open menus' colored icons as drawn, against their resource colors) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -973,6 +973,7 @@ internal static class DevScript
             }
             case "menushot": Shot(window, arg, withMenus: true); break;
             case "shellopen": Shell.OnlyLog = arg == "off"; break;
+            case "iconcolors": IconColors(log); break;
             case "barstate":
             {
                 // barstate: the command bar as shown (labels or icons only), and what is in its "…" overflow.
@@ -1839,6 +1840,72 @@ internal static class DevScript
         for (var i = 0; i < 300 && !cw.DevIdle; i++) await Task.Delay(100);
         await Task.Delay(400);
         for (var i = 0; i < 100 && !cw.DevIdle; i++) await Task.Delay(100);
+    }
+
+    /// <summary>
+    /// iconcolors: each colored icon of the open menus (BarColors' keys) as it is drawn on screen: the open menu rendered
+    /// as menushot renders it, the most common saturated pixel in the icon's box, against its resource color; "ok" within
+    /// 10 % per channel, else "OFF". Catches whatever washes a color out between the resource and the pixels.
+    /// </summary>
+    private static void IconColors(List<string> log)
+    {
+        var resources = BarColors.All.Select(t => (t.Key, Brush: Application.Current.TryFindResource(t.Key) as SolidColorBrush))
+            .Where(r => r.Brush is not null).ToList();
+        var popups = PresentationSource.CurrentSources.OfType<PresentationSource>().Select(src => src.RootVisual)
+            .OfType<FrameworkElement>().Where(r => r.IsVisible && r.GetType().Name == "PopupRoot").ToList();
+        var found = 0;
+        foreach (var root in popups)
+        {
+            var dpi = VisualTreeHelper.GetDpi(root);
+            var bmp = new RenderTargetBitmap(Math.Max(1, (int)(root.ActualWidth * dpi.DpiScaleX)), Math.Max(1, (int)(root.ActualHeight * dpi.DpiScaleY)),
+                dpi.PixelsPerInchX, dpi.PixelsPerInchY, PixelFormats.Pbgra32);
+            bmp.Render(root);
+            var stride = bmp.PixelWidth * 4;
+            var pixels = new byte[stride * bmp.PixelHeight];
+            bmp.CopyPixels(pixels, stride, 0);
+            foreach (var item in FindAll<System.Windows.Controls.MenuItem>(root))
+            {
+                if (item.Icon is not System.Windows.Controls.TextBlock { Foreground: SolidColorBrush fg } icon || !icon.IsVisible) continue;
+                if (resources.FirstOrDefault(r => r.Brush!.Color == fg.Color) is not { Key: { } key } match) continue;
+                found++;
+                var box = new Rect(icon.TranslatePoint(new Point(0, 0), root), icon.RenderSize);
+                var counts = new Dictionary<int, int>();
+                var saturated = Math.Max(fg.Color.R, Math.Max(fg.Color.G, fg.Color.B)) - Math.Min(fg.Color.R, Math.Min(fg.Color.G, fg.Color.B)) >= 40;
+                for (var y = (int)(box.Top * dpi.DpiScaleY); y < Math.Min(bmp.PixelHeight, (int)(box.Bottom * dpi.DpiScaleY)); y++)
+                    for (var x = (int)(box.Left * dpi.DpiScaleX); x < Math.Min(bmp.PixelWidth, (int)(box.Right * dpi.DpiScaleX)); x++)
+                    {
+                        var i = y * stride + x * 4;
+                        if (pixels[i + 3] < 250) continue; // only opaque pixels: the glyph's body, not its edges
+                        int b = pixels[i], g = pixels[i + 1], r = pixels[i + 2];
+                        // The glyph, not the menu behind it: saturated pixels for a color, pixels near the resource for a grey.
+                        if (saturated ? Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b)) < 40 : Math.Abs(r - fg.Color.R) > 40) continue;
+                        var rgb = (r << 16) | (g << 8) | b;
+                        counts[rgb] = counts.GetValueOrDefault(rgb) + 1;
+                    }
+                var want = match.Brush!.Color;
+                var name = System.Windows.Automation.AutomationProperties.GetName(item);
+                if (counts.Count == 0)
+                {
+                    log.Add($"iconcolors {name}: {key} #{want.R:X2}{want.G:X2}{want.B:X2} drawn: no colored pixels OFF");
+                    continue;
+                }
+                var top = counts.MaxBy(kv => kv.Value).Key;
+                var (dr, dg, db) = (Math.Abs((top >> 16) - want.R), Math.Abs(((top >> 8) & 255) - want.G), Math.Abs((top & 255) - want.B));
+                var ok = Math.Max(dr, Math.Max(dg, db)) <= 26;
+                log.Add($"iconcolors {name}: {key} #{want.R:X2}{want.G:X2}{want.B:X2} drawn #{top:X6} {(ok ? "ok" : "OFF")}");
+            }
+        }
+        log.Add($"iconcolors: {found} colored icons in {popups.Count} open menus");
+    }
+
+    private static IEnumerable<T> FindAll<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T t) yield return t;
+            foreach (var inner in FindAll<T>(child)) yield return inner;
+        }
     }
 
     private static void Shot(Window window, string path, bool withMenus = false)

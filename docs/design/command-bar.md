@@ -131,7 +131,9 @@ Branch `t3/2df29816`, as approved on 2026-11-08:
   `RecognizeText(atOnce)`, and Highlight with no selection.
 - Dev steps: `barclick Id main` and `shellopen off`.
 
-Screenshots, taken with `--script`:
+Screenshots, taken with `--script`. They are saved as taken: an earlier 256-colour reduction washed out the icons'
+colours. The dev step `iconcolors` checks each coloured icon as drawn against its resource; it matched exactly in both
+themes.
 - Bar: [1700 light, Select in use](bar-1700-light.png) · [1700 dark, Edit in use](bar-1700-dark.png) · [1280](bar-1280-light.png) · [1100](bar-1100-light.png) · ["…" at 1100](more-1100-light.png)
 - Flyouts: [Convert light](convert-flyout-light.png) · [Convert dark](convert-flyout-dark.png) · [Comment, with Draw](comment-flyout-light.png) · [Protect, Apply Redactions in red](protect-flyout-light.png)
 - High contrast: [Convert](convert-flyout-highcontrast.png). This shot is the dev step `highcontrast on`: Fluent's own high-contrast resources over the light theme. Windows' High Contrast isn't switched on, because this PC is shared.
