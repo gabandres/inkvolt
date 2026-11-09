@@ -43,12 +43,13 @@ struct UxRulesTests {
         #expect(AxAudit.labelName("One file per range, separated by semicolons and other words") == nil)
     }
 
-    @Test func The_default_toolbar_is_short_and_every_item_is_allowed() {
+    @Test func The_default_toolbar_is_the_command_bar_and_every_item_is_allowed() {
+        // The sidebar, the command bar's eight groups (the pointer tools and seven split items), Search.
         let items = ToolbarLayout.defaults.filter {
             ![ToolbarLayout.flexibleSpace, ToolbarLayout.space, ToolbarLayout.trackingSeparator].contains($0)
         }
-        // Preview's count: the sidebar, zoom, highlight, markup, a form tool, share, search.
-        #expect(items.count <= 7)
+        #expect(items.count == 10)
+        #expect(ToolbarLayout.groups.compactMap(ToolbarLayout.groupId) == CommandBar.groups.map(\.id))
         #expect(Set(ToolbarLayout.defaults).isSubset(of: Set(ToolbarLayout.allowed)))
         #expect(ToolbarLayout.defaults.first == ToolbarLayout.sidebar)
         #expect(ToolbarLayout.defaults.last == ToolbarLayout.search) // search on the trailing edge (HIG)
