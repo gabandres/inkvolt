@@ -93,7 +93,13 @@ internal static class ExportActions
                 var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + Describe(format).Extension;
                 var pdf = tab.Session.FilePath;
                 var documents = DocumentsFolder();
-                if (await Task.Run(() => ExportTarget.Reserve(pdf, name, documents, (folder, file) => PdfFiles.UniquePath(folder, file))) is not { } target)
+                ExportTarget.Reserved? target;
+                // Busy while a slow share answers, so no edit starts that would replace the engine the export then reads.
+                using (tab.BeginBusy(null))
+                    target = await Task.Run(() => ExportTarget.Reserve(pdf, name, documents, (folder, file) => PdfFiles.UniquePath(folder, file)));
+                if (target is not null) reserved = target.Path;
+                if (tab.IsDisposed) return; // closed meanwhile: the empty reserved file goes (finally)
+                if (target is null)
                 {
                     Log.Write($"Convert {format}: nowhere to write (the PDF's folder refused it, no Documents folder)");
                     Prompt.Info(owner, Strings.Export_CantSave, Strings.Export_NowhereToSave);
@@ -101,7 +107,7 @@ internal static class ExportActions
                     await Export(owner, tab, host, format);
                     return;
                 }
-                (path, inDocuments, reserved) = (target.Path, target.InDocuments, target.Path);
+                (path, inDocuments) = (target.Path, target.InDocuments);
             }
             await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true, inDocuments);
         }
@@ -218,7 +224,13 @@ internal static class ExportActions
                 // "Saved report.docx · Show in folder · Change options…" (the notes after the name, as the export's own notice).
                 var saved = Loc.Format(inDocuments ? Strings.Export_SavedDocuments : Strings.Export_Saved, Path.GetFileName(path)) + (notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : "");
                 host.ShowToast(new Toast(saved, Strings.Export_ShowInFolder, () => Shell.ShowInFolder(path),
-                    Action2Label: Strings.Export_ChangeOptions, Action2: () => _ = Export(owner, tab, host, format)), tab);
+                    Action2Label: Strings.Export_ChangeOptions, Action2: () =>
+                    {
+                        // The notice outlives the export: another job may have started on the tab, or the tab closed.
+                        if (tab.IsDisposed) return;
+                        if (tab.IsBusy) host.ShowStatus(Loc.Format(Strings.Main_StillBusy, tab.Session.DisplayName));
+                        else _ = Export(owner, tab, host, format);
+                    }), tab);
             }
             else
                 host.ShowStatus(notes.Count > 0

@@ -164,7 +164,8 @@ public partial class DocumentTab
             bmp = saved.Load();
             image = SignatureImages.ToStampImage(bmp);
         }
-        catch (Exception ex) when (ex is System.IO.IOException or NotSupportedException or UnauthorizedAccessException)
+        // FormatException: a cut-off PNG (System.IO.FileFormatException), now the first one Fill & Sign's one click loads.
+        catch (Exception ex) when (ex is System.IO.IOException or NotSupportedException or UnauthorizedAccessException or FormatException)
         {
             Notify(Loc.Format(Strings.TabSign_SavedUnreadable, ex.Message), error: true);
             return;
