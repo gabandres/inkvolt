@@ -11414,4 +11414,24 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Piece {0} is now: {1}</value>
     <comment>Reading order pane: the selected piece kind</comment>
   </data>
+  <data name="Cmd_ConvertWord" xml:space="preserve">
+    <value>Convert to _Word</value>
+    <comment>Runs at once: name.docx next to the PDF, all pages, scans recognized</comment>
+  </data>
+  <data name="Export_Saved" xml:space="preserve">
+    <value>Saved {0}</value>
+    <comment>{0} a file name, e.g. Saved report.docx</comment>
+  </data>
+  <data name="Export_ShowInFolder" xml:space="preserve">
+    <value>Show in folder</value>
+    <comment>Link in the notice after a conversion</comment>
+  </data>
+  <data name="Export_ChangeOptions" xml:space="preserve">
+    <value>Change options…</value>
+    <comment>Link in the notice after a conversion: opens the export options</comment>
+  </data>
+  <data name="Main_BarGroupTip" xml:space="preserve">
+    <value>{0}: {1} (click for more)</value>
+    <comment>Tooltip of a command bar group: {0} the group, {1} its main command</comment>
+  </data>
 </root>

@@ -135,6 +135,7 @@ public partial class MainWindow : Window
         DocCommands.KeepsLabels = CommandBarLayout.KeepsLabels;
         foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ButtonBase>())
             if (b.Tag is string id) ToolbarPanel.SetPriority(b, CommandBarLayout.Group(id).Priority);
+        ShowBarGroups();
         ScaleTitleBar();
         TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
@@ -504,9 +505,11 @@ public partial class MainWindow : Window
         close.Click += (_, _) => Dismiss();
         DockPanel.SetDock(close, Dock.Right);
         row.Children.Add(close);
-        if (toast.Action is { } action)
+        // Docked right in reverse: the second link ends up after the first.
+        foreach (var (label, action) in new[] { (toast.Action2Label, toast.Action2), (toast.ActionLabel, toast.Action) })
         {
-            var act = new Button { Content = toast.ActionLabel ?? Strings.Common_OK, Style = (Style)FindResource("TextButton"), Margin = new Thickness(12, 0, 0, 0), FontWeight = FontWeights.SemiBold };
+            if (action is null) continue;
+            var act = new Button { Content = label ?? Strings.Common_OK, Style = (Style)FindResource("TextButton"), Margin = new Thickness(12, 0, 0, 0), FontWeight = FontWeights.SemiBold };
             act.Click += (_, _) =>
             {
                 Dismiss();
@@ -821,13 +824,6 @@ public partial class MainWindow : Window
         var menu = IconButtonMenu(MoreButton);
         foreach (var item in DocCommands.OverflowItems)
         {
-            if (item == DrawButton)
-            {
-                var draw = new MenuItem { Header = Strings.Main_MoreDraw, Icon = MenuIcon(DrawButtonIcon.Text) };
-                FillDrawMenu(draw);
-                menu.Items.Add(draw);
-                continue;
-            }
             if (item is not System.Windows.Controls.Primitives.ButtonBase b)
             {
                 if (menu.Items.Count > 0 && menu.Items[^1] is not Separator) menu.Items.Add(new Separator()); // a bar separator
@@ -882,7 +878,7 @@ public partial class MainWindow : Window
     private MenuItem CommandMenuItem(CommandBarLayout.Command c)
     {
         var mi = new MenuItem { Command = CommandNamed(c.Name), Icon = MenuIcon(c.Glyph), IsChecked = IsToolOn(c.Name) };
-        if (c.Description.Length > 0) Describe(mi, ((RoutedUICommand)mi.Command).Text, c.Description);
+        if (c.Description.Length > 0) Describe(mi, c.Title ?? ((RoutedUICommand)mi.Command).Text, c.Description);
         if (c.Key is { } key && Cmd.GestureText(mi.Command) is null) mi.InputGestureText = key;
         if (c.Name == "RotateRight" && mi.Icon is TextBlock mirrored)
         {
@@ -908,13 +904,39 @@ public partial class MainWindow : Window
         AutomationProperties.SetHelpText(mi, description);
     }
 
+    // Where a group's flyout starts a new section: after the main jobs, before the rarer or riskier ones.
+    private static readonly HashSet<string> SectionStarts =
+        ["AddHeaderFooter", "ExportText", "SaveAsPdfA", "ToolAddText", "PrepareForm", "Combine", "Redact", "Sign", "RemoveProtection", "ReviewSuspectWords"];
+
     private void FillGroupMenu(ItemsControl menu, CommandBarLayout.Entry group)
     {
         foreach (var c in group.Commands)
         {
-            // Sign (its own menu: signatures, initials, a certificate) and the pictures and links set apart from the marks.
-            if (c.Name is "AddSignature" or "AddImage") menu.Items.Add(new Separator());
-            menu.Items.Add(CommandMenuItem(c));
+            if (SectionStarts.Contains(c.Name) && menu.Items.Count > 0) menu.Items.Add(new Separator());
+            var mi = CommandMenuItem(c);
+            // The group's main job (what one click on the group will run) first, in semibold.
+            if (c == group.Commands[0] && group.Id != CommandBarLayout.Pointer && mi.Header is StackPanel { Children: [AccessText main, ..] }) main.FontWeight = FontWeights.SemiBold;
+            menu.Items.Add(mi);
+        }
+        if (group.Id == CommandBarLayout.DrawsIn)
+        {
+            menu.Items.Add(new Separator());
+            var draw = new MenuItem { Header = Strings.Main_MoreDraw, Icon = MenuIcon("") };
+            FillDrawMenu(draw);
+            menu.Items.Add(draw);
+        }
+    }
+
+    /// <summary>The groups' labels, screen-reader names and tooltips, from the bar's table (the XAML has their icons).</summary>
+    private void ShowBarGroups()
+    {
+        foreach (var b in DocCommands.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
+        {
+            if (b.Tag is not string id || id == CommandBarLayout.Pointer || CommandBarLayout.Group(id) is not { IsGroup: true, Label: { } label } group) continue;
+            if (b.Content is Panel panel && panel.Children.OfType<TextBlock>().FirstOrDefault(ToolbarPanel.GetIsLabel) is { } text) text.Text = label;
+            AutomationProperties.SetName(b, label);
+            var main = group.Commands[0];
+            b.ToolTip ??= Loc.Format(Strings.Main_BarGroupTip, label, (main.Title ?? CommandNamed(main.Name).Text).Replace("_", "", StringComparison.Ordinal).TrimEnd('…'));
         }
     }
 
@@ -942,6 +964,10 @@ public partial class MainWindow : Window
             "ToolAddText" => v?.Tool == ViewerTool.AddText,
             "ToolCheck" => v?.Tool == ViewerTool.AddCheck,
             "ToolCross" => v?.Tool == ViewerTool.AddCross,
+            "EditContent" => v?.Tool == ViewerTool.EditContent,
+            "PrepareForm" => v?.Tool == ViewerTool.PrepareForm,
+            "Redact" => v?.Tool == ViewerTool.Redact,
+            "Organize" => ActiveTab?.IsOrganizing == true,
             "AddSignature" => v?.Tool is ViewerTool.AddSignature or ViewerTool.PlaceSignature,
             "AddNote" => v?.Tool == ViewerTool.AddNote,
             "AddImage" => v?.Tool == ViewerTool.AddImage,
@@ -1750,6 +1776,10 @@ public partial class MainWindow : Window
         BindAlways(Cmd.Scan, () => Scanning.ScanToNewTab(this));
         Bind(Cmd.ExportImages, t => _ = FileActions.ExportImages(this, t, this), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportWord, t => _ = ExportActions.Export(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
+        // Shift+click (or Shift+Enter in the flyout) asks for the options first.
+        Bind(Cmd.ConvertWord, t => _ = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)
+            ? ExportActions.Export(this, t, this, ExportFormat.Word)
+            : ExportActions.ConvertAtOnce(this, t, this, ExportFormat.Word), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportExcel, t => _ = ExportActions.Export(this, t, this, ExportFormat.Excel), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportText, t => _ = ExportActions.Export(this, t, this, ExportFormat.Text), t => t.PageView.PageCount > 0);
         Bind(Cmd.ExportPowerPoint, t => _ = ExportActions.Export(this, t, this, ExportFormat.PowerPoint), t => t.PageView.PageCount > 0);
@@ -1917,15 +1947,6 @@ public partial class MainWindow : Window
             menu.Items.Add(mi);
             if (tool is ViewerTool.Highlighter or ViewerTool.Arrow) menu.Items.Add(new Separator());
         }
-    }
-
-    private void OnDrawClick(object sender, RoutedEventArgs e)
-    {
-        var menu = IconButtonMenu(DrawButton);
-        FillDrawMenu(menu);
-        menu.Closed += (_, _) => UpdateUi();
-        menu.IsOpen = true;
-        UpdateUi(); // the button shows whether a drawing tool is on, not the click
     }
 
     /// <summary>Fill and Sign tools toggle: clicking the active one goes back to the hand tool.</summary>
@@ -2399,8 +2420,11 @@ public partial class MainWindow : Window
         PointerIcon.Text = pointer.Glyph;
         PointerLabel.Text = pointer.Name switch { "ToolSelect" => Strings.Main_PointerSelect, "ToolSnapshot" => Strings.Main_PointerSnapshot, _ => Strings.Main_PointerHand };
         PointerButton.IsChecked = pointer.Name != "ToolHand";
-        ShowGroupState(FillSignButton, FillSignIcon, "FillSign", "\uE8D2");
+        ShowGroupState(EditButton, EditIcon, "Edit", "\uE70F");
+        ShowGroupState(FillSignButton, FillSignIcon, "FillSign", "\uE76D");
         ShowGroupState(CommentButton, CommentIcon, "Comment", "\uE90A");
+        ShowGroupState(OrganizeButton, OrganizeIcon, "Organize", "\uE8B3");
+        ShowGroupState(ProtectButton, ProtectIcon, "Protect", "\uE72E");
         SplitHorizontalMenu.IsChecked = t?.Split == SplitMode.TopAndBottom;
         SplitVerticalMenu.IsChecked = t?.Split == SplitMode.SideBySide;
         AddTextMenu.IsChecked = v?.Tool == ViewerTool.AddText;
@@ -2410,10 +2434,14 @@ public partial class MainWindow : Window
         LinkMenu.IsChecked = v?.Tool == ViewerTool.AddLink;
         PrepareFormMenu.IsChecked = v?.Tool == ViewerTool.PrepareForm;
         EditContentMenu.IsChecked = v?.Tool == ViewerTool.EditContent;
-        RedactButton.IsChecked = RedactMenu.IsChecked = v?.Tool == ViewerTool.Redact;
+        RedactMenu.IsChecked = v?.Tool == ViewerTool.Redact;
         var drawTool = v is not null && DrawTools.IsDrawTool(v.Tool) ? v.Tool : (ViewerTool?)null;
-        DrawButton.IsChecked = drawTool is not null;
-        if (drawTool is { } dt) DrawButtonIcon.Text = DrawTools.Glyph(dt);
+        if (drawTool is { } dt)
+        {
+            // A drawing tool is one of Comment's (its Draw submenu).
+            CommentButton.IsChecked = true;
+            CommentIcon.Text = DrawTools.Glyph(dt);
+        }
         foreach (var mi in DrawMenu.Items.OfType<MenuItem>()) mi.IsChecked = drawTool is { } d && mi.Command == Cmd.DrawTool(d);
         var pdf = t is { IsBusy: false, IsOrganizing: false, Session.IsPdf: true };
         AttachMenu.IsEnabled = pdf;
@@ -2428,7 +2456,7 @@ public partial class MainWindow : Window
         FacingMenu.IsChecked = v?.Layout == ViewLayout.Facing;
         CoverMenu.IsChecked = v?.Layout == ViewLayout.FacingCover;
         NavPaneMenu.IsChecked = t?.NavPaneVisible ?? AppSettings.Current.NavPaneVisible;
-        OrganizeButton.IsChecked = OrganizeMenu.IsChecked = t?.IsOrganizing == true;
+        OrganizeMenu.IsChecked = t?.IsOrganizing == true;
         DarkPagesMenu.IsChecked = AppSettings.Current.DarkPages;
         ThemeSystemMenu.IsChecked = AppSettings.Current.Theme is not ("Light" or "Dark");
         ThemeLightMenu.IsChecked = AppSettings.Current.Theme == "Light";

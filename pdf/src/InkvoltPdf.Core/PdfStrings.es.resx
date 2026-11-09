@@ -6784,4 +6784,160 @@
     <value>Este PDF está construido de una forma que podría detener la aplicación, así que solo se pueden mostrar sus páginas. No se puede rellenar ni editar.</value>
     <comment>A file whose nesting or page tree would crash the reader: shown when something tries to read or edit its objects</comment>
   </data>
+  <data name="Bar_Edit" xml:space="preserve">
+    <value>Editar</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_Convert" xml:space="preserve">
+    <value>Convertir</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_Protect" xml:space="preserve">
+    <value>Proteger</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_ScanOcr" xml:space="preserve">
+    <value>Escanear y OCR</value>
+    <comment>Command bar group button: keep short</comment>
+  </data>
+  <data name="Bar_ToWord" xml:space="preserve">
+    <value>Word (.docx)</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToExcel" xml:space="preserve">
+    <value>Excel (.xlsx)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToPowerPoint" xml:space="preserve">
+    <value>PowerPoint (.pptx)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToText" xml:space="preserve">
+    <value>Texto sin formato (.txt)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToHtml" xml:space="preserve">
+    <value>Página web (.html)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToImages" xml:space="preserve">
+    <value>Imágenes (PNG, JPEG)…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_ToPdfA" xml:space="preserve">
+    <value>PDF/A para archivar…</value>
+    <comment>Name of a command in the bar's Convert menu: keep short</comment>
+  </data>
+  <data name="Bar_EditContentDesc" xml:space="preserve">
+    <value>Cambia el texto y las imágenes de la página</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_HeaderFooterDesc" xml:space="preserve">
+    <value>Números, fechas o texto en cada página</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_WatermarkDesc" xml:space="preserve">
+    <value>Escribe BORRADOR o un logo sobre las páginas</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToWordDesc" xml:space="preserve">
+    <value>Se guarda junto al PDF y se abre en Word</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToExcelDesc" xml:space="preserve">
+    <value>Las tablas en un libro de Excel</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToPowerPointDesc" xml:space="preserve">
+    <value>Cada página como una diapositiva editable</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToTextDesc" xml:space="preserve">
+    <value>Solo las palabras, en un archivo de texto</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToHtmlDesc" xml:space="preserve">
+    <value>Títulos, listas y tablas como página web</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToImagesDesc" xml:space="preserve">
+    <value>Cada página como una imagen</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ToPdfADesc" xml:space="preserve">
+    <value>Una copia que se verá igual por años</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_PrepareFormDesc" xml:space="preserve">
+    <value>Agrega campos para que otros los llenen</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_OrganizeDesc" xml:space="preserve">
+    <value>Mueve, gira, elimina e inserta páginas</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_InsertPagesDesc" xml:space="preserve">
+    <value>Agrega las páginas de otro archivo</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ExtractPagesDesc" xml:space="preserve">
+    <value>Guarda algunas páginas como un PDF nuevo</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SplitDesc" xml:space="preserve">
+    <value>Divide el PDF en varios archivos</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CombineDesc" xml:space="preserve">
+    <value>Une varios archivos en un PDF</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ReduceSizeDesc" xml:space="preserve">
+    <value>Haz el archivo más pequeño para enviarlo</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_PasswordDesc" xml:space="preserve">
+    <value>Pide una contraseña para abrirlo o cambiarlo</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RedactDesc" xml:space="preserve">
+    <value>Tapa texto o áreas para siempre</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RedactPatternsDesc" xml:space="preserve">
+    <value>Busca y quita números, teléfonos, correos</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CheckRedactionDesc" xml:space="preserve">
+    <value>Comprueba que no quede nada legible</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SanitizeDesc" xml:space="preserve">
+    <value>Quita datos ocultos, metadatos y scripts</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_DigitalSignDesc" xml:space="preserve">
+    <value>Firma con un ID digital (certificado)</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RemoveProtectionDesc" xml:space="preserve">
+    <value>Quita la contraseña del archivo</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_RecognizeDesc" xml:space="preserve">
+    <value>Haz que se pueda buscar en lo escaneado</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanDesc" xml:space="preserve">
+    <value>Un PDF nuevo desde tu escáner</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanInsertDesc" xml:space="preserve">
+    <value>Páginas escaneadas agregadas a este PDF</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_SuspectWordsDesc" xml:space="preserve">
+    <value>Revisa las palabras dudosas del OCR</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

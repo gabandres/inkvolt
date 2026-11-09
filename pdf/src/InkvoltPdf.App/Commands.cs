@@ -53,6 +53,8 @@ public static class Cmd
     public static readonly RoutedUICommand ExportImages = Make(Strings.Cmd_ExportImages, nameof(ExportImages));
     // Export to editable formats (see ExportActions)
     public static readonly RoutedUICommand ExportWord = Make(Strings.Cmd_ExportWord, nameof(ExportWord));
+    // The bar's Convert › Word: at once, with the defaults (ExportActions.ConvertAtOnce); Shift+click asks as ExportWord does
+    public static readonly RoutedUICommand ConvertWord = Make(Strings.Cmd_ConvertWord, nameof(ConvertWord));
     public static readonly RoutedUICommand ExportExcel = Make(Strings.Cmd_ExportExcel, nameof(ExportExcel));
     public static readonly RoutedUICommand ExportText = Make(Strings.Cmd_ExportText, nameof(ExportText));
     public static readonly RoutedUICommand ExportPowerPoint = Make(Strings.Cmd_ExportPowerPoint, nameof(ExportPowerPoint));

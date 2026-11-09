@@ -9,9 +9,9 @@ public class CommandBarLayoutTests
     // ── The table ──
 
     [Fact]
-    public void TheOldBarsCommandsAreAllStillReachedInTheSameOrder()
+    public void TheOldBarsCommandsAreAllStillReached()
     {
-        // The twenty-odd icons of the bar before the groups, left to right.
+        // The twenty-odd icons of the bar before the groups (the drawing tools: Comment's Draw submenu), each once.
         string[] before =
         [
             "Save", "Print", "Undo", "Redo", "ToolHand", "ToolSelect", "ToolSnapshot", "ToolAddText", "ToolCheck", "ToolCross",
@@ -19,19 +19,37 @@ public class CommandBarLayoutTests
             "RotateRight", "DeleteSelected", "Find", "Combine",
         ];
         var now = CommandBarLayout.AllCommands.ToList();
-        Assert.Equal(before, now.Where(before.Contains).ToArray());
+        Assert.Empty(before.Except(now));
         Assert.Equal(now.Count, now.Distinct().Count());
+        Assert.Equal("Comment", CommandBarLayout.DrawsIn);
     }
 
     [Fact]
-    public void AFewLabeledGroupsReplaceTheIcons()
+    public void TheGroupsComeInTheOrderOtherPdfEditorsUse()
     {
+        // docs/design/command-bar.md: Edit and Convert first (Acrobat's top bar, Nitro's and Foxit's tabs), then Comment
+        // and Fill & Sign, the pages, Protect (with Redact), Scan & OCR.
         var entries = CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().ToList();
         Assert.All(entries.Where(e => e.Label is null), e => Assert.Contains(e.Id, new[] { "Save", "Print", "Undo", "Redo" }));
-        Assert.Equal(["Select", "Fill & Sign", "Comment", "Draw", "Redact", "Organize"], entries.Where(e => e.Label is not null).Select(e => e.Label));
-        Assert.Equal(["Pointer", "FillSign", "Comment"], entries.Where(e => e.IsGroup).Select(e => e.Id));
+        Assert.Equal(["Select", "Edit", "Convert", "Comment", "Fill & Sign", "Organize", "Protect", "Scan & OCR"],
+            entries.Where(e => e.Label is not null).Select(e => e.Label));
+        Assert.All(entries.Where(e => e.Label is not null), e => Assert.True(e.IsGroup, e.Id));
         Assert.All(CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().SelectMany(e => e.Commands).Concat(CommandBarLayout.Secondary),
             c => Assert.True(c.Glyph.Length == 1 && char.GetUnicodeCategory(c.Glyph[0]) == System.Globalization.UnicodeCategory.PrivateUse, c.Name));
+    }
+
+    [Fact]
+    public void EachGroupLeadsWithItsMainJob()
+    {
+        // The first command of a group is the one its click will run (docs/design/command-bar.md, "One click").
+        Assert.Equal(
+            ["ToolHand", "EditContent", "ConvertWord", "Highlight", "AddSignature", "Organize", "ProtectPassword", "RecognizeText"],
+            CommandBarLayout.Bar.OfType<CommandBarLayout.Entry>().Where(e => e.IsGroup).Select(e => e.Commands[0].Name));
+        // Convert's flyout names the format ("Word (.docx)"), not the command ("Convert to Word"), and asks first only
+        // where the name ends with "…".
+        var convert = CommandBarLayout.Group("Convert").Commands;
+        Assert.All(convert, c => Assert.False(string.IsNullOrEmpty(c.Title), c.Name));
+        Assert.Equal(["ConvertWord"], convert.Where(c => !c.Title!.EndsWith('…')).Select(c => c.Name));
     }
 
     [Fact]
@@ -140,60 +158,72 @@ public class CommandBarLayoutTests
         Assert.Equal([true, false], tight.Shown);
     }
 
-    [Fact]
-    public void AtAnOrdinaryWidthTheGroupsKeepTheirLabels()
+    // The bar's own table with its children's widths as measured in the app at 100 % (barstate, plus the buttons' 1-DIP
+    // margins): icons 36, groups 52 as icons; separators 13. The room is what the bar has beside the menus and the
+    // Commands button in a window of that width (under 1100 the Commands button keeps only its icon).
+    private static readonly Dictionary<string, (double Full, double Compact)> English = new()
     {
-        // The bar's own table with typical widths (icons 34, labeled groups as measured at 100 %), in the room a 1200-DIP
-        // window leaves it beside the menus and the Commands button: save and undo, Select, Fill & Sign and Comment show,
-        // labeled; the rest are in "…".
-        var widths = new Dictionary<string, double>
-        {
-            ["Save"] = 34, ["Print"] = 34, ["Undo"] = 34, ["Redo"] = 34, ["Pointer"] = 87, ["FillSign"] = 115, ["Comment"] = 108,
-            ["Draw"] = 85, ["Redact"] = 84, ["Organize"] = 99,
-        };
-        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id], e.Priority, e.Label is null ? null : 50)).ToList();
-        var fit = CommandBarLayout.Layout(items, 560, 34, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
-        Assert.False(fit.Compact);
-        var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
-        Assert.Equal(["Save", "Print", "Undo", "Redo", "Pointer", "FillSign", "Comment"], shown);
-    }
+        ["Save"] = (36, 36), ["Print"] = (36, 36), ["Undo"] = (36, 36), ["Redo"] = (36, 36), ["Pointer"] = (52, 52),
+        ["Edit"] = (83, 52), ["Convert"] = (108, 52), ["Comment"] = (121, 52), ["FillSign"] = (123, 52),
+        ["Organize"] = (116, 52), ["Protect"] = (104, 52), ["ScanOcr"] = (135, 52),
+    };
 
-    [Fact]
-    public void AtTextSize150OnA1200DipWindowCommentStaysOnTheBar()
+    private static (bool Compact, string[] Shown) FitBar(Dictionary<string, (double Full, double Compact)> widths, double room)
     {
-        // The room the bar has there and its children's widths with their margins, as measured in the app (318 DIPs; icons
-        // 36, groups 52 as icons): icons only, and Comment outranks the Redo and Print icons (Ctrl+Y and Ctrl+P, in the
-        // Edit and File menus), so the pointer tools, Fill & Sign and Comment all show; the rest is in "…".
-        var widths = new Dictionary<string, (double Full, double Compact)>
-        {
-            ["Save"] = (36, 36), ["Print"] = (36, 36), ["Undo"] = (36, 36), ["Redo"] = (36, 36), ["Pointer"] = (93, 52),
-            ["FillSign"] = (123, 52), ["Comment"] = (121, 52), ["Draw"] = (92, 52), ["Redact"] = (87, 37), ["Organize"] = (101, 37),
-        };
         var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id].Full, e.Priority, widths[e.Id].Compact)).ToList();
-        var fit = CommandBarLayout.Layout(items, 318, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
-        Assert.True(fit.Compact);
-        var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
-        Assert.Equal(["Save", "Undo", "Pointer", "FillSign", "Comment"], shown);
-
-        // A little more room (Redo's) and Print comes back first.
-        fit = CommandBarLayout.Layout(items, 318 + 36, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
-        Assert.Equal(["Save", "Print", "Undo", "Pointer", "FillSign", "Comment"], CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id));
+        var fit = CommandBarLayout.Layout(items, room, 36, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
+        return (fit.Compact, [.. CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id)]);
     }
 
     [Fact]
-    public void AtAnOrdinaryWidthTheGroupsKeepTheirLabels_InSpanishToo()
+    public void At1700DipsEveryGroupShowsWithItsLabel()
     {
-        // The same rule with the Spanish labels as measured at 100 % (Mano, Llenar y firmar, Comentar, Dibujar, Eliminar
-        // información, Organizar): about a fifth longer, still the same groups labeled in a 1200-DIP window.
-        var widths = new Dictionary<string, double>
+        // Redo (Ctrl+Y, Edit › Redo) is the first to give way.
+        var (compact, shown) = FitBar(English, 1034);
+        Assert.False(compact);
+        Assert.Equal(["Save", "Print", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign", "Organize", "Protect", "ScanOcr"], shown);
+    }
+
+    [Fact]
+    public void At1280DipsTheFiveCommonGroupsKeepTheirLabels()
+    {
+        // Print and Redo, then Scan & OCR, Protect and Organize go into "…" before any label does.
+        var (compact, shown) = FitBar(English, 632);
+        Assert.False(compact);
+        Assert.Equal(["Save", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign"], shown);
+    }
+
+    [Fact]
+    public void At1100DipsTheBarGoesIconsOnly()
+    {
+        // 3 DIPs short of the five labels: icons only, and then all but Redo fit.
+        var (compact, shown) = FitBar(English, 618);
+        Assert.True(compact);
+        Assert.Equal(["Save", "Print", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign", "Organize", "Protect", "ScanOcr"], shown);
+    }
+
+    [Fact]
+    public void AtTextSize150OnA1200DipWindowThePointerConvertAndFillSignStay()
+    {
+        // 318 DIPs of room, icons only: the highest priorities stay (save and undo, the pointer tools, Convert, Fill & Sign);
+        // Edit and Comment are in "…".
+        var (compact, shown) = FitBar(English, 318);
+        Assert.True(compact);
+        Assert.Equal(["Save", "Undo", "Pointer", "Convert", "FillSign"], shown);
+    }
+
+    [Fact]
+    public void InSpanishAt1700DipsScanAndOcrGoesIntoTheOverflow()
+    {
+        // Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger as measured; Escanear y OCR estimated (it
+        // never showed): about a tenth longer than English, so Scan & OCR and Redo give way in the 985 DIPs there.
+        var spanish = new Dictionary<string, (double Full, double Compact)>(English)
         {
-            ["Save"] = 34, ["Print"] = 34, ["Undo"] = 34, ["Redo"] = 34, ["Pointer"] = 80, ["FillSign"] = 138, ["Comment"] = 106,
-            ["Draw"] = 92, ["Redact"] = 162, ["Organize"] = 100,
+            ["Edit"] = (95, 52), ["Convert"] = (117, 52), ["Comment"] = (121, 52), ["FillSign"] = (148, 52),
+            ["Organize"] = (120, 52), ["Protect"] = (113, 52), ["ScanOcr"] = (150, 52),
         };
-        var items = CommandBarLayout.Bar.Select(e => e is null ? Sep : Cmd(widths[e.Id], e.Priority, e.Label is null ? null : 50)).ToList();
-        var fit = CommandBarLayout.Layout(items, 560, 34, moreAlways: true, keepsLabels: CommandBarLayout.KeepsLabels);
-        Assert.False(fit.Compact);
-        var shown = CommandBarLayout.Bar.Where((e, i) => e is not null && fit.Shown[i]).Select(e => e!.Id);
-        Assert.Equal(["Save", "Print", "Undo", "Redo", "Pointer", "FillSign", "Comment"], shown);
+        var (compact, shown) = FitBar(spanish, 985);
+        Assert.False(compact);
+        Assert.Equal(["Save", "Print", "Undo", "Pointer", "Edit", "Convert", "Comment", "FillSign", "Organize", "Protect"], shown);
     }
 }

@@ -2,9 +2,10 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// The document command bar, as Fluent 2 lays one out: a few primary commands with their labels, grouped in the order
-/// people know (save and undo; the pointer tools; fill and sign; comment; draw; redact; pages), and a "…" overflow that
-/// keeps the labels. Each group is one labeled button that drops a menu of its commands; the rest of the old bar's
-/// icons (rotate, delete pages, find, combine) are secondary and always in the overflow. The command palette and the
+/// people coming from Nitro, Foxit and Acrobat know (save and undo; the pointer tools; Edit, Convert; Comment, Fill &amp;
+/// Sign; Organize, Protect, Scan &amp; OCR: docs/design/command-bar.md), and a "…" overflow that keeps the labels. Each
+/// group is one labeled button that drops a flyout of its commands, its main job first; the rest of the old bar's
+/// icons (rotate, delete pages, find) are secondary and always in the overflow. The command palette and the
 /// menus list every command, so nothing here is the only way to reach anything.
 /// </summary>
 public static class CommandBarLayout
@@ -13,7 +14,9 @@ public static class CommandBarLayout
     /// One command of a group: the <c>Cmd</c> field it runs, its icon (Segoe Fluent Icons), page-view letter key, and the
     /// line under its name in the group's flyout, saying in a few plain words what it does.
     /// </summary>
-    public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "");
+    /// <remarks><paramref name="Title"/>: the name in the flyout when the command's own (menu) name would repeat the
+    /// group's (Convert › "Word (.docx)", not "Convert to Word").</remarks>
+    public sealed record Command(string Name, string Glyph, string? Key = null, string Description = "", string? Title = null);
 
     /// <summary>
     /// Under this many logical DIPs (the window's width over Windows' Text size) the bar's right end makes room: the
@@ -37,8 +40,8 @@ public static class CommandBarLayout
 
     /// <summary>The pointer tools' group (labeled with the tool in use).</summary>
     public const string Pointer = "Pointer";
-    /// <summary>The drawing tools' group (Draw: its menu is the drawing tools, its icon the last one used).</summary>
-    public const string Draw = "Draw";
+    /// <summary>The group whose flyout ends with the drawing tools (a Draw submenu: Foxit's Comment › Drawing).</summary>
+    public const string DrawsIn = "Comment";
 
     /// <summary>The bar, left to right; null is a separator between groups.</summary>
     public static IReadOnlyList<Entry?> Bar => BarTable.Value;
@@ -46,46 +49,77 @@ public static class CommandBarLayout
     private static readonly PerLanguage<IReadOnlyList<Entry?>> BarTable = new(() =>
     [
         new("Save", null, 100, [new("Save", "\uE74E")]),
-        // Print (Ctrl+P, File › Print) and Redo (Ctrl+Y, Edit › Redo) give way to Comment when room is short (Text size
-        // 150 % on a 1200-DIP window); Redo goes first.
-        new("Print", null, 75, [new("Print", "\uE749")]),
+        // Print (Ctrl+P, File › Print) and Redo (Ctrl+Y, Edit › Redo) give way to the groups when room is short, Redo first:
+        // at 1280 DIPs Select, Edit, Convert, Comment and Fill & Sign keep their labels and these two go into "…".
+        new("Print", null, 55, [new("Print", "\uE749")]),
         new("Undo", null, 100, [new("Undo", "\uE7A7")]),
-        new("Redo", null, 75, [new("Redo", "\uE7A6")]),
+        new("Redo", null, 45, [new("Redo", "\uE7A6")]),
         null,
         new(Pointer, PdfStrings.Bar_Select, 85,
             [new("ToolHand", "\uE7C9", "H", PdfStrings.Bar_HandDesc),
              new("ToolSelect", "\uE8E9", "T", PdfStrings.Bar_SelectDesc),
              new("ToolSnapshot", "\uE722", "G", PdfStrings.Bar_SnapshotDesc)]),
         null,
-        new("FillSign", PdfStrings.Bar_FillSign, 90,
-            [new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc),
-             new("ToolCheck", "\uE73E", "K", PdfStrings.Bar_CheckDesc),
-             new("ToolCross", "\uE711", "X", PdfStrings.Bar_CrossDesc),
-             new("AddSignature", "\uE76D", Description: PdfStrings.Bar_SignatureDesc)]),
+        // The groups in the order Nitro, Foxit and Acrobat put them (docs/design/command-bar.md): Edit and Convert first,
+        // then Comment and Fill & Sign, the pages, Protect, and Scan & OCR. Each group's first command is its main job.
+        new("Edit", PdfStrings.Bar_Edit, 84,
+            [new("EditContent", "\uE70F", Description: PdfStrings.Bar_EditContentDesc),
+             new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
+             new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
+             new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc),
+             new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)]),
+        new("Convert", PdfStrings.Bar_Convert, 90,
+            [new("ConvertWord", "\uEDE1", Description: PdfStrings.Bar_ToWordDesc, Title: PdfStrings.Bar_ToWord),
+             new("ExportExcel", "\uE80A", Description: PdfStrings.Bar_ToExcelDesc, Title: PdfStrings.Bar_ToExcel),
+             new("ExportPowerPoint", "\uE7F4", Description: PdfStrings.Bar_ToPowerPointDesc, Title: PdfStrings.Bar_ToPowerPoint),
+             new("ExportText", "\uE8C1", Description: PdfStrings.Bar_ToTextDesc, Title: PdfStrings.Bar_ToText),
+             new("ExportHtml", "\uE774", Description: PdfStrings.Bar_ToHtmlDesc, Title: PdfStrings.Bar_ToHtml),
+             new("ExportImages", "\uE91B", Description: PdfStrings.Bar_ToImagesDesc, Title: PdfStrings.Bar_ToImages),
+             new("SaveAsPdfA", "\uE7B8", Description: PdfStrings.Bar_ToPdfADesc, Title: PdfStrings.Bar_ToPdfA)]),
         new("Comment", PdfStrings.Bar_Comment, 80,
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc),
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
-             new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
-             new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
              new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)]),
-        new(Draw, PdfStrings.Bar_Draw, 60, []),
-        new("Redact", PdfStrings.Bar_Redact, 50, [new("Redact", "\uE73B")]),
-        null,
-        new("Organize", PdfStrings.Bar_Organize, 70, [new("Organize", "\uE8B3")]),
+        new("FillSign", PdfStrings.Bar_FillSign, 86,
+            [new("AddSignature", "\uE76D", Description: PdfStrings.Bar_SignatureDesc),
+             new("ToolAddText", "\uE8D2", "A", PdfStrings.Bar_AddTextDesc),
+             new("ToolCheck", "\uE73E", "K", PdfStrings.Bar_CheckDesc),
+             new("ToolCross", "\uE711", "X", PdfStrings.Bar_CrossDesc),
+             new("PrepareForm", "\uE8A9", Description: PdfStrings.Bar_PrepareFormDesc)]),
+        new("Organize", PdfStrings.Bar_Organize, 70,
+            [new("Organize", "\uE8B3", Description: PdfStrings.Bar_OrganizeDesc),
+             new("InsertPages", "\uE8B5", Description: PdfStrings.Bar_InsertPagesDesc),
+             new("ExtractPages", "\uEDE1", Description: PdfStrings.Bar_ExtractPagesDesc),
+             new("SplitDocument", "\uE8C6", Description: PdfStrings.Bar_SplitDesc),
+             new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc),
+             new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)]),
+        new("Protect", PdfStrings.Bar_Protect, 60,
+            [new("ProtectPassword", "\uE72E", Description: PdfStrings.Bar_PasswordDesc),
+             new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc),
+             new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
+             new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
+             new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
+             new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc),
+             new("RemoveProtection", "\uE785", Description: PdfStrings.Bar_RemoveProtectionDesc)]),
+        new("ScanOcr", PdfStrings.Bar_ScanOcr, 50,
+            [new("RecognizeText", "\uE8C1", Description: PdfStrings.Bar_RecognizeDesc),
+             new("Scan", "\uE8FE", Description: PdfStrings.Bar_ScanDesc),
+             new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
+             new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc)]),
     ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>
     public static readonly IReadOnlyList<Command> Secondary =
     [
         new("RotateLeft", "\uE7AD"), new("RotateRight", "\uE7AD"), new("DeleteSelected", "\uE74D"),
-        new("Find", "\uE721"), new("Combine", "\uE8F1"),
+        new("Find", "\uE721"),
     ];
 
     public static Entry Group(string id) => Bar.First(e => e?.Id == id)!;
 
-    /// <summary>Every command the bar reaches, on the bar or in a group or the overflow (the drawing tools aside).</summary>
+    /// <summary>Every command the bar reaches, on the bar or in a group or the overflow (the drawing tools, in a submenu of <see cref="DrawsIn"/>, aside).</summary>
     public static IEnumerable<string> AllCommands =>
         Bar.OfType<Entry>().SelectMany(e => e.Commands).Concat(Secondary).Select(c => c.Name);
 

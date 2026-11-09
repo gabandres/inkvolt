@@ -60,6 +60,49 @@ internal static class ExportActions
         var folder = Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder;
         if (PickPath(owner, kind, name + kind.Extension, folder) is not { } path) return;
         AppSettings.Current.Save();
+        await Run(owner, tab, host, format, pages, recognize, open.IsChecked == true, path, atOnce: false);
+    }
+
+    /// <summary>
+    /// The command bar's Convert › Word: no questions. Every page, scanned pages recognized when Windows has a recognizer,
+    /// saved as name.docx next to the PDF (never over a file: "name (2).docx"), then opened; the notice offers Show in
+    /// folder and Change options… (the <see cref="Export"/> window). A document with no folder of its own (a new,
+    /// unsaved one) asks where, as Export does.
+    /// </summary>
+    public static async Task ConvertAtOnce(Window owner, DocumentTab tab, MainWindow host, ExportFormat format)
+    {
+        if (!await tab.SettleAsync()) return;
+        var folder = Path.GetDirectoryName(tab.Session.FilePath);
+        if (folder is null || !Directory.Exists(folder))
+        {
+            await Export(owner, tab, host, format);
+            return;
+        }
+        int[] pages = [.. Enumerable.Range(0, tab.PageView.PageCount)];
+        if (pages.Length == 0) return;
+        if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
+        var kind = Describe(format);
+        string path;
+        try
+        {
+            path = DevScript.TakeSavePath(out var scripted) && scripted is not null ? scripted
+                : PdfFiles.UniquePath(folder, Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + kind.Extension);
+        }
+        catch (IOException ex)
+        {
+            Prompt.Error(owner, Strings.Export_CantSave, Loc.Format(Strings.PdfA_SaveFailed, ex.Message));
+            return;
+        }
+        await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true);
+    }
+
+    private static async Task Run(Window owner, DocumentTab tab, MainWindow host, ExportFormat format, int[] pages,
+        bool recognize, bool open, string path, bool atOnce)
+    {
+        var kind = Describe(format);
+        var ocr = PageOcr.Engine;
+        recognize &= ocr is not null;
+        var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
 
         // Busy from here, so nothing replaces the engine this export reads.
         using var busy = tab.BeginBusy(Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
@@ -120,10 +163,18 @@ internal static class ExportActions
             if (unreadable > 0) notes.Add(Loc.Plural(unreadable, Strings.Export_NoteUnreadable_One, Strings.Export_NoteUnreadable_Many));
             if (format == ExportFormat.Excel) notes.Insert(0, Loc.Plural(tables, Strings.Access_Tables_One, Strings.Access_Tables_Many));
             Log.Write($"Export {format}: {pages.Length} page(s) to {Log.Name(path)}{(notes.Count > 0 ? "; " + string.Join("; ", notes) : "")}");
-            host.ShowStatus(notes.Count > 0
-                ? Loc.Plural(pages.Length, Strings.Export_ExportedNotes_One, Strings.Export_ExportedNotes_Many, Path.GetFileName(path), string.Join(", ", notes))
-                : Loc.Plural(pages.Length, Strings.Export_Exported_One, Strings.Export_Exported_Many, Path.GetFileName(path)));
-            if (open.IsChecked == true) Shell.Open(path);
+            if (atOnce)
+            {
+                // "Saved report.docx · Show in folder · Change options…" (the notes after the name, as the export's own notice).
+                var saved = Loc.Format(Strings.Export_Saved, Path.GetFileName(path)) + (notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : "");
+                host.ShowToast(new Toast(saved, Strings.Export_ShowInFolder, () => Shell.ShowInFolder(path),
+                    Action2Label: Strings.Export_ChangeOptions, Action2: () => _ = Export(owner, tab, host, format)), tab);
+            }
+            else
+                host.ShowStatus(notes.Count > 0
+                    ? Loc.Plural(pages.Length, Strings.Export_ExportedNotes_One, Strings.Export_ExportedNotes_Many, Path.GetFileName(path), string.Join(", ", notes))
+                    : Loc.Plural(pages.Length, Strings.Export_Exported_One, Strings.Export_Exported_Many, Path.GetFileName(path)));
+            if (open) Shell.Open(path);
         }
         catch (OperationCanceledException)
         {
