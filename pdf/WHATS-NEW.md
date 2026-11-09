@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- A familiar command bar: Edit, Convert, Comment, Fill & Sign, Organize, Protect and Scan & OCR, where Acrobat, Foxit and Nitro put them. One click runs each group's main job; its arrow shows the rest, with a line saying what each does.
+- Convert › Word in one click: the Word file is saved next to the PDF (never over another file) and opens. Excel, PowerPoint, text and HTML work the same way from the Convert menu. Shift+click, or Change options… in the notice, to choose pages and other options first.
+- Protect asks only for a password; Fill & Sign places your signature (or helps you make one); Comment highlights the selected text; Scan & OCR makes every scanned page searchable.
 
 ## 1.11.1
 - Some PDFs that 1.11.0 opened view-only (a page whose drawing holds many square brackets, such as an uncompressed picture or "[1]"-style references) can be filled and edited again.

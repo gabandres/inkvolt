@@ -251,11 +251,24 @@ public partial class MainWindow
         menu.Items.Add(new Separator());
         menu.Items.Add(new MenuItem { Command = Cmd.Sign, CommandTarget = this });
 
-        menu.PlacementTarget = FillSignButton.IsVisible ? FillSignButton : this;
-        menu.Placement = FillSignButton.IsVisible ? PlacementMode.Bottom : PlacementMode.Center;
+        var fillSign = BarGroup("FillSign");
+        menu.PlacementTarget = fillSign?.IsVisible == true ? fillSign : this;
+        menu.Placement = fillSign?.IsVisible == true ? PlacementMode.Bottom : PlacementMode.Center;
         menu.Closed += (_, _) => UpdateUi();
         menu.IsOpen = true;
-        FillSignButton.IsChecked = true;
+        if (fillSign is not null) fillSign.Body.IsChecked = true;
+    }
+
+    /// <summary>
+    /// Fill &amp; Sign's one click: your signature, ready to place (the first saved one; click the page to put it there).
+    /// With none saved yet it asks you to make one, then places it; with only initials, the Sign menu (Shift+click too).
+    /// </summary>
+    private void SignAtOnce(DocumentTab t)
+    {
+        var saved = SignatureLibrary.List();
+        if (saved.Count > 0 && saved.All(s => s.Initials)) ShowSignatureMenu(t);
+        else if (saved.FirstOrDefault(s => !s.Initials) is { } signature) t.BeginPlaceSignature(signature);
+        else CaptureSignature(t, initials: false);
     }
 
     private void CaptureSignature(DocumentTab t, bool initials)

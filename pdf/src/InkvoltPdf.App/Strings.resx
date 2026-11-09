@@ -832,9 +832,6 @@
   <data name="Main_PointerTools" xml:space="preserve">
     <value>Pointer tools</value>
   </data>
-  <data name="Main_Hand" xml:space="preserve">
-    <value>Hand</value>
-  </data>
   <data name="Main_FillSignTip" xml:space="preserve">
     <value>Fill &amp; Sign: add text (A), a check mark (K) or a cross (X), or sign</value>
   </data>
@@ -850,17 +847,8 @@
   <data name="Main_Comment" xml:space="preserve">
     <value>Comment</value>
   </data>
-  <data name="Main_Draw" xml:space="preserve">
-    <value>Draw</value>
-  </data>
-  <data name="Main_DrawTip" xml:space="preserve">
-    <value>Draw: pen, highlighter, rectangle, ellipse, line, arrow, text box, callout</value>
-  </data>
   <data name="Main_Redact" xml:space="preserve">
     <value>Redact</value>
-  </data>
-  <data name="Main_RedactTip" xml:space="preserve">
-    <value>Redact: drag over areas to black out, then apply (removes the content for good)</value>
   </data>
   <data name="Main_OrganizeTip" xml:space="preserve">
     <value>Organize pages: reorder, rotate, delete in a grid</value>
@@ -11413,5 +11401,41 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
   <data name="ReadingOrder_KindChanged" xml:space="preserve">
     <value>Piece {0} is now: {1}</value>
     <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="Export_Saved" xml:space="preserve">
+    <value>Saved {0}</value>
+    <comment>{0} a file name, e.g. Saved report.docx</comment>
+  </data>
+  <data name="Export_ShowInFolder" xml:space="preserve">
+    <value>Show in folder</value>
+    <comment>Link in the notice after a conversion</comment>
+  </data>
+  <data name="Export_ChangeOptions" xml:space="preserve">
+    <value>Change options…</value>
+    <comment>Link in the notice after a conversion: opens the export options</comment>
+  </data>
+  <data name="Main_BarMainTip" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>Tooltip and screen-reader name of a command bar group's main button: {0} the group (Convert), {1} what one click does (Word (.docx))</comment>
+  </data>
+  <data name="Main_BarMoreTip" xml:space="preserve">
+    <value>{0}: more commands (Alt+Down)</value>
+    <comment>Tooltip and screen-reader name of the arrow next to a command bar group: {0} the group</comment>
+  </data>
+  <data name="Main_BarShiftTip" xml:space="preserve">
+    <value>Shift+click: choose the options first</value>
+    <comment>Second line of a bar button's tooltip, when one click runs with the defaults</comment>
+  </data>
+  <data name="Export_SavedDocuments" xml:space="preserve">
+    <value>Saved {0} in Documents</value>
+    <comment>{0} a file name. The PDF's folder can't be written to, or the PDF isn't saved yet</comment>
+  </data>
+  <data name="Security_QuickNote" xml:space="preserve">
+    <value>Anyone who opens the PDF will need this password. To restrict printing or copying instead: File › {0}</value>
+    <comment>{0} the File menu's Protect with Password command</comment>
+  </data>
+  <data name="Export_NowhereToSave" xml:space="preserve">
+    <value>The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it.</value>
+    <comment>One-click Convert couldn't write anywhere; the Export window (with Save As) opens next</comment>
   </data>
 </root>

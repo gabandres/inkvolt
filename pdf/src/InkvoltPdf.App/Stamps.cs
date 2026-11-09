@@ -118,11 +118,12 @@ public partial class MainWindow
             menu.Items.Add(delete);
         }
 
-        menu.PlacementTarget = CommentButton.IsVisible ? CommentButton : this;
-        menu.Placement = CommentButton.IsVisible ? PlacementMode.Bottom : PlacementMode.Center;
+        var comment = BarGroup("Comment");
+        menu.PlacementTarget = comment?.IsVisible == true ? comment : this;
+        menu.Placement = comment?.IsVisible == true ? PlacementMode.Bottom : PlacementMode.Center;
         menu.Closed += (_, _) => UpdateUi();
         menu.IsOpen = true;
-        CommentButton.IsChecked = true;
+        if (comment is not null) comment.Body.IsChecked = true;
     }
 
     /// <summary>A stamp as the menu shows it: its title (and detail line) in its color, in a rounded frame.</summary>

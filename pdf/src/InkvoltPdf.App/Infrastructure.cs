@@ -116,8 +116,16 @@ public static class AtomicFile
 /// <summary>Opens URLs and folders without letting a missing handler crash the app.</summary>
 public static class Shell
 {
+    /// <summary>Dev scripts' <c>shellopen off</c>: what would open in another app (Word, a folder) is only logged.</summary>
+    internal static bool OnlyLog { get; set; }
+
     public static void Open(string target)
     {
+        if (OnlyLog)
+        {
+            Log.Write($"Shell open (script, not run): {Log.Name(target)}");
+            return;
+        }
         try
         {
             Process.Start(new ProcessStartInfo(target) { UseShellExecute = true })?.Dispose();

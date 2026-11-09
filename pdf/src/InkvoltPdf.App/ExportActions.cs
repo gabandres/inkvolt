@@ -60,6 +60,99 @@ internal static class ExportActions
         var folder = Path.GetDirectoryName(tab.Session.FilePath) ?? AppSettings.Current.LastFolder;
         if (PickPath(owner, kind, name + kind.Extension, folder) is not { } path) return;
         AppSettings.Current.Save();
+        await Run(owner, tab, host, format, pages, recognize, open.IsChecked == true, path, atOnce: false);
+    }
+
+    /// <summary>
+    /// The command bar's Convert › Word (and Excel, PowerPoint, text, HTML): no questions. Every page, scanned pages
+    /// recognized when Windows has a recognizer, saved as name.docx next to the PDF (never over a file: "name (2).docx"),
+    /// in Documents when the PDF isn't saved yet or its folder refuses it (<see cref="ExportTarget"/>: the name is reserved
+    /// off the UI thread by creating the file), then opened; the notice offers Show in folder and Change options… (the
+    /// <see cref="Export"/> window). With nowhere to write (no Documents either) it says so and asks where. A second click
+    /// while one runs on the same document is ignored.
+    /// </summary>
+    public static async Task ConvertAtOnce(Window owner, DocumentTab tab, MainWindow host, ExportFormat format)
+    {
+        if (!Converting.Add(tab)) return;
+        string? reserved = null;
+        try
+        {
+            if (!await tab.SettleAsync()) return;
+            int[] pages = [.. Enumerable.Range(0, tab.PageView.PageCount)];
+            if (pages.Length == 0) return;
+            if (!Organize.ConfirmUnprotected(owner, tab, Strings.Export_Unprotected, Strings.Comments_ExportAnyway)) return;
+            string path;
+            var inDocuments = false;
+            if (DevScript.TakeSavePath(out var scripted))
+            {
+                if (scripted is null) return; // a script's "savepath cancel", as the Save dialog's Cancel
+                path = scripted;
+            }
+            else
+            {
+                var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName) + Describe(format).Extension;
+                var pdf = tab.Session.FilePath;
+                var documents = DocumentsFolder();
+                if (await Task.Run(() => ExportTarget.Reserve(pdf, name, documents, (folder, file) => PdfFiles.UniquePath(folder, file))) is not { } target)
+                {
+                    Log.Write($"Convert {format}: nowhere to write (the PDF's folder refused it, no Documents folder)");
+                    Prompt.Info(owner, Strings.Export_CantSave, Strings.Export_NowhereToSave);
+                    Converting.Remove(tab);
+                    await Export(owner, tab, host, format);
+                    return;
+                }
+                (path, inDocuments, reserved) = (target.Path, target.InDocuments, target.Path);
+            }
+            await Run(owner, tab, host, format, pages, recognize: true, open: true, path, atOnce: true, inDocuments);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Run catches its own; this is what comes before it (a settle or reservation that failed), never lost silently.
+            Log.Write($"Convert {format} failed: {ex}");
+            Prompt.Error(owner, Strings.Export_Failed, ex.Message);
+        }
+        finally
+        {
+            Converting.Remove(tab);
+            // The reserved, still empty file of a conversion that wrote nothing (cancelled, failed, nothing to export).
+            if (reserved is not null) DeleteIfEmpty(reserved);
+        }
+    }
+
+    // The documents converting at once: a second click meanwhile is ignored rather than started twice.
+    private static readonly HashSet<DocumentTab> Converting = [];
+
+    private static string? DocumentsFolder()
+    {
+        try
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        }
+        catch (Exception ex) when (ex is PlatformNotSupportedException or System.Security.SecurityException)
+        {
+            return null;
+        }
+    }
+
+    private static void DeleteIfEmpty(string path)
+    {
+        try
+        {
+            if (new FileInfo(path) is { Exists: true, Length: 0 } empty) empty.Delete();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Convert: the empty reserved file stays ({ex.Message})");
+        }
+    }
+
+    private static async Task Run(Window owner, DocumentTab tab, MainWindow host, ExportFormat format, int[] pages,
+        bool recognize, bool open, string path, bool atOnce, bool inDocuments = false)
+    {
+        var kind = Describe(format);
+        var ocr = PageOcr.Engine;
+        recognize &= ocr is not null;
+        var name = Path.GetFileNameWithoutExtension(tab.Session.DisplayName);
 
         // Busy from here, so nothing replaces the engine this export reads.
         using var busy = tab.BeginBusy(Loc.Plural(pages.Length, Strings.Export_Exporting_One, Strings.Export_Exporting_Many));
@@ -120,10 +213,18 @@ internal static class ExportActions
             if (unreadable > 0) notes.Add(Loc.Plural(unreadable, Strings.Export_NoteUnreadable_One, Strings.Export_NoteUnreadable_Many));
             if (format == ExportFormat.Excel) notes.Insert(0, Loc.Plural(tables, Strings.Access_Tables_One, Strings.Access_Tables_Many));
             Log.Write($"Export {format}: {pages.Length} page(s) to {Log.Name(path)}{(notes.Count > 0 ? "; " + string.Join("; ", notes) : "")}");
-            host.ShowStatus(notes.Count > 0
-                ? Loc.Plural(pages.Length, Strings.Export_ExportedNotes_One, Strings.Export_ExportedNotes_Many, Path.GetFileName(path), string.Join(", ", notes))
-                : Loc.Plural(pages.Length, Strings.Export_Exported_One, Strings.Export_Exported_Many, Path.GetFileName(path)));
-            if (open.IsChecked == true) Shell.Open(path);
+            if (atOnce)
+            {
+                // "Saved report.docx · Show in folder · Change options…" (the notes after the name, as the export's own notice).
+                var saved = Loc.Format(inDocuments ? Strings.Export_SavedDocuments : Strings.Export_Saved, Path.GetFileName(path)) + (notes.Count > 0 ? " (" + string.Join(", ", notes) + ")" : "");
+                host.ShowToast(new Toast(saved, Strings.Export_ShowInFolder, () => Shell.ShowInFolder(path),
+                    Action2Label: Strings.Export_ChangeOptions, Action2: () => _ = Export(owner, tab, host, format)), tab);
+            }
+            else
+                host.ShowStatus(notes.Count > 0
+                    ? Loc.Plural(pages.Length, Strings.Export_ExportedNotes_One, Strings.Export_ExportedNotes_Many, Path.GetFileName(path), string.Join(", ", notes))
+                    : Loc.Plural(pages.Length, Strings.Export_Exported_One, Strings.Export_Exported_Many, Path.GetFileName(path)));
+            if (open) Shell.Open(path);
         }
         catch (OperationCanceledException)
         {

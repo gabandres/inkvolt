@@ -303,7 +303,7 @@
                                     <MenuItem x:Name="RedactTextMenu" Header="{x:Static loc:Strings.Main_MenuMarkSelectedText}" Click="OnRedactText" />
                                     <MenuItem x:Name="RedactHitsMenu" Header="{x:Static loc:Strings.Main_MenuMarkSearchMatches}" Click="OnRedactHits" />
                                     <MenuItem Command="app:Cmd.RedactPatterns" />
-                                    <MenuItem x:Name="ApplyRedactMenu" Header="{x:Static loc:Strings.Main_MenuApplyRedactions}" Click="OnApplyRedactions" />
+                                    <MenuItem x:Name="ApplyRedactMenu" Command="app:Cmd.ApplyRedactions" />
                                     <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
                                     <MenuItem Command="app:Cmd.WhatsInThisPdf" />
@@ -354,51 +354,11 @@
                                               ToolTip="{x:Static loc:Strings.Main_PointerTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_PointerTools}">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock x:Name="PointerIcon" Style="{StaticResource Icon}" Text="&#xE7C9;" FontSize="15" />
-                                        <TextBlock x:Name="PointerLabel" Text="{x:Static loc:Strings.Main_Hand}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
                                         <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,2,0,0" />
                                     </StackPanel>
                                 </ToggleButton>
                                 <Border Style="{StaticResource BarSeparator}" />
-                                <ToggleButton x:Name="FillSignButton" Tag="FillSign" Style="{StaticResource CommandButton}" Click="OnBarGroupClick"
-                                              ToolTip="{x:Static loc:Strings.Main_FillSignTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_FillAndSignName}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="FillSignIcon" Style="{StaticResource Icon}" Text="&#xE8D2;" FontSize="15" />
-                                        <TextBlock Text="{x:Static loc:Strings.Main_FillSign}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,2,0,0" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton x:Name="CommentButton" Tag="Comment" Style="{StaticResource CommandButton}" Click="OnBarGroupClick"
-                                              ToolTip="{x:Static loc:Strings.Main_CommentTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_Comment}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="CommentIcon" Style="{StaticResource Icon}" Text="&#xE90A;" FontSize="15" />
-                                        <TextBlock Text="{x:Static loc:Strings.Main_Comment}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,2,0,0" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <!-- Drawing tools: the icon is the last tool used -->
-                                <ToggleButton x:Name="DrawButton" Tag="Draw" Style="{StaticResource CommandButton}" Click="OnDrawClick" AutomationProperties.Name="{x:Static loc:Strings.Main_Draw}"
-                                              ToolTip="{x:Static loc:Strings.Main_DrawTip}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock x:Name="DrawButtonIcon" Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="15" />
-                                        <TextBlock Text="{x:Static loc:Strings.Main_Draw}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="9" Margin="6,2,0,0" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <ToggleButton x:Name="RedactButton" Tag="Redact" Style="{StaticResource CommandButton}" Command="app:Cmd.Redact" AutomationProperties.Name="{x:Static loc:Strings.Main_Redact}"
-                                              ToolTip="{x:Static loc:Strings.Main_RedactTip}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE73B;" FontSize="15" />
-                                        <TextBlock Text="{x:Static loc:Strings.Main_Redact}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
-                                    </StackPanel>
-                                </ToggleButton>
-                                <Border Style="{StaticResource BarSeparator}" />
-                                <ToggleButton x:Name="OrganizeButton" Tag="Organize" Style="{StaticResource CommandButton}" Command="app:Cmd.Organize"
-                                              ToolTip="{x:Static loc:Strings.Main_OrganizeTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_Organize}">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8B3;" FontSize="15" />
-                                        <TextBlock Text="{x:Static loc:Strings.Main_Organize}" Margin="8,0,0,0" VerticalAlignment="Center" app:ToolbarPanel.IsLabel="True" />
-                                    </StackPanel>
-                                </ToggleButton>
+                                <!-- The groups, Edit to Scan & OCR, are split buttons built from CommandBarLayout's table (BuildBarGroups) -->
                                 <Button x:Name="MoreButton" app:ToolbarPanel.IsOverflowButton="True" Style="{StaticResource IconButton}" Content="&#xE712;"
                                         ToolTip="{x:Static loc:Strings.Main_MoreCommandsTip}" AutomationProperties.Name="{x:Static loc:Strings.Main_MoreCommands}" Click="OnMoreClick" />
                             </app:ToolbarPanel>
