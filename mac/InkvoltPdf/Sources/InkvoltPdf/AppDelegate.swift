@@ -138,7 +138,7 @@ enum MainMenu {
             case .separator: menu.addItem(.separator())
             case .command(let command): menu.addItem(item(command))
             case .submenu(let sub): menu.addItem(holder(sub, build(sub, updates)))
-            case .tools(let slot): for item in tools(slot) { menu.addItem(item) }
+            case .tools(let slot): for item in toolItems(slot) { menu.addItem(item) }
             case .checkForUpdates:
                 let item = updates.menuItem()
                 english.setObject("Check for Updates…", forKey: item)
@@ -168,7 +168,7 @@ enum MainMenu {
 
     /// A slot's tools: each picks its tool (the item's tag), with the tool's single key and picture; the measuring
     /// tools without either.
-    private static func tools(_ slot: ToolSlot) -> [NSMenuItem] {
+    static func toolItems(_ slot: ToolSlot) -> [NSMenuItem] {
         let chosen: [Tool]
         switch slot {
         case .hand: chosen = [.hand]

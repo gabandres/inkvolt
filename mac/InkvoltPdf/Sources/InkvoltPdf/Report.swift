@@ -59,6 +59,8 @@ enum Report {
         Scenario(flag: "--only-view", documents: .notForm) { c, n in var t = ViewTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-split", documents: .notForm) { c, n in var t = SplitTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-read-aloud", documents: .notForm) { c, n in var t = ReadAloudTest(controller: c, name: n); await t.run() },
+        // The command bar: its groups, names, menus and colours; Convert › Word in one click (shots with --snapshots).
+        Scenario(flag: "--only-command-bar", documents: .synthetic) { c, n in var t = CommandBarTest(controller: c, name: n); await t.run() },
         // The menu bar and the palette listed, to diff a menu change by.
         Scenario(flag: "--only-menus", documents: .synthetic) { c, n in var t = MenuTest(controller: c, name: n); await t.run() },
         // Edit › Find › Search Folders… on a folder of synthetic PDFs, with an index folder of its own.
@@ -187,6 +189,8 @@ enum Report {
                 if openedFrom != nil && openedFrom == syntheticPath {
                     var menus = MenuTest(controller: controller, name: name)
                     await menus.run()
+                    var bar = CommandBarTest(controller: controller, name: name)
+                    await bar.run()
                     var accessible = AccessibleTest(controller: controller, name: name)
                     await accessible.run()
                     // Before FeatureTest recognizes the scan page; every step is undone.

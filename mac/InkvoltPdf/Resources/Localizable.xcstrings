@@ -683,17 +683,6 @@
         }
       }
     },
-    "Add Text": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Agregar texto"
-          }
-        }
-      }
-    },
     "Add Text Box": {
       "extractionState": "manual",
       "localizations": {
@@ -2498,17 +2487,6 @@
         }
       }
     },
-    "Check Mark": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Marca de verificación"
-          }
-        }
-      }
-    },
     "Check Redaction": {
       "extractionState": "manual",
       "localizations": {
@@ -3917,17 +3895,6 @@
         }
       }
     },
-    "Cross": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cruz"
-          }
-        }
-      }
-    },
     "Cross: click where it goes; click one to remove it": {
       "extractionState": "manual",
       "localizations": {
@@ -4731,29 +4698,7 @@
         }
       }
     },
-    "Edit Text & Images": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Editar texto e imágenes"
-          }
-        }
-      }
-    },
     "Edit [button]": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Editar"
-          }
-        }
-      }
-    },
-    "Edit [toolbar]": {
       "extractionState": "manual",
       "localizations": {
         "es": {
@@ -4804,17 +4749,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Editar texto e imágenes"
-          }
-        }
-      }
-    },
-    "Edit text and images (J)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Editar texto e imágenes (J)"
           }
         }
       }
@@ -6326,17 +6260,6 @@
         }
       }
     },
-    "Hand": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mano"
-          }
-        }
-      }
-    },
     "Hand: scroll the pages, select a comment to move or resize it": {
       "extractionState": "manual",
       "localizations": {
@@ -6546,17 +6469,6 @@
         }
       }
     },
-    "Highlight": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resaltar"
-          }
-        }
-      }
-    },
     "Highlight [comment kind]": {
       "extractionState": "manual",
       "localizations": {
@@ -6564,17 +6476,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resaltado"
-          }
-        }
-      }
-    },
-    "Highlight the selected text, or pick the highlighter (Y)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Resaltar el texto seleccionado o elegir el resaltador (Y)"
           }
         }
       }
@@ -6707,17 +6608,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ignorar acentos"
-          }
-        }
-      }
-    },
-    "Image": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imagen"
           }
         }
       }
@@ -8108,17 +7998,6 @@
         }
       }
     },
-    "Mark text or areas to remove for good (F)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Marcar texto o áreas para quitarlos para siempre (F)"
-          }
-        }
-      }
-    },
     "Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.": {
       "extractionState": "manual",
       "localizations": {
@@ -9197,17 +9076,6 @@
         }
       }
     },
-    "Note": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nota"
-          }
-        }
-      }
-    },
     "Note text": {
       "extractionState": "manual",
       "localizations": {
@@ -9769,17 +9637,6 @@
         }
       }
     },
-    "Organize": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Organizar"
-          }
-        }
-      }
-    },
     "Organize pages": {
       "extractionState": "manual",
       "localizations": {
@@ -9787,17 +9644,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Organizar páginas"
-          }
-        }
-      }
-    },
-    "Organize pages (⌥⌘O)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Organizar páginas (⌥⌘O)"
           }
         }
       }
@@ -10308,17 +10154,6 @@
         }
       }
     },
-    "Password": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contraseña"
-          }
-        }
-      }
-    },
     "Password to open (optional)": {
       "extractionState": "manual",
       "localizations": {
@@ -10814,17 +10649,6 @@
         }
       }
     },
-    "Protect": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Proteger"
-          }
-        }
-      }
-    },
     "Protect with Password": {
       "extractionState": "manual",
       "localizations": {
@@ -11316,17 +11140,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Eliminar 1 área"
-          }
-        }
-      }
-    },
-    "Redact [toolbar]": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar información"
           }
         }
       }
@@ -13124,28 +12937,6 @@
         }
       }
     },
-    "Select": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seleccionar"
-          }
-        }
-      }
-    },
-    "Select Text": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seleccionar texto"
-          }
-        }
-      }
-    },
     "Select and move fields": {
       "extractionState": "manual",
       "localizations": {
@@ -13597,17 +13388,6 @@
         }
       }
     },
-    "Signature": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Firma"
-          }
-        }
-      }
-    },
     "Signature details": {
       "extractionState": "manual",
       "localizations": {
@@ -14048,17 +13828,6 @@
         }
       }
     },
-    "Stamp": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sello"
-          }
-        }
-      }
-    },
     "Stamp in use": {
       "extractionState": "manual",
       "localizations": {
@@ -14297,17 +14066,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seguridad: {0}"
-          }
-        }
-      }
-    },
-    "Strike Out": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tachar"
           }
         }
       }
@@ -16589,17 +16347,6 @@
         }
       }
     },
-    "Type on the form, add check marks and your signature (A)": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escribe en el formulario, agrega marcas y tu firma (A)"
-          }
-        }
-      }
-    },
     "Type one word: a correction replaces one recognized word.": {
       "extractionState": "manual",
       "localizations": {
@@ -16662,17 +16409,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se permite escribir un valor propio"
-          }
-        }
-      }
-    },
-    "Underline": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Subrayar"
           }
         }
       }
@@ -20061,6 +19797,116 @@
           "stringUnit": {
             "state": "translated",
             "value": "Elige el original y la versión modificada. Un documento abierto se compara tal como está ahora, con los cambios sin guardar. Cualquiera de los dos puede ser un archivo de Word, Excel o PowerPoint (convertido en PDF con Microsoft Word, Excel o PowerPoint, o con LibreOffice) o una imagen de una página escaneada: sus palabras se reconocen en este Mac."
+          }
+        }
+      }
+    },
+    "{0}: {1}. Option-click to choose options first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: {1}. Haz clic con Opción para elegir las opciones antes."
+          }
+        }
+      }
+    },
+    "{0}: more commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: más comandos"
+          }
+        }
+      }
+    },
+    "Anyone opening the saved file must type it. Option-click Protect for restrictions and other options.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quien abra el archivo guardado tendrá que escribirla. Haz clic con Opción en Proteger para las restricciones y otras opciones."
+          }
+        }
+      }
+    },
+    "Type it again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escríbela de nuevo"
+          }
+        }
+      }
+    },
+    "Can't save the export": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede guardar la exportación"
+          }
+        }
+      }
+    },
+    "The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La carpeta del PDF no acepta archivos nuevos y no hay una carpeta Documentos que usar en su lugar. Elige dónde guardarlo."
+          }
+        }
+      }
+    },
+    "Change options…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar opciones…"
+          }
+        }
+      }
+    },
+    "Wait a moment: {0} is still busy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera un momento: {0} aún está ocupado."
+          }
+        }
+      }
+    },
+    "Saved {0} in Documents": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0} en Documentos"
+          }
+        }
+      }
+    },
+    "Saved {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0}"
           }
         }
       }
