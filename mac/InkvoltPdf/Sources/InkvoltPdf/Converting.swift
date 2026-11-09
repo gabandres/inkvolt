@@ -22,14 +22,15 @@ enum Converting {
 
     /// Finds what is installed, each time: an app may have been installed since. Launch Services knows an app wherever
     /// it was put; the usual places cover a LibreOffice it hasn't seen. Word, Excel and PowerPoint convert their own kinds
-    /// first (driven through AppleScript, `MicrosoftOfficeConverter`), LibreOffice the rest.
+    /// first (driven through AppleScript, `MicrosoftOfficeConverter`), LibreOffice the rest; while
+    /// `OfficeInstalls.drivesMicrosoftOffice` is off (1.10.0), LibreOffice converts them all and Microsoft's are only named.
     static func installs() -> OfficeInstalls {
         if let testInstalls { return testInstalls }
         let workspace = NSWorkspace.shared
         var bundles = OfficeInstalls.libreOfficeBundles()
         if let found = workspace.urlForApplication(withBundleIdentifier: OfficeInstalls.libreOfficeBundleId) { bundles.append(found.path) }
         let microsoft = OfficeInstalls.microsoftBundleIds.filter { workspace.urlForApplication(withBundleIdentifier: $0.1) != nil }.map(\.0)
-        return OfficeInstalls(soffice: OfficeInstalls.soffice(in: bundles), microsoft: Set(microsoft))
+        return OfficeInstalls.found(soffice: OfficeInstalls.soffice(in: bundles), microsoft: Set(microsoft))
     }
 
     /// Converts `url` and opens the PDF as a new document. Nil when it wasn't (cancelled or failed; said so).
@@ -147,7 +148,7 @@ enum Converting {
     static func fromOfficeFile() {
         let installs = installs()
         guard installs.hasAny else {
-            tell(loc("No app to convert Office files"), installs.missing(nil))
+            tell(installs.drivesMicrosoft ? loc("No app to convert Office files") : loc("LibreOffice isn't installed"), installs.missing(nil))
             return
         }
         let panel = NSOpenPanel()

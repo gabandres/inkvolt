@@ -280,6 +280,33 @@ private final class FakeOffice {
         #expect(!OfficeInstalls().hasAny)
     }
 
+    @Test func microsoftOfficeIsOffForNowAndLibreOfficeConvertsAsIn1_9() throws {
+        // On only after a person with Microsoft 365 runs mac/docs/PLAN.md's checklist (E12): turning it on is this change.
+        #expect(!OfficeInstalls.drivesMicrosoftOffice)
+        let all: Set<OfficeApp> = [.word, .excel, .powerPoint]
+        let both = OfficeInstalls.found(soffice: "/x/soffice", microsoft: all)
+        #expect(both.microsoft.isEmpty && both.microsoftNotDriven == all && !both.drivesMicrosoft)
+        for path in ["/a/x.docx", "/a/x.xlsx", "/a/x.pptx"] {
+            let converters = both.converters(for: path)
+            #expect(converters.count == 1 && converters.first is LibreOfficeConverter, "\(path)")
+        }
+
+        // Word alone, no LibreOffice: nothing converts, and the words are 1.9.0's.
+        let fake = try FakeOffice(FakeOffice.writesPdf)
+        let wordOnly = OfficeInstalls.found(soffice: nil, microsoft: [.word])
+        #expect(!wordOnly.hasAny && wordOnly.route(fake.document.path) == nil)
+        let problem = try #require(OfficeConversion.precheck(fake.document.path, wordOnly))
+        #expect(problem.contains("with LibreOffice, which isn't installed on this Mac; it can't use Microsoft Word yet"))
+        #expect(OfficeInstalls.found(soffice: nil, microsoft: []).missing(nil)
+                == "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.")
+        #expect(!fake.wasStarted)
+
+        // The code stays in: turned on, Word converts Word's files first.
+        let on = OfficeInstalls.found(soffice: "/x/soffice", microsoft: [.word], drives: true)
+        #expect((on.route("/a/x.docx") as? MicrosoftOfficeConverter)?.app == .word)
+        #expect(on.converters(for: "/a/x.docx").count == 2)
+    }
+
     /// Word alone converts Word's files (through AppleScript, MicrosoftOfficeConversionTests); Excel's are said missing.
     @Test func wordAloneConvertsWordFilesOnly() throws {
         let installs = OfficeInstalls(microsoft: [.word])

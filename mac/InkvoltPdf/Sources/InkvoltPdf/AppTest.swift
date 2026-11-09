@@ -631,6 +631,13 @@ struct AppTest {
         try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: soffice.path)
         defer { Converting.testInstalls = nil }
         let report = url("Quarterly report.docx")
+
+        // 1.10.0: Microsoft's apps aren't driven yet (OfficeInstalls.drivesMicrosoftOffice): what the app finds on this Mac
+        // routes every Office file to LibreOffice, whichever of Word, Excel or PowerPoint is installed.
+        Converting.testInstalls = nil
+        let detected = Converting.installs()
+        check(!detected.drivesMicrosoft && detected.microsoft.isEmpty && (detected.route(report.path).map { $0 is LibreOfficeConverter } ?? true),
+              "Microsoft Office is off for this release: the installs found convert with LibreOffice only (Word, Excel and PowerPoint found: \(detected.microsoftNotDriven.count))")
         try? Data("PK\u{3}\u{4}a made-up document".utf8).write(to: report)
 
         // Word installed: Word converts it (a made-up runner in place of osascript), and its copy is gone after.

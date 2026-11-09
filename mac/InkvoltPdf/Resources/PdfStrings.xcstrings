@@ -1,6 +1,28 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac; it can't use {0} yet. Open the file in {0} and save it as PDF there, or install LibreOffice. LibreOffice is free, from libreoffice.org.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con LibreOffice, que no está instalado en este Mac; todavía no puede usar {0}. Abre el archivo en {0} y guárdalo como PDF allí, o instala LibreOffice. LibreOffice es gratis, en libreoffice.org."
+          }
+        }
+      }
+    },
+    "Inkvolt PDF makes PDFs from Office files with LibreOffice, which isn't installed on this Mac. LibreOffice is free, from libreoffice.org.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF crea archivos PDF a partir de archivos de Office con LibreOffice, que no está instalado en este Mac. LibreOffice es gratis, en libreoffice.org."
+          }
+        }
+      }
+    },
     "{0} was changed by something else while it was being made, so it wasn't written over. Convert again.": {
       "extractionState": "manual",
       "localizations": {
