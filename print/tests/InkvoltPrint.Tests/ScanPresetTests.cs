@@ -35,7 +35,11 @@ public class FileNameTemplateTests
     [InlineData("lpt³.txt", "lpt³_.txt")]
     [InlineData("conin$", "conin$_")]
     [InlineData("CONOUT$.log", "CONOUT$_.log")]
+    [InlineData("com0", "com0_")]
+    [InlineData("LPT² .pdf", "LPT² _.pdf")]
     [InlineData("COM10", "COM10")] // not a device
+    [InlineData("CONSOLE", "CONSOLE")]
+    [InlineData("NULL.pdf", "NULL.pdf")]
     [InlineData("tab\there", "tab-here")]
     public void Sanitizes(string template, string expected) => Assert.Equal(expected, FileNameTemplate.FileName(template, Ctx));
 

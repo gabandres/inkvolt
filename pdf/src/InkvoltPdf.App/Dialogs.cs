@@ -362,12 +362,6 @@ public static class PdfFiles
     /// <summary>Full paths stay under the classic MAX_PATH so Explorer and older apps can open them.</summary>
     private const int MaxPath = 259;
 
-    private static readonly HashSet<string> ReservedNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-    };
-
     /// <summary>
     /// Makes a file name safe and unique inside <paramref name="folder"/>: invalid characters replaced, device names
     /// avoided, and the name shortened so the full path fits. Names in <paramref name="reserved"/> count as taken (and the
@@ -381,7 +375,7 @@ public static class PdfFiles
         if (ext.Length > 10) ext = "";
         var stem = (ext.Length > 0 ? fileName[..^ext.Length] : fileName).Trim().TrimEnd('.', ' ');
         if (stem.Length == 0) stem = "Untitled";
-        if (ReservedNames.Contains(stem.Split('.')[0])) stem = "_" + stem;
+        if (InkvoltPrint.Core.DeviceNames.IsReserved(stem)) stem = "_" + stem;
 
         // Room for the folder, a separator, " (999)" and the extension.
         var room = Math.Min(MaxStem, MaxPath - Path.GetFullPath(folder).TrimEnd('\\').Length - 1 - 6 - ext.Length);

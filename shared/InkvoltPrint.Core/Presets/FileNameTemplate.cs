@@ -28,15 +28,6 @@ public static class FileNameTemplate
     // Windows' reserved characters, whatever the OS these run on (Path.GetInvalidFileNameChars differs per platform).
     private static readonly char[] Reserved = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
-    private static readonly HashSet<string> DeviceNames = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "CON", "PRN", "AUX", "NUL",
-        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
-        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
-        // Windows also maps the superscript digits (Latin-1's ¹ ² ³) and the console handles.
-        "COM¹", "COM²", "COM³", "LPT¹", "LPT²", "LPT³", "CONIN$", "CONOUT$",
-    };
-
     private enum Kind { Text, Token, Separator }
 
     private readonly record struct Part(Kind Kind, string Text, string? Format = null);
@@ -159,9 +150,11 @@ public static class FileNameTemplate
         s = s.TrimEnd('.', ' ').TrimStart(' ');
         if (s.Length == 0) return fallback ?? "";
         // "CON", "nul.txt": Windows maps these to devices whatever the extension.
-        var dot = s.IndexOf('.');
-        var stem = dot < 0 ? s : s[..dot];
-        if (DeviceNames.Contains(stem.TrimEnd(' '))) s = stem + "_" + (dot < 0 ? "" : s[dot..]);
+        if (DeviceNames.IsReserved(s))
+        {
+            var dot = s.IndexOf('.');
+            s = (dot < 0 ? s : s[..dot]) + "_" + (dot < 0 ? "" : s[dot..]);
+        }
         return s;
     }
 

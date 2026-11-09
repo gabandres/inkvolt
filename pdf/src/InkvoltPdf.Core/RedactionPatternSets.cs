@@ -59,7 +59,7 @@ public static class RedactionPatternSets
         foreach (var c in clean) sb.Append(char.IsLetterOrDigit(c) || c is ' ' or '-' or '_' ? c : '_');
         var safe = sb.ToString().Trim(' ', '.');
         if (safe.Length > 60) safe = safe[..60].TrimEnd(' ', '.');
-        var device = safe.ToUpperInvariant() is "CON" or "PRN" or "AUX" or "NUL" || (safe.Length == 4 && (safe.StartsWith("COM", StringComparison.OrdinalIgnoreCase) || safe.StartsWith("LPT", StringComparison.OrdinalIgnoreCase)));
+        var device = InkvoltPrint.Core.DeviceNames.IsReserved(safe + Extension);
         if (safe != clean || safe.Length == 0 || device)
             safe = $"{(safe.Length == 0 || device ? "set" : safe)} {Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(name)))[..8]}";
         return safe + Extension;
