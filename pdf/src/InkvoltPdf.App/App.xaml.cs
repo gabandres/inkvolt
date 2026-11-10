@@ -166,7 +166,7 @@ public partial class App : Application
         {
             // As when the app exited with the window: the other windows go (the conversions' own stay).
             foreach (var w in Windows.OfType<Window>().ToList())
-                if (w is not ConvertWindow && w.Owner is not ConvertWindow) w.Close();
+                if (w is not ConvertWindow && w.Owner is not ConvertWindow && w.Tag != ProgressPrompt.OutlivesMainWindow) w.Close();
         }
         MaybeExit();
     }

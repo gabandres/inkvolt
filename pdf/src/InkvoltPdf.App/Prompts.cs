@@ -271,6 +271,9 @@ public sealed class TaskbarProgress : IDisposable
 /// </summary>
 public sealed class ProgressPrompt : IDisposable
 {
+    /// <summary>The Tag of a detached progress window: closing the main window leaves it (and its job) running.</summary>
+    public static readonly object OutlivesMainWindow = new();
+
     private readonly CancellationTokenSource _cts = new();
     private readonly Window _win;
     private readonly TextBlock _text;
@@ -308,6 +311,7 @@ public sealed class ProgressPrompt : IDisposable
             WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
         };
         if (owner is { IsLoaded: true }) _win.Owner = owner;
+        if (detached) _win.Tag = OutlivesMainWindow;
         // Closing the window counts as Cancel; the job closes it when it ends.
         _win.Closing += (_, e) =>
         {
