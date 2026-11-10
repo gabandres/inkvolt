@@ -43,6 +43,37 @@ extension ParagraphEditTests {
         #expect(looked.missing == ["😀"])
     }
 
+    @Test func charactersWithNoInkNeedNoOutline() throws {
+        // A variation selector (❤️ is U+2764 U+FE0F) and a zero-width joiner (Devanagari's half form) draw nothing: the
+        // cluster is judged by its inked characters.
+        let (pdf, _) = Self.page(.left, gap: 120)
+        let p = try Self.body0(pdf)
+        let heart = "\u{2764}\u{FE0F}", half = "\u{915}\u{94D}\u{200D}\u{937}"
+        let text = Self.body + " with love " + heart + " and " + half
+        let check = p.check(text)
+        #expect(check.missing.isEmpty, "\(check.missing.map { $0.unicodeScalars.map { String(format: "%04X", $0.value) } })")
+        #expect(check.borrowed.contains(heart) && check.borrowed.contains(half))
+        let r = try Self.run(try ContentEditor.read(pdf, nil, 0), "Next block starts here")
+        #expect(r.check("Next block " + heart).missing.isEmpty)
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
+        #expect(try Self.body0(edited).text == text)
+        #expect(ContentEditPdf.text(edited).contains("\u{2764}"))
+    }
+
+    @Test func aCharacterGroupThatStartsWithASpaceIsWrittenOnce() throws {
+        // " \u{301}" is one group (a space carrying an accent): it is the word gap, and "b" is the next word, alone.
+        let (pdf, _) = Self.page(.left, gap: 120)
+        let p = try Self.body0(pdf)
+        let text = "Then a \u{301}b and more words"
+        let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
+        #expect(try Self.body0(edited, "Then a").text == text)
+        let copied = ContentEditPdf.text(edited)
+        #expect(copied.unicodeScalars.filter { $0.value == 0x301 }.count == 1, "\(copied.unicodeScalars.map { String(format: "%04X", $0.value) })")
+        let drawn = try #require(try Core2Pdf.lines(edited).first { $0.text.contains("Then") })
+        #expect(drawn.chars.filter { $0.ch.unicodeScalars.contains { $0.value == 0x301 } }.count == 1, "\(drawn.chars.map(\.ch))")
+        #expect(drawn.chars.filter { $0.ch == "b" }.count == 1)
+    }
+
     // ---- 3. Huge paragraphs ----
 
     @Test func twentyThousandCharactersLayOutInAMoment() throws {
