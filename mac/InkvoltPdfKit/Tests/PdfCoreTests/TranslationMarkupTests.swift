@@ -279,8 +279,9 @@ struct TranslationMarkupTests {
         let start = threadSeconds()
         _ = TranslationMarkup.mark(text, spans)
         // 750 ms on Windows, whose tests run a release build; swift test builds for debug, where copying 4 million
-        // characters to UTF-16 and back alone takes about a second. Quadratic work would take hours.
-        #expect(threadSeconds() - start < 2.5, "\(threadSeconds() - start) s")
+        // characters to UTF-16 and back alone takes about a second (2 s alone, 3.5 s beside the other suites).
+        // Quadratic work would take hours.
+        #expect(threadSeconds() - start < 6, "\(threadSeconds() - start) s")
     }
 
     @Test func overlappingLooksAreMarkedAsTheyLayOverEachOther() {
@@ -334,7 +335,8 @@ struct TranslationMarkupTests {
         let text = "word " + String(repeating: "x", count: 100)
         let start = threadSeconds()
         let (got, _) = TranslationMarkup.read(reply, text, [TextSpan(0, 4, lookB)])
-        #expect(threadSeconds() - start < 1.5, "\(threadSeconds() - start) s")
+        // 1.5 s on Windows' release build; a debug build here, beside the other suites (3 s seen). Quadratic: hours.
+        #expect(threadSeconds() - start < 5, "\(threadSeconds() - start) s")
         #expect(!Self.hasOurTag(got))
     }
 }
