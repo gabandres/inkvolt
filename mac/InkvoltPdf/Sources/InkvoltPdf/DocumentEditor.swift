@@ -496,6 +496,14 @@ extension DocumentEditor {
         await self.run(loc("Edit text")) { data, pw in try ContentEditor.replaceText(data, pw, run, text) }
     }
 
+    /// Rewrites a paragraph (roadmap 2.1): `allowOverlap` once the person agreed to text running into what follows.
+    @discardableResult
+    func replaceParagraph(_ paragraph: TextParagraph, _ text: String, spans: [TextSpan]?, allowOverlap: Bool) async -> Bool {
+        await run(loc("Edit paragraph")) { data, pw in
+            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+        }
+    }
+
     @discardableResult
     func moveImage(_ image: PageImage, to box: RectD) async -> Bool {
         await run(loc("Move picture")) { data, pw in try ContentEditor.moveImage(data, pw, image, box) }

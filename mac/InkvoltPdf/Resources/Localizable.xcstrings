@@ -8933,17 +8933,6 @@
         }
       }
     },
-    "Not changed: the font “{0}” has no {1} in this PDF.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sin cambios: la fuente “{0}” no tiene {1} en este PDF."
-          }
-        }
-      }
-    },
     "Not checked: Inkvolt PDF can't verify this kind of signature.": {
       "extractionState": "manual",
       "localizations": {
@@ -19962,6 +19951,424 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se guardó {0} ({1})"
+          }
+        }
+      }
+    },
+    "Edit paragraph": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar párrafo"
+          }
+        }
+      }
+    },
+    "dark gray": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "gris oscuro"
+          }
+        }
+      }
+    },
+    "red": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rojo"
+          }
+        }
+      }
+    },
+    "blue": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "azul"
+          }
+        }
+      }
+    },
+    "green": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verde"
+          }
+        }
+      }
+    },
+    "orange": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "naranja"
+          }
+        }
+      }
+    },
+    "The paragraph's own font": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fuente del párrafo"
+          }
+        }
+      }
+    },
+    "Font of the selected text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fuente del texto seleccionado"
+          }
+        }
+      }
+    },
+    "Smaller (1 point)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más pequeño (1 punto)"
+          }
+        }
+      }
+    },
+    "Larger (1 point)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más grande (1 punto)"
+          }
+        }
+      }
+    },
+    "Bold": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Negrita"
+          }
+        }
+      }
+    },
+    "Italic": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cursiva"
+          }
+        }
+      }
+    },
+    "Color: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color: {0}"
+          }
+        }
+      }
+    },
+    "the paragraph's own": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el del párrafo"
+          }
+        }
+      }
+    },
+    "Look of the selected text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aspecto del texto seleccionado"
+          }
+        }
+      }
+    },
+    "Paragraph text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto del párrafo"
+          }
+        }
+      }
+    },
+    "Edits this paragraph in its own font; the text rewraps in the paragraph's box. The bar above gives the selected text another font, size, color, bold or italic. Return applies, Shift-Return starts a new line, Escape cancels.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Edita este párrafo con su propia fuente; el texto se reajusta en el cuadro del párrafo. La barra de arriba da al texto seleccionado otra fuente, tamaño, color, negrita o cursiva. Retorno aplica, Mayúsculas-Retorno empieza una línea nueva, Escape cancela."
+          }
+        }
+      }
+    },
+    "What the new text would do": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que haría el texto nuevo"
+          }
+        }
+      }
+    },
+    "Type, then press Return. Shift-Return starts a new line. Esc cancels. The bar above changes the selection's look.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe y luego presiona Retorno. Mayúsculas-Retorno empieza una línea nueva. Esc cancela. La barra de arriba cambia el aspecto de la selección."
+          }
+        }
+      }
+    },
+    "Apply": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aplicar"
+          }
+        }
+      }
+    },
+    "Neither the font “{0}” nor any font on this Mac has {1}, so those can't be typed here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente “{0}” ni ninguna fuente de este Mac tiene {1}, así que no se pueden escribir aquí."
+          }
+        }
+      }
+    },
+    "{0} line (as before)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} línea (como antes)"
+          }
+        }
+      }
+    },
+    "{0} lines (as before)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} líneas (como antes)"
+          }
+        }
+      }
+    },
+    "{0} line (was {1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} línea (antes {1})"
+          }
+        }
+      }
+    },
+    "{0} lines (was {1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} líneas (antes {1})"
+          }
+        }
+      }
+    },
+    "{0}, but {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, pero {1}."
+          }
+        }
+      }
+    },
+    "{0}: it would run into what follows below. You'll be asked before it is written.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: chocaría con lo que sigue debajo. Se te preguntará antes de escribirlo."
+          }
+        }
+      }
+    },
+    "{0}, in the paragraph's box. Return applies, Shift-Return starts a new line.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, en el cuadro del párrafo. Retorno aplica, Mayúsculas-Retorno empieza una línea nueva."
+          }
+        }
+      }
+    },
+    "Drawn in {0} where the look asks for it (fonts on this Mac, embedded as used).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dibuja con {0} donde el aspecto lo pide (fuentes de este Mac, incrustadas según se usan)."
+          }
+        }
+      }
+    },
+    " and ": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " y "
+          }
+        }
+      }
+    },
+    "{0} isn't in this PDF's copy of “{1}”: drawn in {2}, the closest font on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no está en la copia de “{1}” de este PDF: se dibuja con {2}, la fuente más parecida de este Mac."
+          }
+        }
+      }
+    },
+    "{0} aren't in this PDF's copy of “{1}”: drawn in {2}, the closest font on this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no están en la copia de “{1}” de este PDF: se dibujan con {2}, la fuente más parecida de este Mac."
+          }
+        }
+      }
+    },
+    "Not changed: neither the font “{0}” nor any font on this Mac has {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se cambió: ni la fuente “{0}” ni ninguna fuente de este Mac tiene {1}."
+          }
+        }
+      }
+    },
+    "Not changed: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se cambió: {0}."
+          }
+        }
+      }
+    },
+    "Not changed: shorten the text to keep it in its place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se cambió: acorta el texto para mantenerlo en su lugar."
+          }
+        }
+      }
+    },
+    "The text runs into what follows": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto se superpone a lo que sigue"
+          }
+        }
+      }
+    },
+    "The new text takes {0} lines (it had {1}), so its last lines would run into the text or picture below it. Change it anyway? Undo takes it back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto nuevo ocupa {0} líneas (tenía {1}), así que sus últimas líneas se superpondrían al texto o la imagen de abajo. ¿Cambiarlo de todos modos? Deshacer lo revierte."
+          }
+        }
+      }
+    },
+    "Editing the paragraph: type, then press Return. Shift-Return starts a new line, Esc cancels.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editando el párrafo: escribe y luego presiona Retorno. Mayúsculas-Retorno empieza una línea nueva, Esc cancela."
           }
         }
       }

@@ -68,6 +68,8 @@ enum Report {
         // File › Compare Files on versions made here: text, formatting, a scanned page.
         Scenario(flag: "--only-compare", documents: .synthetic) { _, _ in var t = CompareTest(); await t.run() },
         Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
+        // Edit Text & Images' paragraphs (roadmap 2.1), on a page made here: rewrap, the editor's look bar, the overlap prompt.
+        Scenario(flag: "--only-paragraph-edit", documents: .synthetic) { _, _ in var t = ParagraphEditTest(); await t.run() },
         // Printing to PDF files: vectors, pictures, every layout.
         Scenario(flag: "--only-print", documents: .notForm) { c, n in
             var t = PagesTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
@@ -157,7 +159,7 @@ enum Report {
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
         // The app, compare, attachments and page tests' own documents get only their checks.
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument,
-              !FolderSearchTest.isActive, !FormFillTest.isActive else { return }
+              !FolderSearchTest.isActive, !FormFillTest.isActive, !ParagraphEditTest.isActive else { return }
         if uxShots {
             // The synthetic text document only; the form opens, unseen, and is closed at the end.
             guard controller.pdf.fileURL?.path == syntheticPath else { return }
@@ -235,6 +237,8 @@ enum Report {
                     await form.run()
                     var filling = FormFillTest()
                     await filling.run()
+                    var paragraphs = ParagraphEditTest()
+                    await paragraphs.run()
                     // Before signing: a signed document declines the scale's page edits.
                     var measure = MeasureTest(controller: controller, name: name)
                     await measure.run()
