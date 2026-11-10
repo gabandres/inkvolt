@@ -35,10 +35,6 @@ jobs:
   pdf:
     runs-on: macos-15
     timeout-minutes: 45
-    strategy:
-      fail-fast: false
-      matrix:
-        args: ['', '--skip TranslationHostileTests', '--filter TranslationHostileTests']
     steps:
       - uses: actions/checkout@v7
       - run: |
@@ -52,20 +48,5 @@ jobs:
           key: mupdf-${{ runner.os }}-${{ hashFiles('mac/Vendor/mupdf/build.sh') }}
       - if: steps.mupdf.outputs.cache-hit != 'true'
         run: sh mac/Vendor/mupdf/build.sh
-      - name: hunt
-        run: |
-          sysctl hw.memsize hw.ncpu; df -h /
-          swift build --package-path mac/InkvoltPdfKit --build-tests -Xswiftc -warnings-as-errors
-          ( while true; do echo "== $(date +%T) $(sysctl -n vm.page_free_count) free pages; $(df -h / | tail -1)"; memory_pressure -Q | tail -1; ps -axo rss=,comm= -m | head -4; sleep 10; done ) > mem.log 2>&1 &
-          set +e
-          swift test --package-path mac/InkvoltPdfKit --skip-build ${{ matrix.args }} -Xswiftc -warnings-as-errors > out.log 2>&1
-          code=$?
-          echo "swift test exit $code"
-          tail -40 out.log
-          grep -E "✘|error:|Test run with" out.log | head -40
-          echo "== mem"; tail -120 mem.log
-          echo "== kills"; log show --last 30m --style compact --predicate 'eventMessage CONTAINS[c] "memorystatus" OR eventMessage CONTAINS[c] "jetsam" OR eventMessage CONTAINS[c] "swiftpm-testing" OR eventMessage CONTAINS[c] "InkvoltPdfKitPackageTests"' 2>&1 | tail -60
-          echo "== reports"; ls -la ~/Library/Logs/DiagnosticReports /Library/Logs/DiagnosticReports 2>&1 | tail -20
-          for f in ~/Library/Logs/DiagnosticReports/*; do [ -f "$f" ] && head -60 "$f"; done
-          exit $code
+      - run: swift test --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors
       - run: swift build --package-path mac/InkvoltPdf -c release -Xswiftc -warnings-as-errors # the app

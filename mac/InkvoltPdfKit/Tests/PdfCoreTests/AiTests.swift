@@ -359,6 +359,28 @@ struct AiClientTests {
         #expect(got.all == ["Hal"])
     }
 
+    /// The client moves its deadline on every line: a stream of keep-alives read as fast as they come queued a timer a
+    /// line (42 GB on CI before the system killed the tests).
+    @Test(.timeLimit(.minutes(1))) func aDeadlineMovedOnEveryLineKeepsOneTimer() async throws {
+        let deadline = AiDeadline(nil)
+        for _ in 0..<100_000 { deadline.cancelAfter(60) }
+        #expect(deadline.timersScheduled == 1)
+        deadline.cancelAfter(0.05) // sooner: a timer of its own
+        deadline.cancelAfter(0.1) // later again: that one wakes early and sleeps on
+        try? await waitForCancel(deadline.token)
+        #expect(deadline.token.isCancelled)
+        #expect((2...3).contains(deadline.timersScheduled)) // 2 when the 0.05 s timer woke after 0.1 s (a loaded Mac)
+        deadline.finish()
+    }
+
+    @Test func aFinishedDeadlineDoesntFire() async throws {
+        let deadline = AiDeadline(nil)
+        deadline.cancelAfter(0.05)
+        deadline.finish()
+        try await Task.sleep(nanoseconds: 300_000_000)
+        #expect(!deadline.token.isCancelled)
+    }
+
     @Test func givesUpOnAStalledStream() async throws {
         let client = AiClient(parsed(AiEndpoint.ollamaUrl), "m", apiKey: nil, handler: FakeAiHandler(Self.stalling),
                               timeouts: AiTimeouts(connect: 1, firstByte: 5, idle: 0.2))

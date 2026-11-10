@@ -85,12 +85,22 @@ public struct AiAddressError: Error, Sendable, Equatable {
 
 /// A token that fires when its parent does, or after a time that can be moved (.NET's linked `CancellationTokenSource`
 /// with `CancelAfter`). The client tells them apart by whether the parent fired.
+///
+/// The client moves the time on every line of a stream, so moving it later schedules nothing: the one pending timer, when
+/// it wakes early, sleeps again until the time now set. (A timer a line, cancelled or not, stays queued until its time: an
+/// endpoint sending keep-alives as fast as they are read queued millions, 42 GB on CI before the system killed the tests.)
 final class AiDeadline: @unchecked Sendable {
     let token = CancelToken()
     private let parent: CancelToken?
     private var parentId: Int?
     private let lock = NSLock()
-    private var timer: DispatchWorkItem?
+    private var due = DispatchTime.distantFuture
+    /// When the earliest pending timer wakes (nil: none pending).
+    private var wakeAt: DispatchTime?
+    private var finished = false
+    private var scheduled = 0
+    /// Timers scheduled so far (for tests).
+    var timersScheduled: Int { lock.withLock { scheduled } }
 
     init(_ parent: CancelToken?) {
         self.parent = parent
@@ -98,16 +108,39 @@ final class AiDeadline: @unchecked Sendable {
     }
 
     func cancelAfter(_ seconds: Double) {
-        let item = DispatchWorkItem { [token] in token.cancel() }
+        let when = DispatchTime.now() + seconds
         lock.withLock {
-            timer?.cancel()
-            timer = item
+            guard !finished else { return }
+            due = when
+            if let wakeAt, wakeAt <= when { return } // it wakes first and sleeps on until `due`
+            schedule(when)
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + seconds, execute: item)
+    }
+
+    /// Under the lock.
+    private func schedule(_ when: DispatchTime) {
+        wakeAt = when
+        scheduled += 1
+        DispatchQueue.global().asyncAfter(deadline: when) { [self] in wake() }
+    }
+
+    private func wake() {
+        let fire: Bool = lock.withLock {
+            guard !finished else { return false }
+            let now = DispatchTime.now()
+            if now >= due {
+                finished = true
+                return true
+            }
+            // Early (the time was moved on): sleep until it, unless a timer already wakes later than now.
+            if wakeAt.map({ $0 <= now }) ?? true { schedule(due) }
+            return false
+        }
+        if fire { token.cancel() }
     }
 
     func finish() {
-        lock.withLock { timer?.cancel() }
+        lock.withLock { finished = true }
         parent?.unregister(parentId)
     }
 }
