@@ -12,7 +12,7 @@ import Testing
     final class Outcome<V>: @unchecked Sendable { var value: Result<V, Error>? }
 
     /// `work` on a thread of its own, failing when it takes longer than `seconds` (a hang fails the test, not the run).
-    static func within<V>(_ seconds: Double, _ work: @escaping () throws -> V) throws -> V {
+    static func within<V: Sendable>(_ seconds: Double, _ work: @escaping @Sendable () throws -> V) throws -> V {
         let box = Outcome<V>()
         let done = DispatchSemaphore(value: 0)
         let thread = Thread {
@@ -44,10 +44,12 @@ import Testing
         #expect(plan.unreadablePages == [0])
         #expect(plan.texts.isEmpty)
         #expect(Date().timeIntervalSince(start) < 240)
+        // Cancelled as the page starts (Windows cancels after 50 ms; here a plan of this page can end before a timer fires).
         let cancel = CancelToken()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.05) { cancel.cancel() }
         let cancelled = Date()
-        #expect(throws: CancellationError.self) { _ = try Self.within(60) { try Translation.makePlan(pdf, nil, [0], cancel: cancel) } }
+        #expect(throws: CancellationError.self) {
+            _ = try Self.within(60) { try Translation.makePlan(pdf, nil, [0], progress: { _ in cancel.cancel() }, cancel: cancel) }
+        }
         #expect(Date().timeIntervalSince(cancelled) < 30) // Windows' Timing.Limit(5 s): under a minute beside the other suites
     }
 

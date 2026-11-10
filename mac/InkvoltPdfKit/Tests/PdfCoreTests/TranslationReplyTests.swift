@@ -233,7 +233,9 @@ struct TranslationRunTests {
         let a = await Self.run(handler, "Bad one.", "Good one.")
         #expect(a.failed["Bad one."]?.contains("longer") == true)
         #expect(a.done["Good one."] == "Bien.")
-        #expect(Date().timeIntervalSince(start) < 60) // under a second alone
+        // Under a second alone; minutes late in a full run that keeps the cooperative pool busy. What stops it is the
+        // guard, which the chunks read show.
+        #expect(Date().timeIntervalSince(start) < 300)
         #expect(sent.value < 2000, "\(sent.value) chunks read")
     }
 
@@ -244,7 +246,7 @@ struct TranslationRunTests {
         let start = Date()
         let a = await Self.run(handler, "Slow one.", settings: s)
         #expect(a.failed["Slow one."]?.contains("in time") == true, "\(a.failed)")
-        #expect(Date().timeIntervalSince(start) < 60)
+        #expect(Date().timeIntervalSince(start) < 300) // under a second alone; see aHugeAnswerIsStoppedEarlyAndTheRunGoesOn
     }
 
     @Test func answersThatNeverEndStopTheRunAfterAFew() async {
