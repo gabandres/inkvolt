@@ -23,6 +23,8 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     private let width: CGFloat
     /// The text view's own undo (typing, looks): the document's undo manager takes only document edits.
     private let typingUndo = UndoManager()
+    /// The note's layout after typing: a moment after the last key, off the main thread (a long paragraph takes time).
+    private var noteTask: Task<Void, Never>?
 
     /// The size the paragraph's own text is shown at.
     private static let shownSize: CGFloat = 14
@@ -276,7 +278,21 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
 
     func undoManager(for view: NSTextView) -> UndoManager? { typingUndo }
 
-    func textDidChange(_ notification: Notification) { updateNote() }
+    func textDidChange(_ notification: Notification) { scheduleNote() }
+
+    /// Lays the text out again for the note once typing rests for a moment, off the main thread; a newer key wins.
+    private func scheduleNote() {
+        noteTask?.cancel()
+        let (text, spans) = content()
+        let p = paragraph
+        noteTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(150))
+            if Task.isCancelled { return }
+            let check = await Task.detached(priority: .userInitiated) { p.check(text, spans: spans) }.value
+            if Task.isCancelled { return }
+            self?.showNote(check)
+        }
+    }
 
     func textViewDidChangeSelection(_ notification: Notification) {
         let family = currentLook.font
@@ -295,10 +311,14 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         return shown.joined(separator: ", ") + (chars.count > 10 ? " …" : "")
     }
 
-    /// What the text as typed would do, said live under it.
+    /// What the text as typed would do, said under it (now: the look bar's changes, the self-test).
     func updateNote() {
+        noteTask?.cancel()
         let (text, spans) = content()
-        let check = paragraph.check(text, spans: spans)
+        showNote(paragraph.check(text, spans: spans))
+    }
+
+    private func showNote(_ check: ParagraphCheck) {
         var color = NSColor.secondaryLabelColor
         var said: String
         if !check.missing.isEmpty {
@@ -366,6 +386,7 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     @objc func applyEdit(_ sender: Any?) {
         guard !finished else { return }
         finished = true
+        noteTask?.cancel()
         let (text, spans) = content()
         popover?.close()
         done?(text, spans)
@@ -374,6 +395,7 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
 
     @objc func cancelEdit(_ sender: Any?) {
         finished = true
+        noteTask?.cancel()
         done = nil
         popover?.close()
     }

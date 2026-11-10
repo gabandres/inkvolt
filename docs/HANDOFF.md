@@ -59,6 +59,14 @@ ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release aft
 "123-45-67": `Appearances.cs` draws what fits in the cells. The Mac draws the typed digits in the cells instead
 (`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
 separators; the Mac takes a pasted SSN, phone or ZIP as its digits.
+**Windows follow-up from the Mac's 2.1 review (2026-11-10), not done:** (a) `ContentEditor.Anchor` and `PlainRun` take the
+lowest `Id`, but runs inside a form XObject are numbered down (-1, -2, …), so a paragraph in a form is written at its
+*last* line's operator (after anything drawn between its lines, such as a background) and its own face is picked from its
+last run: order form ids as the Mac's `ContentEditor.order` does (`ParagraphEditTests.aParagraphInAFormIsWrittenWhereItsFirstLineWas`).
+(b) `RunInfo.Form` compares the form, not the Do that drew it: a one-line form drawn twice 14 pt apart groups as one
+paragraph, which `ReplaceParagraph` then refuses ("the page changed"); group only lines of one drawing, as the Mac does
+(`aFormDrawnTwiceCloseTogetherIsTwoParagraphsAndEachEditsAlone`; the Mac trapped on it in `Splice`, Windows' MemoryStream
+throws). Both with the Mac's tests ported.
 Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) approved and live** (READY_FOR_SALE by 2026-11-09; tag `print-mac-v1.3.0` on `6c6e72c7` and website 1.3 done 2026-11-09) (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
 **Office as the Mac's converter merged 2026-11-08 (`138f868a`), not released.** Word, Excel or PowerPoint for Mac convert
 when installed (AppleScript through osascript behind `OfficeScriptRunner`, staged in Office's group container, 3-minute

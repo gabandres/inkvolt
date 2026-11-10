@@ -183,6 +183,7 @@ struct ParagraphEditTest {
         let typed = editor.select("river")
         editor.type("river bank")
         let (_, spans) = editor.content()
+        editor.updateNote() // typing lays the note out a moment later, off the main thread
         check(found && found2 && found3 && typed && spans.count == 3, "the look bar gives three stretches their looks (\(spans.count))")
         let note = editor.note.stringValue
         check(!note.isEmpty && note.contains(CoreLanguage.number(p.check(editor.content().text, spans: spans).lineCount)), "its note says the lines: “\(note.prefix(80))”")
