@@ -2150,6 +2150,92 @@ inkv_obj *inkv_obj_value_at(void *vctx, inkv_obj *o, int index) {
     return OUT(v);
 }
 
+/* A dictionary's key at `index`, as the name object it is (any bytes); NULL when there is none. */
+inkv_obj *inkv_obj_key_obj_at(void *vctx, inkv_obj *o, int index) {
+    fz_context *ctx = vctx;
+    pdf_obj *k = NULL;
+    fz_var(k);
+    fz_try(ctx) {
+        pdf_obj *key = pdf_dict_get_key(ctx, OBJ(o), index);
+        k = pdf_is_name(ctx, key) ? pdf_keep_obj(ctx, key) : NULL;
+    }
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        k = NULL;
+    }
+    return OUT(k);
+}
+
+/* Sets a dictionary entry under a name object (any bytes). A dictionary of more than 32 entries is sorted first, so
+   the lookup is a binary search, not a walk of every entry. */
+int inkv_obj_put_name(void *vctx, inkv_obj *o, inkv_obj *key, inkv_obj *value, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) {
+        if (pdf_dict_len(ctx, OBJ(o)) > 32) pdf_sort_dict(ctx, OBJ(o));
+        pdf_dict_put(ctx, OBJ(o), OBJ(key), OBJ(value));
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+/* A direct dictionary or array copied all the way down (references stay references), in time linear in its size: a
+   dictionary is copied whole and sorted, then each direct container in it replaced by its own copy. Over `max_depth`
+   levels, or more than `*budget` containers and entries, it throws (the caller keeps the object as it was). */
+static pdf_obj *inkv_deep_copy(fz_context *ctx, pdf_obj *o, int depth, int max_depth, long *budget) {
+    if (pdf_is_indirect(ctx, o) || !(pdf_is_dict(ctx, o) || pdf_is_array(ctx, o))) return pdf_keep_obj(ctx, o);
+    if (depth > max_depth || *budget <= 0) fz_throw(ctx, FZ_ERROR_LIMIT, "too deep or too large to copy");
+    pdf_obj *copy = NULL;
+    fz_var(copy);
+    fz_try(ctx) {
+        if (pdf_is_dict(ctx, o)) {
+            copy = pdf_copy_dict(ctx, o);
+            int n = pdf_dict_len(ctx, copy);
+            *budget -= n + 1;
+            if (n > 32) pdf_sort_dict(ctx, copy);
+            for (int i = 0; i < n; i++) {
+                pdf_obj *v = pdf_dict_get_val(ctx, copy, i);
+                if (pdf_is_indirect(ctx, v) || !(pdf_is_dict(ctx, v) || pdf_is_array(ctx, v))) continue;
+                pdf_obj *inner = inkv_deep_copy(ctx, v, depth + 1, max_depth, budget);
+                fz_try(ctx) pdf_dict_put(ctx, copy, pdf_dict_get_key(ctx, copy, i), inner);
+                fz_always(ctx) pdf_drop_obj(ctx, inner);
+                fz_catch(ctx) fz_rethrow(ctx);
+            }
+        } else {
+            copy = pdf_copy_array(ctx, o);
+            int n = pdf_array_len(ctx, copy);
+            *budget -= n + 1;
+            for (int i = 0; i < n; i++) {
+                pdf_obj *v = pdf_array_get(ctx, copy, i);
+                if (pdf_is_indirect(ctx, v) || !(pdf_is_dict(ctx, v) || pdf_is_array(ctx, v))) continue;
+                pdf_obj *inner = inkv_deep_copy(ctx, v, depth + 1, max_depth, budget);
+                fz_try(ctx) pdf_array_put(ctx, copy, i, inner);
+                fz_always(ctx) pdf_drop_obj(ctx, inner);
+                fz_catch(ctx) fz_rethrow(ctx);
+            }
+        }
+    }
+    fz_catch(ctx) {
+        pdf_drop_obj(ctx, copy);
+        fz_rethrow(ctx);
+    }
+    return copy;
+}
+
+inkv_obj *inkv_obj_deep_copy(void *vctx, inkv_obj *o, int max_depth, long *budget) {
+    fz_context *ctx = vctx;
+    pdf_obj *copy = NULL;
+    fz_var(copy);
+    fz_try(ctx) copy = inkv_deep_copy(ctx, OBJ(o), 0, max_depth, budget);
+    fz_catch(ctx) {
+        fz_ignore_error(ctx);
+        copy = NULL;
+    }
+    return OUT(copy);
+}
+
 inkv_obj *inkv_obj_get(void *vctx, inkv_obj *o, const char *key) {
     fz_context *ctx = vctx;
     pdf_obj *v = NULL;

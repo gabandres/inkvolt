@@ -6,37 +6,55 @@ import Foundation
 /// is renumbered twice, and its references then point at other objects (fonts, pages, actions). Any edit that copies
 /// entries shallowly is safe after this pass; the copies that can be deep are deep too (`ContentEditor.ownCopy`).
 extension MuDoc {
-    /// The most entries looked at, and how deep direct containers nest: a hostile file's millions of objects or nesting
-    /// without end stop the pass where it is (what was unshared so far stays so; the rest is written as it is).
-    static let unshareBudget = 4_000_000
+    /// How much work the pass may do (entries looked at, entries copied, entries a replacement sorts), and how deep
+    /// direct containers may nest: past either on a crafted file, the pass says so and the file is written without
+    /// renumbering (`write`), correct but not compacted.
+    static let defaultUnshareBudget = 4_000_000
     static let unshareDepth = 64
 
     /// Gives every direct dictionary or array reached from more than one place its own deep copy at each further place.
-    /// Walks from the trailer through every reference once (a work list, so a chain of references doesn't nest).
-    /// Returns how many copies were made.
+    /// Walks from the trailer through every reference once (a work list, so a chain of references doesn't nest), each
+    /// container's entries by index (any key name, no lookup by name). `complete` is false when the budget or the depth
+    /// ran out, or a copy couldn't be made: containers may still be shared, and the file must not be renumbered.
     @discardableResult
-    func unshareDirectObjects() -> Int {
+    func unshareDirectObjects(budget start: Int = defaultUnshareBudget) -> (copies: Int, complete: Bool) {
         var refs = Set<Int>()
         var direct = Set<UInt>()
         var pending: [PObj] = []
-        var budget = Self.unshareBudget
+        var budget = start
         var copies = 0
+        var complete = true
         /// One container's entries: a reference is queued once; a direct container met before is replaced by a copy.
         func walk(_ container: PObj, _ depth: Int) {
-            if depth > Self.unshareDepth || budget <= 0 { return }
+            if depth > Self.unshareDepth {
+                complete = false
+                return
+            }
+            let n = container.count
             if container.isDict {
-                for key in container.keys {
+                var replaced: [(key: PObj, value: PObj)] = []
+                for i in 0..<n {
                     budget -= 1
-                    if budget <= 0 { return }
-                    guard let child = container[key] else { continue }
-                    if let replaced = visit(child, depth) { container.set(key, replaced) }
+                    if budget <= 0 {
+                        complete = false
+                        return
+                    }
+                    guard let child = container.value(at: i) else { continue }
+                    if let copy = visit(child, depth), let key = container.keyObject(at: i) { replaced.append((key, copy)) }
+                }
+                if !replaced.isEmpty {
+                    budget -= n // the sort a replacement may make, then its binary searches
+                    for r in replaced { container.set(name: r.key, r.value) }
                 }
             } else if container.isArray {
-                for i in 0..<container.count {
+                for i in 0..<n {
                     budget -= 1
-                    if budget <= 0 { return }
+                    if budget <= 0 {
+                        complete = false
+                        return
+                    }
                     guard let child = container[i] else { continue }
-                    if let replaced = visit(child, depth) { container.replace(at: i, with: replaced) }
+                    if let copy = visit(child, depth) { container.replace(at: i, with: copy) }
                 }
             }
         }
@@ -51,7 +69,10 @@ extension MuDoc {
                 walk(child, depth + 1)
                 return nil
             }
-            let copy = ContentEditor.ownCopy(self, child)
+            guard let copy = child.deepCopy(maxDepth: Self.unshareDepth - depth, budget: &budget) else {
+                complete = false
+                return nil
+            }
             copies += 1
             direct.insert(copy.identity)
             walk(copy, depth + 1)
@@ -60,9 +81,9 @@ extension MuDoc {
         let trailer = self.trailer
         direct.insert(trailer.identity)
         walk(trailer, 0)
-        while let next = pending.popLast(), budget > 0 {
+        while complete, let next = pending.popLast() {
             if next.isDict || next.isArray { walk(next, 0) }
         }
-        return copies
+        return (copies, complete && budget > 0)
     }
 }

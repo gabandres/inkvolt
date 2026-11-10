@@ -1788,6 +1788,11 @@ together; a refused key stopping the run, the part kept on request.
   1.10) and Flattener's inherited resources (released). Fonts are prepared before any copy, in the dictionary the walk
   read (translatePage, replaceParagraph, replaceText). Checked for the same pattern: redaction, forms and comments copy
   nothing shallowly (stamps build their resources fresh, form faces are streams, FDF import grafts). `SharedObjectTests`.
+  **Fix round 2:** past its budget (4 million entries of work) or depth (64 levels) the pass says so and the file is
+  written with `garbage=yes` (unused objects dropped, nothing renumbered: correct, not compacted; `lastWriteUncompacted`).
+  Entries are walked by index and replaced under their own name objects (any bytes: a /F#E9 key too), copies made in C
+  in time linear in their size (`inkv_obj_deep_copy`, bounded the same way). Cost on the bench corpus (debug build):
+  the pass 0.00-0.14 s, a 641 MB compacting save 0.52 s with or without it (`UnsharePassTimingTests`, opt-in).
 - **One copy of each stand-in font.** `TranslationWriter.finish` adds each Type 3 font once and has every page refer to it
   (Windows embeds one CID font per face); a 20-page report holds at most a dozen font objects.
 - **No open-password step.** Windows refuses an AES-256 file opened with its permissions password alone, since PDFsharp

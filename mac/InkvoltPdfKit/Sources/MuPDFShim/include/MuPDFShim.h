@@ -206,6 +206,13 @@ inkv_obj *inkv_obj_at(void *ctx, inkv_obj *array, int index);
 /// A dictionary's key (malloc'ed) and value at `index`.
 char *inkv_obj_key_at(void *ctx, inkv_obj *dict, int index);
 inkv_obj *inkv_obj_value_at(void *ctx, inkv_obj *dict, int index);
+/// A dictionary's key at `index` as its name object (any bytes); NULL when there is none.
+inkv_obj *inkv_obj_key_obj_at(void *ctx, inkv_obj *dict, int index);
+/// Sets a dictionary entry under a name object (a dictionary of more than 32 entries is sorted first). 0 on failure.
+int inkv_obj_put_name(void *ctx, inkv_obj *dict, inkv_obj *key, inkv_obj *value, char *err);
+/// A direct dictionary or array deep-copied (references kept), linear in its size; NULL past `max_depth` levels or
+/// `*budget` entries (which it lowers by the work done).
+inkv_obj *inkv_obj_deep_copy(void *ctx, inkv_obj *obj, int max_depth, long *budget);
 /// A dictionary's value for `key` (no slash); NULL when missing.
 inkv_obj *inkv_obj_get(void *ctx, inkv_obj *dict, const char *key);
 /// Sets (or, with value NULL, removes) a dictionary entry. 0 on failure.

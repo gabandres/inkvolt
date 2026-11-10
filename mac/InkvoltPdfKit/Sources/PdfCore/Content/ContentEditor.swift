@@ -590,15 +590,12 @@ public enum ContentEditor {
     /// parent: shared by a copied /Resources and its original (a /Font dictionary inside resources several pages refer
     /// to), it would be renumbered once through each when MuPDF compacts the file, and its fonts would point at other
     /// objects.
-    static func ownCopy(_ doc: MuDoc, _ obj: PObj, _ depth: Int = 0) -> PObj {
-        if obj.isRef || depth > 32 { return obj }
-        if obj.isDict {
-            let d = doc.dict()
-            for k in obj.keys { if let v = obj[k] { d.set(k, ownCopy(doc, v, depth + 1)) } }
-            return d
-        }
-        if obj.isArray { return doc.array((0..<obj.count).map { i in obj[i].map { ownCopy(doc, $0, depth + 1) } ?? doc.null }) }
-        return obj
+    /// Linear in its size, any key name kept as it is; past 64 levels or 4 million entries (a crafted file) the object
+    /// stays shared, and the pass before saving (`MuDoc.unshareDirectObjects`) saves the file uncompacted instead.
+    static func ownCopy(_ doc: MuDoc, _ obj: PObj) -> PObj {
+        if obj.isRef || !(obj.isDict || obj.isArray) { return obj }
+        var budget = MuDoc.defaultUnshareBudget
+        return obj.deepCopy(maxDepth: MuDoc.unshareDepth, budget: &budget) ?? obj
     }
 
     /// Adds an XObject to the page's own resources (copying shared ones first), under a fresh name.

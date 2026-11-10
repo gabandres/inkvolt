@@ -98,6 +98,32 @@ final class PObj {
     func has(_ key: String) -> Bool { self[key] != nil }
 
     /// Sets a dictionary entry; nil removes it.
+    /// A dictionary's value at `index` (no lookup by name: entries walked in order cost nothing more each).
+    func value(at index: Int) -> PObj? {
+        guard index >= 0, let p = inkv_obj_value_at(doc.ctx, ptr, Int32(index)) else { return nil }
+        return PObj(doc, p)
+    }
+
+    /// A dictionary's key at `index` as its name object: any bytes, where `keys` reads UTF-8 only.
+    func keyObject(at index: Int) -> PObj? {
+        guard index >= 0, let p = inkv_obj_key_obj_at(doc.ctx, ptr, Int32(index)) else { return nil }
+        return PObj(doc, p)
+    }
+
+    /// Sets an entry under a name object (`keyObject(at:)`); a dictionary of more than 32 entries is sorted first.
+    func set(name: PObj, _ value: PObj) {
+        doc.note { inkv_obj_put_name(doc.ctx, ptr, name.ptr, value.ptr, $0) }
+    }
+
+    /// A direct dictionary or array copied all the way down (references kept), in time linear in its size; nil past
+    /// `maxDepth` levels or when it holds more than `budget` entries (lowered by the work done).
+    func deepCopy(maxDepth: Int, budget: inout Int) -> PObj? {
+        var b = budget
+        let p = inkv_obj_deep_copy(doc.ctx, ptr, Int32(maxDepth), &b)
+        budget = b
+        return p.map { PObj(doc, $0) }
+    }
+
     func set(_ key: String, _ value: PObj?) {
         doc.note { inkv_obj_put(doc.ctx, ptr, key, value?.ptr, $0) }
     }

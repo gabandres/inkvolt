@@ -76,8 +76,9 @@ import Testing
         for _ in 0..<100_000 { chain = doc.add(doc.dict([("Next", chain)])) }
         doc.page(0).set("Chain", chain)
         let start = Date()
-        _ = doc.unshareDirectObjects()
+        let result = doc.unshareDirectObjects()
         #expect(Date().timeIntervalSince(start) < 60, "\(Date().timeIntervalSince(start)) s")
+        #expect(!result.complete) // past its depth: the save is written without renumbering
     }
 
     @Test func aLinkCopiedForAWrappedLineKeepsItsDestination() throws {
