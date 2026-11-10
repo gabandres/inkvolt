@@ -17,6 +17,8 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
     let descent: Double
     /// The font's bounding box in thousandths of an em: xMin, yMin, xMax, yMax.
     let bbox: [Double]
+    /// The x-height as a fraction of the em (0 when the font doesn't say).
+    let xHeight: Double
 
     private let lock = NSLock()
     private var glyphs: [UInt32: Int] = [:]
@@ -28,6 +30,7 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
         postScriptName = CTFontCopyPostScriptName(font) as String
         ascent = Double(CTFontGetAscent(font)) / 1000
         descent = -Double(CTFontGetDescent(font)) / 1000
+        xHeight = Double(CTFontGetXHeight(font)) / 1000
         let b = CTFontGetBoundingBox(font)
         bbox = [Double(b.minX), Double(b.minY), Double(b.maxX), Double(b.maxY)]
     }

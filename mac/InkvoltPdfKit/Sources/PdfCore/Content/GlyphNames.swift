@@ -44,7 +44,45 @@ enum GlyphNames {
         + "parenlefttp 239B parenleftex 239C parenleftbt 239D parenrighttp 239E parenrightex 239F parenrightbt 23A0 "
         + "bracketlefttp 23A1 bracketleftex 23A2 bracketleftbt 23A3 bracketrighttp 23A4 bracketrightex 23A5 bracketrightbt 23A6 "
         + "bracelefttp 23A7 braceleftmid 23A8 braceleftbt 23A9 braceex 23AA bracerighttp 23AB bracerightmid 23AC bracerightbt 23AD "
-        + "integralex 23AE arrowhorizex 23AF arrowvertex 23D0"
+        + "integralex 23AE arrowhorizex 23AF arrowvertex 23D0 "
+        // The Symbol font's last names: the radical's bar, the return arrow, its serif and sans ® © ™.
+        + "radicalex 203E carriagereturn 21B5 registerserif AE copyrightserif A9 trademarkserif 2122 registersans AE "
+        + "copyrightsans A9 trademarksans 2122"
+
+    /// The standard Symbol font's built-in encoding (Adobe's Symbol AFM): the codes from 32 up, in order, "-" for none.
+    private static let symbolCodes =
+        "space exclam universal numbersign existential percent ampersand suchthat parenleft parenright asteriskmath plus "
+        + "comma minus period slash zero one two three four five six seven eight nine colon semicolon less equal greater question "
+        + "congruent Alpha Beta Chi Delta Epsilon Phi Gamma Eta Iota theta1 Kappa Lambda Mu Nu Omicron Pi Theta Rho Sigma Tau "
+        + "Upsilon sigma1 Omega Xi Psi Zeta bracketleft therefore bracketright perpendicular underscore radicalex alpha beta chi "
+        + "delta epsilon phi gamma eta iota phi1 kappa lambda mu nu omicron pi theta rho sigma tau upsilon omega1 omega xi psi "
+        + "zeta braceleft bar braceright similar " // 126; 127-159 none
+        + "- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - "
+        + "Euro Upsilon1 minute lessequal fraction infinity florin club diamond heart spade arrowboth arrowleft arrowup arrowright "
+        + "arrowdown degree plusminus second greaterequal multiply proportional partialdiff bullet divide notequal equivalence "
+        + "approxequal ellipsis arrowvertex arrowhorizex carriagereturn aleph Ifraktur Rfraktur weierstrass circlemultiply "
+        + "circleplus emptyset intersection union propersuperset reflexsuperset notsubset propersubset reflexsubset element "
+        + "notelement angle gradient registerserif copyrightserif trademarkserif product radical dotmath logicalnot logicaland "
+        + "logicalor arrowdblboth arrowdblleft arrowdblup arrowdblright arrowdbldown lozenge angleleft registersans copyrightsans "
+        + "trademarksans summation parenlefttp parenleftex parenleftbt bracketlefttp bracketleftex bracketleftbt bracelefttp "
+        + "braceleftmid braceleftbt braceex - angleright integral integraltp integralex integralbt parenrighttp parenrightex "
+        + "parenrightbt bracketrighttp bracketrightex bracketrightbt bracerighttp bracerightmid bracerightbt"
+
+    private static let symbol: (byCode: [String?], codes: [String: Int]) = {
+        var byCode = [String?](repeating: nil, count: 256)
+        var codes: [String: Int] = [:]
+        for (i, n) in symbolCodes.split(separator: " ").enumerated() where n != "-" && 32 + i < 256 {
+            byCode[32 + i] = String(n)
+            if codes[String(n)] == nil { codes[String(n)] = 32 + i }
+        }
+        return (byCode, codes)
+    }()
+
+    /// The glyph name of a code in the standard Symbol font's built-in encoding.
+    static func inSymbol(_ code: Int) -> String? { (0..<256).contains(code) ? symbol.byCode[code] : nil }
+
+    /// Where the standard Symbol font has a glyph name in its built-in encoding, or nil.
+    static func symbolCode(_ name: String) -> Int? { symbol.codes[name] }
 
     private struct Tables: Sendable {
         var byName: [String: String] = [:]

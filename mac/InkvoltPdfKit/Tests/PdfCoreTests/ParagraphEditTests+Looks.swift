@@ -48,7 +48,9 @@ extension ParagraphEditTests {
         #expect(fonts.contains("Impact"))
         #expect(fonts == fonts.sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending })
         #expect(Set(fonts.map { $0.lowercased() }).count == fonts.count)
-        #expect(!fonts.contains { $0.hasSuffix(" Bold") || $0.hasSuffix(" Italic") || $0.hasSuffix(" Regular") })
+        // Faces aren't families of their own (macOS has families named so, such as "Arial Rounded MT Bold": they are).
+        #expect(!fonts.contains("Arial Bold") && !fonts.contains("Arial Italic") && !fonts.contains("Times New Roman Bold"))
+        #expect(!fonts.contains { $0.hasSuffix(" Regular") })
     }
 
     @Test func aLookInAFamilyBeyondTheFourteenDrawsInIt() throws {
@@ -71,7 +73,7 @@ extension ParagraphEditTests {
         _ = Self.sameSpans(looks, q.spans)
         let runs = Self.byText(q)
         #expect(runs["lazy dog"]?.fontName.lowercased().contains("comic") == true)
-        #expect(runs["wizards"]?.fontName.contains("ComicSansMS-Bold") == true)
+        #expect(runs["wizards"]?.fontName.contains("ComicSansMS Bold") == true)
     }
 
     @Test func aStretchGetsItsOwnFontSizeColorBoldAndItalic() throws {
@@ -98,8 +100,8 @@ extension ParagraphEditTests {
         #expect(q.lines.count == same.lineCount)
         #expect(same.overlaps == nil)
         let runs = Self.byText(q)
-        #expect(runs["quick"]?.fontName.contains("Arial-Bold") == true)
-        #expect(runs["boxin"]?.fontName.contains("Arial-Italic") == true)
+        #expect(runs["quick"]?.fontName.contains("Arial Bold") == true)
+        #expect(runs["boxin"]?.fontName.contains("Arial Italic") == true)
         #expect(runs["brown"]?.color == 0xCC0000)
         #expect(runs["fox"].map { Self.equal(16, $0.fontSize, 1) } == true)
         #expect(runs["fox"]?.fontName == p.lead.fontName)

@@ -99,7 +99,8 @@ enum ContentEditPdf {
             + "/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n"
             + "1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n\(gids.count) beginbfrange\n"
         for g in gids {
-            let ch = fontText.unicodeScalars.first { font.gid(Int($0.value)) == g }!
+            // Two characters of one glyph (Arial's hyphen and soft hyphen) read as the later in `fontText`.
+            let ch = fontText.unicodeScalars.last { font.gid(Int($0.value)) == g }!
             cmap += String(format: "<%04X> <%04X> <%04X>\n", g, g, ch.value)
         }
         cmap += "endbfrange\nendcmap\nCMapName currentdict /CMapResource defineresource pop\nend\nend\n"

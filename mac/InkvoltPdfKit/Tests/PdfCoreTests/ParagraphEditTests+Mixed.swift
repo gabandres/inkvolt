@@ -71,7 +71,7 @@ extension ParagraphEditTests {
         let runs = Self.byText(q)
         #expect(runs["quick"]?.fontName == boldName)
         #expect(runs["boxing"]?.fontName == boldName)
-        #expect(runs["lazy"]?.fontName.contains("Arial-Italic") == true)
+        #expect(runs["lazy"]?.fontName.contains("Arial Italic") == true)
         #expect(Self.words(ContentEditPdf.text(edited)).contains(Self.words(Self.body)))
     }
 

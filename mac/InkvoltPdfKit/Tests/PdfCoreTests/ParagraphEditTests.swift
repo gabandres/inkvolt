@@ -7,7 +7,7 @@ import Testing
 /// paragraph's text replaced, rewrapped in its box in its own embedded font, characters it lacks from installed fonts,
 /// looks for stretches, text in form XObjects, turned text. Same names, the theories' rows as arguments. Adapted: the
 /// fonts are `ContentEditPdf`'s hand-made subsets of the Mac's Arial, Arial Bold and Times New Roman; stand-in fonts are
-/// Type 3 fonts named by the system font's PostScript name ("Arial-BoldMT" where Windows' file name says "arialbd"); the
+/// Type 3 fonts named by family and style ("Arial,Bold", read "Arial Bold", where Windows' file name says "arialbd"); the
 /// stand-in families are the Mac's (`StandInFonts`); "this PC" is "this Mac"; ZapfDingbats is measured with macOS's own
 /// font. The corpus and pdf.js checks are opt-in as on Windows (INKVOLTPDF_CORPUS, INKVOLTPDF_PDFJS).
 struct ParagraphEditTests {
@@ -288,7 +288,7 @@ struct ParagraphEditTests {
         #expect(p.lead.fontName == q.lead.fontName)
         // Only the borrowed characters are in the stand-in font, at the paragraph's size and color.
         let borrowed = q.runs.filter { $0.fontName != p.lead.fontName }
-        #expect(borrowed.map(\.text) == ["@", "#", "€"])
+        #expect(borrowed.map(\.text) == ["@", "#", "€"], "\(borrowed.map { "\($0.text) \($0.fontName)" })")
         #expect(borrowed.allSatisfy { $0.fontName.lowercased().contains("arial") })
         #expect(borrowed.allSatisfy { Self.equal(p.fontSize, $0.fontSize, 1) })
         // Glyph boxes in order on the line: nothing drawn over its neighbors.
