@@ -101,7 +101,7 @@ extension ContentEditor {
             try writeContent(doc, page, streams, target.ops, edits)
         } else if let form = target.formObject {
             form.remove("DecodeParms")
-            form.setStream(splice(target.bytes, edits), deflate: true)
+            form.setStream(try splice(target.bytes, edits), deflate: true)
         }
     }
 

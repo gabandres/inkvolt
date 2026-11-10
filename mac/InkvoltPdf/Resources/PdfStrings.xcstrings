@@ -23067,6 +23067,17 @@
           }
         }
       }
+    },
+    "These changes overlap in the page's content, so they can't be written.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos cambios se superponen en el contenido de la página, así que no se pueden escribir."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

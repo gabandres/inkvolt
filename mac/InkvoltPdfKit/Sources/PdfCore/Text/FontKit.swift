@@ -77,6 +77,16 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
 
     func measure(_ s: String) -> Double { s.unicodeScalars.reduce(0) { $0 + advance($1.value) } }
 
+    /// Whether a glyph is drawn by an outline Type 3 can carry: not a color font's bitmap (Apple Color Emoji), not empty.
+    func hasOutline(_ glyph: Int) -> Bool {
+        if glyph == 0 || CTFontGetSymbolicTraits(font).contains(.traitColorGlyphs) { return false }
+        guard let path = CTFontCreatePathForGlyph(font, CGGlyph(clamping: glyph), nil) else { return false }
+        return !path.isEmpty
+    }
+
+    /// Whether a code point is drawn by an outline in this font.
+    func drawsOutline(_ codePoint: UInt32) -> Bool { has(codePoint) && hasOutline(glyphOf(codePoint)) }
+
     /// The glyph's outline (font units, y up) and its bounding box.
     func outline(_ glyph: Int) -> (path: CGPath?, box: CGRect) {
         var g = CGGlyph(clamping: glyph)

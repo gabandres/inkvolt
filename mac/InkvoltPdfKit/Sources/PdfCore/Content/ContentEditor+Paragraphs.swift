@@ -272,11 +272,18 @@ extension ContentEditor {
         func weight(_ g: (font: TextFont, runs: [TextRun])) -> (Int, Int, Int) {
             let chars = g.runs.reduce(0) { $0 + trimmed($1.text).utf16.count }
             let styled = g.font.bold || g.font.italic ? 1 : 0
-            return (-chars, styled, g.runs.map(\.id).min() ?? 0)
+            return (-chars, styled, g.runs.map { order($0.id) }.min() ?? 0)
         }
-        if let best = groups.min(by: { weight($0) < weight($1) }) { return best.runs.min { $0.id < $1.id }! }
+        if let best = groups.min(by: { weight($0) < weight($1) }) { return best.runs.min(by: before)! }
         return runs.first { !$0.standIn && !$0.styled } ?? runs.first { !$0.standIn } ?? runs[0]
     }
+
+    /// A run's place in its content's order: page operators count up from 0, operators inside forms down from -1 (the
+    /// walk numbers them as it meets them), so the first in a form is the one nearest 0.
+    static func order(_ id: Int) -> Int { id < 0 ? -id : id }
+
+    /// Whether `a` comes before `b` in their content.
+    static func before(_ a: TextRun, _ b: TextRun) -> Bool { order(a.id) < order(b.id) }
 
     /// The step from one baseline to the next as the paragraph's own (see `layOut`: bigger text widens it).
     private static func plainStep(_ above: PLine, _ below: PLine, _ step: Double) -> Double {
@@ -291,6 +298,9 @@ extension ContentEditor {
         let last = s.lines[s.lines.count - 1]
         let size = last.size
         if !sameLook(last.lead, line.lead) { return nil }
+        // Two drawings of one form (or two forms) are two pieces of content: their lines are paragraphs of their own. A
+        // form's lines and the page's still join (they are edited line by line, see `paragraph`).
+        if let a = last.lead.info?.form, let b = line.lead.info?.form, a != b { return nil }
         let step = plainStep(last, line, line.baseline - last.baseline)
         if step < 0.6 * size { return nil }
         let gap = line.box.y - last.box.bottom
@@ -566,6 +576,7 @@ extension ContentEditor {
         let wrap = p.lines.count > 1
         var lines: [(parts: [Part], spaces: [Int], last: Bool)] = []
         var cur: [Part] = []
+        var curAdvance = 0.0 // how far cur advances (text space): a word's width after it is that plus its own
         var spaceEnds: [Int] = [] // the index of each word space's last part in cur
         var space: [Part]?
         var pos = 0
@@ -573,6 +584,7 @@ extension ContentEditor {
             if pos == u.count || u[pos] == 10 {
                 lines.append((cur, spaceEnds, true))
                 cur = []
+                curAdvance = 0
                 spaceEnds = []
                 space = nil
                 pos += 1
@@ -586,19 +598,26 @@ extension ContentEditor {
             var end = pos
             while end < u.count && u[end] != 32 && u[end] != 10 { end += 1 }
             let parts = enc.encode(pos, end)
+            let word = m.measure(parts)
             pos = end
             guard !cur.isEmpty, let sp = space else {
                 cur += parts
+                curAdvance += word.advance
                 continue
             }
             let avail = p.right - p.left - (lines.isEmpty ? p.firstIndent : 0)
-            let joined = cur + sp + parts
-            if !wrap || w(joined) <= avail + 0.01 {
+            let gap = m.measure(sp).advance
+            // The line with the word on it, to its last glyph's ink (the word always has some).
+            let joined: Double = word.inked ? (curAdvance + gap + word.end) * m.scale : w(cur + sp + parts)
+            if !wrap || joined <= avail + 0.01 {
                 spaceEnds.append(cur.count + sp.count - 1)
-                cur = joined
+                cur += sp
+                cur += parts
+                curAdvance += gap + word.advance
             } else {
                 lines.append((cur, spaceEnds, false))
                 cur = parts
+                curAdvance = word.advance
                 spaceEnds = []
             }
             space = nil
@@ -715,8 +734,7 @@ extension ContentEditor {
 
     /// Where a paragraph's new text is written: its first run in content order in its own font and look.
     private static func anchorRun(_ runs: [TextRun]) -> TextRun {
-        runs.filter { !$0.standIn && !$0.styled }.min { $0.id < $1.id }
-            ?? runs.filter { !$0.standIn }.min { $0.id < $1.id } ?? runs.min { $0.id < $1.id }!
+        runs.filter { !$0.standIn && !$0.styled }.min(by: before) ?? runs.filter { !$0.standIn }.min(by: before) ?? runs.min(by: before)!
     }
 
     /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
@@ -730,6 +748,9 @@ extension ContentEditor {
         private let looks: [TextLook?]
         /// The text elements (a character with its marks, a surrogate pair), with where each starts (UTF-16).
         private let elements: [(element: String, at: Int)]
+        /// For each UTF-16 offset of the text, the first element starting there or after (so a range's elements are found
+        /// at once: laying out walks each word once, not the whole text for each word).
+        private let firstAt: [Int]
         /// Per page font: the text elements it lacks that a stand-in draws, and which stand-in draws each code point.
         private var lacking: [ObjectIdentifier: Set<String>] = [:]
         private var standIns: [ObjectIdentifier: [UInt32: StandInFont]] = [:]
@@ -751,33 +772,38 @@ extension ContentEditor {
             self.looks = looks
             var els: [(element: String, at: Int)] = []
             var at = 0
+            var first: [Int] = []
+            first.reserveCapacity(text.utf16.count + 1)
             for ch in text {
                 let s = String(ch)
+                let n = s.utf16.count
+                for _ in 0..<n { first.append(els.count) }
                 els.append((s, at))
-                at += s.utf16.count
+                at += n
             }
+            first.append(els.count)
             elements = els
-            var lackingList: [(font: TextFont, els: [String])] = []
+            firstAt = first
+            var lackingList: [(font: TextFont, els: [String], seen: Set<String>)] = []
+            var missingSeen = Set<String>()
             for (el, at) in elements {
                 if ContentEditor.isBlank(el) { continue }
                 let look = resolve(at)
                 if let face = look?.face {
                     // In a font a look asked for: what it lacks comes from the system's fallbacks, else nothing.
-                    let drawable = TrueTypeFont.codePoints(el).allSatisfy { cp in
-                        face.font.has(cp) || (SystemFonts.forCodePoint(cp, face.font)?.has(cp) ?? false)
-                    }
-                    if !drawable && !missing.contains(el) { missing.append(el) }
+                    // (Core Text's shaping falls back for what the face lacks: every glyph it picks must have an outline.)
+                    if !StandInFonts.drawable(el, face.font) && missingSeen.insert(el).inserted { missing.append(el) }
                     continue
                 }
                 let pageFont = look?.page?.font ?? font
                 if pageFont.encode(el).missing.isEmpty { continue }
                 if let i = lackingList.firstIndex(where: { $0.font === pageFont }) {
-                    if !lackingList[i].els.contains(el) { lackingList[i].els.append(el) }
+                    if lackingList[i].seen.insert(el).inserted { lackingList[i].els.append(el) }
                 } else {
-                    lackingList.append((pageFont, [el]))
+                    lackingList.append((pageFont, [el], [el]))
                 }
             }
-            for (pageFont, els) in lackingList {
+            for (pageFont, els, _) in lackingList {
                 var cps: [UInt32] = []
                 for cp in els.flatMap(TrueTypeFont.codePoints) where !cps.contains(cp) { cps.append(cp) }
                 let map = StandInFonts.forFont(pageFont, cps)
@@ -788,7 +814,7 @@ extension ContentEditor {
                         lacking[ObjectIdentifier(pageFont), default: []].insert(el)
                         if !borrowed.contains(el) { borrowed.append(el) }
                         for cp in points where !names.contains(map[cp]!.name) { names.append(map[cp]!.name) }
-                    } else if !missing.contains(el) {
+                    } else if missingSeen.insert(el).inserted {
                         missing.append(el)
                     }
                 }
@@ -819,13 +845,13 @@ extension ContentEditor {
                 // The page's own face for it, when the paragraph has one (a bold word as the generator drew it).
                 page = p.runs.filter { r in
                     !r.standIn && !r.styled && r.font != nil && r.font !== lead.font && ContentEditor.sameFamily(r, lead) && r.bold == bold && r.italic == italic
-                }.min { $0.id < $1.id }
+                }.min(by: ContentEditor.before)
             } else if let family {
                 // Another family the paragraph has in a font of the page's (a word in Times, a symbol font): that font.
                 page = p.runs.filter { r in
                     !r.standIn && !r.styled && r.font != nil && FontNames.family(r.fontName).caseInsensitiveCompare(family) == .orderedSame
                         && r.bold == bold && r.italic == italic
-                }.min { $0.id < $1.id }
+                }.min(by: ContentEditor.before)
             }
             if page == nil && (family != nil || restyle), let f = StandInFonts.styled(font, family, bold, italic) {
                 face = f
@@ -868,7 +894,9 @@ extension ContentEditor {
                 }
                 chunk = ""
             }
-            for (el, at) in elements where at >= start && at < end {
+            let lo = start < firstAt.count ? firstAt[max(0, start)] : elements.count
+            for (el, at) in elements[lo...] {
+                if at >= end { break }
                 let look = resolve(at)
                 let pageFont = look?.page?.font ?? font
                 var face = look?.face
@@ -914,6 +942,8 @@ extension ContentEditor {
         let spaces = paragraph.spaces.compactMap { s in walked.textRuns.first { $0.id == s.id && same($0.text, s.text) && $0.info != nil } }
             .filter { r in !now.contains { $0.id == r.id } && r.info!.form == anchor.info!.form }
         let target = try targetOf(doc, page, streams, ops, walked, anchor)
+        // One operator per run: two runs drawn by one operator (a form drawn twice) can't both be rewritten.
+        if Set(now.map { ObjectIdentifier(target.opOf($0, walked)) }).count != now.count { throw ContentEditError(changed) }
         let layout = layOut(fresh, now, text, spans)
         if !layout.check.missing.isEmpty {
             let list = layout.check.missing.prefix(12).map(shownCharacter).joined(separator: ", ")
@@ -957,15 +987,15 @@ extension ContentEditor {
     static func rematch(_ paragraph: TextParagraph, _ walked: Walked) throws -> (now: [TextRun], fresh: TextParagraph) {
         let changed = loc("The page changed since this paragraph was picked. Pick it again.")
         var now: [TextRun] = []
+        var byId: [Int: TextRun] = [:]
         for run in paragraph.runs {
             let found = walked.textRuns.first { $0.id == run.id && same($0.text, run.text) }
                 ?? walked.textRuns.filter { same($0.text, run.text) && near($0.box, run.box) }.min { distance($0.box, run.box) < distance($1.box, run.box) }
             if let why = found?.blocked { throw ContentEditError(loc("This text can't be edited: {0}.", why)) }
             guard let found, found.info != nil, !now.contains(where: { $0.id == found.id }) else { throw ContentEditError(changed) }
             now.append(found)
+            byId[run.id] = found // by the id the paragraph knows it by: found by its place, it may have another now
         }
-        var byId: [Int: TextRun] = [:]
-        for r in now { byId[r.id] = r }
         return (now, refreshed(paragraph, byId))
     }
 
@@ -1041,7 +1071,7 @@ extension ContentEditor {
             let t = toText.apply(user.x, user.y)
             let lineTm = Mat(1, 0, 0, 1, t.x, t.y - info.rise).times(info.tm)
             sb += lineTm.write() + " Tm "
-            writeLine(&sb, info.hex, plain, parts, run, writer)
+            writeLine(&sb, info.hex, plain, parts, run, writer, wordSpacing: 0)
         }
         if abs(tw) > 1e-9 { sb += ContentLexer.number(tw) + " Tw " }
         return sb + backAfter(run)
@@ -1063,8 +1093,10 @@ extension ContentEditor {
     /// A line's parts as TJ arrays of codes and adjustments in the paragraph's own font (`plain`) or another face of the
     /// page's the part's look names; stretches in installed fonts in between, drawn by `writer` with no character spacing;
     /// a stretch with a look of its own inside a marked-content tag (`lookTagName`), at its size and in its color. The
-    /// font, size, spacing, rise and color the operator (`run`) had are set back after.
-    static func writeLine(_ sb: inout String, _ hex: Bool, _ plain: TextRun, _ parts: [Part], _ run: TextRun, _ writer: Type3FontWriter) {
+    /// font, size, spacing, rise and color the operator (`run`) had are set back after. `wordSpacing`: the Tw in effect,
+    /// which is 0 around a stand-in (a Type 3 font's code 32 is a space to Tw, whatever glyph it draws).
+    static func writeLine(_ sb: inout String, _ hex: Bool, _ plain: TextRun, _ parts: [Part], _ run: TextRun, _ writer: Type3FontWriter,
+                          wordSpacing: Double) {
         let info = run.info!
         var tokens: [String] = []
         var codes: [Int] = []
@@ -1122,11 +1154,13 @@ extension ContentEditor {
             setRise(info.rise + (part.look?.rise ?? 0) * plain.size)
             if let standIn = part.standIn {
                 close()
-                let tc = abs(run.charSpacing) > 1e-9
+                let tc = abs(run.charSpacing) > 1e-9, tw = abs(wordSpacing) > 1e-9
                 if tc { sb += "0 Tc " }
+                if tw { sb += "0 Tw " }
                 writer.emit(&sb, standIn, size: plain.size * s, baseRise: ts)
                 ownFont = false
                 if tc { sb += ContentLexer.number(run.charSpacing) + " Tc " }
+                if tw { sb += ContentLexer.number(wordSpacing) + " Tw " }
                 continue
             }
             let face = part.look?.page ?? plain

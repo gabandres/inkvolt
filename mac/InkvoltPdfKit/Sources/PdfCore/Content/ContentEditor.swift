@@ -60,15 +60,20 @@ public struct TextRun: Sendable {
     }
 
     /// To the end of the last glyph's ink, in text space (as `oldWidth` measures the run).
-    func width(_ parts: [ContentEditor.Part]) -> Double {
-        guard let font else { return 0 }
+    func width(_ parts: [ContentEditor.Part]) -> Double { measure(parts).end }
+
+    /// How far parts advance and where their last glyph's ink ends (text space), and whether they have any ink.
+    func measure(_ parts: [ContentEditor.Part]) -> (advance: Double, end: Double, inked: Bool) {
+        guard let font else { return (0, 0, false) }
         var w = 0.0, end = 0.0
+        var inked = false
         for p in parts {
             let size: Double = self.size * (p.look?.scale ?? 1) // a part of another size is written at its own font size
             if let s = p.standIn {
                 // Drawn in a stand-in font, with no character spacing (see ContentEditor.writeLine).
                 w += s.width * size * hScale
                 end = w
+                inked = true
                 continue
             }
             guard let c = p.code else {
@@ -78,10 +83,11 @@ public struct TextRun: Sendable {
             let f = p.look?.page?.font ?? font // a stretch in another face of the page's family is measured in it
             let glyph: Double = f.widthOf(c) / 1000 * size * hScale
             end = w + glyph
+            inked = true
             let spacing: Double = charSpacing + (!f.twoByte && c == 32 ? wordSpacing : 0)
             w += glyph + spacing * hScale
         }
-        return end
+        return (w, end, inked)
     }
 }
 
@@ -248,7 +254,7 @@ public enum ContentEditor {
             } else if op.name == "\"" {
                 sb += "\(ContentLexer.number(op.n(0))) Tw \(ContentLexer.number(op.n(1))) Tc T* "
             }
-            writeLine(&sb, info.hex, now, planned.parts, now, writer)
+            writeLine(&sb, info.hex, now, planned.parts, now, writer, wordSpacing: now.wordSpacing)
             replacement = sb
             addFonts(doc, target.resourceOwner, writer.buildFonts(doc))
         }
@@ -643,12 +649,12 @@ public enum ContentEditor {
     /// content as now read as one.
     @discardableResult
     static func writeContent(_ doc: MuDoc, _ page: PObj, _ streams: PageStreams, _ ops: [COp], _ edits: Edits) throws -> [UInt8] {
-        let updated = splice(streams.bytes, edits)
+        let updated = try splice(streams.bytes, edits)
         if streams.parts.count > 1, !edits.isEmpty, let old = page["Contents"], old.isArray {
             let lo = edits.map(\.start).min()!, hi = edits.map(\.end).max()!
             if let part = streams.parts.first(where: { lo >= $0.start && hi <= $0.end }),
                !ops.contains(where: { ($0.start < part.start && $0.end > part.start) || ($0.start < part.end && $0.end > part.end) }) {
-                let bytes = splice(Array(streams.bytes[part.start..<part.end]), edits.map { ($0.start - part.start, $0.end - part.start, $0.bytes) })
+                let bytes = try splice(Array(streams.bytes[part.start..<part.end]), edits.map { ($0.start - part.start, $0.end - part.start, $0.bytes) })
                 let array = doc.array(old.elements) // the page's own: another page may share the old one
                 array.replace(at: part.slot, with: doc.addStream(bytes, deflate: true))
                 page.set("Contents", array)
@@ -665,11 +671,15 @@ public enum ContentEditor {
     /// Whether part of the page's content holds data but decodes to nothing (a damaged filter): a rewrite would lose it.
     static func hasUnreadableContent(_ page: PObj) -> Bool { streams(page).parts.contains(where: \.unreadable) }
 
-    static func splice(_ content: [UInt8], _ edits: Edits) -> [UInt8] {
+    /// - Throws: `ContentEditError` when two edits overlap (or one falls outside the content): they can't both be written.
+    static func splice(_ content: [UInt8], _ edits: Edits) throws -> [UInt8] {
         var out: [UInt8] = []
         out.reserveCapacity(content.count + 256)
         var at = 0
         for e in edits.sorted(by: { $0.start < $1.start }) {
+            guard e.start >= at, e.end >= e.start, e.end <= content.count else {
+                throw ContentEditError(loc("These changes overlap in the page's content, so they can't be written."))
+            }
             out += content[at..<e.start]
             // Keep the replacement apart from its neighbors (a name or number must not run into the next token).
             out.append(32)
@@ -765,8 +775,15 @@ public enum ContentEditor {
         /// The operators that set the fill color in effect (to set it back after text of another color); nil when that
         /// can't be told (a pattern).
         var fillOp: String?
-        /// The form XObject the run is drawn in (nil: the page's own content); the walk keeps the form itself.
-        var form: ObjId?
+        /// The drawing of a form XObject the run is in (nil: the page's own content); the walk keeps the form itself.
+        var form: FormDraw?
+    }
+
+    /// One drawing of a form XObject: the form, and the Do that drew it (its id in the enclosing content, unique on the
+    /// page). Two drawings of one form are two pieces of content: one operator draws a line in both.
+    struct FormDraw: Hashable, Sendable {
+        var form: ObjId
+        var draw: Int
     }
 
     /// Where a run inside a form XObject (a drawing the page reuses) sits: the form, its content parsed, the resources
@@ -985,7 +1002,8 @@ public enum ContentEditor {
                 }
                 guard let arg = op.operands.last, arg.kind == (op.name == "TJ" ? .array : .string) else { break }
                 if let form { w.formOf[id] = (form, i) }
-                tm = showText(w, id, arg, gs, tm, tlm, blocked ?? (actualText > 0 ? actualTextBlocked : nil), looks.last ?? nil, form?.form.id)
+                let draw = form.map { FormDraw(form: $0.form.id, draw: $0.doId) }
+                tm = showText(w, id, arg, gs, tm, tlm, blocked ?? (actualText > 0 ? actualTextBlocked : nil), looks.last ?? nil, draw)
             case "Do" where count > 0 && op.operands[0].kind == .name:
                 guard let xobj = resources?.dict("XObject")?.dict(op.operands[0].name) else { break }
                 let sub = xobj.name("Subtype")
@@ -1058,7 +1076,7 @@ public enum ContentEditor {
 
     /// Records a text-showing operator as a run and returns the text matrix after it.
     private static func showText(_ w: Walked, _ id: Int, _ arg: CObj, _ gs: GState, _ tm: Mat, _ tlm: Mat, _ blocked: String?,
-                                 _ tag: LookTag?, _ form: ObjId?) -> Mat {
+                                 _ tag: LookTag?, _ form: FormDraw?) -> Mat {
         let font = gs.font
         var items: [RunItem] = []
         var hex = false

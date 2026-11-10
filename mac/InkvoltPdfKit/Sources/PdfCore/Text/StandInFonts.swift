@@ -216,12 +216,12 @@ enum StandInFonts {
         var map: [UInt32: StandInFont] = [:]
         if codePoints.isEmpty { return map }
         let ranked = rankFor(font)
-        if let all = ranked.first(where: { f in codePoints.allSatisfy { f.font.has($0) } }) {
+        if let all = ranked.first(where: { f in codePoints.allSatisfy { f.font.drawsOutline($0) } }) {
             for cp in codePoints { map[cp] = all }
             return map
         }
         for cp in codePoints {
-            if let one = ranked.first(where: { $0.font.has(cp) }) {
+            if let one = ranked.first(where: { $0.font.drawsOutline(cp) }) {
                 map[cp] = one
             } else if let fb = fallback(cp) {
                 map[cp] = fb
@@ -230,11 +230,27 @@ enum StandInFonts {
         return map
     }
 
-    /// Core Text's font for a character none of the families has, named by its family; never the LastResort font (its
-    /// glyphs only say which block a character is in).
+    /// Core Text's font for a character none of the families has, named by its family; else one of the Mac's broad symbol
+    /// fonts that has it. Only fonts that draw it by an outline (a stand-in is written as Type 3 outlines: a color font's
+    /// bitmap, such as Apple Color Emoji's, would come out blank), never the LastResort font (its glyphs only say which
+    /// block a character is in); nil when none has it, and the character is refused as missing.
     private static func fallback(_ cp: UInt32) -> StandInFont? {
-        guard let fb = SystemFonts.forCodePoint(cp, nil), fb.has(cp), fb.family != "LastResort",
-              !fb.postScriptName.hasPrefix("LastResort") else { return nil }
-        return StandInFont(fb, fb.family)
+        var candidates: [TrueTypeFont] = []
+        if let fb = SystemFonts.forCodePoint(cp, nil) { candidates.append(fb) }
+        for name in ["Apple Symbols", "Arial Unicode MS", "STIX Two Math"] {
+            candidates.append(SystemFonts.wrap(CTFontCreateWithName(name as CFString, 1000, nil)))
+        }
+        for f in candidates where f.family != "LastResort" && !f.postScriptName.hasPrefix("LastResort") && f.drawsOutline(cp) {
+            return StandInFont(f, f.family)
+        }
+        return nil
+    }
+
+    /// Whether a text element comes out drawn when shaped in `font`: each glyph Core Text picks (the font's, or its
+    /// fallback's) has an outline, or the element is white space.
+    static func drawable(_ element: String, _ font: TrueTypeFont) -> Bool {
+        if ContentEditor.isBlank(element) { return true }
+        let line = TextShaper.shape(element, font)
+        return !line.glyphs.isEmpty && line.glyphs.allSatisfy { $0.font.hasOutline($0.glyph) || ContentEditor.isBlank($0.text) }
     }
 }
