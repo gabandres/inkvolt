@@ -823,28 +823,46 @@ extension ContentEditor {
     /// Words on lines as wide as the paragraph's box: between words; in Chinese and Japanese between any two characters
     /// (not before closing punctuation or after opening punctuation); and a word wider than the whole line between its
     /// characters, so nothing runs off the box's edge.
-    static func fitLines(_ p: TextParagraph, _ enc: MixedText, _ text: [UInt16], _ width: ([Part]) -> Double) -> [(parts: [Part], spaces: [Int], last: Bool)] {
+    /// `measure` gives how far parts advance and where their ink ends (`TextRun.measure`, in points). A line's width is
+    /// kept as words join it (parts measure one after another), so a line of thousands of words isn't measured again for
+    /// each.
+    static func fitLines(_ p: TextParagraph, _ enc: MixedText, _ text: [UInt16],
+                         _ measure: ([Part]) -> (advance: Double, end: Double, inked: Bool)) -> [(parts: [Part], spaces: [Int], last: Bool)] {
+        func width(_ parts: [Part]) -> Double { parts.isEmpty ? 0 : measure(parts).end }
         var lines: [(parts: [Part], spaces: [Int], last: Bool)] = []
         var cur: [Part] = []
+        var curAdvance = 0.0, curEnd = 0.0
         var ends: [Int] = []
         func avail() -> Double { p.right - p.left - (lines.isEmpty ? p.firstIndent : 0) }
         func lineBreak() {
             lines.append((cur, ends, false))
             cur = []
+            curAdvance = 0
+            curEnd = 0
             ends = []
+        }
+        /// Where `parts` would advance to and end after what `cur` holds.
+        func after(_ advance: Double, _ end: Double, _ parts: [Part]) -> (advance: Double, end: Double) {
+            if parts.isEmpty { return (advance, end) }
+            let m = measure(parts)
+            return (advance + m.advance, m.inked ? advance + m.end : end)
         }
         for (start, end, spaced) in fitTokens(text) {
             let parts = enc.encode(start, end)
             let space = spaced && !cur.isEmpty ? enc.encode(start - 1, start) : nil
             let joined = cur.isEmpty ? parts : cur + (space ?? []) + parts
-            if width(joined) <= avail() + 0.01 {
+            let withSpace = after(curAdvance, curEnd, space ?? [])
+            let next = after(withSpace.advance, withSpace.end, parts)
+            if next.end <= avail() + 0.01 {
                 if let space, !cur.isEmpty { ends.append(cur.count + space.count - 1) }
                 cur = joined
+                (curAdvance, curEnd) = next
                 continue
             }
             if !cur.isEmpty { lineBreak() }
             if width(parts) <= avail() + 0.01 {
                 cur = parts
+                (curAdvance, curEnd) = after(0, 0, parts)
                 continue
             }
             // Too wide for a line of its own: broken between its characters.
@@ -858,6 +876,7 @@ extension ContentEditor {
                 chunk = start + els[e]
             }
             cur = enc.encode(chunk, end)
+            (curAdvance, curEnd) = after(0, 0, cur)
         }
         lines.append((cur, ends, true))
         if lines.count == 1 && lines[0].parts.isEmpty { lines.removeAll() }
@@ -1040,7 +1059,7 @@ extension ContentEditor {
                     visit(PageBoxes.inherited(doc.page(i), "Resources")?.dict("XObject"), 0)
                     for f in onPage where !once.insert(f).inserted { both.insert(f) }
                 }
-                shared = both
+                shared = both.union(formsDrawnOutsideContent(doc))
             }
             return place.chain.contains { shared!.contains($0.id) }
         }
@@ -1240,8 +1259,15 @@ extension ContentEditor {
         // Links, and their underlines, are moved once the page and its fonts are written.
         let links = written.isEmpty ? [] : linksOfWritten(page, slots, written, placed, ops, paints)
         if written.isEmpty && edits[0].isEmpty { return (slots, written, refused) }
-        for k in 1..<max(1, targets.count) { try writeTarget(doc, page, targets[k], edits[k]) }
+        // The forms' new bytes first, then the page (which refuses a damaged part before changing anything), then the
+        // forms: a page that can't be written leaves its forms as they were too.
+        let formBytes = try (1..<max(1, targets.count)).map { try splice(targets[$0].bytes, edits[$0]) }
         if !edits[0].isEmpty { try writeTarget(doc, page, targets[0], edits[0]) }
+        for (k, bytes) in zip(1..., formBytes) {
+            guard let form = targets[k].formObject else { continue }
+            form.remove("DecodeParms")
+            form.setStream(bytes, deflate: true)
+        }
         for owner in owners { writer.needsFonts(owner) }
         if !links.isEmpty { writer.linksAfter(pageIndex, links) }
         SignedEdits.noteRemoval()

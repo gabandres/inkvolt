@@ -151,6 +151,9 @@ final class MuDoc {
     /// Every object in use was loaded (`loadAllObjects`): a write needn't walk them again.
     private var objectsLoaded = false
 
+    /// The entries `ContentEditor.ownCopy` may still copy in this document, all its copies together; smaller in tests.
+    var copyBudget = MuDoc.defaultUnshareBudget
+
     /// How much the pass before a compacting write may do (`unshareDirectObjects`); smaller in tests.
     var unshareBudget = MuDoc.defaultUnshareBudget
 

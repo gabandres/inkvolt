@@ -73,6 +73,7 @@ extension ContentEditor {
             return false
         }
         guard let count = try? doc.pageCount() else { return false }
+        if place.chain.contains(where: { formsDrawnOutsideContent(doc).contains($0.id) }) { return true }
         let mine = page.id
         for i in 0..<count {
             let other = doc.page(i)
@@ -80,6 +81,50 @@ extension ContentEditor {
             if visit(PageBoxes.inherited(other, "Resources")?.dict("XObject"), 0) { return true }
         }
         return false
+    }
+
+    /// The forms drawn other than by a page's own Do, on any page: an annotation's appearance (a stamp's face can be the
+    /// very form a page draws), a tiling pattern's resources, and every form those draw. Editing one in place would change
+    /// those too, so it is copied (or left alone) as a shared one is.
+    static func formsDrawnOutsideContent(_ doc: MuDoc) -> Set<ObjId> {
+        var found = Set<ObjId>()
+        var seenResources = Set<ObjId>()
+        func form(_ f: PObj?, _ depth: Int) {
+            guard let f, f.isStream, depth <= maxDepth, found.insert(f.id).inserted else { return }
+            resources(f.dict("Resources"), depth + 1, all: true)
+        }
+        // A page's own resources: only its patterns draw outside its content (its XObjects are its Dos).
+        func resources(_ r: PObj?, _ depth: Int, all: Bool) {
+            guard let r, r.isDict, depth <= maxDepth else { return }
+            if all && r.isRef && !seenResources.insert(r.id).inserted { return }
+            if all, let xo = r.dict("XObject") {
+                for key in xo.keys { if let x = xo.dict(key), x.name("Subtype") == "Form" { form(x, depth + 1) } }
+            }
+            if let patterns = r.dict("Pattern") {
+                for key in patterns.keys {
+                    guard let p = patterns.dict(key), p.isStream, found.insert(p.id).inserted else { continue }
+                    resources(p.dict("Resources"), depth + 1, all: true)
+                }
+            }
+        }
+        guard let count = try? doc.pageCount() else { return found }
+        for i in 0..<count {
+            let page = doc.page(i)
+            resources(PageBoxes.inherited(page, "Resources"), 0, all: false)
+            guard let annots = page.array("Annots") else { continue }
+            for k in 0..<annots.count {
+                guard let annot = annots[k], annot.isDict, let ap = annot.dict("AP") else { continue }
+                for key in ["N", "R", "D"] {
+                    guard let face = ap.dict(key) else { continue }
+                    if face.isStream {
+                        form(face, 0)
+                    } else {
+                        for state in face.keys { form(face.dict(state), 0) }
+                    }
+                }
+            }
+        }
+        return found
     }
 
     /// A copy of a form the page draws directly, under a name of its own, with the Do changed to draw the copy.
@@ -118,8 +163,21 @@ extension ContentEditor {
     /// A name prefix for stand-in fonts that no font of the content's resources has yet.
     static func standInPrefix(_ target: Target) -> String {
         let keys = target.resources?.dict("Font")?.keys ?? []
-        var k = 1
-        while keys.contains(where: { $0.hasPrefix("\(standInKey)\(k)_") }) { k += 1 }
-        return "/\(standInKey)\(k)_"
+        return "/\(standInKey)\(lowestFree(keys, standInKey, suffix: "_"))_"
+    }
+
+    /// The lowest n ≥ 1 that no key `prefix` n `suffix`… uses, in one pass over the keys (a crafted dictionary of
+    /// 100,000 such names isn't searched again for each n).
+    static func lowestFree(_ keys: [String], _ prefix: String, suffix: String = "") -> Int {
+        var used = Set<Int>()
+        for key in keys where key.hasPrefix(prefix) {
+            let rest = key.dropFirst(prefix.count)
+            let digits = rest.prefix { $0.isASCII && $0.isNumber }
+            guard !digits.isEmpty, digits.count <= 9, digits.first != "0", let n = Int(digits) else { continue }
+            if suffix.isEmpty ? digits.count == rest.count : rest.dropFirst(digits.count).hasPrefix(suffix) { used.insert(n) }
+        }
+        var n = 1
+        while used.contains(n) { n += 1 }
+        return n
     }
 }

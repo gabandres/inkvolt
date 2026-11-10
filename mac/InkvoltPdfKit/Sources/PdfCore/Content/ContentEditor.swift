@@ -590,20 +590,20 @@ public enum ContentEditor {
     /// parent: shared by a copied /Resources and its original (a /Font dictionary inside resources several pages refer
     /// to), it would be renumbered once through each when MuPDF compacts the file, and its fonts would point at other
     /// objects.
-    /// Linear in its size, any key name kept as it is; past 64 levels or 4 million entries (a crafted file) the object
-    /// stays shared, and the pass before saving (`MuDoc.unshareDirectObjects`) saves the file uncompacted instead.
+    /// Linear in its size, any key name kept as it is; past 64 levels, or past the 4 million entries all of the document's
+    /// copies share (`MuDoc.copyBudget`: a crafted form's flat array of millions, copied for every page translated, would
+    /// grow the copy page by page), the object stays shared, and the pass before saving (`MuDoc.unshareDirectObjects`)
+    /// saves the file uncompacted instead.
     static func ownCopy(_ doc: MuDoc, _ obj: PObj) -> PObj {
         if obj.isRef || !(obj.isDict || obj.isArray) { return obj }
-        var budget = MuDoc.defaultUnshareBudget
-        return obj.deepCopy(maxDepth: MuDoc.unshareDepth, budget: &budget) ?? obj
+        return obj.deepCopy(maxDepth: MuDoc.unshareDepth, budget: &doc.copyBudget) ?? obj
     }
 
     /// Adds an XObject to the page's own resources (copying shared ones first), under a fresh name.
     static func addXObject(_ doc: MuDoc, _ page: PObj, _ xobject: PObj, prefix: String = "InkImg") -> String {
         let res = ownDict(doc, page, "Resources", PageBoxes.inherited(page, "Resources"))
         let xo = ownDict(doc, res, "XObject")
-        var n = 1
-        while xo.has("\(prefix)\(n)") { n += 1 }
+        let n = lowestFree(xo.keys, prefix)
         xo.set("\(prefix)\(n)", xobject)
         return "\(prefix)\(n)"
     }

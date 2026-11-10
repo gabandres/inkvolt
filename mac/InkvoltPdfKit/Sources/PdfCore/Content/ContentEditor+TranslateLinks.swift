@@ -109,6 +109,16 @@ extension ContentEditor {
     /// "800-63A," as one word. A place starts at a new word whose bare form begins the stretch: the new words are indexed
     /// by their bare forms, looked up by the stretch's beginnings. No word longer than `maxLinkWordChars` takes part.
     static func follow(_ linkWords: [String], _ newWords: [String], _ taken: Set<Int>) -> [(start: Int, count: Int)] {
+        var budget = followBudget
+        return follow(linkWords, newWords, taken, budget: &budget)
+    }
+
+    /// The most steps (letters compared, places tried) the links of one page get in `follow`: a crafted link over long
+    /// words that a reply repeats thousands of times matches a little further at every word. Past it a link isn't
+    /// followed (it is dropped, as one whose words aren't found).
+    static let followBudget = 20_000_000
+
+    static func follow(_ linkWords: [String], _ newWords: [String], _ taken: Set<Int>, budget: inout Int) -> [(start: Int, count: Int)] {
         var found: [(start: Int, count: Int)] = []
         if linkWords.contains(where: { $0.utf16.count > maxLinkWordChars }) { return found }
         var placesFound = Set<Int>()
@@ -132,23 +142,38 @@ extension ContentEditor {
                 if want.count < 2 { continue }
                 // The stretch, without the punctuation before it, starts with its first word's bare form.
                 for k in 1...max(1, min(want.count, longest)) where k <= want.count {
+                    budget -= k
+                    if budget < 0 { return found.sorted { $0.start < $1.start } }
                     guard let starts = byBare[Array(want[0..<k])] else { continue }
                     for at in starts {
                         if taken.contains(at) || placesFound.contains(at) { continue }
-                        var joined: [Unicode.Scalar] = []
+                        // The words from `at` joined, without the punctuation before them (`got`), compared with `want` a
+                        // word at a time: `got` is always how `want` begins until it is as long or longer.
+                        var got = 0
                         var end = at
-                        while end < newWords.count && !taken.contains(end) && newWords[end].utf16.count <= maxLinkWordChars {
-                            joined += words[end]
-                            let got = trimStartAround(joined[...])
-                            let core = Array(got.reversed().drop { aroundWords.contains($0) }.reversed())
-                            if core == want {
-                                found.append((at, end - at + 1))
-                                placesFound.insert(at)
+                        var match = false
+                        scan: while end < newWords.count && !taken.contains(end) && newWords[end].utf16.count <= maxLinkWordChars {
+                            budget -= 1 + words[end].count
+                            if budget < 0 { return found.sorted { $0.start < $1.start } }
+                            for c in words[end] {
+                                if got == 0 && aroundWords.contains(c) { continue }
+                                if got < want.count {
+                                    // More words only add to the end: once it isn't how the stretch begins, it never is.
+                                    if c != want[got] { break scan }
+                                } else if !aroundWords.contains(c) {
+                                    break scan // longer than the stretch, and not by punctuation after it
+                                }
+                                got += 1
+                            }
+                            if got >= want.count {
+                                match = true
                                 break
                             }
-                            // More words only add to the end: once it isn't how the stretch begins, it never is.
-                            if !want.starts(with: got) { break }
                             end += 1
+                        }
+                        if match {
+                            found.append((at, end - at + 1))
+                            placesFound.insert(at)
                         }
                     }
                 }

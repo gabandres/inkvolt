@@ -92,9 +92,14 @@ public struct ParagraphCheck: Sendable {
 func trimmed(_ s: String) -> String { s.trimmingCharacters(in: .whitespacesAndNewlines) }
 
 extension ContentEditor {
+    /// The most text runs a page's paragraphs are grouped from (Windows' `Translation.MaxRunsToLayOut`): grouping looks at
+    /// every run for each paragraph, so a crafted page of 100,000 runs would pin a core. Past it the page's text is edited
+    /// run by run, as before paragraph editing.
+    static let maxRunsToGroup = 5_000
+
     static func withParagraphs(_ content: PageContent) -> PageContent {
         var c = content
-        c.paragraphs = groupParagraphs(content)
+        c.paragraphs = content.runs.count > maxRunsToGroup ? [] : groupParagraphs(content)
         return c
     }
 
@@ -102,30 +107,51 @@ extension ContentEditor {
 
     /// A line of text: runs on one baseline, left to right, with no column gap between them.
     final class PLine {
-        var runs: [TextRun]
+        private(set) var runs: [TextRun]
         var box: RectD
         var baseline: Double
         /// Its text (UTF-16).
         var text: [UInt16]
         /// Where each run's text starts in `text`.
         var starts: [Int] = [0]
-        private var leadRun: TextRun?
+        /// `plainRun(runs)` kept up to date as runs are added (a crafted line of 200,000 runs isn't tallied again for each).
+        private var tally: [ObjectIdentifier: (chars: Int, styled: Int, first: TextRun, seen: Int)] = [:]
+        private var top: ObjectIdentifier?
+        private var firstPlain: TextRun?, firstOwn: TextRun?
 
         init(_ first: TextRun) {
             runs = [first]
             box = first.box
             baseline = first.origin.y
             text = Array(first.text.utf16)
+            count(first)
         }
 
         /// Its run in its own look: the font most of its text is in (see `plainRun`), so a line that begins with a word in
         /// another family (a symbol, a name set apart) is still a line of the paragraph's font.
         var lead: TextRun {
             if let main { return main }
-            if let leadRun { return leadRun }
-            let l = plainRun(runs)
-            leadRun = l
-            return l
+            if let top { return tally[top]!.first }
+            return firstPlain ?? firstOwn ?? runs[0]
+        }
+
+        /// Adds a run to the tally `lead` reads: only its font's group changes, so the top group is either the one before
+        /// or this one (the order `plainRun` ranks them in, ties to the group seen first).
+        private func count(_ r: TextRun) {
+            if !r.standIn && firstOwn == nil { firstOwn = r }
+            guard !r.standIn && !r.styled else { return }
+            if firstPlain == nil { firstPlain = r }
+            guard let f = r.font else { return }
+            let key = ObjectIdentifier(f)
+            var g = tally[key] ?? (0, f.bold || f.italic ? 1 : 0, r, tally.count)
+            g.chars += trimmed(r.text).utf16.count
+            if order(r.id) < order(g.first.id) { g.first = r }
+            tally[key] = g
+            func weight(_ g: (chars: Int, styled: Int, first: TextRun, seen: Int)) -> (Int, Int, Int, Int) {
+                (-g.chars, g.styled, order(g.first.id), g.seen)
+            }
+            if let t = top, t != key, weight(tally[t]!) < weight(g) { return }
+            top = key
         }
 
         /// For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.
@@ -145,7 +171,7 @@ extension ContentEditor {
             starts.append(text.count)
             text += r.text.utf16
             runs.append(r)
-            leadRun = nil
+            count(r)
             box = box.union(r.box)
         }
     }
@@ -180,8 +206,10 @@ extension ContentEditor {
         let runs = content.runs.filter { abs($0.angle) < 0.5 && !trimmed($0.text).isEmpty && $0.fontSize > 0.5 && $0.box.width > 0 }
         if runs.isEmpty { return [] }
         var result: [TextParagraph] = []
+        // The text and pictures a paragraph can have below it, worked out once for the page, not for each paragraph.
+        let inked: [(id: Int, box: RectD)] = content.runs.filter { !trimmed($0.text).isEmpty }.map { ($0.id, $0.box) } + content.images.map { (Int.min, $0.box) }
         for stack in stacks(linesOf(runs)) {
-            for part in splitShort(stack) { result.append(paragraph(content, part)) }
+            for part in splitShort(stack) { result.append(paragraph(content, part, inked: inked)) }
         }
         return result
     }
@@ -440,7 +468,7 @@ extension ContentEditor {
     /// place in its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, a hanging first
     /// line stays where it hangs, and its bold, italic, subscript and superscript stretches are its spans
     /// (`translationLook`).
-    static func paragraph(_ content: PageContent, _ lines: [PLine], translating: Bool = false) -> TextParagraph {
+    static func paragraph(_ content: PageContent, _ lines: [PLine], translating: Bool = false, inked: [(id: Int, box: RectD)]? = nil) -> TextParagraph {
         let first = lines[0]
         let size = first.size
         let tol = tolerance(size)
@@ -571,8 +599,8 @@ extension ContentEditor {
         // What follows below: the nearest other text or picture across the paragraph's width.
         var below: RectD?
         if !translating {
-            let others = content.runs.filter { !mine.contains($0.id) && !trimmed($0.text).isEmpty }.map(\.box) + content.images.map(\.box)
-            for b in others {
+            let all: [(id: Int, box: RectD)] = inked ?? (content.runs.filter { !trimmed($0.text).isEmpty }.map { ($0.id, $0.box) } + content.images.map { (Int.min, $0.box) })
+            for (id, b) in all where id == Int.min || !mine.contains(id) {
                 if b.y < box.bottom - 1 || b.right <= box.x + 1 || b.x >= box.right - 1 { continue }
                 if below == nil || b.y < below!.y { below = b }
             }
@@ -647,7 +675,12 @@ extension ContentEditor {
         var spaceEnds: [Int] = [] // the index of each word space's last part in cur
         var space: [Part]?
         var pos = 0
-        if fit != nil { lines = fitLines(p, enc, u, w) }
+        if fit != nil {
+            lines = fitLines(p, enc, u) { parts in
+                let r = m.measure(parts)
+                return (r.advance * m.scale, r.end * m.scale, r.inked)
+            }
+        }
         while fit == nil && pos <= u.count {
             if pos == u.count || u[pos] == 10 {
                 lines.append((cur, spaceEnds, true))
