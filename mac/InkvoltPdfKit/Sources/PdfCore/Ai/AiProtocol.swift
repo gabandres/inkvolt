@@ -22,7 +22,12 @@ public struct AiMessage: Sendable, Equatable {
 /// A failure talking to the AI endpoint, with a message meant for the user.
 public struct AiError: Error, Sendable, Equatable {
     public let message: String
-    public init(_ message: String) { self.message = message }
+    /// The HTTP status behind it (a refused key, a redirect), when one is; 0 otherwise.
+    public let status: Int
+    public init(_ message: String, status: Int = 0) {
+        self.message = message
+        self.status = status
+    }
 }
 
 /// The OpenAI-compatible chat API (`POST {base}/chat/completions`, `GET {base}/models`) that Ollama, LM Studio, llama.cpp,

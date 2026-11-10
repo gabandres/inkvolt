@@ -219,7 +219,7 @@ public final class AiClient: Sendable {
         defer { response.body.close() }
         if !(200..<300).contains(response.status) {
             let body = try await readBody(response, deadline, cancel, truncate: true)
-            throw AiError(AiProtocol.describeError(response.status, AiProtocol.errorMessageOf(body), model, endpoint))
+            throw AiError(AiProtocol.describeError(response.status, AiProtocol.errorMessageOf(body), model, endpoint), status: response.status)
         }
 
         let mediaType = (response.contentType ?? "").lowercased()
@@ -298,9 +298,11 @@ public final class AiClient: Sendable {
                 shown = parts.string
             }
             if let shown {
-                throw AiError(loc("{0} redirects to {1}. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host, shown))
+                throw AiError(loc("{0} redirects to {1}. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host, shown),
+                              status: response.status)
             }
-            throw AiError(loc("{0} redirects to another address. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host))
+            throw AiError(loc("{0} redirects to another address. Inkvolt PDF doesn't follow redirects: enter that address in Settings › AI assistant if you trust it.", endpoint.host),
+                          status: response.status)
         }
         return response
     }
