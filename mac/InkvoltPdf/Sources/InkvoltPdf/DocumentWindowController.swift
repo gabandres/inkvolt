@@ -1185,7 +1185,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         findSkipped = Self.skippedNote(skipped)
         var byPage: [Int: [(start: Int, end: Int)]] = [:]
         for r in results { byPage[r.page, default: []].append((r.start, r.end)) }
-        for view in allPanes { view.matches = byPage }
+        for view in documentPanes { view.matches = byPage }
         if results.isEmpty {
             findBar.status = loc("Not found") + findSkipped
         } else {
@@ -1201,13 +1201,15 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         guard !found.isEmpty else { return }
         foundIndex = ((foundIndex + by) % found.count + found.count) % found.count
         let m = found[foundIndex]
-        for view in allPanes { view.currentMatch = m }
+        for view in documentPanes { view.currentMatch = m }
         findBar.status = loc("{0} of {1}", CoreLanguage.number(foundIndex + 1), CoreLanguage.number(found.count)) + findSkipped
-        let pages = activePages
+        // The match is this document's: shown in its own pane, not in a translated copy's original beside it.
+        let own = besideOriginal == nil
+        let pages = own ? activePages : self.pages
         pages.prepareToShow(m.page)
         if let text = try? engine.text(m.page), let box = text.rects(m.start, m.end).first, m.page < pages.pageRects.count {
             let shownBox: CGRect = pages.viewRect(box, pages.pageRects[m.page])
-            let shown: CGRect = activeScroll.contentView.bounds
+            let shown: CGRect = (own ? activeScroll : scrollView).contentView.bounds
             let matchY: CGFloat = shownBox.minY
             let y: CGFloat = matchY - shown.height / 3
             if matchY < shown.minY || shownBox.maxY > shown.maxY { pages.scrollTo(y: y) }

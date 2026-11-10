@@ -1071,7 +1071,6 @@ extension ContentEditor {
                               resources: PageBoxes.inherited(page, "Resources").flatMap { $0.isDict ? $0 : nil })]
         var edits: [Edits] = [[]]
         var formTargets: [FormDraw: Int] = [:]
-        var fonts: [(font: TextFont, codes: [Int], text: String)] = []
         var owners: [PObj] = []
         var taken = Set<[Int]>() // (target, operator start)
         let things = PageThings(content, obstacles)
@@ -1132,6 +1131,13 @@ extension ContentEditor {
                            layout: layout, fit: fit, fits: fits, dropped: dropped)
         }
         try oneSizePerColumn(slots, &laid, cancel)
+        // The fonts first, in the dictionaries the walk read: a form copied for this page below gives the page (and the copy)
+        // resources of their own, deep copies of what is prepared here.
+        for done in laid.compactMap({ $0 }) {
+            for (font, codes, text) in done.layout.fonts {
+                if let dict = walked.fontDicts[ObjectIdentifier(font)] { font.prepare(doc, dict, codes, text) }
+            }
+        }
 
         for (i, slot) in slots.enumerated() {
             try cancel?.check()
@@ -1215,7 +1221,6 @@ extension ContentEditor {
                 let op = target.opOf(run, walked)
                 if taken.insert([t, op.start]).inserted { edits[t].append((op.start, op.end, latin1Bytes(removed(op, run)))) }
             }
-            fonts += done.layout.fonts
             owners.append(target.resourceOwner)
             for name in done.layout.check.standIns where !writer.fontNames.contains(name) { writer.fontNames.append(name) }
             written.append(TranslationWritten(slot: i, fit: done.fit, fits: done.fits, dropped: done.dropped))
@@ -1235,9 +1240,6 @@ extension ContentEditor {
         // Links, and their underlines, are moved once the page and its fonts are written.
         let links = written.isEmpty ? [] : linksOfWritten(page, slots, written, placed, ops, paints)
         if written.isEmpty && edits[0].isEmpty { return (slots, written, refused) }
-        for (font, codes, text) in fonts {
-            if let dict = walked.fontDicts[ObjectIdentifier(font)] { font.prepare(doc, dict, codes, text) }
-        }
         for k in 1..<max(1, targets.count) { try writeTarget(doc, page, targets[k], edits[k]) }
         if !edits[0].isEmpty { try writeTarget(doc, page, targets[0], edits[0]) }
         for owner in owners { writer.needsFonts(owner) }
@@ -1250,7 +1252,7 @@ extension ContentEditor {
     private static func copiedForm(_ doc: MuDoc, _ page: PObj, _ place: FormPlace) -> (copy: PObj, name: String) {
         let dict = doc.dict()
         for key in place.form.keys where !["Filter", "DecodeParms", "Length"].contains(key) {
-            if let v = place.form[key] { dict.set(key, v) }
+            if let v = place.form[key] { dict.set(key, ownCopy(doc, v)) } // its inline /Resources its own, not the original's
         }
         let copy = doc.addStream(place.bytes, dict: dict, deflate: true)
         return (copy, addXObject(doc, page, copy, prefix: "InkFm"))

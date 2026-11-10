@@ -167,6 +167,8 @@ final class MuDoc {
     /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
         if !canAppend && !objectsLoaded { try loadAllObjects() }
+        // Compacting renumbers a direct container once for each place it is reached from (see `unshareDirectObjects`).
+        if options.contains("garbage") { unshareDirectObjects() }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }

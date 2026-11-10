@@ -242,8 +242,9 @@ public enum ContentEditor {
 
         let planned = plan(info, now, text)
         if !planned.missing.isEmpty { throw missingGlyphs(font, planned.missing) }
-        let target = try targetOf(doc, page, content, ops, walked, now)
+        // The font first: copying a shared form for this page (targetOf) may give the page resources of its own.
         font.prepare(doc, fontDict, planned.codes, planned.ownText)
+        let target = try targetOf(doc, page, content, ops, walked, now)
         let op = target.opOf(now, walked)
         let replacement: String
         if planned.standIns.isEmpty {

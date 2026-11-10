@@ -211,7 +211,7 @@ enum PageMarks {
     private static func copy(_ doc: MuDoc, _ from: PObj?) -> PObj {
         let d = doc.dict()
         if let from, from.isDict {
-            for k in from.keys { d.set(k, from[k]) }
+            for k in from.keys { d.set(k, from[k].map { ContentEditor.ownCopy(doc, $0) }) } // its inline /Font, /ExtGState its own
         }
         return d
     }

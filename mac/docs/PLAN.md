@@ -1780,6 +1780,14 @@ together; a refused key stopping the run, the part kept on request.
   copy for its new fonts that shared that direct dictionary; MuPDF's compacting save renumbered it once through each copy,
   and every page's fonts pointed at other objects (all text read as U+FFFD). The paragraph editor had the same path for a
   one-page edit (`aPageEditedInAFileWhosePagesShareResourcesKeepsEveryPagesFonts`).
+  **Fix round 1 (review):** the cause is general, so the safety net is too: before every compacting write
+  (`MuDoc.write` with `garbage`) `unshareDirectObjects` walks from the trailer, every reference once (a work list), and
+  gives each direct dictionary or array met a second time its own deep copy (64 levels deep, 4 million entries at most,
+  for hostile files). The copies are deep where edits make them too: a link's copy for a wrapped line (its inline /A),
+  a form copied for one page (translated or edited), PageMarks' resources (headers, footers, watermarks, released in
+  1.10) and Flattener's inherited resources (released). Fonts are prepared before any copy, in the dictionary the walk
+  read (translatePage, replaceParagraph, replaceText). Checked for the same pattern: redaction, forms and comments copy
+  nothing shallowly (stamps build their resources fresh, form faces are streams, FDF import grafts). `SharedObjectTests`.
 - **One copy of each stand-in font.** `TranslationWriter.finish` adds each Type 3 font once and has every page refer to it
   (Windows embeds one CID font per face); a 20-page report holds at most a dozen font objects.
 - **No open-password step.** Windows refuses an AES-256 file opened with its permissions password alone, since PDFsharp

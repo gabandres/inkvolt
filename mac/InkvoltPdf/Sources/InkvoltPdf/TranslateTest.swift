@@ -153,6 +153,12 @@ struct TranslateTest {
         copy.go(1)
         _ = await waitFor(2) { copy.secondPages?.currentPage == 1 }
         check(copy.secondPages?.currentPage == 1, "the original scrolls with the copy (page \((copy.secondPages?.currentPage ?? -1) + 1))")
+        // Find in the copy marks the copy's words, never places in the original beside it.
+        copy.find("[es]")
+        _ = await waitFor(5) { !copy.found.isEmpty }
+        let mainMarked = copy.pages.matches.values.reduce(0) { $0 + $1.count }
+        check(mainMarked > 0 && (copy.secondPages?.matches.isEmpty ?? false) && copy.secondPages?.currentMatch == nil,
+              "Find in the copy marks the copy only (\(mainMarked) matches; none in the original's pane)")
         copy.setSplit(.none)
         check(copy.besideOriginal == nil && copy.secondPages == nil, "closing the split closes the original")
         copy.pdf.close()

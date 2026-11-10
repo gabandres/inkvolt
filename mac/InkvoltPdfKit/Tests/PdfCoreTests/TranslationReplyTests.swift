@@ -229,13 +229,11 @@ struct TranslationRunTests {
             // Far more than an answer should be, in pieces, for as long as anyone reads.
             return Self.stream(EndlessBody { _ = sent.next() })
         }
-        let start = Date()
         let a = await Self.run(handler, "Bad one.", "Good one.")
         #expect(a.failed["Bad one."]?.contains("longer") == true)
         #expect(a.done["Good one."] == "Bien.")
-        // Under a second alone; minutes late in a full run that keeps the cooperative pool busy. What stops it is the
-        // guard, which the chunks read show.
-        #expect(Date().timeIntervalSince(start) < 300)
+        // Under a second alone (Windows checks a minute); on a loaded Mac a full run took over ten. What stops it is the
+        // guard, which the chunks read show, not a clock.
         #expect(sent.value < 2000, "\(sent.value) chunks read")
     }
 
@@ -243,10 +241,9 @@ struct TranslationRunTests {
         let handler = FakeAiHandler { _, _ in Self.stream(EndlessBody(nil, keepAlive: true)) }
         var s = Self.quick
         s.replyDeadline = 0.3
-        let start = Date()
         let a = await Self.run(handler, "Slow one.", settings: s)
+        // The deadline's own words: the run's limit stopped it (no clock: see aHugeAnswerIsStoppedEarlyAndTheRunGoesOn).
         #expect(a.failed["Slow one."]?.contains("in time") == true, "\(a.failed)")
-        #expect(Date().timeIntervalSince(start) < 300) // under a second alone; see aHugeAnswerIsStoppedEarlyAndTheRunGoesOn
     }
 
     @Test func answersThatNeverEndStopTheRunAfterAFew() async {

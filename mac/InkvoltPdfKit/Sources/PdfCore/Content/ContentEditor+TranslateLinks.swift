@@ -357,7 +357,7 @@ extension ContentEditor {
     /// A link annotation set around the first of some boxes of the page as shown, and a copy of it around each other one
     /// (returned, for the page's /Annots): one box spanning two lines would make the lines' whole width a link where
     /// /QuadPoints aren't read. A copy has no place in the structure tree or name of its own.
-    private static func place(_ doc: MuDoc, _ page: PObj, _ annot: PObj, _ boxes: [RectD]) -> [PObj] {
+    static func place(_ doc: MuDoc, _ page: PObj, _ annot: PObj, _ boxes: [RectD]) -> [PObj] {
         func rect(_ b: RectD) -> PObj {
             let r = PageBoxes.fromPageSpace(page, b)
             return doc.reals(r.x1, r.y1, r.x2, r.y2)
@@ -368,7 +368,7 @@ extension ContentEditor {
         for box in boxes.dropFirst() {
             let copy = doc.dict()
             for key in annot.keys where key != "StructParent" && key != "NM" {
-                if let v = annot[key] { copy.set(key, v) }
+                if let v = annot[key] { copy.set(key, ownCopy(doc, v)) } // an inline /A or /Dest its own
             }
             copy.set("Rect", rect(box))
             copies.append(doc.add(copy))

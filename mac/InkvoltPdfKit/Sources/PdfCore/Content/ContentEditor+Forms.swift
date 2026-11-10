@@ -86,7 +86,7 @@ extension ContentEditor {
     private static func copyForm(_ doc: MuDoc, _ page: PObj, _ streams: PageStreams, _ pageOps: [COp], _ place: FormPlace) throws -> PObj {
         let dict = doc.dict()
         for key in place.form.keys where !["Filter", "DecodeParms", "Length"].contains(key) {
-            if let v = place.form[key] { dict.set(key, v) }
+            if let v = place.form[key] { dict.set(key, ownCopy(doc, v)) } // its inline /Resources its own, not the original's
         }
         let copy = doc.addStream(place.bytes, dict: dict, deflate: true)
         let name = addXObject(doc, page, copy, prefix: "InkFm")

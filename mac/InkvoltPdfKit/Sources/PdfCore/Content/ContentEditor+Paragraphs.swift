@@ -1028,9 +1028,6 @@ extension ContentEditor {
         // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
         let spaces = paragraph.spaces.compactMap { s in walked.textRuns.first { $0.id == s.id && same($0.text, s.text) && $0.info != nil } }
             .filter { r in !now.contains { $0.id == r.id } && r.info!.form == anchor.info!.form }
-        let target = try targetOf(doc, page, streams, ops, walked, anchor)
-        // One operator per run: two runs drawn by one operator (a form drawn twice) can't both be rewritten.
-        if Set(now.map { ObjectIdentifier(target.opOf($0, walked)) }).count != now.count { throw ContentEditError(changed) }
         let layout = layOut(fresh, now, text, spans)
         if !layout.check.missing.isEmpty {
             let list = layout.check.missing.prefix(12).map(shownCharacter).joined(separator: ", ")
@@ -1045,9 +1042,14 @@ extension ContentEditor {
                               CoreLanguage.number(layout.check.lineCount))
             throw ContentEditError(message, overlaps: o)
         }
+        // The fonts first, in the dictionaries the walk read: copying a shared form for this page (targetOf) may give the
+        // page resources of its own, deep copies of what is prepared here.
         for (font, codes, written) in layout.fonts {
             if let dict = walked.fontDicts[ObjectIdentifier(font)] { font.prepare(doc, dict, codes, written) }
         }
+        let target = try targetOf(doc, page, streams, ops, walked, anchor)
+        // One operator per run: two runs drawn by one operator (a form drawn twice) can't both be rewritten.
+        if Set(now.map { ObjectIdentifier(target.opOf($0, walked)) }).count != now.count { throw ContentEditError(changed) }
 
         // Characters the font lacks: drawn in stand-in fonts, embedded under names no font of the content has.
         let writer = Type3FontWriter(namePrefix: standInPrefix(target), standIn: true)

@@ -72,6 +72,10 @@ extension DocumentWindowController {
     /// Both panes while split, else the main one.
     var allPanes: [PagesView] { [pages] + (secondPages.map { [$0] } ?? []) }
 
+    /// The panes showing this document: not a translated copy's original beside it (`showBeside`), whose pages, text and
+    /// layers are another document's.
+    var documentPanes: [PagesView] { besideOriginal == nil ? allPanes : [pages] }
+
     /// The pane navigation acts on.
     var activePages: PagesView { secondActive ? secondPages ?? pages : pages }
     var activeScroll: NSScrollView { secondActive ? secondScroll ?? scrollView : scrollView }
