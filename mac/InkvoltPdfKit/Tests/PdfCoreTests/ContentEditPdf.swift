@@ -14,10 +14,14 @@ enum ContentEditPdf {
     /// - Parameters:
     ///   - formInherits: /Fm1 has no /Resources of its own (it borrows the page's).
     ///   - damagedPart: a last content stream that claims Flate but holds bytes that don't inflate.
+    ///   - fontText: the characters the fonts hold (default `fontText`).
+    ///   - faces: also /FB (Arial Bold, WinAnsi) and /FT (Times New Roman, WinAnsi), holding `fontText` too.
+    ///   - standard: also /FS, this standard font (Symbol, ZapfDingbats) not embedded, without widths or descriptor.
     static func make(_ content: String, rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
-                     damagedPart: Bool = false) -> [UInt8] {
+                     damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText, faces: Bool = false,
+                     standard: String? = nil) -> [UInt8] {
         let doc = try! MuDoc.create()
-        let (fa, fu) = fonts(doc)
+        let (fa, fu) = fonts(doc, fontText)
         let red = [UInt8](repeating: 0, count: 24).enumerated().map { $0.offset % 3 == 0 ? UInt8(255) : 0 }
         let image = ImageImport.imageStream(doc, 4, 2, red, "DeviceRGB")
         let xobjects = doc.dict([("Im1", image)])
@@ -28,7 +32,16 @@ enum ContentEditPdf {
             }
             xobjects.set("Fm1", doc.addStream(latin1Bytes(form), dict: doc.dict(entries), deflate: false))
         }
-        let resources = doc.dict([("Font", doc.dict([("FA", fa), ("FU", fu)])), ("XObject", xobjects)])
+        let fontDict = doc.dict([("FA", fa), ("FU", fu)])
+        if faces {
+            fontDict.set("FB", simpleFont(doc, ArialSubset.of(fontText, file: "Arial Bold.ttf"), "AAAAAA+Arial-BoldMT", flags: 32 | 0x40000))
+            fontDict.set("FT", simpleFont(doc, ArialSubset.of(fontText, file: "Times New Roman.ttf"), "AAAAAA+TimesNewRomanPSMT", flags: 34))
+        }
+        if let standard {
+            // A standard font as old software wrote it: no widths, no descriptor, nothing embedded.
+            fontDict.set("FS", doc.add(doc.dict([("Type", doc.name("Font")), ("Subtype", doc.name("Type1")), ("BaseFont", doc.name(standard))])))
+        }
+        let resources = doc.dict([("Font", fontDict), ("XObject", xobjects)])
         let contents: PObj
         if let extraStreams {
             contents = doc.array(([content] + extraStreams).map { doc.addStream(latin1Bytes($0), deflate: false) })
@@ -47,25 +60,36 @@ enum ContentEditPdf {
         return try! doc.write("")
     }
 
-    /// /FA and /FU (references), sharing one descriptor and font program.
-    private static func fonts(_ doc: MuDoc) -> (PObj, PObj) {
-        let font = ArialSubset.shared
+    /// A font's descriptor and program (a reference).
+    private static func descriptor(_ doc: MuDoc, _ font: ArialSubset, _ name: String, flags: Int) -> PObj {
         let program = doc.addStream(font.bytes, dict: doc.dict([("Length1", doc.int(font.bytes.count))]), deflate: true)
-        let descriptor = doc.add(doc.dict([
-            ("Type", doc.name("FontDescriptor")), ("FontName", doc.name("AAAAAA+ArialMT")), ("Flags", doc.int(32)),
+        return doc.add(doc.dict([
+            ("Type", doc.name("FontDescriptor")), ("FontName", doc.name(name)), ("Flags", doc.int(flags)),
             ("FontBBox", doc.reals(-665, -325, 2000, 1040)), ("ItalicAngle", doc.int(0)), ("Ascent", doc.int(905)),
             ("Descent", doc.int(-212)), ("CapHeight", doc.int(716)), ("StemV", doc.int(80)), ("FontFile2", program),
         ]))
+    }
+
+    /// A simple TrueType font (WinAnsi) of a subset, with its widths from 32 to 255 (a reference).
+    private static func simpleFont(_ doc: MuDoc, _ font: ArialSubset, _ name: String, flags: Int, descriptor given: PObj? = nil) -> PObj {
+        let d = given ?? descriptor(doc, font, name, flags: flags)
         let widths = (32...255).map { code -> PObj in
             let text = GlyphNames.inEncoding("WinAnsiEncoding", code).flatMap(GlyphNames.toUnicode)
             return doc.int(text.map { font.width(font.gid(Int($0.unicodeScalars.first!.value))) } ?? 0)
         }
-        let fa = doc.add(doc.dict([
-            ("Type", doc.name("Font")), ("Subtype", doc.name("TrueType")), ("BaseFont", doc.name("AAAAAA+ArialMT")),
+        return doc.add(doc.dict([
+            ("Type", doc.name("Font")), ("Subtype", doc.name("TrueType")), ("BaseFont", doc.name(name)),
             ("FirstChar", doc.int(32)), ("LastChar", doc.int(255)), ("Widths", doc.array(widths)),
-            ("Encoding", doc.name("WinAnsiEncoding")), ("FontDescriptor", descriptor),
+            ("Encoding", doc.name("WinAnsiEncoding")), ("FontDescriptor", d),
         ]))
-        let gids = Set(fontText.unicodeScalars.map { font.gid(Int($0.value)) }).sorted()
+    }
+
+    /// /FA and /FU (references), sharing one descriptor and font program.
+    private static func fonts(_ doc: MuDoc, _ fontText: String) -> (PObj, PObj) {
+        let font = ArialSubset.of(fontText)
+        let descriptor = descriptor(doc, font, "AAAAAA+ArialMT", flags: 32)
+        let fa = simpleFont(doc, font, "AAAAAA+ArialMT", flags: 32, descriptor: descriptor)
+        let gids = Set(fontText.unicodeScalars.map { font.gid(Int($0.value)) }).filter { $0 > 0 }.sorted()
         var w: [PObj] = []
         for g in gids {
             w.append(doc.int(g))
@@ -118,26 +142,44 @@ enum ContentEditPdf {
     }
 
     /// A string in the Unicode font /FU (glyph ids of the subset), as a hex string. (The Windows helper encodes it with
-    /// the font of a seed PDF; the subset here is the same for every PDF.)
-    static func cid(_ text: String) -> String {
-        let font = ArialSubset.shared
+    /// the font of a seed PDF; the subset here is the same for every PDF of the same `fontText`.)
+    static func cid(_ text: String, fontText: String = ContentEditPdf.fontText) -> String {
+        let font = ArialSubset.of(fontText)
         return "<" + text.unicodeScalars.map { String(format: "%04X", font.gid(Int($0.value))) }.joined() + ">"
     }
 }
 
-/// The system's Arial with every glyph but those of `ContentEditPdf.fontText` (and the glyphs they are built from)
-/// emptied, as PDFsharp writes its subsets: the glyph ids and the cmap stay, the outlines of unused glyphs go.
+/// The system's Arial (or another font of Supplemental) with every glyph but those of a text (and the glyphs they are
+/// built from) emptied, as PDFsharp writes its subsets: the glyph ids and the cmap stay, the outlines of unused glyphs go.
 final class ArialSubset: Sendable {
-    static let shared = ArialSubset()
+    static let shared = ArialSubset(ContentEditPdf.fontText, "Arial.ttf")
+
+    private final class Cache: @unchecked Sendable {
+        let lock = NSLock()
+        var made: [String: ArialSubset] = [:]
+    }
+
+    private static let cache = Cache()
+
+    /// The subset of `file` holding `text`, made once.
+    static func of(_ text: String, file: String = "Arial.ttf") -> ArialSubset {
+        let key = file + "\u{0}" + text
+        cache.lock.lock()
+        defer { cache.lock.unlock() }
+        if let hit = cache.made[key] { return hit }
+        let made = ArialSubset(text, file)
+        cache.made[key] = made
+        return made
+    }
 
     let bytes: [UInt8]
     private let program: TrueTypeProgram
 
-    private init() {
-        let path = "/System/Library/Fonts/Supplemental/Arial.ttf"
+    private init(_ text: String, _ file: String) {
+        let path = "/System/Library/Fonts/Supplemental/" + file
         let full = Array(try! Data(contentsOf: URL(fileURLWithPath: path)))
         let source = TrueTypeProgram.read(full)!
-        let keep = Set([0] + ContentEditPdf.fontText.unicodeScalars.map { source.lookupUnicode(Int($0.value)) })
+        let keep = Set([0] + text.unicodeScalars.map { source.lookupUnicode(Int($0.value)) })
         bytes = Self.subset(full, keep)
         program = TrueTypeProgram.read(bytes)!
     }

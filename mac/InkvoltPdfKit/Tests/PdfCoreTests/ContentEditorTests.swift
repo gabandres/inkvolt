@@ -193,15 +193,54 @@ struct ContentEditorTests {
         #expect(try ContentEditor.replaceText(pdf, nil, run(pdf, "Hello World"), "Hello World") == pdf)
     }
 
-    @Test func missingGlyphsAreRefusedByName() throws {
+    @Test func charactersTheFontLacksComeFromAStandInFont() throws {
+        // The subset has no "Z" or "b": they are drawn in the installed font closest to it (Arial itself), named in the check.
         let pdf = ContentEditPdf.make(Self.simple)
         let r = try run(pdf, "Hello World")
         let check = r.check("Hello Zebra")
-        #expect(check.missing == ["Z", "b"])
-        let e = try #require(editError { try ContentEditor.replaceText(pdf, nil, r, "Hello Zebra") })
-        #expect(e.missing == ["Z", "b"])
-        #expect(e.message.contains("“Z”"))
+        #expect(check.missing.isEmpty)
+        #expect(check.borrowed == ["Z", "b"])
+        #expect(check.standIns == ["Arial"])
+        #expect(check.width > 0)
+        let edited = try ContentEditor.replaceText(pdf, nil, r, "Hello Zebra")
+        let text = ContentEditPdf.text(edited)
+        #expect(text.contains("Hello Zebra"))
+        #expect(text.contains("draft"))
+        let after = try ContentEditor.read(edited, nil, 0)
+        #expect(after.paragraphs.first { $0.text.hasPrefix("Hello") }?.text == "Hello Zebra")
+        #expect(after.runs.contains { $0.text == "Z" && $0.fontName.lowercased().contains("arial") })
+        let first = try #require(after.runs.first { $0.text.hasPrefix("Hello") })
+        #expect(equal(r.box.x, first.box.x, 2))
+        #expect(ContentEditPdf.content(edited).contains("/InkFb1_"))
+        // A second edit of the run keeps the stand-in: the words after it stay where they were.
+        let draft = try run(edited, "draft")
+        let again = try ContentEditor.replaceText(edited, nil, first, "Hell ")
+        near(draft.box, try run(again, "draft").box)
+    }
+
+    @Test func charactersNoFontHereHasAreRefusedByName() throws {
+        let pdf = ContentEditPdf.make(Self.simple)
+        let r = try run(pdf, "Hello World")
+        let check = r.check("Hello \u{378}orld")
+        #expect(check.missing == ["\u{378}"])
+        let e = try #require(editError { try ContentEditor.replaceText(pdf, nil, r, "Hello \u{378}orld") })
+        #expect(e.missing == ["\u{378}"])
         #expect(e.message.contains("Arial"))
+        #expect(e.message.contains("this Mac"))
+    }
+
+    @Test func aQuoteOperatorWithStandInsStillMovesToItsLine() throws {
+        let pdf = ContentEditPdf.make("BT /FA 12 Tf 14 TL 72 700 Td (draft) Tj (Hello) ' 2 1 (World) \" ET")
+        let hello = try run(pdf, "Hello")
+        let world = try run(pdf, "World")
+        let edited = try ContentEditor.replaceText(pdf, nil, hello, "Zebra")
+        let after = try ContentEditor.read(edited, nil, 0)
+        #expect(ContentEditPdf.text(edited).replacingOccurrences(of: "\n", with: " ").contains("draft Zebra World"))
+        let z = try #require(after.runs.first { $0.text == "Z" })
+        #expect(equal(hello.box.y, z.box.y, 1))
+        #expect(equal(hello.box.x, z.box.x, 1))
+        #expect(equal(world.box.y, try run(edited, "World").box.y, 1))
+        #expect(equal(world.box.x, try run(edited, "World").box.x, 1))
     }
 
     @Test func type0IdentityHTextIsWrittenAsGlyphIds() throws {
@@ -212,8 +251,11 @@ struct ContentEditorTests {
         #expect(ContentEditPdf.text(edited).contains("Hold Wer, 2024!"))
         #expect(ContentEditPdf.content(edited).contains("<")) // still a hex string
 
-        let e = try #require(editError { try ContentEditor.replaceText(pdf, nil, r, "Hello Kim") })
-        #expect(e.missing == ["K", "i", "m"])
+        // "K", "i" and "m" aren't in the subset: a stand-in draws them, the rest stays in the font's own glyph ids.
+        let check = r.check("Hello Kim")
+        #expect(check.borrowed == ["K", "i", "m"])
+        let mixed = try ContentEditor.replaceText(pdf, nil, r, "Hello Kim")
+        #expect(ContentEditPdf.text(mixed).contains("Hello Kim"))
     }
 
     @Test func kerningOutsideTheEditIsKept() throws {
@@ -254,15 +296,28 @@ struct ContentEditorTests {
         #expect(try run(edited, "Hello World draft").text == "Hello World draft")
     }
 
-    @Test func textInAFormXObjectIsListedButNotEditable() throws {
+    @Test func aPdfTeXLinesWordSpacesKeepTheirMeasuredGapWhenEdited() throws {
+        // pdfTeX's font has no space glyph: its word spaces are TJ adjustments, and the one after a line's last word moves
+        // what follows. An edit's spaces are as wide as the line's own, 0.4 em, not the gap after it nor the 0.25 em default.
+        let pdf = ContentEditPdf.make("BT /FA 10 Tf 1 0 0 1 72 700 Tm [(quick) -400 (brown) -400 (fox) -120] TJ 1 0 0 1 72 680 Tm [(lazy) -400] TJ ET",
+                                      fontText: "quickbrownfoxlazy")
+        let runs = try ContentEditor.read(pdf, nil, 0).runs
+        #expect(runs.first { $0.text == "quick brown fox" }.map { equal(0.4, $0.gapEms, 3) } == true)
+        #expect(runs.first { $0.text == "lazy" }.map { equal(0.25, $0.gapEms, 3) } == true) // a one-word operator measures none
+        let edited = try ContentEditor.replaceText(pdf, nil, try run(pdf, "quick brown fox"), "quick fox brown")
+        #expect(try run(edited, "quick fox brown").text == "quick fox brown")
+        #expect(ContentEditPdf.content(edited).contains("-400"))
+    }
+
+    @Test func textInAFormXObjectIsListedWithItsOwnIdsAndEdited() throws {
         let pdf = ContentEditPdf.make("q /Fm1 Do Q BT /FA 12 Tf 72 600 Td (draft) Tj ET", form: "BT /FA 12 Tf 72 700 Td (Hello) Tj ET")
         let content = try ContentEditor.read(pdf, nil, 0)
         let inForm = try #require(content.runs.first { $0.text == "Hello" })
-        #expect(inForm.blocked?.contains("form XObject") == true)
+        #expect(inForm.blocked == nil)
         #expect(inForm.id < 0)
         #expect(content.runs.first { $0.text == "draft" }?.blocked == nil)
-        let e = try #require(editError { try ContentEditor.replaceText(pdf, nil, inForm, "Hell") })
-        #expect(e.message.contains("can't be edited"))
+        let edited = try ContentEditor.replaceText(pdf, nil, inForm, "Hell")
+        #expect(try ContentEditor.read(edited, nil, 0).runs.map(\.text) == ["Hell", "draft"])
     }
 
     @Test func severalContentStreamsAreReadAsOne() throws {
