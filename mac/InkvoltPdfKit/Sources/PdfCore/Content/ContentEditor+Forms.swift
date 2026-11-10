@@ -91,6 +91,8 @@ extension ContentEditor {
     static func formsDrawnOutsideContent(_ doc: MuDoc) -> Set<ObjId> {
         var found = Set<ObjId>()
         var walked = Set<ObjId>() // forms reached through Dos, looked into for their patterns
+        // Resources dictionaries looked at, in each mode: N forms sharing one that lists all N are looked through once.
+        var seenInside = Set<ObjId>(), seenOutside = Set<ObjId>()
         // Drawn outside the content: it and everything its resources draw.
         func drawn(_ f: PObj?, _ depth: Int) {
             guard let f, f.isStream, depth <= maxDepth, found.insert(f.id).inserted else { return }
@@ -100,6 +102,10 @@ extension ContentEditor {
         // content itself is), and their own patterns are looked at the same way.
         func look(_ r: PObj?, _ depth: Int, outside: Bool) {
             guard let r, r.isDict, depth <= maxDepth else { return }
+            if r.isRef {
+                let first = outside ? seenOutside.insert(r.id).inserted : seenInside.insert(r.id).inserted
+                if !first { return }
+            }
             if let xo = r.dict("XObject") {
                 for key in xo.keys {
                     guard let x = xo.dict(key), x.name("Subtype") == "Form" else { continue }
