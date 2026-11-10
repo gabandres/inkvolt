@@ -200,6 +200,9 @@ $priRoot = Join-Path $OutDir 'pri'
 Remove-Item $priRoot -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $priRoot | Out-Null
 Copy-Item $assets (Join-Path $priRoot 'Assets') -Recurse
+# The manifest's ms-resource: words (Inkvolt PDF's Explorer verb), one Resources.resw per language, when the app has them.
+$priStrings = Join-Path $appPackaging 'Strings'
+if (Test-Path $priStrings) { Copy-Item $priStrings (Join-Path $priRoot 'Strings') -Recurse }
 Set-Content (Join-Path $priRoot 'AppxManifest.xml') (New-Manifest $Architectures[0]) -Encoding utf8
 $priConfig = Join-Path $OutDir 'priconfig.xml'
 # The languages the manifest declares (<Resource Language="…" />; Inkvolt Print: en-us and es) are the PRI's default

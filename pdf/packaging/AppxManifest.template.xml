@@ -8,10 +8,11 @@
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap2="http://schemas.microsoft.com/appx/manifest/uap/windows10/2"
   xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap3 uap5 rescap">
+  IgnorableNamespaces="uap uap2 uap3 uap5 rescap">
 
   <Identity
     Name="{{IdentityName}}"
@@ -63,7 +64,9 @@
       </uap:VisualElements>
 
       <Extensions>
-        <!-- PDF gets the document icon; Explorer passes the file as the first argument, like install.ps1's "%1" -->
+        <!-- PDF gets the document icon; Explorer passes the file as the first argument, like install.ps1's "%1".
+             Its right-click "Convert to Word with Inkvolt PDF" is a declared verb (no code in Explorer: Store policy
+             10.2); each launch hands its file to the running copy (ConvertCommand). Its words: Strings\*\Resources.resw. -->
         <uap3:Extension Category="windows.fileTypeAssociation">
           <uap3:FileTypeAssociation Name="pdf" Parameters="&quot;%1&quot;">
             <uap:DisplayName>PDF Document</uap:DisplayName>
@@ -72,6 +75,9 @@
             <uap:SupportedFileTypes>
               <uap:FileType ContentType="application/pdf">.pdf</uap:FileType>
             </uap:SupportedFileTypes>
+            <uap2:SupportedVerbs>
+              <uap3:Verb Id="ConvertToWord" Parameters="--convert-to word &quot;%1&quot;" MultiSelectModel="Player">ms-resource:ConvertToWordVerb</uap3:Verb>
+            </uap2:SupportedVerbs>
           </uap3:FileTypeAssociation>
         </uap3:Extension>
         <uap3:Extension Category="windows.fileTypeAssociation">

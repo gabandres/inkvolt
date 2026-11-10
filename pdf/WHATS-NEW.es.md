@@ -5,6 +5,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 `docs/SPANISH-REVIEW.md`'s.
 
 ## Next
+- Haz clic derecho en un PDF en el Explorador de archivos y elige "Convertir a Word con Inkvolt PDF": el archivo de Word se guarda junto a él (sin reemplazar otro archivo), sin abrir el PDF. Selecciona varios PDF para convertirlos todos a la vez. En Windows 11 está en "Mostrar más opciones".
 
 ## 1.12.0
 - Una barra de comandos conocida: Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger y Escanear y OCR, donde los ponen Acrobat, Foxit y Nitro. Un clic hace lo principal de cada grupo; su flecha muestra lo demás, con una línea que dice qué hace cada cosa.
