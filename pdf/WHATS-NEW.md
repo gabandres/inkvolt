@@ -5,7 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
-- Right-click a PDF in File Explorer and choose "Convert to Word with Inkvolt PDF": the Word file is saved next to it (never over another file), without opening the PDF. Select several PDFs to convert them all at once. On Windows 11 it's under "Show more options".
+- Right-click a PDF in File Explorer and choose "Convert to Word with Inkvolt PDF": the Word file is saved next to it (never over another file), without opening the PDF. Select several PDFs to convert them all at once. On Windows 11 it's under "Show more options"; it shows when Inkvolt PDF is the app that opens your PDFs.
 
 ## 1.12.0
 - A familiar command bar: Edit, Convert, Comment, Fill & Sign, Organize, Protect and Scan & OCR, where Acrobat, Foxit and Nitro put them. One click runs each group's main job; its arrow shows the rest, with a line saying what each does.

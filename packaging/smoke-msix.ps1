@@ -109,6 +109,14 @@ try {
     if (-not (Test-Path $alias)) { throw "The package registered but its execution alias is missing: $alias" }
 
     if ($App -eq 'Pdf') {
+        # Explorer's "Convert to Word with Inkvolt PDF": the package's ProgId for .pdf carries the verb (Explorer shows it
+        # while Inkvolt PDF opens PDFs; the right-click itself is a person's check).
+        $verb = Get-ChildItem 'HKCU:\Software\Classes' -ErrorAction SilentlyContinue |
+            Where-Object { $_.PSChildName -like 'AppX*' -and (Test-Path "$($_.PSPath)\Shell\ConvertToWord") } |
+            Where-Object { "$((Get-ItemProperty "$($_.PSPath)\Shell\ConvertToWord").'(default)')" -like "*$($identity.Name)_*ConvertToWordVerb*" }
+        if (-not $verb) { $failures.Add('the package registered no Convert to Word verb on .pdf') }
+        else { Write-Host "Convert to Word verb registered on $($verb[0].PSChildName)" }
+
         $pdf = Join-Path $work 'sample.pdf'
         New-SamplePdf $pdf
         $page = Join-Path $work 'page.html'

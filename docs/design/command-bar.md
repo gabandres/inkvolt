@@ -155,7 +155,7 @@ Pending: the Mac (built 2026-11-09, below; for the owner to look at before it sh
 (branch `t3/4964c14e`, not merged): `--convert-to word <files…>` (`ConvertCommand`, `ConvertQueue`, `ExplorerConvert`),
 the one-click Convert › Word for each file, its notice in the open window, or a small window listing the files. A
 declared verb on `.pdf` (the package's `uap3:Verb`, `install.ps1`'s `SystemFileAssociations` key), not an
-`IExplorerCommand` DLL loaded into Explorer: so Windows 11 shows it under "Show more options", Windows 10 in the menu
+`IExplorerCommand` DLL loaded into Explorer: so Windows 11 shows it under "Show more options", Windows 10 in the menu, and the Store build shows it only while Inkvolt PDF is the default PDF app (checked on this PC: registered on the package's ProgId, not listed with PDF-XChange as the default)
 (Foxit's sits at the top of Windows 11's menu through such a DLL; that would be a native C++ project of its own). The Mac
 (a Finder Quick Action or Services item) isn't built.
 
