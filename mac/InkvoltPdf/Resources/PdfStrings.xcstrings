@@ -23078,6 +23078,292 @@
           }
         }
       }
+    },
+    "No font on this Mac has {0} character of this translation, so it was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna fuente de este Mac tiene {0} carácter de esta traducción, así que se omitió."
+          }
+        }
+      }
+    },
+    "No font on this Mac has {0} characters of this translation, so they were left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna fuente de este Mac tiene {0} caracteres de esta traducción, así que se omitieron."
+          }
+        }
+      }
+    },
+    "The endpoint sent something that can't be read as an answer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio envió algo que no se puede leer como respuesta."
+          }
+        }
+      }
+    },
+    "The endpoint's answers don't come to an end, so the translation stopped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las respuestas del servicio no terminan, así que la traducción se detuvo."
+          }
+        }
+      }
+    },
+    "This page's drawings draw each other too many times to be read in full.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los dibujos de esta página se dibujan unos a otros demasiadas veces para leerla entera."
+          }
+        }
+      }
+    },
+    "This paragraph isn't translated: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este párrafo no está traducido: {0}."
+          }
+        }
+      }
+    },
+    "This translated paragraph doesn't fit its box even at the smallest size: it may run over what follows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este párrafo traducido no cabe en su cuadro ni con el tamaño más pequeño: puede superponerse con lo que sigue."
+          }
+        }
+      }
+    },
+    "Translate with AI…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traducir con IA…"
+          }
+        }
+      }
+    },
+    "it got no answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no recibió respuesta"
+          }
+        }
+      }
+    },
+    "it is far too long to be one paragraph": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "es demasiado largo para ser un solo párrafo"
+          }
+        }
+      }
+    },
+    "it is inside a drawing that other pages share, drawn through another drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "está dentro de un dibujo que comparten otras páginas, dibujado a través de otro dibujo"
+          }
+        }
+      }
+    },
+    "it is invisible text (in a hidden layer)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "es texto invisible (en una capa oculta)"
+          }
+        }
+      }
+    },
+    "its answer came in several paragraphs for one": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta llegó en varios párrafos para uno"
+          }
+        }
+      }
+    },
+    "its answer didn't end in time": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta no terminó a tiempo"
+          }
+        }
+      }
+    },
+    "its answer has words in another script": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta tiene palabras en otro alfabeto"
+          }
+        }
+      }
+    },
+    "its answer never got past the model's reasoning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta no pasó del razonamiento del modelo"
+          }
+        }
+      }
+    },
+    "its answer was empty": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta estaba vacía"
+          }
+        }
+      }
+    },
+    "its answer was far longer than the text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta era mucho más larga que el texto"
+          }
+        }
+      }
+    },
+    "its answer was far shorter than the text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su respuesta era mucho más corta que el texto"
+          }
+        }
+      }
+    },
+    "its translation is far too long for any box": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su traducción es demasiado larga para cualquier cuadro"
+          }
+        }
+      }
+    },
+    "no font on this Mac can draw it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ninguna fuente de este Mac puede dibujarla"
+          }
+        }
+      }
+    },
+    "the endpoint didn't answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el servicio no respondió"
+          }
+        }
+      }
+    },
+    "the endpoint stopped answering first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el servicio dejó de responder antes"
+          }
+        }
+      }
+    },
+    "the endpoint's answer couldn't be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se pudo leer la respuesta del servicio"
+          }
+        }
+      }
+    },
+    "the model's answer was cut off by its length limit": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el límite de longitud del modelo cortó su respuesta"
+          }
+        }
+      }
+    },
+    "the translation was stopped first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la traducción se detuvo antes"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

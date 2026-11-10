@@ -458,6 +458,7 @@ public enum DocumentCommands {
             c("Summarize with AI…", "aiSummarize:", needs: [.pages, .aiIdle]),
             c("Ask AI about This Document", "aiAsk:", needs: [.pages]),
             c("Explain Selection with AI", "aiExplain:", needs: [.selectedText, .aiIdle]),
+            c("Translate with AI…", "aiTranslate:", needs: [.pages, .aiIdle]),
             sep,
             c("AI Assistant Settings…", "aiSettings:"),
         ])),

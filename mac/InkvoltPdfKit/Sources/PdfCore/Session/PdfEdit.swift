@@ -151,6 +151,13 @@ final class MuDoc {
     /// Every object in use was loaded (`loadAllObjects`): a write needn't walk them again.
     private var objectsLoaded = false
 
+    /// How much the pass before a compacting write may do (`unshareDirectObjects`); smaller in tests.
+    var unshareBudget = MuDoc.defaultUnshareBudget
+
+    /// The last write couldn't make every inline object single-parented within its budget, so it was written without
+    /// renumbering (correct, not compacted).
+    private(set) var lastWriteUncompacted = false
+
     /// Loads every object in use (in C: free numbers are skipped without a look, so a repaired cross-reference that runs to
     /// the largest number found costs nothing for the numbers between); how many are in use. `keepingThemIn`: each also
     /// listed under that trailer key, so a garbage-collecting write keeps them all. Throws when the walk failed partway.
@@ -167,6 +174,17 @@ final class MuDoc {
     /// garbage collection on silently drops it (a form's bookmarks and structure tree were lost).
     func write(_ options: String) throws -> [UInt8] {
         if !canAppend && !objectsLoaded { try loadAllObjects() }
+        // Compacting renumbers a direct container once for each place it is reached from (see `unshareDirectObjects`):
+        // when not every one could be given a single parent, the file is written without renumbering.
+        var options = options
+        lastWriteUncompacted = false
+        if options.contains("garbage=compact") || options.contains("garbage=deduplicate") {
+            if !unshareDirectObjects(budget: unshareBudget).complete {
+                lastWriteUncompacted = true
+                options = options.replacingOccurrences(of: "garbage=compact", with: "garbage=yes")
+                    .replacingOccurrences(of: "garbage=deduplicate", with: "garbage=yes")
+            }
+        }
         var out: UnsafeMutablePointer<UInt8>?
         var length = 0
         try check { err in inkv_write_pdf(ctx, doc, options, &out, &length, err) != 0 }

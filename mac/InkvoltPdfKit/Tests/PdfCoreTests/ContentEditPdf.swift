@@ -20,6 +20,14 @@ enum ContentEditPdf {
     static func make(_ content: String, rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
                      damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText, faces: Bool = false,
                      standard: String? = nil) -> [UInt8] {
+        make(pages: [content], rotate: rotate, form: form, extraStreams: extraStreams, formInherits: formInherits, damagedPart: damagedPart,
+             fontText: fontText, faces: faces, standard: standard)
+    }
+
+    /// `make` with a page for each of `pages`, sharing its resources (Translate's reports of many pages).
+    static func make(pages: [String], rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
+                     damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText, faces: Bool = false,
+                     standard: String? = nil) -> [UInt8] {
         let doc = try! MuDoc.create()
         let (fa, fu) = fonts(doc, fontText)
         let red = [UInt8](repeating: 0, count: 24).enumerated().map { $0.offset % 3 == 0 ? UInt8(255) : 0 }
@@ -42,20 +50,24 @@ enum ContentEditPdf {
             fontDict.set("FS", doc.add(doc.dict([("Type", doc.name("Font")), ("Subtype", doc.name("Type1")), ("BaseFont", doc.name(standard))])))
         }
         let resources = doc.dict([("Font", fontDict), ("XObject", xobjects)])
-        let contents: PObj
-        if let extraStreams {
-            contents = doc.array(([content] + extraStreams).map { doc.addStream(latin1Bytes($0), deflate: false) })
-            if damagedPart {
-                let bad: [UInt8] = [0x78, 0x9C, 0xFF, 0xFE, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
-                contents.append(doc.addStream(bad, dict: doc.dict([("Filter", doc.name("FlateDecode"))]), deflate: false))
+        // One resource dictionary for all the pages: shared by reference, as a generator writes it.
+        let shared = pages.count > 1 ? doc.add(resources) : resources
+        for (n, content) in pages.enumerated() {
+            let contents: PObj
+            if let extraStreams {
+                contents = doc.array(([content] + extraStreams).map { doc.addStream(latin1Bytes($0), deflate: false) })
+                if damagedPart {
+                    let bad: [UInt8] = [0x78, 0x9C, 0xFF, 0xFE, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+                    contents.append(doc.addStream(bad, dict: doc.dict([("Filter", doc.name("FlateDecode"))]), deflate: false))
+                }
+            } else {
+                contents = doc.addStream(latin1Bytes(content), deflate: true)
             }
-        } else {
-            contents = doc.addStream(latin1Bytes(content), deflate: true)
+            var page: [(String, PObj)] = [("Type", doc.name("Page")), ("MediaBox", doc.reals(0, 0, 612, 792)), ("Resources", shared),
+                                          ("Contents", contents)]
+            if rotate != 0 { page.append(("Rotate", doc.int(rotate))) }
+            doc.insertPage(doc.add(doc.dict(page)), at: n)
         }
-        var page: [(String, PObj)] = [("Type", doc.name("Page")), ("MediaBox", doc.reals(0, 0, 612, 792)), ("Resources", resources),
-                                      ("Contents", contents)]
-        if rotate != 0 { page.append(("Rotate", doc.int(rotate))) }
-        doc.insertPage(doc.add(doc.dict(page)), at: 0)
         try! doc.checkFailure()
         return try! doc.write("")
     }

@@ -558,7 +558,7 @@ extension DocumentWindowController {
         layerEngine = other
         layerVisibility = other == nil ? [:] : visibility
         pages.draw(with: other)
-        secondPages?.draw(with: other)
+        if besideOriginal == nil { secondPages?.draw(with: other) } // a translated copy's original has layers of its own
         sidebar.drawThumbnails(with: other)
         layersApplied += 1
     }

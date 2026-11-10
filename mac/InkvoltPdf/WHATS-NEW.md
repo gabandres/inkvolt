@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Translate with AI (Tools › AI Assistant): a translated copy of the pages you choose opens beside the document and scrolls with it. Each paragraph stays in its box, tables cell by cell, with its bold, italic and small raised or lowered text; links move with the words they mark. It uses the AI endpoint you set up (on this Mac or yours), shows exactly what is sent before anything is, and can be stopped any time, keeping what's done. The document isn't changed.
 - Edit Text & Images edits whole paragraphs: click a paragraph and type, and its text rewraps inside its box with its own font, alignment and line spacing. What follows stays put, and you're asked before longer text would run into it. The bar above the text gives a selection another font, size, color, bold or italic. A character the PDF's font lacks is drawn from the closest font on this Mac, and said.
 
 ## 1.10.0

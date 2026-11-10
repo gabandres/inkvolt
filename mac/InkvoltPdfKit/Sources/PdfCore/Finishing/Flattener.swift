@@ -227,7 +227,7 @@ public enum Flattener {
         if let res = page.dict("Resources") { return res }
         let res = doc.dict()
         if let inherited = PageBoxes.inherited(page, "Resources"), inherited.isDict {
-            for k in inherited.keys { res.set(k, inherited[k]) }
+            for k in inherited.keys { res.set(k, inherited[k].map { ContentEditor.ownCopy(doc, $0) }) } // its inline /Font, /ExtGState its own
         }
         page.set("Resources", res)
         return res

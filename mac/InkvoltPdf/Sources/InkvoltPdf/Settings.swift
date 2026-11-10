@@ -28,6 +28,7 @@ enum AppSettings {
         static let scanSkipBlank = "ScanSkipBlank"
         static let scanPresets = "ScanPresets"
         static let ocrLanguage = "OcrLanguage"
+        static let aiTranslateLanguage = "AiTranslateLanguage"
         static let ocrClean = "OcrClean"
         static let ocrSuspects = "OcrSuspects"
     }
@@ -111,6 +112,12 @@ enum AppSettings {
     static var ocrLanguage: String {
         get { defaults.string(forKey: Key.ocrLanguage) ?? "" }
         set { defaults.set(newValue, forKey: Key.ocrLanguage) }
+    }
+
+    /// The language Translate with AI last put a copy into ("Spanish" at first, as on Windows).
+    static var aiTranslateLanguage: String {
+        get { defaults.string(forKey: Key.aiTranslateLanguage) ?? "Spanish" }
+        set { defaults.set(newValue, forKey: Key.aiTranslateLanguage) }
     }
 
     static var ocrClean: Bool {
