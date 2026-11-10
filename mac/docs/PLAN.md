@@ -398,7 +398,8 @@ Ported since 1.0 with their steps (D5a-D5c, E1-E16): the rest of the list that s
 writers, `Signatures`, `Signing`, compare, `PdfA`, `Batch`, `Layers`, `Attachments`, `Conversion`, `Ai*` and the others).
 Not on the Mac yet (1.4's `CommentFiles`, `FormDataFiles`, `FormMerge` and `CommentSummary` came 2026-11-03, see 1.4 under Mac differences): the long-term validation code
 (3.4), `RedactionPatternSets`, `RedactionReport` and the scan search (1.1's 2026-11-01 additions), `CompareLooks`,
-`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5), Translate (3.1), paragraph editing (2.1).
+`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5), Translate (3.1). Paragraph editing (2.1)
+came 2026-11-10 (`ContentEditor+Paragraphs`, `+Looks`, `+Forms`, `+Turned`, `StandInFonts`, `ZapfDingbats`).
 
 ### Steps
 
@@ -444,6 +445,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests | Done (2026-11-06): MuPDF bounded through each call's cookie in `MuPDFShim` instead of a check process; see "A hostile file's time" below. 30 tests (42 cases), red first, with the code review's and the re-review's fixes. |
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests | Done (2026-11-07, on `ignia-mac`). PdfCore `FolderIndex/`: `IndexTerms`, `FolderIndex` (+ `FolderIndexSearch`), `FolderIndexer`, ported with their tests' names (75 tests): Windows' file layout and commit order, its search (terms narrow, Find confirms on the kept text), its limits; the app's `FolderSearch.swift` (`FolderSearches`, the window) and `FolderSearchTest` (`--only-folder-search`). Pro: `ProFeature.folderSearch` (the gate stays off). See "Indexed folder search" below for what differs. |
 | 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) | Done (2026-11-07, on `ignia-mac`). PdfCore `Compare/`: `CompareLooks` (`WordLook`, `LookChange`, `PageLooks`, `ComparePage`, `CompareSource`), `CompareMoves` and `CompareRunningLines`, `CompareScan`, `CompareAlign` and `VisualAreas`, `DocumentCompare` on each side's `CompareSource`, `VisualCompare`'s slack and `overlayScans`, `CompareReport`'s moves, formatting and visual areas; `PdfEngine.comparePage` (the shim's `inkv_compare_page`); `ProFeature.compareOfficeAndScans` (the gate stays off). The app's `Compare.swift`: Office files (LibreOffice) and pictures on either side, scans recognized with Vision (Compare Without Reading Them), the kinds' boxes, the visual check of pages with text and of scans lined up, the annotated copy with what looks different; `CompareTest` adds a word set in bold and a scanned page (`--only-compare`). 49 tests added in the 3 suites (and comparePage in a page check); on `ignia-mac` InkvoltPdfKit's 1,422 tests pass, warnings as errors with the 150 ms flag, the release app built the same way, `--edit --synthetic --only-compare` 13 checks pass (Vision read the scan); check-int clean; the PC's string tests green. See "Compare: Office files, scans and formatting" below for what differs. |
+| 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests | Done (2026-11-10, on `ignia-mac`). PdfCore `Content/`: `ContentEditor+Paragraphs` (`TextParagraph`, `ParagraphCheck`, `groupParagraphs`, `layOut`, `replaceParagraph`), `+Looks` (`TextLook`, `TextSpan`, the /InkvoltLook tag, `carry`), `+Forms`, `+Turned`, `ZapfDingbats`; `Text/StandInFonts`; the walk, `plan` and `TextFont` brought up to Windows' (forms editable, kerning pairs, fill operators, Symbol and ZapfDingbats not embedded). 105 tests in the three suites; pdf.js and the corpus check pass. The app's `ParagraphEditor.swift` and `ParagraphEditTest` (`--only-paragraph-edit`, 19/19 en and es). See "Paragraph editing" below for what differs. |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) | Done (2026-11-09, branch `t3/b9736669`): see "Command bar" below |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
@@ -480,7 +482,7 @@ signed format) unlocks Pro on both, and a business licence covers both.
 | Bookmarks, organize pages, page edits, new PDFs from images | D3 and D7 (the sidebar's thumbnails dragged and PDFs dropped on them, Reverse Page Order, Extract Pages' choices and Split Document: 2026-11-03) |
 | Comments, draw, stamps, images, links | D4 |
 | Forms and Fill & Sign | D5 (saved signatures kept between launches: 2026-11-03) |
-| Edit Text & Images | D5a |
+| Edit Text & Images | D5a; paragraphs, stand-in fonts, looks, text in form XObjects and turned text (roadmap 2.1) on 2026-11-10 |
 | Recognize Text (OCR) | D5b (Vision) |
 | Export to Word, Excel or text | D5c |
 | Reload, recovery copies, password protection | D2 and D7 (File › Document Properties…: 2026-11-03) |
@@ -1686,6 +1688,59 @@ Shots for the owner: `docs/design/mac/`.
 - **Reserved names, one rule.** `ReservedFileNames` (PrintCore) is Windows' `DeviceNames.IsReserved` (shared/InkvoltPrint.Core):
   COM0–9, LPT0–9, COM¹ COM² COM³ LPT¹ LPT² LPT³, CONIN$, CONOUT$, trailing dots and spaces trimmed, cut at a colon, its
   tests' cases ported; Batch's names (`BatchNames`), Inkvolt Print's (`FileNameTemplate`) and `ExportTarget` use it.
+
+### Paragraph editing (roadmap 2.1, 2026-11-10)
+
+Windows' `ContentEditor` (Paragraphs, ParagraphLooks, Forms, Turned, `StandInFonts`, the one-run editor's stand-ins and
+kerning) in PdfCore, its tests first under their names: `ParagraphEditTests` (+Looks, holding Windows' .Lines; +Mixed;
++Forms, holding .Turned; +PdfJs), `ContentEditorTests`' one-run cases as Windows has them now (stand-in characters, a quote
+operator with stand-ins, pdfTeX's measured gaps, text in a form XObject edited, so the Mac's "listed but not editable"
+case went), `ContentEditFontTests`' three checks that now borrow instead of refusing. 105 tests in the three suites on
+`ignia-mac`; `editedParagraphsReadTheSameInPdfJs` (opt-in `INKVOLTPDF_PDFJS=1`, `pdf/tools/pdfjs-check` up from the test
+file, `npm ci` there when needed) and `corpusParagraphsTakeTwentyMoreWords` (`INKVOLTPDF_CORPUS=/tmp/inkvolt-export-corpus`,
+the export corpus's PDFs copied there from the PC's `.cache`) pass: pdf.js reads every sample (left, right, center,
+justified, a form, 90° and 30°, stand-ins, and a Mac case with looks) and 15 corpus pages in order; 4 pages had no room
+for even one word, 1 no editable paragraph.
+
+The app: with Edit Text & Images on, a paragraph rewritten as one (several lines, or a line drawn in pieces) is outlined
+faintly, and a click on its text, or between its lines, opens the paragraph editor (`ParagraphEditor.swift`): a popover
+over it with a rich text view of its text, the look bar (font, A− and A+, B, I, the paragraph's own color and Windows'
+six), the live note (lines as before or was N, running into what follows, characters drawn from fonts on this Mac, the
+faces the looks are drawn in) and Cancel and Apply. Return applies, Shift-Return or Option-Return starts a new line, Esc
+cancels; typing and looks have their own undo inside the editor (the document's undo manager takes document edits only:
+a text view registering in it crashed). Apply refuses a look over a special ink or a character no font has with a
+notice, asks first when the text runs into what follows ("Change Anyway"), writes one undo step ("Edit paragraph") and
+says which characters came from fonts on this Mac. Other text keeps the one-run editor, which now names its stand-ins.
+Self-test `ParagraphEditTest` (`--only-paragraph-edit`, and in `--edit` after `FormFillTest`): a page it makes, a click on
+the second line (20 words, rewrapped in the box, the line below where it was, undo and redo), the editor's look bar
+(bold, red, two points larger) and its note, then Apply (the looks read back as spans), the overlap declined and then
+confirmed, "→" drawn from Arial and read by MuPDF as typed. 19/19 in en and es.
+
+- **Stand-in fonts are Type 3 fonts.** Windows embeds a HarfBuzz subset of a TrueType file (`CidFontWriter`); macOS's
+  fonts are often collections or CFF, so the Mac writes Core Text's outlines as Type 3 fonts (`Type3FontWriter`, as its
+  annotations' text already is). For a paragraph edit each also gets /Name (`/InkFbN_…`, so `TextFont` reads it as a
+  stand-in and doesn't block its text as "a Type 3 font"), /BaseFont by family and style ("Arial,Bold", read back as
+  "Arial Bold"; Windows' name says the file, "arialbd") and a /FontDescriptor (ascent, descent, bold and italic flags),
+  so an edited paragraph reads back as one with its stand-ins and looks. pdf.js and MuPDF read them as typed.
+- **The families.** `StandInFonts` ranks the families macOS ships: Arial (Helvetica's metrics), Helvetica Neue, Verdana,
+  Tahoma, Trebuchet MS, Gill Sans, Times New Roman, Georgia, Palatino, Baskerville, Hoefler Text, Courier New, Menlo,
+  Andale Mono, each face found through Core Text by family and traits; Windows' Segoe UI, Calibri, Cambria, Constantia,
+  Consolas, Palatino Linotype and Lucida Console are aliases of the nearest or not there. Characters none has come from
+  Core Text's fallback for the character, never the LastResort font. The look bar lists every family Core Text lists
+  (`lookFonts`: CFF and collection fonts work here, where Windows lists TrueType files only); a family named like a face
+  ("Arial Rounded MT Bold") is a family of its own on the Mac.
+- **ZapfDingbats and Symbol not embedded.** macOS has both fonts: ZapfDingbats is measured with
+  /System/Library/Fonts/ZapfDingbats.ttf (its built-in encoding from Unicode's mapping of the Dingbats block, the glyph
+  names and widths from the font; Windows reads Adobe's AFM and glyph list, which the Mac doesn't copy), Symbol with
+  macOS's Symbol.ttf by its glyph names' characters (Adobe's widths, rounded; the euro 750 as on Windows).
+- **The editor is a popover, at a readable size.** Windows lays a rich text box over the paragraph at the page's zoom; the
+  Mac's editor is a popover anchored on the paragraph showing its text at 14 points (other sizes in proportion), in its
+  family when this Mac has it.
+- **Not ported:** the walk's hidden-layer blocking, clips and paints, and the Translate parts (columns, fit), which come
+  with 3.1.
+- **For a person to check on screen:** the editor's popover over a paragraph at several zooms and in dark mode; the look
+  bar's swatches; VoiceOver reading the editor, its bar and its note; an edited paragraph in Preview and Acrobat (pdf.js
+  and MuPDF are checked by the tests).
 
 ## Open decisions
 

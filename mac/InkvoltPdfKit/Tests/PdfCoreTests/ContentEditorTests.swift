@@ -3,7 +3,8 @@ import Testing
 @testable import PdfCore
 
 /// Ported from ContentEditorTests.cs (Edit Text & Images): the lexer, reading runs and pictures, editing text in the
-/// page's own fonts, moving, resizing, replacing and deleting pictures, and the regressions of the first version; all 34
+/// page's own fonts (characters they lack from a stand-in font, roadmap 2.1), text in form XObjects, moving, resizing,
+/// replacing and deleting pictures, and the regressions of the first version; all 37
 /// cases (the theory's rows as arguments). Adapted: the fonts are the hand-made Arial subsets of `ContentEditPdf` (PDFsharp
 /// draws them on Windows), so `cid` needs no seed PDF; where .NET reads PDFsharp objects the check reads the same entries
 /// through `PObj`; MovingAPictureRewritesOnlyItsPlacement checks where MuPDF draws the picture by its pixels (the
