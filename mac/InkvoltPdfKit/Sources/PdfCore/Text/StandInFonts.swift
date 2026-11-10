@@ -246,12 +246,21 @@ enum StandInFonts {
         return nil
     }
 
-    /// A character that draws nothing: white space, a format character (U+200B-U+200D, U+2060, U+FEFF…), a variation
-    /// selector or another default-ignorable one. Its glyph is empty in any font, so it needs no outline.
+    /// The characters that draw nothing, named one by one (not every format character: Arabic's number signs U+0600-0605
+    /// and end of ayah U+06DD, Syriac's abbreviation mark U+070F, U+08E2 and Kaithi's number sign U+110BD show): the soft
+    /// hyphen, the combining grapheme joiner, the Arabic letter mark, Mongolian's variation selectors and vowel separator,
+    /// the zero-width space, joiners and direction marks, the bidi embeddings, overrides and isolates, the word joiner and
+    /// invisible operators, the byte order mark, the variation selectors, the tag characters.
+    private static let invisible: [ClosedRange<UInt32>] = [
+        0xAD...0xAD, 0x34F...0x34F, 0x61C...0x61C, 0x180B...0x180F, 0x200B...0x200F, 0x202A...0x202E, 0x2060...0x2064,
+        0x2066...0x206F, 0xFE00...0xFE0F, 0xFEFF...0xFEFF, 0xE0001...0xE0001, 0xE0020...0xE007F, 0xE0100...0xE01EF,
+    ]
+
+    /// A character that draws nothing: white space, or one of `invisible`. Its glyph is empty in any font, so it needs no
+    /// outline.
     static func inkless(_ codePoint: UInt32) -> Bool {
         guard let s = Unicode.Scalar(codePoint) else { return false }
-        let p = s.properties
-        return p.isWhitespace || p.isDefaultIgnorableCodePoint || p.isVariationSelector || p.generalCategory == .format
+        return s.properties.isWhitespace || invisible.contains { $0.contains(codePoint) }
     }
 
     /// Whether a text element is only characters with no ink.
