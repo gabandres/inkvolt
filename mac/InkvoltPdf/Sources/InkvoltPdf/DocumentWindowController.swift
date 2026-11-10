@@ -88,6 +88,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var secondPages: PagesView?
     var secondScroll: NSScrollView?
     var secondBox: NSView?
+    /// A translated copy's original, shown in the second pane on the left and scrolling with this one (`showBeside`);
+    /// nil when the second pane shows this document.
+    var besideOriginal: PdfEngine?
+    var besideSyncing = false
     var splitMode: SplitMode = .none
     var secondActive = false
 
@@ -311,7 +315,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         form.reload()
         content.invalidate()
         pages.reload(engine: engine)
-        secondPages?.reload(engine: engine)
+        if besideOriginal == nil { secondPages?.reload(engine: engine) }
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
@@ -1040,6 +1044,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
+        followBeside(fromSecond: false)
         updateSubtitle()
         sidebar.showCurrent(activePages.currentPage)
         readingOrder.currentPageChanged()

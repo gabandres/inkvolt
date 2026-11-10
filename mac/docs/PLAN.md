@@ -398,8 +398,9 @@ Ported since 1.0 with their steps (D5a-D5c, E1-E16): the rest of the list that s
 writers, `Signatures`, `Signing`, compare, `PdfA`, `Batch`, `Layers`, `Attachments`, `Conversion`, `Ai*` and the others).
 Not on the Mac yet (1.4's `CommentFiles`, `FormDataFiles`, `FormMerge` and `CommentSummary` came 2026-11-03, see 1.4 under Mac differences): the long-term validation code
 (3.4), `RedactionPatternSets`, `RedactionReport` and the scan search (1.1's 2026-11-01 additions), `CompareLooks`,
-`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5), Translate (3.1). Paragraph editing (2.1)
-came 2026-11-10 (`ContentEditor+Paragraphs`, `+Looks`, `+Forms`, `+Turned`, `StandInFonts`, `ZapfDingbats`).
+`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5). Paragraph editing (2.1)
+came 2026-11-10 (`ContentEditor+Paragraphs`, `+Looks`, `+Forms`, `+Turned`, `StandInFonts`, `ZapfDingbats`), and Translate
+(3.1) the same day (`Translate/`, `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`, `+TranslateLooks`).
 
 ### Steps
 
@@ -446,6 +447,7 @@ As for Print: each step ports the module's .NET tests first, under the same name
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests | Done (2026-11-07, on `ignia-mac`). PdfCore `FolderIndex/`: `IndexTerms`, `FolderIndex` (+ `FolderIndexSearch`), `FolderIndexer`, ported with their tests' names (75 tests): Windows' file layout and commit order, its search (terms narrow, Find confirms on the kept text), its limits; the app's `FolderSearch.swift` (`FolderSearches`, the window) and `FolderSearchTest` (`--only-folder-search`). Pro: `ProFeature.folderSearch` (the gate stays off). See "Indexed folder search" below for what differs. |
 | 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) | Done (2026-11-07, on `ignia-mac`). PdfCore `Compare/`: `CompareLooks` (`WordLook`, `LookChange`, `PageLooks`, `ComparePage`, `CompareSource`), `CompareMoves` and `CompareRunningLines`, `CompareScan`, `CompareAlign` and `VisualAreas`, `DocumentCompare` on each side's `CompareSource`, `VisualCompare`'s slack and `overlayScans`, `CompareReport`'s moves, formatting and visual areas; `PdfEngine.comparePage` (the shim's `inkv_compare_page`); `ProFeature.compareOfficeAndScans` (the gate stays off). The app's `Compare.swift`: Office files (LibreOffice) and pictures on either side, scans recognized with Vision (Compare Without Reading Them), the kinds' boxes, the visual check of pages with text and of scans lined up, the annotated copy with what looks different; `CompareTest` adds a word set in bold and a scanned page (`--only-compare`). 49 tests added in the 3 suites (and comparePage in a page check); on `ignia-mac` InkvoltPdfKit's 1,422 tests pass, warnings as errors with the 150 ms flag, the release app built the same way, `--edit --synthetic --only-compare` 13 checks pass (Vision read the scan); check-int clean; the PC's string tests green. See "Compare: Office files, scans and formatting" below for what differs. |
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests | Done (2026-11-10, on `ignia-mac`). PdfCore `Content/`: `ContentEditor+Paragraphs` (`TextParagraph`, `ParagraphCheck`, `groupParagraphs`, `layOut`, `replaceParagraph`), `+Looks` (`TextLook`, `TextSpan`, the /InkvoltLook tag, `carry`), `+Forms`, `+Turned`, `ZapfDingbats`; `Text/StandInFonts`; the walk, `plan` and `TextFont` brought up to Windows' (forms editable, kerning pairs, fill operators, Symbol and ZapfDingbats not embedded). 105 tests in the three suites; pdf.js and the corpus check pass. The app's `ParagraphEditor.swift` and `ParagraphEditTest` (`--only-paragraph-edit`, 19/19 en and es). See "Paragraph editing" below for what differs. |
+| 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests | Done (2026-11-10, on `ignia-mac`). PdfCore `Translate/` and `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`, `+TranslateLooks`; the walk's clips, fills, paints, hidden layers and columns. 173 tests; self-test `TranslateTest` (`--only-translate`). Mac differences: Translate side by side, below |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) | Done (2026-11-09, branch `t3/b9736669`): see "Command bar" below |
 
 **Small fixes after the E-steps (HANDOFF's ranked list, item 1).** 2026-11-02: `main.swift` sets `Pro.store` before the
@@ -1736,11 +1738,65 @@ confirmed, "→" drawn from Arial and read by MuPDF as typed. 19/19 in en and es
 - **The editor is a popover, at a readable size.** Windows lays a rich text box over the paragraph at the page's zoom; the
   Mac's editor is a popover anchored on the paragraph showing its text at 14 points (other sizes in proportion), in its
   family when this Mac has it.
-- **Not ported:** the walk's hidden-layer blocking, clips and paints, and the Translate parts (columns, fit), which come
-  with 3.1.
+- **Ported with 3.1 (2026-11-10):** the walk's hidden-layer blocking, clips and paints, and the Translate parts (columns,
+  fit): see Translate side by side.
 - **For a person to check on screen:** the editor's popover over a paragraph at several zooms and in dark mode; the look
   bar's swatches; VoiceOver reading the editor, its bar and its note; an edited paragraph in Preview and Acrobat (pdf.js
   and MuPDF are checked by the tests).
+
+### Translate side by side (roadmap 3.1, 2026-11-10)
+
+Windows' Translate in PdfCore, its tests first under their names (camel-cased, as the Mac's are): `TranslationReplyTests`,
+`TranslationRunTests`, the markup half of `TranslationLooksTests` and `TranslationMarkupHostileTests`
+(`TranslationMarkupTests.swift`), the page half of `TranslationLooksTests`, and `TranslationCopyTests` with its crafted
+files, the roadmap's 100-page report and `TranslationLinkTimingTests` (`TranslationCopyTests`, `TranslationCopyMoreTests`,
+`TranslationHostileTests`): 173 tests, green on `ignia-mac`; the full PdfCore run (1,799) has no other failure.
+`Translate/`: `TranslationText` (`hasWords`, the prompts, `cleanReply`, `ReplyGuard`, `slipsIntoAnotherScript`),
+`TranslationMarkup`, `TranslationRun` (`Translation.translate`, `jobs`, `requests`, `copyName`), `TranslationCopy`
+(`makePlan`, `apply`, `cellsOfTable`); `Content/`: `ContentEditor+Translate` (slots, columns inside one operator, marks
+and bullets, `room`, `fitText`, one size per column, right to left, `fitLines`, `TranslationWriter`, `translatePage`),
+`+TranslateTurned` (`TranslationFrame`, `turnedParts`), `+TranslateLinks` (`follow`, `linksOfWritten`, `fixLinks`),
+`+TranslateLooks` (`translationLook`, `lineBaseline`). The content walk now follows what Windows' does for a translated
+copy: clips (one rectangle, a form's /BBox), the rectangles the page fills and everything it paints, hidden layers (text
+in one is never sent nor rewritten, nor edited), the line width, and an operator's columns (`RunInfo.column`, `columns`,
+`start`). `TextParagraph`'s grouping and `layOut` take Windows' `translating` and `fit`; `MixedText` its `oneFace`.
+
+The app (`Translate.swift`): Tools › AI Assistant › Translate with AI… asks into what (a list of Windows' 31 languages,
+or one typed) and which pages, reads the paragraphs with progress, shows the "what is sent, where" window
+(`AiConfirmSheet`), sends them one by one through the user's endpoint with progress, time left and Cancel, offers to keep
+what was done when stopped or refused, writes the copy and opens it in a window of its own with the original in the
+second pane on the left (`showBeside`, read only), each scrolling and zooming the other; the summary (counts and pages
+only) as on Windows. Self-test `TranslateTest` (`--only-translate`, and in `--edit` after `ParagraphEditTest`): two pages
+made here and a stand-in translator on loopback (`AiLoopbackServer`, no network): off by default and nothing sent; the
+window before anything goes; one request per paragraph holding the instructions and the paragraph only, a bold word as
+markup; the copy beside its original, translated, its bold word bold, no tag on the page, /Lang es; the panes scrolling
+together; a refused key stopping the run, the part kept on request.
+
+- **Run ids aren't unique once an operator draws columns.** The Mac's walk tells runs apart by operator id; a translated
+  copy's walk makes a run of each column one operator draws, so each run also has a `key` (its place among the page's
+  runs), which the translation code uses where Windows compares records by reference.
+- **A shared /Resources copied for one page now shares nothing with the original** (`ContentEditor.ownCopy`). Found by
+  the 100-page report: pages sharing one /Resources by reference, with its /Font dictionary direct inside, each got a
+  copy for its new fonts that shared that direct dictionary; MuPDF's compacting save renumbered it once through each copy,
+  and every page's fonts pointed at other objects (all text read as U+FFFD). The paragraph editor had the same path for a
+  one-page edit (`aPageEditedInAFileWhosePagesShareResourcesKeepsEveryPagesFonts`).
+- **One copy of each stand-in font.** `TranslationWriter.finish` adds each Type 3 font once and has every page refer to it
+  (Windows embeds one CID font per face); a 20-page report holds at most a dozen font objects.
+- **No open-password step.** Windows refuses an AES-256 file opened with its permissions password alone, since PDFsharp
+  can't keep its protection without the open password; MuPDF keeps the encryption as it was (`KeptProtection`), so the
+  Mac's `makePlan` doesn't ask for it.
+- **Timing limits.** Windows' release-build limits of the markup and link tests (750 ms to 1.5 s of processor time) are
+  2 to 6 s here: `swift test` builds for debug, and the full parallel run adds to processor time. A quadratic case takes
+  hours either way. The run tests' endless body yields instead of sleeping (a sleep's wake-up came minutes late in the
+  full run).
+- **The test fixtures are written by hand.** Windows draws its report with PDFsharp; `TranslationPdf.report` writes the
+  same report (white bands under each line, a ruled table, a figure, a footer) in `ContentEditPdf`'s subsets of Arial,
+  Arial Bold and Times New Roman (printable ASCII), its pages sharing one /Resources by reference.
+- **Fonts on this Mac.** Stand-ins are the families macOS ships (see paragraph editing); a translation's letters the page's
+  fonts lack are drawn in one of them, `Arial` and `Arial Bold` in the looks test as on Windows.
+- **For a person to check on screen:** the Translate dialog and its progress sheets; the copy's window with the original on
+  the left at several zooms; VoiceOver on the dialog; a translated copy in Preview and Acrobat; a run against a real model
+  (Ollama or LM Studio on this Mac): the tests and the self-test use stand-ins only.
 
 ## Open decisions
 

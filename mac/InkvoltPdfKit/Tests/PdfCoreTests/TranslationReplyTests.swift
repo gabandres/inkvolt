@@ -159,7 +159,9 @@ final class EndlessBody: AiBody, @unchecked Sendable {
     }
 
     func read(_ cancel: CancelToken) async throws -> [UInt8]? {
-        try await Task.sleep(nanoseconds: 1_000_000)
+        // A yield, not a sleep: in a full run the other suites keep the cooperative pool busy, and a sleep's wake-up came
+        // minutes late.
+        await Task.yield()
         try cancel.check()
         onChunk?()
         return keepAlive ? Self.ping : Self.piece

@@ -146,17 +146,58 @@ extension DocumentWindowController {
         pages.requestVisible()
     }
 
-    private func openSecondPane() {
-        let second = PagesView(engine: engine)
+    /// A translated copy (this document) with its original beside it (roadmap 3.1, the Windows `ShowBeside`): the original
+    /// in the second pane, on the left, read only, at this pane's zoom; each pane scrolls and zooms the other. Closing the
+    /// split (its ×, or Remove Split) closes the original.
+    func showBeside(_ original: PdfEngine, name: String) {
+        if secondPages != nil { setSplit(.none) }
+        besideOriginal = original
+        openSecondPane(engine: original, label: loc("{0}, the original", name))
+        // On the left: the second pane comes first in the split.
+        if let box = secondBox, paneSplit.subviews.count == 2, paneSplit.subviews[0] !== box {
+            box.removeFromSuperview()
+            paneSplit.addSubview(box, positioned: .below, relativeTo: paneSplit.subviews.first)
+        }
+        splitMode = .sideBySide
+        paneSplit.isVertical = true
+        paneSplit.evenHalves()
+        secondScroll?.magnification = scrollView.magnification
+        secondPages?.layoutSubtreeIfNeeded()
+        followBeside(fromSecond: false)
+        updatePaneFrames()
+        updateSubtitle()
+        secondPages?.requestVisible()
+        pages.requestVisible()
+    }
+
+    /// The other pane of a copy and its original to where this one is: the same place down the same page, the same zoom.
+    func followBeside(fromSecond: Bool) {
+        guard besideOriginal != nil, !besideSyncing, let second = secondPages, let secondScroll else { return }
+        besideSyncing = true
+        defer { besideSyncing = false }
+        let (fromView, fromScroll, toView, toScroll) = fromSecond ? (second, secondScroll, pages, scrollView) : (pages, scrollView, second, secondScroll)
+        if abs(toScroll.magnification - fromScroll.magnification) > 0.001 { toScroll.magnification = fromScroll.magnification }
+        let top = Double(fromScroll.contentView.bounds.minY)
+        let page = fromView.pageRects.lastIndex { Double($0.minY) <= top } ?? 0
+        guard page < fromView.pageRects.count, page < toView.pageRects.count else { return }
+        let from = fromView.pageRects[page], to = toView.pageRects[page]
+        let down: Double = from.height > 0 ? (top - Double(from.minY)) / Double(from.height) : 0
+        toView.scrollTo(y: Double(to.minY) + down * Double(to.height))
+    }
+
+    private func openSecondPane() { openSecondPane(engine: engine, label: loc("Pages, second pane")) }
+
+    private func openSecondPane(engine shown: PdfEngine, label: String) {
+        let second = PagesView(engine: shown)
         second.setViewRotation(pages.viewRotation) // starts turned and laid out as the main pane; its own after
         second.setReadingMode(pages.readingMode)
         second.readingOnly = true
         second.host = self
         second.tool = .text
-        second.setAccessibilityLabel(loc("Pages, second pane"))
+        second.setAccessibilityLabel(label)
         second.onActivate = { [weak self] in self?.activatePane(second: true) }
         second.onWritingTool = { [weak self] tool in self?.pickTool(tool) }
-        if let layerEngine { second.draw(with: layerEngine) }
+        if let layerEngine, shown === engine { second.draw(with: layerEngine) }
         second.matches = pages.matches
         second.currentMatch = pages.currentMatch
 
@@ -201,6 +242,8 @@ extension DocumentWindowController {
 
     private func closeSecondPane() {
         guard let box = secondBox else { return }
+        besideOriginal?.close()
+        besideOriginal = nil
         if let scroll = secondScroll {
             NotificationCenter.default.removeObserver(self, name: NSView.boundsDidChangeNotification, object: scroll.contentView)
             NotificationCenter.default.removeObserver(self, name: NSScrollView.didEndLiveMagnifyNotification, object: scroll)
@@ -215,6 +258,7 @@ extension DocumentWindowController {
     }
 
     @objc private func secondScrolled() {
+        followBeside(fromSecond: true)
         if secondActive { scrolled() }
         if let second = secondPages { window?.invalidateCursorRects(for: second) }
     }

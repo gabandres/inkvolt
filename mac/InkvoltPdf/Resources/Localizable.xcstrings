@@ -20372,6 +20372,688 @@
           }
         }
       }
+    },
+    " About a minute left.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Queda aproximadamente un minuto."
+          }
+        }
+      }
+    },
+    " About {0} minutes left.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Quedan aproximadamente {0} minutos."
+          }
+        }
+      }
+    },
+    " {0} without a usable answer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " {0} sin una respuesta utilizable."
+          }
+        }
+      }
+    },
+    "1 comment in the copy marks what to look at (the Comments pane lists them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 comentario en la copia marca lo que hay que revisar (el panel Comentarios los muestra)."
+          }
+        }
+      }
+    },
+    "1 doesn't fit even at the smallest size ({0}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 no cabe ni con el tamaño más pequeño ({0})."
+          }
+        }
+      }
+    },
+    "1 paragraph in {0}, 1 in smaller type to stay in its box.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 párrafo en {0}, 1 con letra más pequeña para caber en su cuadro."
+          }
+        }
+      }
+    },
+    "1 paragraph in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 párrafo en {0}."
+          }
+        }
+      }
+    },
+    "1 paragraph stays in the original language ({0}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 párrafo queda en el idioma original ({0})."
+          }
+        }
+      }
+    },
+    "AI-generated: check it against the original. Comments, form fields, bookmarks and text inside pictures aren't translated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Generado por IA: compáralo con el original. Los comentarios, los campos de formulario, los marcadores y el texto dentro de las imágenes no se traducen."
+          }
+        }
+      }
+    },
+    "Choose a language to translate into.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un idioma al que traducir."
+          }
+        }
+      }
+    },
+    "Into": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A"
+          }
+        }
+      }
+    },
+    "Keep what was translated?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Conservar lo traducido?"
+          }
+        }
+      }
+    },
+    "Make the copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hacer la copia"
+          }
+        }
+      }
+    },
+    "Makes a translated copy that opens beside this document and scrolls with it. This document isn't changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crea una copia traducida que se abre junto a este documento y se desplaza con él. Este documento no se cambia."
+          }
+        }
+      }
+    },
+    "Next shows exactly what will be sent before anything is. A long document goes one paragraph at a time, and a local model can take a while: you can stop whenever you like and keep what's done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Siguiente muestra exactamente lo que se enviará antes de enviar nada. Un documento largo va un párrafo a la vez, y un modelo local puede tardar: puedes detenerlo cuando quieras y conservar lo hecho."
+          }
+        }
+      }
+    },
+    "No answer could be used: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo usar ninguna respuesta: {0}."
+          }
+        }
+      }
+    },
+    "Not translated: turned text on {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin traducir: texto girado en {0}."
+          }
+        }
+      }
+    },
+    "Not translated: {0}, scanned (the words are part of a picture).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin traducir: {0}, escaneadas (las palabras son parte de una imagen)."
+          }
+        }
+      }
+    },
+    "Not translated: {0}, which couldn't be read or rewritten.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin traducir: {0}, que no se pudieron leer ni reescribir."
+          }
+        }
+      }
+    },
+    "Not translated: {0}, with too many pieces of text to work out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin traducir: {0}, con demasiados fragmentos de texto para deducirlos."
+          }
+        }
+      }
+    },
+    "Nothing to translate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay nada que traducir"
+          }
+        }
+      }
+    },
+    "Nothing was translated": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se tradujo nada"
+          }
+        }
+      }
+    },
+    "Pages to translate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas que traducir"
+          }
+        }
+      }
+    },
+    "Paragraph {0} of {1}, on page {2}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Párrafo {0} de {1}, en la página {2}."
+          }
+        }
+      }
+    },
+    "Pick a language, or type one the model knows": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un idioma, o escribe uno que el modelo conozca"
+          }
+        }
+      }
+    },
+    "Reading the paragraphs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo los párrafos…"
+          }
+        }
+      }
+    },
+    "Reading the paragraphs… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo los párrafos… página {0} de {1}"
+          }
+        }
+      }
+    },
+    "Send for translation?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar para traducir?"
+          }
+        }
+      }
+    },
+    "Stopped. {0} of {1} texts are translated. A copy can be made with those, and the rest left in the original language.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detenido. {0} de {1} textos están traducidos. Se puede hacer una copia con ellos y dejar el resto en el idioma original."
+          }
+        }
+      }
+    },
+    "The endpoint gave no answer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio no dio ninguna respuesta."
+          }
+        }
+      }
+    },
+    "The endpoint stopped the translation: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servicio detuvo la traducción: {0}"
+          }
+        }
+      }
+    },
+    "The model gave 1 paragraph back unchanged (a name or a code, perhaps).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo devolvió 1 párrafo sin cambios (quizá un nombre o un código)."
+          }
+        }
+      }
+    },
+    "The model gave {0} paragraphs back unchanged (a name or a code, perhaps).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo devolvió {0} párrafos sin cambios (quizá un nombre o un código)."
+          }
+        }
+      }
+    },
+    "The original is on the left, and they scroll together. Save the copy to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El original está a la izquierda y ambos se desplazan juntos. Guarda la copia para conservarla."
+          }
+        }
+      }
+    },
+    "The page's fonts don't have all the letters, so some text is drawn in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las fuentes de la página no tienen todas las letras, así que parte del texto se dibuja en {0}."
+          }
+        }
+      }
+    },
+    "The paragraphs of {0} ({1}), one by one, to be put into {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los párrafos de {0} ({1}), uno por uno, para pasarlos al {2}"
+          }
+        }
+      }
+    },
+    "The paragraphs of {0} ({1}, of which {3} repeat and go once), one by one, to be put into {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los párrafos de {0} ({1}, de los cuales {3} se repiten y se envían una vez), uno por uno, para pasarlos al {2}"
+          }
+        }
+      }
+    },
+    "The text of {0} can't be rewritten: {1}. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto de {0} no se puede reescribir: {1}. No se envió nada."
+          }
+        }
+      }
+    },
+    "The translation couldn't be finished": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo terminar la traducción"
+          }
+        }
+      }
+    },
+    "The translation was stopped before the end.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La traducción se detuvo antes del final."
+          }
+        }
+      }
+    },
+    "This PDF's pages couldn't be read for translating. The document wasn't changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer las páginas de este PDF para traducirlas. El documento no se modificó."
+          }
+        }
+      }
+    },
+    "Translate into": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traducir a"
+          }
+        }
+      }
+    },
+    "Translate with AI": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traducir con IA"
+          }
+        }
+      }
+    },
+    "Translated copy ready": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia traducida lista"
+          }
+        }
+      }
+    },
+    "Translating into {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Traduciendo al {0}"
+          }
+        }
+      }
+    },
+    "Writing the translated copy…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribiendo la copia traducida…"
+          }
+        }
+      }
+    },
+    "Writing the translated copy… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribiendo la copia traducida… página {0} de {1}"
+          }
+        }
+      }
+    },
+    "any whose answer can't be used, once more": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "los que tengan una respuesta inutilizable, una vez más"
+          }
+        }
+      }
+    },
+    "{0} are scans: their words are part of a picture, and a translated copy can't rewrite them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} son escaneos: sus palabras son parte de una imagen y una copia traducida no puede reescribirlas."
+          }
+        }
+      }
+    },
+    "{0} comments in the copy mark what to look at (the Comments pane lists them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} comentarios en la copia marcan lo que hay que revisar (el panel Comentarios los muestra)."
+          }
+        }
+      }
+    },
+    "{0} don't fit even at the smallest size ({1}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no caben ni con el tamaño más pequeño ({1})."
+          }
+        }
+      }
+    },
+    "{0} has no words to translate. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no tiene palabras que traducir. No se envió nada."
+          }
+        }
+      }
+    },
+    "{0} has too many pieces of text to work out paragraphs from. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} tiene demasiados fragmentos de texto para deducir los párrafos. No se envió nada."
+          }
+        }
+      }
+    },
+    "{0} have no words to translate. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no tienen palabras que traducir. No se envió nada."
+          }
+        }
+      }
+    },
+    "{0} have too many pieces of text to work out paragraphs from. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} tienen demasiados fragmentos de texto para deducir los párrafos. No se envió nada."
+          }
+        }
+      }
+    },
+    "{0} is a scan: its words are part of a picture, and a translated copy can't rewrite them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} es un escaneo: sus palabras son parte de una imagen y una copia traducida no puede reescribirlas."
+          }
+        }
+      }
+    },
+    "{0} of {1} texts are translated. A copy can be made with those, and the rest left in the original language.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} de {1} textos están traducidos. Se puede hacer una copia con ellos y dejar el resto en el idioma original."
+          }
+        }
+      }
+    },
+    "{0} paragraphs in {1}, 1 in smaller type to stay in its box.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} párrafos en {1}, 1 con letra más pequeña para caber en su cuadro."
+          }
+        }
+      }
+    },
+    "{0} paragraphs in {1}, {2} in smaller type to stay in their boxes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} párrafos en {1}, {2} con letra más pequeña para caber en sus cuadros."
+          }
+        }
+      }
+    },
+    "{0} paragraphs in {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} párrafos en {1}."
+          }
+        }
+      }
+    },
+    "{0} paragraphs stay in the original language ({1}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} párrafos quedan en el idioma original ({1})."
+          }
+        }
+      }
+    },
+    "{0}, the original": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, el original"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

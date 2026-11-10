@@ -99,7 +99,7 @@ extension Translation {
     /// what it has, on a refusal or redirect from the server and after a few paragraphs in a row fail for the connection.
     /// Stopping is not an error: the answers come back with `cancelled`.
     public static func translate(_ jobs: [TranslationJob], _ language: String, _ chat: TranslationChat, settings: TranslationSettings = .init(),
-                                 progress: ((TranslationProgress) -> Void)? = nil, cancel: CancelToken = CancelToken()) async -> TranslationAnswers {
+                                 progress: (@Sendable (TranslationProgress) -> Void)? = nil, cancel: CancelToken = CancelToken()) async -> TranslationAnswers {
         var answers = TranslationAnswers()
         var failuresInRow = 0
         for (i, job) in jobs.enumerated() {

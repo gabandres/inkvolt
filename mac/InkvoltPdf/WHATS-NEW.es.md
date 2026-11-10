@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Traducir con IA (Herramientas › Asistente de IA): una copia traducida de las páginas que elijas se abre junto al documento y se desplaza con él. Cada párrafo queda en su cuadro, las tablas celda por celda, con su negrita, su cursiva y su texto pequeño elevado o rebajado; los enlaces se mueven con las palabras que marcan. Usa el servicio de IA que configuraste (en este Mac o el tuyo), muestra exactamente lo que se envía antes de enviar nada y se puede detener en cualquier momento, conservando lo hecho. El documento no se cambia.
 - Editar texto e imágenes edita párrafos enteros: haz clic en un párrafo y escribe, y su texto se reajusta dentro de su cuadro con su propia fuente, alineación e interlineado. Lo que sigue se queda en su lugar, y se te pregunta antes de que un texto más largo choque con ello. La barra sobre el texto da a una selección otra fuente, tamaño, color, negrita o cursiva. Un carácter que falta en la fuente del PDF se dibuja con la fuente más parecida de este Mac, y se dice.
 
 ## 1.10.0

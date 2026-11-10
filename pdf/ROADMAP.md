@@ -19,7 +19,7 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 3.1, 3.4 and 3.5 (3.3 done 2026-11-07, 2.1 2026-11-10),
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 3.4 and 3.5 (3.3 done 2026-11-07, 2.1 and 3.1 2026-11-10),
 in the order of the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
@@ -388,7 +388,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   bold and italic change for a selection; text inside form XObjects edits too. Test: on the export corpus, 20 words
   added to a paragraph re-extract in order, nothing overlaps the next block, and the page opens in Acrobat and pdf.js
   with the same text; a file whose fonts aren't installed is still editable (where Acrobat isn't).
-- **Mac** (2026-11-10, on `ignia-mac`): all of the above but the hidden-layer and Translate parts of the walk, ported from
+- **Mac** (2026-11-10, on `ignia-mac`): all of the above (the hidden-layer and Translate parts of the walk came with 3.1 the same day), ported from
   `ContentEditor` with Windows' tests under their names (`ParagraphEditTests` with its Looks, Lines, Mixed, Forms, Turned
   and PdfJs parts, and `ContentEditorTests`' stand-in, form and pdfTeX cases); in the app, Edit Text & Images opens a
   paragraph editor (a popover with a rich text view, the look bar and the live note) over a paragraph rewritten as one.
@@ -779,7 +779,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no
   page or size cap. Test: a 100-page report translated with a local model keeps page count and figure positions, every
   paragraph translated, nothing sent beyond localhost.
-- **Effort** M (after 2.1). Windows; Mac still to do (its AI assistant came with E11, 2026-10-30; 2.1 first).
+- **Mac (2026-11-10, on `ignia-mac`):** all of it, ported with Windows' tests under their names (173: the requests and
+  answers, the looks markup and its crafted replies, the page side with links, turned tables, crafted files and the
+  100-page report through a real socket to a stand-in on 127.0.0.1). Tools › AI Assistant › Translate with AI…: the
+  same dialog, "what is sent, where" window, progress and Cancel, the copy in a window of its own with the original on
+  the left scrolling with it. Through the Mac's own AI assistant plumbing (E11's `AiClient`, its loopback-only transport
+  for this Mac's endpoints); nothing is sent unless the user sets an endpoint up. Self-test `--only-translate` with a
+  stand-in translator on loopback, en and es. Mac differences in `mac/docs/PLAN.md` (Translate side by side): stand-ins
+  are Type 3 fonts from Core Text, no open-password step (MuPDF keeps the encryption), a copied /Resources shares
+  nothing with its original (a fix the 100-page report found). Not checked on the Mac: a real model.
+- **Effort** M (after 2.1). Windows and Mac done (the Mac's AI assistant came with E11, 2026-10-30; 2.1 first).
 
 ### 3.2 Export to PowerPoint and HTML
 - **Leader.** Acrobat exports to PowerPoint and HTML, with "retain page layout" or flowing text

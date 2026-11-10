@@ -14,6 +14,13 @@ final class AiState {
     let pageTexts = AiPageCache()
     /// The job started from a menu or the pane (the self-test awaits it).
     var job: Task<Void, Never>?
+    /// A translation running (Translate with AI), from reading the pages until its copy opens.
+    var translating: CancelToken?
+    var isTranslating: Bool { translating != nil }
+    /// The self-test's answers to Translate's dialogs; the last copy made and what it said of it.
+    var testTranslate: DocumentWindowController.TranslateTestAnswers?
+    var lastTranslationSummary: String?
+    weak var lastTranslationCopy: DocumentWindowController?
 
     /// True while a request of this document's AI assistant runs.
     var isBusy: Bool { cancel != nil }

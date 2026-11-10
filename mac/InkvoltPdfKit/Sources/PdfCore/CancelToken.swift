@@ -59,7 +59,7 @@ public final class CancelToken: @unchecked Sendable {
     }
 
     /// Runs `handler` when cancelled (at once if it already is); the id unregisters it.
-    func register(_ handler: @escaping () -> Void) -> Int? {
+    public func register(_ handler: @escaping () -> Void) -> Int? {
         lock.lock()
         if cancelled {
             lock.unlock()
@@ -75,7 +75,7 @@ public final class CancelToken: @unchecked Sendable {
     /// The handler won't run from now on: if `cancel()` is running it on another thread, this waits for it to end, so
     /// what the handler touches may be freed once this returns. A handler must not wait for another thread that may be
     /// unregistering (from this token or one it cancels): that thread may be waiting for it.
-    func unregister(_ id: Int?) {
+    public func unregister(_ id: Int?) {
         guard let id else { return }
         lock.lock()
         defer { lock.unlock() }
