@@ -59,7 +59,7 @@ ported. PDF for Mac 1.9.0: hostile-input review agent running (PPE), release aft
 "123-45-67": `Appearances.cs` draws what fits in the cells. The Mac draws the typed digits in the cells instead
 (`FormEditor`, `combed`); do the same, with a test. Windows also cuts a pasted "123-45-6789" to MaxLen with its
 separators; the Mac takes a pasted SSN, phone or ZIP as its digits.
-Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) submitted 2026-11-07, Waiting for Review** (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
+Print for Mac 1.2 (build 6) approved and live 2026-11-07 (tag `print-mac-v1.2.0`, website 1.2). **Print for Mac 1.3 (build 7) approved and live** (READY_FOR_SALE by 2026-11-09; tag `print-mac-v1.3.0` on `6c6e72c7` and website 1.3 done 2026-11-09) (Spanish interface, SNMP access and SNMPv3, the hostile-input fixes, giant scans; What's New in English only: the version has no es-MX localization in App Store Connect); tag `print-mac-v1.3.0` and website after approval. Mac CI's pdf job: three timing tests from the bands work made CI-proof (`5e3ae103`, `a3a91927`, `424e6e80`).
 **Office as the Mac's converter merged 2026-11-08 (`138f868a`), not released.** Word, Excel or PowerPoint for Mac convert
 when installed (AppleScript through osascript behind `OfficeScriptRunner`, staged in Office's group container, 3-minute
 limit, one at a time, Office left as found), LibreOffice the fallback when Office fails for a reason of its own (not
@@ -94,7 +94,7 @@ failed under load, 37/37 alone), check-int clean, PdfStringsTests green. Install
 (PdfStrings 2082, CoreStrings 925), its two Office checks read English notices (self-test fix `80395fb6`, green on a dev build in es),
 command bar 24/24 and export 4/4 in es. **Vision's checks (redaction, Compare's scan) fail when ignia-mac is at load 300–425**
 (another project's ~470 simulator processes): they passed on the same binary in en at load 6 and in the first es run. The released
-1.9.0 finds 1.10.0 in the feed (en, es); /Applications holds 1.10.0 from the DMG. Next: Tuesday's scheduled 2.1, then 3.1.
+1.9.0 finds 1.10.0 in the feed (en, es); /Applications holds 1.10.0 from the DMG. Rerun 2026-11-09 22:24 on the installed 1.10.0 (`--self-test <file> --synthetic --edit --only-redaction --lang es`): all PASS, redaction 81 s. Next: Tuesday's scheduled 2.1, then 3.1.
 **Inkvolt PDF for Mac 1.9.0 published 2026-11-07** (`pdf-mac-v1.9.0` on `4768ae0c`, notarized DMG sha256 3e19aa8f…d8d2e07,
 38.8 MB, appcast with Spanish notes, not Latest; Homebrew cask `5ddcf54` (pushed from a clone: the tap is no longer tapped on
 ignia-mac), website `f1d2750` deployed; folder search, Compare's Office files and scans, drawing in bands, the forms corpus
