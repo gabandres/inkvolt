@@ -267,7 +267,14 @@ struct DrawingBandsTests {
         // From Cancel to the stop: 0.25 s more on a Mac; 0.5 s on GitHub's runner, whose 3 cores take 16 threads in turns
         // (0.17 against 0.02 s seen, 6c6e72c7): the walk this guards against took 1.5 s, so either still catches it.
         let more = ProcessInfo.processInfo.environment["GITHUB_ACTIONS"] == nil ? 0.25 : 0.5
-        #expect(banded < alone + more, "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s")
+        // A runner slow enough to miss that (master, 2026-11-10) is measured against itself: the whole render in 16 bands
+        // on the same runner, best of 3. The walk this guards against goes on to the end after Cancel, so it takes about
+        // all of that; a stop that comes within half of it is the guard working.
+        let whole = (0..<3).map { _ in
+            P.time { _ = try? PdfEngine.$bandsForTests.withValue(16) { try engine.render(0, scale: Self.topScale) } }
+        }.min() ?? 0
+        #expect(banded < alone + more || banded < 0.5 * whole,
+                "16 bands: \(banded) s after Cancel at 20 ms; one thread: \(alone) s; the whole render in 16 bands: \(whole) s")
     }
 
     /// The bands share one budget but cost more CPU in all than one thread (every band walks the list): a page one thread
