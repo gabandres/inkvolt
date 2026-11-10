@@ -130,7 +130,8 @@ final class TextFont: @unchecked Sendable {
             descriptor = font.dict("FontDescriptor")
             // A Type 3 font is blocked, but for the stand-in fonts a paragraph edit made (`Type3FontWriter`, named /InkFb…):
             // their codes, /Widths and ToUnicode are read like any simple font's, so the paragraph reads back as one.
-            if subtype == "Type3" && !(font.name("Name") ?? "").hasPrefix(ContentEditor.standInKey) {
+            // A crafted font only named so, with another /FontMatrix, would have its /Widths read in the wrong units.
+            if subtype == "Type3" && !((font.name("Name") ?? "").hasPrefix(ContentEditor.standInKey) && Self.isStandInMatrix(font.array("FontMatrix"))) {
                 blocked = loc("it is drawn with a Type 3 font (glyphs drawn as pictures)")
             }
             // Kept within ±1e9, so first + i below can't overflow; only codes 0-255 are read.
@@ -238,6 +239,12 @@ final class TextFont: @unchecked Sendable {
     private func dingbatsAdvance(_ code: Int) -> Double? {
         guard dingbats, (0..<256).contains(code), let name = names[code] else { return nil }
         return ZapfDingbats.width(name)
+    }
+
+    /// Whether a Type 3 font's /FontMatrix is the one `Type3FontWriter` writes (thousandths of an em, upright).
+    static func isStandInMatrix(_ m: PObj?) -> Bool {
+        guard let m, m.isArray, m.count == 6 else { return false }
+        return zip((0..<6).map(m.num), [0.001, 0, 0, 0.001, 0, 0]).allSatisfy { abs($0 - $1) < 1e-9 }
     }
 
     private static func readW(_ w: PObj?) -> [Int: Double] {

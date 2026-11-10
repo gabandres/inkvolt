@@ -78,6 +78,28 @@ of 1.82 (5.90 at the end, the bench's own threads). Each run was a little slower
 | Find | 7.9 s | 8.5 s | unchanged code (the text instances draw nothing) |
 | Peak memory | 1.31 GB | 1.31 GB | |
 
+## Before 1.11.0 (2026-11-10, the same Air, the same corpus)
+
+`run`, 3 runs each, at a load of 7 to 22 (other projects' emulators and simulators had kept it at 300 to 700 for the hour
+before; at a load of 8 to 20 an earlier run was slower still):
+
+| Measure | `text.pdf` | `scan.pdf` | `drawings.pdf` | `comments.pdf` |
+|---|---|---|---|---|
+| First page | 73 ms | 153 ms | 918 ms | 300 ms |
+| Scrolling proxy, ms/page (slowest) | 3 (13) | 35 (40) | 350 (432) | 11 (20) |
+| Find | 1.06 s | 0.01 s | 15.4 s | 0.12 s |
+| Comment list | 0.02 s | 0.03 s | 0.11 s | 0.36 s (10,000) |
+| Peak memory | 156 MB | 983 MB | 1.34 GB | 147 MB |
+
+Slower than 2026-11-07's in drawing and Find, with that code unchanged (PdfEngine's open reads through `StaleTail`, 1.9.0),
+so the build of 2026-11-08 (`7ff5fad3`) and 1.11.0's were run interleaved on `drawings.pdf`, 3 times each (`one`): first
+render 1,509 / 873 / 1,352 ms then, 526 / 754 / 521 ms now; Find 23.9 / 23.0 / 17.4 s then, 17.0 / 17.5 / 20.4 s now; peak
+1.34 GB both. The Air's state, not the code. Paragraph editing and Translate add nothing to opening, drawing or Find.
+
+The save with the pass before it (`UnsharePassTimingTests`, opt-in, release build, the corpus): the pass 0.02 s
+(`text.pdf`), 0.12 s (`comments.pdf`), 0.01 s (`scan.pdf`, `drawings.pdf`), no copies needed in any; a compacting save
+0.05, 0.26, 0.72 and 1.49 s with it, about 0.03, 0.13, 0.71 and 1.48 s without.
+
 ## What missed
 
 - `drawings.pdf`: 20 of the first 20 pages took over 200 ms to render (slowest 251 ms; 223 ms on average).

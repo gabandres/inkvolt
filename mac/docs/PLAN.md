@@ -1811,6 +1811,37 @@ together; a refused key stopping the run, the part kept on request.
   the left at several zooms; VoiceOver on the dialog; a translated copy in Preview and Acrobat; a run against a real model
   (Ollama or LM Studio on this Mac): the tests and the self-test use stand-ins only.
 
+### 1.11.0's hostile-input review (2.1 and 3.1, 2026-11-10)
+
+Crafted files and replies the two medium reviews didn't reach (`ParagraphEditTests+Hostile`, `TranslationHostileTests+Review`):
+- **Grouping in linear time.** A line's lead run (`plainRun`) is tallied as runs join it (`PLine.count`), not again for
+  each (a line of 200,000 runs was quadratic); the text and pictures a paragraph can have below it are worked out once
+  per page; past `maxRunsToGroup` (5,000, Windows' `MaxRunsToLayOut`) a page has no paragraphs and its runs edit one
+  by one (grouping looks at every run for each paragraph).
+- **Stand-in fonts.** A Type 3 font is read as a stand-in only when its /FontMatrix is the one `Type3FontWriter` writes
+  (`TextFont.isStandInMatrix`), not by its /InkFb name alone.
+- **Forms drawn outside the content.** A form that is also an annotation's face or drawn through a tiling pattern
+  (`formsDrawnOutsideContent`) is shared: the paragraph editor and Translate copy it (or leave it) as one other pages draw.
+- **Names.** Free resource names (`InkFb<n>_`, `InkFm<n>`, `InkImg<n>`) are found in one pass over the keys
+  (`lowestFree`), not one per number.
+- **Link following.** `follow` compares a link's words a word at a time from each place (not the whole stretch again
+  for every word) within a budget of 20 million steps a page (`followBudget`); past it a link is dropped, as one whose
+  words aren't found.
+- **Copies.** `ownCopy`'s copies share one budget per document (`MuDoc.copyBudget`, 4 million entries), and the shim
+  counts a container's own entries before copying it, so a flat array of millions in a form copied for every page is
+  left shared (the save is then uncompacted) rather than copied page by page.
+- **A page that fails.** Translate splices the forms' new bytes first and writes them only after the page: a page that
+  can't be rewritten (a damaged part) leaves its forms as they were.
+- **Wrapping.** `fitLines` keeps the line's width as words join it (`TextRun.measure` adds up), so a line of thousands of
+  words isn't measured again for each. Right-to-left lines are still shaped whole for each word (shaping doesn't add up).
+- **CI's cancel tests (master 8371ce80).** PageCheckTests' Cancel and close came from GCD's global queue, which runs only
+  as many blocks as there are cores: the suites the Translate merge added held it on CI's 3-core runner, so Cancel came
+  after the render had ended (no error, verdict `.fine`, 21 s). Reproduced on ignia-mac by a test that fills the global
+  queue (all three tests failed as on CI; with their own threads, 3.3, 1.2 and 1.6 s); alone, both 8371ce80 and ac7ad7e1
+  pass. They run on threads of their own now (`onItsOwnThread`). `ACancelStopsBandsThatOnlySkipAsSoonAsOneThread`
+  ("1 bands: not cancelled, 10 times", 4 runs since 2026-11-09) draws four times the list, so one thread is still drawing
+  when the canceller wakes; what it measures, Cancel to stop, doesn't grow with the list.
+
 ## Open decisions
 
 None.

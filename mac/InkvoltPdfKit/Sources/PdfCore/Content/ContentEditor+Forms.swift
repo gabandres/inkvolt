@@ -73,6 +73,8 @@ extension ContentEditor {
             return false
         }
         guard let count = try? doc.pageCount() else { return false }
+        let outside = formsDrawnOutsideContent(doc)
+        if place.chain.contains(where: { outside.contains($0.id) }) { return true }
         let mine = page.id
         for i in 0..<count {
             let other = doc.page(i)
@@ -80,6 +82,65 @@ extension ContentEditor {
             if visit(PageBoxes.inherited(other, "Resources")?.dict("XObject"), 0) { return true }
         }
         return false
+    }
+
+    /// The forms drawn other than by a page's own Dos, on any page: an annotation's appearance (a stamp's face can be the
+    /// very form a page draws), a tiling pattern's (in the page's resources or a form's it draws), and every form those
+    /// draw. Editing one in place would change those too, so it is copied (or left alone) as a shared one is. Each form or
+    /// pattern is one level (`maxDepth`, as the Do walk).
+    static func formsDrawnOutsideContent(_ doc: MuDoc) -> Set<ObjId> {
+        var found = Set<ObjId>()
+        var walked = Set<ObjId>() // forms reached through Dos, looked into for their patterns
+        // Resources dictionaries looked at, in each mode: N forms sharing one that lists all N are looked through once.
+        var seenInside = Set<ObjId>(), seenOutside = Set<ObjId>()
+        // Drawn outside the content: it and everything its resources draw.
+        func drawn(_ f: PObj?, _ depth: Int) {
+            guard let f, f.isStream, depth <= maxDepth, found.insert(f.id).inserted else { return }
+            look(f.dict("Resources"), depth, outside: true)
+        }
+        // A content's resources: its patterns draw outside it; its forms are drawn by its Dos (outside only when the
+        // content itself is), and their own patterns are looked at the same way.
+        func look(_ r: PObj?, _ depth: Int, outside: Bool) {
+            guard let r, r.isDict, depth <= maxDepth else { return }
+            if r.isRef {
+                let first = outside ? seenOutside.insert(r.id).inserted : seenInside.insert(r.id).inserted
+                if !first { return }
+            }
+            if let xo = r.dict("XObject") {
+                for key in xo.keys {
+                    guard let x = xo.dict(key), x.name("Subtype") == "Form" else { continue }
+                    if outside {
+                        drawn(x, depth + 1)
+                    } else if walked.insert(x.id).inserted {
+                        look(x.dict("Resources"), depth + 1, outside: false)
+                    }
+                }
+            }
+            if let patterns = r.dict("Pattern") {
+                for key in patterns.keys {
+                    guard let p = patterns.dict(key), p.isStream, found.insert(p.id).inserted else { continue }
+                    look(p.dict("Resources"), depth + 1, outside: true)
+                }
+            }
+        }
+        guard let count = try? doc.pageCount() else { return found }
+        for i in 0..<count {
+            let page = doc.page(i)
+            look(PageBoxes.inherited(page, "Resources"), 0, outside: false)
+            guard let annots = page.array("Annots") else { continue }
+            for k in 0..<annots.count {
+                guard let annot = annots[k], annot.isDict, let ap = annot.dict("AP") else { continue }
+                for key in ["N", "R", "D"] {
+                    guard let face = ap.dict(key) else { continue }
+                    if face.isStream {
+                        drawn(face, 0)
+                    } else {
+                        for state in face.keys { drawn(face.dict(state), 0) }
+                    }
+                }
+            }
+        }
+        return found
     }
 
     /// A copy of a form the page draws directly, under a name of its own, with the Do changed to draw the copy.
@@ -100,9 +161,14 @@ extension ContentEditor {
         if let streams = target.streams {
             try writeContent(doc, page, streams, target.ops, edits)
         } else if let form = target.formObject {
-            form.remove("DecodeParms")
-            form.setStream(try splice(target.bytes, edits), deflate: true)
+            writeForm(form, try splice(target.bytes, edits))
         }
+    }
+
+    /// A form's stream replaced by `bytes` (deflated, its old decoding parameters dropped).
+    static func writeForm(_ form: PObj, _ bytes: [UInt8]) {
+        form.remove("DecodeParms")
+        form.setStream(bytes, deflate: true)
     }
 
     /// Adds fonts to the page's or form's own font resources (copying shared dictionaries first).
@@ -118,8 +184,21 @@ extension ContentEditor {
     /// A name prefix for stand-in fonts that no font of the content's resources has yet.
     static func standInPrefix(_ target: Target) -> String {
         let keys = target.resources?.dict("Font")?.keys ?? []
-        var k = 1
-        while keys.contains(where: { $0.hasPrefix("\(standInKey)\(k)_") }) { k += 1 }
-        return "/\(standInKey)\(k)_"
+        return "/\(standInKey)\(lowestFree(keys, standInKey, suffix: "_"))_"
+    }
+
+    /// The lowest n ≥ 1 that no key `prefix` n `suffix`… uses, in one pass over the keys (a crafted dictionary of
+    /// 100,000 such names isn't searched again for each n).
+    static func lowestFree(_ keys: [String], _ prefix: String, suffix: String = "") -> Int {
+        var used = Set<Int>()
+        for key in keys where key.hasPrefix(prefix) {
+            let rest = key.dropFirst(prefix.count)
+            let digits = rest.prefix { $0.isASCII && $0.isNumber }
+            guard !digits.isEmpty, digits.count <= 9, digits.first != "0", let n = Int(digits) else { continue }
+            if suffix.isEmpty ? digits.count == rest.count : rest.dropFirst(digits.count).hasPrefix(suffix) { used.insert(n) }
+        }
+        var n = 1
+        while used.contains(n) { n += 1 }
+        return n
     }
 }

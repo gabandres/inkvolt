@@ -2187,6 +2187,9 @@ int inkv_obj_put_name(void *vctx, inkv_obj *o, inkv_obj *key, inkv_obj *value, c
 static pdf_obj *inkv_deep_copy(fz_context *ctx, pdf_obj *o, int depth, int max_depth, long *budget) {
     if (pdf_is_indirect(ctx, o) || !(pdf_is_dict(ctx, o) || pdf_is_array(ctx, o))) return pdf_keep_obj(ctx, o);
     if (depth > max_depth || *budget <= 0) fz_throw(ctx, FZ_ERROR_LIMIT, "too deep or too large to copy");
+    /* Its own entries are counted before they are copied: a flat container of millions is refused, not copied whole. */
+    long entries = pdf_is_dict(ctx, o) ? pdf_dict_len(ctx, o) : pdf_array_len(ctx, o);
+    if (entries + 1 > *budget) fz_throw(ctx, FZ_ERROR_LIMIT, "too large to copy");
     pdf_obj *copy = NULL;
     fz_var(copy);
     fz_try(ctx) {

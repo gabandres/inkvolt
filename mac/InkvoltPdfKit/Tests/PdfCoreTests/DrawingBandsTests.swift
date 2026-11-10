@@ -240,6 +240,7 @@ struct DrawingBandsTests {
     /// A list of `times` x 10,000 strokes below the page (a form drawn again and again), which every band skips, and
     /// lines on it: skipping them costs one thread little, 16 bands far more in all (each walks the whole list).
     static let skippedBelow = offPage(150)
+    static let skippedBelowLong = offPage(600)
 
     static func offPage(_ times: Int) -> [UInt8] {
         var form = "0.3 w\n"
@@ -257,7 +258,10 @@ struct DrawingBandsTests {
     /// A band that only skips nodes makes no drawing call the guard sees: it must see a stop in MuPDF's own flag, which
     /// it reads between nodes, or it walks the whole list after the others stopped.
     @Test func ACancelStopsBandsThatOnlySkipAsSoonAsOneThread() throws {
-        let engine = try P.open(Self.skippedBelow, budget: 0)
+        // Four times `skippedBelow`'s list: on CI's runner one thread drew all of that in less than the canceller took to
+        // wake, 10 times out of 10 (master 8371ce80, and three runs before it). What is measured is from Cancel to the stop,
+        // which a longer list doesn't lengthen; the whole render it is held against grows with it.
+        let engine = try P.open(Self.skippedBelowLong, budget: 0)
         defer { engine.close() }
         _ = try engine.render(0, scale: 0.1) // the list, made once
         // The best of 3 each: a busy Mac (the whole suite, other sessions) only adds time, so the fastest run is the one

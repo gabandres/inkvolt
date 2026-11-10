@@ -20,6 +20,18 @@ struct PageCheckTests {
     /// What a refusal may take past the limit on a loaded runner.
     static let slack = 3.0
 
+    /// Runs `work` after `seconds` on a thread of its own, at the highest quality of service. Not on GCD's global queue:
+    /// it runs only as many blocks as there are cores, and on CI's 3-core runner the other suites' work held it for 20 s
+    /// (master 8371ce80), so a Cancel or close queued there came after the render it was to stop had ended.
+    static func onItsOwnThread(after seconds: Double = 0, _ work: @escaping @Sendable () -> Void) {
+        let thread = Thread {
+            if seconds > 0 { Thread.sleep(forTimeInterval: seconds) }
+            work()
+        }
+        thread.qualityOfService = .userInteractive
+        thread.start()
+    }
+
     /// A zlib stream (RFC 1950) of `head` then `zeros` zero bytes, built by hand (`HandDeflate`): 4 GB costs microseconds and
     /// is never held. MuPDF inflates it as any zlib stream (TheHandBuiltBombsInflateToWhatTheySay).
     static func zlib(_ head: [UInt8], zeros: Int) -> [UInt8] {
@@ -211,7 +223,7 @@ struct PageCheckTests {
         let engine = try Self.open(Self.bomb("7 KB"), budget: 120)
         defer { engine.close() }
         let cancel = CancelToken()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.3) { cancel.cancel() }
+        Self.onItsOwnThread(after: 0.3) { cancel.cancel() }
         let took = Self.time {
             #expect(throws: CancellationError.self) { _ = try engine.render(1, scale: 0.5, cancel: cancel) }
         }
@@ -226,7 +238,7 @@ struct PageCheckTests {
         let engine = try Self.open(Self.bomb("7 KB"), budget: 120)
         let done = DispatchSemaphore(value: 0)
         nonisolated(unsafe) var outcome: Error?
-        DispatchQueue.global().async {
+        Self.onItsOwnThread {
             do { _ = try engine.render(1, scale: 0.5) } catch { outcome = error }
             done.signal()
         }
@@ -313,7 +325,7 @@ struct PageCheckTests {
         let engine = try Self.open(Self.manyPictures, budget: 120)
         defer { engine.close() }
         let cancel = CancelToken()
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+        Self.onItsOwnThread(after: 0.5) {
             if how == "Cancel" { cancel.cancel() } else { engine.close() }
         }
         let took = Self.time {

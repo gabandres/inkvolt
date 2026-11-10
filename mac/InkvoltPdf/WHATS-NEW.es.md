@@ -5,8 +5,11 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+
+## 1.11.0
 - Traducir con IA (Herramientas › Asistente de IA): una copia traducida de las páginas que elijas se abre junto al documento y se desplaza con él. Cada párrafo queda en su cuadro, las tablas celda por celda, con su negrita, su cursiva y su texto pequeño elevado o rebajado; los enlaces se mueven con las palabras que marcan. Usa el servicio de IA que configuraste (en este Mac o el tuyo), muestra exactamente lo que se envía antes de enviar nada y se puede detener en cualquier momento, conservando lo hecho. El documento no se cambia.
 - Editar texto e imágenes edita párrafos enteros: haz clic en un párrafo y escribe, y su texto se reajusta dentro de su cuadro con su propia fuente, alineación e interlineado. Lo que sigue se queda en su lugar, y se te pregunta antes de que un texto más largo choque con ello. La barra sobre el texto da a una selección otra fuente, tamaño, color, negrita o cursiva. Un carácter que falta en la fuente del PDF se dibuja con la fuente más parecida de este Mac, y se dice.
+- Corregido: en los PDF cuyas páginas comparten sus recursos, un encabezado, un pie de página, una marca de agua o un aplanado podía dejar ilegible el texto de otras páginas al guardar. Y los PDF hechos para trabar la app ya no detienen la edición de párrafos ni la traducción.
 
 ## 1.10.0
 - La barra de herramientas es la barra de comandos de Windows: Editar, Convertir, Comentar, Llenar y firmar, Organizar, Proteger y Escanear y OCR, cada uno con su nombre. Un clic en un grupo hace su tarea principal; su flecha muestra el resto, cada uno con una línea que dice qué hace. Convertir › Word guarda nombre.docx junto al PDF con un clic (sin escribir nunca sobre un archivo), lo abre y dice «Se guardó nombre.docx · Mostrar en Finder · Cambiar opciones…»; también Excel, PowerPoint, texto y página web. Con Opción pulsada, pregunta antes. Firmar, Resaltar, Contraseña y Reconocer texto también funcionan con un clic. Dibujar está en Comentar y Eliminar información confidencial en Proteger.

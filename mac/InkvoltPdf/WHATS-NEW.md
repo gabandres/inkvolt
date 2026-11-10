@@ -6,8 +6,11 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.11.0
 - Translate with AI (Tools › AI Assistant): a translated copy of the pages you choose opens beside the document and scrolls with it. Each paragraph stays in its box, tables cell by cell, with its bold, italic and small raised or lowered text; links move with the words they mark. It uses the AI endpoint you set up (on this Mac or yours), shows exactly what is sent before anything is, and can be stopped any time, keeping what's done. The document isn't changed.
 - Edit Text & Images edits whole paragraphs: click a paragraph and type, and its text rewraps inside its box with its own font, alignment and line spacing. What follows stays put, and you're asked before longer text would run into it. The bar above the text gives a selection another font, size, color, bold or italic. A character the PDF's font lacks is drawn from the closest font on this Mac, and said.
+- Fixed: in PDFs whose pages share their resources, a header, footer, watermark or flattening could leave other pages' text unreadable once saved. And PDFs made to freeze the app no longer stall paragraph editing or Translate.
 
 ## 1.10.0
 - The toolbar is the command bar Windows has: Edit, Convert, Comment, Fill & Sign, Organize, Protect and Scan & OCR, each with its label. A click on a group does its main job; its arrow lists the rest, each with a line saying what it does. Convert › Word saves name.docx next to the PDF in one click (never over a file), opens it, and says "Saved name.docx · Show in Finder · Change options…"; Excel, PowerPoint, text and web page too. Option-click asks first. Sign, Highlight, Password and Recognize Text work in one click as well. Draw is in Comment, Redact in Protect.
