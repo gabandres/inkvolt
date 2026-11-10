@@ -906,14 +906,7 @@ extension ContentEditor {
         let ops = ContentLexer.parse(streams.bytes)
         let walked = try walk(doc, page, paragraph.pageIndex, ops, nil)
         let changed = loc("The page changed since this paragraph was picked. Pick it again.")
-        var now: [TextRun] = []
-        for run in paragraph.runs {
-            let found = walked.textRuns.first { $0.id == run.id && same($0.text, run.text) }
-                ?? walked.textRuns.filter { same($0.text, run.text) && near($0.box, run.box) }.min { distance($0.box, run.box) < distance($1.box, run.box) }
-            if let why = found?.blocked { throw ContentEditError(loc("This text can't be edited: {0}.", why)) }
-            guard let found, found.info != nil, !now.contains(where: { $0.id == found.id }) else { throw ContentEditError(changed) }
-            now.append(found)
-        }
+        let (now, fresh) = try rematch(paragraph, walked)
         let anchor = anchorRun(now)
         let plain = plainRun(now)
         if now.contains(where: { $0.info!.form != anchor.info!.form }) { throw ContentEditError(changed) }
@@ -921,10 +914,6 @@ extension ContentEditor {
         let spaces = paragraph.spaces.compactMap { s in walked.textRuns.first { $0.id == s.id && same($0.text, s.text) && $0.info != nil } }
             .filter { r in !now.contains { $0.id == r.id } && r.info!.form == anchor.info!.form }
         let target = try targetOf(doc, page, streams, ops, walked, anchor)
-        // The paragraph as read before, its runs' fonts the ones of this document (a look's page face is written in it).
-        var byId: [Int: TextRun] = [:]
-        for r in now { byId[r.id] = r }
-        let fresh = refreshed(paragraph, byId)
         let layout = layOut(fresh, now, text, spans)
         if !layout.check.missing.isEmpty {
             let list = layout.check.missing.prefix(12).map(shownCharacter).joined(separator: ", ")
@@ -961,6 +950,23 @@ extension ContentEditor {
         SignedEdits.noteRemoval() // the old text stays in a signed file's earlier revision
         try doc.checkFailure()
         return try PdfEdit.save(doc, original: data, password: password)
+    }
+
+    /// A paragraph's runs found again in a new reading of the page (by id, else by text and place), and the paragraph as
+    /// read before with its runs' fonts and readings from the new one (a look's page face is written in it).
+    static func rematch(_ paragraph: TextParagraph, _ walked: Walked) throws -> (now: [TextRun], fresh: TextParagraph) {
+        let changed = loc("The page changed since this paragraph was picked. Pick it again.")
+        var now: [TextRun] = []
+        for run in paragraph.runs {
+            let found = walked.textRuns.first { $0.id == run.id && same($0.text, run.text) }
+                ?? walked.textRuns.filter { same($0.text, run.text) && near($0.box, run.box) }.min { distance($0.box, run.box) < distance($1.box, run.box) }
+            if let why = found?.blocked { throw ContentEditError(loc("This text can't be edited: {0}.", why)) }
+            guard let found, found.info != nil, !now.contains(where: { $0.id == found.id }) else { throw ContentEditError(changed) }
+            now.append(found)
+        }
+        var byId: [Int: TextRun] = [:]
+        for r in now { byId[r.id] = r }
+        return (now, refreshed(paragraph, byId))
     }
 
     /// A paragraph with its runs' fonts and readings from another walk of the page (by id), its geometry kept.
