@@ -13806,28 +13806,6 @@
         }
       }
     },
-    "The font “{0}” has no glyph for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La fuente “{0}” no tiene glifo para {1} en este PDF (una fuente incrustada suele tener solo los caracteres que usa el documento). Usa caracteres que ya estén en este texto o agrega un cuadro de texto."
-          }
-        }
-      }
-    },
-    "The font “{0}” has no glyphs for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La fuente “{0}” no tiene glifos para {1} en este PDF (una fuente incrustada suele tener solo los caracteres que usa el documento). Usa caracteres que ya estén en este texto o agrega un cuadro de texto."
-          }
-        }
-      }
-    },
     "The form field “{0}” has no tooltip and no alternate text, so a screen reader can't say what to fill in.": {
       "extractionState": "manual",
       "localizations": {
@@ -16226,28 +16204,6 @@
         }
       }
     },
-    "This text's font has no glyph for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La fuente de este texto no tiene glifo para {0} en este PDF (una fuente incrustada suele tener solo los caracteres que usa el documento). Usa caracteres que ya estén en este texto o agrega un cuadro de texto."
-          }
-        }
-      }
-    },
-    "This text's font has no glyphs for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La fuente de este texto no tiene glifos para {0} en este PDF (una fuente incrustada suele tener solo los caracteres que usa el documento). Usa caracteres que ya estén en este texto o agrega un cuadro de texto."
-          }
-        }
-      }
-    },
     "This {0} heading follows an H{1}: heading level {2} is skipped.": {
       "extractionState": "manual",
       "localizations": {
@@ -18217,17 +18173,6 @@
         }
       }
     },
-    "it is part of a form XObject (a drawing the page reuses), and only the page's own content can be edited in this version": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "forma parte de un XObject de formulario (un dibujo que la página reutiliza), y en esta versión solo se puede editar el contenido propio de la página"
-          }
-        }
-      }
-    },
     "it is read-only": {
       "extractionState": "manual",
       "localizations": {
@@ -18323,17 +18268,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "su fuente no dice qué caracteres son sus glifos"
-          }
-        }
-      }
-    },
-    "its font is a symbol font": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "su fuente es una fuente de símbolos"
           }
         }
       }
@@ -22899,6 +22833,248 @@
           "stringUnit": {
             "state": "translated",
             "value": "Una copia que se verá igual por años"
+          }
+        }
+      }
+    },
+    "its font is a symbol font (Symbol or ZapfDingbats) that isn't embedded, with no widths to lay it out with": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su fuente es una fuente de símbolos (Symbol o ZapfDingbats) sin incrustar, sin anchos con los que componerla"
+          }
+        }
+      }
+    },
+    "Neither this text's font nor any font on this Mac has {0}, so it can't be written. Leave it out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente de este texto ni ninguna fuente de este Mac tiene {0}, así que no se puede escribir. Quítalo o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "Neither this text's font nor any font on this Mac has {0}, so it can't be written. Leave them out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente de este texto ni ninguna fuente de este Mac tiene {0}, así que no se pueden escribir. Quítalos o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "Neither the font “{0}” nor any font on this Mac has {1}, so it can't be written. Leave it out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente “{0}” ni ninguna fuente de este Mac tiene {1}, así que no se puede escribir. Quítalo o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "Neither the font “{0}” nor any font on this Mac has {1}, so it can't be written. Leave them out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente “{0}” ni ninguna fuente de este Mac tiene {1}, así que no se pueden escribir. Quítalos o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "it is inside a drawing (a form XObject) that the page draws more than once through another drawing, and an edit would change every copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "está dentro de un dibujo (un XObject de formulario) que la página dibuja más de una vez a través de otro dibujo, y una edición cambiaría todas las copias"
+          }
+        }
+      }
+    },
+    "it is part of a form XObject (a drawing the page reuses), and only the page's own pictures can be edited in this version": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "forma parte de un XObject de formulario (un dibujo que la página reutiliza), y en esta versión solo se pueden editar las imágenes propias de la página"
+          }
+        }
+      }
+    },
+    "This text can't be edited: it is inside a drawing (a form XObject) that other pages share, drawn through another drawing, and an edit would change every copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto no se puede editar: está dentro de un dibujo (un XObject de formulario) que comparten otras páginas, dibujado a través de otro dibujo, y una edición cambiaría todas las copias."
+          }
+        }
+      }
+    },
+    "it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "mezcla fuentes, tamaños o colores, y esta versión reescribe un párrafo en una sola familia de fuentes"
+          }
+        }
+      }
+    },
+    "part of it can't be read for editing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parte de él no se puede leer para editarlo"
+          }
+        }
+      }
+    },
+    "part of it is inside a form XObject (a drawing the page reuses) and part outside, and a paragraph is rewritten in one piece of content only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "parte de él está dentro de un XObject de formulario (un dibujo que la página reutiliza) y parte fuera, y un párrafo se reescribe en un solo bloque de contenido"
+          }
+        }
+      }
+    },
+    "it is written right to left, and this version rewraps left-to-right text only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "está escrito de derecha a izquierda, y esta versión solo reacomoda texto de izquierda a derecha"
+          }
+        }
+      }
+    },
+    "it has other text inside it (a raised mark, a symbol or words in another font), and this version rewrites a paragraph in one font only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tiene otro texto dentro (una marca elevada, un símbolo o palabras en otra fuente), y esta versión reescribe un párrafo en una sola fuente"
+          }
+        }
+      }
+    },
+    "this paragraph's color is a special ink (a pattern or spot color), so part of it can't be given another color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el color de este párrafo es una tinta especial (un patrón o una tinta directa), así que parte de él no puede cambiar de color"
+          }
+        }
+      }
+    },
+    "This paragraph can't be edited: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este párrafo no se puede editar: {0}."
+          }
+        }
+      }
+    },
+    "The page changed since this paragraph was picked. Pick it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página cambió desde que se eligió este párrafo. Vuelve a elegirlo."
+          }
+        }
+      }
+    },
+    "Neither this paragraph's font nor any font on this Mac has {0}, so it can't be written. Leave it out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente de este párrafo ni ninguna fuente de este Mac tiene {0}, así que no se puede escribir. Quítalo o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "Neither this paragraph's font nor any font on this Mac has {0}, so it can't be written. Leave them out, or add a text box instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni la fuente de este párrafo ni ninguna fuente de este Mac tiene {0}, así que no se pueden escribir. Quítalos o agrega un cuadro de texto."
+          }
+        }
+      }
+    },
+    "This can't be written: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto no se puede escribir: {0}."
+          }
+        }
+      }
+    },
+    "The new text takes {0} lines and would run into what follows below it. Shorten it, or confirm to write it anyway.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto nuevo ocupa {0} líneas y se superpondría con lo que sigue debajo. Acórtalo o confirma para escribirlo de todos modos."
+          }
+        }
+      }
+    },
+    "This text is drawn squashed flat, so it can't be rewritten.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este texto está dibujado aplastado, así que no se puede reescribir."
+          }
+        }
+      }
+    },
+    "These changes overlap in the page's content, so they can't be written.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos cambios se superponen en el contenido de la página, así que no se pueden escribir."
           }
         }
       }

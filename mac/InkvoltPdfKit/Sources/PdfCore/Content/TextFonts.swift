@@ -52,6 +52,10 @@ final class TextFont: @unchecked Sendable {
     private var standard14 = false
     private let hasDescriptor: Bool, embedded: Bool, hasWidths: Bool
     private var hasCidFont = false
+    // The standard Symbol font, not embedded and without a descriptor: macOS's Symbol measures it (Windows' Symbol there).
+    private var symbolMetrics: TrueTypeFont?
+    // The standard ZapfDingbats font, not embedded and without a descriptor: macOS's ZapfDingbats measures it (ZapfDingbats).
+    private var dingbats = false
     private var glyphKnown: [Int: Bool] = [:]
     private var inverseMap: [String: [Int]]?
     private var gidToCid: [Int: Int]?
@@ -65,6 +69,26 @@ final class TextFont: @unchecked Sendable {
     private(set) var descent = -0.2
     let bold: Bool
     let italic: Bool
+    /// The descriptor's /Flags (1 fixed pitch, 2 serif, 64 italic, …); 0 without a descriptor.
+    let flags: Int
+    /// The descriptor's x-height in ems, when it gives one.
+    let xHeight: Double?
+
+    private let rankLock = NSLock()
+    private var ranks: [Int: [StandInFont]] = [:]
+
+    /// The installed fonts `StandInFonts` ranked for this font, by style (bold 2, italic 1), once worked out.
+    func standInRanks(_ style: Int) -> [StandInFont]? {
+        rankLock.lock()
+        defer { rankLock.unlock() }
+        return ranks[style]
+    }
+
+    func setStandInRanks(_ style: Int, _ list: [StandInFont]) {
+        rankLock.lock()
+        ranks[style] = list
+        rankLock.unlock()
+    }
 
     init(_ font: PObj) {
         let subtype = font.name("Subtype")
@@ -104,7 +128,11 @@ final class TextFont: @unchecked Sendable {
             if blocked == nil && unicode.isEmpty { blocked = loc("its font doesn't say which characters its glyphs are") }
         } else {
             descriptor = font.dict("FontDescriptor")
-            if subtype == "Type3" { blocked = loc("it is drawn with a Type 3 font (glyphs drawn as pictures)") }
+            // A Type 3 font is blocked, but for the stand-in fonts a paragraph edit made (`Type3FontWriter`, named /InkFb…):
+            // their codes, /Widths and ToUnicode are read like any simple font's, so the paragraph reads back as one.
+            if subtype == "Type3" && !(font.name("Name") ?? "").hasPrefix(ContentEditor.standInKey) {
+                blocked = loc("it is drawn with a Type 3 font (glyphs drawn as pictures)")
+            }
             // Kept within ±1e9, so first + i below can't overflow; only codes 0-255 are read.
             let first = min(max(font.int("FirstChar") ?? 0, -1_000_000_000), 1_000_000_000)
             if let w = font.array("Widths") {
@@ -113,8 +141,12 @@ final class TextFont: @unchecked Sendable {
             let plain = Self.stripStyle(name)
             standard14 = descriptor == nil
                 && ["Helvetica", "Arial", "Times", "TimesNewRoman", "Times-Roman", "Courier", "CourierNew"].contains(plain)
-            if descriptor == nil && (name.hasPrefix("Symbol") || name.hasPrefix("ZapfDingbats")) && blocked == nil {
-                blocked = loc("its font is a symbol font")
+            if descriptor == nil && subtype == "Type1" && name == "Symbol" { symbolMetrics = SystemFonts.get("Symbol.ttf") }
+            // macOS has ZapfDingbats itself (Windows has no twin and reads Adobe's AFM): the text stays in the file's font,
+            // drawn by the reader's own, measured with the Mac's.
+            dingbats = descriptor == nil && subtype == "Type1" && name == "ZapfDingbats" && ZapfDingbats.available
+            if descriptor == nil && symbolMetrics == nil && !dingbats && (name.hasPrefix("Symbol") || name.hasPrefix("ZapfDingbats")) && blocked == nil {
+                blocked = loc("its font is a symbol font (Symbol or ZapfDingbats) that isn't embedded, with no widths to lay it out with")
             }
         }
 
@@ -122,6 +154,8 @@ final class TextFont: @unchecked Sendable {
         embedded = descriptor.map { $0.has("FontFile") || $0.has("FontFile2") || $0.has("FontFile3") } ?? false
         hasWidths = font.array("Widths") != nil
         let flags = descriptor?.int("Flags") ?? 0
+        self.flags = flags
+        if let xh = descriptor?.number("XHeight"), xh > 0 && xh < 1500 { xHeight = xh / 1000 } else { xHeight = nil }
         symbolic = flags & 4 != 0 && flags & 32 == 0
         if let descriptor {
             let asc = descriptor.number("Ascent") ?? 0
@@ -161,7 +195,7 @@ final class TextFont: @unchecked Sendable {
                 differences = e.array("Differences")
             }
         }
-        let builtIn = (program as? Type1Program)?.builtIn
+        let builtIn = symbolMetrics != nil ? Self.symbolEncoding : dingbats ? ZapfDingbats.encoding : (program as? Type1Program)?.builtIn
         if baseEncoding.map({ !GlyphNames.isKnownEncoding($0) }) ?? true {
             // No (usable) base encoding: the font's own. Type 1 programs carry one; otherwise Standard for text fonts.
             baseEncoding = builtIn != nil || (symbolic && subtype == "TrueType") ? nil : "StandardEncoding"
@@ -178,7 +212,32 @@ final class TextFont: @unchecked Sendable {
                 }
             }
         }
-        for c in 0..<256 { simpleText[c] = toUnicode[c] ?? names[c].flatMap(GlyphNames.toUnicode) }
+        for c in 0..<256 {
+            if let t = toUnicode[c] {
+                simpleText[c] = t
+            } else if let n = names[c] {
+                simpleText[c] = dingbats ? ZapfDingbats.text(n) ?? GlyphNames.toUnicode(n) : GlyphNames.toUnicode(n)
+            } else {
+                simpleText[c] = nil
+            }
+        }
+    }
+
+    private static let symbolEncoding: [String?] = (0..<256).map(GlyphNames.inSymbol)
+
+    /// A code's width in the standard Symbol font: its glyph name's character in macOS's Symbol (Adobe's widths, rounded
+    /// as the AFM gives them).
+    private func symbolAdvance(_ code: Int) -> Double? {
+        guard let sm = symbolMetrics, (0..<256).contains(code), let name = names[code], GlyphNames.symbolCode(name) != nil else { return nil }
+        if name == "Euro" { return 750 } // the euro Adobe added at 160, which Windows' Symbol lacks
+        guard let t = GlyphNames.toUnicode(name), let cp = t.unicodeScalars.first?.value, sm.has(cp) else { return nil }
+        return (sm.advance(cp) * 1000).rounded()
+    }
+
+    /// A code's width in the standard ZapfDingbats font (its glyph name's in macOS's ZapfDingbats).
+    private func dingbatsAdvance(_ code: Int) -> Double? {
+        guard dingbats, (0..<256).contains(code), let name = names[code] else { return nil }
+        return ZapfDingbats.width(name)
     }
 
     private static func readW(_ w: PObj?) -> [Int: Double] {
@@ -307,6 +366,8 @@ final class TextFont: @unchecked Sendable {
         let inRange = (0..<256).contains(code)
         if inRange, let w = widths[code], w > 0 { return w }
         if let pa = programAdvance(code) { return pa }
+        if let sa = symbolAdvance(code) { return sa }
+        if let da = dingbatsAdvance(code) { return da }
         if standard14, inRange, let t = simpleText[code], t.utf16.count == 1 {
             return StdFont.fromName(name).advance(UInt32(t.utf16.first!)) * 1000
         }
@@ -412,10 +473,12 @@ final class TextFont: @unchecked Sendable {
             switch program {
             case let tt as TrueTypeProgram:
                 has = tt.hasGlyph(gidOf(code), blank: blank)
-            case let t1 as Type1Program where glyphName != nil:
-                has = t1.hasName(glyphName!)
-            case let cff as CffProgram where !cff.isCid && glyphName != nil:
-                has = cff.hasName(glyphName!)
+            // The program is readable, so it decides: a code with no glyph name draws nothing, whatever a /ToUnicode and
+            // /Widths that cover the whole code page say (pdfTeX's do).
+            case let t1 as Type1Program:
+                has = glyphName.map(t1.hasName) ?? false
+            case let cff as CffProgram where !cff.isCid:
+                has = glyphName.map(cff.hasName) ?? false
             case nil where hasDescriptor && !embedded:
                 has = glyphName != nil || simpleText[code] != nil
             case nil where !hasDescriptor:
@@ -424,7 +487,8 @@ final class TextFont: @unchecked Sendable {
                 has = hasWidth(code) && (!hasToUnicode || toUnicode[code] != nil) // program unreadable: the PDF's tables
             }
             // A width is needed to place it; an embedded TrueType glyph's width can be added from the program.
-            if has && !hasWidth(code) && !(standard14 && !hasWidths) && programAdvance(code) == nil { has = false }
+            if has && !hasWidth(code) && !(standard14 && !hasWidths) && programAdvance(code) == nil
+                && (hasWidths || (symbolAdvance(code) ?? dingbatsAdvance(code)) == nil) { has = false }
         }
         glyphKnown[code] = has
         return has

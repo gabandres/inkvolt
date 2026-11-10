@@ -17,6 +17,8 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
     let descent: Double
     /// The font's bounding box in thousandths of an em: xMin, yMin, xMax, yMax.
     let bbox: [Double]
+    /// The x-height as a fraction of the em (0 when the font doesn't say).
+    let xHeight: Double
 
     private let lock = NSLock()
     private var glyphs: [UInt32: Int] = [:]
@@ -28,6 +30,7 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
         postScriptName = CTFontCopyPostScriptName(font) as String
         ascent = Double(CTFontGetAscent(font)) / 1000
         descent = -Double(CTFontGetDescent(font)) / 1000
+        xHeight = Double(CTFontGetXHeight(font)) / 1000
         let b = CTFontGetBoundingBox(font)
         bbox = [Double(b.minX), Double(b.minY), Double(b.maxX), Double(b.maxY)]
     }
@@ -73,6 +76,19 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
     func advance(_ codePoint: UInt32) -> Double { glyphAdvance(glyphOf(codePoint)) / unitsPerEm }
 
     func measure(_ s: String) -> Double { s.unicodeScalars.reduce(0) { $0 + advance($1.value) } }
+
+    /// Whether a glyph is drawn by an outline Type 3 can carry: not a color font's bitmap (Apple Color Emoji), not empty.
+    func hasOutline(_ glyph: Int) -> Bool {
+        if glyph == 0 || CTFontGetSymbolicTraits(font).contains(.traitColorGlyphs) { return false }
+        guard let path = CTFontCreatePathForGlyph(font, CGGlyph(clamping: glyph), nil) else { return false }
+        return !path.isEmpty
+    }
+
+    /// Whether a code point is drawn by an outline in this font.
+    /// A character with no ink (white space, a format character such as a joiner, a variation selector) needs none.
+    func drawsOutline(_ codePoint: UInt32) -> Bool {
+        StandInFonts.inkless(codePoint) || (has(codePoint) && hasOutline(glyphOf(codePoint)))
+    }
 
     /// The glyph's outline (font units, y up) and its bounding box.
     func outline(_ glyph: Int) -> (path: CGPath?, box: CGRect) {

@@ -3,14 +3,16 @@ import PdfCore
 import PrintCore
 import UniformTypeIdentifiers
 
-/// Edit Text & Images (the Windows app's PageViewer.EditContent and DocumentTab.EditContent), over D5a's
-/// `ContentEditor`: with the tool on, the page's own text runs and pictures are outlined; a click on text asks for its
-/// new wording (kept only when the run's font has every character), a picture is selected with a click, dragged to move
-/// it, its handles resize it (Shift keeps its proportions), the arrow keys nudge it (Shift: 10 pt; written once the keys
-/// rest for 0.45 s, as Windows), Delete removes it and Replace Picture… swaps it. Each change is one undo step. Not yet:
-/// Tab through the runs.
+/// Edit Text & Images (the Windows app's PageViewer.EditContent and DocumentTab.EditContent), over `ContentEditor`: with
+/// the tool on, the page's own text runs and pictures are outlined, and the paragraphs that can be rewritten as one; a
+/// click on such a paragraph's text (or between its lines) opens the paragraph editor (`ParagraphEditorController`,
+/// roadmap 2.1: the text rewraps in its box, looks for a selection, a warning before it runs into what follows), a click
+/// on other text asks for its new wording (characters its font lacks drawn from the closest font on this Mac, and said),
+/// a picture is selected with a click, dragged to move it, its handles resize it (Shift keeps its proportions), the arrow
+/// keys nudge it (Shift: 10 pt; written once the keys rest for 0.45 s, as Windows), Delete removes it and Replace
+/// Picture… swaps it. Each change is one undo step. Not yet: Tab through the runs.
 @MainActor
-final class ContentEditing: NSObject {
+final class ContentEditing: NSObject, NSPopoverDelegate {
     private weak var controller: DocumentWindowController?
     /// Each page's runs and pictures, read off the main thread for the current bytes.
     private var content: [Int: PageContent] = [:]
@@ -23,6 +25,13 @@ final class ContentEditing: NSObject {
     /// The selected picture being found again after an edit, and which reading of the content that is.
     private var refinding = false
     private var readings = 0
+    /// The paragraph editor shown, and its popover.
+    private(set) var paragraphEditor: ParagraphEditorController?
+    private var paragraphPopover: NSPopover?
+    /// For the self-test: the text and looks a paragraph's editor gets, applied at once (nil: the editor shows).
+    var testParagraph: (text: String, spans: [TextSpan]?)?
+    /// For the self-test: the answer to "the text runs into what follows" (nil: the alert shows).
+    var testOverlapAnswer: Bool?
 
     init(controller: DocumentWindowController) {
         self.controller = controller
@@ -92,6 +101,13 @@ final class ContentEditing: NSObject {
     func draw(_ page: Int, _ r: NSRect) {
         guard let pages, let c = shown(page) else { return }
         let px = pages.onePixel
+        // The paragraphs that are rewritten as one: their box, faintly.
+        for p in c.paragraphs where p.blocked == nil && (p.lines.count > 1 || p.runs.count > 1) {
+            let path = NSBezierPath(rect: pages.viewRect(p.box, r).insetBy(dx: -3 * px, dy: -3 * px))
+            path.lineWidth = px
+            NSColor.systemBlue.withAlphaComponent(0.25).setStroke()
+            path.stroke()
+        }
         for run in c.runs {
             let path = NSBezierPath(rect: pages.viewRect(run.box, r).insetBy(dx: -px, dy: -px))
             path.lineWidth = px
@@ -179,6 +195,15 @@ final class ContentEditing: NSObject {
 
     func image(page: Int, _ p: PointD) -> PageImage? { content[page]?.imageAt(p.x, p.y) }
     func run(page: Int, _ p: PointD) -> TextRun? { content[page]?.runAt(p.x, p.y, slop: 2) }
+    /// The paragraph under a point between its lines (one that is edited as one), or nil.
+    func paragraph(page: Int, _ p: PointD) -> TextParagraph? { content[page]?.paragraphAt(p.x, p.y, slop: 2) }
+
+    /// The paragraph a run is edited as: its paragraph when that can be rewritten as one and is more than the run alone
+    /// (several lines, or a line drawn in pieces); else nil, and the run is edited on its own.
+    func editableParagraph(_ run: TextRun) -> TextParagraph? {
+        guard let p = content[run.pageIndex]?.paragraphOf(run), p.blocked == nil, p.lines.count > 1 || p.runs.count > 1 else { return nil }
+        return p
+    }
 
     /// Whether `image` (nil: no) is the selected picture.
     func isSelected(_ image: PageImage?) -> Bool {
@@ -205,9 +230,13 @@ final class ContentEditing: NSObject {
         }
     }
 
-    /// A click on text: its new wording, asked for over it.
+    /// A click on text: its paragraph's editor when it is rewritten as one, else its new wording, asked for over it.
     func editRun(_ run: TextRun) {
         guard let pages, let controller, run.pageIndex < pages.pageRects.count else { return }
+        if let p = editableParagraph(run) {
+            editParagraph(p)
+            return
+        }
         if let why = run.blocked {
             controller.notify(loc("This text can't be edited: {0}.", why))
             return
@@ -219,18 +248,21 @@ final class ContentEditing: NSObject {
         }
     }
 
-    /// Replaces a run's text when its font can draw every character (else says which are missing).
+    /// Replaces a run's text when its font, or a font on this Mac, can draw every character (else says which are missing);
+    /// characters drawn from another font are said.
     func replace(_ run: TextRun, _ text: String) {
         guard let editor, let controller else { return }
         let check = run.check(text)
         if !check.missing.isEmpty {
-            let list = check.missing.prefix(8).map { $0 == " " ? loc("space") : "“\($0)”" }.joined(separator: ", ")
-            controller.notify(loc("Not changed: the font “{0}” has no {1} in this PDF.", run.fontName, list))
+            let list = ParagraphEditorController.charList(check.missing)
+            controller.notify(loc("Not changed: neither the font “{0}” nor any font on this Mac has {1}.", run.fontName, list))
             return
         }
         pendingEdit = Task {
             let ok = await editor.replaceText(run, text)
-            if ok && check.width - check.oldWidth > 0.5 {
+            if ok && !check.borrowed.isEmpty {
+                controller.notify(ParagraphEditorController.borrowedNote(check.borrowed, run.fontName, check.standIns), canUndo: true)
+            } else if ok && check.width - check.oldWidth > 0.5 {
                 // The widths come from the PDF's font: one too wide to count is said without its number.
                 if let wider = Int(exactly: (check.width - check.oldWidth).rounded()) {
                     controller.notify(loc("Text changed. It is {0} pt wider than before and doesn't reflow, so it may overlap what follows.", CoreLanguage.number(wider)), canUndo: true)
@@ -239,6 +271,94 @@ final class ContentEditing: NSObject {
                 }
             }
             self.pendingEdit = nil
+        }
+    }
+
+    // MARK: Paragraphs
+
+    /// Opens a paragraph's editor over it (the self-test's text and looks applied at once instead).
+    func editParagraph(_ p: TextParagraph) {
+        guard let pages, p.pageIndex < pages.pageRects.count else { return }
+        if let test = testParagraph {
+            replace(p, test.text, test.spans)
+            return
+        }
+        closeParagraphEditor()
+        let anchor = pages.viewRect(p.box, pages.pageRects[p.pageIndex])
+        let editor = ParagraphEditorController(p, width: anchor.width + 40)
+        editor.done = { [weak self] text, spans in
+            self?.paragraphEditor = nil
+            self?.replace(p, text, spans)
+        }
+        let popover = NSPopover()
+        popover.behavior = .semitransient
+        popover.contentViewController = editor
+        popover.delegate = self
+        editor.popover = popover
+        paragraphEditor = editor
+        paragraphPopover = popover
+        popover.show(relativeTo: anchor.insetBy(dx: -2, dy: -2), of: pages, preferredEdge: .maxY)
+        NSAccessibility.post(element: pages, notification: .announcementRequested,
+                             userInfo: [.announcement: loc("Editing the paragraph: type, then press Return. Shift-Return starts a new line, Esc cancels.")])
+    }
+
+    func closeParagraphEditor() {
+        paragraphPopover?.close()
+        paragraphPopover = nil
+        paragraphEditor = nil
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        guard let popover = notification.object as? NSPopover, popover === paragraphPopover else { return }
+        paragraphPopover = nil
+        paragraphEditor = nil
+    }
+
+    /// Rewrites a paragraph: refused with a notice when a character can't be drawn or a look can't be written; asked first
+    /// when it would run into what follows; characters drawn from fonts on this Mac said after.
+    func replace(_ p: TextParagraph, _ text: String, _ spans: [TextSpan]?) {
+        guard let editor, let controller else { return }
+        let check = p.check(text, spans: spans)
+        if let problem = check.lookProblem {
+            controller.notify(loc("Not changed: {0}.", problem))
+            return
+        }
+        if !check.missing.isEmpty {
+            controller.notify(loc("Not changed: neither the font “{0}” nor any font on this Mac has {1}.", p.lead.fontName,
+                                  ParagraphEditorController.charList(check.missing)))
+            return
+        }
+        pendingEdit = Task {
+            var allow = false
+            if check.overlaps != nil {
+                guard await self.confirmOverlap(check.lineCount, was: p.lines.count) else {
+                    controller.notify(loc("Not changed: shorten the text to keep it in its place."))
+                    self.pendingEdit = nil
+                    return
+                }
+                allow = true
+            }
+            let ok = await editor.replaceParagraph(p, text, spans: spans, allowOverlap: allow)
+            if ok && !check.borrowed.isEmpty {
+                controller.notify(ParagraphEditorController.borrowedNote(check.borrowed, p.lead.fontName, check.standIns), canUndo: true)
+            }
+            self.pendingEdit = nil
+        }
+    }
+
+    /// Asks before new text runs into what follows below it.
+    private func confirmOverlap(_ lines: Int, was: Int) async -> Bool {
+        if let answer = testOverlapAnswer { return answer }
+        guard let window = pages?.window else { return false }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = loc("The text runs into what follows")
+        alert.informativeText = loc("The new text takes {0} lines (it had {1}), so its last lines would run into the text or picture below it. Change it anyway? Undo takes it back.",
+                                    CoreLanguage.number(lines), CoreLanguage.number(was))
+        alert.addButton(withTitle: loc("Change Anyway"))
+        alert.addButton(withTitle: loc("Cancel"))
+        return await withCheckedContinuation { (done: CheckedContinuation<Bool, Never>) in
+            alert.beginSheetModal(for: window) { response in done.resume(returning: response == .alertFirstButtonReturn) }
         }
     }
 

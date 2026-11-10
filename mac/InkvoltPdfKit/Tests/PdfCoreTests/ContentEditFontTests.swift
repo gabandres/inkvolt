@@ -68,8 +68,8 @@ struct ContentEditFontTests {
         let run = try #require(runs.first)
         #expect(run.text == "ab")
         #expect(run.blocked == nil)
-        #expect(run.check("ba").missing.isEmpty)
-        #expect(run.check("abc").missing == ["c"]) // a width, but no glyph in the subset
+        #expect(run.check("ba").borrowed.isEmpty)
+        #expect(run.check("abc").borrowed == ["c"]) // a width, but no glyph in the subset: a stand-in font draws it
         let edited = try ContentEditor.replaceText(pdf, nil, run, "bab")
         #expect(ContentEditPdf.content(edited).contains("(bab) Tj"))
     }
@@ -123,8 +123,8 @@ struct ContentEditFontTests {
         let pdf = Self.withFont("<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Test /FirstChar 97 /LastChar 99 /Widths [500 600 700] "
             + "/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>", "/FontFile3 7 0 R|" + Self.stream(latin1String(cff), "/Subtype /Type1C"))
         let run = try #require(try ContentEditor.read(pdf, nil, 0).runs.first)
-        #expect(run.check("bba").missing.isEmpty)
-        #expect(run.check("cab").missing == ["c"])
+        #expect(run.check("bba").borrowed.isEmpty)
+        #expect(run.check("cab").borrowed == ["c"])
     }
 
     @Test func nonEmbeddedStandardFontsTakeAnyCharacterOfTheirEncoding() throws {
@@ -136,7 +136,9 @@ struct ContentEditFontTests {
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         ])
         let run = try #require(try ContentEditor.read(pdf, nil, 0).runs.first)
-        #expect(run.check("Zoë – €5 中").missing == ["中"])
+        let check = run.check("Zoë – €5 中")
+        #expect(check.missing.isEmpty)
+        #expect(check.borrowed == ["中"]) // not in WinAnsi: a CJK font on this Mac stands in
         let edited = try ContentEditor.replaceText(pdf, nil, run, "Zoë – €5")
         #expect(ContentEditPdf.text(edited).contains("Zoë – €5"))
     }

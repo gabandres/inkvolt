@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Edit Text & Images edits whole paragraphs: click a paragraph and type, and its text rewraps inside its box with its own font, alignment and line spacing. What follows stays put, and you're asked before longer text would run into it. The bar above the text gives a selection another font, size, color, bold or italic. A character the PDF's font lacks is drawn from the closest font on this Mac, and said.
 
 ## 1.10.0
 - The toolbar is the command bar Windows has: Edit, Convert, Comment, Fill & Sign, Organize, Protect and Scan & OCR, each with its label. A click on a group does its main job; its arrow lists the rest, each with a line saying what it does. Convert › Word saves name.docx next to the PDF in one click (never over a file), opens it, and says "Saved name.docx · Show in Finder · Change options…"; Excel, PowerPoint, text and web page too. Option-click asks first. Sign, Highlight, Password and Recognize Text work in one click as well. Draw is in Comment, Redact in Protect.

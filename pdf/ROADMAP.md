@@ -19,7 +19,7 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 2.1, 3.1, 3.4 and 3.5 (3.3 done 2026-11-07),
+PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 3.1, 3.4 and 3.5 (3.3 done 2026-11-07, 2.1 2026-11-10),
 in the order of the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
@@ -388,7 +388,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   bold and italic change for a selection; text inside form XObjects edits too. Test: on the export corpus, 20 words
   added to a paragraph re-extract in order, nothing overlaps the next block, and the page opens in Acrobat and pdf.js
   with the same text; a file whose fonts aren't installed is still editable (where Acrobat isn't).
-- **Effort** L. Windows done but for the Still to do above; the Mac has the line-level editor only, and this is still to do there.
+- **Mac** (2026-11-10, on `ignia-mac`): all of the above but the hidden-layer and Translate parts of the walk, ported from
+  `ContentEditor` with Windows' tests under their names (`ParagraphEditTests` with its Looks, Lines, Mixed, Forms, Turned
+  and PdfJs parts, and `ContentEditorTests`' stand-in, form and pdfTeX cases); in the app, Edit Text & Images opens a
+  paragraph editor (a popover with a rich text view, the look bar and the live note) over a paragraph rewritten as one.
+  Mac differences: stand-in characters and looks in installed fonts are Type 3 fonts drawn from Core Text's outlines
+  (`Type3FontWriter`, as the Mac's annotations already are), named by family and style, with a descriptor; the stand-in
+  families are the Mac's (Helvetica Neue, Gill Sans, Palatino, Baskerville, Hoefler Text, Menlo, Andale Mono in place of
+  Windows-only ones) and a look can name any family Core Text lists; ZapfDingbats not embedded is measured with macOS's
+  own font (its encoding from Unicode's mapping) instead of Adobe's AFM, Symbol with macOS's Symbol. pdf.js reads the 8
+  sample pages (with a Mac case for looks) and 15 export-corpus pages in order; the corpus check passes; the app's
+  `--only-paragraph-edit` self-test passes in English and Spanish. See `mac/docs/PLAN.md`, "Paragraph editing".
+- **Effort** L. Windows done but for the Still to do above; the Mac done (2026-11-10).
 
 ### 2.2 Better OCR
 - **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),

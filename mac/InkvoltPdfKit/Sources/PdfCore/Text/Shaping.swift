@@ -159,10 +159,17 @@ final class Type3FontWriter {
     }
 
     private let namePrefix: String
+    /// Stand-in fonts of a paragraph edit (`ContentEditor`): each font also says which system font it is (/BaseFont, its
+    /// PostScript name) and that it is one (/Name, under the stand-in prefix), so the edit's text reads back as part of
+    /// the paragraph.
+    private let standIn: Bool
     private var fonts: [Used] = []
     private var codes: [Key: (Used, Int)] = [:]
 
-    init(namePrefix: String = "/PdU") { self.namePrefix = namePrefix }
+    init(namePrefix: String = "/PdU", standIn: Bool = false) {
+        self.namePrefix = namePrefix
+        self.standIn = standIn
+    }
 
     var isEmpty: Bool { fonts.isEmpty }
 
@@ -202,13 +209,15 @@ final class Type3FontWriter {
     /// text switches direction, and it takes the direction of a space or punctuation from the character before it, so
     /// each run begins with an invisible, zero-width direction mark (LRM / RLM, an empty glyph) inside an empty
     /// /ActualText: it sets the direction the run's leading spaces inherit, and extraction leaves it out.
-    func emit(_ sb: inout String, _ line: ShapedLine, size: Double) {
+    /// - Parameter baseRise: the text rise in effect (a paragraph's own, or a script's): glyphs are raised from it, and it
+    ///   is set back after.
+    func emit(_ sb: inout String, _ line: ShapedLine, size: Double, baseRise: Double = 0) {
         // A cluster drawn with more glyphs than it has characters leaves glyphs with no text of their own: the line's
         // /ActualText then gives extraction the exact string.
         let actual = line.glyphs.contains { $0.text.isEmpty }
         if actual { sb += "/Span <</ActualText <FEFF\(Self.utf16Hex(line.text))>>> BDC " }
         var cur: Used?
-        var pen = 0.0, rise = 0.0
+        var pen = 0.0, rise = baseRise
         var open = false
         func close(_ sb: inout String) {
             if open { sb += "] TJ " }
@@ -232,7 +241,7 @@ final class Type3FontWriter {
                 sb += "\(u.name) \(PdfNum.f(size)) Tf "
                 cur = u
             }
-            let y = g.y * size
+            let y: Double = baseRise + g.y * size
             if abs(y - rise) > 0.001 {
                 close(&sb)
                 sb += "\(PdfNum.f(y)) Ts "
@@ -247,7 +256,7 @@ final class Type3FontWriter {
             pen = target + Self.width(g.font, g.glyph)
         }
         close(&sb)
-        if rise != 0 { sb += "0 Ts " }
+        if abs(rise - baseRise) > 0.001 { sb += "\(PdfNum.f(baseRise)) Ts " }
         if actual { sb += "EMC " }
     }
 
@@ -289,7 +298,7 @@ final class Type3FontWriter {
             widths.append(doc.real(w))
         }
         if x1 <= x0 || y1 <= y0 { (x0, y0, x1, y1) = (u.font.bbox[0], u.font.bbox[1], u.font.bbox[2], u.font.bbox[3]) }
-        let font = doc.dict([
+        var entries: [(String, PObj)] = [
             ("Type", doc.name("Font")), ("Subtype", doc.name("Type3")),
             ("FontBBox", doc.reals(x0.rounded(.down), y0.rounded(.down), x1.rounded(.up), y1.rounded(.up))),
             ("FontMatrix", doc.reals(0.001, 0, 0, 0.001, 0, 0)), ("CharProcs", charProcs),
@@ -297,8 +306,28 @@ final class Type3FontWriter {
             ("FirstChar", doc.int(1)), ("LastChar", doc.int(u.byCode.count - 1)), ("Widths", doc.array(widths)),
             ("Resources", doc.dict()),
             ("ToUnicode", doc.addStream(Self.toUnicode(u.byCode), deflate: true)),
-        ])
-        return doc.add(font)
+        ]
+        if standIn {
+            entries.append(("Name", doc.name(String(u.name.drop { $0 == "/" }))))
+            // Named by its family and style as Windows names faces ("Arial,Bold"), so it reads back apart from a page font
+            // of the same face ("ABCDEF+Arial-BoldMT").
+            let traits = CTFontGetSymbolicTraits(u.font.font)
+            let bold = traits.contains(.traitBold), italic = traits.contains(.traitItalic)
+            let style = bold ? (italic ? ",BoldItalic" : ",Bold") : italic ? ",Italic" : ""
+            entries.append(("BaseFont", doc.name(u.font.family.filter { $0 != " " } + style)))
+            // Its ascent and descent, so the text reads back with the system font's height (a Type 3 font says none).
+            var flags = 4 // symbolic: its own encoding
+            if italic { flags |= 64 }
+            if bold { flags |= 0x40000 }
+            let descriptor = doc.dict([
+                ("Type", doc.name("FontDescriptor")), ("FontName", doc.name(u.font.postScriptName)), ("Flags", doc.int(flags)),
+                ("FontBBox", doc.reals(u.font.bbox[0], u.font.bbox[1], u.font.bbox[2], u.font.bbox[3])), ("ItalicAngle", doc.int(0)),
+                ("Ascent", doc.real((u.font.ascent * 1000).rounded())), ("Descent", doc.real((u.font.descent * 1000).rounded())),
+                ("StemV", doc.int(0)),
+            ])
+            entries.append(("FontDescriptor", doc.add(descriptor)))
+        }
+        return doc.add(doc.dict(entries))
     }
 
     /// The glyph's outline as a Type 3 glyph procedure (d1: drawn in the text's color), and its box.

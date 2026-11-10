@@ -835,6 +835,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func closePopovers() {
         inspectorPopover?.close()
         askPopover?.close()
+        content?.closeParagraphEditor()
     }
 
     func popoverDidClose(_ notification: Notification) {

@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
 /// `CompareTest` (`--only-compare` runs it alone) and `FolderSearchTest` (`--only-folder-search` runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -68,6 +68,8 @@ enum Report {
         // File › Compare Files on versions made here: text, formatting, a scanned page.
         Scenario(flag: "--only-compare", documents: .synthetic) { _, _ in var t = CompareTest(); await t.run() },
         Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
+        // Edit Text & Images' paragraphs (roadmap 2.1), on a page made here: rewrap, the editor's look bar, the overlap prompt.
+        Scenario(flag: "--only-paragraph-edit", documents: .synthetic) { _, _ in var t = ParagraphEditTest(); await t.run() },
         // Printing to PDF files: vectors, pictures, every layout.
         Scenario(flag: "--only-print", documents: .notForm) { c, n in
             var t = PagesTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
@@ -157,7 +159,7 @@ enum Report {
     static func documentOpened(_ controller: DocumentWindowController, name: String) {
         // The app, compare, attachments and page tests' own documents get only their checks.
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument,
-              !FolderSearchTest.isActive, !FormFillTest.isActive else { return }
+              !FolderSearchTest.isActive, !FormFillTest.isActive, !ParagraphEditTest.isActive else { return }
         if uxShots {
             // The synthetic text document only; the form opens, unseen, and is closed at the end.
             guard controller.pdf.fileURL?.path == syntheticPath else { return }
@@ -235,6 +237,8 @@ enum Report {
                     await form.run()
                     var filling = FormFillTest()
                     await filling.run()
+                    var paragraphs = ParagraphEditTest()
+                    await paragraphs.run()
                     // Before signing: a signed document declines the scale's page edits.
                     var measure = MeasureTest(controller: controller, name: name)
                     await measure.run()

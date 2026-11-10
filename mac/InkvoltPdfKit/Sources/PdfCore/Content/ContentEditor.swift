@@ -5,11 +5,11 @@ import PrintCore
 /// which is usually a line or a word. Page space (points, top-left origin of the page as shown).
 public struct TextRun: Sendable {
     public let pageIndex: Int
-    /// The operator's place in the page's content (with `text`, how an edit finds it again).
+    /// The operator's place in the page's content (with `text`, how an edit finds it again; negative inside a form XObject).
     public let id: Int
     public let text: String
     /// Where it shows (the bounding box when it is turned).
-    public let box: RectD
+    public internal(set) var box: RectD
     /// Its size on the page, in points.
     public let fontSize: Double
     public let fontName: String
@@ -18,48 +18,88 @@ public struct TextRun: Sendable {
     /// Its fill color (0xRRGGBB) when it is a plain gray, RGB or CMYK color, else black.
     public let color: Int
     /// The direction of its baseline on the page, degrees clockwise from left-to-right.
-    public let angle: Double
+    public internal(set) var angle: Double
     /// Why it can't be edited, as the end of a sentence ("it is …"); nil when it can.
-    public let blocked: String?
+    public internal(set) var blocked: String?
     /// The run's width as drawn (points along the baseline, to the end of its last glyph).
     public let oldWidth: Double
 
-    let font: TextFont?
+    var font: TextFont?
     /// Page points per text-space unit along the baseline.
     let scale: Double
     var size = 0.0, charSpacing = 0.0, wordSpacing = 0.0, hScale = 1.0
     var gapEms = 0.25
     var info: ContentEditor.RunInfo?
+    /// The name its font has in the resources (no slash).
+    var fontKey = ""
+    /// Inside the marked content a paragraph edit puts around text it gave a look of its own (see `TextLook`); else nil.
+    var tag: ContentEditor.LookTag?
+    /// Where its baseline starts on the page (page space, the text rise included).
+    var origin = PointD(0, 0)
+    /// How far its glyphs reach from `origin` in its own direction (points); nil when its text is mirrored or slanted, so
+    /// that it has no upright box.
+    var reach: Reach?
 
-    /// The width `text` would take written into this run (points), and the characters the font can't draw.
+    struct Reach: Sendable {
+        var back: Double, along: Double, above: Double, below: Double
+    }
+
+    /// Drawn in a font a paragraph edit added for characters the paragraph's own font lacks (see `StandInFonts`).
+    var standIn: Bool { fontKey.hasPrefix(ContentEditor.standInKey) }
+
+    /// Part of a paragraph an edit gave its own font, size or color.
+    var styled: Bool { tag != nil }
+
+    /// The width `text` would take written into this run (points), the characters the font lacks that a stand-in font
+    /// draws, and the characters no font here can draw.
     public func check(_ text: String) -> TextCheck {
         guard font != nil, let info else { return TextCheck(width: oldWidth, oldWidth: oldWidth, missing: []) }
         let plan = ContentEditor.plan(info, self, ContentEditor.oneLine(text))
-        return TextCheck(width: width(plan.parts) * scale, oldWidth: oldWidth, missing: plan.middle.missing)
+        return TextCheck(width: width(plan.parts) * scale, oldWidth: oldWidth, missing: plan.missing, borrowed: plan.borrowed,
+                         standIns: plan.standIns)
     }
 
     /// To the end of the last glyph's ink, in text space (as `oldWidth` measures the run).
-    func width(_ parts: [ContentEditor.Part]) -> Double {
-        guard let font else { return 0 }
+    func width(_ parts: [ContentEditor.Part]) -> Double { measure(parts).end }
+
+    /// How far parts advance and where their last glyph's ink ends (text space), and whether they have any ink.
+    func measure(_ parts: [ContentEditor.Part]) -> (advance: Double, end: Double, inked: Bool) {
+        guard let font else { return (0, 0, false) }
         var w = 0.0, end = 0.0
+        var inked = false
         for p in parts {
+            let size: Double = self.size * (p.look?.scale ?? 1) // a part of another size is written at its own font size
+            if let s = p.standIn {
+                // Drawn in a stand-in font, with no character spacing (see ContentEditor.writeLine).
+                w += s.width * size * hScale
+                end = w
+                inked = true
+                continue
+            }
             guard let c = p.code else {
                 w -= p.number / 1000 * size * hScale
                 continue
             }
-            let glyph = font.widthOf(c) / 1000 * size * hScale
+            let f = p.look?.page?.font ?? font // a stretch in another face of the page's family is measured in it
+            let glyph: Double = f.widthOf(c) / 1000 * size * hScale
             end = w + glyph
-            w += glyph + (charSpacing + (!font.twoByte && c == 32 ? wordSpacing : 0)) * hScale
+            inked = true
+            let spacing: Double = charSpacing + (!f.twoByte && c == 32 ? wordSpacing : 0)
+            w += glyph + spacing * hScale
         }
-        return end
+        return (w, end, inked)
     }
 }
 
-/// What new text would look like: its width and the run's (points), and characters the font has no glyph for.
+/// What new text would look like: its width and the run's (points), and characters no font here has a glyph for.
 public struct TextCheck: Sendable, Equatable {
     public var width: Double
     public var oldWidth: Double
     public var missing: [String]
+    /// Characters the run's own font lacks, drawn from installed fonts (`standIns`).
+    public var borrowed: [String] = []
+    /// The installed fonts they come from ("Arial Bold"), closest first.
+    public var standIns: [String] = []
 }
 
 /// A picture the page draws: an image XObject (Do) or an inline image (BI … EI). Page space.
@@ -68,7 +108,7 @@ public struct PageImage: Sendable, Equatable {
     /// The operator's place in the page's content.
     public let id: Int
     /// Where it shows (the bounding box when it is turned).
-    public let box: RectD
+    public internal(set) var box: RectD
     public let inline: Bool
     /// Why it can't be edited ("it is …"); nil when it can.
     public let blocked: String?
@@ -80,8 +120,26 @@ public struct PageImage: Sendable, Equatable {
 public struct PageContent: Sendable {
     public var runs: [TextRun]
     public var images: [PageImage]
+    /// The page's text runs grouped into paragraphs (see `ContentEditor.groupParagraphs`), turned text in its own direction.
+    public var paragraphs: [TextParagraph] = []
+
+    public init(runs: [TextRun], images: [PageImage]) {
+        self.runs = runs
+        self.images = images
+    }
 
     public static let empty = PageContent(runs: [], images: [])
+
+    /// The paragraph a run belongs to, or nil (only spaces).
+    public func paragraphOf(_ run: TextRun) -> TextParagraph? { paragraphs.first { $0.runs.contains { $0.id == run.id } } }
+
+    /// The paragraph under a point: the one holding the run there, else (between lines) one of several lines whose box
+    /// holds the point and that can be edited as one (a blocked one's lines are edited one by one, so there is nothing
+    /// between them).
+    public func paragraphAt(_ x: Double, _ y: Double, slop: Double = 1) -> TextParagraph? {
+        if let run = runAt(x, y, slop: slop) { return paragraphOf(run) }
+        return paragraphs.first { $0.lines.count > 1 && $0.blocked == nil && ContentEditor.holds($0, x, y) }
+    }
 
     /// The text run under a point (the smallest when several overlap), or nil.
     public func runAt(_ x: Double, _ y: Double, slop: Double = 1) -> TextRun? {
@@ -98,24 +156,34 @@ public struct ContentEditError: Error, Equatable, Sendable, CustomStringConverti
     public var message: String
     /// Characters the font has no glyph for (empty for other reasons).
     public var missing: [String]
+    /// A paragraph's new text would run into this (what follows below it, page space); nil for other reasons.
+    public var overlaps: RectD?
 
-    public init(_ message: String, missing: [String] = []) {
+    public init(_ message: String, missing: [String] = [], overlaps: RectD? = nil) {
         self.message = message
         self.missing = missing
+        self.overlaps = overlaps
     }
 
     public var description: String { message }
 }
 
-/// Edit Text & Images (the Windows app's `ContentEditor`): replaces the text of one text-showing operator in the same
-/// font (only when every glyph is in it; no other font is substituted and nothing reflows), and moves, resizes, replaces
-/// or deletes one picture by rewriting its placement. Works on the page's own content (all its content streams, read as
-/// one); text and pictures inside form XObjects are listed but not edited. Each edit is bytes in → bytes out, saved
-/// through `PdfEdit.save` (signed files appended to, protection kept).
+/// Edit Text & Images (the Windows app's `ContentEditor`): replaces the text of one text-showing operator in its own
+/// font (characters it lacks drawn from the closest installed font, `StandInFonts`), rewrites a paragraph
+/// (`replaceParagraph`, roadmap 2.1, ContentEditor+Paragraphs), and moves, resizes, replaces or deletes one picture by
+/// rewriting its placement. Works on the page's own content (all its content streams, read as one) and on text inside
+/// form XObjects (ContentEditor+Forms); pictures inside them are listed but not edited. Each edit is bytes in → bytes
+/// out, saved through `PdfEdit.save` (signed files appended to, protection kept).
 public enum ContentEditor {
-    private static let maxDepth = 8
+    static let maxDepth = 8
 
-    /// The page's text runs and pictures.
+    /// The most form XObject content walked for one page, counting each drawing (and a little for each, however small).
+    static let maxFormBytes = 64 << 20
+
+    /// The start of the names stand-in fonts get in a page's resources (characters a paragraph's font lacked).
+    static let standInKey = "InkFb"
+
+    /// The page's text runs, pictures and paragraphs.
     /// - Throws: `PdfEngineError` for a page past the end; `PdfEditError`, `PasswordRequired` when the file can't be read.
     public static func read(_ data: [UInt8], _ password: String?, _ pageIndex: Int, cancel: CancelToken? = nil) throws -> PageContent {
         let doc = try PdfEdit.openToRead(data, password)
@@ -124,10 +192,11 @@ public enum ContentEditor {
             throw PdfEngineError(message: loc("Page {0} isn't in this document.", CoreLanguage.number(pageIndex + 1)))
         }
         let page = doc.page(pageIndex)
-        return try walk(page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel).content
+        let walked = try walk(doc, page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel)
+        return withParagraphs(walked.content)
     }
 
-    /// Several pages' text runs and pictures (a page that can't be read comes back empty).
+    /// Several pages' text runs, pictures and paragraphs (a page that can't be read comes back empty).
     public static func read(_ data: [UInt8], _ password: String?, pages: [Int], cancel: CancelToken? = nil) throws -> [Int: PageContent] {
         let doc = try PdfEdit.openToRead(data, password)
         let count = try doc.pageCount()
@@ -135,7 +204,8 @@ public enum ContentEditor {
         for p in pages where p >= 0 && p < count {
             let page = doc.page(p)
             do {
-                result[p] = try walk(page, p, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel).content
+                let walked = try walk(doc, page, p, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel)
+                result[p] = withParagraphs(walked.content)
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
@@ -147,9 +217,9 @@ public enum ContentEditor {
 
     // ---- Text ----
 
-    /// Replaces a run's text, written in the run's own font.
-    /// - Throws: `ContentEditError` when the font can't draw the text (the message names the missing characters), the
-    ///   run can't be edited, or the page changed.
+    /// Replaces a run's text, written in the run's own font (characters it lacks in the closest installed font).
+    /// - Throws: `ContentEditError` when no font can draw the text (the message names the missing characters), the run
+    ///   can't be edited, or the page changed.
     public static func replaceText(_ data: [UInt8], _ password: String?, _ run: TextRun, _ newText: String) throws -> [UInt8] {
         let text = oneLine(newText)
         if Array(text.utf16) == Array(run.text.utf16) { return data }
@@ -157,7 +227,7 @@ public enum ContentEditor {
         let page = try pageOf(doc, run.pageIndex)
         let content = streams(page)
         let ops = ContentLexer.parse(content.bytes)
-        let walked = try walk(page, run.pageIndex, ops, nil)
+        let walked = try walk(doc, page, run.pageIndex, ops, nil)
         // The run where it was; else (an earlier edit moved the page's operators) the same text in the same place.
         let now = walked.textRuns.first { $0.id == run.id && same($0.text, run.text) }
             ?? walked.textRuns.filter { same($0.text, run.text) && near($0.box, run.box) }
@@ -168,29 +238,68 @@ public enum ContentEditor {
         }
 
         let planned = plan(info, now, text)
-        if !planned.middle.missing.isEmpty { throw missingGlyphs(font, planned.middle.missing) }
-        font.prepare(doc, fontDict, planned.middle.codes, planned.middleText)
-        let op = ops[now.id]
-        let replacement = writeShow(op, info, font, planned.parts)
-        _ = try writeContent(doc, page, content, ops, [(op.start, op.end, latin1Bytes(replacement))])
+        if !planned.missing.isEmpty { throw missingGlyphs(font, planned.missing) }
+        let target = try targetOf(doc, page, content, ops, walked, now)
+        font.prepare(doc, fontDict, planned.codes, planned.ownText)
+        let op = target.opOf(now, walked)
+        let replacement: String
+        if planned.standIns.isEmpty {
+            replacement = writeShow(op, info, font, planned.parts)
+        } else {
+            // Characters the font lacks: drawn in stand-in fonts, embedded as Type 3 fonts (as a paragraph edit does).
+            let writer = Type3FontWriter(namePrefix: standInPrefix(target), standIn: true)
+            var sb = ""
+            if op.name == "'" {
+                sb += "T* "
+            } else if op.name == "\"" {
+                sb += "\(ContentLexer.number(op.n(0))) Tw \(ContentLexer.number(op.n(1))) Tc T* "
+            }
+            writeLine(&sb, info.hex, now, planned.parts, now, writer, wordSpacing: now.wordSpacing)
+            replacement = sb
+            addFonts(doc, target.resourceOwner, writer.buildFonts(doc))
+        }
+        try writeTarget(doc, page, target, [(op.start, op.end, latin1Bytes(replacement))])
         SignedEdits.noteRemoval() // the old text stays in a signed file's earlier revision
         try doc.checkFailure()
         return try PdfEdit.save(doc, original: data, password: password)
     }
 
-    private static func same(_ a: String, _ b: String) -> Bool { a.utf16.elementsEqual(b.utf16) }
-    private static func distance(_ a: RectD, _ b: RectD) -> Double { abs(a.x - b.x) + abs(a.y - b.y) }
+    static func same(_ a: String, _ b: String) -> Bool { a.utf16.elementsEqual(b.utf16) }
+    static func distance(_ a: RectD, _ b: RectD) -> Double { abs(a.x - b.x) + abs(a.y - b.y) }
 
-    /// A glyph code, or (with no code) a TJ adjustment, of rewritten text.
-    struct Part: Sendable {
+    /// A glyph code, or (with no code) a TJ adjustment, of rewritten text; or characters drawn in a stand-in font
+    /// (`standIn`); with the look its stretch was given (`look`, nil: the paragraph's own).
+    struct Part {
         var code: Int?
         var number: Double
+        var standIn: ShapedLine?
+        var look: PartLook?
+
+        init(_ code: Int?, _ number: Double, _ standIn: ShapedLine? = nil, _ look: PartLook? = nil) {
+            self.code = code
+            self.number = number
+            self.standIn = standIn
+            self.look = look
+        }
     }
 
-    /// How a run's new text is written: what didn't change is kept (with its kerning), the changed middle is encoded
-    /// plainly. Adjustments touching the change go with it, except the one before the first glyph (where the run starts)
-    /// and any after the last.
-    static func plan(_ info: RunInfo, _ run: TextRun, _ text: String) -> (parts: [Part], middle: EncodedText, middleText: String) {
+    /// A run's new text as it will be written: its parts; the codes of its own font and the text they stand for (for
+    /// `TextFont.prepare`); characters no font here has; characters the run's font lacks that stand-in fonts draw, and
+    /// those fonts' names.
+    struct RunPlan {
+        var parts: [Part]
+        var codes: [Int]
+        var ownText: String
+        var missing: [String]
+        var borrowed: [String]
+        var standIns: [String]
+    }
+
+    /// How a run's new text is written: what didn't change is kept (with its kerning), the changed middle is encoded in
+    /// the run's font with the run's own kerning pairs, characters the font lacks drawn in stand-in fonts
+    /// (`StandInFonts`). Adjustments touching the change go with it, except the one before the first glyph (where the
+    /// run starts) and any after the last.
+    static func plan(_ info: RunInfo, _ run: TextRun, _ text: String) -> RunPlan {
         let items = info.items
         let t = Array(text.utf16)
         var pre = 0, preLen = 0
@@ -219,42 +328,105 @@ public enum ContentEditor {
         let lo = min(preLen, t.count)
         let middle = String(decoding: t[lo..<max(lo, t.count - sufLen)], as: UTF16.self)
 
-        let enc = run.font!.encode(middle)
+        let font = run.font!
         var parts: [Part] = []
-        for it in items.prefix(pre) { parts.append(Part(code: it.isNumber ? nil : it.code, number: it.number)) }
-        for c in enc.codes { parts.append(c == TextFont.gap ? Part(code: nil, number: -run.gapEms * 1000) : Part(code: c, number: 0)) }
-        for it in items.suffix(suf) { parts.append(Part(code: it.isNumber ? nil : it.code, number: it.number)) }
-        return (parts, enc, middle)
+        for it in items.prefix(pre) { parts.append(Part(it.isNumber ? nil : it.code, it.number)) }
+        let enc = font.encode(middle)
+        var codes = enc.codes
+        var ownText = middle
+        var missing = enc.missing
+        var borrowed: [String] = [], names: [String] = []
+        let pairs = kerning([info]) // the run's own pairs, kept where they survive in the new text
+        if enc.missing.isEmpty {
+            parts += partsOf(run, enc.codes, pairs)
+        } else {
+            // Characters the font lacks: each stretch of them drawn in the closest installed font that has them.
+            var lacking: [String] = []
+            for el in middle.map(String.init) where !isBlank(el) && !font.encode(el).missing.isEmpty && !lacking.contains(el) {
+                lacking.append(el)
+            }
+            var cps: [UInt32] = []
+            for cp in lacking.flatMap(TrueTypeFont.codePoints) where !cps.contains(cp) { cps.append(cp) }
+            let standIns = StandInFonts.forFont(font, cps)
+            var left: [String] = []
+            for el in lacking {
+                let points = TrueTypeFont.codePoints(el)
+                if points.allSatisfy({ standIns[$0] != nil }), let face = standIns[StandInFonts.key(el)], StandInFonts.drawable(el, face.font) {
+                    borrowed.append(el)
+                    for cp in points where !StandInFonts.inkless(cp) && !names.contains(standIns[cp]!.name) { names.append(standIns[cp]!.name) }
+                } else {
+                    left.append(el)
+                }
+            }
+            missing = left
+            var own: [Int] = []
+            var ownSb = ""
+            var chunk = ""
+            var cur: StandInFont?
+            func flush() {
+                if chunk.isEmpty { return }
+                if let cur {
+                    parts.append(Part(nil, 0, StandInFonts.shape(chunk, cur.font)))
+                } else {
+                    let e = font.encode(chunk)
+                    own += e.codes
+                    ownSb += chunk
+                    parts += partsOf(run, e.codes, pairs)
+                }
+                chunk = ""
+            }
+            for el in middle.map(String.init) {
+                let face = borrowed.contains(el) ? standIns[StandInFonts.key(el)] : nil
+                if face !== cur { flush() }
+                cur = face
+                chunk += el
+            }
+            flush()
+            codes = own
+            ownText = ownSb
+        }
+        for it in items.suffix(suf) { parts.append(Part(it.isNumber ? nil : it.code, it.number)) }
+        return RunPlan(parts: parts, codes: codes, ownText: ownText, missing: missing, borrowed: borrowed, standIns: names)
     }
+
+    /// Only white space (a text element of it).
+    static func isBlank(_ s: String) -> Bool { s.unicodeScalars.allSatisfy(\.properties.isWhitespace) }
 
     static func oneLine(_ text: String) -> String {
         text.replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ")
             .replacingOccurrences(of: "\r", with: " ").replacingOccurrences(of: "\t", with: " ")
     }
 
-    private static func missingGlyphs(_ font: TextFont, _ missing: [String]) -> ContentEditError {
-        func show(_ c: String) -> String {
-            if c == " " { return loc("space") }
-            if let u = c.utf16.first, c.unicodeScalars.first?.properties.generalCategory == .control { return String(format: "U+%04X", u) }
-            return "“\(c)”"
+    /// A character named for the user: “x”, or U+XXXX for one that doesn't show (a control, private use, unassigned).
+    static func shownCharacter(_ c: String) -> String {
+        if c == " " { return loc("space") }
+        if let u = c.unicodeScalars.first {
+            switch u.properties.generalCategory {
+            case .control, .privateUse, .surrogate, .unassigned: return String(format: "U+%04X", u.value)
+            default: break
+            }
         }
-        let shown = missing.prefix(12).map(show).joined(separator: ", ")
+        return "“\(c)”"
+    }
+
+    private static func missingGlyphs(_ font: TextFont, _ missing: [String]) -> ContentEditError {
+        let shown = missing.prefix(12).map(shownCharacter).joined(separator: ", ")
         let list = missing.count > 12 ? loc("{0} and {1} more", shown, CoreLanguage.number(missing.count - 12)) : shown
         let message: String
         if font.name.isEmpty {
             message = missing.count == 1
-                ? loc("This text's font has no glyph for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", list)
-                : loc("This text's font has no glyphs for {0} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", list)
+                ? loc("Neither this text's font nor any font on this Mac has {0}, so it can't be written. Leave it out, or add a text box instead.", list)
+                : loc("Neither this text's font nor any font on this Mac has {0}, so it can't be written. Leave them out, or add a text box instead.", list)
         } else {
             message = missing.count == 1
-                ? loc("The font “{0}” has no glyph for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", font.name, list)
-                : loc("The font “{0}” has no glyphs for {1} in this PDF (an embedded font usually holds only the characters the document uses). Use characters already in this text, or add a text box instead.", font.name, list)
+                ? loc("Neither the font “{0}” nor any font on this Mac has {1}, so it can't be written. Leave it out, or add a text box instead.", font.name, list)
+                : loc("Neither the font “{0}” nor any font on this Mac has {1}, so it can't be written. Leave them out, or add a text box instead.", font.name, list)
         }
         return ContentEditError(message, missing: missing)
     }
 
     /// The text-showing operator rewritten with new parts (strings of codes and TJ adjustments).
-    private static func writeShow(_ op: COp, _ info: RunInfo, _ font: TextFont, _ parts: [Part]) -> String {
+    static func writeShow(_ op: COp, _ info: RunInfo, _ font: TextFont, _ parts: [Part]) -> String {
         var tokens: [String] = []
         var codes: [Int] = []
         func flush() {
@@ -287,8 +459,8 @@ public enum ContentEditor {
 
     // ---- Pictures ----
 
-    /// An edit of a picture: the byte ranges of the page's content to replace, and with what.
-    private typealias Edits = [(start: Int, end: Int, bytes: [UInt8])]
+    /// An edit of content: the byte ranges to replace, and with what.
+    typealias Edits = [(start: Int, end: Int, bytes: [UInt8])]
 
     /// Moves and/or resizes a picture so its bounding box becomes `box` (page space).
     public static func moveImage(_ data: [UInt8], _ password: String?, _ image: PageImage, _ box: RectD) throws -> [UInt8] {
@@ -354,7 +526,7 @@ public enum ContentEditor {
         let page = try pageOf(doc, image.pageIndex)
         let content = streams(page)
         let ops = ContentLexer.parse(content.bytes)
-        let walked = try walk(page, image.pageIndex, ops, nil)
+        let walked = try walk(doc, page, image.pageIndex, ops, nil)
         let now = walked.images.first { $0.id == image.id && near($0.box, image.box) } ?? walked.images.last { near($0.box, image.box) }
         if let why = now?.blocked { throw ContentEditError(loc("This picture can't be edited: {0}.", why)) }
         guard let now, let ctm = walked.imageCtm[now.id] else {
@@ -394,7 +566,7 @@ public enum ContentEditor {
         return visit(xobjects, 0)
     }
 
-    private static func near(_ a: RectD, _ b: RectD) -> Bool {
+    static func near(_ a: RectD, _ b: RectD) -> Bool {
         abs(a.x - b.x) < 1 && abs(a.y - b.y) < 1 && abs(a.width - b.width) < 1 && abs(a.height - b.height) < 1
     }
 
@@ -410,19 +582,19 @@ public enum ContentEditor {
         return parent[key] ?? copy
     }
 
-    /// Adds an image XObject to the page's own resources (copying shared ones first), under a fresh name.
-    private static func addXObject(_ doc: MuDoc, _ page: PObj, _ xobject: PObj) -> String {
+    /// Adds an XObject to the page's own resources (copying shared ones first), under a fresh name.
+    static func addXObject(_ doc: MuDoc, _ page: PObj, _ xobject: PObj, prefix: String = "InkImg") -> String {
         let res = ownDict(doc, page, "Resources", PageBoxes.inherited(page, "Resources"))
         let xo = ownDict(doc, res, "XObject")
         var n = 1
-        while xo.has("InkImg\(n)") { n += 1 }
-        xo.set("InkImg\(n)", xobject)
-        return "InkImg\(n)"
+        while xo.has("\(prefix)\(n)") { n += 1 }
+        xo.set("\(prefix)\(n)", xobject)
+        return "\(prefix)\(n)"
     }
 
     // ---- Content ----
 
-    private static func pageOf(_ doc: MuDoc, _ index: Int) throws -> PObj {
+    static func pageOf(_ doc: MuDoc, _ index: Int) throws -> PObj {
         let count = try doc.pageCount()
         guard index >= 0 && index < count else { throw ContentEditError(loc("This page is no longer in the document.")) }
         return doc.page(index)
@@ -430,13 +602,13 @@ public enum ContentEditor {
 
     /// One content stream of a page: where its bytes sit in the page's content read as one, its place in the /Contents
     /// array (-1: the only one).
-    private struct ContentPart {
+    struct ContentPart {
         var start: Int, end: Int, slot: Int
         var unreadable: Bool
     }
 
     /// A page's content streams read as one (they are one content stream split at token boundaries).
-    private struct PageStreams {
+    struct PageStreams {
         var bytes: [UInt8]
         var parts: [ContentPart]
     }
@@ -449,7 +621,7 @@ public enum ContentEditor {
         return (s.bytes, s.parts.contains(where: \.unreadable))
     }
 
-    private static func streams(_ page: PObj) -> PageStreams {
+    static func streams(_ page: PObj) -> PageStreams {
         var parts: [ContentPart] = []
         var all: [UInt8] = []
         func add(_ s: PObj, _ slot: Int) {
@@ -475,13 +647,14 @@ public enum ContentEditor {
     /// crosses that stream's edges, only that stream is replaced (the others stay as they are, readable or not); otherwise
     /// the page gets one new stream, which a stream that can't be read would be lost from: refused. Returns the page's
     /// content as now read as one.
-    private static func writeContent(_ doc: MuDoc, _ page: PObj, _ streams: PageStreams, _ ops: [COp], _ edits: Edits) throws -> [UInt8] {
-        let updated = splice(streams.bytes, edits)
+    @discardableResult
+    static func writeContent(_ doc: MuDoc, _ page: PObj, _ streams: PageStreams, _ ops: [COp], _ edits: Edits) throws -> [UInt8] {
+        let updated = try splice(streams.bytes, edits)
         if streams.parts.count > 1, !edits.isEmpty, let old = page["Contents"], old.isArray {
             let lo = edits.map(\.start).min()!, hi = edits.map(\.end).max()!
             if let part = streams.parts.first(where: { lo >= $0.start && hi <= $0.end }),
                !ops.contains(where: { ($0.start < part.start && $0.end > part.start) || ($0.start < part.end && $0.end > part.end) }) {
-                let bytes = splice(Array(streams.bytes[part.start..<part.end]), edits.map { ($0.start - part.start, $0.end - part.start, $0.bytes) })
+                let bytes = try splice(Array(streams.bytes[part.start..<part.end]), edits.map { ($0.start - part.start, $0.end - part.start, $0.bytes) })
                 let array = doc.array(old.elements) // the page's own: another page may share the old one
                 array.replace(at: part.slot, with: doc.addStream(bytes, deflate: true))
                 page.set("Contents", array)
@@ -498,11 +671,15 @@ public enum ContentEditor {
     /// Whether part of the page's content holds data but decodes to nothing (a damaged filter): a rewrite would lose it.
     static func hasUnreadableContent(_ page: PObj) -> Bool { streams(page).parts.contains(where: \.unreadable) }
 
-    private static func splice(_ content: [UInt8], _ edits: Edits) -> [UInt8] {
+    /// - Throws: `ContentEditError` when two edits overlap (or one falls outside the content): they can't both be written.
+    static func splice(_ content: [UInt8], _ edits: Edits) throws -> [UInt8] {
         var out: [UInt8] = []
         out.reserveCapacity(content.count + 256)
         var at = 0
         for e in edits.sorted(by: { $0.start < $1.start }) {
+            guard e.start >= at, e.end >= e.start, e.end <= content.count else {
+                throw ContentEditError(loc("These changes overlap in the page's content, so they can't be written."))
+            }
             out += content[at..<e.start]
             // Keep the replacement apart from its neighbors (a name or number must not run into the next token).
             out.append(32)
@@ -519,7 +696,7 @@ public enum ContentEditor {
         op.name == "Do" ? latin1Bytes("/\(escapeName(op.operands[0].name)) Do") : Array(content[op.start..<op.end])
     }
 
-    private static func escapeName(_ name: String) -> String {
+    static func escapeName(_ name: String) -> String {
         var s = ""
         for u in name.unicodeScalars {
             let c = u.value
@@ -533,7 +710,7 @@ public enum ContentEditor {
     }
 
     /// Page space (top-left origin, as shown) → PDF user space.
-    private static func pageToUser(_ f: PageFrame) -> Mat {
+    static func pageToUser(_ f: PageFrame) -> Mat {
         let p0 = f.toPdf(0, 0), px = f.toPdf(1, 0), py = f.toPdf(0, 1)
         return Mat(px.x - p0.x, px.y - p0.y, py.x - p0.x, py.y - p0.y, p0.x, p0.y)
     }
@@ -572,21 +749,72 @@ public enum ContentEditor {
         func write() -> String { [a, b, c, d, e, f].map(ContentLexer.number).joined(separator: " ") }
     }
 
-    /// One glyph or TJ adjustment of a run, with the text it stands for (as UTF-16 units).
+    /// One glyph or TJ adjustment of a run, with the text it stands for (as UTF-16 units); where it starts along the
+    /// operator (`at`) and, for a glyph, where its ink ends (`inkEnd`): text space, from where the operator starts.
     struct RunItem: Sendable {
         var code: Int
         var number: Double
         var units: [UInt16]
         var isNumber: Bool
         var trailing = false
+        var at = 0.0
+        var inkEnd = 0.0
     }
 
+    /// A run as its operator draws it: its glyphs and adjustments; the text matrix where its first glyph starts (`tm`),
+    /// the line matrix after the operator (`tlmAfter`), the CTM, the text rise, and how far the operator advances the
+    /// text matrix (text space). A paragraph rewrite needs these to keep what follows in place.
     struct RunInfo: Sendable {
         var items: [RunItem]
         var hex: Bool
+        var tm = Mat.identity
+        var tlmAfter = Mat.identity
+        var ctm = Mat.identity
+        var rise = 0.0
+        var advance = 0.0
+        /// The operators that set the fill color in effect (to set it back after text of another color); nil when that
+        /// can't be told (a pattern).
+        var fillOp: String?
+        /// The drawing of a form XObject the run is in (nil: the page's own content); the walk keeps the form itself.
+        var form: FormDraw?
     }
 
-    private final class Walked {
+    /// One drawing of a form XObject: the form, and the Do that drew it (its id in the enclosing content, unique on the
+    /// page). Two drawings of one form are two pieces of content: one operator draws a line in both.
+    struct FormDraw: Hashable, Sendable {
+        var form: ObjId
+        var draw: Int
+    }
+
+    /// Where a run inside a form XObject (a drawing the page reuses) sits: the form, its content parsed, the resources
+    /// its operators use, the form this one is drawn by (nil: the page), and the Do that draws it (its id in the
+    /// enclosing content and the name it uses).
+    final class FormPlace {
+        let form: PObj
+        let bytes: [UInt8]
+        let ops: [COp]
+        let resources: PObj?
+        let outer: FormPlace?
+        let doId: Int
+        let doName: String
+
+        init(_ form: PObj, _ bytes: [UInt8], _ ops: [COp], _ resources: PObj?, _ outer: FormPlace?, _ doId: Int, _ doName: String) {
+            (self.form, self.bytes, self.ops, self.resources, self.outer, self.doId, self.doName) = (form, bytes, ops, resources, outer, doId, doName)
+        }
+
+        /// This form and the ones it is drawn through, innermost first.
+        var chain: [PObj] {
+            var list: [PObj] = []
+            var f: FormPlace? = self
+            while let p = f {
+                list.append(p.form)
+                f = p.outer
+            }
+            return list
+        }
+    }
+
+    final class Walked {
         var textRuns: [TextRun] = []
         var images: [PageImage] = []
         var runs: [Int: RunInfo] = [:]
@@ -596,6 +824,12 @@ public enum ContentEditor {
         var fonts: [ObjId: TextFont] = [:]
         /// Each font's dictionary, for an edit to add widths and ToUnicode entries to.
         var fontDicts: [ObjectIdentifier: PObj] = [:]
+        /// How many times each form XObject is drawn on the page (at any depth).
+        var formUses: [ObjId: Int] = [:]
+        /// Each run inside a form: where (the form, and its operator's index there).
+        var formOf: [Int: (place: FormPlace, index: Int)] = [:]
+        /// How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.
+        var formBudget = maxFormBytes
         let frame: PageFrame
         let pageIndex: Int
         let cancel: CancelToken?
@@ -624,25 +858,51 @@ public enum ContentEditor {
         var size = 1.0, tc = 0.0, tw = 0.0, th = 1.0, tl = 0.0, rise = 0.0
         var render = 0
         var fill = 0
+        var fillOp: String? = "0 g"
+        var fillSpace: String? = "DeviceGray"
     }
 
-    private static func walk(_ page: PObj, _ pageIndex: Int, _ ops: [COp], _ cancel: CancelToken?) throws -> Walked {
+    static func walk(_ doc: MuDoc, _ page: PObj, _ pageIndex: Int, _ ops: [COp], _ cancel: CancelToken?) throws -> Walked {
         let w = Walked(PageBoxes.frame(page), pageIndex, cancel)
-        try run(w, ops, PageBoxes.inherited(page, "Resources").flatMap { $0.isDict ? $0 : nil }, GState(), 0, nil)
+        try run(w, ops, PageBoxes.inherited(page, "Resources").flatMap { $0.isDict ? $0 : nil }, GState(), 0, nil, nil)
+        // Text in a form drawn through another form that the page draws more than once: editing it would change every
+        // copy (only a form the page draws directly is copied for the edit), so it is edited nowhere.
+        for i in w.textRuns.indices {
+            let run = w.textRuns[i]
+            guard let place = w.formOf[run.id]?.place, place.outer != nil,
+                  place.chain.contains(where: { (w.formUses[$0.id] ?? 0) > 1 }) else { continue }
+            w.textRuns[i].blocked = loc("it is inside a drawing (a form XObject) that the page draws more than once through another drawing, and an edit would change every copy")
+            w.textRuns[i].info = nil
+            w.runs[run.id] = nil
+        }
         return w
     }
 
-    private static var formBlocked: String {
-        loc("it is part of a form XObject (a drawing the page reuses), and only the page's own content can be edited in this version")
+    private static var formImageBlocked: String {
+        loc("it is part of a form XObject (a drawing the page reuses), and only the page's own pictures can be edited in this version")
     }
     private static var actualTextBlocked: String {
         loc("it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong")
     }
 
-    private static func run(_ w: Walked, _ ops: [COp], _ resources: PObj?, _ start: GState, _ depth: Int, _ blocked: String?) throws {
+    /// Whether a color space's numbers read as gray, RGB or CMYK: not Separation, DeviceN, Indexed, Lab or a pattern's.
+    private static func isPlainColorSpace(_ resources: PObj?, _ name: String?) -> Bool {
+        guard let name, !name.hasPrefix("Device") else { return true }
+        guard let space = resources?.dict("ColorSpace")?.array(name), space.count > 0, let first = space[0]?.name else { return true }
+        return !["Separation", "DeviceN", "Indexed", "Lab", "Pattern"].contains(first)
+    }
+
+    /// A color operator written again from its numbers (the last `count` operands).
+    private static func fillOpOf(_ op: COp, _ count: Int) -> String {
+        op.operands.suffix(count).map { ContentLexer.number($0.num) }.joined(separator: " ") + " " + op.name
+    }
+
+    private static func run(_ w: Walked, _ ops: [COp], _ resources: PObj?, _ start: GState, _ depth: Int, _ blocked: String?,
+                            _ form: FormPlace?) throws {
         var gs = start
         var stack: [GState] = []
         var marked: [Bool] = [] // marked-content sequences: does one carry /ActualText?
+        var looks: [LookTag?] = [] // and is one a look a paragraph edit gave its text?
         var actualText = 0
         var tm = Mat.identity, tlm = Mat.identity
         for (i, op) in ops.enumerated() {
@@ -664,22 +924,35 @@ public enum ContentEditor {
                 gs.ctm = Mat(op.n(0), op.n(1), op.n(2), op.n(3), op.n(4), op.n(5)).times(gs.ctm)
             case "g" where count >= 1:
                 gs.fill = gray(op.n(0))
+                gs.fillOp = fillOpOf(op, 1)
             case "rg" where count >= 3:
                 gs.fill = rgb(op.n(0), op.n(1), op.n(2))
+                gs.fillOp = fillOpOf(op, 3)
             case "k" where count >= 4:
                 gs.fill = cmyk(op.n(0), op.n(1), op.n(2), op.n(3))
+                gs.fillOp = fillOpOf(op, 4)
             case "sc" where [1, 3, 4].contains(count) && op.operands.allSatisfy({ $0.kind == .number }),
                  "scn" where [1, 3, 4].contains(count) && op.operands.allSatisfy({ $0.kind == .number }):
-                gs.fill = count == 1 ? gray(op.n(0)) : count == 3 ? rgb(op.n(0), op.n(1), op.n(2)) : cmyk(op.n(0), op.n(1), op.n(2), op.n(3))
+                // A spot color's or an indexed space's number isn't a shade of gray: 1 is full ink, not white.
+                if !isPlainColorSpace(resources, gs.fillSpace) {
+                    gs.fill = 0
+                } else {
+                    gs.fill = count == 1 ? gray(op.n(0)) : count == 3 ? rgb(op.n(0), op.n(1), op.n(2)) : cmyk(op.n(0), op.n(1), op.n(2), op.n(3))
+                }
+                gs.fillOp = gs.fillSpace.map { "/\(escapeName($0)) cs \(fillOpOf(op, count))" }
+            case "sc", "scn":
+                gs.fillOp = nil // a pattern
             case "cs":
                 gs.fill = 0
+                gs.fillSpace = count > 0 && op.operands[0].kind == .name ? op.operands[0].name : nil
+                gs.fillOp = gs.fillSpace.flatMap { $0.hasPrefix("Device") ? "/\(escapeName($0)) cs" : nil }
             case "BT":
                 tm = .identity
                 tlm = .identity
             case "BMC", "BDC":
                 var has = false
-                if op.name == "BDC" && count >= 2 {
-                    let props = op.operands[1]
+                let props = op.name == "BDC" && count >= 2 ? op.operands[1] : nil
+                if let props {
                     if props.kind == .dict {
                         has = props["ActualText"] != nil
                     } else if props.kind == .name {
@@ -689,9 +962,15 @@ public enum ContentEditor {
                 if marked.count < 256 {
                     marked.append(has)
                     if has { actualText += 1 }
+                    if let props, op.operands[0].name == lookTagName, props.kind == .dict {
+                        looks.append(LookTag.read(props))
+                    } else {
+                        looks.append(looks.last ?? nil)
+                    }
                 }
             case "EMC":
                 if let top = marked.popLast(), top { actualText -= 1 }
+                if !looks.isEmpty { looks.removeLast() }
             case "Tf" where count >= 2:
                 gs.fontKey = op.operands[0].name
                 gs.font = resources?.dict("Font")?.dict(gs.fontKey).map(w.font)
@@ -722,22 +1001,33 @@ public enum ContentEditor {
                     tm = tlm
                 }
                 guard let arg = op.operands.last, arg.kind == (op.name == "TJ" ? .array : .string) else { break }
-                tm = showText(w, id, arg, gs, tm, blocked ?? (actualText > 0 ? actualTextBlocked : nil))
+                if let form { w.formOf[id] = (form, i) }
+                let draw = form.map { FormDraw(form: $0.form.id, draw: $0.doId) }
+                tm = showText(w, id, arg, gs, tm, tlm, blocked ?? (actualText > 0 ? actualTextBlocked : nil), looks.last ?? nil, draw)
             case "Do" where count > 0 && op.operands[0].kind == .name:
                 guard let xobj = resources?.dict("XObject")?.dict(op.operands[0].name) else { break }
                 let sub = xobj.name("Subtype")
                 if sub == "Image" {
-                    addImage(w, id, gs.ctm, false, blocked)
+                    addImage(w, id, gs.ctm, false, blocked ?? (form == nil ? nil : formImageBlocked))
                 } else if sub == "Form" && depth < maxDepth {
+                    try w.cancel?.check()
+                    if w.formBudget < 0 { break }
                     var m = Mat.identity
                     if let a = xobj.array("Matrix"), a.count == 6 { m = Mat(a.num(0), a.num(1), a.num(2), a.num(3), a.num(4), a.num(5)) }
                     var inner = gs
                     inner.ctm = m.times(gs.ctm)
-                    let formOps = try ContentLexer.parse(xobj.streamData ?? [], cancel: w.cancel)
-                    try run(w, formOps, xobj.dict("Resources") ?? resources, inner, depth + 1, formBlocked)
+                    w.formUses[xobj.id, default: 0] += 1
+                    let bytes = xobj.streamData ?? []
+                    w.formBudget -= bytes.count + 1024
+                    if w.formBudget < 0 { break }
+                    let formOps = try ContentLexer.parse(bytes, cancel: w.cancel)
+                    let place = FormPlace(xobj, bytes, formOps, xobj.dict("Resources") ?? resources, form, id, op.operands[0].name)
+                    try run(w, formOps, place.resources, inner, depth + 1, blocked, place)
                 }
             case "BI":
-                addImage(w, id, gs.ctm, true, blocked ?? (op.broken ? loc("where its data ends can't be told for sure, so changing it could damage the page") : nil))
+                let why = form != nil ? formImageBlocked
+                    : op.broken ? loc("where its data ends can't be told for sure, so changing it could damage the page") : nil
+                addImage(w, id, gs.ctm, true, blocked ?? why)
             default:
                 break
             }
@@ -785,26 +1075,26 @@ public enum ContentEditor {
     }
 
     /// Records a text-showing operator as a run and returns the text matrix after it.
-    private static func showText(_ w: Walked, _ id: Int, _ arg: CObj, _ gs: GState, _ tm: Mat, _ blocked: String?) -> Mat {
+    private static func showText(_ w: Walked, _ id: Int, _ arg: CObj, _ gs: GState, _ tm: Mat, _ tlm: Mat, _ blocked: String?,
+                                 _ tag: LookTag?, _ form: FormDraw?) -> Mat {
         let font = gs.font
         var items: [RunItem] = []
         var hex = false
-        var adv = 0.0, gaps = 0.0, end = 0.0 // end: where the last glyph's ink ends (before its spacing)
-        var gapCount = 0
+        var adv = 0.0
         let fs = gs.size
         func glyphs(_ s: CObj) {
             hex = hex || s.hex
             guard let font else {
                 for b in s.bytes {
-                    items.append(RunItem(code: Int(b), number: 0, units: [UInt16(b)], isNumber: false))
-                    end = adv + 0.5 * fs * gs.th
+                    let ink: Double = adv + 0.5 * fs * gs.th
+                    items.append(RunItem(code: Int(b), number: 0, units: [UInt16(b)], isNumber: false, at: adv, inkEnd: ink))
                     adv += (0.5 * fs + gs.tc) * gs.th
                 }
                 return
             }
             for g in font.decode(s.bytes) {
-                items.append(RunItem(code: g.code, number: 0, units: Array(g.text.utf16), isNumber: false))
-                end = adv + g.width * fs * gs.th
+                let ink: Double = adv + g.width * fs * gs.th
+                items.append(RunItem(code: g.code, number: 0, units: Array(g.text.utf16), isNumber: false, at: adv, inkEnd: ink))
                 let spacing: Double = gs.tc + (!font.twoByte && g.code == 32 ? gs.tw : 0)
                 adv += (g.width * fs + spacing) * gs.th
             }
@@ -818,12 +1108,8 @@ public enum ContentEditor {
                 } else if el.kind == .number {
                     // A wide gap between words shows (and copies) as a space.
                     let space = -el.num > 180 && !items.isEmpty && items[items.count - 1].units.last != 32
-                    items.append(RunItem(code: 0, number: el.num, units: space ? [32] : [], isNumber: true))
+                    items.append(RunItem(code: 0, number: el.num, units: space ? [32] : [], isNumber: true, at: adv))
                     adv -= el.num / 1000 * fs * gs.th
-                    if space {
-                        gaps += -el.num / 1000
-                        gapCount += 1
-                    }
                 }
             }
             // An adjustment after the last glyph moves what follows: it isn't part of the text.
@@ -838,12 +1124,34 @@ public enum ContentEditor {
         let trm = Mat(1, 0, 0, 1, 0, gs.rise).times(tm).times(gs.ctm)
         let asc: Double = (font?.ascent ?? 0.8) * fs
         let desc: Double = (font?.descent ?? -0.2) * fs
-        let box = boxOf(w.frame, trm, 0, desc, end, asc)
         let b0 = project(w.frame, trm, 0, 0), b1 = project(w.frame, trm, 1, 0), v0 = project(w.frame, trm, 0, 1)
-        let scale = ((b1.x - b0.x) * (b1.x - b0.x) + (b1.y - b0.y) * (b1.y - b0.y)).squareRoot()
-        let vscale = ((v0.x - b0.x) * (v0.x - b0.x) + (v0.y - b0.y) * (v0.y - b0.y)).squareRoot()
-        let angle: Double = atan2(b1.y - b0.y, b1.x - b0.x) * 180 / .pi
+        let bx: Double = b1.x - b0.x, by: Double = b1.y - b0.y
+        let vx: Double = v0.x - b0.x, vy: Double = v0.y - b0.y
+        let scale = (bx * bx + by * by).squareRoot()
+        let vscale = (vx * vx + vy * vy).squareRoot()
+        let angle: Double = atan2(by, bx) * 180 / .pi
+        let isUpright = upright(bx, by, vx, vy)
         let text = String(decoding: items.flatMap(\.units), as: UTF16.self)
+
+        // How far its glyphs reach (right-to-left text written in logical order moves back as it goes), where the last
+        // glyph's ink ends (before its spacing), and its word spaces: those between its glyphs (one after its last glyph
+        // moves what follows and shows none).
+        var low = 0.0, high = 0.0, end = 0.0, gaps = 0.0, pending = 0.0
+        var gapCount = 0, pendingCount = 0
+        for item in items {
+            if !item.isNumber {
+                low = min(low, item.at)
+                end = item.inkEnd
+                high = max(high, end)
+                gaps += pending
+                gapCount += pendingCount
+                pending = 0
+                pendingCount = 0
+            } else if item.units == [32] {
+                pending += -item.number / 1000
+                pendingCount += 1
+            }
+        }
 
         var why = blocked
         if why == nil {
@@ -859,7 +1167,17 @@ public enum ContentEditor {
                 why = loc("it is only spaces")
             }
         }
-        let info = RunInfo(items: items, hex: hex)
+        let far: Double = max(end, high)
+        let box = boxOf(w.frame, trm, low, desc, far, asc)
+        let o = project(w.frame, trm, 0, 0)
+        var info = RunInfo(items: items, hex: hex)
+        info.tm = tm
+        info.tlmAfter = tlm
+        info.ctm = gs.ctm
+        info.rise = gs.rise
+        info.advance = adv
+        info.fillOp = gs.fillOp
+        info.form = form
         var run = TextRun(pageIndex: w.pageIndex, id: id, text: text, box: box, fontSize: abs(fs) * vscale, fontName: font?.name ?? gs.fontKey,
                           bold: font?.bold ?? false, italic: font?.italic ?? false, color: gs.fill, angle: angle, blocked: why,
                           oldWidth: end * scale, font: font, scale: scale)
@@ -868,9 +1186,27 @@ public enum ContentEditor {
         run.wordSpacing = gs.tw
         run.hScale = gs.th
         run.gapEms = gapCount > 0 ? gaps / Double(gapCount) : 0.25
-        run.info = why == nil ? info : nil
+        run.origin = PointD(o.x, o.y)
+        if isUpright { run.reach = TextRun.Reach(back: -low * scale, along: far * scale, above: asc * vscale, below: -desc * vscale) }
+        run.fontKey = gs.fontKey
+        run.tag = tag
+        // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
+        let fontUsable = font != nil && font?.blocked == nil
+        let spacesOnly = why != nil && blocked == nil && fontUsable && gs.render != 3 && gs.render != 7 && !text.isEmpty
+            && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        run.info = why == nil || spacesOnly ? info : nil
         if !text.isEmpty { w.textRuns.append(run) }
         if why == nil { w.runs[id] = info }
         return Mat(1, 0, 0, 1, adv, 0).times(tm)
+    }
+
+    /// Text whose up (`ux`, `uy`, page space) is square to its baseline's left, as for upright glyphs: not mirrored, not
+    /// slanted.
+    private static func upright(_ bx: Double, _ by: Double, _ ux: Double, _ uy: Double) -> Bool {
+        let b = (bx * bx + by * by).squareRoot(), u = (ux * ux + uy * uy).squareRoot()
+        if b < 1e-9 || u < 1e-9 { return false }
+        // Up on the page (y down) is the baseline turned a quarter counterclockwise: (by, -bx).
+        let turn: Double = (by * ux - bx * uy) / (b * u)
+        return turn > 0.999
     }
 }

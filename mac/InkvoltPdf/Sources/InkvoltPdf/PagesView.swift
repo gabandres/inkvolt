@@ -1209,7 +1209,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         content.flushNudge()
         let image = content.image(page: page, p)
-        if let run = content.run(page: page, p), !content.isSelected(image) {
+        // Between a paragraph's lines: the paragraph.
+        if let run = content.run(page: page, p) ?? content.paragraph(page: page, p)?.runs.first, !content.isSelected(image) {
             content.select(nil)
             content.editRun(run)
             return
