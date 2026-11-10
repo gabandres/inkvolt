@@ -60,6 +60,25 @@ extension ParagraphEditTests {
         #expect(ContentEditPdf.text(edited).unicodeScalars.contains { $0.value == 0x2764 }) // one grapheme with its selector
     }
 
+    @Test func visibleFormatCharactersStillNeedAFontThatDrawsThem() throws {
+        // Some format characters show (Arabic's end of ayah U+06DD, its number signs U+0600-0605, Syriac's abbreviation
+        // mark U+070F, Kaithi's number sign U+110BD): with no font for them they are refused, never written blank.
+        for cp: UInt32 in [0x600, 0x605, 0x6DD, 0x70F, 0x8E2, 0x110BD] { #expect(!StandInFonts.inkless(cp), "U+\(String(cp, radix: 16))") }
+        for cp: UInt32 in [0x20, 0xAD, 0x200B, 0x200C, 0x200D, 0x200E, 0x202E, 0x2060, 0x2064, 0x2066, 0xFE0F, 0xFEFF, 0xE0041, 0xE0100] {
+            #expect(StandInFonts.inkless(cp), "U+\(String(cp, radix: 16))")
+        }
+        let (pdf, _) = Self.page(.left)
+        let p = try Self.body0(pdf)
+        let mark = "\u{6DD}"
+        let check = p.check(Self.body + " " + mark)
+        if check.missing != [mark] {
+            // A font on this Mac draws it: then it must be borrowed from that font, with an outline.
+            #expect(check.borrowed == [mark] && !check.standIns.isEmpty, "missing \(check.missing), borrowed \(check.borrowed) from \(check.standIns)")
+            #expect(StandInFonts.rankFor(p.lead.font!).contains { $0.font.drawsOutline(0x6DD) }
+                || [SystemFonts.forCodePoint(0x6DD, nil)].compactMap { $0 }.contains { $0.drawsOutline(0x6DD) })
+        }
+    }
+
     @Test func aCharacterGroupThatStartsWithASpaceIsWrittenOnce() throws {
         // " \u{301}" is one group (a space carrying an accent): it is the word gap, and "b" is the next word, alone.
         let (pdf, _) = Self.page(.left, gap: 120)
