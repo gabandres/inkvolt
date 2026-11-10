@@ -73,7 +73,8 @@ extension ContentEditor {
             return false
         }
         guard let count = try? doc.pageCount() else { return false }
-        if place.chain.contains(where: { formsDrawnOutsideContent(doc).contains($0.id) }) { return true }
+        let outside = formsDrawnOutsideContent(doc)
+        if place.chain.contains(where: { outside.contains($0.id) }) { return true }
         let mine = page.id
         for i in 0..<count {
             let other = doc.page(i)
@@ -83,43 +84,52 @@ extension ContentEditor {
         return false
     }
 
-    /// The forms drawn other than by a page's own Do, on any page: an annotation's appearance (a stamp's face can be the
-    /// very form a page draws), a tiling pattern's resources, and every form those draw. Editing one in place would change
-    /// those too, so it is copied (or left alone) as a shared one is.
+    /// The forms drawn other than by a page's own Dos, on any page: an annotation's appearance (a stamp's face can be the
+    /// very form a page draws), a tiling pattern's (in the page's resources or a form's it draws), and every form those
+    /// draw. Editing one in place would change those too, so it is copied (or left alone) as a shared one is. Each form or
+    /// pattern is one level (`maxDepth`, as the Do walk).
     static func formsDrawnOutsideContent(_ doc: MuDoc) -> Set<ObjId> {
         var found = Set<ObjId>()
-        var seenResources = Set<ObjId>()
-        func form(_ f: PObj?, _ depth: Int) {
+        var walked = Set<ObjId>() // forms reached through Dos, looked into for their patterns
+        // Drawn outside the content: it and everything its resources draw.
+        func drawn(_ f: PObj?, _ depth: Int) {
             guard let f, f.isStream, depth <= maxDepth, found.insert(f.id).inserted else { return }
-            resources(f.dict("Resources"), depth + 1, all: true)
+            look(f.dict("Resources"), depth, outside: true)
         }
-        // A page's own resources: only its patterns draw outside its content (its XObjects are its Dos).
-        func resources(_ r: PObj?, _ depth: Int, all: Bool) {
+        // A content's resources: its patterns draw outside it; its forms are drawn by its Dos (outside only when the
+        // content itself is), and their own patterns are looked at the same way.
+        func look(_ r: PObj?, _ depth: Int, outside: Bool) {
             guard let r, r.isDict, depth <= maxDepth else { return }
-            if all && r.isRef && !seenResources.insert(r.id).inserted { return }
-            if all, let xo = r.dict("XObject") {
-                for key in xo.keys { if let x = xo.dict(key), x.name("Subtype") == "Form" { form(x, depth + 1) } }
+            if let xo = r.dict("XObject") {
+                for key in xo.keys {
+                    guard let x = xo.dict(key), x.name("Subtype") == "Form" else { continue }
+                    if outside {
+                        drawn(x, depth + 1)
+                    } else if walked.insert(x.id).inserted {
+                        look(x.dict("Resources"), depth + 1, outside: false)
+                    }
+                }
             }
             if let patterns = r.dict("Pattern") {
                 for key in patterns.keys {
                     guard let p = patterns.dict(key), p.isStream, found.insert(p.id).inserted else { continue }
-                    resources(p.dict("Resources"), depth + 1, all: true)
+                    look(p.dict("Resources"), depth + 1, outside: true)
                 }
             }
         }
         guard let count = try? doc.pageCount() else { return found }
         for i in 0..<count {
             let page = doc.page(i)
-            resources(PageBoxes.inherited(page, "Resources"), 0, all: false)
+            look(PageBoxes.inherited(page, "Resources"), 0, outside: false)
             guard let annots = page.array("Annots") else { continue }
             for k in 0..<annots.count {
                 guard let annot = annots[k], annot.isDict, let ap = annot.dict("AP") else { continue }
                 for key in ["N", "R", "D"] {
                     guard let face = ap.dict(key) else { continue }
                     if face.isStream {
-                        form(face, 0)
+                        drawn(face, 0)
                     } else {
-                        for state in face.keys { form(face.dict(state), 0) }
+                        for state in face.keys { drawn(face.dict(state), 0) }
                     }
                 }
             }
@@ -145,9 +155,14 @@ extension ContentEditor {
         if let streams = target.streams {
             try writeContent(doc, page, streams, target.ops, edits)
         } else if let form = target.formObject {
-            form.remove("DecodeParms")
-            form.setStream(try splice(target.bytes, edits), deflate: true)
+            writeForm(form, try splice(target.bytes, edits))
         }
+    }
+
+    /// A form's stream replaced by `bytes` (deflated, its old decoding parameters dropped).
+    static func writeForm(_ form: PObj, _ bytes: [UInt8]) {
+        form.remove("DecodeParms")
+        form.setStream(bytes, deflate: true)
     }
 
     /// Adds fonts to the page's or form's own font resources (copying shared dictionaries first).

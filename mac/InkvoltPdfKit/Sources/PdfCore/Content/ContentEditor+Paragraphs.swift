@@ -99,7 +99,9 @@ extension ContentEditor {
 
     static func withParagraphs(_ content: PageContent) -> PageContent {
         var c = content
-        c.paragraphs = content.runs.count > maxRunsToGroup ? [] : groupParagraphs(content)
+        // Runs of spaces only (some generators draw every gap) aren't grouped, so they don't count.
+        let inked = content.runs.lazy.filter { $0.text.contains { !$0.isWhitespace } }.count
+        c.paragraphs = inked > maxRunsToGroup ? [] : groupParagraphs(content)
         return c
     }
 

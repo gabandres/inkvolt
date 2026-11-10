@@ -318,6 +318,7 @@ extension ContentEditor {
             if bySlot[l.slot] == nil { slotOrder.append(l.slot) }
             bySlot[l.slot, default: []].append(l)
         }
+        var budget = followBudget // for all the page's links
         for slot in slotOrder {
             let group = bySlot[slot]!
             let first = group[0]
@@ -330,7 +331,7 @@ extension ContentEditor {
             var taken = Set<Int>()
             let ordered = group.enumerated().sorted { ($0.element.box.y, $0.element.box.x, $0.offset) < ($1.element.box.y, $1.element.box.x, $1.offset) }.map(\.element)
             for l in ordered {
-                guard !l.words.isEmpty, let (at, count) = nearest(follow(l.words, texts, taken), words, l.box, l.fontSize) else {
+                guard !l.words.isEmpty, let (at, count) = nearest(follow(l.words, texts, taken, budget: &budget), words, l.box, l.fontSize) else {
                     drop.insert(l.annot.id)
                     _ = blankOut(l.underline)
                     continue

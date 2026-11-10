@@ -850,12 +850,11 @@ extension ContentEditor {
         for (start, end, spaced) in fitTokens(text) {
             let parts = enc.encode(start, end)
             let space = spaced && !cur.isEmpty ? enc.encode(start - 1, start) : nil
-            let joined = cur.isEmpty ? parts : cur + (space ?? []) + parts
             let withSpace = after(curAdvance, curEnd, space ?? [])
             let next = after(withSpace.advance, withSpace.end, parts)
             if next.end <= avail() + 0.01 {
                 if let space, !cur.isEmpty { ends.append(cur.count + space.count - 1) }
-                cur = joined
+                cur += (space ?? []) + parts
                 (curAdvance, curEnd) = next
                 continue
             }
@@ -1264,9 +1263,7 @@ extension ContentEditor {
         let formBytes = try (1..<max(1, targets.count)).map { try splice(targets[$0].bytes, edits[$0]) }
         if !edits[0].isEmpty { try writeTarget(doc, page, targets[0], edits[0]) }
         for (k, bytes) in zip(1..., formBytes) {
-            guard let form = targets[k].formObject else { continue }
-            form.remove("DecodeParms")
-            form.setStream(bytes, deflate: true)
+            if let form = targets[k].formObject { writeForm(form, bytes) }
         }
         for owner in owners { writer.needsFonts(owner) }
         if !links.isEmpty { writer.linksAfter(pageIndex, links) }

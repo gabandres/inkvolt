@@ -80,6 +80,34 @@ extension ParagraphEditTests {
         #expect(String(decoding: face.streamData ?? [], as: UTF8.self).contains(line), "the stamp's face changed with the page")
     }
 
+    @Test func formsAPatternDrawsAreFoundInsideTheFormsThePageDraws() throws {
+        // The page draws form Y; Y's resources hold a tiling pattern whose tile draws X, and Y draws X too: X is drawn
+        // outside the page's content (by the pattern), Y isn't. Four forms under X (eight levels from the page) are found too.
+        let doc = try MuDoc.create()
+        func form(_ resources: PObj? = nil) -> PObj {
+            var entries: [(String, PObj)] = [("Type", doc.name("XObject")), ("Subtype", doc.name("Form")), ("BBox", doc.reals(0, 0, 10, 10))]
+            if let resources { entries.append(("Resources", resources)) }
+            return doc.addStream(latin1Bytes("0 0 m 1 1 l S"), dict: doc.dict(entries), deflate: false)
+        }
+        let deepest = form()
+        var deep = deepest
+        for _ in 0..<4 { deep = form(doc.dict([("XObject", doc.dict([("D", deep)]))])) }
+        let x = form(doc.dict([("XObject", doc.dict([("D", deep)]))]))
+        let pattern = doc.addStream(latin1Bytes("/X Do"), dict: doc.dict([("PatternType", doc.int(1)), ("PaintType", doc.int(1)), ("TilingType", doc.int(1)),
+                                                                          ("BBox", doc.reals(0, 0, 10, 10)), ("XStep", doc.int(10)), ("YStep", doc.int(10)),
+                                                                          ("Resources", doc.dict([("XObject", doc.dict([("X", x)]))]))]), deflate: false)
+        let y = form(doc.dict([("XObject", doc.dict([("X", x)])), ("Pattern", doc.dict([("P", pattern)]))]))
+        let page = doc.add(doc.dict([("Type", doc.name("Page")), ("MediaBox", doc.reals(0, 0, 612, 792)),
+                                     ("Resources", doc.dict([("XObject", doc.dict([("Y", y)]))])),
+                                     ("Contents", doc.addStream(latin1Bytes("/Y Do"), deflate: false))]))
+        doc.insertPage(page, at: 0)
+        try doc.checkFailure()
+        let outside = ContentEditor.formsDrawnOutsideContent(doc)
+        #expect(outside.contains(x.id))
+        #expect(!outside.contains(y.id))
+        #expect(outside.contains(deepest.id), "four forms under the pattern's, eight levels in all")
+    }
+
     @Test func freeResourceNamesAreFoundInOnePass() {
         #expect(ContentEditor.lowestFree(["InkFb1_a", "InkFb3_x", "InkFb01_", "InkFb2"], "InkFb", suffix: "_") == 2)
         #expect(ContentEditor.lowestFree(["InkFm1", "InkFm2", "InkFm10", "InkFm3x"], "InkFm") == 3)

@@ -152,6 +152,8 @@ final class MuDoc {
     private var objectsLoaded = false
 
     /// The entries `ContentEditor.ownCopy` may still copy in this document, all its copies together; smaller in tests.
+    /// Each edit, flattening, header pass or translation opens a document of its own, so this is per operation. A copy
+    /// it refuses leaves the container shared: what an edit adds to it then are new names only.
     var copyBudget = MuDoc.defaultUnshareBudget
 
     /// How much the pass before a compacting write may do (`unshareDirectObjects`); smaller in tests.
