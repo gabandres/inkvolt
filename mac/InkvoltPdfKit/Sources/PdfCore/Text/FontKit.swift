@@ -85,7 +85,10 @@ final class TrueTypeFont: @unchecked Sendable, Hashable {
     }
 
     /// Whether a code point is drawn by an outline in this font.
-    func drawsOutline(_ codePoint: UInt32) -> Bool { has(codePoint) && hasOutline(glyphOf(codePoint)) }
+    /// A character with no ink (white space, a format character such as a joiner, a variation selector) needs none.
+    func drawsOutline(_ codePoint: UInt32) -> Bool {
+        StandInFonts.inkless(codePoint) || (has(codePoint) && hasOutline(glyphOf(codePoint)))
+    }
 
     /// The glyph's outline (font units, y up) and its bounding box.
     func outline(_ glyph: Int) -> (path: CGPath?, box: CGRect) {

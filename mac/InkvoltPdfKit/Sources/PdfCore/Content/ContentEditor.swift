@@ -351,9 +351,9 @@ public enum ContentEditor {
             var left: [String] = []
             for el in lacking {
                 let points = TrueTypeFont.codePoints(el)
-                if points.allSatisfy({ standIns[$0] != nil }) {
+                if points.allSatisfy({ standIns[$0] != nil }), let face = standIns[StandInFonts.key(el)], StandInFonts.drawable(el, face.font) {
                     borrowed.append(el)
-                    for cp in points where !names.contains(standIns[cp]!.name) { names.append(standIns[cp]!.name) }
+                    for cp in points where !StandInFonts.inkless(cp) && !names.contains(standIns[cp]!.name) { names.append(standIns[cp]!.name) }
                 } else {
                     left.append(el)
                 }
@@ -366,7 +366,7 @@ public enum ContentEditor {
             func flush() {
                 if chunk.isEmpty { return }
                 if let cur {
-                    parts.append(Part(nil, 0, TextShaper.shape(chunk, cur.font)))
+                    parts.append(Part(nil, 0, StandInFonts.shape(chunk, cur.font)))
                 } else {
                     let e = font.encode(chunk)
                     own += e.codes
@@ -376,7 +376,7 @@ public enum ContentEditor {
                 chunk = ""
             }
             for el in middle.map(String.init) {
-                let face = borrowed.contains(el) ? standIns[TrueTypeFont.codePoints(el)[0]] : nil
+                let face = borrowed.contains(el) ? standIns[StandInFonts.key(el)] : nil
                 if face !== cur { flush() }
                 cur = face
                 chunk += el

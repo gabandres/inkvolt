@@ -777,7 +777,8 @@ extension ContentEditor {
             for ch in text {
                 let s = String(ch)
                 let n = s.utf16.count
-                for _ in 0..<n { first.append(els.count) }
+                // The group's own start finds it; an offset inside it (an accent after a space), the next group.
+                for k in 0..<n { first.append(k == 0 ? els.count : els.count + 1) }
                 els.append((s, at))
                 at += n
             }
@@ -810,10 +811,10 @@ extension ContentEditor {
                 standIns[ObjectIdentifier(pageFont)] = map
                 for el in els {
                     let points = TrueTypeFont.codePoints(el)
-                    if points.allSatisfy({ map[$0] != nil }) {
+                    if points.allSatisfy({ map[$0] != nil }), let face = map[StandInFonts.key(el)], StandInFonts.drawable(el, face.font) {
                         lacking[ObjectIdentifier(pageFont), default: []].insert(el)
                         if !borrowed.contains(el) { borrowed.append(el) }
-                        for cp in points where !names.contains(map[cp]!.name) { names.append(map[cp]!.name) }
+                        for cp in points where !StandInFonts.inkless(cp) && !names.contains(map[cp]!.name) { names.append(map[cp]!.name) }
                     } else if missingSeen.insert(el).inserted {
                         missing.append(el)
                     }
@@ -888,7 +889,7 @@ extension ContentEditor {
             func flush() {
                 if chunk.isEmpty { return }
                 if let f = curFace {
-                    parts.append(Part(nil, 0, TextShaper.shape(chunk, f.font), curLook))
+                    parts.append(Part(nil, 0, StandInFonts.shape(chunk, f.font), curLook))
                 } else {
                     parts += own(chunk, curLook)
                 }
@@ -901,7 +902,7 @@ extension ContentEditor {
                 let pageFont = look?.page?.font ?? font
                 var face = look?.face
                 if face == nil, lacking[ObjectIdentifier(pageFont)]?.contains(el) == true {
-                    face = standIns[ObjectIdentifier(pageFont)]?[TrueTypeFont.codePoints(el)[0]]
+                    face = standIns[ObjectIdentifier(pageFont)]?[StandInFonts.key(el)]
                 }
                 if !started || look !== curLook || face !== curFace { flush() }
                 started = true

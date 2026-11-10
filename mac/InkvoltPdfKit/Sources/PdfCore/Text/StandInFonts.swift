@@ -246,11 +246,58 @@ enum StandInFonts {
         return nil
     }
 
-    /// Whether a text element comes out drawn when shaped in `font`: each glyph Core Text picks (the font's, or its
-    /// fallback's) has an outline, or the element is white space.
+    /// A character that draws nothing: white space, a format character (U+200B-U+200D, U+2060, U+FEFF…), a variation
+    /// selector or another default-ignorable one. Its glyph is empty in any font, so it needs no outline.
+    static func inkless(_ codePoint: UInt32) -> Bool {
+        guard let s = Unicode.Scalar(codePoint) else { return false }
+        let p = s.properties
+        return p.isWhitespace || p.isDefaultIgnorableCodePoint || p.isVariationSelector || p.generalCategory == .format
+    }
+
+    /// Whether a text element is only characters with no ink.
+    static func inkless(_ element: String) -> Bool { element.unicodeScalars.allSatisfy { inkless($0.value) } }
+
+    /// The character a text element's stand-in is chosen by: its first inked one (a cluster is judged by its ink).
+    static func key(_ element: String) -> UInt32 {
+        let points = TrueTypeFont.codePoints(element)
+        return points.first { !inkless($0) } ?? points[0]
+    }
+
+    /// A stand-in stretch shaped in `font`. An emoji presentation selector (U+FE0F) is left out of the shaping, so Core
+    /// Text draws the character in `font` (an outline) rather than switch to the color emoji font (a bitmap a Type 3 font
+    /// can't carry); it stays in the text the glyph stands for, so the copy is what was typed.
+    static func shape(_ text: String, _ font: TrueTypeFont) -> ShapedLine {
+        guard text.unicodeScalars.contains(where: { $0.value == 0xFE0F }) else { return TextShaper.shape(text, font) }
+        var shaped = ""
+        var held: [(at: Int, s: String)] = [] // a selector after the character at this UTF-16 offset of `shaped`
+        for u in text.unicodeScalars {
+            if u.value == 0xFE0F {
+                held.append((shaped.utf16.count, String(u)))
+            } else {
+                shaped.unicodeScalars.append(u)
+            }
+        }
+        var line = TextShaper.shape(shaped, font)
+        line.text = text
+        // Each selector goes with the last glyph standing for text before it.
+        for h in held {
+            var consumed = 0
+            var target = -1
+            for (i, g) in line.glyphs.enumerated() {
+                consumed += g.text.utf16.count
+                if consumed <= h.at && !g.text.isEmpty { target = i }
+                if consumed >= h.at { target = max(target, i); break }
+            }
+            if target >= 0 { line.glyphs[target].text += h.s }
+        }
+        return line
+    }
+
+    /// Whether a text element comes out drawn when shaped in `font` (as `shape` does): each glyph Core Text picks (the
+    /// font's, or its fallback's) has an outline, or stands for characters with no ink.
     static func drawable(_ element: String, _ font: TrueTypeFont) -> Bool {
-        if ContentEditor.isBlank(element) { return true }
-        let line = TextShaper.shape(element, font)
-        return !line.glyphs.isEmpty && line.glyphs.allSatisfy { $0.font.hasOutline($0.glyph) || ContentEditor.isBlank($0.text) }
+        if inkless(element) { return true }
+        let line = shape(element, font)
+        return !line.glyphs.isEmpty && line.glyphs.allSatisfy { $0.font.hasOutline($0.glyph) || inkless($0.text) }
     }
 }

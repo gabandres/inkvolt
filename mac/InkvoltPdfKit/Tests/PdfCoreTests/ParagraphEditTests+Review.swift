@@ -57,7 +57,7 @@ extension ParagraphEditTests {
         #expect(r.check("Next block " + heart).missing.isEmpty)
         let edited = try ContentEditor.replaceParagraph(pdf, nil, p, text)
         #expect(try Self.body0(edited).text == text)
-        #expect(ContentEditPdf.text(edited).contains("\u{2764}"))
+        #expect(ContentEditPdf.text(edited).unicodeScalars.contains { $0.value == 0x2764 }) // one grapheme with its selector
     }
 
     @Test func aCharacterGroupThatStartsWithASpaceIsWrittenOnce() throws {
