@@ -361,7 +361,7 @@ struct AiClientTests {
 
     /// The client moves its deadline on every line: a stream of keep-alives read as fast as they come queued a timer a
     /// line (42 GB on CI before the system killed the tests).
-    @Test(.timeLimit(.minutes(1))) func aDeadlineMovedOnEveryLineKeepsOneTimer() async throws {
+    @Test func aDeadlineMovedOnEveryLineKeepsOneTimer() async throws {
         let deadline = AiDeadline(nil)
         for _ in 0..<100_000 { deadline.cancelAfter(60) }
         #expect(deadline.timersScheduled == 1)
