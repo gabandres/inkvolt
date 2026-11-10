@@ -44,11 +44,15 @@ enum TranslationMarkup {
         out.reserveCapacity(u.count + 32)
         var open: [Kind] = []
         var stretches = 0
-        for i in 0...u.count {
-            if i > 0 && i < u.count && kinds[i] == kinds[i - 1] {
-                out.append(u[i])
-                continue
-            }
+        var i = 0
+        while i <= u.count {
+            // A stretch of one look goes out whole: a crafted paragraph of millions of characters is copied, not walked.
+            let to = i < u.count ? kinds.withUnsafeBufferPointer { k in
+                var j = i + 1
+                while j < k.count && k[j] == k[i] { j += 1 }
+                return j
+            } : i + 1
+            defer { i = to }
             let want: Kind = i < u.count ? kinds[i] : []
             let wanted = ordered(want)
             var keep = 0
@@ -65,7 +69,7 @@ enum TranslationMarkup {
                 stretches += 1
                 if stretches > maxStretches { return text }
             }
-            if i < u.count { out.append(u[i]) }
+            if i < u.count { out.append(contentsOf: u[i..<to]) }
         }
         return stretches == 0 ? text : String(decoding: out, as: UTF16.self)
     }
@@ -91,30 +95,36 @@ enum TranslationMarkup {
             if k.intersection(.scripts).isEmpty { continue }
             // Latest span first: a character's script is the first one set; next[i] skips characters already set.
             if next == nil { next = Array(0...length) }
-            var i = unset(&next!, from)
-            while i < to {
-                kinds[i] = k.intersection(.scripts)
-                next![i] = i + 1
-                i = unset(&next!, i)
+            let script = k.intersection(.scripts)
+            kinds.withUnsafeMutableBufferPointer { kp in
+                next!.withUnsafeMutableBufferPointer { np in
+                    var i = unset(np, from)
+                    while i < to {
+                        kp[i] = script
+                        np[i] = i + 1
+                        i = unset(np, i)
+                    }
+                }
             }
         }
         if bold == nil && italic == nil { return kinds }
-        var b = 0, it = 0
-        for i in 0..<length {
-            if let bold {
-                b += bold[i]
-                if b > 0 { kinds[i].insert(.bold) }
-            }
-            if let italic {
-                it += italic[i]
-                if it > 0 { kinds[i].insert(.italic) }
+        kinds.withUnsafeMutableBufferPointer { k in
+            for (starts, kind) in [(bold, Kind.bold), (italic, Kind.italic)] {
+                guard let starts else { continue }
+                starts.withUnsafeBufferPointer { s in
+                    var depth = 0
+                    for i in 0..<length {
+                        depth += s[i]
+                        if depth > 0 { k[i].formUnion(kind) }
+                    }
+                }
             }
         }
         return kinds
     }
 
     /// The first character at or after `i` with no script set yet (path halving).
-    private static func unset(_ next: inout [Int], _ start: Int) -> Int {
+    private static func unset(_ next: UnsafeMutableBufferPointer<Int>, _ start: Int) -> Int {
         var i = start
         while next[i] != i {
             next[i] = next[next[i]]

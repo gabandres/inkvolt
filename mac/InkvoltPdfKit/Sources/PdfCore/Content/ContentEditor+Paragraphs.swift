@@ -17,7 +17,7 @@ public struct TextParagraph: Sendable {
     public let text: String
     /// The lines' boxes together: the box new text wraps in (its width) and grows from (downward).
     public internal(set) var box: RectD
-    public let align: ParagraphAlign
+    public internal(set) var align: ParagraphAlign
     /// From one baseline to the next (points); for a single line, 1.2 times its size.
     public let lineStep: Double
     /// How much further right the first line starts than the others (left and justified text).
@@ -101,10 +101,10 @@ extension ContentEditor {
     // ---- Grouping ----
 
     /// A line of text: runs on one baseline, left to right, with no column gap between them.
-    private final class PLine {
+    final class PLine {
         var runs: [TextRun]
         var box: RectD
-        let baseline: Double
+        var baseline: Double
         /// Its text (UTF-16).
         var text: [UInt16]
         /// Where each run's text starts in `text`.
@@ -121,13 +121,20 @@ extension ContentEditor {
         /// Its run in its own look: the font most of its text is in (see `plainRun`), so a line that begins with a word in
         /// another family (a symbol, a name set apart) is still a line of the paragraph's font.
         var lead: TextRun {
+            if let main { return main }
             if let leadRun { return leadRun }
             let l = plainRun(runs)
             leadRun = l
             return l
         }
 
+        /// For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.
+        var main: TextRun?
+
         var size: Double { lead.fontSize }
+
+        /// Its text as a string.
+        var string: String { String(decoding: text, as: UTF16.self) }
 
         /// Its biggest text against its own: 1 unless an edit made part of it bigger.
         var scale: Double { max(1, (runs.map(\.fontSize).max() ?? 0) / max(0.1, size)) }
@@ -144,7 +151,7 @@ extension ContentEditor {
     }
 
     /// Lines stacked one under the other, and which alignments they still allow.
-    private final class PStack {
+    final class PStack {
         var lines: [PLine]
         var canLeft = true, canCenter = true, canRight = true
         var step = 0.0
@@ -179,7 +186,7 @@ extension ContentEditor {
         return result
     }
 
-    private static func linesOf(_ runs: [TextRun]) -> [PLine] {
+    static func linesOf(_ runs: [TextRun]) -> [PLine] {
         var lines: [PLine] = []
         let sorted = runs.enumerated().sorted { ($0.element.origin.y, $0.offset) < ($1.element.origin.y, $1.offset) }.map(\.element)
         var i = 0
@@ -205,7 +212,7 @@ extension ContentEditor {
         return lines
     }
 
-    private static func stacks(_ lines: [PLine]) -> [PStack] {
+    static func stacks(_ lines: [PLine]) -> [PStack] {
         var stacks: [PStack] = []
         // Lines come top to bottom, so a stack whose last line is far above this one takes no more: a crafted page's many
         // thousand lines don't each try every earlier one.
@@ -286,7 +293,7 @@ extension ContentEditor {
     static func before(_ a: TextRun, _ b: TextRun) -> Bool { order(a.id) < order(b.id) }
 
     /// The step from one baseline to the next as the paragraph's own (see `layOut`: bigger text widens it).
-    private static func plainStep(_ above: PLine, _ below: PLine, _ step: Double) -> Double {
+    static func plainStep(_ above: PLine, _ below: PLine, _ step: Double) -> Double {
         step / (rise * above.scale + (1 - rise) * below.scale)
     }
 
@@ -311,7 +318,7 @@ extension ContentEditor {
         return f.left || f.center || f.right ? max(0, gap) : nil
     }
 
-    private static func tolerance(_ size: Double) -> Double { max(1.5, 0.12 * size) }
+    static func tolerance(_ size: Double) -> Double { max(1.5, 0.12 * size) }
 
     /// The alignments the stack still allows with `line` under it.
     private static func fits(_ s: PStack, _ line: PLine) -> (left: Bool, center: Bool, right: Bool) {
@@ -329,8 +336,10 @@ extension ContentEditor {
         return (s.canLeft && left, s.canCenter && center, s.canRight && right)
     }
 
-    /// Splits a stack after each line that ended short: the next line's first word would have fit on it.
-    private static func splitShort(_ s: PStack) -> [[PLine]] {
+    /// Splits a stack after each line that ended short: the next line's first word would have fit on it. `translating`:
+    /// ragged text in a narrow column often ends a line short mid-sentence: for a translator a line going on in
+    /// lowercase, after no end of sentence, stays with the one above; two short labels one under the other go apart.
+    static func splitShort(_ s: PStack, translating: Bool = false) -> [[PLine]] {
         var parts: [[PLine]] = []
         var cur = [s.lines[0]]
         let width = s.lines.map(\.box.width).max() ?? 0
@@ -343,7 +352,8 @@ extension ContentEditor {
             let words = String(decoding: line.text, as: UTF16.self).drop { $0 == " " }
             let word = words.split(separator: " ", omittingEmptySubsequences: false).first.map(String.init) ?? ""
             let need = prev.box.width + widthOf(line.lead, " " + word, line)
-            if need < room - 0.5 * prev.size {
+            let short = need < room - 0.5 * prev.size && !(translating && goesOn(prev.string, line.string))
+            if short || (translating && labels(prev.string, line.string)) {
                 parts.append(cur)
                 cur = []
             }
@@ -351,6 +361,24 @@ extension ContentEditor {
         }
         parts.append(cur)
         return parts
+    }
+
+    /// A line starting in lowercase after one that ends in no sentence-ending punctuation.
+    private static func goesOn(_ above: String, _ below: String) -> Bool {
+        let a = Array(TranslationText.trim(above).unicodeScalars), b = Array(TranslationText.trim(below).unicodeScalars)
+        guard let last = a.last, let first = b.first else { return false }
+        return !".!?:;".unicodeScalars.contains(last) && first.properties.isLowercase
+    }
+
+    /// Two short lines, the second starting in capitals, or the first ending in a colon and the second not going on in
+    /// lowercase (a table's "Income percentile ratios:" above its "90th/10th" row; not "as follows:" above "accuracy
+    /// rose"), nothing carrying over: entries of a list or a table's labels, not a sentence wrapped.
+    private static func labels(_ above: String, _ below: String) -> Bool {
+        let a = Array(TranslationText.trim(above).utf16), b = Array(TranslationText.trim(below).utf16)
+        guard (1...28).contains(a.count), (1...28).contains(b.count), let first = Unicode.Scalar(b[0]) else { return false }
+        let last = a[a.count - 1]
+        let upper = first.properties.isUppercase
+        return (upper || (last == 58 && !first.properties.isLowercase)) && last != 44 && last != 45
     }
 
     /// How wide text is in a run's font and spacing (points); estimated from the line's characters when the font can't
@@ -408,7 +436,11 @@ extension ContentEditor {
         return Array(t[lo...hi])
     }
 
-    private static func paragraph(_ content: PageContent, _ lines: [PLine]) -> TextParagraph {
+    /// `translating`: for a translated copy (see ContentEditor+Translate): every run of it goes and new text takes its
+    /// place in its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, a hanging first
+    /// line stays where it hangs, and its bold, italic, subscript and superscript stretches are its spans
+    /// (`translationLook`).
+    static func paragraph(_ content: PageContent, _ lines: [PLine], translating: Bool = false) -> TextParagraph {
         let first = lines[0]
         let size = first.size
         let tol = tolerance(size)
@@ -418,7 +450,7 @@ extension ContentEditor {
         let right = lines.map(\.box.right).max()!
         let lefts = rest.allSatisfy { abs($0.box.x - left) <= tol }
         var indent = n > 1 && lefts ? first.box.x - left : 0
-        if indent < 0.5 * size { indent = 0 }
+        if indent < 0.5 * size && !(translating && indent < -0.5 * size) { indent = 0 }
         let flushLeft = lefts && (indent > 0 || abs(first.box.x - left) <= tol)
         let center = lines.reduce(0.0) { $0 + $1.box.centerX } / Double(n)
         let centers = lines.allSatisfy { abs($0.box.centerX - center) <= tol }
@@ -432,6 +464,15 @@ extension ContentEditor {
         } else if n >= 2 && !allLeft && rights {
             align = .right
         }
+        // A justified paragraph with a line or two that starts elsewhere (a formula, an inset) isn't right-aligned.
+        if translating && align == .right && n >= 3 {
+            let xs = rest.map(\.box.x).sorted()
+            let usual = xs[xs.count / 2]
+            if Double(xs.filter { abs($0 - usual) <= tol }.count) >= 0.7 * Double(xs.count) {
+                align = .justified
+                left = usual
+            }
+        }
         if align == .center || align == .right {
             indent = 0
             left = lines.map(\.box.x).min()!
@@ -444,39 +485,58 @@ extension ContentEditor {
         // another family, is a stretch with a look of its own); else (an edit gave all of it another look) its first
         // run's. Another size or color on its lines can't be rewrapped with it.
         let own = plainRun(runs)
-        if blocked == nil && runs.contains(where: { !sameSizeAndColor(own, $0) }) {
+        if blocked == nil && !translating && runs.contains(where: { !sameSizeAndColor(own, $0) }) {
             blocked = loc("it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only")
         }
         // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
-        if blocked == nil && runs.contains(where: { $0.font == nil }) { blocked = loc("its font is missing from the page") }
+        if blocked == nil && !translating && runs.contains(where: { $0.font == nil }) { blocked = loc("its font is missing from the page") }
         if blocked == nil && runs.contains(where: { $0.info == nil }) { blocked = loc("part of it can't be read for editing") }
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
         if blocked == nil && runs.contains(where: { $0.info!.form != own.info!.form }) {
             blocked = loc("part of it is inside a form XObject (a drawing the page reuses) and part outside, and a paragraph is rewritten in one piece of content only")
         }
         // Rewrapping lays words out left to right, so right-to-left text would come out in the wrong order.
-        if blocked == nil && runs.contains(where: { r in r.text.unicodeScalars.contains { [.R, .AL].contains(Bidi.classify($0.value)) } }) {
+        if blocked == nil && !translating && runs.contains(where: { r in r.text.unicodeScalars.contains { [.R, .AL].contains(Bidi.classify($0.value)) } }) {
             blocked = loc("it is written right to left, and this version rewraps left-to-right text only")
         }
 
         var text: [UInt16] = []
         var at: [(run: TextRun, start: Int, length: Int)] = [] // where each run's text is in the paragraph's
+        var looks: [TextSpan]? = translating ? [] : nil
         var soft = false // the line before ended with a soft hyphen
         for (li, l) in lines.enumerated() {
             var t = trim(l.text)
             if !text.isEmpty && !soft {
                 // A hyphen typed into the word ("respon-sible") stays as typed; the lines join without a space.
                 let hyphen = text.count >= 2 && text[text.count - 1] == 45 && isLetter(text[text.count - 2]) && !t.isEmpty && isLower(t[0])
-                if !hyphen { text.append(32) }
+                if !hyphen {
+                    text.append(32)
+                } else if translating {
+                    // For a translator the line break's hyphen would be part of the word; the stretch it ended goes without it.
+                    text.removeLast()
+                    if let last = looks?.last, last.end > text.count { looks![looks!.count - 1].length = text.count - last.start }
+                    if let last = looks?.last, last.length <= 0 { looks!.removeLast() }
+                }
             }
             // A soft hyphen (U+00AD) ending a line was added by the line break: it goes, and the word joins the next line's.
             soft = li != lines.count - 1 && t.last == 0xAD
             if soft { t.removeLast() }
             let leadCount = l.text.count - (l.text.firstIndex { !(Unicode.Scalar($0)?.properties.isWhitespace ?? false) } .map { l.text.count - $0 } ?? 0)
+            let baseline = looks != nil ? lineBaseline(l) : (y: 0, size: 0)
             for (i, r) in l.runs.enumerated() {
                 let from = min(max(l.starts[i] - leadCount, 0), t.count)
                 let to = min(max(l.starts[i] + r.text.utf16.count - leadCount, 0), t.count)
                 at.append((r, text.count + from, to - from))
+                if looks != nil && to > from, let look = translationLook(own, baseline, r) {
+                    // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
+                    let start = text.count + from
+                    let base = text.count
+                    if let last = looks!.last, last.look == look, joinsAcrossSpace(last.end, start, { $0 < base ? text[$0] : t[$0 - base] }) {
+                        looks![looks!.count - 1].length = base + to - last.start
+                    } else {
+                        looks!.append(TextSpan(start, to - from, look))
+                    }
+                }
             }
             text += t
         }
@@ -486,13 +546,13 @@ extension ContentEditor {
         var spaces: [TextRun] = []
         for r in content.runs {
             if r.box.right <= box.x || r.box.x >= box.right || r.box.bottom <= box.y || r.box.y >= box.bottom || mine.contains(r.id) { continue }
-            let cx = r.box.centerX, cy = r.box.centerY
+            let cy = r.box.centerY
             // On a line: its middle inside the line's height, across from the line or right after its end (a mark after the
             // last word).
             let onLine = lines.contains { l in cy > l.box.y && cy < l.box.bottom && r.box.right > l.box.x && r.box.x < l.box.right + 0.3 * l.size }
-            _ = cx
             if !onLine { continue }
             if !trimmed(r.text).isEmpty {
+                if translating { continue }
                 if blocked == nil {
                     blocked = loc("it has other text inside it (a raised mark, a symbol or words in another font), and this version rewrites a paragraph in one font only")
                 }
@@ -510,10 +570,12 @@ extension ContentEditor {
 
         // What follows below: the nearest other text or picture across the paragraph's width.
         var below: RectD?
-        let others = content.runs.filter { !mine.contains($0.id) && !trimmed($0.text).isEmpty }.map(\.box) + content.images.map(\.box)
-        for b in others {
-            if b.y < box.bottom - 1 || b.right <= box.x + 1 || b.x >= box.right - 1 { continue }
-            if below == nil || b.y < below!.y { below = b }
+        if !translating {
+            let others = content.runs.filter { !mine.contains($0.id) && !trimmed($0.text).isEmpty }.map(\.box) + content.images.map(\.box)
+            for b in others {
+                if b.y < box.bottom - 1 || b.right <= box.x + 1 || b.x >= box.right - 1 { continue }
+                if below == nil || b.y < below!.y { below = b }
+            }
         }
 
         let paragraphText = String(decoding: text, as: UTF16.self)
@@ -521,7 +583,7 @@ extension ContentEditor {
                               align: align, lineStep: step, firstIndent: indent, blocked: blocked)
         p.below = below
         p.spaces = spaces
-        p.spans = spansOf(own, text, at)
+        p.spans = looks ?? spansOf(own, text, at)
         if blocked == nil {
             let kerned = runs.filter { !$0.standIn && !$0.styled && $0.info != nil && $0.font === own.font }.map { $0.info! }
             p.kerning = kerning(kerned)
@@ -558,16 +620,21 @@ extension ContentEditor {
     /// paragraph's last line, and each line before a break, start left), its line step. Stretches `spans` give a look of
     /// their own are drawn in it: the page's own bold or italic face when the paragraph has one, else an installed font
     /// for another family, bold or italic; another size (a line with bigger text moves down as far as it needs); another
-    /// color.
-    static func layOut(_ p: TextParagraph, _ runs: [TextRun], _ text: String, _ spans: [TextSpan]? = nil) -> ParagraphLayout {
-        if let upright = p.upright { return onPage(layOut(upright, runs, text, spans), p) }
+    /// color. `fit`: for a translated copy, the text's size against the paragraph's own; it always wraps, wherever it can
+    /// (`fitLines`), in one font (`MixedText`'s `oneFace`), right to left when most of it reads so (`layOutRightToLeft`).
+    /// Nil: as typed in the editor.
+    static func layOut(_ p: TextParagraph, _ runs: [TextRun], _ text: String, _ spans: [TextSpan]? = nil, fit: Double? = nil) -> ParagraphLayout {
+        if let upright = p.upright { return onPage(layOut(upright, runs, text, spans, fit: fit), p) }
         let anchor = anchorRun(runs)
         let plain = plainRun(runs)
         let font = plain.font!
         var m = plain
         m.wordSpacing = 0 // the lines are written with Tw 0 (justification goes into adjustments)
+        let shrink = fit ?? 1
+        m.size *= shrink
+        if fit != nil && mostlyRightToLeft(text) { return layOutRightToLeft(p, m, text, shrink) }
         let u = Array(text.utf16)
-        let enc = MixedText(p, font, m, text, looksOf(u, spans ?? carry(p.text, text, p.spans)))
+        let enc = MixedText(p, font, m, text, looksOf(u, spans ?? carry(p.text, text, p.spans)), oneFace: fit != nil)
         if !enc.missing.isEmpty {
             return ParagraphLayout(lines: [], check: ParagraphCheck(box: p.box, lineCount: p.lines.count, missing: enc.missing, overlaps: nil), fonts: [])
         }
@@ -580,7 +647,8 @@ extension ContentEditor {
         var spaceEnds: [Int] = [] // the index of each word space's last part in cur
         var space: [Part]?
         var pos = 0
-        while pos <= u.count {
+        if fit != nil { lines = fitLines(p, enc, u, w) }
+        while fit == nil && pos <= u.count {
             if pos == u.count || u[pos] == 10 {
                 lines.append((cur, spaceEnds, true))
                 cur = []
@@ -639,14 +707,14 @@ extension ContentEditor {
             below = 0
             for q in parts where q.code != nil || q.standIn != nil {
                 guard let look = q.look, look.rise != 0 else { continue }
-                above = max(above, look.rise * p.fontSize + look.scale * p.ascent)
-                below = max(below, -look.rise * p.fontSize + look.scale * p.descent)
+                above = max(above, (look.rise * p.fontSize + look.scale * p.ascent) * shrink)
+                below = max(below, (-look.rise * p.fontSize + look.scale * p.descent) * shrink)
             }
             if i == 0 {
-                baseline = p.box.y + max(p.ascent * s, above)
+                baseline = p.box.y + max(p.ascent * shrink * s, above)
             } else {
                 let grow: Double = rise * scale + (1 - rise) * s
-                baseline += p.lineStep * grow
+                baseline += p.lineStep * shrink * grow
             }
             scale = s
             var width = w(parts)
@@ -675,7 +743,7 @@ extension ContentEditor {
             maxRight = max(maxRight, x + width)
             minLeft = min(minLeft, x)
         }
-        let bottom = placed.isEmpty ? p.box.y + p.ascent + p.descent : baseline + max(p.descent * scale, below)
+        let bottom = placed.isEmpty ? p.box.y + p.ascent + p.descent : baseline + max(p.descent * shrink * scale, below)
         let box = RectD.fromEdges(minLeft, p.box.y, maxRight, max(bottom, p.box.y + 1))
         var overlaps: RectD?
         if let b = p.below, box.bottom > b.y + 0.5 && b.right > box.x && b.x < box.right { overlaps = b }
@@ -733,7 +801,7 @@ extension ContentEditor {
     }
 
     /// Where a paragraph's new text is written: its first run in content order in its own font and look.
-    private static func anchorRun(_ runs: [TextRun]) -> TextRun {
+    static func anchorRun(_ runs: [TextRun]) -> TextRun {
         runs.filter { !$0.standIn && !$0.styled }.min(by: before) ?? runs.filter { !$0.standIn }.min(by: before) ?? runs.min(by: before)!
     }
 
@@ -741,7 +809,7 @@ extension ContentEditor {
     /// characters a font lacks drawn from the closest installed font (`StandInFonts`), each stretch shaped as one
     /// `Part.standIn`; stretches with a look of their own carry it (`Part.look`), drawn in an installed font when the look
     /// asks for another family, or for bold or italic the page has no face for.
-    private final class MixedText {
+    final class MixedText {
         private let p: TextParagraph
         private let font: TextFont
         private let run: TextRun
@@ -765,7 +833,9 @@ extension ContentEditor {
         /// A look asks for another color.
         var colored = false
 
-        init(_ p: TextParagraph, _ font: TextFont, _ run: TextRun, _ text: String, _ looks: [TextLook?]) {
+        /// `oneFace`: when the font lacks any character, the whole text, its spaces too, is drawn from one installed font,
+        /// not a letter here and there: a translation shares few letters with the subset a page's font holds.
+        init(_ p: TextParagraph, _ font: TextFont, _ run: TextRun, _ text: String, _ looks: [TextLook?], oneFace: Bool = false) {
             self.p = p
             self.font = font
             self.run = run
@@ -787,7 +857,16 @@ extension ContentEditor {
             firstAt = first
             var lackingList: [(font: TextFont, els: [String], seen: Set<String>)] = []
             var missingSeen = Set<String>()
+            // For one face: the page's other faces a look draws in (a bold word in the page's bold), with the elements each draws.
+            var otherFaces: [(font: TextFont, els: [String], seen: Set<String>)] = []
             for (el, at) in elements {
+                if oneFace && el != "\n", let look = resolve(at), look.face == nil, let other = look.page?.font, other !== font {
+                    if let i = otherFaces.firstIndex(where: { $0.font === other }) {
+                        if otherFaces[i].seen.insert(el).inserted { otherFaces[i].els.append(el) }
+                    } else {
+                        otherFaces.append((other, [el], [el]))
+                    }
+                }
                 if ContentEditor.isBlank(el) { continue }
                 let look = resolve(at)
                 if let face = look?.face {
@@ -803,6 +882,13 @@ extension ContentEditor {
                 } else {
                     lackingList.append((pageFont, [el], [el]))
                 }
+            }
+            if oneFace && !lackingList.isEmpty {
+                // Then all of it from installed fonts: its own font's text, and each other face's from the installed font closest to that face.
+                var all: [String] = []
+                var seen = Set<String>()
+                for (el, _) in elements where el != "\n" && seen.insert(el).inserted { all.append(el) }
+                lackingList = [(font, all, seen)] + otherFaces
             }
             for (pageFont, els, _) in lackingList {
                 var cps: [UInt32] = []
@@ -1027,41 +1113,43 @@ extension ContentEditor {
     }
 
     /// A TJ adjustment that moves the text position as far as `advance` (text space) without drawing.
-    private static func move(_ run: TextRun, _ advance: Double) -> String {
+    static func move(_ run: TextRun, _ advance: Double) -> String {
         let k: Double = run.size * run.hScale
         if abs(k) < 1e-9 || abs(advance) < 1e-9 { return "" }
         return "[\(ContentLexer.number(-advance * 1000 / k))] TJ"
     }
 
     /// A show operator taken out: what it set and moved stays (' and " go to the next line, " sets the spacing).
-    private static func removed(_ op: COp, _ run: TextRun) -> String {
+    static func removed(_ op: COp, _ run: TextRun) -> String {
         let m = move(run, run.info!.advance)
-        let first = nextLine(op)
+        let first = nextLine(op, run)
         return !first.isEmpty ? first + m : !m.isEmpty ? m : " "
     }
 
     /// What a show operator does before it draws, as operators of its own (' and " go to the next line, " sets the
-    /// spacing); nothing for any other operator.
-    private static func nextLine(_ op: COp) -> String {
+    /// spacing); nothing for any other operator, or for a column of an operator after its first (that is done by then).
+    static func nextLine(_ op: COp, _ run: TextRun? = nil) -> String {
+        if (run?.info?.column ?? 0) > 0 { return "" }
         switch op.name {
         case "'": return "T* "
-        case "\"": return "\(setsSpacing(op))T* "
+        case "\"": return "\(setsSpacing(op, run))T* "
         default: return ""
         }
     }
 
-    /// The word and character spacing a " operator sets, as operators of their own; nothing for any other.
-    private static func setsSpacing(_ op: COp) -> String {
-        op.name == "\"" ? "\(ContentLexer.number(op.n(0))) Tw \(ContentLexer.number(op.n(1))) Tc " : ""
+    /// The word and character spacing a " operator sets, as operators of their own; nothing for any other, or for a
+    /// column after its first.
+    static func setsSpacing(_ op: COp, _ run: TextRun? = nil) -> String {
+        op.name == "\"" && (run?.info?.column ?? 0) == 0 ? "\(ContentLexer.number(op.n(0))) Tw \(ContentLexer.number(op.n(1))) Tc " : ""
     }
 
     /// The paragraph's new lines in place of its first show operator (`run`), in the paragraph's own font (`plain`): each
     /// line placed with Tm (word spacing 0 while they are written), then the line matrix and text position the operator
     /// left, so the rest of the content draws where it did.
-    private static func writeParagraph(_ frame: PageFrame, _ op: COp, _ run: TextRun, _ plain: TextRun, _ layout: ParagraphLayout,
-                                       _ writer: Type3FontWriter) throws -> String {
+    static func writeParagraph(_ frame: PageFrame, _ op: COp, _ run: TextRun, _ plain: TextRun, _ layout: ParagraphLayout,
+                               _ writer: Type3FontWriter) throws -> String {
         let info = run.info!
-        var sb = setsSpacing(op)
+        var sb = setsSpacing(op, run)
         let tw = run.wordSpacing
         if abs(tw) > 1e-9 { sb += "0 Tw " }
         guard let toText = info.tm.times(info.ctm).inverted() else {

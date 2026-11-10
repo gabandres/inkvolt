@@ -25,6 +25,9 @@ public struct TextRun: Sendable {
     public let oldWidth: Double
 
     var font: TextFont?
+    /// Its place among the page's runs as the walk found them: unique, where `id` isn't (an operator drawing columns is a
+    /// run for each in a translated copy, see `ContentEditor.RunInfo.columns`).
+    var key = 0
     /// Page points per text-space unit along the baseline.
     let scale: Double
     var size = 0.0, charSpacing = 0.0, wordSpacing = 0.0, hScale = 1.0
@@ -576,10 +579,25 @@ public enum ContentEditor {
         if let current, current.isDict, !current.isRef, parent[key] != nil { return current }
         let copy = doc.dict()
         if let current, current.isDict {
-            for k in current.keys { if let v = current[k] { copy.set(k, v) } }
+            for k in current.keys { if let v = current[k] { copy.set(k, ownCopy(doc, v)) } }
         }
         parent.set(key, copy)
         return parent[key] ?? copy
+    }
+
+    /// A direct dictionary or array copied all the way down (references stay references). A direct object must have one
+    /// parent: shared by a copied /Resources and its original (a /Font dictionary inside resources several pages refer
+    /// to), it would be renumbered once through each when MuPDF compacts the file, and its fonts would point at other
+    /// objects.
+    static func ownCopy(_ doc: MuDoc, _ obj: PObj, _ depth: Int = 0) -> PObj {
+        if obj.isRef || depth > 32 { return obj }
+        if obj.isDict {
+            let d = doc.dict()
+            for k in obj.keys { if let v = obj[k] { d.set(k, ownCopy(doc, v, depth + 1)) } }
+            return d
+        }
+        if obj.isArray { return doc.array((0..<obj.count).map { i in obj[i].map { ownCopy(doc, $0, depth + 1) } ?? doc.null }) }
+        return obj
     }
 
     /// Adds an XObject to the page's own resources (copying shared ones first), under a fresh name.
@@ -777,7 +795,27 @@ public enum ContentEditor {
         var fillOp: String?
         /// The drawing of a form XObject the run is in (nil: the page's own content); the walk keeps the form itself.
         var form: FormDraw?
+        /// The rectangle text drawn where this operator is shows through (see `GState.clip`); nil when there is none known.
+        var clip: RectD?
+        /// For a translated copy an operator drawing columns is a run for each (`columnStarts`): which one this is (0: the
+        /// first, or the whole operator), of how many (1: it is whole), and where along its operator it starts (text
+        /// space, as `RunItem.at`): 0 unless it is a column after the first.
+        var column = 0
+        var columns = 1
+        var start = 0.0
     }
+
+    /// Something the page's own content paints, where in it (`id`), and how far it reaches (nil: anywhere it may); a
+    /// filled rectangle is `rect`, with its fill color when that is a plain one (`color`).
+    struct Paint: Sendable {
+        var box: RectD?
+        var id: Int
+        var rect: Bool
+        var color: Int?
+    }
+
+    /// The most fills and paints a walk keeps (a crafted page's millions of rectangles aren't each kept).
+    static let maxFills = 5_000
 
     /// One drawing of a form XObject: the form, and the Do that drew it (its id in the enclosing content, unique on the
     /// page). Two drawings of one form are two pieces of content: one operator draws a line in both.
@@ -830,6 +868,21 @@ public enum ContentEditor {
         var formOf: [Int: (place: FormPlace, index: Int)] = [:]
         /// How much more form content may be read for this page: forms drawing forms can multiply without end in a crafted file.
         var formBudget = maxFormBytes
+        /// Rectangles the page's own content fills, and where in it: what text written before one would be painted over by.
+        var fills: [(box: RectD, id: Int)] = []
+        /// Everything the page's own content paints, in order; past `maxFills` of them, `paintsCut`.
+        var paints: [Paint] = []
+        var paintsCut = false
+        /// For a translated copy: an operator drawing columns becomes a run for each (`columnStarts`).
+        var columns = false
+        /// Its forms drew each other beyond any sensible amount: not all of the page was read.
+        var cutShort: Bool { formBudget < 0 }
+        /// The layers the document opens with off (catalog /OCProperties /D /OFF), read once.
+        lazy var hiddenLayers: Set<ObjId> = {
+            guard let off = doc?.catalog.dict("OCProperties")?.dict("D")?.array("OFF") else { return [] }
+            return Set(off.elements.map(\.id))
+        }()
+        weak var doc: MuDoc?
         let frame: PageFrame
         let pageIndex: Int
         let cancel: CancelToken?
@@ -855,15 +908,20 @@ public enum ContentEditor {
         var ctm = Mat.identity
         var font: TextFont?
         var fontKey = ""
-        var size = 1.0, tc = 0.0, tw = 0.0, th = 1.0, tl = 0.0, rise = 0.0
+        var size = 1.0, tc = 0.0, tw = 0.0, th = 1.0, tl = 0.0, rise = 0.0, lineWidth = 1.0
         var render = 0
+        /// The rectangles clipping what is drawn, together, in page space (nil: none; other clip shapes aren't followed).
+        var clip: RectD?
         var fill = 0
         var fillOp: String? = "0 g"
         var fillSpace: String? = "DeviceGray"
     }
 
-    static func walk(_ doc: MuDoc, _ page: PObj, _ pageIndex: Int, _ ops: [COp], _ cancel: CancelToken?) throws -> Walked {
+    /// - Parameter columns: for a translated copy: an operator drawing columns becomes a run for each (`columnStarts`).
+    static func walk(_ doc: MuDoc, _ page: PObj, _ pageIndex: Int, _ ops: [COp], _ cancel: CancelToken?, columns: Bool = false) throws -> Walked {
         let w = Walked(PageBoxes.frame(page), pageIndex, cancel)
+        w.columns = columns
+        w.doc = doc
         try run(w, ops, PageBoxes.inherited(page, "Resources").flatMap { $0.isDict ? $0 : nil }, GState(), 0, nil, nil)
         // Text in a form drawn through another form that the page draws more than once: editing it would change every
         // copy (only a form the page draws directly is copied for the edit), so it is edited nowhere.
@@ -885,6 +943,23 @@ public enum ContentEditor {
         loc("it carries replacement text for copying and reading aloud (ActualText) that an edit would leave wrong")
     }
 
+    /// Why text in a layer that is off stays: nobody sees it, so it isn't edited, and it is never sent for translating.
+    static var hiddenLayerBlocked: String { loc("it is invisible text (in a hidden layer)") }
+
+    static var invisibleOcrBlocked: String { loc("it is invisible text (recognized text over a scan)") }
+
+    /// Text nobody sees (in a layer that is off, or recognized text over a scan): never sent for translating.
+    static func isInvisible(_ why: String?) -> Bool { why != nil && (why == hiddenLayerBlocked || why == invisibleOcrBlocked) }
+
+    /// A layer, or a set of layers (an /OCMD), the document opens with off.
+    private static func isHiddenLayer(_ w: Walked, _ oc: PObj?) -> Bool {
+        guard let oc, !w.hiddenLayers.isEmpty else { return false }
+        func off(_ group: PObj?) -> Bool { group.map { w.hiddenLayers.contains($0.id) } ?? false }
+        if oc.name("Type") != "OCMD" { return off(oc) }
+        if let groups = oc.array("OCGs"), groups.count > 0 { return groups.elements.allSatisfy { off($0) } }
+        return off(oc.dict("OCGs"))
+    }
+
     /// Whether a color space's numbers read as gray, RGB or CMYK: not Separation, DeviceN, Indexed, Lab or a pattern's.
     private static func isPlainColorSpace(_ resources: PObj?, _ name: String?) -> Bool {
         guard let name, !name.hasPrefix("Device") else { return true }
@@ -904,7 +979,30 @@ public enum ContentEditor {
         var marked: [Bool] = [] // marked-content sequences: does one carry /ActualText?
         var looks: [LookTag?] = [] // and is one a look a paragraph edit gave its text?
         var actualText = 0
+        var hiddenMarks: [Bool] = [] // marked-content sequences: is one a layer that is off?
+        var hiddenLayer = 0
         var tm = Mat.identity, tlm = Mat.identity
+        // The path being built, for a clip: one rectangle is followed, any other shape isn't.
+        var pathBox: RectD?
+        var pathParts = 0
+        var clipping = false
+        var minX = Double.greatestFiniteMagnitude, minY = Double.greatestFiniteMagnitude // all of the path, page space
+        var maxX = -Double.greatestFiniteMagnitude, maxY = -Double.greatestFiniteMagnitude
+        func reach(_ x: Double, _ y: Double) {
+            let p = project(w.frame, gs.ctm, x, y)
+            minX = min(minX, p.x)
+            minY = min(minY, p.y)
+            maxX = max(maxX, p.x)
+            maxY = max(maxY, p.y)
+        }
+        func painted(_ box: RectD?, _ id: Int, _ rect: Bool, _ color: Int?) {
+            if depth != 0 || w.paintsCut { return }
+            if w.paints.count >= maxFills {
+                w.paintsCut = true
+            } else {
+                w.paints.append(Paint(box: box, id: id, rect: rect, color: color))
+            }
+        }
         for (i, op) in ops.enumerated() {
             if i & 1023 == 1023 { try w.cancel?.check() }
             let id: Int
@@ -916,6 +1014,45 @@ public enum ContentEditor {
             }
             let count = op.operands.count
             switch op.name {
+            case "re" where count >= 4:
+                pathParts += 1
+                let x = op.n(0), y = op.n(1), wd = op.n(2), ht = op.n(3)
+                pathBox = boxOf(w.frame, gs.ctm, x, y, x + wd, y + ht)
+                reach(x, y)
+                reach(x + wd, y + ht)
+                reach(x, y + ht)
+                reach(x + wd, y)
+            case "m", "l", "c", "v", "y":
+                pathParts += 2
+                var k = 0
+                while k + 1 < count { // a curve's control points hold it
+                    reach(op.n(k), op.n(k + 1))
+                    k += 2
+                }
+            case "w" where count >= 1:
+                gs.lineWidth = op.n(0)
+            case "sh":
+                painted(gs.clip, i, false, nil)
+            case "W", "W*":
+                clipping = true
+            case "n", "f", "F", "f*", "B", "B*", "b", "b*", "S", "s":
+                if clipping && pathParts == 1, let clip = pathBox { gs.clip = gs.clip.map { $0.intersect(clip) } ?? clip }
+                let fills = !["n", "S", "s"].contains(op.name)
+                if depth == 0 && fills && pathParts == 1, let filled = pathBox, w.fills.count < maxFills { w.fills.append((filled, i)) }
+                if op.name != "n" && maxX >= minX {
+                    // A stroke reaches half its width past the path.
+                    let det: Double = abs(gs.ctm.a * gs.ctm.d - gs.ctm.b * gs.ctm.c)
+                    let half: Double = ["f", "F", "f*"].contains(op.name) ? 0 : abs(gs.lineWidth) / 2 * det.squareRoot()
+                    let edges: Double = half + minX + minY + maxX + maxY
+                    let box: RectD? = edges.isFinite ? .fromEdges(minX - half, minY - half, maxX + half, maxY + half) : nil
+                    let plain = fills && gs.fillOp != nil && isPlainColorSpace(resources, gs.fillSpace)
+                    painted(box, i, fills && pathParts == 1 && pathBox != nil, plain ? gs.fill : nil)
+                }
+                clipping = false
+                pathParts = 0
+                pathBox = nil
+                (minX, minY) = (Double.greatestFiniteMagnitude, Double.greatestFiniteMagnitude)
+                (maxX, maxY) = (-Double.greatestFiniteMagnitude, -Double.greatestFiniteMagnitude)
             case "q":
                 if stack.count < 256 { stack.append(gs) }
             case "Q":
@@ -962,6 +1099,12 @@ public enum ContentEditor {
                 if marked.count < 256 {
                     marked.append(has)
                     if has { actualText += 1 }
+                    var off = false
+                    if op.name == "BDC" && count >= 2 && op.operands[0].name == "OC", let props, props.kind == .name {
+                        off = isHiddenLayer(w, resources?.dict("Properties")?.dict(props.name))
+                    }
+                    hiddenMarks.append(off)
+                    if off { hiddenLayer += 1 }
                     if let props, op.operands[0].name == lookTagName, props.kind == .dict {
                         looks.append(LookTag.read(props))
                     } else {
@@ -970,6 +1113,7 @@ public enum ContentEditor {
                 }
             case "EMC":
                 if let top = marked.popLast(), top { actualText -= 1 }
+                if let top = hiddenMarks.popLast(), top { hiddenLayer -= 1 }
                 if !looks.isEmpty { looks.removeLast() }
             case "Tf" where count >= 2:
                 gs.fontKey = op.operands[0].name
@@ -1003,12 +1147,14 @@ public enum ContentEditor {
                 guard let arg = op.operands.last, arg.kind == (op.name == "TJ" ? .array : .string) else { break }
                 if let form { w.formOf[id] = (form, i) }
                 let draw = form.map { FormDraw(form: $0.form.id, draw: $0.doId) }
-                tm = showText(w, id, arg, gs, tm, tlm, blocked ?? (actualText > 0 ? actualTextBlocked : nil), looks.last ?? nil, draw)
+                let why = blocked ?? (hiddenLayer > 0 ? hiddenLayerBlocked : nil) ?? (actualText > 0 ? actualTextBlocked : nil)
+                tm = showText(w, id, arg, gs, tm, tlm, why, looks.last ?? nil, draw)
             case "Do" where count > 0 && op.operands[0].kind == .name:
                 guard let xobj = resources?.dict("XObject")?.dict(op.operands[0].name) else { break }
                 let sub = xobj.name("Subtype")
                 if sub == "Image" {
                     addImage(w, id, gs.ctm, false, blocked ?? (form == nil ? nil : formImageBlocked))
+                    painted(boxOf(w.frame, gs.ctm, 0, 0, 1, 1), i, false, nil)
                 } else if sub == "Form" && depth < maxDepth {
                     try w.cancel?.check()
                     if w.formBudget < 0 { break }
@@ -1016,18 +1162,25 @@ public enum ContentEditor {
                     if let a = xobj.array("Matrix"), a.count == 6 { m = Mat(a.num(0), a.num(1), a.num(2), a.num(3), a.num(4), a.num(5)) }
                     var inner = gs
                     inner.ctm = m.times(gs.ctm)
+                    // What a form paints is anywhere in its box (anywhere at all without one).
+                    var formBox: RectD?
+                    if let b = xobj.array("BBox"), b.count == 4 { formBox = boxOf(w.frame, inner.ctm, b.num(0), b.num(1), b.num(2), b.num(3)) }
+                    painted(formBox, i, false, nil)
                     w.formUses[xobj.id, default: 0] += 1
                     let bytes = xobj.streamData ?? []
                     w.formBudget -= bytes.count + 1024
                     if w.formBudget < 0 { break }
+                    if let formBox { inner.clip = inner.clip.map { $0.intersect(formBox) } ?? formBox }
                     let formOps = try ContentLexer.parse(bytes, cancel: w.cancel)
                     let place = FormPlace(xobj, bytes, formOps, xobj.dict("Resources") ?? resources, form, id, op.operands[0].name)
-                    try run(w, formOps, place.resources, inner, depth + 1, blocked, place)
+                    let inHidden = hiddenLayer > 0 || isHiddenLayer(w, xobj.dict("OC"))
+                    try run(w, formOps, place.resources, inner, depth + 1, blocked ?? (inHidden ? hiddenLayerBlocked : nil), place)
                 }
             case "BI":
                 let why = form != nil ? formImageBlocked
                     : op.broken ? loc("where its data ends can't be told for sure, so changing it could damage the page") : nil
                 addImage(w, id, gs.ctm, true, blocked ?? why)
+                painted(boxOf(w.frame, gs.ctm, 0, 0, 1, 1), i, false, nil)
             default:
                 break
             }
@@ -1121,9 +1274,9 @@ public enum ContentEditor {
             }
         }
 
-        let trm = Mat(1, 0, 0, 1, 0, gs.rise).times(tm).times(gs.ctm)
         let asc: Double = (font?.ascent ?? 0.8) * fs
         let desc: Double = (font?.descent ?? -0.2) * fs
+        let trm = Mat(1, 0, 0, 1, 0, gs.rise).times(tm).times(gs.ctm)
         let b0 = project(w.frame, trm, 0, 0), b1 = project(w.frame, trm, 1, 0), v0 = project(w.frame, trm, 0, 1)
         let bx: Double = b1.x - b0.x, by: Double = b1.y - b0.y
         let vx: Double = v0.x - b0.x, vy: Double = v0.y - b0.y
@@ -1133,26 +1286,6 @@ public enum ContentEditor {
         let isUpright = upright(bx, by, vx, vy)
         let text = String(decoding: items.flatMap(\.units), as: UTF16.self)
 
-        // How far its glyphs reach (right-to-left text written in logical order moves back as it goes), where the last
-        // glyph's ink ends (before its spacing), and its word spaces: those between its glyphs (one after its last glyph
-        // moves what follows and shows none).
-        var low = 0.0, high = 0.0, end = 0.0, gaps = 0.0, pending = 0.0
-        var gapCount = 0, pendingCount = 0
-        for item in items {
-            if !item.isNumber {
-                low = min(low, item.at)
-                end = item.inkEnd
-                high = max(high, end)
-                gaps += pending
-                gapCount += pendingCount
-                pending = 0
-                pendingCount = 0
-            } else if item.units == [32] {
-                pending += -item.number / 1000
-                pendingCount += 1
-            }
-        }
-
         var why = blocked
         if why == nil {
             if font == nil {
@@ -1160,41 +1293,97 @@ public enum ContentEditor {
             } else if let fb = font?.blocked {
                 why = fb
             } else if gs.render == 3 || gs.render == 7 {
-                why = loc("it is invisible text (recognized text over a scan)")
+                why = invisibleOcrBlocked
             } else if text.contains("\u{FFFD}") {
                 why = loc("some of its characters can't be read")
             } else if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 why = loc("it is only spaces")
             }
         }
-        let far: Double = max(end, high)
-        let box = boxOf(w.frame, trm, low, desc, far, asc)
-        let o = project(w.frame, trm, 0, 0)
-        var info = RunInfo(items: items, hex: hex)
-        info.tm = tm
-        info.tlmAfter = tlm
-        info.ctm = gs.ctm
-        info.rise = gs.rise
-        info.advance = adv
-        info.fillOp = gs.fillOp
-        info.form = form
-        var run = TextRun(pageIndex: w.pageIndex, id: id, text: text, box: box, fontSize: abs(fs) * vscale, fontName: font?.name ?? gs.fontKey,
-                          bold: font?.bold ?? false, italic: font?.italic ?? false, color: gs.fill, angle: angle, blocked: why,
-                          oldWidth: end * scale, font: font, scale: scale)
-        run.size = fs
-        run.charSpacing = gs.tc
-        run.wordSpacing = gs.tw
-        run.hScale = gs.th
-        run.gapEms = gapCount > 0 ? gaps / Double(gapCount) : 0.25
-        run.origin = PointD(o.x, o.y)
-        if isUpright { run.reach = TextRun.Reach(back: -low * scale, along: far * scale, above: asc * vscale, below: -desc * vscale) }
-        run.fontKey = gs.fontKey
-        run.tag = tag
+
+        // The run of items [from, to): starting at `at` along the operator, the next one at `next`.
+        func make(_ from: Int, _ to: Int, _ at: Double, _ next: Double, _ column: Int, _ columns: Int) -> TextRun {
+            let start = at == 0 ? tm : Mat(1, 0, 0, 1, at, 0).times(tm)
+            let place = Mat(1, 0, 0, 1, 0, gs.rise).times(start).times(gs.ctm)
+            // How far its glyphs reach (right-to-left text written in logical order moves back as it goes), where the last
+            // glyph's ink ends (before its spacing), and its word spaces: those between its glyphs (one after its last
+            // glyph moves what follows and shows none). A column reaches as far as its ink: the spaces before the next one
+            // are the gap between them, not its own.
+            var low = 0.0, high = 0.0, end = 0.0, gaps = 0.0, pending = 0.0
+            var gapCount = 0, pendingCount = 0
+            var inked = false
+            for k in from..<to {
+                let item = items[k]
+                if columns == 1 ? !item.isNumber : inkedItem(item) {
+                    low = min(low, item.at - at)
+                    end = item.inkEnd - at
+                    high = max(high, end)
+                    if inked || columns == 1 {
+                        gaps += pending
+                        gapCount += pendingCount
+                    }
+                    pending = 0
+                    pendingCount = 0
+                    inked = true
+                } else if item.units == [32] {
+                    pending += -item.number / 1000
+                    pendingCount += 1
+                }
+            }
+            let mine = from == 0 && to == items.count ? items : Array(items[from..<to])
+            let runText = columns == 1 ? text : String(decoding: mine.flatMap(\.units), as: UTF16.self)
+            let far: Double = max(end, high)
+            let box = boxOf(w.frame, place, low, desc, far, asc)
+            let o = project(w.frame, place, 0, 0)
+            var info = RunInfo(items: mine, hex: hex)
+            info.tm = start
+            info.tlmAfter = tlm
+            info.ctm = gs.ctm
+            info.rise = gs.rise
+            info.advance = next - at
+            info.fillOp = gs.fillOp
+            info.form = form
+            info.clip = gs.clip
+            info.column = column
+            info.columns = columns
+            info.start = at
+            var run = TextRun(pageIndex: w.pageIndex, id: id, text: runText, box: box, fontSize: abs(fs) * vscale, fontName: font?.name ?? gs.fontKey,
+                              bold: font?.bold ?? false, italic: font?.italic ?? false, color: gs.fill, angle: angle, blocked: why,
+                              oldWidth: end * scale, font: font, scale: scale)
+            run.size = fs
+            run.charSpacing = gs.tc
+            run.wordSpacing = gs.tw
+            run.hScale = gs.th
+            run.gapEms = gapCount > 0 ? gaps / Double(gapCount) : 0.25
+            run.origin = PointD(o.x, o.y)
+            if isUpright { run.reach = TextRun.Reach(back: -low * scale, along: far * scale, above: asc * vscale, below: -desc * vscale) }
+            run.fontKey = gs.fontKey
+            run.tag = tag
+            run.info = info
+            return run
+        }
+
+        // Columns only up to the most runs a page may have to be translated: past that it is crowded anyway.
+        if why == nil && w.columns && isUpright && abs(angle) < 0.5 && adv.isFinite && w.textRuns.count < maxRunsToTranslate,
+           let starts = columnStarts(items, fs * gs.th) {
+            // Each column from its first glyph to the next column's (the first from where the operator starts): every item in one.
+            for k in starts.indices {
+                let to = k + 1 < starts.count ? starts[k + 1] : items.count
+                let at = k == 0 ? 0 : items[starts[k]].at
+                var column = make(starts[k], to, at, to < items.count ? items[to].at : adv, k, starts.count)
+                column.key = w.textRuns.count
+                w.textRuns.append(column)
+            }
+            return Mat(1, 0, 0, 1, adv, 0).times(tm)
+        }
+        var run = make(0, items.count, 0, adv, 0, 1)
         // A run of spaces only can't be edited, but a paragraph rewrite takes it out with the words around it.
         let fontUsable = font != nil && font?.blocked == nil
         let spacesOnly = why != nil && blocked == nil && fontUsable && gs.render != 3 && gs.render != 7 && !text.isEmpty
             && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        run.info = why == nil || spacesOnly ? info : nil
+        let info = run.info
+        if !(why == nil || spacesOnly) { run.info = nil }
+        run.key = w.textRuns.count
         if !text.isEmpty { w.textRuns.append(run) }
         if why == nil { w.runs[id] = info }
         return Mat(1, 0, 0, 1, adv, 0).times(tm)
