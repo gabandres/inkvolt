@@ -1188,6 +1188,28 @@ public partial class MainWindow : Window
         OpenFiles(files);
     }
 
+    /// <summary>
+    /// An Explorer conversion's Change options… (<see cref="ExplorerConvert"/>): opens <paramref name="pdf"/> (or selects
+    /// its tab) and shows its Export window, as the one-click notice's link does.
+    /// </summary>
+    public async Task ExportWithOptions(string pdf, ExportFormat format)
+    {
+        await OpenFileAsync(pdf);
+        string full;
+        try
+        {
+            full = Path.GetFullPath(pdf);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return; // OpenFileAsync said so
+        }
+        if (_tabs.FirstOrDefault(t => string.Equals(t.Tab.Session.FilePath, full, StringComparison.OrdinalIgnoreCase)) is not { } open) return;
+        TabStrip.SelectedItem = open;
+        if (open.Tab.IsBusy) ShowStatus(Loc.Format(Strings.Main_StillBusy, open.Tab.Session.DisplayName));
+        else await ExportActions.Export(this, open.Tab, this, format);
+    }
+
     private void OpenForwardedWhileClosing()
     {
         if (_forwardedWhileClosing.Count == 0 || _closed || _closeApproved || _closeRunning || _sessionPromptRunning) return;

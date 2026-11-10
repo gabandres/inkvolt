@@ -120,6 +120,22 @@ public class ConvertQueueTests
     }
 
     [Fact]
+    public async Task TheLastOneDoneLeavesTheQueueIdleAlready()
+    {
+        // The conversions window turns Cancel into Close when the last one ends: busy must be false by then.
+        var busyAtEnd = new List<bool>();
+        var queue = new ConvertQueue(async (job, _) =>
+        {
+            await Task.Yield();
+            return Saved(job.Pdf);
+        });
+        queue.Changed += j => { if (j.State == ConvertJob.States.Done) busyAtEnd.Add(queue.IsBusy); };
+        queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
+        await queue.Idle;
+        Assert.Equal([true, false], busyAtEnd);
+    }
+
+    [Fact]
     public async Task TheListIsBounded()
     {
         var queue = new ConvertQueue((job, _) => Task.FromResult(Saved(job.Pdf)));

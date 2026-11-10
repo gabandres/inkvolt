@@ -57,6 +57,22 @@ public partial class App : Application
             args = [.. args.Where((_, i) => i != script && i != script + 1)];
         }
 
+        // Explorer's "Convert to Word with Inkvolt PDF" (--convert-to word <files…>): handed to a running copy as any launch
+        // is, in its full form (the paths made absolute here); this copy, if it is the first, shows only a small window.
+        Core.ConvertCommand.Request? convert = null;
+        if (Core.ConvertCommand.IsCommand(args))
+        {
+            if (!Core.ConvertCommand.TryParse(args, out convert, out var error))
+            {
+                Log.Write($"Convert command refused: {error}");
+                ApplyTheme();
+                Prompt.Error(null, Strings.Explorer_CantConvert, ExplorerConvert.Explain(error));
+                Shutdown(2);
+                return;
+            }
+            args = Core.ConvertCommand.ToArguments(convert!);
+        }
+
         _instance = SingleInstance.TryAcquire(args);
         if (_instance is null)
         {
@@ -68,36 +84,95 @@ public partial class App : Application
 
         // Listen before opening the startup files: with a multi-file Explorer open, the other launches arrive now.
         // Their files wait in a queue until the window is ready.
-        _instance.Listen(forwarded => Dispatcher.BeginInvoke(() =>
-        {
-            if (_ready is null)
-            {
-                _pendingArgs.Add(forwarded);
-                return;
-            }
-            _ready.BringToFront();
-            _ready.OpenForwarded(forwarded);
-        }));
+        _instance.Listen(forwarded => Dispatcher.BeginInvoke(() => OnForwarded(forwarded)));
+        ExplorerConvert.ChangeOptions = ChangeOptions;
 
         base.OnStartup(e);
         ApplyTheme();
+        if (convert is not null)
+        {
+            ExplorerConvert.Route(convert, null);
+            return;
+        }
+        StartMainWindow(args);
+    }
+
+    /// <summary>Another launch's arguments: a conversion goes to <see cref="ExplorerConvert"/>, files open in the window.</summary>
+    private void OnForwarded(string[] forwarded)
+    {
+        if (Core.ConvertCommand.IsCommand(forwarded))
+        {
+            if (!Core.ConvertCommand.TryParse(forwarded, out var request, out var error))
+            {
+                Log.Write($"Forwarded convert command refused: {error}");
+                return;
+            }
+            if (_main is not null && _ready is null) _pendingConverts.Add(request!);
+            else ExplorerConvert.Route(request!, _ready);
+            return;
+        }
+        if (_main is null)
+        {
+            // The app ran only for conversions until now: this launch opens the window, as a first launch would.
+            StartMainWindow(forwarded);
+            return;
+        }
+        if (_ready is null)
+        {
+            _pendingArgs.Add(forwarded);
+            return;
+        }
+        _ready.BringToFront();
+        _ready.OpenForwarded(forwarded);
+    }
+
+    private MainWindow? _main;
+    private readonly List<Core.ConvertCommand.Request> _pendingConverts = [];
+    private readonly List<Func<MainWindow, Task>> _whenReady = [];
+    private bool _foldersStarted;
+
+    /// <summary>
+    /// The main window, with <paramref name="args"/>' files (none: the last session's, unless <paramref name="reopenLast"/>
+    /// is false). Once, when the app starts, or later when it ran only for Explorer's conversions.
+    /// </summary>
+    private void StartMainWindow(string[] args, bool reopenLast = true)
+    {
         var window = new MainWindow();
         FitToScreen(window);
+        _main = window;
         MainWindow = window;
         window.Show();
-        if (_instance.IsOwner)
+        if (_instance!.IsOwner && !_foldersStarted)
         {
             // A fallback copy would only find the folders locked.
+            _foldersStarted = true;
             FolderWatches.StartSaved();
             FolderSearches.StartSaved();
         }
-        _ = OpenStartupFilesAsync(window, args);
+        _ = OpenStartupFilesAsync(window, args, reopenLast);
+    }
+
+    /// <summary>
+    /// An Explorer conversion's Change options…: <paramref name="pdf"/> opened in the main window (started if the app ran
+    /// only for conversions) and its Export window, as the in-app notice's link does.
+    /// </summary>
+    private void ChangeOptions(string pdf, Core.ExportFormat format)
+    {
+        Func<MainWindow, Task> export = w => w.ExportWithOptions(pdf, format);
+        if (_ready is { } ready)
+        {
+            ready.BringToFront();
+            _ = export(ready);
+            return;
+        }
+        _whenReady.Add(export);
+        if (_main is null) StartMainWindow([], reopenLast: false);
     }
 
     private async Task RunCommandLineAsync(string[] args) => Shutdown(await CommandLine.RunAsync(args));
 
     /// <summary>Documents left unsaved by an earlier run first (one may be a file asked for now), then the files asked for.</summary>
-    private async Task OpenStartupFilesAsync(MainWindow window, string[] args)
+    private async Task OpenStartupFilesAsync(MainWindow window, string[] args, bool reopenLast = true)
     {
         try
         {
@@ -108,12 +183,16 @@ public partial class App : Application
             Log.Write($"Recovery offer failed: {ex}");
         }
         if (args.Length > 0) window.OpenFiles(args);
-        else window.ReopenLastSession();
+        else if (reopenLast) window.ReopenLastSession();
 
         _ready = window;
         foreach (var queued in _pendingArgs) window.OpenFiles(queued);
         if (_pendingArgs.Count > 0) window.BringToFront();
         _pendingArgs.Clear();
+        foreach (var request in _pendingConverts) ExplorerConvert.Route(request, window);
+        _pendingConverts.Clear();
+        foreach (var then in _whenReady) _ = then(window);
+        _whenReady.Clear();
         AppHelp.ShowWhatsNewOnce(window);
         window.StartUpdateCheck();
     }

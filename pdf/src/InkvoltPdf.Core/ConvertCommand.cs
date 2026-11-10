@@ -198,7 +198,8 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
     /// <summary>Done when nothing waits or runs.</summary>
     public Task Idle => _idle.Task;
 
-    public bool IsBusy => _running;
+    /// <summary>A job waits or runs (false already when the last one's Done is reported).</summary>
+    public bool IsBusy => _jobs.Any(j => j.State != ConvertJob.States.Done);
 
     private static TaskCompletionSource Done()
     {

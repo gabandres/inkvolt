@@ -11438,4 +11438,60 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Choose where to save it.</value>
     <comment>One-click Convert couldn't write anywhere; the Export window (with Save As) opens next</comment>
   </data>
+  <data name="Export_NowhereExplorer" xml:space="preserve">
+    <value>The PDF's folder doesn't accept new files and there is no Documents folder to use instead. Use Change options… to choose where to save it.</value>
+    <comment>Explorer's Convert couldn't write anywhere; Change options… is a link beside this message</comment>
+  </data>
+  <data name="Explorer_Title" xml:space="preserve">
+    <value>Convert with Inkvolt PDF</value>
+    <comment>Title of the small window that lists the conversions asked for from File Explorer's right-click menu</comment>
+  </data>
+  <data name="Explorer_Converting_One" xml:space="preserve">
+    <value>Converting {0} file</value>
+    <comment>{0} the count. Heading of the conversions window while it works</comment>
+  </data>
+  <data name="Explorer_Converting_Many" xml:space="preserve">
+    <value>Converting {0} files</value>
+    <comment>{0} the count</comment>
+  </data>
+  <data name="Explorer_Finished" xml:space="preserve">
+    <value>{0} of {1} converted</value>
+    <comment>{0} files saved, {1} files asked for. Heading of the conversions window when it's done</comment>
+  </data>
+  <data name="Explorer_Waiting" xml:space="preserve">
+    <value>Waiting</value>
+    <comment>A file's state in the conversions window: its turn hasn't come yet</comment>
+  </data>
+  <data name="Explorer_Working" xml:space="preserve">
+    <value>Converting…</value>
+    <comment>A file's state in the conversions window: being converted now</comment>
+  </data>
+  <data name="Explorer_Cancelled" xml:space="preserve">
+    <value>Cancelled</value>
+    <comment>A file's state in the conversions window: the user cancelled it (or a password or question)</comment>
+  </data>
+  <data name="Explorer_Dropped_One" xml:space="preserve">
+    <value>{0} more file wasn't added: Inkvolt PDF converts up to {1} at a time.</value>
+    <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
+  </data>
+  <data name="Explorer_Dropped_Many" xml:space="preserve">
+    <value>{0} more files weren't added: Inkvolt PDF converts up to {1} at a time.</value>
+    <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
+  </data>
+  <data name="Explorer_CantConvert" xml:space="preserve">
+    <value>Can't convert</value>
+    <comment>Title of the message when the convert command line is wrong</comment>
+  </data>
+  <data name="Explorer_NoFormat" xml:space="preserve">
+    <value>Say what to convert to, then the files: --convert-to word (or excel, powerpoint, text, html) file.pdf</value>
+    <comment>The convert command line has no format. Keep --convert-to and the format names in English: they are typed</comment>
+  </data>
+  <data name="Explorer_UnknownFormat" xml:space="preserve">
+    <value>Inkvolt PDF converts to word, excel, powerpoint, text or html: --convert-to word file.pdf</value>
+    <comment>The convert command line names a format Inkvolt PDF doesn't write. Keep the command and the format names in English</comment>
+  </data>
+  <data name="Explorer_NoFiles" xml:space="preserve">
+    <value>Name the PDF files to convert after the format: --convert-to word file.pdf</value>
+    <comment>The convert command line names no file. Keep the command in English</comment>
+  </data>
 </root>
