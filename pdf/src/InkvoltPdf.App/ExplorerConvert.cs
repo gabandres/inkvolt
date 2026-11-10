@@ -35,47 +35,125 @@ internal static class ExplorerConvert
         return queue;
     }
 
-    /// <summary>The jobs listed or noticed so far (a dev script's <c>explorerstate</c>).</summary>
+    /// <summary>The jobs listed or noticed so far (a dev script's <c>explorerwait</c>).</summary>
     internal static IReadOnlyList<ConvertJob> Jobs => _queue?.Jobs ?? [];
 
-    internal static Task Idle => _queue?.Idle ?? Task.CompletedTask;
+    /// <summary>Done once the gathered launches have been handed out and every conversion has ended.</summary>
+    internal static async Task Idle()
+    {
+        while (!Gather.IsEmpty) await Task.Delay(100);
+        if (_queue is { } q) await q.Idle;
+    }
+
+    /// <summary>The main window once it is ready, null while the app runs only for conversions (the app sets it).</summary>
+    internal static Func<MainWindow?> MainFor { get; set; } = () => null;
+
+    /// <summary>Called when nothing is left to show or convert (the app then exits if its main window is closed).</summary>
+    internal static Action? Quiet { get; set; }
+
+    /// <summary>The conversions window is open.</summary>
+    internal static bool ListOpen => _list is not null;
+
+    /// <summary>Launches are being gathered, or conversions wait or run.</summary>
+    internal static bool Converting => !Gather.IsEmpty || _queue is { IsBusy: true };
+
+    // Explorer starts one launch per file: those that come together are one batch (ConvertGather).
+    private static readonly ConvertGather Gather = new();
+    private static System.Windows.Threading.DispatcherTimer? _timer;
 
     /// <summary>
-    /// Converts <paramref name="request"/>'s files; <paramref name="main"/> is the main window once it is ready (null while
-    /// the app runs only for conversions).
+    /// Converts <paramref name="request"/>'s files, together with the launches that come with it: the batch is handed
+    /// out once they stop coming (<see cref="ConvertGather"/>).
     /// </summary>
-    public static void Route(ConvertCommand.Request request, MainWindow? main)
+    public static void Route(ConvertCommand.Request request)
+    {
+        Gather.Add(request, DateTime.UtcNow);
+        if (_timer is null)
+        {
+            _timer = new System.Windows.Threading.DispatcherTimer();
+            _timer.Tick += (_, _) => Flush();
+        }
+        Arm();
+    }
+
+    private static void Arm()
+    {
+        _timer!.Stop();
+        if (Gather.DueAt is not { } due) return;
+        var wait = due - DateTime.UtcNow;
+        _timer.Interval = wait > TimeSpan.Zero ? wait : TimeSpan.FromMilliseconds(1);
+        _timer.Start();
+    }
+
+    private static void Flush()
+    {
+        if (!Gather.IsDue(DateTime.UtcNow))
+        {
+            Arm();
+            return;
+        }
+        _timer!.Stop();
+        foreach (var batch in Gather.Take()) RouteNow(batch, MainFor());
+        if (!ListOpen && !Converting) Quiet?.Invoke();
+    }
+
+    /// <summary>
+    /// One batch: the notice in <paramref name="main"/> for one file (opened when written, as the one-click), the list
+    /// otherwise (nothing opened: a selection of thirty would open thirty Word windows).
+    /// </summary>
+    private static void RouteNow(ConvertCommand.Request request, MainWindow? main)
     {
         _main = main;
         var queue = Queue;
-        var notice = ConvertCommand.ShowsNotice(main is not null, _list is not null, queue.IsBusy, request.Files.Count);
-        Log.Write($"Convert from Explorer: {request.Files.Count} file(s) to {request.Format}{(request.Dropped > 0 ? $", {request.Dropped} left out" : "")}, {(notice ? "notice" : "listed")}");
+        var leftOut = request.OverLimit + request.Refused;
+        var notice = leftOut == 0 && ConvertCommand.ShowsNotice(main is not null, _list is not null, queue.IsBusy, request.Files.Count);
+        Log.Write($"Convert from Explorer: {request.Files.Count} file(s) to {request.Format}{(leftOut > 0 ? $", {request.OverLimit} over the limit, {request.Refused} refused" : "")}, {(notice ? "notice" : "listed")}");
         if (notice)
         {
             main!.BringToFront();
         }
         else
         {
-            if (_list is null)
-            {
-                _list = new ConvertWindow(queue);
-                _list.Closed += (_, _) => _list = null;
-                if (main is { IsLoaded: true }) _list.Owner = main;
-                else if (Application.Current.MainWindow is null or ConvertWindow) Application.Current.MainWindow = _list;
-                _list.Show();
-            }
-            _list.Activate();
-            if (request.Dropped > 0) _list.SayDropped(request.Dropped);
+            ShowList();
+            _list!.SayLeftOut(request.OverLimit, request.Refused);
         }
         _nextNoticed = notice;
         try
         {
-            queue.Add(request);
+            queue.Add(request, open: notice);
         }
         finally
         {
             _nextNoticed = false;
         }
+    }
+
+    // Never owned by the main window: it outlives it, for the conversions left when the main window closes.
+    private static void ShowList()
+    {
+        if (_list is null)
+        {
+            _list = new ConvertWindow(Queue);
+            _list.Closed += (_, _) =>
+            {
+                _list = null;
+                if (!Converting) Quiet?.Invoke();
+            };
+            _list.Show();
+        }
+        _list.Activate();
+    }
+
+    /// <summary>
+    /// The main window closed while conversions are left: they go on, in the conversions window (a notice's conversion
+    /// too), so nothing is stopped half written; the app exits once that window closes.
+    /// </summary>
+    public static void MainClosed()
+    {
+        _main = null;
+        if (_queue is not { IsBusy: true } && Gather.IsEmpty) return;
+        ShowList();
+        foreach (var job in Queue.Jobs.Where(j => j.State != ConvertJob.States.Done && Noticed.Remove(j)).ToList()) _list!.Track(job);
     }
 
     private static void OnChanged(ConvertJob job)
@@ -182,12 +260,22 @@ internal sealed class ConvertWindow : Window
         if (_closeWhenIdle) return;
         _closeWhenIdle = true;
         _queue.CancelAll();
-        _ = _queue.Idle.ContinueWith(_ => Dispatcher.BeginInvoke(Close), TaskScheduler.Default);
+        _ = _queue.Idle.ContinueWith(_ => Dispatcher.BeginInvoke(CloseWhenIdle), TaskScheduler.Default);
     }
 
-    /// <summary>Lists <paramref name="job"/> (just queued).</summary>
+    // The pending close, unless a request came meanwhile (Track called it off: those files are shown, and X works again).
+    private void CloseWhenIdle()
+    {
+        if (!_closeWhenIdle) return;
+        _closeWhenIdle = false;
+        if (_queue.IsBusy) return;
+        Close();
+    }
+
+    /// <summary>Lists <paramref name="job"/> (just queued); a close waiting for the cancelled ones is called off.</summary>
     public void Track(ConvertJob job)
     {
+        _closeWhenIdle = false;
         var row = new StackPanel { Margin = new Thickness(0, 8, 0, 4) };
         _tracked.Add((job, row));
         _rows.Children.Add(row);
@@ -195,10 +283,18 @@ internal sealed class ConvertWindow : Window
         Refresh();
     }
 
-    public void SayDropped(int count)
+    private int _overLimit, _refused;
+
+    /// <summary>What the launches left out, said apart: past the 500-file limit, and names that can't be a file.</summary>
+    public void SayLeftOut(int overLimit, int refused)
     {
-        _dropped.Text = Loc.Plural(count, Strings.Explorer_Dropped_One, Strings.Explorer_Dropped_Many, ConvertCommand.MaxFiles);
-        _dropped.Visibility = Visibility.Visible;
+        _overLimit += overLimit;
+        _refused += refused;
+        var lines = new List<string>();
+        if (_overLimit > 0) lines.Add(Loc.Plural(_overLimit, Strings.Explorer_Dropped_One, Strings.Explorer_Dropped_Many, ConvertCommand.MaxFiles));
+        if (_refused > 0) lines.Add(Loc.Plural(_refused, Strings.Explorer_Refused_One, Strings.Explorer_Refused_Many));
+        _dropped.Text = string.Join(Environment.NewLine, lines);
+        _dropped.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnChanged(ConvertJob job)

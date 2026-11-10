@@ -39,7 +39,7 @@ public class ConvertCommandTests
         var r = Parse("--convert-to", "word", @"C:\Users\me\report.pdf");
         Assert.Equal(ExportFormat.Word, r.Format);
         Assert.Equal([@"C:\Users\me\report.pdf"], r.Files);
-        Assert.Equal(0, r.Dropped);
+        Assert.Equal((0, 0), (r.OverLimit, r.Refused));
     }
 
     [Theory]
@@ -83,7 +83,7 @@ public class ConvertCommandTests
         var files = Enumerable.Range(0, MaxFiles + 7).Select(i => $@"C:\in\{i}.pdf");
         var r = Parse(["--convert-to", "word", .. files]);
         Assert.Equal(MaxFiles, r.Files.Count);
-        Assert.Equal(7, r.Dropped);
+        Assert.Equal((7, 0), (r.OverLimit, r.Refused));
         Assert.Equal(@"C:\in\0.pdf", r.Files[0]);
     }
 
@@ -123,7 +123,7 @@ public class ConvertCommandTests
         // Forwarding puts one argument per line: a line break inside one would make two files out of it.
         var r = Parse("--convert-to", "word", "C:\\a.pdf\nC:\\b.pdf", "C:\\c\0.pdf", @"C:\d.pdf");
         Assert.Equal([@"C:\d.pdf"], r.Files);
-        Assert.Equal(2, r.Dropped);
+        Assert.Equal((0, 2), (r.OverLimit, r.Refused)); // refused, not over the limit: said apart
         Assert.Equal(ParseError.NoFiles, Refused("--convert-to", "word", "C:\\a.pdf\r"));
     }
 

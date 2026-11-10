@@ -41,21 +41,25 @@ public partial class App : Application
             _ = RunCommandLineAsync(args);
             return;
         }
-        // The interface's language, before any window asks for text; a dev aid's --lang isn't a file to open.
-        AppLanguage.Apply(AppSettings.Current.Language, args);
-        args = AppLanguage.WithoutLanguageArgument(args);
-        var script = Array.IndexOf(args, "--script");
-        if (script >= 0 && script + 1 < args.Length)
+        // The interface's language, before any window asks for text; a dev aid's --lang isn't a file to open. Options come
+        // before --convert-to only: after its format every argument is a file, "--lang" or "--script" included.
+        var (leading, command) = Core.ConvertCommand.SplitOptions(args);
+        string[] options = [.. leading];
+        AppLanguage.Apply(AppSettings.Current.Language, options);
+        options = AppLanguage.WithoutLanguageArgument(options);
+        var script = Array.IndexOf(options, "--script");
+        if (script >= 0 && script + 1 < options.Length)
         {
             if (DevScriptAllowed)
             {
-                RunDevScript(e, args, script);
+                RunDevScript(e, [.. options, .. command], script);
                 return;
             }
             // Release builds: a script can drive the UI and write files anywhere, so it needs an explicit opt-in.
             Log.Write("Ignored --script (set INKVOLTPDF_DEVSCRIPT=1 to allow dev scripts in this build).");
-            args = [.. args.Where((_, i) => i != script && i != script + 1)];
+            options = [.. options.Where((_, i) => i != script && i != script + 1)];
         }
+        args = [.. options, .. command];
 
         // Explorer's "Convert to Word with Inkvolt PDF" (--convert-to word <files…>): handed to a running copy as any launch
         // is, in its full form (the paths made absolute here); this copy, if it is the first, shows only a small window.
@@ -82,19 +86,77 @@ public partial class App : Application
         // A check process starts while the window is made: the first page opened doesn't wait for one.
         Core.PageChecks.Prestart();
 
+        // The app runs while its main window or Explorer's conversions do (MaybeExit), not only while the main window is
+        // open: closing it mid-batch would stop a conversion half written.
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         // Listen before opening the startup files: with a multi-file Explorer open, the other launches arrive now.
         // Their files wait in a queue until the window is ready.
-        _instance.Listen(forwarded => Dispatcher.BeginInvoke(() => OnForwarded(forwarded)));
+        ListenForLaunches();
         ExplorerConvert.ChangeOptions = ChangeOptions;
+        ExplorerConvert.MainFor = () => _ready;
+        ExplorerConvert.Quiet = () => Dispatcher.BeginInvoke(MaybeExit);
 
         base.OnStartup(e);
         ApplyTheme();
         if (convert is not null)
         {
-            ExplorerConvert.Route(convert, null);
+            ExplorerConvert.Route(convert);
             return;
         }
         StartMainWindow(args);
+    }
+
+    // Launches read from the pipe whose handling (OnForwarded) hasn't run yet.
+    private int _forwardsQueued;
+
+    private void ListenForLaunches() => _instance?.Listen(forwarded =>
+        {
+            Interlocked.Increment(ref _forwardsQueued);
+            Dispatcher.BeginInvoke(() =>
+            {
+                Interlocked.Decrement(ref _forwardsQueued);
+                OnForwarded(forwarded);
+                if (_main is null) MaybeExit(); // a launch refused, or nothing left to do
+            });
+        },
+        // A read that delivered nothing (a launch that gave up) may have been all that kept the app up.
+        () => Dispatcher.BeginInvoke(() => { if (_main is null) MaybeExit(); }));
+
+    /// <summary>
+    /// Exits once nothing is left (<see cref="Core.ConvertCommand.MayExit"/>): no main window, no conversions, no launch
+    /// read but not handled. New launches are refused first (they open on their own); one already being read keeps the
+    /// app up and is handled, and the listening goes on.
+    /// </summary>
+    private void MaybeExit()
+    {
+        bool Done() => Core.ConvertCommand.MayExit(_main is not null, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
+            Volatile.Read(ref _forwardsQueued));
+        if (!Done()) return;
+        _instance?.StopListening();
+        if (_instance is { InFlight: > 0 } || !Done())
+        {
+            ListenForLaunches();
+            return;
+        }
+        Log.Write("Exiting: no window and no conversions left");
+        Shutdown();
+    }
+
+    /// <summary>The main window closed: the app exits, unless Explorer's conversions go on (their window shows them).</summary>
+    private void OnMainClosed(MainWindow window)
+    {
+        if (_main != window) return;
+        _main = null;
+        _ready = null;
+        ExplorerConvert.MainClosed();
+        if (ExplorerConvert.ListOpen)
+        {
+            // As when the app exited with the window: the other windows go (the conversions' own stay).
+            foreach (var w in Windows.OfType<Window>().ToList())
+                if (w is not ConvertWindow && w.Owner is not ConvertWindow) w.Close();
+        }
+        MaybeExit();
     }
 
     /// <summary>Another launch's arguments: a conversion goes to <see cref="ExplorerConvert"/>, files open in the window.</summary>
@@ -108,7 +170,7 @@ public partial class App : Application
                 return;
             }
             if (_main is not null && _ready is null) _pendingConverts.Add(request!);
-            else ExplorerConvert.Route(request!, _ready);
+            else ExplorerConvert.Route(request!);
             return;
         }
         if (_main is null)
@@ -141,6 +203,7 @@ public partial class App : Application
         FitToScreen(window);
         _main = window;
         MainWindow = window;
+        window.Closed += (_, _) => OnMainClosed(window);
         window.Show();
         if (_instance!.IsOwner && !_foldersStarted)
         {
@@ -185,11 +248,12 @@ public partial class App : Application
         if (args.Length > 0) window.OpenFiles(args);
         else if (reopenLast) window.ReopenLastSession();
 
+        if (_main != window) return; // closed meanwhile (OnMainClosed)
         _ready = window;
         foreach (var queued in _pendingArgs) window.OpenFiles(queued);
         if (_pendingArgs.Count > 0) window.BringToFront();
         _pendingArgs.Clear();
-        foreach (var request in _pendingConverts) ExplorerConvert.Route(request, window);
+        foreach (var request in _pendingConverts) ExplorerConvert.Route(request);
         _pendingConverts.Clear();
         foreach (var then in _whenReady) _ = then(window);
         _whenReady.Clear();

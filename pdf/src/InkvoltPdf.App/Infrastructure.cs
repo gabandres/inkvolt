@@ -185,11 +185,18 @@ public sealed class SingleInstance : IDisposable
     /// Start it before opening the startup files so simultaneous launches (a multi-file Explorer open) get through.
     /// Only the owner listens: a standalone fallback copy would just fight over the pipe name.
     /// </summary>
-    public void Listen(Action<string[]> onArgs)
+    /// <remarks>
+    /// <see cref="StopListening"/> refuses new launches (they then run on their own) without dropping one already
+    /// connected: its read goes on, and <see cref="InFlight"/> counts it until <paramref name="onArgs"/> has it.
+    /// <paramref name="onRead"/> runs after each read, delivered or not. Listen again to take launches again.
+    /// </remarks>
+    public void Listen(Action<string[]> onArgs, Action? onRead = null)
     {
-        if (!IsOwner) return;
-        var token = _cts.Token;
-        _ = Task.Run(async () =>
+        if (!IsOwner || _loop is { IsCompleted: false }) return;
+        _listen = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+        var token = _listen.Token;
+        var lifetime = _cts.Token;
+        _loop = Task.Run(async () =>
         {
             var failures = 0;
             while (!token.IsCancellationRequested)
@@ -200,11 +207,24 @@ public sealed class SingleInstance : IDisposable
                     server = new NamedPipeServerStream(Id, PipeDirection.In, NamedPipeServerStream.MaxAllowedServerInstances,
                         PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                     await server.WaitForConnectionAsync(token);
+                    // Counted before the loop can end, so StopListening's caller sees it.
+                    Interlocked.Increment(ref _inFlight);
                     failures = 0;
                     var connected = server;
                     server = null;
-                    // Read on its own task so the next launch can connect right away.
-                    _ = Task.Run(() => ReadAsync(connected, onArgs, token));
+                    // Read on its own task so the next launch can connect right away; stopping the listening doesn't stop it.
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await ReadAsync(connected, onArgs, lifetime);
+                        }
+                        finally
+                        {
+                            Interlocked.Decrement(ref _inFlight);
+                            onRead?.Invoke();
+                        }
+                    });
                 }
                 catch (OperationCanceledException)
                 {
@@ -234,6 +254,26 @@ public sealed class SingleInstance : IDisposable
                 }
             }
         }, token);
+    }
+
+    private CancellationTokenSource _listen = new();
+    private Task? _loop;
+    private int _inFlight;
+
+    /// <summary>Launches connected whose arguments haven't reached <c>onArgs</c> yet.</summary>
+    public int InFlight => Volatile.Read(ref _inFlight);
+
+    /// <summary>Takes no more launches (they open on their own); returns once the listening has ended (2 s at most).</summary>
+    public void StopListening()
+    {
+        _listen.Cancel();
+        try
+        {
+            _loop?.Wait(2000);
+        }
+        catch (AggregateException)
+        {
+        }
     }
 
     private static async Task ReadAsync(NamedPipeServerStream server, Action<string[]> onArgs, CancellationToken token)

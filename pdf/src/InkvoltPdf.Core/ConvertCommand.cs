@@ -21,8 +21,59 @@ public static class ConvertCommand
 
     public enum ParseError { None, NotACommand, NoFormat, UnknownFormat, NoFiles }
 
-    /// <summary>What to convert: the format, the files (full paths, in order, each once) and how many were left out.</summary>
-    public sealed record Request(ExportFormat Format, IReadOnlyList<string> Files, int Dropped);
+    /// <summary>
+    /// What to convert: the format, the files (full paths, in order, each once), and what was left out: files past
+    /// <see cref="MaxFiles"/> (<paramref name="OverLimit"/>) and arguments that can't be a file name (a control character,
+    /// a path Windows refuses: <paramref name="Refused"/>), said apart.
+    /// </summary>
+    public sealed record Request(ExportFormat Format, IReadOnlyList<string> Files, int OverLimit = 0, int Refused = 0);
+
+    /// <summary>
+    /// The app's own options (<c>--lang</c>, <c>--script</c>) come before <c>--convert-to</c>; from it on, everything is the
+    /// command, every argument after the format a file. Without the command, all of it is options and files.
+    /// </summary>
+    public static (IReadOnlyList<string> Options, IReadOnlyList<string> Command) SplitOptions(IReadOnlyList<string> args)
+    {
+        for (var i = 0; i < args.Count; i++)
+            if (IsCommand([args[i]]))
+                return ([.. args.Take(i)], [.. args.Skip(i)]);
+        return ([.. args], []);
+    }
+
+    /// <summary>
+    /// Several launches' requests as one batch per format (Explorer starts one launch per selected file): files in the
+    /// order they came, each once, at most <see cref="MaxFiles"/>; what each left out added up.
+    /// </summary>
+    public static IReadOnlyList<Request> Merge(IReadOnlyList<Request> requests)
+    {
+        var merged = new List<Request>();
+        foreach (var format in requests.Select(r => r.Format).Distinct())
+        {
+            var files = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            int over = 0, refused = 0;
+            foreach (var r in requests.Where(r => r.Format == format))
+            {
+                over += r.OverLimit;
+                refused += r.Refused;
+                foreach (var f in r.Files)
+                {
+                    if (!seen.Add(f)) continue;
+                    if (files.Count >= MaxFiles) over++;
+                    else files.Add(f);
+                }
+            }
+            merged.Add(new Request(format, files, over, refused));
+        }
+        return merged;
+    }
+
+    /// <summary>
+    /// Whether the app may exit: no main window, no conversions window, no conversion gathering, waiting or running, and
+    /// no launch's files read but not handled yet (closing the main window mid-batch would leave an empty name.docx).
+    /// </summary>
+    public static bool MayExit(bool mainOpen, bool listOpen, bool converting, int forwards) =>
+        !mainOpen && !listOpen && !converting && forwards == 0;
 
     private static readonly (string Name, ExportFormat Format)[] Names =
     [
@@ -65,27 +116,32 @@ public static class ConvertCommand
             error = ParseError.NoFormat;
             return false;
         }
-        if (FormatNamed(name.Trim()) is not { } format)
+        // A forwarded launch's own leftovers: "word:3:1" (ToArguments); each count bounded.
+        var parts = name.Trim().Split(':');
+        int over = 0, refused = 0;
+        if (FormatNamed(parts[0]) is not { } format
+            || parts.Length is not (1 or 3)
+            || parts.Length == 3 && !(int.TryParse(parts[1], out over) && int.TryParse(parts[2], out refused)
+                                      && over is >= 0 and <= 1_000_000 && refused is >= 0 and <= 1_000_000))
         {
             error = ParseError.UnknownFormat;
             return false;
         }
         var files = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var dropped = 0;
         for (var i = filesFrom; i < args.Count; i++)
         {
             var arg = args[i];
             if (string.IsNullOrWhiteSpace(arg)) continue;
             if (arg.Any(char.IsControl) || Full(arg) is not { } full)
             {
-                dropped++;
+                refused++;
                 continue;
             }
             if (!seen.Add(full)) continue;
             if (files.Count >= MaxFiles)
             {
-                dropped++;
+                over++;
                 continue;
             }
             files.Add(full);
@@ -95,7 +151,7 @@ public static class ConvertCommand
             error = ParseError.NoFiles;
             return false;
         }
-        request = new Request(format, files, dropped);
+        request = new Request(format, files, over, refused);
         error = ParseError.None;
         return true;
     }
@@ -122,8 +178,11 @@ public static class ConvertCommand
     }
 
     /// <summary>The request as one launch hands it to another: the format joined to the switch, then the full paths.</summary>
+    /// <remarks>What the launch left out travels in the switch (<c>--convert-to=word:3:1</c>: over the limit, refused), so the
+    /// running copy says so; every argument after it stays a file.</remarks>
     public static string[] ToArguments(Request request) =>
-        [$"{Switch}={Names.First(n => n.Format == request.Format).Name}", .. request.Files];
+        [$"{Switch}={Names.First(n => n.Format == request.Format).Name}{(request.OverLimit + request.Refused > 0 ? $":{request.OverLimit}:{request.Refused}" : "")}",
+            .. request.Files];
 
     /// <summary>
     /// The output's name: the PDF's, with the format's extension (<c>report.pdf</c> → <c>report.docx</c>). A name Windows
@@ -168,7 +227,7 @@ public sealed class ConvertJob
     public required string Pdf { get; init; }
     public required ExportFormat Format { get; init; }
 
-    /// <summary>Opened when written: the request was this one file (as the one-click opens it); a selection isn't.</summary>
+    /// <summary>Opened when written: asked for (the notice of a batch of this one file, as the one-click opens it); a listed one never is.</summary>
     public bool Open { get; init; }
 
     public States State { get; internal set; }
@@ -208,8 +267,11 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
         return done;
     }
 
-    /// <summary>Queues each file of <paramref name="request"/> not already waiting or converting; returns those added.</summary>
-    public IReadOnlyList<ConvertJob> Add(ConvertCommand.Request request)
+    /// <summary>
+    /// Queues each file of <paramref name="request"/> not already waiting or converting; returns those added. With
+    /// <paramref name="open"/>, a request of one file opens its result when written.
+    /// </summary>
+    public IReadOnlyList<ConvertJob> Add(ConvertCommand.Request request, bool open = false)
     {
         var added = new List<ConvertJob>();
         foreach (var pdf in request.Files)
@@ -217,7 +279,7 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
             if (_jobs.Any(j => j.State != ConvertJob.States.Done && j.Format == request.Format
                                && string.Equals(j.Pdf, pdf, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            var job = new ConvertJob { Pdf = pdf, Format = request.Format, Open = request.Files.Count == 1 };
+            var job = new ConvertJob { Pdf = pdf, Format = request.Format, Open = open && request.Files.Count == 1 };
             _jobs.Add(job);
             added.Add(job);
             Changed?.Invoke(job);
@@ -282,5 +344,43 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
             if (_jobs[i].State == ConvertJob.States.Done) _jobs.RemoveAt(i);
             else i++;
         }
+    }
+}
+
+/// <summary>
+/// Explorer starts one launch per selected file, each a moment after the last: the running copy gathers the requests
+/// that come within <see cref="Quiet"/> of each other (at most <see cref="Longest"/> after the first) and handles them as
+/// one batch (<see cref="ConvertCommand.Merge"/>), so nine files make one list, not a notice and a list of eight.
+/// </summary>
+public sealed class ConvertGather
+{
+    public static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(400);
+    public static readonly TimeSpan Longest = TimeSpan.FromSeconds(2);
+
+    private readonly List<ConvertCommand.Request> _requests = [];
+    private DateTime _first, _last;
+
+    public bool IsEmpty => _requests.Count == 0;
+
+    /// <summary>When the batch is complete: <see cref="Quiet"/> after the last request, or <see cref="Longest"/> after the first.</summary>
+    public DateTime? DueAt => IsEmpty ? null : Min(_last + Quiet, _first + Longest);
+
+    private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
+
+    public void Add(ConvertCommand.Request request, DateTime now)
+    {
+        if (IsEmpty) _first = now;
+        _last = now;
+        _requests.Add(request);
+    }
+
+    public bool IsDue(DateTime now) => DueAt is { } due && now >= due;
+
+    /// <summary>The batch, one request per format, and nothing gathered after.</summary>
+    public IReadOnlyList<ConvertCommand.Request> Take()
+    {
+        var merged = ConvertCommand.Merge(_requests);
+        _requests.Clear();
+        return merged;
     }
 }

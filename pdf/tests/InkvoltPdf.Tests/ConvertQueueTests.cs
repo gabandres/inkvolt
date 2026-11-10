@@ -9,7 +9,7 @@ namespace InkvoltPdf.Tests;
 /// </summary>
 public class ConvertQueueTests
 {
-    private static Request Word(params string[] files) => new(ExportFormat.Word, files, 0);
+    private static Request Word(params string[] files) => new(ExportFormat.Word, files);
 
     private static ConvertOutcome Saved(string pdf) => ConvertOutcome.Saved(Path.ChangeExtension(pdf, ".docx"), inDocuments: false, notes: null);
 
@@ -141,7 +141,7 @@ public class ConvertQueueTests
         var queue = new ConvertQueue((job, _) => Task.FromResult(Saved(job.Pdf)));
         for (var round = 0; round < 3; round++)
         {
-            queue.Add(new Request(ExportFormat.Word, [.. Enumerable.Range(0, MaxFiles).Select(i => $@"C:\r{round}\{i}.pdf")], 0));
+            queue.Add(new Request(ExportFormat.Word, [.. Enumerable.Range(0, MaxFiles).Select(i => $@"C:\r{round}\{i}.pdf")]));
             await queue.Idle;
         }
         Assert.True(queue.Jobs.Count <= ConvertQueue.MaxListed, $"{queue.Jobs.Count} listed");

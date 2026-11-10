@@ -11494,4 +11494,12 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>Name the PDF files to convert after the format: --convert-to word file.pdf</value>
     <comment>The convert command line names no file. Keep the command in English</comment>
   </data>
+  <data name="Explorer_Refused_One" xml:space="preserve">
+    <value>{0} file name couldn't be used (it holds characters no file name can have, or Windows refused the path), so it was left out.</value>
+    <comment>{0} the count of command-line arguments that can't be a file name; said apart from the 500-file limit</comment>
+  </data>
+  <data name="Explorer_Refused_Many" xml:space="preserve">
+    <value>{0} file names couldn't be used (they hold characters no file name can have, or Windows refused the path), so they were left out.</value>
+    <comment>{0} the count</comment>
+  </data>
 </root>
