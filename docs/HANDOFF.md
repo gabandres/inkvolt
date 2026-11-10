@@ -46,6 +46,7 @@ T3 provider needs `claude auth login` first).
 running), the Mac forms corpus and its fixes (a PDF for Mac release if it fixes anything), the Office converter; then stop.
 **Tuesday 2026-11-10 08:00 (PPE's reset): start 2.1 paragraph editing, then 3.1 Translate, on the Mac, on PPE**, one at a
 time. Redaction by pattern additions and 3.4 LTV stay stopped until the owner says.
+**2026-11-10:** Mac 2.1 paragraph editing merged (`ac7ad7e1`; medium review 5 + 1, low rounds 2 then 1, all fixed; mac CI green); Explorer's right-click Convert to Word merged (`3f4f44d3`, Windows, next Windows PDF release). Mac 3.1 Translate agent running (PPE). **Watch:** Windows CI run 42842881789 on `ac7ad7e1` hung in InkvoltPdf.Tests until the 30-minute timeout (no Windows code changed; the rerun passed in 5 min). If it hangs again, run with `--blame-hang-timeout` and suspect the new ConvertCommand/ExplorerConvert tests (their batch waits).
 **Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
 Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
 (`pdf/tools/forms-corpus`, 150-300 public fillable PDFs: open, fill every field, save, reopen, read back with pdf.js), its
