@@ -57,7 +57,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   once; with none, the marking tool). **Convert › Word, Excel, PowerPoint, text and HTML** run at once: `name.docx` next
   to the PDF (never over a file: `name (2).docx`; in Documents when the PDF isn't saved yet or its folder can't be
   written to), every page, scanned pages recognized, then opened; the notice says "Saved name.docx · Show in folder ·
-  Change options…" (the Export window). File › Export and Ctrl+K still ask first. Screen readers hear both parts of a
+  Change options…" (the Export window). File › Export and Ctrl+K still ask first. **Explorer's right-click "Convert to
+  Word with Inkvolt PDF"** on a PDF does the same without opening it (`--convert-to word`, below): one file with the
+  window open shows the same notice there; several files, or the app not open, show a small window listing each one
+  (Open, Show in folder, Change options…, or why it failed: a password asked and cancelled, a damaged file, not
+  found). Windows 11 shows it under "Show more options" (Shift+F10); Windows 10 in the menu itself. The Store build shows it only while Inkvolt PDF is the app that opens PDFs (Windows lists a package's file-type verbs for the default app only); `install.ps1`'s shows it always. Screen readers hear both parts of a
   group ("Convert: Word (.docx)", "Convert: more commands"). "…" holds what doesn't fit (a group as a submenu), then
   rotate, delete selected pages and find. Room runs out in this order: Redo, Scan & OCR, Print, Protect, Organize, then the
   pointer tools (H, T, G still work); Edit, Convert, Comment and Fill & Sign keep their labels down to a 1100-DIP window
@@ -686,7 +690,17 @@ inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recur
 inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--online] [--quiet]
 inkvoltpdf --fill <form.pdf> <data.csv> [--out <folder>] [--name <pattern>] [--flatten] [--quiet]
 inkvoltpdf --help
+inkvoltpdf --convert-to word|excel|powerpoint|text|html <files>...
 ```
+
+`--convert-to` is Explorer's "Convert to Word with Inkvolt PDF" (`ConvertCommand`, `ExplorerConvert`): the command bar's
+one-click Convert for each file, in the window (a running copy gets the files, each launch's paths made full), not on the
+console. Every argument after the format is a file (UNC and `\\?\` long paths kept as given); at most 500 at a time; one
+at a time, each file once; the output is `name.docx` next to the PDF (never over a file, `name (2).docx`; a device name
+gets `_`, `_CON.docx`), else in Documents. The package declares it as a verb on `.pdf` (`AppxManifest.template.xml`,
+its words in `packaging/Strings`); `install.ps1` writes the same verb under `SystemFileAssociations\.pdf` and
+`-Uninstall` removes it. A declared verb, not an `IExplorerCommand` handler: no code of ours loads into Explorer, which
+is why Windows 11 lists it under "Show more options" (the top of its menu takes only a COM handler, a native DLL), and why the Store build's verb shows only while Inkvolt PDF is the default PDF app (checked 2026-11-10: the package registers it on its .pdf ProgId, `smoke-msix.ps1` checks that; Explorer lists it for the default ProgId only). Showing it always, and at the top of Windows 11's menu, takes a `desktop4:FileExplorerContextMenus` handler: an `IExplorerCommand` COM DLL (C++, x64 and ARM64) in a surrogate.
 
 `--fill` (free, like the rest of roadmap 1.4) is Fill Forms from CSV: a filled form per row, in `--out` (default
 `<form> forms` beside the CSV), named by `--name` (default `<<name>> <<n:3>>`), a line per row; rows refused are listed

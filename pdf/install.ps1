@@ -1,5 +1,5 @@
 # Installs (or removes) Inkvolt PDF for the current user. No admin rights needed.
-#   pwsh -File install.ps1              build the exe for this PC (ARM64 or x64), copy it, add Start Menu + Desktop shortcuts and "Open with" entries
+#   pwsh -File install.ps1              build the exe for this PC (ARM64 or x64), copy it, add Start Menu + Desktop shortcuts, "Open with" entries and Explorer's "Convert to Word with Inkvolt PDF"
 #   pwsh -File install.ps1 -NoBuild     install the existing publish\win-<arch>\InkvoltPdf.exe
 #   pwsh -File install.ps1 -Uninstall   remove all of the above
 # (Microsoft Store / MSIX builds: ../packaging/pack-msix.ps1 -App Pdf. Their file associations come from the package manifest.)
@@ -14,6 +14,8 @@ $desktopLnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Inkvolt PDF.l
 $classes = 'HKCU:\Software\Classes'
 $progId = 'InkvoltPdf.Document'
 $types = '.pdf', '.xps', '.oxps', '.epub', '.cbz', '.fb2' # same list as packaging/AppxManifest.template.xml
+# Explorer's right-click "Convert to Word with Inkvolt PDF" on every PDF, whatever app opens PDFs (as the package's verb)
+$convertVerb = "$classes\SystemFileAssociations\.pdf\shell\InkvoltPdf.ConvertToWord"
 
 if (Get-Process InkvoltPdf -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $exe }) {
     throw 'Inkvolt PDF is running. Close it (save your work first), then run this again.'
@@ -24,6 +26,7 @@ if ($Uninstall) {
     Remove-Item $dest -Recurse -Force -ErrorAction SilentlyContinue
     Remove-Item "$classes\$progId" -Recurse -ErrorAction SilentlyContinue
     Remove-Item "$classes\Applications\InkvoltPdf.exe" -Recurse -ErrorAction SilentlyContinue
+    Remove-Item $convertVerb -Recurse -ErrorAction SilentlyContinue
     foreach ($t in $types) { Remove-ItemProperty "$classes\$t\OpenWithProgids" -Name $progId -ErrorAction SilentlyContinue }
     Remove-Item 'HKCU:\Software\InkvoltPdf' -Recurse -ErrorAction SilentlyContinue
     Remove-ItemProperty 'HKCU:\Software\RegisteredApplications' -Name 'Inkvolt PDF' -ErrorAction SilentlyContinue
@@ -81,6 +84,16 @@ foreach ($t in $types) {
     Set-ItemProperty 'HKCU:\Software\InkvoltPdf\Capabilities\FileAssociations' -Name $t -Value $progId
 }
 Get-Key 'HKCU:\Software\RegisteredApplications' | Set-ItemProperty -Name 'Inkvolt PDF' -Value 'Software\InkvoltPdf\Capabilities'
+
+# The right-click verb, in Windows' language (the words are the package's: packaging\Strings\<language>\Resources.resw).
+# Each launch hands its file to the running copy (--convert-to, see ConvertCommand); Player shows it for any selection.
+$lang = if ((Get-UICulture).TwoLetterISOLanguageName -eq 'es') { 'es' } else { 'en-us' }
+$label = ([xml](Get-Content (Join-Path $PSScriptRoot "packaging\Strings\$lang\Resources.resw") -Raw -Encoding utf8)).root.data |
+    Where-Object name -eq 'ConvertToWordVerb' | ForEach-Object value
+Get-Key "$convertVerb\command" | Set-ItemProperty -Name '(default)' -Value "`"$exe`" --convert-to word `"%1`""
+Set-ItemProperty $convertVerb -Name 'MUIVerb' -Value $label
+Set-ItemProperty $convertVerb -Name 'Icon' -Value "`"$exe`",0"
+Set-ItemProperty $convertVerb -Name 'MultiSelectModel' -Value 'Player'
 
 Add-Type -Namespace Win32 -Name Shell -MemberDefinition '[DllImport("shell32.dll")] public static extern void SHChangeNotify(int e, int f, IntPtr a, IntPtr b);'
 [Win32.Shell]::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero) # SHCNE_ASSOCCHANGED

@@ -11438,4 +11438,68 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>La carpeta del PDF no acepta archivos nuevos y no hay una carpeta Documentos que usar en su lugar. Elige dónde guardarlo.</value>
     <comment>One-click Convert couldn't write anywhere; the Export window (with Save As) opens next</comment>
   </data>
+  <data name="Export_NowhereExplorer" xml:space="preserve">
+    <value>La carpeta del PDF no acepta archivos nuevos y no hay una carpeta Documentos que usar en su lugar. Usa Cambiar opciones… para elegir dónde guardarlo.</value>
+    <comment>Explorer's Convert couldn't write anywhere; Change options… is a link beside this message</comment>
+  </data>
+  <data name="Explorer_Title" xml:space="preserve">
+    <value>Convertir con Inkvolt PDF</value>
+    <comment>Title of the small window that lists the conversions asked for from File Explorer's right-click menu</comment>
+  </data>
+  <data name="Explorer_Converting_One" xml:space="preserve">
+    <value>Convirtiendo {0} archivo</value>
+    <comment>{0} the count. Heading of the conversions window while it works</comment>
+  </data>
+  <data name="Explorer_Converting_Many" xml:space="preserve">
+    <value>Convirtiendo {0} archivos</value>
+    <comment>{0} the count</comment>
+  </data>
+  <data name="Explorer_Finished" xml:space="preserve">
+    <value>{0} de {1} convertidos</value>
+    <comment>{0} files saved, {1} files asked for. Heading of the conversions window when it's done</comment>
+  </data>
+  <data name="Explorer_Waiting" xml:space="preserve">
+    <value>En espera</value>
+    <comment>A file's state in the conversions window: its turn hasn't come yet</comment>
+  </data>
+  <data name="Explorer_Working" xml:space="preserve">
+    <value>Convirtiendo…</value>
+    <comment>A file's state in the conversions window: being converted now</comment>
+  </data>
+  <data name="Explorer_Cancelled" xml:space="preserve">
+    <value>Cancelado</value>
+    <comment>A file's state in the conversions window: the user cancelled it (or a password or question)</comment>
+  </data>
+  <data name="Explorer_Dropped_One" xml:space="preserve">
+    <value>No se añadió {0} archivo más: Inkvolt PDF convierte hasta {1} a la vez.</value>
+    <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
+  </data>
+  <data name="Explorer_Dropped_Many" xml:space="preserve">
+    <value>No se añadieron {0} archivos más: Inkvolt PDF convierte hasta {1} a la vez.</value>
+    <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
+  </data>
+  <data name="Explorer_CantConvert" xml:space="preserve">
+    <value>No se puede convertir</value>
+    <comment>Title of the message when the convert command line is wrong</comment>
+  </data>
+  <data name="Explorer_NoFormat" xml:space="preserve">
+    <value>Indica a qué convertir y luego los archivos: --convert-to word (o excel, powerpoint, text, html) archivo.pdf</value>
+    <comment>The convert command line has no format. Keep --convert-to and the format names in English: they are typed</comment>
+  </data>
+  <data name="Explorer_UnknownFormat" xml:space="preserve">
+    <value>Inkvolt PDF convierte a word, excel, powerpoint, text o html: --convert-to word archivo.pdf</value>
+    <comment>The convert command line names a format Inkvolt PDF doesn't write. Keep the command and the format names in English</comment>
+  </data>
+  <data name="Explorer_NoFiles" xml:space="preserve">
+    <value>Indica los PDF que quieres convertir después del formato: --convert-to word archivo.pdf</value>
+    <comment>The convert command line names no file. Keep the command in English</comment>
+  </data>
+  <data name="Explorer_Refused_One" xml:space="preserve">
+    <value>No se pudo usar {0} nombre de archivo (tiene caracteres que ningún nombre de archivo puede tener, o Windows no aceptó la ruta), así que se omitió.</value>
+    <comment>{0} the count of command-line arguments that can't be a file name; said apart from the 500-file limit</comment>
+  </data>
+  <data name="Explorer_Refused_Many" xml:space="preserve">
+    <value>No se pudieron usar {0} nombres de archivo (tienen caracteres que ningún nombre de archivo puede tener, o Windows no aceptó la ruta), así que se omitieron.</value>
+    <comment>{0} the count</comment>
+  </data>
 </root>

@@ -51,7 +51,7 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (Fluent's high-contrast resources on the window, no bar colors, and the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· iconcolors</c> (the open menus' colored icons as drawn, against their resource colors) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· explorer word a.pdf|b.pdf [nowindow] [each]</c> (Explorer's Convert to Word, as a forwarded --convert-to launch; nowindow: as if the app weren't open) <c>· explorerwait</c> (until those conversions end, then each outcome) <c>· iconcolors</c> (the open menus' colored icons as drawn, against their resource colors) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -949,6 +949,36 @@ internal static class DevScript
                 // copyfile <src> <dst>: another program writes a file (e.g. the open document changing on disk).
                 var a = arg.Split(' ', 2);
                 File.Copy(a[0], a[1], overwrite: true);
+                break;
+            }
+            case "explorer":
+            {
+                // explorer word a.pdf|b.pdf [nowindow] [each]: Explorer's Convert to Word, as forwarded --convert-to launches
+                // come in (one file with the window up: its notice; more, or nowindow as if the app weren't open: the list);
+                // each: one launch per file, as Explorer starts them (gathered into one batch).
+                var parts = arg.Split(' ', 2);
+                var rest = parts.Length > 1 ? parts[1] : "";
+                var each = rest.EndsWith(" each", StringComparison.Ordinal);
+                if (each) rest = rest[..^" each".Length];
+                var noWindow = rest.EndsWith(" nowindow", StringComparison.Ordinal);
+                if (noWindow) rest = rest[..^" nowindow".Length];
+                ExplorerConvert.MainFor = () => noWindow ? null : window;
+                var files = rest.Split('|', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var launch in each ? files.Select(f => new[] { f }) : [files])
+                {
+                    if (!ConvertCommand.TryParse([ConvertCommand.Switch, parts[0], .. launch], out var request, out var error))
+                        log.Add($"explorer: refused, {error}: {ExplorerConvert.Explain(error)}");
+                    else ExplorerConvert.Route(request!);
+                    if (each) await Task.Delay(60);
+                }
+                break;
+            }
+            case "explorerwait":
+            {
+                // explorerwait: until Explorer's conversions are done (5 minutes at most), then each one's outcome.
+                await Task.WhenAny(ExplorerConvert.Idle(), Task.Delay(300_000));
+                foreach (var job in ExplorerConvert.Jobs)
+                    log.Add($"explorer: {Path.GetFileName(job.Pdf)} {job.State} {job.Outcome?.Result} {(job.Outcome?.Output is { } o ? Path.GetFileName(o) : "")} {(job.Outcome?.InDocuments == true ? "(Documents) " : "")}{job.Outcome?.Message}");
                 break;
             }
             case "darkpages": Cmd.DarkPages.Execute(null, window); break;
