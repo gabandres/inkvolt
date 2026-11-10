@@ -285,10 +285,14 @@ public sealed class ProgressPrompt : IDisposable
     /// <summary>Raised on the UI thread when the user cancels.</summary>
     public event Action? Cancelled;
 
-    public ProgressPrompt(Window? owner, string title, string text)
+    /// <param name="detached">Not owned by <paramref name="owner"/> (centred on the screen, in the taskbar): the job outlives
+    /// that window (Explorer's conversions go on when the main window closes; an owned progress window would close with it
+    /// and cancel the job).</param>
+    public ProgressPrompt(Window? owner, string title, string text, bool detached = false)
     {
         Token = _cts.Token;
-        owner ??= Application.Current.MainWindow;
+        if (detached) owner = null;
+        else owner ??= Application.Current.MainWindow;
         _taskbar = new TaskbarProgress(owner);
         _text = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
         _bar = new ProgressBar { IsIndeterminate = true, Height = 4, Margin = new Thickness(0, 14, 0, 0) };
@@ -300,7 +304,7 @@ public sealed class ProgressPrompt : IDisposable
             Width = 400,
             SizeToContent = SizeToContent.Height,
             ResizeMode = ResizeMode.NoResize,
-            ShowInTaskbar = false,
+            ShowInTaskbar = detached,
             WindowStartupLocation = owner is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
         };
         if (owner is { IsLoaded: true }) _win.Owner = owner;

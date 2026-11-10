@@ -119,6 +119,43 @@ public class ConvertLaunchTests
         Assert.False(ShowsNotice(windowReady: true, listOpen: false, busy: false, batch.Files.Count));
     }
 
+    [Fact]
+    public void LaunchesHaveSettledOnlyALongWhileAfterTheLast()
+    {
+        // Round 2, B: under load the 2nd launch can come after the batch was cut; the notice's Word file waits to open
+        // until no launch has come for Settle, so a late one still folds it into the list.
+        var gather = new ConvertGather();
+        Assert.True(gather.Settled(T0)); // nothing ever came
+        gather.Add(Word(@"C:\a.pdf"), T0);
+        gather.Take();
+        Assert.False(gather.Settled(T0 + ConvertGather.Quiet));
+        Assert.False(gather.Settled(T0 + ConvertGather.Settle - TimeSpan.FromMilliseconds(1)));
+        Assert.True(gather.Settled(T0 + ConvertGather.Settle));
+        Assert.Equal(T0 + ConvertGather.Settle, gather.SettledAt);
+        gather.Add(Word(@"C:\b.pdf"), T0.AddSeconds(2)); // a late launch starts the wait again
+        Assert.False(gather.Settled(T0 + ConvertGather.Settle));
+        Assert.True(ConvertGather.Settle > ConvertGather.Longest);
+    }
+
+    [Fact]
+    public async Task AResultFoldedIntoTheListIsNotOpened()
+    {
+        var gate = new TaskCompletionSource();
+        bool? openAtEnd = null;
+        var queue = new ConvertQueue(async (job, _) =>
+        {
+            await gate.Task;
+            openAtEnd = job.Open; // read when written, as the app does
+            return ConvertOutcome.Saved(job.Pdf + ".docx", false, null);
+        });
+        var noticed = queue.Add(Word(@"C:\a.pdf"), open: true)[0];
+        Assert.True(noticed.Open);
+        noticed.StopOpening(); // a second launch came: the notice joins the list
+        gate.SetResult();
+        await queue.Idle;
+        Assert.False(openAtEnd);
+    }
+
     // ── Opening the result (finding 2) ──
 
     [Fact]

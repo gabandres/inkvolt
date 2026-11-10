@@ -133,10 +133,22 @@ public partial class App : Application
         bool Done() => Core.ConvertCommand.MayExit(_main is not null, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
             Volatile.Read(ref _forwardsQueued));
         if (!Done()) return;
-        _instance?.StopListening();
-        if (_instance is { InFlight: > 0 } || !Done())
+        var stopped = _instance?.StopListening() ?? true;
+        if (!stopped || _instance is { InFlight: > 0 } || !Done())
         {
             ListenForLaunches();
+            // The listening didn't end in time: a launch may be connecting unseen. Try again shortly rather than exit on it.
+            if (!stopped)
+            {
+                Log.Write("Exit put off: the launch listener didn't stop in time");
+                var retry = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                retry.Tick += (_, _) =>
+                {
+                    retry.Stop();
+                    MaybeExit();
+                };
+                retry.Start();
+            }
             return;
         }
         Log.Write("Exiting: no window and no conversions left");

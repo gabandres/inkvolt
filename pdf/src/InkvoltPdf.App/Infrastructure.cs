@@ -192,7 +192,9 @@ public sealed class SingleInstance : IDisposable
     /// </remarks>
     public void Listen(Action<string[]> onArgs, Action? onRead = null)
     {
-        if (!IsOwner || _loop is { IsCompleted: false }) return;
+        // Already listening: nothing to do. A loop told to stop that hasn't ended yet (StopListening timed out) is no
+        // listener: a new one starts beside it (the pipe takes several server instances), so launches are never left waiting.
+        if (!IsOwner || _loop is { IsCompleted: false } && !_listen.IsCancellationRequested) return;
         _listen = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
         var token = _listen.Token;
         var lifetime = _cts.Token;
@@ -263,16 +265,21 @@ public sealed class SingleInstance : IDisposable
     /// <summary>Launches connected whose arguments haven't reached <c>onArgs</c> yet.</summary>
     public int InFlight => Volatile.Read(ref _inFlight);
 
-    /// <summary>Takes no more launches (they open on their own); returns once the listening has ended (2 s at most).</summary>
-    public void StopListening()
+    /// <summary>Takes no more launches (they open on their own) and waits for the listening to end (2 s at most).</summary>
+    /// <returns>
+    /// True once the listening has ended; false when it didn't within 2 s (a loaded PC): <see cref="InFlight"/> may then
+    /// miss a launch just connecting, so the caller doesn't exit on it (it listens again and tries later).
+    /// </returns>
+    public bool StopListening()
     {
         _listen.Cancel();
         try
         {
-            _loop?.Wait(2000);
+            return _loop?.Wait(2000) ?? true;
         }
         catch (AggregateException)
         {
+            return true; // ended (cancelled before it ran, or failed)
         }
     }
 

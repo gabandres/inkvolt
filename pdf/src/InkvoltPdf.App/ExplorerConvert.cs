@@ -30,7 +30,7 @@ internal static class ExplorerConvert
     {
         var queue = new ConvertQueue((job, cancel) =>
             ExportActions.ConvertFile(Noticed.Contains(job) && _main is { } m ? m : (Window?)_list ?? Application.Current.MainWindow!,
-                job.Pdf, job.Format, job.Open, cancel));
+                job.Pdf, job.Format, () => false, cancel)); // a notice's result opens once the launches have settled (OpenWhenSettled)
         queue.Changed += OnChanged;
         return queue;
     }
@@ -106,7 +106,10 @@ internal static class ExplorerConvert
         _main = main;
         var queue = Queue;
         var leftOut = request.OverLimit + request.Refused;
-        var notice = leftOut == 0 && ConvertCommand.ShowsNotice(main is not null, _list is not null, queue.IsBusy, request.Files.Count);
+        // A notice still converting, or whose result waits to open, came from the same selection when another launch
+        // follows (a loaded PC spaces them out past ConvertGather.Quiet): it joins the list, and nothing opens.
+        var folded = Fold();
+        var notice = !folded && leftOut == 0 && ConvertCommand.ShowsNotice(main is not null, _list is not null, queue.IsBusy, request.Files.Count);
         Log.Write($"Convert from Explorer: {request.Files.Count} file(s) to {request.Format}{(leftOut > 0 ? $", {request.OverLimit} over the limit, {request.Refused} refused" : "")}, {(notice ? "notice" : "listed")}");
         if (notice)
         {
@@ -126,6 +129,58 @@ internal static class ExplorerConvert
         {
             _nextNoticed = false;
         }
+    }
+
+    // A notice's saved result, opened once no launch has come for ConvertGather.Settle.
+    private static readonly List<(ConvertJob Job, string Output)> OpenLater = [];
+    private static System.Windows.Threading.DispatcherTimer? _openTimer;
+
+    private static void OpenWhenSettled(ConvertJob job, string output)
+    {
+        OpenLater.Add((job, output));
+        OpenSettled();
+    }
+
+    private static void OpenSettled()
+    {
+        _openTimer ??= new System.Windows.Threading.DispatcherTimer();
+        _openTimer.Stop();
+        if (OpenLater.Count == 0) return;
+        if (!Gather.Settled(DateTime.UtcNow))
+        {
+            var wait = Gather.SettledAt!.Value - DateTime.UtcNow;
+            _openTimer.Interval = wait > TimeSpan.Zero ? wait : TimeSpan.FromMilliseconds(1);
+            _openTimer.Tick -= OnOpenTimer;
+            _openTimer.Tick += OnOpenTimer;
+            _openTimer.Start();
+            return;
+        }
+        foreach (var (job, output) in OpenLater.ToList())
+            if (job.Open)
+                Shell.Open(output);
+        OpenLater.Clear();
+    }
+
+    private static void OnOpenTimer(object? sender, EventArgs e) => OpenSettled();
+
+    /// <summary>
+    /// Moves the notice's conversion (running, or saved with its result still to open) into the list: it opens nothing,
+    /// and the list shows it with the rest of the selection. False when there was none.
+    /// </summary>
+    private static bool Fold()
+    {
+        var jobs = Noticed.Where(j => j.State != ConvertJob.States.Done).Concat(OpenLater.Select(o => o.Job)).Distinct().ToList();
+        if (jobs.Count == 0) return false;
+        ShowList();
+        foreach (var job in jobs)
+        {
+            job.StopOpening();
+            Noticed.Remove(job);
+            _list!.Track(job);
+        }
+        OpenLater.Clear();
+        Log.Write($"Convert from Explorer: a later launch came; the notice's {jobs.Count} file(s) joined the list");
+        return true;
     }
 
     // Never owned by the main window: it outlives it, for the conversions left when the main window closes.
@@ -171,6 +226,7 @@ internal static class ExplorerConvert
         {
             case ConvertResult.Saved:
                 var saved = SavedText(outcome);
+                if (job.Open) OpenWhenSettled(job, outcome.Output!);
                 main.ShowToast(new Toast(saved, Strings.Export_ShowInFolder, () => Shell.ShowInFolder(outcome.Output!),
                     Action2Label: Strings.Export_ChangeOptions, Action2: () => ChangeOptions?.Invoke(job.Pdf, job.Format)));
                 break;

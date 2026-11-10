@@ -228,7 +228,12 @@ public sealed class ConvertJob
     public required ExportFormat Format { get; init; }
 
     /// <summary>Opened when written: asked for (the notice of a batch of this one file, as the one-click opens it); a listed one never is.</summary>
-    public bool Open { get; init; }
+    public bool Open { get; private set; }
+
+    /// <summary>The result won't be opened: the notice joined a list (a later launch of the same selection came).</summary>
+    public void StopOpening() => Open = false;
+
+    internal void SetOpen(bool open) => Open = open;
 
     public States State { get; internal set; }
     public ConvertOutcome? Outcome { get; internal set; }
@@ -279,7 +284,8 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
             if (_jobs.Any(j => j.State != ConvertJob.States.Done && j.Format == request.Format
                                && string.Equals(j.Pdf, pdf, StringComparison.OrdinalIgnoreCase)))
                 continue;
-            var job = new ConvertJob { Pdf = pdf, Format = request.Format, Open = open && request.Files.Count == 1 };
+            var job = new ConvertJob { Pdf = pdf, Format = request.Format };
+            job.SetOpen(open && request.Files.Count == 1);
             _jobs.Add(job);
             added.Add(job);
             Changed?.Invoke(job);
@@ -357,6 +363,19 @@ public sealed class ConvertGather
     public static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(400);
     public static readonly TimeSpan Longest = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// How long after the last launch the selection is taken as complete: a notice's result opens only then, so a launch
+    /// that comes after its batch was cut (a loaded PC) still folds the notice into the list instead of opening Word.
+    /// </summary>
+    public static readonly TimeSpan Settle = TimeSpan.FromSeconds(4);
+
+    private DateTime? _lastEver;
+
+    /// <summary>When no launch will have come for <see cref="Settle"/>; null when none ever came.</summary>
+    public DateTime? SettledAt => _lastEver + Settle;
+
+    public bool Settled(DateTime now) => SettledAt is not { } at || now >= at;
+
     private readonly List<ConvertCommand.Request> _requests = [];
     private DateTime _first, _last;
 
@@ -371,6 +390,7 @@ public sealed class ConvertGather
     {
         if (IsEmpty) _first = now;
         _last = now;
+        _lastEver = now;
         _requests.Add(request);
     }
 

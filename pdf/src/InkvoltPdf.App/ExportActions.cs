@@ -132,7 +132,7 @@ internal static class ExportActions
     /// <paramref name="open"/> (a request for this one file). Nothing is shown here: the outcome says what happened, and
     /// the caller shows it (<see cref="ExplorerConvert"/>: the notice, or the conversions window).
     /// </summary>
-    public static async Task<ConvertOutcome> ConvertFile(Window owner, string pdf, ExportFormat format, bool open, CancellationToken cancel)
+    public static async Task<ConvertOutcome> ConvertFile(Window owner, string pdf, ExportFormat format, Func<bool> open, CancellationToken cancel)
     {
         var fileName = Path.GetFileName(pdf);
         if (!await Task.Run(() => File.Exists(pdf), cancel))
@@ -180,10 +180,10 @@ internal static class ExportActions
                 reserved = target.Path;
                 var source = format is ExportFormat.PowerPoint or ExportFormat.Html && session.IsPdf ? session.Data : null;
                 var done = await ExportPages(owner, session.Engine, source, session.Password, Path.GetFileNameWithoutExtension(pdf),
-                    format, pages, recognize: true, target.Path, cancel);
+                    format, pages, recognize: true, target.Path, cancel, detached: true);
                 if (!done.Saved) return ConvertOutcome.Failed(ConvertResult.NothingToSave, done.Message);
                 Log.Write($"Convert {format} from Explorer: {pages.Length} page(s) to {Log.Name(target.Path)}");
-                if (open) Shell.Open(target.Path);
+                if (open()) Shell.Open(target.Path);
                 return ConvertOutcome.Saved(target.Path, target.InDocuments, done.Notes.Count > 0 ? string.Join(", ", done.Notes) : null);
             }
         }
@@ -251,12 +251,12 @@ internal static class ExportActions
     /// errors and the rest are thrown, the progress window already closed.
     /// </summary>
     private static async Task<Exported> ExportPages(Window owner, PdfEngine engine, byte[]? source, string? sourcePassword, string name,
-        ExportFormat format, int[] pages, bool recognize, string path, CancellationToken cancel = default)
+        ExportFormat format, int[] pages, bool recognize, string path, CancellationToken cancel = default, bool detached = false)
     {
         var kind = Describe(format);
         var ocr = PageOcr.Engine;
         recognize &= ocr is not null;
-        using var progress = new ProgressPrompt(owner, kind.Title, Strings.Access_ReadingPages);
+        using var progress = new ProgressPrompt(owner, kind.Title, Strings.Access_ReadingPages, detached);
         using var both = CancellationTokenSource.CreateLinkedTokenSource(progress.Token, cancel);
         var options = new ExportOptions
         {
