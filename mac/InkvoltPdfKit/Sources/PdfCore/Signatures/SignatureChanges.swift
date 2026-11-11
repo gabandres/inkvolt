@@ -492,11 +492,12 @@ enum SignatureChanges {
             Comparison.walk([catalog["DSS"], catalog["Extensions"]], &r.validationData, stop)
             // Validation data is what only the store reaches: an object the document uses too (an attachment, a script, an
             // outline) a store names doesn't become free to change.
-            // Pages and the form are judged by their own roles before validation data is (content, widgets, comments), so
-            // the walk starts from the rest; it never goes back into the catalog (and through it into /DSS). A walk cut short
-            // by its limit leaves no validation data at all: nothing it didn't reach may count as free.
+            // Pages are judged by their own roles before validation data is (content, widgets, comments), so the walk starts
+            // from the rest, the form included (its XFA, scripts and values); it never goes back into the catalog (and through
+            // it into /DSS). A walk cut short by its limit leaves no validation data at all: nothing it didn't reach may count
+            // as free.
             var elsewhere = Set<Int>()
-            let roots = catalog.keys.filter { !["DSS", "Extensions", "Pages", "AcroForm"].contains($0) }.map { catalog[$0] } + [info, acro?["DR"]]
+            let roots = catalog.keys.filter { !["DSS", "Extensions", "Pages"].contains($0) }.map { catalog[$0] } + [info]
             if Comparison.walk(roots, &elsewhere, r.catalog >= 0 ? [r.catalog] : []) {
                 r.validationData.subtract(elsewhere)
             } else {

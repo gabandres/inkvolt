@@ -188,7 +188,6 @@ enum LongTermCheck {
                 revision = known
             } else {
                 revision = revisionPool(data, stamp.end, password, pool)
-                revision.shareBudget(with: pool)
                 revisions[stamp.end] = revision
             }
             let when = f.vouchedTime ?? later[0].vouchedTime ?? Date()
@@ -203,6 +202,7 @@ enum LongTermCheck {
     /// What the file up to a timestamp held, plus the signatures' own certificates.
     private static func revisionPool(_ data: [UInt8], _ end: Int, _ password: String?, _ whole: RevocationPool) -> RevocationPool {
         let revision = RevocationPool()
+        revision.shareBudget(with: whole) // reading the revision's store counts against the file's time too
         for c in whole.certs { revision.addCert(c) }
         // A revision that can't be read holds nothing.
         if end > 0, end <= data.count, let doc = try? PdfEdit.openToRead(Array(data[..<end]), password) { Dss.readInto(doc, revision) }
