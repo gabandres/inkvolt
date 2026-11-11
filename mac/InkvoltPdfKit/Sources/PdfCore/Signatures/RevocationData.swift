@@ -449,7 +449,7 @@ final class RevocationPool: @unchecked Sendable {
     /// What the verified data says about `cert` at `when`; a revocation at or before that time, or after it, wins over any
     /// good answer. Also which responder answered, when one was delegated, and the data it came from.
     func check(_ cert: Certificate, _ issuer: Certificate, _ when: Date) -> RevocationVerdict {
-        let key = "\(cert.thumbprint)|\(issuer.thumbprint)|\(Int(when.timeIntervalSince1970.rounded(.down)))"
+        let key = "\(cert.thumbprint)|\(issuer.thumbprint)|\(when.timeIntervalSince1970.bitPattern)"
         if let seen = memo[key] { return seen }
         let result = checkCore(cert, issuer, when)
         memo[key] = result
