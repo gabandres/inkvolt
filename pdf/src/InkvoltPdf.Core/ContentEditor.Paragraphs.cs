@@ -259,10 +259,16 @@ public static partial class ContentEditor
             .GroupBy(r => r.Font!)
             .OrderByDescending(g => g.Sum(r => r.Text.Trim().Length))
             .ThenBy(g => g.Key.Bold || g.Key.Italic ? 1 : 0)
-            .ThenBy(g => g.Min(r => r.Id))
-            .Select(g => g.MinBy(r => r.Id)!)
+            .ThenBy(g => g.Min(r => Order(r.Id)))
+            .Select(g => g.MinBy(r => Order(r.Id))!)
             .FirstOrDefault()
         ?? runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? runs.FirstOrDefault(r => !r.StandIn) ?? runs[0];
+
+    /// <summary>
+    /// A run's place in its content's order: page operators count up from 0, operators inside forms down from -1 (the
+    /// walk numbers them as it meets them), so the first in a form is the one nearest 0.
+    /// </summary>
+    internal static int Order(int id) => id < 0 ? -id : id;
 
     /// <summary>The step from one baseline to the next as the paragraph's own (see <see cref="LayOut"/>: bigger text widens it).</summary>
     private static double PlainStep(PLine above, PLine below, double step) => step / (Rise * above.Scale + (1 - Rise) * below.Scale);
@@ -276,6 +282,9 @@ public static partial class ContentEditor
         var last = s.Lines[^1];
         var size = last.Size;
         if (!SameLook(last.Lead, line.Lead)) return null;
+        // Two drawings of one form (or two forms) are two pieces of content: their lines are paragraphs of their own. A
+        // form's lines and the page's still join (they are edited line by line, see Edit_BlockedPartInForm).
+        if (last.Lead.Info?.Form is { } a && line.Lead.Info?.Form is { } b && !FormPlace.SameDrawing(a, b)) return null;
         var step = PlainStep(last, line, line.Baseline - last.Baseline);
         if (step < 0.6 * size) return null;
         var gap = line.Box.Y - last.Box.Bottom;
@@ -446,7 +455,7 @@ public static partial class ContentEditor
         if (blocked is null && !translating && runs.Any(r => r.Font is null)) blocked = PdfStrings.Edit_BlockedNoFont;
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
         // Lines drawn by different content (the page's own and a form XObject's, or two forms) can't be rewritten as one.
-        if (blocked is null && runs.Any(r => !ReferenceEquals(r.Info!.Form?.Form, own.Info!.Form?.Form)))
+        if (blocked is null && runs.Any(r => !FormPlace.SameDrawing(r.Info!.Form, own.Info!.Form)))
             blocked = PdfStrings.Edit_BlockedPartInForm;
         // Rewrapping lays words out left to right, so right-to-left text would come out in the wrong order.
         if (blocked is null && !translating && runs.Any(r => TrueTypeFont.CodePoints(r.Text).Any(c => Bidi.Classify(c) is Bidi.Cls.R or Bidi.Cls.AL)))
@@ -718,7 +727,7 @@ public static partial class ContentEditor
 
     /// <summary>Where a paragraph's new text is written: its first run in content order in its own font and look.</summary>
     private static TextRun Anchor(IReadOnlyList<TextRun> runs) =>
-        runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => r.Id) ?? runs.Where(r => !r.StandIn).MinBy(r => r.Id) ?? runs.MinBy(r => r.Id)!;
+        runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
 
     /// <summary>
     /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
@@ -828,13 +837,13 @@ public static partial class ContentEditor
             if (family is null && (bold != lead.Bold || italic != lead.Italic))
             {
                 // The page's own face for it, when the paragraph has one (a bold word as the generator drew it).
-                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && !ReferenceEquals(r.Font, lead.Font) && SameFamily(r, lead) && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
+                page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && !ReferenceEquals(r.Font, lead.Font) && SameFamily(r, lead) && r.Bold == bold && r.Italic == italic).MinBy(r => Order(r.Id));
             }
             else if (family is not null)
             {
                 // Another family the paragraph has in a font of the page's (a word in Times, a symbol font): that font.
                 page = _p.Runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null && FontNames.Family(r.FontName).Equals(family, StringComparison.OrdinalIgnoreCase)
-                                          && r.Bold == bold && r.Italic == italic).MinBy(r => r.Id);
+                                          && r.Bold == bold && r.Italic == italic).MinBy(r => Order(r.Id));
             }
             if (page is null && (family is not null || bold != lead.Bold || italic != lead.Italic))
             {
@@ -919,12 +928,12 @@ public static partial class ContentEditor
         }
         var anchor = Anchor(now);
         var plain = PlainRun(now);
-        if (now.Any(r => !ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)))
+        if (now.Any(r => !FormPlace.SameDrawing(r.Info!.Form, anchor.Info!.Form)))
             throw new ContentEditException(PdfStrings.Edit_PageChangedParagraph);
         // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
         var spaces = paragraph.Spaces
             .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
-            .Where(r => r is not null && now.All(n => n.Id != r.Id) && ReferenceEquals(r.Info!.Form?.Form, anchor.Info!.Form?.Form)).Select(r => r!).ToList();
+            .Where(r => r is not null && now.All(n => n.Id != r.Id) && FormPlace.SameDrawing(r.Info!.Form, anchor.Info!.Form)).Select(r => r!).ToList();
         var target = TargetOf(doc, page, streams, ops, walk, anchor);
         var layout = LayOut(paragraph, now, text, spans);
         if (layout.Check.Missing.Count > 0)

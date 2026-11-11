@@ -729,6 +729,13 @@ public static partial class ContentEditor
         {
             for (var f = this; f is not null; f = f.Outer) yield return f.Form;
         }
+
+        /// <summary>
+        /// Whether two runs' places are one drawing: the page's own content, or one form drawn by one Do (its id is unique
+        /// on the page). Two drawings of one form are two pieces of content: one operator draws a line in both.
+        /// </summary>
+        public static bool SameDrawing(FormPlace? a, FormPlace? b) =>
+            a is null ? b is null : b is not null && ReferenceEquals(a.Form, b.Form) && a.DoId == b.DoId;
     }
 
     private sealed class Walked

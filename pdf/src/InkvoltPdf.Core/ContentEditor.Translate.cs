@@ -60,7 +60,7 @@ public static partial class ContentEditor
             foreach (var s in UprightSlots(part.Content, part.Cells, cancel))
                 slots.Add(new TranslationSlot(OnPage(s.Paragraph, part), s.Cell is { } c ? part.Frame.Out(c) : null) { Part = part });
         // The same order however the page's runs were grouped.
-        return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => r.Id))];
+        return [.. slots.OrderBy(s => s.Paragraph.Box.Y).ThenBy(s => s.Paragraph.Box.X).ThenBy(s => s.Paragraph.Runs.Min(r => Order(r.Id)))];
     }
 
     /// <summary>The paragraphs of a page's upright text (or a turned part's, in its frame), in no particular order.</summary>
@@ -880,7 +880,7 @@ public static partial class ContentEditor
     // ---- Where each new line is drawn ----
 
     /// <summary>A run's place in the order its content draws things.</summary>
-    private static int DrawOrder(TextRun run) => run.Info?.Form?.Index ?? run.Id;
+    private static int DrawOrder(TextRun run) => Order(run.Id);
 
     /// <summary>
     /// For each of a paragraph's old lines, the run a new line there is written at: its last one in the paragraph's color
@@ -1196,7 +1196,7 @@ public static partial class ContentEditor
             // Spaces drawn on their own go too; one on the lines of two paragraphs only once.
             foreach (var run in p.Spaces)
             {
-                if (!ReferenceEquals(run.Info?.Form?.Form, anchor.Info.Form?.Form) || (anchor.Info.Form is { } a && run.Info!.Form!.DoId != a.DoId)) continue;
+                if (!FormPlace.SameDrawing(run.Info?.Form, anchor.Info.Form)) continue;
                 var op = target.OpOf(run);
                 if (taken.Add((target, op.Start))) edits.Add((op.Start, op.End, Removed(op, run)));
             }

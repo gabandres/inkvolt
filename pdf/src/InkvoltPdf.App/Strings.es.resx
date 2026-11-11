@@ -11478,6 +11478,14 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>No se añadieron {0} archivos más: Inkvolt PDF convierte hasta {1} a la vez.</value>
     <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
   </data>
+  <data name="Explorer_TooMany_One" xml:space="preserve">
+    <value>No se añadió {0} archivo más: hasta {1} archivos pueden esperar para convertirse. Vuelve a intentarlo cuando terminen estos.</value>
+    <comment>{0} the count of files left out, {1} the most that wait (5,000)</comment>
+  </data>
+  <data name="Explorer_TooMany_Many" xml:space="preserve">
+    <value>No se añadieron {0} archivos más: hasta {1} archivos pueden esperar para convertirse. Vuelve a intentarlo cuando terminen estos.</value>
+    <comment>{0} the count of files left out, {1} the most that wait (5,000)</comment>
+  </data>
   <data name="Explorer_CantConvert" xml:space="preserve">
     <value>No se puede convertir</value>
     <comment>Title of the message when the convert command line is wrong</comment>

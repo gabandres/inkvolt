@@ -30,7 +30,7 @@ internal static class ExplorerConvert
     {
         var queue = new ConvertQueue((job, cancel) =>
             ExportActions.ConvertFile(Noticed.Contains(job) && _main is { } m ? m : (Window?)_list ?? Application.Current.MainWindow!,
-                job.Pdf, job.Format, () => false, cancel)); // a notice's result opens once the launches have settled (OpenWhenSettled)
+                job.Pdf, job.Format, () => false, job.Answers, cancel)); // a notice's result opens once the launches have settled (OpenWhenSettled)
         queue.Changed += OnChanged;
         return queue;
     }
@@ -105,12 +105,14 @@ internal static class ExplorerConvert
     {
         _main = main;
         var queue = Queue;
-        var leftOut = request.OverLimit + request.Refused;
+        // A flood of launches can't grow the list for good (ConvertQueue.MaxWaiting): what doesn't fit is said apart.
+        (request, var cut) = queue.Fit(request);
+        var leftOut = ConvertCommand.AddLeftOut(ConvertCommand.AddLeftOut(request.OverLimit, request.Refused), cut);
         // A notice still converting, or whose result waits to open, came from the same selection when another launch
         // follows (a loaded PC spaces them out past ConvertGather.Quiet): it joins the list, and nothing opens.
         var folded = Fold();
         var notice = !folded && leftOut == 0 && ConvertCommand.ShowsNotice(main is not null, _list is not null, queue.IsBusy, request.Files.Count);
-        Log.Write($"Convert from Explorer: {request.Files.Count} file(s) to {request.Format}{(leftOut > 0 ? $", {request.OverLimit} over the limit, {request.Refused} refused" : "")}, {(notice ? "notice" : "listed")}");
+        Log.Write($"Convert from Explorer: {request.Files.Count} file(s) to {request.Format}{(leftOut > 0 ? $", {request.OverLimit} over the limit, {request.Refused} refused, {cut} past the waiting list" : "")}, {(notice ? "notice" : "listed")}");
         if (notice)
         {
             main!.BringToFront();
@@ -118,7 +120,7 @@ internal static class ExplorerConvert
         else
         {
             ShowList();
-            _list!.SayLeftOut(request.OverLimit, request.Refused);
+            _list!.SayLeftOut(request.OverLimit, request.Refused, cut);
         }
         _nextNoticed = notice;
         try
@@ -335,20 +337,39 @@ internal sealed class ConvertWindow : Window
         var row = new StackPanel { Margin = new Thickness(0, 8, 0, 4) };
         _tracked.Add((job, row));
         _rows.Children.Add(row);
+        // The rows follow the queue's list (it keeps the last ConvertQueue.MaxListed finished): no row for good per file.
+        if (_tracked.Count > _queue.Jobs.Count)
+        {
+            var listed = _queue.Jobs.ToHashSet();
+            foreach (var gone in _tracked.Where(t => !listed.Contains(t.Job)).ToList())
+            {
+                _rows.Children.Remove(gone.Row);
+                _tracked.Remove(gone);
+                // Still counted in the heading (the queue trims finished ones only).
+                _goneDone++;
+                if (gone.Job.Outcome?.Result == ConvertResult.Saved) _goneSaved++;
+            }
+        }
         Fill(job, row);
         Refresh();
     }
 
-    private int _overLimit, _refused;
+    private int _goneDone, _goneSaved;
+    private int _overLimit, _refused, _cut;
 
-    /// <summary>What the launches left out, said apart: past the 500-file limit, and names that can't be a file.</summary>
-    public void SayLeftOut(int overLimit, int refused)
+    /// <summary>
+    /// What the launches left out, said apart: past the 500-file limit, names that can't be a file, and files past the
+    /// waiting list (<see cref="ConvertQueue.MaxWaiting"/>).
+    /// </summary>
+    public void SayLeftOut(int overLimit, int refused, int cut)
     {
-        _overLimit += overLimit;
-        _refused += refused;
+        _overLimit = ConvertCommand.AddLeftOut(_overLimit, overLimit);
+        _refused = ConvertCommand.AddLeftOut(_refused, refused);
+        _cut = ConvertCommand.AddLeftOut(_cut, cut);
         var lines = new List<string>();
         if (_overLimit > 0) lines.Add(Loc.Plural(_overLimit, Strings.Explorer_Dropped_One, Strings.Explorer_Dropped_Many, ConvertCommand.MaxFiles));
         if (_refused > 0) lines.Add(Loc.Plural(_refused, Strings.Explorer_Refused_One, Strings.Explorer_Refused_Many));
+        if (_cut > 0) lines.Add(Loc.Plural(_cut, Strings.Explorer_TooMany_One, Strings.Explorer_TooMany_Many, ConvertQueue.MaxWaiting));
         _dropped.Text = string.Join(Environment.NewLine, lines);
         _dropped.Visibility = lines.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -371,11 +392,12 @@ internal sealed class ConvertWindow : Window
 
     private void Refresh()
     {
-        var done = _tracked.Count(t => t.Job.State == ConvertJob.States.Done);
-        var saved = _tracked.Count(t => t.Job.Outcome?.Result == ConvertResult.Saved);
-        _heading.Text = done < _tracked.Count || _tracked.Count == 0
-            ? Loc.Plural(_tracked.Count, Strings.Explorer_Converting_One, Strings.Explorer_Converting_Many)
-            : Loc.Format(Strings.Explorer_Finished, saved, _tracked.Count);
+        var total = _tracked.Count + _goneDone;
+        var done = _tracked.Count(t => t.Job.State == ConvertJob.States.Done) + _goneDone;
+        var saved = _tracked.Count(t => t.Job.Outcome?.Result == ConvertResult.Saved) + _goneSaved;
+        _heading.Text = done < total || total == 0
+            ? Loc.Plural(total, Strings.Explorer_Converting_One, Strings.Explorer_Converting_Many)
+            : Loc.Format(Strings.Explorer_Finished, saved, total);
         _button.Content = _queue.IsBusy ? Strings.Common_Cancel : Strings.Common_Close;
         _button.IsCancel = true;
     }

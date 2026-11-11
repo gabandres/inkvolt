@@ -77,7 +77,7 @@ public partial class App : Application
             args = Core.ConvertCommand.ToArguments(convert!);
         }
 
-        _instance = SingleInstance.TryAcquire(args);
+        _instance = SingleInstance.TryAcquire(args, convert: convert is not null);
         if (_instance is null)
         {
             Shutdown();
