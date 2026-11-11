@@ -151,7 +151,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
   fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
   finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30). What Windows added on 2026-11-01 is still to do on the Mac.
+- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30); Windows' additions of 2026-11-01 and 11-02 done on the Mac 2026-11-11 (`RedactionSearch` with Vision, `RedactionPatternSets` in the same JSON as Windows', the review sheet, `RedactionReport` and its CSV, `PatternRedaction` for the sheet and Batch, Batch's failure rules, `ProFeature.patternRedaction`). Mac differences (`mac/docs/PLAN.md`, "Redaction by pattern, Windows' additions"): Vision is always there, so "not read" means no recognizer or one that failed, not a missing OCR language; a page the engine refuses (page checks) is said and fails Batch's file; a recognized word that touches a black box is left out of the text laid back; a saved set's pattern is ICU's (one written on Windows may read differently or be refused, and ICU refuses a pattern nested hundreds deep); the review list's rows are PdfCore's `RedactionReviewList`.
 
 ### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
 - **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share

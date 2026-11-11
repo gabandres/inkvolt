@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Redact by Pattern lists every match with its page and the words around it, beside the page itself: untick any you want to keep, then Redact. Scanned pages and pictures of text are searched through text recognition and flagged for you to look at, never called clean. Afterwards the result is read back, searched again and checked, and a report lists what was removed, masked.
+- Inkvolt Pro: save sets of patterns and phrases, use your own pattern, run a set over a folder in Batch with a removal report (CSV) beside the results.
 
 ## 1.11.0
 - Translate with AI (Tools › AI Assistant): a translated copy of the pages you choose opens beside the document and scrolls with it. Each paragraph stays in its box, tables cell by cell, with its bold, italic and small raised or lowered text; links move with the words they mark. It uses the AI endpoint you set up (on this Mac or yours), shows exactly what is sent before anything is, and can be stopped any time, keeping what's done. The document isn't changed.

@@ -3,6 +3,10 @@ import PrintCore
 
 /// The features Inkvolt Pro unlocks (pdf/ROADMAP.md, "Free and Pro").
 public enum ProFeature: CaseIterable, Sendable {
+    /// Redaction by pattern's power side: saved pattern sets, your own regular expression, Batch's Redact Patterns and the
+    /// removal report's rows and CSV (the built-in kinds and phrases on one document, the review list, the read-back and the
+    /// pages to look at stay free).
+    case patternRedaction
     /// Saving, importing and exporting batch presets (Batch itself stays free).
     case batchPresets
     /// Watched folders, in the app and from the command line.
@@ -76,6 +80,7 @@ public enum Pro {
     /// The feature's name as the window shows it.
     public static func title(_ feature: ProFeature) -> String {
         switch feature {
+        case .patternRedaction: loc("Pattern redaction")
         case .batchPresets: loc("Batch presets")
         case .watchedFolders: loc("Watched folders")
         case .commandLine: loc("Command line")
@@ -90,6 +95,8 @@ public enum Pro {
     /// What the feature does, for a person who hasn't unlocked it.
     public static func describe(_ feature: ProFeature) -> String {
         switch feature {
+        case .patternRedaction:
+            loc("Save your own sets of patterns and phrases on this Mac, search with your own regular expression, redact a set over a whole folder in Batch, and get a report per file of each removal's page, pattern and masked value.")
         case .batchPresets:
             loc("Save the list of Batch actions with their settings under a name and pick it next time; export a preset to share it or for the command line, import one from someone else.")
         case .watchedFolders:
@@ -112,6 +119,7 @@ public enum Pro {
     /// What a person is told when a feature isn't unlocked.
     public static func locked(_ feature: ProFeature) -> String {
         switch feature {
+        case .patternRedaction: loc("Pattern sets, regex, Batch and the report are part of Inkvolt Pro.")
         case .batchPresets: loc("Saved batch presets are part of Inkvolt Pro.")
         case .watchedFolders: loc("Watched folders are part of Inkvolt Pro.")
         case .commandLine: loc("The command line is part of Inkvolt Pro.")

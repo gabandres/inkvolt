@@ -98,12 +98,24 @@ public struct RedactionCheckOptions: Sendable {
     public var original: [UInt8]?
     /// Pages a search before the check skipped (from 0): what was there wasn't looked for, so the check is incomplete.
     public var skipped: [Int]
+    /// What redaction by pattern looked for: whatever those patterns find in the comments, fields, bookmarks, properties,
+    /// attachments and tags (which no page shows, so no page search saw them) is looked for too, and reported where it is.
+    public var patterns: RedactionPatternOptions?
+    /// What the person chose to keep: not looked for, though `patterns` would find it.
+    public var kept: [String]
+    /// Look only for the values and what `patterns` read, earlier versions too: no covers, hidden comments or earlier
+    /// versions' other text (a batch's check of its own redaction).
+    public var valuesOnly: Bool
 
-    public init(values: [String] = [], areas: [Int: [RectD]]? = nil, original: [UInt8]? = nil, skipped: [Int] = []) {
+    public init(values: [String] = [], areas: [Int: [RectD]]? = nil, original: [UInt8]? = nil, skipped: [Int] = [],
+                patterns: RedactionPatternOptions? = nil, kept: [String] = [], valuesOnly: Bool = false) {
         self.values = values
         self.areas = areas
         self.original = original
         self.skipped = skipped
+        self.patterns = patterns
+        self.kept = kept
+        self.valuesOnly = valuesOnly
     }
 }
 
@@ -215,6 +227,12 @@ public enum RedactionCheck {
     public static func run(_ data: [UInt8], _ password: String?, _ options: RedactionCheckOptions = RedactionCheckOptions(),
                            progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil) throws -> RedactionCheckReport {
         try Check(data, password, options, progress, cancel).run()
+    }
+
+    /// A finding about what was just redacted still being in the file, rather than about the file as it came (a box that
+    /// hides text elsewhere, a hidden layer).
+    public static func isLeftover(_ kind: RedactionLeak) -> Bool {
+        ![.coveredText, .coveredContent, .unappliedMark, .glyphSpacing, .hiddenContent].contains(kind)
     }
 
     /// The areas to redact to fix the findings that a redaction fixes, per page.
@@ -546,27 +564,38 @@ extension RedactionCheck {
             // The pages' text first (the engine reads text in a context of its own; Windows reads it on another thread
             // while it walks the pages).
             texts = try (0..<pages).map { p in try skipped.unlessRefused { try engine.text(p, cache: false, cancel: cancel) } ?? .empty }
-            var scans: [PageScan] = []
-            for p in 0..<pages {
-                try cancel.check()
-                scans.append(p < docPages ? try scanPage(doc, p) : PageScan())
-                step()
+            if options.valuesOnly {
+                step(pages * 2)
+            } else {
+                var scans: [PageScan] = []
+                for p in 0..<pages {
+                    try cancel.check()
+                    scans.append(p < docPages ? try scanPage(doc, p) : PageScan())
+                    step()
+                }
+                var hidden: [[(start: Int, end: Int)]] = []
+                for p in 0..<pages {
+                    hidden.append(try hiddenChars(engine, p, scans[p]))
+                    marks(p, scans[p])
+                    step()
+                }
+                try covers(engine, scans)
+                for p in 0..<pages { hiddenRuns(p, hidden[p], scans[p]) }
+                if let areas = options.areas, !areas.isEmpty { try self.areas(engine, scans, areas) }
+                hiddenContent(doc)
             }
-            var hidden: [[(start: Int, end: Int)]] = []
-            for p in 0..<pages {
-                hidden.append(try hiddenChars(engine, p, scans[p]))
-                marks(p, scans[p])
-                step()
-            }
-            try covers(engine, scans)
-            for p in 0..<pages { hiddenRuns(p, hidden[p], scans[p]) }
-            if let areas = options.areas, !areas.isEmpty { try self.areas(engine, scans, areas) }
-            hiddenContent(doc)
 
-            let all = RedactionCheck.clean(options.values + found)
+            let kept = Set(RedactionCheck.clean(options.kept).map { $0.lowercased() })
+            // What the patterns found outside the pages goes first: those are leftovers for certain, not just possible ones.
+            let outside = RedactionCheck.clean(try patternValues(doc)).filter { !kept.contains($0.lowercased()) }
+            let all = RedactionCheck.clean(outside + options.values + found).filter { !kept.contains($0.lowercased()) }
             let values = Array(all.prefix(RedactionCheck.maxValues))
             if all.count > values.count {
-                incomplete = true // as Windows: the others weren't looked for
+                // With the patterns run over the rest of the file, what they read there has been looked for anyway; a value they
+                // didn't read there (a removed page value, one under a cover) wasn't looked for in earlier versions or the raw
+                // bytes, so the check is incomplete (stricter than Windows, which counts on the patterns alone).
+                let read = Set(outside.map { $0.lowercased() })
+                if options.patterns == nil || all.dropFirst(values.count).contains(where: { !read.contains($0.lowercased()) }) { incomplete = true }
                 let first = CoreLanguage.number(values.count), of = CoreLanguage.number(all.count)
                 notes.append(loc("Only the first {0} of {1} redacted values were looked for as written in the rest of the file.", first, of))
             }
@@ -576,6 +605,11 @@ extension RedactionCheck {
                 let inFile = try objects(doc, matcher)
                 try earlierVersions(engine, matcher, inFile, revisions)
                 try rawBytes(doc, matcher, inFile)
+                // What the patterns read but the search for it as written didn't place (an attached PDF's kerned text) is still there.
+                let outsideKeys = Set(outside.map { $0.lowercased() })
+                for v in 0..<values.count where !hits.contains(v) && outsideKeys.contains(values[v].lowercased()) {
+                    add(RedactionFinding(.fileData, loc("Another part of the file"), values[v]))
+                }
             } else {
                 try earlierVersions(engine, nil, [], revisions)
             }

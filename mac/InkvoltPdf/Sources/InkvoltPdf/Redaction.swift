@@ -24,6 +24,12 @@ final class RedactionState {
     var lastInventory: InventoryReport?
     /// The self-test's recognizer for the text left on redacted pages (nil: Vision).
     var testRecognizer: Recognizer?
+    /// The self-test's recognizer for Redact by Pattern's search of scans and its read-back (nil: Vision).
+    var testReader: (any TextRecognizer)?
+    /// Redact by Pattern's list and its removal report while they are open, and the last report (the self-test reads them).
+    var reviewSheet: RedactReviewSheet?
+    var removalSheet: RemovalReportSheet?
+    var lastRemoval: RedactionFileReport?
     /// The last choices of Redact by Pattern, offered again (until the app quits).
     static var lastPatterns = RedactionPatternOptions()
 }
@@ -164,60 +170,9 @@ extension DocumentWindowController {
             var remembered = options
             remembered.pages = nil
             RedactionState.lastPatterns = remembered
-            self.startLongTask { await self.markPatternMatches(options) }
+            self.startLongTask { await self.runPatternRedaction(options) }
         }
         if let panel = sheet.window { window.beginSheet(panel) }
-    }
-
-    /// Finds the pattern matches with a progress sheet (Cancel stops it), marks them and turns the Redact tool on, so a
-    /// mark can be clicked away before they are applied. The matches, nil when cancelled or stopped.
-    @discardableResult
-    func markPatternMatches(_ options: RedactionPatternOptions) async -> [RedactionMatch]? {
-        let sheet = ProgressSheet(title: loc("Redact by Pattern"), text: loc("Searching the pages…"))
-        progressSheet = sheet
-        sheet.begin(on: window)
-        defer {
-            sheet.end()
-            progressSheet = nil
-        }
-        let engine = engine
-        let token = sheet.token
-        let progress: @Sendable (Int, Int) -> Void = { done, total in
-            onMain { sheet.update(loc("Searching page {0} of {1}…", CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(total, 1))) }
-        }
-        let skipped = SkippedPages()
-        let result = await Task.detached { () -> Result<[RedactionMatch], Error> in
-            Result { try RedactionPatterns.find(engine, options, progress: progress, cancel: token, skipped: skipped) }
-        }.value
-        // A page the engine refused wasn't searched: said with whatever was found, so nobody takes it as clean.
-        let unsearched = skipped.note.map { " " + $0 } ?? ""
-        guard engine === self.engine else { return nil }
-        let matches: [RedactionMatch]
-        switch result {
-        case .success(let m): matches = m
-        case .failure(let error as RedactionSearchTimeout):
-            inform(loc("The search stopped"), error.message)
-            return nil
-        case .failure(is CancellationError):
-            return nil
-        case .failure(let error):
-            pdf.showError(loc("The pages couldn't be searched."), error)
-            return nil
-        }
-        if matches.isEmpty {
-            notify(loc("Nothing matching was found on the pages searched.") + unsearched)
-            return matches
-        }
-        pages.addRedactions(matches.flatMap { m in m.rects.map { RedactMark(page: m.page, rect: $0.inflate(0.5)) } })
-        pages.tool = .redact
-        go(matches[0].page)
-        let summary = RedactionPatterns.summary(matches)
-        let marked = matches.count == 1
-            ? loc("Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.", summary)
-            : loc("Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.",
-                  CoreLanguage.number(matches.count), summary)
-        notify(marked + unsearched)
-        return matches
     }
 
     // MARK: Applying
@@ -273,27 +228,17 @@ extension DocumentWindowController {
         let token = sheet.token
         let skipped = EditBox<Bool>(), recognized = EditBox<Int>()
         let label = marks.count == 1 ? loc("Redact 1 area") : loc("Redact {0} areas", CoreLanguage.number(marks.count))
+        let language = redaction.testRecognizer == nil ? SavedOcr.language : nil
         let ok = await editor.run(label, signaturesWarned: true) { d, pw in
-            let redacted = try Redaction.apply(d, pw, areasNow)
-            onMain { sheet.update(loc("Recognizing the text left on the redacted pages…"), nil) }
-            do {
-                var (words, _) = try PageOcr.recognizePages(redacted, pw, pageList, recognizer, exclude: areasNow, cancel: token) { done, total in
-                    onMain { sheet.update(loc("Recognizing the text left on the redacted pages: page {0} of {1}…", CoreLanguage.number(min(done + 1, total)), CoreLanguage.number(total)),
-                                          Double(done) / Double(max(total, 1))) }
-                }
-                // A word that reaches into a blacked-out area at all goes too (Windows drops only those mostly inside one):
-                // its letters over the black would be text that doesn't show, and the recognizer may have guessed them.
-                for (page, list) in words {
-                    let black = (areasNow[page] ?? []).map { $0.inflate(1) }
-                    words[page] = list.filter { w in !black.contains { !$0.intersect(w.rect).isEmpty } }
-                }
-                let n = words.values.reduce(0) { $0 + $1.count }
-                recognized.value = n
-                return n == 0 ? redacted : try TextLayer.addInvisibleText(redacted, pw, words)
-            } catch is CancellationError {
-                skipped.value = true
-                return redacted
-            }
+            // One path for Apply, Redact by Pattern and Batch: the pages blacked out, their text recognized again (Cancel skips
+            // only that), a word reaching into a blacked-out area left out.
+            let done = try Redaction.applyWithText(d, pw, areasNow, recognize: recognizer, language: language, progress: { done, total in
+                onMain { sheet.update(loc("Recognizing the text left on the redacted pages: page {0} of {1}…", CoreLanguage.number(min(done + 1, total)), CoreLanguage.number(total)),
+                                      Double(done) / Double(max(total, 1))) }
+            }, skipText: token)
+            recognized.value = done.recognized
+            skipped.value = done.textSkipped
+            return done.data
         }
         sheet.end()
         progressSheet = nil
@@ -497,6 +442,12 @@ final class RedactPatternSheet: NSWindowController {
     let range = NSTextField()
     let problem = NSTextField(wrappingLabelWithString: "")
     let more = NSButton()
+    /// Saved sets (Pro): the popup (None first), Save As… and Delete.
+    let setPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let deleteSet = NSButton(title: loc("Delete"), target: nil, action: nil)
+    private(set) var sets: [RedactionPatternSet] = []
+    /// Where the sets are kept (the self-test points it at a folder of its own).
+    var setsFolder = RedactionPatternSets.defaultFolder
     private var advanced: [NSView] = []
     private let pageCount: Int
     private static var hint: String { loc("For example CASE-\\d{4} finds CASE-0412. Line breaks read as spaces.") }
@@ -508,7 +459,18 @@ final class RedactPatternSheet: NSWindowController {
         super.init(window: panel)
         let title = NSTextField(labelWithString: loc("Redact by Pattern"))
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize + 1)
-        let note = Self.wrapped(loc("Marks every match for redaction. Nothing is removed yet: you check the marks, then apply them."))
+        let note = Self.wrapped(loc("Finds every match and lists it for you to check. Nothing is removed until you press Redact."))
+
+        setPopup.target = self
+        setPopup.action = #selector(setPicked)
+        setPopup.setAccessibilityLabel(loc("Saved set"))
+        setPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 240).isActive = true
+        let saveSet = NSButton(title: loc("Save As…"), target: self, action: #selector(saveSetClicked))
+        deleteSet.target = self
+        deleteSet.action = #selector(deleteSetClicked)
+        let setRow = NSStackView(views: [setPopup, saveSet, deleteSet])
+        setRow.spacing = 8
+        let setNote = Self.caption(loc("Saved on this Mac as plain text, words and all."))
 
         let grid = NSGridView(numberOfColumns: 2, rows: 0)
         grid.rowSpacing = 6
@@ -573,7 +535,7 @@ final class RedactPatternSheet: NSWindowController {
         problem.textColor = .systemRed
         problem.preferredMaxLayoutWidth = 500
         problem.isHidden = true
-        let find = NSButton(title: loc("Find and Mark"), target: self, action: #selector(findClicked))
+        let find = NSButton(title: loc("Find…"), target: self, action: #selector(findClicked))
         find.keyEquivalent = "\r"
         let cancel = NSButton(title: loc("Cancel"), target: self, action: #selector(cancelClicked))
         cancel.keyEquivalent = "\u{1b}"
@@ -596,7 +558,8 @@ final class RedactPatternSheet: NSWindowController {
         moreRow.spacing = 4
         advanced = [kindsNote, Self.heading(loc("Your own pattern (a regular expression)")), expression, expressionNote, options]
 
-        var views: [NSView] = [title, note, Self.heading(loc("Look for")), grid, Self.heading(loc("Your words and phrases (one per line)"))]
+        var views: [NSView] = [title, note, Self.heading(loc("Saved set")), setRow, setNote, Self.heading(loc("Look for")), grid,
+                               Self.heading(loc("Your words and phrases (one per line)"))]
         views += [phrasesScroll, Self.heading(loc("Pages")), pagesRow, moreRow]
         views += advanced
         views += [problem, buttons]
@@ -613,6 +576,110 @@ final class RedactPatternSheet: NSWindowController {
         for v in advanced { v.isHidden = more.state != .on }
         buttons.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -40).isActive = true
         panel.contentView = stack
+        reloadSets(select: current.setName)
+    }
+
+    /// The saved sets in the popup, `select` chosen when it is one of them; files that couldn't be read are said.
+    func reloadSets(select: String? = nil) {
+        let (found, problems) = RedactionPatternSets.list(setsFolder)
+        sets = found
+        setPopup.removeAllItems()
+        setPopup.addItem(withTitle: loc("None", context: "no saved set"))
+        for set in sets { setPopup.addItem(withTitle: set.name) }
+        setPopup.selectItem(at: (sets.firstIndex { $0.name == select } ?? -1) + 1)
+        deleteSet.isEnabled = setPopup.indexOfSelectedItem > 0
+        if let first = problems.first {
+            problem.stringValue = first
+            problem.isHidden = false
+        }
+    }
+
+    /// The set chosen fills the choices in (Pro).
+    @objc func setPicked() {
+        let i = setPopup.indexOfSelectedItem - 1
+        deleteSet.isEnabled = i >= 0
+        guard sets.indices.contains(i) else { return }
+        guard Pro.allows(.patternRedaction) else {
+            setPopup.selectItem(at: 0)
+            deleteSet.isEnabled = false
+            return ProWindowController.show(feature: .patternRedaction)
+        }
+        let o = sets[i].options
+        for c in checks { c.box.state = o.patterns.contains(c.pattern) ? .on : .off }
+        phrases.string = o.phrases.joined(separator: "\n")
+        expression.stringValue = o.expression ?? ""
+        wholeWord.state = o.wholeWord ? .on : .off
+        matchCase.state = o.matchCase ? .on : .off
+        expressionChanged()
+        if !(o.expression ?? "").isEmpty || o.matchCase || !o.wholeWord, more.state != .on {
+            more.state = .on
+            moreToggled()
+        }
+    }
+
+    /// Save As…: the choices under a name (Pro), in place of a set with the same name.
+    @objc func saveSetClicked() {
+        guard let window else { return }
+        guard Pro.allows(.patternRedaction) else { return ProWindowController.show(feature: .patternRedaction) }
+        let alert = NSAlert()
+        alert.messageText = loc("Save Pattern Set")
+        alert.informativeText = loc("The kinds, your words and your own pattern, saved on this Mac as plain text under this name.")
+        let name = NSTextField(string: setPopup.indexOfSelectedItem > 0 ? setPopup.titleOfSelectedItem ?? "" : "")
+        name.placeholderString = loc("Name")
+        name.widthAnchor.constraint(equalToConstant: 280).isActive = true
+        name.frame = NSRect(x: 0, y: 0, width: 280, height: 24)
+        alert.accessoryView = name
+        alert.addButton(withTitle: loc("Save"))
+        alert.addButton(withTitle: loc("Cancel"))
+        alert.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .alertFirstButtonReturn else { return }
+                self.saveSet(named: name.stringValue)
+            }
+        }
+    }
+
+    /// Saves the choices as `name`; the problem in words when it can't be saved.
+    @discardableResult
+    func saveSet(named name: String) -> Bool {
+        do {
+            try RedactionPatternSets.save(RedactionPatternSet(name, options()), setsFolder)
+            problem.isHidden = true
+            reloadSets(select: RedactionPatternSets.cleanName(name))
+            return true
+        } catch let e as RedactionPatternSetError {
+            problem.stringValue = e.message
+        } catch {
+            problem.stringValue = loc("The set couldn't be saved: {0}", NSAlert.plainText(error))
+        }
+        problem.isHidden = false
+        fit()
+        return false
+    }
+
+    @objc func deleteSetClicked() {
+        let i = setPopup.indexOfSelectedItem - 1
+        guard let window, sets.indices.contains(i) else { return }
+        let set = sets[i], name = set.name
+        let alert = NSAlert()
+        alert.messageText = loc("Delete the set \"{0}\"?", name)
+        alert.informativeText = loc("It goes from this Mac. What you chose below stays until you close this window.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: loc("Delete"))
+        alert.addButton(withTitle: loc("Cancel"))
+        alert.beginSheetModal(for: window) { response in
+            MainActor.assumeIsolated {
+                guard response == .alertFirstButtonReturn else { return }
+                do {
+                    try RedactionPatternSets.delete(set)
+                    self.problem.isHidden = true
+                } catch {
+                    self.problem.stringValue = loc("The set couldn't be deleted: {0}", NSAlert.plainText(error))
+                    self.problem.isHidden = false
+                }
+                self.reloadSets()
+            }
+        }
     }
 
     @available(*, unavailable)
@@ -637,7 +704,7 @@ final class RedactPatternSheet: NSWindowController {
         return f
     }
 
-    @objc private func moreToggled() {
+    @objc func moreToggled() {
         AppSettings.defaults.set(more.state == .on, forKey: "MoreOptions.RedactPattern")
         for v in advanced { v.isHidden = more.state != .on }
         fit()
@@ -650,7 +717,7 @@ final class RedactPatternSheet: NSWindowController {
         window.setContentSize(content.fittingSize)
     }
 
-    @objc private func expressionChanged() {
+    @objc func expressionChanged() {
         let error = RedactionPatterns.validateExpression(expression.stringValue)
         expressionNote.stringValue = error ?? Self.hint
         expressionNote.textColor = error == nil ? .secondaryLabelColor : .systemRed
@@ -667,11 +734,20 @@ final class RedactPatternSheet: NSWindowController {
     /// The choices as options (pages not included).
     func options() -> RedactionPatternOptions {
         let text = expression.stringValue
-        return RedactionPatternOptions(
+        var o = RedactionPatternOptions(
             patterns: Set(checks.filter { $0.box.state == .on }.map(\.pattern)),
             phrases: phrases.string.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
             wholeWord: wholeWord.state == .on, matchCase: matchCase.state == .on,
             expression: text.trimmingCharacters(in: .whitespaces).isEmpty ? nil : text)
+        // Still the set chosen, unchanged: it is named in the report and a preset.
+        let i = setPopup.indexOfSelectedItem - 1
+        if sets.indices.contains(i) {
+            let set = sets[i].options
+            if set.patterns == o.patterns && set.phrases == o.phrases && set.wholeWord == o.wholeWord && set.matchCase == o.matchCase && set.expression == o.expression {
+                o.setName = sets[i].name
+            }
+        }
+        return o
     }
 
     /// What is wrong with the choices, or nil (and the options with their pages).
@@ -679,6 +755,9 @@ final class RedactPatternSheet: NSWindowController {
         if let error = RedactionPatterns.validateExpression(expression.stringValue) { return (error, nil) }
         var o = options()
         if o.isEmpty { return (loc("Choose something to look for: a kind of text, a word or phrase, or your own pattern."), nil) }
+        if let error = RedactionPatterns.validate(o) { return (error, nil) }
+        // Your own pattern is Pro; the built-in kinds and your words stay free.
+        if o.expression != nil && !Pro.allows(.patternRedaction) { return (Pro.locked(.patternRedaction), nil) }
         if somePages.state == .on {
             let parsed = PageRange.tryParse(range.stringValue, pageCount)
             guard parsed.ok else { return (parsed.error ?? loc("That page range isn't valid."), nil) }
@@ -689,6 +768,7 @@ final class RedactPatternSheet: NSWindowController {
 
     @objc func findClicked() {
         let (error, o) = validate()
+        if error == Pro.locked(.patternRedaction) { ProWindowController.show(feature: .patternRedaction) }
         if let error {
             problem.stringValue = error
             problem.isHidden = false

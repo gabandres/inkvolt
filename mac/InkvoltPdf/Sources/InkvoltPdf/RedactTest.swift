@@ -137,7 +137,7 @@ struct RedactTest {
             break
         }
         await marking(target)
-        await patterns(target)
+        await patterns(patternTarget(target))
         await apply(target)
         if synthetic { await badRedaction() } else { skip("check and fix a dark box over text: synthetic document only") }
         await inventory()
@@ -199,6 +199,25 @@ struct RedactTest {
 
     // MARK: Redact by Pattern
 
+    /// The word Redact by Pattern looks for: the target's page's first word (four letters or more) that isn't also a PDF name
+    /// in the file's bytes ("Page" is "/Page" there, which the check rightly finds again after the redaction), else none.
+    private func patternTarget(_ target: (page: Int, word: String, start: Int, end: Int)?) -> (page: Int, word: String, start: Int, end: Int)? {
+        guard let t = target, let text = try? controller.engine.text(t.page), let bytes = session?.data else { return target }
+        let raw = String(decoding: bytes, as: UTF8.self).lowercased()
+        var word = ""
+        for ch in text.text + " " {
+            if ch.isLetter {
+                word.append(ch)
+                continue
+            }
+            if word.count >= 4, !raw.contains("/" + word.lowercased()), let hit = text.find(word, matchCase: true, wholeWord: true).first {
+                return (t.page, word, hit.start, hit.end)
+            }
+            word = ""
+        }
+        return nil
+    }
+
     private mutating func patterns(_ target: (page: Int, word: String, start: Int, end: Int)?) async {
         send(#selector(DocumentWindowController.redactByPattern(_:)))
         guard let sheet = controller.redaction.patternSheet else { return check(false, "Redact by Pattern sheet shown") }
@@ -215,29 +234,57 @@ struct RedactTest {
             sheet.cancelClicked()
             return check(refused && empty && controller.redaction.patternSheet == nil, "Redact by Pattern: a bad pattern and nothing chosen refused, Cancel")
         }
+        let expected = (try? RedactionPatterns.find(controller.engine, RedactionPatternOptions(patterns: [], phrases: [t.word])))?.count ?? -1
         sheet.phrases.string = t.word
         sheet.wholeWord.state = .on
         sheet.findClicked()
+        // The list of what was found, one line a match; Redact; the removal report; then the word is gone from its page.
+        guard let review = await waitFor({ controller.redaction.reviewSheet }) else { return check(false, "Redact by Pattern: the list of what was found shown") }
+        let listed = review.list.hitCount
+        let title = review.redact.title
+        snapshot(review.window?.contentView, "e1-02b-review.png")
+        review.redactClicked()
+        guard let removal = await waitFor({ controller.redaction.removalSheet }) else { return check(false, "Redact by Pattern: the removal report shown") }
+        let opening = removal.opening.stringValue
+        snapshot(removal.window?.contentView, "e1-02c-removal.png")
+        removal.closeClicked()
         await waitTasks()
-        let expected = (try? RedactionPatterns.find(controller.engine, RedactionPatternOptions(patterns: [], phrases: [t.word])))?.reduce(0) { $0 + $1.rects.count } ?? -1
-        let marked = pages.redactions.count
-        let said = controller.noticeBar.message
-        // Redact by Pattern's own notice (the kinds found in brackets), one match or several.
-        let notice = said.hasPrefix(Shown.head(loc("Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.", Shown.gap)))
-            || said.hasPrefix(Shown.head(loc("Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.", Shown.gap, Shown.gap)))
-        if marked != expected || marked == 0 {
+        // What else the check found in the file (a box it came with) opens its own report: closed here, the apply step looks again.
+        controller.redaction.reportSheet?.closeClicked()
+        let left = wholeWordHits(t.word, t.page)
+        // One undo step, as Apply: undone, the word is back for the steps after this one.
+        let label = session?.undoLabel ?? ""
+        let undone = label.hasPrefix(Shown.head(loc("Redact {0} areas", Shown.gap))) || label == loc("Redact 1 area")
+        if undone { _ = undo(label) }
+        let back = wholeWordHits(t.word, t.page) > 0
+        let readBack = opening.hasPrefix(Shown.head(loc("Read back and searched again: none of what was removed is left in the text of the file. {0} removed{1}.", context: "many", Shown.gap, Shown.gap)))
+            || opening.hasPrefix(Shown.head(loc("Read back and searched again: none of what was removed is left in the text of the file. {0} removed{1}.", context: "one", Shown.gap, Shown.gap)))
+        // The list holds what Vision reads on a scanned page too, so at least the page text's matches.
+        if listed < expected || listed == 0 || !readBack || left > 0 || !undone || !back {
             let p = RedactionState.lastPatterns
             lines.append("  (patterns \(p.patterns.count), phrases \(p.phrases.map(\.count)), whole \(p.wholeWord), case \(p.matchCase), "
-                + "expression \(p.expression?.count ?? -1); expected \(expected); word on page \(t.page + 1): \(wholeWordHits(t.word, t.page)))")
+                + "expression \(p.expression?.count ?? -1); expected \(expected), listed \(listed), button \(title); report: \(opening); left on page \(t.page + 1): \(left); "
+                + "undo \(label), back \(back))")
         }
-        check(refused && empty && controller.redaction.patternSheet == nil && marked == expected && marked > 0 && pages.tool == .redact && notice,
-              "Redact by Pattern (its sheet; a bad pattern and nothing chosen refused first): a word's \(marked) matches marked, the Redact tool on")
+        check(refused && empty && controller.redaction.patternSheet == nil && listed >= expected && listed > 0 && title == loc("Redact {0}", CoreLanguage.number(listed))
+              && readBack && left == 0 && controller.redaction.lastRemoval?.removals.count == listed && undone && back,
+              "Redact by Pattern (its sheet; a bad pattern and nothing chosen refused first): a word's \(listed) matches listed, redacted, read back, gone, one undo step")
+    }
+
+    /// What `get` gives once it gives something, waiting up to a minute (a sheet the long task opens).
+    private func waitFor<T>(_ get: () -> T?) async -> T? {
+        for _ in 0..<1200 {
+            if let v = get() { return v }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        return get()
     }
 
     // MARK: Apply
 
     private mutating func apply(_ target: (page: Int, word: String, start: Int, end: Int)?) async {
         if pages.redactions.isEmpty {
+            pages.tool = .redact
             let g = controller.engine.page(0)
             await press(0, [PointD(g.width * 0.1, g.height * 0.1), PointD(g.width * 0.4, g.height * 0.2)])
         }

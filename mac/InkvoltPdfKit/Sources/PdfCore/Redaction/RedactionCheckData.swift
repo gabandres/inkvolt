@@ -339,7 +339,9 @@ extension RedactionCheck {
         return sb
     }
 
-    private static func strings(_ item: PObj, _ sb: inout String, _ signature: Bool, _ depth: Int) {
+    /// `names`: also the names a file gives its own places (a destination's "paragraph.1.2.3.4"), which nobody reads and
+    /// which read as addresses.
+    static func strings(_ item: PObj, _ sb: inout String, _ signature: Bool, _ depth: Int, names: Bool = true) {
         if depth > 16 { return }
         switch item.kind {
         case .string:
@@ -347,10 +349,18 @@ extension RedactionCheck {
         case .dict:
             for key in item.keys {
                 guard !(signature && key == "Contents"), let v = item[key], !v.isRef else { continue }
-                strings(v, &sb, signature, depth + 1)
+                if !names && ["Dest", "D", "Names", "Limits"].contains(key) {
+                    // The names themselves go; a dictionary they lead to (a script's /JS, a file's /Desc, a layer setting) stays.
+                    if v.kind == .string { continue }
+                    if v.isArray {
+                        for e in v.elements where !e.isRef && e.kind != .string { strings(e, &sb, signature, depth + 2, names: names) }
+                        continue
+                    }
+                }
+                strings(v, &sb, signature, depth + 1, names: names)
             }
         case .array:
-            for e in item.elements where !e.isRef { strings(e, &sb, signature, depth + 1) }
+            for e in item.elements where !e.isRef { strings(e, &sb, signature, depth + 1, names: names) }
         default:
             break
         }
@@ -471,11 +481,52 @@ extension RedactionCheck {
             if let inflated = Inflate.zlib(data[start..<e.lowerBound], limit: maxStreamBytes) {
                 total += inflated.count
                 if total > 512 << 20 { break }
-                sb += "\n" + latin1(inflated)
+                sb += "\n" + printable(inflated)
             }
             at = e.lowerBound
         }
         return sb
+    }
+
+    /// What can be text in a stream's bytes: runs of three or more printable characters (Latin-1), a line each. A redacted
+    /// page's picture inflates to tens of megabytes of black and white, which no value can be in and which took the search
+    /// past its time limit.
+    static func printable(_ bytes: [UInt8]) -> String {
+        func isPrintable(_ b: UInt8) -> Bool { (0x20...0x7E).contains(b) || b == 0x09 || b == 0x0A || b == 0x0D || (0xA0...0xFE).contains(b) }
+        var out = ""
+        var i = 0
+        while i < bytes.count {
+            if !isPrintable(bytes[i]) {
+                i += 1
+                continue
+            }
+            var end = i
+            while end < bytes.count && isPrintable(bytes[end]) { end += 1 }
+            if end - i >= 3 { out += latin1(bytes[i..<end]) + "\n" }
+            i = end
+        }
+        return out
+    }
+
+    /// A string that is only a PDF date ("D:20240115103002+00'00'"), on a line of its own.
+    static let timeStamp = try! NSRegularExpression(pattern: #"^D:[0-9]{4,14}(?:Z|[-+][0-9]{2}'?(?:[0-9]{2}'?)?)?$"#, options: [.anchorsMatchLines])
+    /// A version in four parts, which reads as an IP address.
+    static let programVersion = try! NSRegularExpression(pattern: #"\b[0-9]+(?:\.[0-9]+){3}\b"#)
+    /// What names the program in XMP, as an element or an attribute.
+    static let programInXmp = try! NSRegularExpression(
+        pattern: #"<(pdf:Producer|xmp:CreatorTool)\b[^<>]{0,200}>[^<]{0,1000}</\1>|\b(?:pdf:Producer|xmp:CreatorTool|x:xmptk)\s*=\s*"[^"]{0,1000}""#)
+
+    /// `text` with every match of `regex` replaced by what `replace` makes of it.
+    static func replacing(_ regex: NSRegularExpression, in text: String, _ replace: (String) -> String) -> String {
+        let ns = text as NSString
+        var out = ""
+        var at = 0
+        for m in regex.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            out += ns.substring(with: NSRange(location: at, length: m.range.location - at))
+            out += replace(ns.substring(with: m.range))
+            at = m.range.location + m.range.length
+        }
+        return out + ns.substring(from: at)
     }
 
     private static let wordPattern = try! NSRegularExpression(pattern: #"[\p{L}\p{N}][\p{L}\p{N}@._'\-]*[\p{L}\p{N}]"#)
@@ -623,6 +674,7 @@ extension RedactionCheck.Check {
             try cancel.check()
             let prefix = Array(data[0..<ends[k]])
             let place = loc("Earlier version {0} of the file", CoreLanguage.number(k + 1))
+            if options.valuesOnly, let patterns = options.patterns, !patterns.isEmpty { try patternsInEarlierVersion(prefix, place, patterns) }
             do {
                 if let matcher {
                     let old = try PdfEdit.openToRead(prefix, password)
@@ -640,7 +692,7 @@ extension RedactionCheck.Check {
                 }
                 let pages = try PdfEngine.open(prefix, password: password)
                 defer { pages.close() }
-                for p in 0..<pages.pageCount {
+                for p in 0..<pages.pageCount where !options.valuesOnly {
                     var gone: [String] = []
                     // A page the engine refuses is said, and the version's other pages are still read.
                     guard let text = try SkippedPages().unlessRefused({ try pages.text(p, cache: false, cancel: cancel) }) else {
@@ -662,6 +714,163 @@ extension RedactionCheck.Check {
                 notes.append(loc("{0} couldn't be read on its own.", place))
             }
             step()
+        }
+    }
+
+    /// What the patterns find in what a file holds besides its pages: every object's strings (comments, form fields,
+    /// bookmarks, properties, tags, a link's action, ...), and the contents of attachments, XMP and XFA. Not content streams:
+    /// their numbers would look like phone numbers; only on a file with hidden layers, whose text no page holds, the text
+    /// they show. Dates and ZIP codes aren't looked for in properties: every file's dates and ids are there.
+    func patternValues(_ doc: MuDoc) throws -> [String] {
+        guard let patterns = options.patterns, !patterns.isEmpty else { return [] }
+        let custom = try RedactionPatterns.compile(patterns)
+        var properties = patterns
+        properties.patterns = patterns.patterns.subtracting([.date, .zipCode])
+        let owners = try RedactionCheck.owners(doc, cancel)
+        let info = doc.info?.identity
+        let encrypt = doc.trailer.dict("Encrypt")?.identity
+        var found: [String] = []
+
+        // In windows, overlapping by more than any value: a long attachment is searched to its end.
+        func search(_ text: String, _ kinds: RedactionPatternOptions, _ name: String) throws {
+            let units = Array(text.utf16)
+            let window = 1 << 20, overlap = 1 << 10
+            var at = 0
+            while at < units.count {
+                try cancel.check()
+                let part = at == 0 && units.count <= window ? text : String(decoding: units[at..<min(units.count, at + window)], as: UTF16.self)
+                do {
+                    found += try RedactionPatterns.findValues(part, kinds, custom)
+                } catch let e as RedactionSearchTimeout {
+                    stopped(name, e.message)
+                    return
+                } catch let e as TooManyHits {
+                    stopped(name, e.message)
+                    return
+                }
+                at += window - overlap
+            }
+        }
+        func stopped(_ name: String, _ why: String) {
+            incomplete = true
+            notes.append(loc("{0} couldn't be searched to the end: {1}", name, why))
+        }
+
+        for (n, o) in doc.allObjects().enumerated() {
+            if n & 255 == 255 { try cancel.check() }
+            let owner = owners[o.identity]?.owner
+            if owner?.part == .content || (encrypt != nil && o.identity == encrypt) { continue }
+            let xmp = o.isDict && o.name("Type") == "Metadata"
+            let signature = o.isDict && o.has("ByteRange")
+            var sb = ""
+            if info != nil && o.identity == info {
+                // What made the file: a program's version ("iText 5.5.13.3") reads as an address.
+                for key in o.keys {
+                    guard let value = o[key], !value.isRef else { continue }
+                    if (key == "Producer" || key == "Creator") && value.kind == .string {
+                        sb += RedactionCheck.replacing(RedactionCheck.programVersion, in: value.text ?? "") { _ in "" } + "\n"
+                    } else {
+                        RedactionCheck.strings(value, &sb, false, 1)
+                    }
+                }
+            } else {
+                RedactionCheck.strings(o, &sb, signature, 0, names: false)
+            }
+            // A time stamp's digits can pass a card's check.
+            var text = RedactionCheck.replacing(RedactionCheck.timeStamp, in: sb) { _ in "" }
+            let name = Self.partName(owner, xmp)
+            if o.isStream && (xmp || owner?.part == .attachment || owner?.part == .xfa) {
+                if var bytes = o.streamData, !bytes.isEmpty {
+                    if bytes.count > RedactionCheck.maxStreamBytes {
+                        bytes = Array(bytes.prefix(RedactionCheck.maxStreamBytes))
+                        searchedInPart(.past(RedactionCheck.maxStreamBytes), name)
+                    }
+                    if xmp {
+                        let plain = RedactionCheck.plainText(bytes)
+                        text += "\n" + RedactionCheck.replacing(RedactionCheck.programInXmp, in: plain) { m in
+                            RedactionCheck.replacing(RedactionCheck.programVersion, in: m) { _ in "" }
+                        }
+                    } else if owner?.part == .attachment {
+                        text += "\n" + RedactionCheck.fileText(bytes) + attachedPdfText(bytes, name)
+                    } else {
+                        text += "\n" + RedactionCheck.plainText(bytes)
+                    }
+                } else if !(o.rawStreamData ?? []).isEmpty {
+                    // A filter that fails on its data: its strings were read, what it holds wasn't.
+                    searchedInPart(.unreadable, name)
+                }
+            }
+            try search(text, xmp || signature || owner?.part == .info ? properties : patterns, name)
+        }
+
+        // No page text holds what a hidden layer draws: its text is read from the content, as the page's own.
+        let layers = Sanitizer.scan(doc)[.hiddenLayers]
+        if layers > 0 {
+            hiddenLayers = max(hiddenLayers, layers)
+            let note = loc("A hidden layer's text was searched, but a picture in one can't be.")
+            if options.valuesOnly && !notes.contains(note) { notes.append(note) }
+            for (o, owner) in owners.values where owner.part == .content && o.isStream {
+                if let only = patterns.pages, !only.contains(owner.page) { continue }
+                try cancel.check()
+                guard let bytes = o.streamData else { continue }
+                try search(RedactionCheck.contentTexts(bytes, owner.resources).spaced, patterns, RedactionCheck.name(.hiddenText))
+            }
+        }
+        return found
+    }
+
+    /// The text of an attached PDF's pages: in its raw bytes a line of kerned text is in pieces, and no pattern would read it.
+    private func attachedPdfText(_ bytes: [UInt8], _ name: String) -> String {
+        guard bytes.prefix(1024).firstRange(of: Array("%PDF-".utf8)) != nil else { return "" }
+        do {
+            let engine = try PdfEngine.open(bytes, password: nil)
+            defer { engine.close() }
+            var sb = ""
+            for p in 0..<engine.pageCount { sb += "\n" + (try engine.text(p, cache: false, cancel: cancel).text) }
+            return sb
+        } catch {
+            incomplete = true
+            notes.append(loc("{0} is a PDF that couldn't be opened, so its pages weren't searched.", name))
+            return ""
+        }
+    }
+
+    /// What a part of the file is, in words that hold nothing the file itself named (a note can end up in a log).
+    private static func partName(_ owner: RedactionCheck.Owner?, _ xmp: Bool) -> String {
+        if xmp { return loc("XMP metadata") }
+        return RedactionCheck.name(owner.map { finding($0, "").kind } ?? .fileData)
+    }
+
+    /// A batch's check of a file with no match on its pages keeps its earlier versions: what the patterns read in them is
+    /// left in the file.
+    private func patternsInEarlierVersion(_ prefix: [UInt8], _ place: String, _ patterns: RedactionPatternOptions) throws {
+        do {
+            let custom = try RedactionPatterns.compile(patterns)
+            let pages = try PdfEngine.open(prefix, password: password)
+            defer { pages.close() }
+            for p in 0..<pages.pageCount {
+                if let only = patterns.pages, !only.contains(p) { continue }
+                if try !RedactionPatterns.findOnPage(pages.text(p, cache: false, cancel: cancel), p, patterns, custom).isEmpty {
+                    add(RedactionFinding(.earlierRevision, loc("{0}, page {1}", place, CoreLanguage.number(p + 1)), loc("Text the patterns find, no longer on the pages"),
+                                         rewrite: true))
+                }
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            incomplete = true
+            notes.append(loc("{0} couldn't be searched.", place))
+        }
+        do {
+            let old = try PdfEdit.openToRead(prefix, password)
+            if try !patternValues(old).isEmpty {
+                add(RedactionFinding(.earlierRevision, place, loc("Something the patterns find in what it held besides its pages"), rewrite: true))
+            }
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            incomplete = true
+            notes.append(loc("{0}: what it held besides its pages couldn't be read on its own.", place))
         }
     }
 

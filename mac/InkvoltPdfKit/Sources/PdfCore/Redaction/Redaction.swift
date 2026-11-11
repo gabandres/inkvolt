@@ -9,6 +9,60 @@ import PrintCore
 /// field an area touches is emptied on every page (its value would otherwise survive in its other widgets). Tagged PDFs
 /// lose the redacted page's part of the structure tree. Other pages and the document metadata are left untouched.
 public enum Redaction {
+    /// A redacted document (`applyWithText`). `textSkipped`: its redacted pages were left without text (the reading was
+    /// cancelled); `recognized`: the words laid back over them.
+    public struct RedactedData: Equatable, Sendable {
+        public var data: [UInt8]
+        public var textSkipped: Bool
+        public var recognized: Int
+    }
+
+    /// How a pattern run's redacted pages are read back into text: cleaned, no suspect words (nobody reviews a redacted
+    /// page's words), only the text written.
+    public static let textBackOptions = RecognizeOptions(clean: true, checkWords: false)
+
+    /// `apply`, then `textBack`: Apply Redactions, Redact by Pattern and Batch's Redact Patterns all redact through these
+    /// two (the Windows Core's `ApplyWithText`). Without a recognizer, just `apply`.
+    public static func applyWithText(_ data: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], recognize: Recognizer?,
+                                     language: String? = nil, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
+                                     skipText: CancelToken? = nil) throws -> RedactedData {
+        let redacted = try apply(data, password, areasByPage, cancel: cancel)
+        guard let recognize, redacted != data else { return RedactedData(data: redacted, textSkipped: false, recognized: 0) }
+        return try textBack(redacted, password, areasByPage, recognize, language: language, progress: progress, cancel: cancel, skipText: skipText)
+    }
+
+    /// The redacted pages of `redacted`, pictures now, recognized and given their text again as an invisible text layer, so
+    /// they stay searchable and selectable; what a black box covers isn't kept: a word that reaches into a blacked-out area
+    /// at all goes (Windows drops only those mostly inside one), as its letters over the black would be text that doesn't
+    /// show, and the recognizer may have guessed them. `progress`: (pages read, pages). `skipText` fired: the pages stay
+    /// without text (`textSkipped`), the redaction is kept.
+    public static func textBack(_ redacted: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], _ recognize: Recognizer,
+                                language: String? = nil, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
+                                skipText: CancelToken? = nil) throws -> RedactedData {
+        let pages = areasByPage.keys.sorted()
+        do {
+            // Each page watches both: Cancel ends the edit, skipping ends only the reading (`cancel` isn't caught below).
+            let watched: Recognizer = { engine, page, token in
+                try cancel.check()
+                return try recognize(engine, page, token)
+            }
+            var (words, _) = try PageOcr.recognizePages(redacted, password, pages, watched, exclude: areasByPage, cancel: skipText ?? cancel, progress: progress)
+            try cancel.check()
+            for (page, list) in words {
+                let black = (areasByPage[page] ?? []).map { $0.inflate(1) }
+                words[page] = list.filter { w in !black.contains { !$0.intersect(w.rect).isEmpty } }
+            }
+            let n = words.values.reduce(0) { $0 + $1.count }
+            if n == 0 { return RedactedData(data: redacted, textSkipped: false, recognized: 0) }
+            try skipText.check()
+            return RedactedData(data: try TextLayer.addInvisibleText(redacted, password, words, language: language), textSkipped: false, recognized: n)
+        } catch is CancellationError where skipText?.isCancelled == true {
+            // The whole edit cancelled (Batch's Stop, the same token): nothing is kept.
+            if cancel?.isCancelled == true { throw CancellationError() }
+            return RedactedData(data: redacted, textSkipped: true, recognized: 0)
+        }
+    }
+
     /// - Parameters:
     ///   - areasByPage: areas to black out per page index, in page space (points, displayed page's top-left).
     ///   - dpi: resolution of the replacement page pictures.

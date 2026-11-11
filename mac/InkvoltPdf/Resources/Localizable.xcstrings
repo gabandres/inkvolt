@@ -5589,17 +5589,6 @@
         }
       }
     },
-    "Find and Mark": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buscar y marcar"
-          }
-        }
-      }
-    },
     "Find in document": {
       "extractionState": "manual",
       "localizations": {
@@ -8009,17 +7998,6 @@
         }
       }
     },
-    "Marked 1 match for redaction ({0}). Check the mark, and click it if you want to keep it, then apply it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se marcó 1 coincidencia para eliminar ({0}). Revisa la marca, haz clic en ella si quieres conservarla y luego aplícala."
-          }
-        }
-      }
-    },
     "Marked 1 match for redaction. Check the mark, then apply it.": {
       "extractionState": "manual",
       "localizations": {
@@ -8031,17 +8009,6 @@
         }
       }
     },
-    "Marked {0} matches for redaction ({1}). Check the marks and click any you want to keep to unmark it, then apply them.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se marcaron {0} coincidencias para eliminar ({1}). Revisa las marcas, haz clic en las que quieras conservar para desmarcarlas y luego aplícalas."
-          }
-        }
-      }
-    },
     "Marked {0} matches for redaction. Check the marks, then apply them.": {
       "extractionState": "manual",
       "localizations": {
@@ -8049,17 +8016,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se marcaron {0} coincidencias para eliminar. Revisa las marcas y luego aplícalas."
-          }
-        }
-      }
-    },
-    "Marks every match for redaction. Nothing is removed yet: you check the marks, then apply them.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Marca cada coincidencia para eliminar. Todavía no se quita nada: revisas las marcas y luego las aplicas."
           }
         }
       }
@@ -11100,17 +11056,6 @@
         }
       }
     },
-    "Recognizing the text left on the redacted pages…": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconociendo el texto que queda en las páginas con eliminaciones…"
-          }
-        }
-      }
-    },
     "Rectangle": {
       "extractionState": "manual",
       "localizations": {
@@ -11580,17 +11525,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitar marca de agua"
-          }
-        }
-      }
-    },
-    "Removed": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quitado"
           }
         }
       }
@@ -19504,17 +19438,6 @@
         }
       }
     },
-    "{0}: page {1} of {2}…": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "{0}: página {1} de {2}…"
-          }
-        }
-      }
-    },
     "{0}: turn on \"Recognize text on scanned pages\" to read scans.": {
       "extractionState": "manual",
       "localizations": {
@@ -21051,6 +20974,369 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0}, el original"
+          }
+        }
+      }
+    },
+    "A masked value keeps at most the last two digits of a long number. Your words and your own pattern are listed by kind, never as written.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un valor enmascarado conserva como mucho los dos últimos dígitos de un número largo. Tus palabras y tu propio patrón se indican por tipo, nunca como están escritos."
+          }
+        }
+      }
+    },
+    "Accept All": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aceptar todo"
+          }
+        }
+      }
+    },
+    "Check What Was Found": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa lo que se encontró"
+          }
+        }
+      }
+    },
+    "Delete the set \"{0}\"?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Eliminar el conjunto «{0}»?"
+          }
+        }
+      }
+    },
+    "Each removal (values masked)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada eliminación (valores enmascarados)"
+          }
+        }
+      }
+    },
+    "Elsewhere in the file: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En otra parte del archivo: {0}"
+          }
+        }
+      }
+    },
+    "Finds every match and lists it for you to check. Nothing is removed until you press Redact.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encuentra todas las coincidencias y te las muestra para que las revises. No se elimina nada hasta que pulses Eliminar."
+          }
+        }
+      }
+    },
+    "It goes from this Mac. What you chose below stays until you close this window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borra de este Mac. Lo que elegiste abajo se queda hasta que cierres esta ventana."
+          }
+        }
+      }
+    },
+    "Looking through the rest of the file…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisando el resto del archivo…"
+          }
+        }
+      }
+    },
+    "Masked value": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Valor enmascarado"
+          }
+        }
+      }
+    },
+    "No saved set": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún conjunto guardado"
+          }
+        }
+      }
+    },
+    "None [no saved set]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno"
+          }
+        }
+      }
+    },
+    "Page [a column]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página"
+          }
+        }
+      }
+    },
+    "Read back after redacting: {0} match is still there, on {1}. Run Redact by Pattern again, or undo.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releído después de eliminar: sigue habiendo {0} coincidencia, en {1}. Vuelve a usar Eliminar por patrón, o deshazlo."
+          }
+        }
+      }
+    },
+    "Read back after redacting: {0} matches are still there, on {1}. Run Redact by Pattern again, or undo.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releído después de eliminar: siguen habiendo {0} coincidencias, en {1}. Vuelve a usar Eliminar por patrón, o deshazlo."
+          }
+        }
+      }
+    },
+    "Reading back page {0} of {1}…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releyendo la página {0} de {1}…"
+          }
+        }
+      }
+    },
+    "Reading the result back…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releyendo el resultado…"
+          }
+        }
+      }
+    },
+    "Redaction Report": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informe de eliminación"
+          }
+        }
+      }
+    },
+    "Redaction Report…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informe de eliminación…"
+          }
+        }
+      }
+    },
+    "Save CSV…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar CSV…"
+          }
+        }
+      }
+    },
+    "Save Pattern Set": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar conjunto de patrones"
+          }
+        }
+      }
+    },
+    "Saved on this Mac as plain text, words and all.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guarda en este Mac como texto sin formato, palabras incluidas."
+          }
+        }
+      }
+    },
+    "Saved set": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conjunto guardado"
+          }
+        }
+      }
+    },
+    "Saved set \"{0}\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conjunto guardado «{0}»"
+          }
+        }
+      }
+    },
+    "The kinds, your words and your own pattern, saved on this Mac as plain text under this name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los tipos, tus palabras y tu propio patrón, guardados en este Mac como texto sin formato con este nombre."
+          }
+        }
+      }
+    },
+    "The report couldn't be saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar el informe"
+          }
+        }
+      }
+    },
+    "The report holds masked values only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El informe solo contiene valores enmascarados."
+          }
+        }
+      }
+    },
+    "The result couldn't be read back, so nothing says what was removed is gone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo volver a leer el resultado, así que nada confirma que lo eliminado haya desaparecido."
+          }
+        }
+      }
+    },
+    "The result wasn't read back: you cancelled it, so nothing says what was removed is gone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se volvió a leer el resultado: lo cancelaste, así que nada confirma que lo eliminado haya desaparecido."
+          }
+        }
+      }
+    },
+    "The set couldn't be saved: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar el conjunto: {0}"
+          }
+        }
+      }
+    },
+    "{0} redaction report.csv": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} informe de eliminación.csv"
+          }
+        }
+      }
+    },
+    "{0}, as it is now": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, tal como está ahora"
+          }
+        }
+      }
+    },
+    "The set couldn't be deleted: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo eliminar el conjunto: {0}"
           }
         }
       }
