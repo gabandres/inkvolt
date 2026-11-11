@@ -322,6 +322,11 @@ struct LtvTests {
         let all = Signatures.verify(pdf, nil, anchors: pki.anchors)
         #expect(all.first { $0.signerName == "Test Long-Term Signer" }?.longTerm?.level == .blt)
         #expect(all.first { $0.signerName == "Hostile" }?.longTerm?.dataComplete == false)
+        // B-LTA puts a document timestamp before the data, for the earlier signature: still the new one is judged.
+        #expect(try Self.first(try await Self.signLongTerm(pki, .lta, first), pki).longTerm?.level != nil)
+        pki.revoke(pki.signer, at: Date() - 86400)
+        let message = await Self.message { _ = try await Self.signLongTerm(pki, .lta, first) }
+        #expect(message?.contains("revoked") == true, "\(message ?? "")")
     }
 
     /// A Mac addition (the port's review): a list that names the certificate with a date nobody can read still says it

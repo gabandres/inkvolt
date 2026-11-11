@@ -232,7 +232,7 @@ public enum Ltv {
 
         let gather = Gatherer(client, storedPool(output, password), useStored: true)
         var entries: [VriEntry] = []
-        if strict, let newest = intact.max(by: { $0.end < $1.end }) {
+        if strict, let newest = intact.filter({ !$0.documentTimestamp }).max(by: { $0.end < $1.end }) { // not a timestamp added above
             // Signing promises B-LT for the new signature only: its chain must be complete. Earlier signers' get what can
             // be had, and a gap or a server failing for them doesn't stop the signing.
             let (entry, used) = try await gather.entry(for: newest)
