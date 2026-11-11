@@ -47,6 +47,7 @@ running), the Mac forms corpus and its fixes (a PDF for Mac release if it fixes 
 **Tuesday 2026-11-10 08:00 (PPE's reset): start 2.1 paragraph editing, then 3.1 Translate, on the Mac, on PPE**, one at a
 time. Redaction by pattern additions and 3.4 LTV stay stopped until the owner says.
 **Accounts (owner, 2026-11-10 afternoon): agents on SSS (`claudeAgent_personal`), the orchestrator on PPE.** SSS resets Friday 2026-11-13 11:00 (60 % used at the switch). The 1.11.0 release agent started on PPE before the switch and finishes there; every new agent and review goes to SSS.
+**2026-11-11:** Mac redaction by pattern, Windows' 2026-11-01/02 additions, merged (`a39af0fe`; "Inkvolt PDF for Mac" item 1 below done): Vision search of scans, saved sets, Check What Was Found, read-back, removal report and CSV, Batch's failure rules, the Pro split; medium review 10 (all fixed), low 2 of 4 fixed (2 not real), low clean; PdfCore 1914 on ignia-mac, `--only-redaction` en/es 31/31. Not released: ships with 3.4 LTV (next, another agent). Not checked: Vision on a real scan in this flow, the list and report on screen, VoiceOver.
 **2026-11-10:** Mac 2.1 paragraph editing merged (`ac7ad7e1`; medium review 5 + 1, low rounds 2 then 1, all fixed; mac CI green); Explorer's right-click Convert to Word merged (`3f4f44d3`, Windows, next Windows PDF release). Mac 3.1 Translate agent running (PPE). **Watch:** Windows CI run 42842881789 on `ac7ad7e1` hung in InkvoltPdf.Tests until the 30-minute timeout (no Windows code changed; the rerun passed in 5 min). If it hangs again, run with `--blame-hang-timeout` and suspect the new ConvertCommand/ExplorerConvert tests (their batch waits).
 **Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
 Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
@@ -264,7 +265,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 1. Done 2026-11-04: PDF 1.7.0.0 (Store) and Mac 1.7.0. Check certification: `msstore submission status 9MXDTSFJ9W28`.
 
 **Inkvolt PDF for Mac.**
-1. Redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
+1. Done 2026-11-11 (`a39af0fe`, see its line above): redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
    through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's new failure rules,
    the Pro split). About 3,500 changed lines on Windows (79ba338 alone 2,384): its own session.
 2. Larger items: 3.4 long-term validation (writing /DSS and /VRI, B-LTA, Check Signatures Online, Batch's action, field
