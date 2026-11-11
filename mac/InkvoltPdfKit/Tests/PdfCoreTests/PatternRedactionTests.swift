@@ -81,7 +81,7 @@ final class PatternRedactionTests {
         #expect(options.areas == nil)
     }
 
-    @Test func theDriftCaseARedactedScanKeepsItsTextInBothModes() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func theDriftCaseARedactedScanKeepsItsTextInBothModes() throws {
         for mode in [PatternRedactionMode.reviewed, .unattended] {
             let reader = PlantedReader()
             let (scan, _) = try RedactionCorpusTests.oneScan(reader)
@@ -95,7 +95,7 @@ final class PatternRedactionTests {
         }
     }
 
-    @Test func theDriftCaseBatchRedactedScansStaySearchable() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func theDriftCaseBatchRedactedScansStaySearchable() async throws {
         let reader = PlantedReader()
         let path = (root as NSString).appendingPathComponent("scan.pdf")
         try Data(try RedactionCorpusTests.oneScan(reader).pdf).write(to: URL(fileURLWithPath: path))
@@ -110,7 +110,7 @@ final class PatternRedactionTests {
         #expect(try TextLayer.words(output, nil)[0]?.language == "en-US")
     }
 
-    @Test func aHitStillThereFailsBothUnattendedStoppingThere() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aHitStillThereFailsBothUnattendedStoppingThere() throws {
         let (scan, _) = try RedactionCorpusTests.oneScan(PlantedReader())
         let unattended = try Self.run(scan, .unattended, RedactionCorpusTests.AlwaysReads()).outcome
         #expect(unattended.verdict == .stillThere)

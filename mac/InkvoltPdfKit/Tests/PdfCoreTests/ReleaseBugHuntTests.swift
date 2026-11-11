@@ -112,7 +112,7 @@ final class ReleaseBugHuntTests {
             more: ["<< /Type /Filespec /F (\(name)) /UF (\(name)) /EF << /F 7 0 R >> >>", Core2Pdf.stream(text, "/Type /EmbeddedFile")])
     }
 
-    @Test func A_value_late_in_a_long_attachment_is_found() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func A_value_late_in_a_long_attachment_is_found() async throws {
         Self.fails(try await redact(Self.withAttachment("data.csv", String(repeating: "x", count: 1_500_000) + "\nSSN " + Self.ssn + "\n")))
     }
 
@@ -255,14 +255,14 @@ final class ReleaseBugHuntTests {
         #expect(RedactionReport([RedactionFileReport("a.pdf", [kept], [], nil)]).headline.contains("Read back"))
     }
 
-    @Test func A_picture_nothing_could_read_isnt_said_to_have_been_read() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func A_picture_nothing_could_read_isnt_said_to_have_been_read() async throws {
         let summary = try await redact(try Self.lightOnBand(0.2, PlantedReader()))
         Self.passes(summary)
         #expect(!summary.items[0].notes.contains { $0.contains("read by text recognition") })
         #expect(summary.items[0].notes.contains { $0.contains("Look by hand") && $0.contains("couldn't be read") }, "\(summary.items[0].notes)")
     }
 
-    @Test func A_file_with_a_picture_nothing_could_read_says_to_look_not_just_done() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func A_file_with_a_picture_nothing_could_read_says_to_look_not_just_done() async throws {
         let summary = try await redact(try Self.lightOnBand(0.2, PlantedReader()))
         #expect(summary.items[0].state == .done) // a logo mustn't fail a batch
         #expect(summary.items[0].message.contains("look by hand at page 1"), "\(summary.items[0].message)")
@@ -311,7 +311,7 @@ final class ReleaseBugHuntTests {
         ])
     }
 
-    @Test(arguments: [0.0, 0.3, 0.5, 0.7])
+    @Test(.enabled(if: ScanCorpus.runs), arguments: [0.0, 0.3, 0.5, 0.7])
     func Light_words_on_a_band_in_a_picture_arent_called_clean(_ shade: Double) throws {
         let reader = PlantedReader()
         let pdf = try Self.lightOnBand(shade, reader)
@@ -321,7 +321,7 @@ final class ReleaseBugHuntTests {
     }
 
     /// A scan under a text layer that holds only its first line; the recognizer reads both, and the lines are close.
-    @Test func A_value_on_the_next_line_of_one_the_text_layer_has_is_still_found() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func A_value_on_the_next_line_of_one_the_text_layer_has_is_still_found() async throws {
         let source = Core2Pdf.build([
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",

@@ -3,7 +3,8 @@ import Testing
 @testable import PdfCore
 
 /// Ported from RedactionCorpusTests.cs (same names): roadmap 1.1's test, the corpus finds 100% and leaves 0 after applying;
-/// what OCR can't read is never reported clean. Adapted: a recognizer is a `TextRecognizer` given RGB images; the batch's
+/// what OCR can't read is never reported clean. The tests that read 300 dpi pages or make thousands of matches run on a Mac,
+/// not in CI (`ScanCorpus.runs`: they starved the loopback servers of the timing tests on GitHub's runner). Adapted: a recognizer is a `TextRecognizer` given RGB images; the batch's
 /// recognizer for Redact Patterns is `BatchHost.reader`; a timeout is `RedactionSearchTimeout`, a bad pattern `PdfEditError`
 /// (Windows: `TimeoutException`, `ArgumentException`); the page budget is set for the test through a task local; the
 /// expressions are ICU's (`(?<=(a+)+)b`, a look-behind without a bound, is refused by ICU before anything runs).
@@ -39,7 +40,7 @@ final class RedactionCorpusTests {
         return (result, found, left)
     }
 
-    @Test func findsEveryPlantedValueAndLeavesNoneAfterApplying() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func findsEveryPlantedValueAndLeavesNoneAfterApplying() throws {
         let (data, reader) = try RedactionCorpus.make()
         let (result, found, left) = try Self.applyAndReadBack(data, nil, reader)
         #expect(left.isEmpty, "Still there: \(left.map { "\($0.page + 1):\($0.pattern):\($0.normalized)" })")
@@ -59,7 +60,7 @@ final class RedactionCorpusTests {
         }
     }
 
-    @Test func batchFindsAllLeavesNoneReportsMaskedAndKeepsThePassword() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func batchFindsAllLeavesNoneReportsMaskedAndKeepsThePassword() async throws {
         let (plain, reader) = try RedactionCorpus.make()
         let (a, b) = (p("plain.pdf"), p("locked.pdf"))
         try Data(plain).write(to: URL(fileURLWithPath: a))
@@ -125,7 +126,7 @@ final class RedactionCorpusTests {
         return try RedactionSearch.find(engine, options, ocr: ocr)
     }
 
-    @Test func aValueOcrCantReadIsFlaggedNeverPassedAsClean() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aValueOcrCantReadIsFlaggedNeverPassedAsClean() throws {
         let reader = PlantedReader()
         let (scan, value) = try Self.oneScan(reader)
         for word in ["SSN", "111-22-3333", "on", "this", "line"] { reader.drop(word) }
@@ -139,7 +140,7 @@ final class RedactionCorpusTests {
         #expect(reader.placesReadCount > 0) // after trying that place on its own
     }
 
-    @Test func aScanOcrReadsWellIsStillAPageToLookAt() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aScanOcrReadsWellIsStillAPageToLookAt() throws {
         let reader = PlantedReader()
         let (scan, _) = try Self.oneScan(reader)
         let found = try Self.find(scan, RedactionPatternOptions(), reader)
@@ -148,7 +149,7 @@ final class RedactionCorpusTests {
         #expect(found.looks.map(\.reason) == [.scanReadByOcr])
     }
 
-    @Test func aLineDroppedOnTheWholePageComesBackWhenItsPlaceIsReadAlone() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aLineDroppedOnTheWholePageComesBackWhenItsPlaceIsReadAlone() throws {
         let reader = PlantedReader()
         reader.readsPlacesAlone = true
         let (scan, value) = try Self.oneScan(reader)
@@ -170,7 +171,7 @@ final class RedactionCorpusTests {
         func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] { throw GaveUp() }
     }
 
-    @Test func aRecognizerThatFailsLeavesTheScanNotReadNotClean() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aRecognizerThatFailsLeavesTheScanNotReadNotClean() throws {
         let (scan, _) = try Self.oneScan(PlantedReader())
         #expect(try Self.find(scan, RedactionPatternOptions(), BrokenReader()).unreadScans == [0])
     }
@@ -186,7 +187,7 @@ final class RedactionCorpusTests {
         #expect(try Self.find(pdf).looks.isEmpty)
     }
 
-    @Test func keepingAHundredThousandHitsDoesntStallTheReadBack() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func keepingAHundredThousandHitsDoesntStallTheReadBack() throws {
         let line = Array(repeating: "555-201-3434", count: 40).joined(separator: " ")
         let content = (0..<200).map { "BT /F1 9 Tf 10 \(3900 - $0 * 12) Td (\(line)) Tj ET\n" }.joined()
         let pdf = Core2Pdf.build([
@@ -223,7 +224,7 @@ final class RedactionCorpusTests {
         }
     }
 
-    @Test func batchFailsAFileWhenAHitIsStillThereAfterApplying() async throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func batchFailsAFileWhenAHitIsStillThereAfterApplying() async throws {
         let path = p("scan.pdf")
         try Data(try Self.oneScan(PlantedReader()).pdf).write(to: URL(fileURLWithPath: path))
         let plan = BatchPlan(steps: [.redactPatterns(RedactionPatternOptions())], outputFolder: p("out"))
@@ -335,7 +336,7 @@ final class RedactionCorpusTests {
 
     private static func lines(_ lines: String...) -> PageText { RedactionPatternTests.page(lines) }
 
-    @Test func hugeHitCountsStopRatherThanGrindAndNothingIsPartial() {
+    @Test(.enabled(if: ScanCorpus.runs)) func hugeHitCountsStopRatherThanGrindAndNothingIsPartial() {
         // 200,000 phone numbers on one page: finding them mustn't be quadratic, and the search says it stopped.
         let line = Array(repeating: "555-201-3434", count: 200_000).joined(separator: " ")
         let clock = Date()
@@ -343,14 +344,14 @@ final class RedactionCorpusTests {
         #expect(Date().timeIntervalSince(clock) < 60, "took \(Date().timeIntervalSince(clock)) s")
     }
 
-    @Test func manyHitsUnderTheLimitAreFastEnough() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func manyHitsUnderTheLimitAreFastEnough() throws {
         let line = Array(repeating: "555-201-3434", count: 20_000).joined(separator: " ")
         let clock = Date()
         #expect(try RedactionPatterns.find(Self.lines(line), 0, RedactionPatternOptions()).count == 20_000)
         #expect(Date().timeIntervalSince(clock) < 30, "took \(Date().timeIntervalSince(clock)) s")
     }
 
-    @Test func anExpressionThatKeepsJustUnderItsTimeoutCantRunForever() {
+    @Test(.enabled(if: ScanCorpus.runs)) func anExpressionThatKeepsJustUnderItsTimeoutCantRunForever() {
         RedactionPatterns.$pageBudgetForTests.withValue(1) {
             // Each match costs real time (under the timeout per call), so only the page's budget stops it.
             let text = Self.lines(Array(repeating: String(repeating: "x", count: 21) + "! xxy", count: 400).joined(separator: " "))
@@ -361,7 +362,7 @@ final class RedactionCorpusTests {
         }
     }
 
-    @Test(arguments: ["(a{1000}){1000}{1000}", "((a+)+)+$", #"(\w+\s?)*$"#, "(?<=(a+)+)b"])
+    @Test(.enabled(if: ScanCorpus.runs), arguments: ["(a{1000}){1000}{1000}", "((a+)+)+$", #"(\w+\s?)*$"#, "(?<=(a+)+)b"])
     func catastrophicExpressionsEndInAnErrorNotAHang(_ expression: String) {
         let options = RedactionPatternOptions(patterns: [], expression: expression)
         let clock = Date()
@@ -402,7 +403,7 @@ final class RedactionCorpusTests {
         #expect(hits.first?.after == " more words")
     }
 
-    @Test func aHiddenPageTextOverAPictureDoesntVouchForIt() throws {
+    @Test(.enabled(if: ScanCorpus.runs)) func aHiddenPageTextOverAPictureDoesntVouchForIt() throws {
         // Invisible text boxes a whole page tall can't vouch for the ink under them.
         let (data, reader) = try RedactionCorpus.make()
         let layered = try Self.find(data, RedactionPatternOptions(pages: [8]), reader)
