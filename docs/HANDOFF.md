@@ -47,7 +47,7 @@ running), the Mac forms corpus and its fixes (a PDF for Mac release if it fixes 
 **Tuesday 2026-11-10 08:00 (PPE's reset): start 2.1 paragraph editing, then 3.1 Translate, on the Mac, on PPE**, one at a
 time. Redaction by pattern additions and 3.4 LTV stay stopped until the owner says.
 **Accounts (owner, 2026-11-10 afternoon): agents on SSS (`claudeAgent_personal`), the orchestrator on PPE.** SSS resets Friday 2026-11-13 11:00 (60 % used at the switch). The 1.11.0 release agent started on PPE before the switch and finishes there; every new agent and review goes to SSS.
-**2026-11-11:** Mac redaction by pattern, Windows' 2026-11-01/02 additions, merged (`a39af0fe`; "Inkvolt PDF for Mac" item 1 below done): Vision search of scans, saved sets, Check What Was Found, read-back, removal report and CSV, Batch's failure rules, the Pro split; medium review 10 (all fixed), low 2 of 4 fixed (2 not real), low clean; PdfCore 1914 on ignia-mac, `--only-redaction` en/es 31/31. Not released: ships with 3.4 LTV (next, another agent). Not checked: Vision on a real scan in this flow, the list and report on screen, VoiceOver.
+**2026-11-11:** Mac redaction by pattern, Windows' 2026-11-01/02 additions, merged (`a39af0fe`; "Inkvolt PDF for Mac" item 1 below done): Vision search of scans, saved sets, Check What Was Found, read-back, removal report and CSV, Batch's failure rules, the Pro split; medium review 10 (all fixed), low 2 of 4 fixed (2 not real), low clean; PdfCore 1914 on ignia-mac, `--only-redaction` en/es 31/31. Released in 1.12.0 with 3.4 LTV (see its entry). Not checked: Vision on a real scan in this flow, the list and report on screen, VoiceOver.
 **2026-11-10:** Mac 2.1 paragraph editing merged (`ac7ad7e1`; medium review 5 + 1, low rounds 2 then 1, all fixed; mac CI green); Explorer's right-click Convert to Word merged (`3f4f44d3`, Windows, next Windows PDF release). Mac 3.1 Translate agent running (PPE). **Watch:** Windows CI run 42842881789 on `ac7ad7e1` hung in InkvoltPdf.Tests until the 30-minute timeout (no Windows code changed; the rerun passed in 5 min). If it hangs again, run with `--blame-hang-timeout` and suspect the new ConvertCommand/ExplorerConvert tests (their batch waits).
 **Forms (owner, 2026-11-07): a real AcroForm with JS formatting/calculation (S-30) can't be filled on Windows; Nitro can.**
 Agent on its root cause (synthetic form in tests, the owner's file never in the repo). Then a forms conformance corpus
@@ -92,6 +92,27 @@ runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a passwo
    - **Later:** Explorer's right-click "Convert to Word with Inkvolt PDF".
 
    Research 2026-11-08: Nitro (Convert tab: To Word, To Excel, then an options window), Foxit (Convert › To MS Office, plus Explorer's right-click), PDF-XChange (Convert tab), PDFgear (Convert menu and a floating To Word button), Acrobat (Convert in the top bar, then a side panel; paid).
+**Inkvolt PDF for Mac 1.12.0 published 2026-11-11** (`pdf-mac-v1.12.0` on `253c615c`, notarized DMG sha256 5819fc88…a83a2bb35,
+39.9 MB, appcast with Spanish notes, not Latest; Homebrew cask `812f599` (pushed from a clone), website `c1f185a` deployed and pushed;
+redaction by pattern's Windows additions (`a39af0fe`) and 3.4 long-term validation): **3.4 on the Mac merged `3ce8aca5`** (B-LT/B-LTA
+when signing, Add Verification Information…, Check Signatures Online…, Batch's action with `--online`, field locks when certifying,
+the Pro gate, every timestamp through `LtvClient` (https only); Windows' LtvTests, FieldLockTests, BatchLongTermTests and
+SignatureChangeTests' FieldMDP additions ported with Mac additions, against `LtvTestPki` on loopback). Reviews: medium (10, 8 fixed;
+not changed: https-only plain timestamps, Windows' rule; Batch reading signatures twice, as Windows), low (1, fixed), low (clean).
+Hostile-input review since 1.11.0 (6, all fixed: a check out of time no longer leaves a certificate trusted, /DSS can't free an
+object the document uses, CRL distribution-point scope, only a trusted timestamp gives a time, no-check only on responders,
+control characters in certificate addresses and names), its medium (10, 8 fixed; not changed: gathering also at an untrusted
+timestamp's claimed time, trust lost on a timed-out check by design), low (2, fixed), low (clean). **A socket leak** (LtvClient left
+a reply's connection open when its body came whole with its head: +8 descriptors a file in a probe) fixed and measured flat; it had
+made full local runs fail every loopback test under the shell's 256 open files. **Windows has the hostile-input findings open**
+(each listed in `mac/docs/PLAN.md` "Long-term validation", "Stricter after the hostile-input review"): port them to `LongTermCheck`,
+`SignatureChanges`, `RevocationData` and `Ltv` with tests. Mac CI green on `253c615c` (pdf and build). Installed dev build of `3ce8aca5`
+(load 3–4, Sparkle checks off for the run): self-test en 645/0, es 645/0, `--only-redaction` 67/0 in both, strings complete
+(PdfStrings 2370, Localizable 2014, CoreStrings 925); bench before 1.12.0 in `mac/tools/bench/RESULTS.md` (faster than 1.11.0's; the
+two drawings.pdf misses stay). The released 1.11.0 finds 1.12.0 in the feed (en, es); /Applications holds 1.12.0 from the DMG
+(notarized, accepted). Full local runs on ignia-mac still fail Vision's timed tests and, under load, AI loopback timing (known);
+CI mode (`GITHUB_ACTIONS=1`) passed but a Translate timing flake. Not checked: EU DSS or Acrobat on the Mac's files, a real
+authority, the windows on screen, VoiceOver on the address lists.
 **Inkvolt PDF for Mac 1.11.0 published 2026-11-10** (`pdf-mac-v1.11.0` on `d4d777fe`, notarized DMG sha256 7f77f557…c964ee95,
 39.4 MB, appcast with Spanish notes, not Latest; Homebrew cask `d8d4108` (pushed from a clone), website `076b516` deployed, not
 pushed (Z:\portfolio's two privacy-policy commits from another session sit under it, already live); 2.1 paragraph editing and 3.1
@@ -268,8 +289,7 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
 1. Done 2026-11-11 (`a39af0fe`, see its line above): redaction by pattern, Windows' additions of 2026-11-01 and 2026-11-02 (roadmap 1.1: named sets, scans searched
    through OCR text, every hit listed to accept or skip, the read-back and the report with CSV, Batch's new failure rules,
    the Pro split). About 3,500 changed lines on Windows (79ba338 alone 2,384): its own session.
-2. Larger items: 3.4 long-term validation (writing /DSS and /VRI, B-LTA, Check Signatures Online, Batch's action, field
-   locking, the Pro gate, the rest of LtvTests.cs; `Signatures.verify(online:)` exists in PdfCore, unused by the app);
+2. Larger items: 3.4 long-term validation done 2026-11-11 (`3ce8aca5`, released in 1.12.0);
    2.3's leftovers (leaving out blank pages, scan presets, the scanners Inkvolt Print remembers); 3.3 Compare with Office
    files, scans and formatting; 3.5 indexed folder search; Microsoft Office as E12's converter (on the mini, backlog
    note below); 3.1 Translate (after 2.1); 2.1 paragraph text editing (the largest; the Mac has the line-level editor).
