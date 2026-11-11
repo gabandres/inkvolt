@@ -220,6 +220,8 @@ public enum BatchPresets {
                 w.string("language", language)
             case .saveAsPdfA2a:
                 w.string("conformance", "a")
+            case .addLongTerm(let url):
+                w.string("timestampServer", url)
             case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .saveAsPdfA:
                 break
             }
@@ -228,7 +230,7 @@ public enum BatchPresets {
 
     /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list).
     public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark",
-                                     "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "export"]
+                                     "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData", "export"]
 
     private static func actionName(_ step: BatchStep) -> String {
         switch step {
@@ -247,6 +249,7 @@ public enum BatchPresets {
         case .ocr: "ocr"
         case .makeAccessible: "makeAccessible"
         case .saveAsPdfA, .saveAsPdfA2a: "saveAsPdfA"
+        case .addLongTerm: "addLongTermData"
         case .export: "export"
         }
     }
@@ -500,6 +503,13 @@ public enum BatchPresets {
             step = .makeAccessible(language: (language ?? "").isEmpty ? nil : language)
         case "saveAsPdfA":
             step = try f.choice("conformance", "b", ["b", "a"]) == "a" ? .saveAsPdfA2a : .saveAsPdfA
+        case "addLongTermData":
+            var url = try f.text("timestampServer", nil)
+            if url?.isEmpty == true { url = nil }
+            if let url, let why = LtvClient.whyRefused(url, .timestamp) {
+                throw BatchPresetError(loc("Action {0} (addLongTermData): \"timestampServer\" can't be used: {1}.", CoreLanguage.number(n), why))
+            }
+            step = .addLongTerm(timestampUrl: url)
         default:
             step = .export(try f.choice("format", BatchExportFormat.text, BatchExportFormat.allCases), dpi: try f.int("dpi", 150, 36, 1200))
         }

@@ -24673,6 +24673,1403 @@
           }
         }
       }
+    },
+    "Long-term validation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Validación a largo plazo"
+          }
+        }
+      }
+    },
+    "Add long-term validation data": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar datos de validación a largo plazo"
+          }
+        }
+      }
+    },
+    "\"Add long-term validation data\" is in the list twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"Agregar datos de validación a largo plazo\" está dos veces en la lista."
+          }
+        }
+      }
+    },
+    "\"Add long-term validation data\" goes with checks, reports and exports only: it adds to signed files as they are, and other changes would break their signatures.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "\"Agregar datos de validación a largo plazo\" solo puede ir con comprobaciones, informes y exportaciones: agrega datos a los archivos firmados tal como están, y otros cambios romperían sus firmas."
+          }
+        }
+      }
+    },
+    "Protected: long-term data can't be added to an encrypted PDF without breaking its signatures": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protegido: no se pueden agregar datos a largo plazo a un PDF cifrado sin romper sus firmas"
+          }
+        }
+      }
+    },
+    "Damaged: repaired to open it, so its signatures can't be checked and no long-term data was added": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dañado: se reparó para abrirlo, así que sus firmas no se pueden comprobar y no se agregaron datos a largo plazo"
+          }
+        }
+      }
+    },
+    "No signature: nothing to add long-term data for": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin firma: no hay datos a largo plazo que agregar"
+          }
+        }
+      }
+    },
+    "No signature checks out: nothing to add long-term data for": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna firma es válida: no hay datos a largo plazo que agregar"
+          }
+        }
+      }
+    },
+    "Not added: this batch may not go online": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se agregó: este lote no puede conectarse a internet"
+          }
+        }
+      }
+    },
+    "Couldn't reach the service: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo contactar el servicio: {0}"
+          }
+        }
+      }
+    },
+    "Offline: this Mac isn't connected to a network, so nothing was added. Run it again once it is": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin conexión: este Mac no está conectado a una red, así que no se agregó nada. Vuelve a ejecutarlo cuando lo esté"
+          }
+        }
+      }
+    },
+    "Asked {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se consultó {0}"
+          }
+        }
+      }
+    },
+    "Already long-term: it holds everything that could be added, so no copy was saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya tiene validación a largo plazo: contiene todo lo que se podía agregar, así que no se guardó una copia"
+          }
+        }
+      }
+    },
+    "{0} certificate has no long-term data: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} certificado no tiene datos a largo plazo: {1}"
+          }
+        }
+      }
+    },
+    "{0} certificates have no long-term data: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} certificados no tienen datos a largo plazo: {1}"
+          }
+        }
+      }
+    },
+    "Action {0} (addLongTermData): \"timestampServer\" can't be used: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acción {0} (addLongTermData): no se puede usar \"timestampServer\": {1}."
+          }
+        }
+      }
+    },
+    "Field locking": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloqueo de campos"
+          }
+        }
+      }
+    },
+    "Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantén las firmas comprobables durante décadas: guarda en el archivo la prueba de que cada certificado era válido cuando firmó (PAdES B-LT), agrega una marca de tiempo del documento sobre ella (B-LTA) y haz lo mismo con archivos firmados antes. Ves qué direcciones se consultan antes de que nada se conecte a internet."
+          }
+        }
+      }
+    },
+    "When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando certifiques un formulario, bloquea los campos que llenaste, o todos menos los que otros aún deben llenar: un cambio posterior en un campo bloqueado aparece como no permitido al comprobar las firmas."
+          }
+        }
+      }
+    },
+    "Adding long-term validation data is part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar datos de validación a largo plazo forma parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "Choosing fields to lock is part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir los campos que se bloquean forma parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "locked field \"{0}\" (its appearance)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el campo bloqueado \"{0}\" (su apariencia)"
+          }
+        }
+      }
+    },
+    "locked field \"{0}\" (a new field of the same name)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el campo bloqueado \"{0}\" (un campo nuevo con el mismo nombre)"
+          }
+        }
+      }
+    },
+    "Don't lock fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No bloquear campos"
+          }
+        }
+      }
+    },
+    "Lock all fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloquear todos los campos"
+          }
+        }
+      }
+    },
+    "Lock these fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloquear estos campos"
+          }
+        }
+      }
+    },
+    "Lock all fields but these": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloquear todos los campos excepto estos"
+          }
+        }
+      }
+    },
+    "No field can be changed after you certify without it showing as not allowed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún campo se puede cambiar después de certificar sin que aparezca como no permitido."
+          }
+        }
+      }
+    },
+    "Only the fields you choose are locked; the others can still be filled in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se bloquean los campos que elijas; los demás aún se pueden llenar."
+          }
+        }
+      }
+    },
+    "The fields you choose stay open for others to fill in; the rest are locked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos que elijas quedan abiertos para que otros los llenen; el resto se bloquea."
+          }
+        }
+      }
+    },
+    "Fields can be filled in after you certify, as the certification allows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos se pueden llenar después de certificar, según lo permita la certificación."
+          }
+        }
+      }
+    },
+    "Long-term validation needs a timestamp server.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La validación a largo plazo necesita un servidor de marcas de tiempo."
+          }
+        }
+      }
+    },
+    "Choose at least one field to lock, or lock all of them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige al menos un campo para bloquear, o bloquéalos todos."
+          }
+        }
+      }
+    },
+    "Encrypted (password-protected) PDFs can't take a document timestamp. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los PDF cifrados (protegidos con contraseña) no pueden llevar una marca de tiempo de documento. No se cambió nada."
+          }
+        }
+      }
+    },
+    "The timestamp server couldn't be reached: {0} Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo conectar con el servidor de marcas de tiempo: {0} No se cambió nada."
+          }
+        }
+      }
+    },
+    "The timestamp server's reply isn't usable: {0} Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta del servidor de marcas de tiempo no se puede usar: {0} No se cambió nada."
+          }
+        }
+      }
+    },
+    "The timestamp doesn't fit the space reserved for it. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La marca de tiempo no cabe en el espacio reservado para ella. No se cambió nada."
+          }
+        }
+      }
+    },
+    "This document's file structure can't be extended, so a document timestamp would break its signatures. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La estructura de archivo de este documento no se puede ampliar, así que una marca de tiempo de documento rompería sus firmas. No se cambió nada."
+          }
+        }
+      }
+    },
+    "A document timestamp can't be appended to this PDF. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede anexar una marca de tiempo de documento a este PDF. No se cambió nada."
+          }
+        }
+      }
+    },
+    "The timestamp's placeholder wasn't written. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se escribió el marcador de posición de la marca de tiempo. No se cambió nada."
+          }
+        }
+      }
+    },
+    "This document has no form field named \"{0}\" to lock.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este documento no tiene ningún campo de formulario llamado \"{0}\" para bloquear."
+          }
+        }
+      }
+    },
+    "Add Verification Information…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar información de verificación…"
+          }
+        }
+      }
+    },
+    "Check Signatures Online…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar firmas en línea…"
+          }
+        }
+      }
+    },
+    "This document's file structure can't be extended, so long-term data can't be added without breaking its signatures. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La estructura de archivo de este documento no se puede ampliar, así que no se pueden agregar datos a largo plazo sin romper sus firmas. No se cambió nada."
+          }
+        }
+      }
+    },
+    "Long-term data can't be appended to this PDF. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pueden anexar datos a largo plazo a este PDF. No se cambió nada."
+          }
+        }
+      }
+    },
+    "Revoked on {0}: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocado el {0}: {1}"
+          }
+        }
+      }
+    },
+    "Revoked: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revocado: {0}"
+          }
+        }
+      }
+    },
+    "The file's validation data is more than a check reads, so it wasn't fully checked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los datos de validación del archivo superan lo que lee una comprobación, así que no se comprobó por completo."
+          }
+        }
+      }
+    },
+    " Missing for: {0}, and more.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Faltan para: {0}, y más."
+          }
+        }
+      }
+    },
+    " Missing for: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Faltan para: {0}."
+          }
+        }
+      }
+    },
+    " {0} was revoked later, on {1}, after this signature's time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " {0} se revocó más tarde, el {1}, después de la hora de esta firma."
+          }
+        }
+      }
+    },
+    "Document timestamp: its authority's validation data is in the file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca de tiempo de documento: los datos de validación de su autoridad están en el archivo."
+          }
+        }
+      }
+    },
+    "Document timestamp: its authority's validation data isn't all in the file.{0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca de tiempo de documento: no todos los datos de validación de su autoridad están en el archivo.{0}"
+          }
+        }
+      }
+    },
+    "PAdES B-LTA: LTV enabled. The file holds the validation data for every certificate, and a document timestamp covers it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-LTA: LTV habilitado. El archivo contiene los datos de validación de todos los certificados, y una marca de tiempo de documento los cubre."
+          }
+        }
+      }
+    },
+    "PAdES B-LT: LTV enabled. The file holds the validation data for every certificate.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-LT: LTV habilitado. El archivo contiene los datos de validación de todos los certificados."
+          }
+        }
+      }
+    },
+    "PAdES B-T: timestamped, but the file doesn't hold the validation data, so checking it later depends on the certificate authorities still answering.{0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-T: con marca de tiempo, pero el archivo no contiene los datos de validación, así que comprobarlo más adelante depende de que las autoridades de certificación sigan respondiendo.{0}"
+          }
+        }
+      }
+    },
+    "PAdES B-B: the file holds the validation data, but no timestamp proves when it was signed, so it can't be checked once the certificate expires.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-B: el archivo contiene los datos de validación, pero ninguna marca de tiempo demuestra cuándo se firmó, así que no se podrá comprobar cuando el certificado expire."
+          }
+        }
+      }
+    },
+    "PAdES B-B: no timestamp and no validation data in the file, so it can't be checked once the certificate expires.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-B: no hay marca de tiempo ni datos de validación en el archivo, así que no se podrá comprobar cuando el certificado expire."
+          }
+        }
+      }
+    },
+    "LTV enabled, though not in the PAdES format: the file holds the validation data for every certificate.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LTV habilitado, aunque no en formato PAdES: el archivo contiene los datos de validación de todos los certificados."
+          }
+        }
+      }
+    },
+    "Not in the PAdES format. The file doesn't hold what it takes to check it in the long term.{0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No está en formato PAdES. El archivo no contiene lo necesario para comprobarlo a largo plazo.{0}"
+          }
+        }
+      }
+    },
+    "is told which certificate is being asked about (its serial number and a hash of its issuer)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "se le dice por qué certificado se pregunta (su número de serie y un hash de su emisor)"
+          }
+        }
+      }
+    },
+    "sends its list of revoked certificates; nothing but the request is sent": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "envía su lista de certificados revocados; no se envía nada más que la solicitud"
+          }
+        }
+      }
+    },
+    "sends a public certificate; nothing but the request is sent": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "envía un certificado público; no se envía nada más que la solicitud"
+          }
+        }
+      }
+    },
+    "receives a hash of the document or signature, never the document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "recibe un hash del documento o de la firma, nunca el documento"
+          }
+        }
+      }
+    },
+    "{0} signature that didn't check out is left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se deja fuera {0} firma que no es válida."
+          }
+        }
+      }
+    },
+    "{0} signatures that didn't check out are left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejan fuera {0} firmas que no son válidas."
+          }
+        }
+      }
+    },
+    "the signature": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la firma"
+          }
+        }
+      }
+    },
+    "The timestamp's certificate names addresses of its own, of the same kinds; they are asked too, once the timestamp arrives.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El certificado de la marca de tiempo indica direcciones propias, de los mismos tipos; también se consultan cuando llega la marca de tiempo."
+          }
+        }
+      }
+    },
+    "{0}'s issuer isn't in the file or on this Mac. If it can be fetched, the addresses it names are asked too.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El emisor de {0} no está en el archivo ni en este Mac. Si se puede obtener, también se consultan las direcciones que indica."
+          }
+        }
+      }
+    },
+    "{0} names no address to ask about it, so it can't be covered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no indica ninguna dirección para consultar sobre él, así que no se puede cubrir."
+          }
+        }
+      }
+    },
+    "Encrypted (password-protected) PDFs can't take long-term data, since an update can't be appended to them without breaking their signatures. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los PDF cifrados (protegidos con contraseña) no pueden llevar datos a largo plazo, porque no se les puede anexar una actualización sin romper sus firmas. No se cambió nada."
+          }
+        }
+      }
+    },
+    "The file was damaged and Inkvolt PDF repaired it to open it, so its signatures can't be checked and long-term data can't be added to them. Add it to the original file. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo estaba dañado e Inkvolt PDF lo reparó para abrirlo, así que sus firmas no se pueden comprobar ni se les pueden agregar datos a largo plazo. Agrégalos al archivo original. No se cambió nada."
+          }
+        }
+      }
+    },
+    "None of this document's signatures checks out, so there is nothing to add long-term data for. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna de las firmas de este documento es válida, así que no hay nada para lo que agregar datos a largo plazo. No se cambió nada."
+          }
+        }
+      }
+    },
+    "This document isn't signed, so there is nothing to add long-term data for.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este documento no está firmado, así que no hay nada para lo que agregar datos a largo plazo."
+          }
+        }
+      }
+    },
+    "The document timestamp doesn't check out. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La marca de tiempo del documento no es válida. No se cambió nada."
+          }
+        }
+      }
+    },
+    "Adding long-term data would have broken the signature \"{0}\". Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar datos a largo plazo habría roto la firma \"{0}\". No se cambió nada."
+          }
+        }
+      }
+    },
+    "{0} Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} No se cambió nada."
+          }
+        }
+      }
+    },
+    "{0} has been revoked, so it can't sign for the long term. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} fue revocado, así que no puede firmar a largo plazo. No se cambió nada."
+          }
+        }
+      }
+    },
+    "Long-term data can't be complete: {0}. Sign without long-term validation, or use a digital ID whose authority can be asked. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los datos a largo plazo no pueden estar completos: {0}. Firma sin validación a largo plazo o usa una identificación digital cuya autoridad se pueda consultar. No se cambió nada."
+          }
+        }
+      }
+    },
+    "a root: needs no revocation data": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una raíz: no necesita datos de revocación"
+          }
+        }
+      }
+    },
+    "an OCSP responder that needs no check of its own": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un respondedor OCSP que no necesita comprobación propia"
+          }
+        }
+      }
+    },
+    "{0}'s issuer isn't in the file or on this Mac, and couldn't be fetched": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El emisor de {0} no está en el archivo ni en este Mac, y no se pudo obtener"
+          }
+        }
+      }
+    },
+    "already in the file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ya está en el archivo"
+          }
+        }
+      }
+    },
+    "The answer from {0} can't be used: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta de {0} no se puede usar: {1}."
+          }
+        }
+      }
+    },
+    "The answer from {0} isn't signed by the certificate's issuer, or is about another certificate.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta de {0} no está firmada por el emisor del certificado, o es sobre otro certificado."
+          }
+        }
+      }
+    },
+    "The answer from {0} is too old to speak for the signing time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta de {0} es demasiado antigua para valer para la hora de la firma."
+          }
+        }
+      }
+    },
+    "The list from {0} can't be read, or isn't signed by the certificate's issuer.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista de {0} no se puede leer, o no está firmada por el emisor del certificado."
+          }
+        }
+      }
+    },
+    "The list from {0} is too old to speak for the signing time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista de {0} es demasiado antigua para valer para la hora de la firma."
+          }
+        }
+      }
+    },
+    "{0} names only addresses on a local network or that can't be used, so none was contacted": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} solo indica direcciones de una red local o que no se pueden usar, así que no se contactó ninguna"
+          }
+        }
+      }
+    },
+    "{0} names no address to ask about it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no indica ninguna dirección para consultar sobre él"
+          }
+        }
+      }
+    },
+    "{0} couldn't be asked about": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo consultar sobre {0}"
+          }
+        }
+      }
+    },
+    "not revoked ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no revocado ({0})"
+          }
+        }
+      }
+    },
+    "REVOKED on {0} ({1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVOCADO el {0} ({1})"
+          }
+        }
+      }
+    },
+    "REVOKED ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVOCADO ({0})"
+          }
+        }
+      }
+    },
+    "revoked later, on {0}, after the signing time ({1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "revocado más tarde, el {0}, después de la hora de la firma ({1})"
+          }
+        }
+      }
+    },
+    "the authority doesn't know this certificate ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la autoridad no conoce este certificado ({0})"
+          }
+        }
+      }
+    },
+    "no usable answer ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ninguna respuesta utilizable ({0})"
+          }
+        }
+      }
+    },
+    "it isn't a web address": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no es una dirección web"
+          }
+        }
+      }
+    },
+    "it isn't a web address ({0}:)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no es una dirección web ({0}:)"
+          }
+        }
+      }
+    },
+    "a timestamp server must use https://": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un servidor de marcas de tiempo debe usar https://"
+          }
+        }
+      }
+    },
+    "it carries a user name or password": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "contiene un nombre de usuario o una contraseña"
+          }
+        }
+      }
+    },
+    "its host name isn't plain letters and digits": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su nombre de host no tiene solo letras y dígitos normales"
+          }
+        }
+      }
+    },
+    "it points at this Mac": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "apunta a este Mac"
+          }
+        }
+      }
+    },
+    "it points at an address on a local network": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "apunta a una dirección de una red local"
+          }
+        }
+      }
+    },
+    "it points at a local network": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "apunta a una red local"
+          }
+        }
+      }
+    },
+    "answered earlier ({0} bytes)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "respondió antes ({0} bytes)"
+          }
+        }
+      }
+    },
+    "{0} wasn't contacted: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se contactó {0}: {1}."
+          }
+        }
+      }
+    },
+    "{0} didn't answer earlier, so it wasn't asked again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no respondió antes, así que no se volvió a consultar."
+          }
+        }
+      }
+    },
+    "This would take more requests than a check should.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto requeriría más solicitudes de las que debería tener una comprobación."
+          }
+        }
+      }
+    },
+    "{0} redirected too many times.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} redirigió demasiadas veces."
+          }
+        }
+      }
+    },
+    "{0} answered with a redirect that drops the request.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respondió con una redirección que descarta la solicitud."
+          }
+        }
+      }
+    },
+    "{0} sent a redirect that leads nowhere.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} envió una redirección que no lleva a ninguna parte."
+          }
+        }
+      }
+    },
+    "{0} redirected from https to an address that isn't.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} redirigió de https a una dirección que no lo es."
+          }
+        }
+      }
+    },
+    "{0} answered with an error ({1}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respondió con un error ({1})."
+          }
+        }
+      }
+    },
+    "answered ({0} bytes)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "respondió ({0} bytes)"
+          }
+        }
+      }
+    },
+    "{0} points at this Mac, so it wasn't contacted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} apunta a este Mac, así que no se contactó."
+          }
+        }
+      }
+    },
+    "{0} points at an address on a local network, so it wasn't contacted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} apunta a una dirección de una red local, así que no se contactó."
+          }
+        }
+      }
+    },
+    "{0} sent more than the {1} KB allowed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} envió más de los {1} KB permitidos."
+          }
+        }
+      }
+    },
+    "{0} didn't answer in time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no respondió a tiempo."
+          }
+        }
+      }
+    },
+    "{0} stopped answering.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} dejó de responder."
+          }
+        }
+      }
+    },
+    "{0} can't be reached. Check that this Mac is online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede conectar con {0}. Comprueba que este Mac esté en línea."
+          }
+        }
+      }
+    },
+    "the response can't be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la respuesta no se puede leer"
+          }
+        }
+      }
+    },
+    "the responder says to try later": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el respondedor dice que se intente más tarde"
+          }
+        }
+      }
+    },
+    "the responder doesn't answer for this certificate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el respondedor no responde por este certificado"
+          }
+        }
+      }
+    },
+    "the responder reported an error": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el respondedor informó de un error"
+          }
+        }
+      }
+    },
+    "the response is of an unknown kind": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la respuesta es de un tipo desconocido"
+          }
+        }
+      }
+    },
+    "That timestamp server can't be used: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede usar ese servidor de marcas de tiempo: {0}."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

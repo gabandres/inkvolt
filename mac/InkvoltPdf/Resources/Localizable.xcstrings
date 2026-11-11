@@ -4962,17 +4962,6 @@
         }
       }
     },
-    "Enter the timestamp server's address.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escribe la dirección del servidor de marcas de tiempo."
-          }
-        }
-      }
-    },
     "Every PDF in {0} is read again, and files skipped earlier get another chance. Searches find what has been read so far.": {
       "extractionState": "manual",
       "localizations": {
@@ -7125,17 +7114,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se quita de este Mac. Las firmas ya colocadas en documentos se quedan."
-          }
-        }
-      }
-    },
-    "It starts with http:// or https://.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Empieza por http:// o https://."
           }
         }
       }
@@ -15390,17 +15368,6 @@
         }
       }
     },
-    "The server receives only a code made from the signature, never the document.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El servidor solo recibe un código creado a partir de la firma, nunca el documento."
-          }
-        }
-      }
-    },
     "The signature is intact, but the certificate isn't trusted on this Mac ({0}).": {
       "extractionState": "manual",
       "localizations": {
@@ -18026,17 +17993,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "la última imagen"
-          }
-        }
-      }
-    },
-    "the server answered {0}": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "el servidor respondió {0}"
           }
         }
       }
@@ -21337,6 +21293,864 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo eliminar el conjunto: {0}"
+          }
+        }
+      }
+    },
+    "PAdES B-LTA: the certificates' revocation data, then a document timestamp from {0}; files without a signature are skipped": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-LTA: los datos de revocación de los certificados y luego una marca de tiempo del documento de {0}; los archivos sin firma se omiten"
+          }
+        }
+      }
+    },
+    "PAdES B-LT: the certificates' revocation data, stored after the signatures; files without a signature are skipped": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAdES B-LT: los datos de revocación de los certificados, guardados después de las firmas; los archivos sin firma se omiten"
+          }
+        }
+      }
+    },
+    "each file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cada archivo"
+          }
+        }
+      }
+    },
+    "Reading the files' signatures…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo las firmas de los archivos…"
+          }
+        }
+      }
+    },
+    "None of the files has a signature that checks out, so there is no long-term data to add.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno de los archivos tiene una firma válida, así que no hay datos a largo plazo que agregar."
+          }
+        }
+      }
+    },
+    "Each signed file gets what it takes to check its signatures years from now, stored as an update after them: they stay as they are, and each result is a new copy. Files without a signature are skipped. When the batch starts, a window lists every address that will be asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada archivo firmado recibe lo necesario para comprobar sus firmas dentro de años, guardado como una actualización después de ellas: las firmas no cambian y cada resultado es una copia nueva. Los archivos sin firma se omiten. Al iniciar el lote, una ventana muestra cada dirección que se consultará."
+          }
+        }
+      }
+    },
+    "Also add a document timestamp (PAdES B-LTA)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar también una marca de tiempo del documento (PAdES B-LTA)"
+          }
+        }
+      }
+    },
+    "Sectigo's free server is suggested; you can enter another that starts with https://. It receives only a hash, never the document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se sugiere el servidor gratuito de Sectigo; puedes escribir otro que empiece con https://. Solo recibe un hash, nunca el documento."
+          }
+        }
+      }
+    },
+    "Enter the timestamp server's address, or untick the document timestamp.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe la dirección del servidor de marcas de tiempo o desmarca la marca de tiempo del documento."
+          }
+        }
+      }
+    },
+    "Signing and getting the long-term data…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firmando y obteniendo los datos de validación a largo plazo…"
+          }
+        }
+      }
+    },
+    "Covers the whole document; long-term validation data was added after it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cubre todo el documento; los datos de validación a largo plazo se agregaron después"
+          }
+        }
+      }
+    },
+    "Revocation data: {0}: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Datos de revocación: {0}: {1}"
+          }
+        }
+      }
+    },
+    "a root, needs none": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una raíz, no los necesita"
+          }
+        }
+      }
+    },
+    "an OCSP responder, needs none": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un respondedor OCSP, no los necesita"
+          }
+        }
+      }
+    },
+    "not revoked": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no revocado"
+          }
+        }
+      }
+    },
+    "REVOKED on {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVOCADO el {0}"
+          }
+        }
+      }
+    },
+    "REVOKED": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REVOCADO"
+          }
+        }
+      }
+    },
+    "revoked later, on {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "revocado después, el {0}"
+          }
+        }
+      }
+    },
+    "unknown to its authority": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "desconocido para su autoridad"
+          }
+        }
+      }
+    },
+    "too old to speak for the signing time": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "demasiado antiguos para valer en la fecha de la firma"
+          }
+        }
+      }
+    },
+    "its issuer isn't in the file or on this Mac": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "su emisor no está en el archivo ni en este Mac"
+          }
+        }
+      }
+    },
+    "none in the file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ninguno en el archivo"
+          }
+        }
+      }
+    },
+    "What was asked": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que se preguntó"
+          }
+        }
+      }
+    },
+    "Store revocation data (PAdES B-LT)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar datos de revocación (PAdES B-LT)"
+          }
+        }
+      }
+    },
+    "Store revocation data, add a document timestamp (PAdES B-LTA)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar datos de revocación y agregar una marca de tiempo del documento (PAdES B-LTA)"
+          }
+        }
+      }
+    },
+    "Lock form fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bloquear campos de formulario"
+          }
+        }
+      }
+    },
+    "The fields to lock, or to leave open": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos que bloquear, o que dejar abiertos"
+          }
+        }
+      }
+    },
+    "Certify to lock form fields.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certifica para bloquear campos de formulario."
+          }
+        }
+      }
+    },
+    "Sectigo's free server is suggested; you can enter another that starts with https://. It is contacted only if you add a timestamp, and receives only a hash of the signature, never the document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se sugiere el servidor gratuito de Sectigo; puedes escribir otro que empiece por https://. Solo se contacta si agregas una marca de tiempo, y solo recibe un hash de la firma, nunca el documento."
+          }
+        }
+      }
+    },
+    "Keeps the signature checkable after your certificate expires. You see which addresses are asked before anything goes online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantiene la firma comprobable después de que caduque tu certificado. Ves qué direcciones se consultan antes de que nada se conecte a Internet."
+          }
+        }
+      }
+    },
+    "Enter the timestamp server's address (https://…), or untick the timestamp.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe la dirección del servidor de marcas de tiempo (https://…) o desmarca la marca de tiempo."
+          }
+        }
+      }
+    },
+    "Choose the fields to lock.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige los campos que bloquear."
+          }
+        }
+      }
+    },
+    "Choose the fields to leave open.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige los campos que dejar abiertos."
+          }
+        }
+      }
+    },
+    "Long-term data added.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se agregaron los datos de validación a largo plazo."
+          }
+        }
+      }
+    },
+    "Nothing was asked online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se consultó nada en línea."
+          }
+        }
+      }
+    },
+    "Checked online. The file wasn't changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se comprobó en línea. El archivo no se modificó."
+          }
+        }
+      }
+    },
+    "Protected PDFs can't take long-term data": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los PDF protegidos no admiten datos de validación a largo plazo"
+          }
+        }
+      }
+    },
+    "An update can't be appended to an encrypted PDF without breaking its signatures, so nothing can be added to this file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede anexar una actualización a un PDF cifrado sin romper sus firmas, así que no se puede agregar nada a este archivo."
+          }
+        }
+      }
+    },
+    "Getting the long-term data…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obteniendo los datos de validación a largo plazo…"
+          }
+        }
+      }
+    },
+    "Add Verification Information": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar información de verificación"
+          }
+        }
+      }
+    },
+    "The file already holds everything that could be added. It wasn't changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo ya contiene todo lo que se podía agregar. No se modificó."
+          }
+        }
+      }
+    },
+    "Not added: the copy wasn't saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se agregó: la copia no se guardó"
+          }
+        }
+      }
+    },
+    "Long-term data added, but {0} certificate has none: see what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se agregaron los datos de validación a largo plazo, pero {0} certificado no tiene ninguno: mira qué se consultó."
+          }
+        }
+      }
+    },
+    "Long-term data added, but {0} certificates have none: see what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se agregaron los datos de validación a largo plazo, pero {0} certificados no tienen ninguno: mira qué se consultó."
+          }
+        }
+      }
+    },
+    "Checking the signatures online…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando las firmas en línea…"
+          }
+        }
+      }
+    },
+    "Checked online, but not everything could be asked. {0} The file wasn't changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se comprobó en línea, pero no se pudo consultar todo. {0} El archivo no se modificó."
+          }
+        }
+      }
+    },
+    "The check didn't work": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La comprobación no funcionó"
+          }
+        }
+      }
+    },
+    "Nothing else leaves this Mac, and the document itself is never sent. Addresses on this Mac or a local network are never contacted, however a file names them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada más sale de este Mac, y el documento en sí nunca se envía. Nunca se contactan direcciones de este Mac o de una red local, aunque un archivo las nombre."
+          }
+        }
+      }
+    },
+    "Stores in the file what it takes to check its signatures years from now, as an update after the signatures: they stay as they are. The file is saved as a new copy afterwards.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda en el archivo lo necesario para comprobar sus firmas dentro de años, como una actualización después de las firmas: estas se quedan como están. Después, el archivo se guarda como una copia nueva."
+          }
+        }
+      }
+    },
+    "Sectigo's free server is suggested; you can enter another that starts with https://. It {0}. A signature with no timestamp of its own takes two.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se sugiere el servidor gratuito de Sectigo; puedes escribir otro que empiece por https://. Este {0}. Una firma sin marca de tiempo propia necesita dos."
+          }
+        }
+      }
+    },
+    "Contact and add": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contactar y agregar"
+          }
+        }
+      }
+    },
+    "Sign with long-term validation (PAdES B-LTA)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firmar con validación a largo plazo (PAdES B-LTA)"
+          }
+        }
+      }
+    },
+    "Sign with long-term validation (PAdES B-LT)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firmar con validación a largo plazo (PAdES B-LT)"
+          }
+        }
+      }
+    },
+    "To store the proof that your certificate is good when you sign, these will be asked:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para guardar la prueba de que tu certificado es válido al firmar, se consultará a estos:"
+          }
+        }
+      }
+    },
+    "Contact and sign": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contactar y firmar"
+          }
+        }
+      }
+    },
+    "Add long-term validation data to {0} signed file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar datos de validación a largo plazo a {0} archivo firmado"
+          }
+        }
+      }
+    },
+    "Add long-term validation data to {0} signed files": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar datos de validación a largo plazo a {0} archivos firmados"
+          }
+        }
+      }
+    },
+    "Before the batch runs, these will be asked, one file at a time. An answer is used again for the next file, and a server that doesn't answer isn't asked again. Each result is saved as a new copy; the originals stay as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Antes de ejecutar el lote, se consultarán estas direcciones, un archivo a la vez. Una respuesta se reutiliza para el siguiente archivo, y un servidor que no responde no se vuelve a consultar. Cada resultado se guarda como una copia nueva; los originales no cambian."
+          }
+        }
+      }
+    },
+    "Contact and run": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultar y ejecutar"
+          }
+        }
+      }
+    },
+    "Check signatures online": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobar las firmas en línea"
+          }
+        }
+      }
+    },
+    "Opening a file never goes online. To check now whether the certificates of its signatures have been revoked, these will be asked. The file stays as it is, and the answer is for this window only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir un archivo nunca se conecta a Internet. Para comprobar ahora si se revocaron los certificados de sus firmas, se consultará a estos. El archivo se queda como está, y la respuesta es solo para esta ventana."
+          }
+        }
+      }
+    },
+    "Contact and check": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contactar y comprobar"
+          }
+        }
+      }
+    },
+    "What will be contacted": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que se contactará"
+          }
+        }
+      }
+    },
+    "{0}, about {1}: {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, sobre {1}: {2}"
+          }
+        }
+      }
+    },
+    "An OCSP responder {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un respondedor OCSP {0}."
+          }
+        }
+      }
+    },
+    "A CRL address {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una dirección de CRL {0}."
+          }
+        }
+      }
+    },
+    "An issuer's address {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La dirección de un emisor {0}."
+          }
+        }
+      }
+    },
+    "The timestamp server {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El servidor de marcas de tiempo {0}."
+          }
+        }
+      }
+    },
+    "Nothing needs asking: the file already holds the data, or its certificates need none.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hace falta consultar nada: el archivo ya tiene los datos, o sus certificados no los necesitan."
+          }
+        }
+      }
+    },
+    "The certificates name nothing to ask about them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los certificados no indican nada que consultar sobre ellos."
+          }
+        }
+      }
+    },
+    "What won't be contacted": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que no se contactará"
+          }
+        }
+      }
+    },
+    "Certificates:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certificados:"
+          }
+        }
+      }
+    },
+    "Asked:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Consultados:"
+          }
+        }
+      }
+    },
+    "Long-term data wasn't added": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se agregaron los datos de validación a largo plazo"
+          }
+        }
+      }
+    },
+    "The document changed while the long-term data was being added. Add it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento cambió mientras se agregaban los datos de validación a largo plazo. Agrégalos de nuevo."
+          }
+        }
+      }
+    },
+    "Save the document with its long-term data. It is saved as it is: any change after this would come after the data.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda el documento con sus datos de validación a largo plazo. Se guarda tal como está: cualquier cambio posterior quedaría después de los datos."
+          }
+        }
+      }
+    },
+    "The copy couldn't be saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar la copia."
+          }
+        }
+      }
+    },
+    "This preset adds long-term validation data, which goes online, and a watched folder in the app never does. Run the preset from Batch, or watch the folder with inkvoltpdf --watch <folder> --preset <file> --online.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este ajuste predefinido agrega datos de validación a largo plazo, que se conectan a internet, y una carpeta vigilada en la aplicación nunca lo hace. Ejecuta el ajuste predefinido desde En lote, o vigila la carpeta con inkvoltpdf --watch <folder> --preset <file> --online."
           }
         }
       }

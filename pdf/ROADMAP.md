@@ -19,8 +19,8 @@ platforms. Second engines and other additions with no known demand wait for it: 
 reviews or issues ask for missing languages.
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Still to do on the Mac: 1.1's additions of 2026-11-01, 3.4 and 3.5 (3.3 done 2026-11-07, 2.1 and 3.1 2026-11-10),
-in the order of the ranked list in `docs/HANDOFF.md`.
+PLAN.md's E1-E16. Done on the Mac since: 3.3 and 3.5 (2026-11-07), 2.1 and 3.1 (2026-11-10), 1.1's additions of 2026-11-01 and 3.4
+(2026-11-11); what is left is in the ranked list in `docs/HANDOFF.md`.
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
@@ -898,7 +898,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   oversized and garbage replies, presets, the command line); EU DSS 6.5.1 reports PAdES-BASELINE-LTA, TOTAL_PASSED, for a
   batch's second file, whose answers came from the first's. **Not checked:** many files against a real authority; the
   app's watched folders don't go online (their files fail "may not go online").
-  **Still to do:** the Mac. Encrypted files are refused, since `Incremental` can't append to them.
+  Encrypted files are refused, since `Incremental` can't append to them.
+  **Mac** done 2026-11-11 (`mac/docs/PLAN.md`, "Long-term validation"): all of the above, Windows' tests ported under their names
+  (LtvTests, FieldLockTests, BatchLongTermTests, SignatureChangeTests' FieldMDP additions) against the same kind of local authority on
+  loopback. Mac differences: `LtvClient` resolves a name itself, refuses it when any address is this Mac's or a local network's and
+  connects only to those it checked (Network.framework); chains are built by SecTrust with fetching off; every timestamp the Mac app
+  asks for now goes through `LtvClient` (https only, Sectigo suggested). **Not checked on the Mac:** EU DSS on its files, Acrobat, a real
+  authority.
 
 ### 3.5 Indexed folder search
 - **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search

@@ -13,7 +13,8 @@ import PrintCore
 ///   locked by the signature (FieldMDP);
 /// - comments and new signature fields: permitted from P=3 and for approval (non-certifying) signatures;
 /// - new form fields, bookmarks, page labels, attachments, tags: approval signatures only;
-/// - metadata (Info, XMP), validation data (/DSS), document timestamps: always.
+/// - metadata (Info, XMP), validation data (/DSS), document timestamps that draw nothing and verify: always. When nothing
+///   else changed, the analysis says so (`Analysis.onlyValidationData`): such a signature still speaks for the whole document.
 enum SignatureChanges {
     /// The permission level of an approval (non-certifying) signature: anything that leaves the signed content as it was.
     private static let approval = 4
@@ -30,11 +31,13 @@ enum SignatureChanges {
 
     /// `permitted`: every later change is one the signature permits (also true when the analysis failed). `problem`: what
     /// was changed that isn't permitted, or why the changes couldn't be checked. `signed`: the signature dictionary's
-    /// entries in the signed revision (nil when not found there).
+    /// entries in the signed revision (nil when not found there). `onlyValidationData`: everything added since is long-term
+    /// validation data (/DSS) or document timestamps: the document itself is as it was signed.
     struct Analysis {
         var permitted: Bool
         var problem: String?
         var signed: Entries?
+        var onlyValidationData = false
     }
 
     static func entries(of v: PObj) -> Entries {
@@ -64,7 +67,7 @@ enum SignatureChanges {
             if let v, let field { locked = lockOf(v, field.dict) }
             let comparison = Comparison(data, before, after, level, locked, before.trailer.has("Info"), after.trailer.has("Info"))
             let problems = try comparison.run()
-            if problems.isEmpty { return Analysis(permitted: true, problem: nil, signed: entries) }
+            if problems.isEmpty { return Analysis(permitted: true, problem: nil, signed: entries, onlyValidationData: comparison.onlyValidationData) }
             var distinct: [String] = []
             for p in problems where !distinct.contains(p) { distinct.append(p) }
             let what = distinct.prefix(3).joined(separator: "; ") + (distinct.count > 3 ? loc("; and more") : "")
@@ -79,10 +82,15 @@ enum SignatureChanges {
         }
     }
 
-    /// Which fields the signature locks: its FieldMDP reference, else the signature field's /Lock.
+    /// Which fields the signature locks: its FieldMDP references (all of them), else the signature field's /Lock.
     private static func lockOf(_ v: PObj, _ field: PObj) -> (String) -> Bool {
-        let fieldMdp = v.array("Reference")?.elements.first { $0.isDict && $0.name("TransformMethod") == "FieldMDP" }
-        guard let lock = fieldMdp?.dict("TransformParams") ?? field.dict("Lock") else { return { _ in false } }
+        var locks = (v.array("Reference")?.elements ?? []).filter { $0.isDict && $0.name("TransformMethod") == "FieldMDP" }
+            .compactMap { $0.dict("TransformParams") }.prefix(16).map(lockOf)
+        if locks.isEmpty, let own = field.dict("Lock") { locks.append(lockOf(own)) }
+        return { name in locks.contains { $0(name) } }
+    }
+
+    private static func lockOf(_ lock: PObj) -> (String) -> Bool {
         let names = Set(lock.array("Fields")?.elements.compactMap(\.text) ?? [])
         let listed: (String) -> Bool = { name in names.contains { name == $0 || name.hasPrefix($0 + ".") } }
         switch lock.name("Action") {
@@ -110,7 +118,12 @@ enum SignatureChanges {
         private let locked: (String) -> Bool
         private let infoA: Bool, infoB: Bool
         private var problems: [String] = []
+        private var sawValidationData = false
+        private var sawOther = false
         private var hashes: [ObjectIdentifier: [UInt: [UInt8]]] = [:]
+
+        /// After `run`: every change was validation data or a document timestamp, and there was at least one.
+        var onlyValidationData: Bool { sawValidationData && !sawOther && problems.isEmpty }
 
         init(_ data: [UInt8], _ a: MuDoc, _ b: MuDoc, _ level: Int, _ locked: @escaping (String) -> Bool, _ infoA: Bool, _ infoB: Bool) {
             self.data = data
@@ -136,7 +149,10 @@ enum SignatureChanges {
             var fieldOf: [Int: FormField] = [:]
             var fieldNodes = Set<Int>()
             var sigValues = Set<Int>()
-            var widgets = Set<Int>(), comments = Set<Int>(), meta = Set<Int>(), harmless = Set<Int>()
+            var widgets = Set<Int>(), comments = Set<Int>(), meta = Set<Int>(), harmless = Set<Int>(), validationData = Set<Int>()
+            /// Objects a widget draws with (its appearance streams and their resources) → those widgets.
+            var drawnBy: [Int: [Int]] = [:]
+            var fieldNames = Set<String>()
             var catalog = -1, acroForm = -1, names = -1, info = -1
         }
 
@@ -145,16 +161,19 @@ enum SignatureChanges {
             let rb = try roles(b, infoB)
             for (n, objB) in rb.objects.sorted(by: { $0.key < $1.key }) {
                 guard let objA = ra.objects[n] else {
-                    added(n, rb)
+                    added(n, ra, rb)
                     continue
                 }
                 if same(objA, objB) { continue }
                 changed(n, objA, objB, ra, rb)
             }
             for (n, an) in ra.annots.sorted(by: { $0.key < $1.key }) where rb.annots[n] == nil {
+                sawOther = true
                 if an.widget { problem(loc("form fields removed")) } else if level < 3 { problem(loc("comments removed")) }
             }
             compareDirectAnnots(ra, rb)
+            // A field dropped from the form while its widget stays on the page is no timestamp's doing.
+            if !ra.fieldNames.subtracting(rb.fieldNames).isEmpty { sawOther = true }
             return problems
         }
 
@@ -166,6 +185,7 @@ enum SignatureChanges {
                     had.remove(at: i)
                     continue
                 }
+                sawOther = true
                 if annot.widget ? level < SignatureChanges.approval : level < 3 { problem(annot.widget ? loc("form fields added") : loc("comments added")) }
             }
             var has = rb.directAnnots.map { ser($0.dict, top: true) }
@@ -174,6 +194,7 @@ enum SignatureChanges {
                     has.remove(at: i)
                     continue
                 }
+                sawOther = true
                 if annot.widget { problem(loc("form fields removed")) } else if level < 3 { problem(loc("comments removed")) }
             }
         }
@@ -181,12 +202,20 @@ enum SignatureChanges {
         private func problem(_ what: String) { problems.append(what) }
 
         private func changed(_ n: Int, _ objA: PObj, _ objB: PObj, _ ra: Roles, _ rb: Roles) {
+            // What follows counts as a change to the document, apart from the few cases that clear this again.
+            var other = true
+            defer { if other { sawOther = true } }
             if let page = ra.content[n] {
                 problem(loc("the content of page {0}", CoreLanguage.number(page + 1)))
             } else if n == ra.catalog {
                 compareCatalog(objA, objB)
+                other = false
             } else if let page = ra.pages[n] {
-                if !same(objA, objB, skip: ["Annots"]) { problem(loc("page {0} (its size, rotation or resources)", CoreLanguage.number(page + 1))) }
+                if !same(objA, objB, skip: ["Annots"]) {
+                    problem(loc("page {0} (its size, rotation or resources)", CoreLanguage.number(page + 1)))
+                } else {
+                    other = false // what was added to /Annots is judged on its own
+                }
             } else if ra.pageNodes.contains(n) {
                 problem(loc("pages added, removed or moved"))
             } else if let an = ra.annots[n] {
@@ -196,14 +225,28 @@ enum SignatureChanges {
                 changedField(ra.fieldOf[n], objA, objB, Comparison.fieldKeys)
             } else if n == ra.acroForm {
                 compareAcroForm(objA, objB)
+                other = false
             } else if n == ra.names {
                 compareNames(objA, objB)
             } else if ra.sigValues.contains(n) {
                 problem(loc("an earlier signature's details"))
-            } else if n == ra.info || ra.arrays.contains(n) || rb.arrays.contains(n) || ra.meta.contains(n) {
+            } else if n == ra.info {
+                other = diffKeys(objA, objB).contains { $0 != "ModDate" && $0 != "Producer" }
+            } else if ra.arrays.contains(n) || rb.arrays.contains(n) {
+                other = false // what went in or out is judged on its own
+            } else if ra.validationData.contains(n) && !ra.widgets.contains(n) && !ra.comments.contains(n) {
+                // After every other role, and not for what a widget or comment draws with: a store in the signed revision
+                // can point at anything, and must not make that thing free to change.
+                sawValidationData = true
+                other = false
+            } else if ra.meta.contains(n) {
                 // permitted
             } else if ra.widgets.contains(n) || rb.widgets.contains(n) {
-                if level < 2 { problem(loc("form field appearances")) }
+                if level < 2 {
+                    problem(loc("form field appearances"))
+                } else if let f = ra.drawnBy[n]?.lazy.compactMap({ ra.fieldOf[$0] }).first(where: { $0.type != "Sig" && self.locked($0.name) }) {
+                    problem(loc("locked field \"{0}\" (its appearance)", f.name))
+                }
             } else if ra.comments.contains(n) || rb.comments.contains(n) {
                 if level < 3 { problem(loc("comments changed")) }
             } else if level == SignatureChanges.approval && (ra.harmless.contains(n) || rb.harmless.contains(n)) {
@@ -213,23 +256,38 @@ enum SignatureChanges {
             }
         }
 
-        private func added(_ n: Int, _ rb: Roles) {
+        private func added(_ n: Int, _ ra: Roles, _ rb: Roles) {
             if let an = rb.annots[n] {
-                if an.widget { addedField(rb.fieldOf[n]) } else if level < 3 { problem(loc("comments added")) }
+                if an.widget {
+                    addedField(rb.fieldOf[n], ra)
+                } else {
+                    sawOther = true
+                    if level < 3 { problem(loc("comments added")) }
+                }
             } else if let f = rb.fieldOf[n] {
-                addedField(f)
+                addedField(f, ra)
             }
         }
 
-        private func addedField(_ f: FormField?) {
+        private func addedField(_ f: FormField?, _ ra: Roles) {
             if f?.type == "Sig" {
                 // A document timestamp (PAdES-LTA) may follow any signature, even a no-changes certification: one that draws
                 // nothing and is one, not any field that says so, which could lay anything over the page.
                 if let f, let v = FormEditor.inherited(f.dict, "V"), v.isDict, v.name("SubFilter") == "ETSI.RFC3161",
-                   Comparison.drawsNothing(f), Signatures.holdsTimestamp(data, v) { return }
+                   Comparison.drawsNothing(f), Signatures.holdsTimestamp(data, v) {
+                    sawValidationData = true
+                    return
+                }
+                sawOther = true
                 if level < 3 { problem(loc("signature fields added")) }
-            } else if level < SignatureChanges.approval {
-                problem(loc("form fields added"))
+            } else {
+                sawOther = true
+                if level < SignatureChanges.approval {
+                    problem(loc("form fields added"))
+                } else if let f, ra.fieldNames.contains(f.name), locked(f.name) {
+                    // A new field under a locked field's name takes its place in a reader.
+                    problem(loc("locked field \"{0}\" (a new field of the same name)", f.name))
+                }
             }
         }
 
@@ -254,16 +312,23 @@ enum SignatureChanges {
                 return
             } else if level < 2 {
                 problem(loc("form fields filled in"))
-            } else if keys.contains("V") || keys.contains("AS"), let f, f.type != "Sig", locked(f.name) {
+            } else if let f, f.type != "Sig", locked(f.name) {
                 problem(loc("locked field \"{0}\"", name))
             }
         }
 
         private func compareCatalog(_ x: PObj, _ y: PObj) {
             for key in diffKeys(x, y).sorted() {
+                if key == "DSS" || key == "Extensions" {
+                    sawValidationData = true
+                    continue
+                }
                 if key == "AcroForm" {
-                    if let dx = x.dict(key), let dy = y.dict(key) { compareAcroForm(dx, dy) }
-                } else if key == "Names" && level == SignatureChanges.approval {
+                    compareAcroForm(x.dict(key), y.dict(key))
+                    continue
+                }
+                sawOther = true
+                if key == "Names" && level == SignatureChanges.approval {
                     if let dx = x.dict(key), let dy = y.dict(key) { compareNames(dx, dy) }
                 } else if Comparison.catalogKeys.contains(key) || (level == SignatureChanges.approval && Comparison.approvalCatalogKeys.contains(key)) {
                     continue
@@ -279,9 +344,15 @@ enum SignatureChanges {
             }
         }
 
-        private func compareAcroForm(_ x: PObj, _ y: PObj) {
-            guard x.isDict, y.isDict else { return }
-            if diffKeys(x, y).contains(where: { !Comparison.acroFormKeys.contains($0) }) { problem(loc("form settings (e.g. XFA data)")) }
+        private func compareAcroForm(_ x: PObj?, _ y: PObj?) {
+            guard let x, let y, x.isDict, y.isDict else {
+                sawOther = true
+                return
+            }
+            let keys = diffKeys(x, y)
+            if keys.contains(where: { !Comparison.acroFormKeys.contains($0) }) { problem(loc("form settings (e.g. XFA data)")) }
+            // A form's /SigFlags and /Fields change for a timestamp's field too; a new field in them is judged on its own.
+            if keys.contains(where: { $0 != "Fields" && $0 != "SigFlags" }) { sawOther = true }
         }
 
         private func compareNames(_ x: PObj, _ y: PObj) {
@@ -291,8 +362,10 @@ enum SignatureChanges {
             }
         }
 
+        /// The keys whose values differ, or that one side has and the other hasn't (a /DSS of null still says it is there).
         private func diffKeys(_ x: PObj, _ y: PObj) -> Set<String> {
-            Set(x.keys).union(y.keys).filter { ser(x[$0], top: false) != ser(y[$0], top: false) }
+            let kx = Set(x.keys), ky = Set(y.keys)
+            return kx.union(ky).filter { kx.contains($0) != ky.contains($0) || ser(x[$0], top: false) != ser(y[$0], top: false) }
         }
 
         private func same(_ x: PObj, _ y: PObj, skip: Set<String> = []) -> Bool { ser(x, top: true, skip: skip) == ser(y, top: true, skip: skip) }
@@ -384,7 +457,14 @@ enum SignatureChanges {
                         continue
                     }
                     if r.annots[item.num] == nil { r.annots[item.num] = (item, widget) }
-                    if widget { Comparison.walk([item], &r.widgets, stop) } else { Comparison.walk([item], &r.comments, stop) }
+                    if widget {
+                        Comparison.walk([item], &r.widgets, stop)
+                        var drawn = Set<Int>()
+                        Comparison.walk([item["AP"]], &drawn, stop)
+                        for d in drawn { r.drawnBy[d, default: []].append(item.num) }
+                    } else {
+                        Comparison.walk([item], &r.comments, stop)
+                    }
                 }
             }
 
@@ -393,6 +473,7 @@ enum SignatureChanges {
             if let acroItem, acroItem.isRef { r.acroForm = acroItem.num }
             if let fr = acro?["Fields"], fr.isRef { r.arrays.insert(fr.num) }
             for f in try FormEditor.collect(doc, acro) {
+                r.fieldNames.insert(f.name)
                 var node: PObj? = f.dict
                 var guardCount = 0
                 while let n = node, guardCount < 64 {
@@ -408,7 +489,21 @@ enum SignatureChanges {
                 if f.type == "Sig", let vr = FormEditor.inherited(f.dict, "V"), vr.isRef { r.sigValues.insert(vr.num) }
             }
 
-            Comparison.walk([catalog["DSS"], catalog["Metadata"], catalog["Extensions"], catalog["Perms"], info, acro?["DR"]], &r.meta, stop)
+            Comparison.walk([catalog["DSS"], catalog["Extensions"]], &r.validationData, stop)
+            // Validation data is what only the store reaches: an object the document uses too (an attachment, a script, an
+            // outline) a store names doesn't become free to change.
+            // Pages are judged by their own roles before validation data is (content, widgets, comments), so the walk starts
+            // from the rest, the form included (its XFA, scripts and values); it never goes back into the catalog (and through
+            // it into /DSS). A walk cut short by its limit leaves no validation data at all: nothing it didn't reach may count
+            // as free.
+            var elsewhere = Set<Int>()
+            let roots = catalog.keys.filter { !["DSS", "Extensions", "Pages"].contains($0) }.map { catalog[$0] } + [info]
+            if Comparison.walk(roots, &elsewhere, r.catalog >= 0 ? [r.catalog] : []) {
+                r.validationData.subtract(elsewhere)
+            } else {
+                r.validationData.removeAll()
+            }
+            Comparison.walk([catalog["Metadata"], catalog["Perms"], info, acro?["DR"]], &r.meta, stop)
             if let names = catalog["Names"], names.isRef { r.names = names.num }
             let namesDict = catalog.dict("Names")
             let harmless = Comparison.approvalCatalogKeys.subtracting(["Names"]).sorted().map { catalog[$0] }
@@ -417,16 +512,19 @@ enum SignatureChanges {
             return r
         }
 
-        private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool = false) {
+        /// False when the walk stopped at its limit before reaching everything.
+        @discardableResult
+        private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool = false) -> Bool {
             var none: [Int: PObj] = [:]
-            walk(roots, &into, stop, record: record, objects: &none, keep: false)
+            return walk(roots, &into, stop, record: record, objects: &none, keep: false)
         }
 
         /// Collects the indirect objects reachable from `roots`, not following references back up the structure
         /// (/Parent, /P, …) nor into `stop` (pages: their content is judged on its own). With `record` everything is
         /// followed, and each object is kept in `objects`.
+        @discardableResult
         private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool, objects: inout [Int: PObj],
-                                 keep: Bool = true) {
+                                 keep: Bool = true) -> Bool {
             var stack = roots.compactMap { $0 }
             var visitedDirect = 0
             while let item = stack.popLast() {
@@ -436,7 +534,7 @@ enum SignatureChanges {
                     if keep { objects[n] = item }
                 } else {
                     visitedDirect += 1
-                    if visitedDirect > 1_000_000 { return }
+                    if visitedDirect > 1_000_000 { return false }
                 }
                 if item.isDict {
                     for key in item.keys where record || !upward.contains(key) {
@@ -446,6 +544,7 @@ enum SignatureChanges {
                     for child in item.elements where child.isRef || child.isDict || child.isArray { stack.append(child) }
                 }
             }
+            return true
         }
     }
 }

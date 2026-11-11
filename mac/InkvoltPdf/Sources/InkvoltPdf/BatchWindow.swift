@@ -229,7 +229,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         steps += [.sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })), .redactPatterns(RedactionPatternOptions())]
         steps += [.checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: loc("DRAFT")))]
         steps += [.headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions())]
-        steps += [.ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a]
+        steps += [.ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a, .addLongTerm(timestampUrl: nil)]
         steps += [.export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150)]
         steps += [.export(.png, dpi: 150), .export(.jpeg, dpi: 150)]
         steps += [.export(.commentsXfdf, dpi: 150), .export(.commentsFdf, dpi: 150), .export(.commentsCsv, dpi: 150), .export(.commentSummary, dpi: 150)]
@@ -355,6 +355,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         case .protect(let p): "\(step.title): \(passwordsNamed(p))"
         case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", CoreLanguage.number(items.count)))"
         case .redactPatterns(let r): step.title + ": " + (r.setName.map { loc("Saved set \"{0}\"", $0) } ?? (r.patterns.map { RedactionPatterns.name($0) } + r.phrases).joined(separator: ", "))
+        case .addLongTerm(let url?): step.title + ": " + loc("PAdES B-LTA: the certificates' revocation data, then a document timestamp from {0}; files without a signature are skipped", String(url.prefix(80)))
+        case .addLongTerm: step.title + ": " + loc("PAdES B-LT: the certificates' revocation data, stored after the signatures; files without a signature are skipped")
         default: step.title
         }
     }
@@ -532,6 +534,35 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         for case .protect(let p) in plan.steps where p.needsPasswords {
             return show(loc("Protect with a password needs its passwords: choose it and Edit… to type them."))
         }
+        let files = files
+        let host = SavedOcr.batchHost(askPassword: { [weak self] request, _ in await self?.askPassword(request) })
+        // Long-term data goes online: the window lists every address the batch would ask before anything is sent.
+        if case .addLongTerm(let stampUrl)? = plan.steps.first(where: \.isAddLongTerm) {
+            let client = DocumentWindowController.newLtvClient()
+            let paths = files.filter { !$0.isImage }.map(\.path)
+            let each = loc("each file")
+            summary.stringValue = loc("Reading the files' signatures…")
+            // Held as the run's task meanwhile, so Run can't start a second one.
+            task = Task { @MainActor in
+                let (ltvPlan, signed) = await Task.detached { Ltv.plan(files: paths, client: client, timestampUrl: stampUrl, forEachFile: each) }.value
+                self.task = nil
+                self.summary.stringValue = ""
+                if signed == 0 {
+                    self.refresh()
+                    return self.show(loc("None of the files has a signature that checks out, so there is no long-term data to add."))
+                }
+                guard LtvDialogs.confirmBatch(ltvPlan, signedFiles: signed) else { return self.refresh() }
+                var online = host
+                online.longTermClient = { client }
+                self.start(files, plan, online)
+            }
+            refresh()
+            return
+        }
+        start(files, plan, host)
+    }
+
+    private func start(_ files: [BatchFile], _ plan: BatchPlan, _ host: BatchHost) {
         AppSettings.defaults.set(plan.outputFolder, forKey: "BatchFolder")
         // Ends in "…" in every language: a row's text ending so is still under way (`progressed`).
         status = Array(repeating: loc("Waiting…"), count: files.count)
@@ -540,8 +571,6 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         cancel = token
         progress.doubleValue = 0
         summary.stringValue = loc("Running…")
-        let files = files
-        let host = SavedOcr.batchHost(askPassword: { [weak self] request, _ in await self?.askPassword(request) })
         let onProgress: @Sendable (BatchProgress) -> Void = { [weak self] p in
             onMain { self?.progressed(p) }
         }
@@ -762,6 +791,29 @@ enum ActionSheet {
         switch step {
         case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .makeAccessible, .saveAsPdfA, .saveAsPdfA2a:
             return done(step)
+        case .addLongTerm(let current):
+            alert.informativeText = loc("Each signed file gets what it takes to check its signatures years from now, stored as an update after them: they stay as they are, and each result is a new copy. Files without a signature are skipped. When the batch starts, a window lists every address that will be asked.")
+            let stamp = check(loc("Also add a document timestamp (PAdES B-LTA)"), current != nil)
+            let url = NSTextField(string: current ?? LtvDialogs.chosenTimestampUrl)
+            url.widthAnchor.constraint(equalToConstant: 320).isActive = true
+            url.setAccessibilityLabel(loc("Timestamp server"))
+            url.isEnabled = current != nil
+            _ = ControlAction(stamp) { url.isEnabled = stamp.state == .on }
+            let note = SheetForm.caption(loc("Sectigo's free server is suggested; you can enter another that starts with https://. It receives only a hash, never the document."), width: 360)
+            alert.accessoryView = column([stamp, url, note], width: 380)
+            read = {
+                guard stamp.state == .on else { return .addLongTerm(timestampUrl: nil) }
+                let typed = url.stringValue.trimmingCharacters(in: .whitespaces)
+                // A server that can't be used isn't kept: the action stays without a document timestamp, and says why.
+                if typed.isEmpty || LtvClient.whyRefused(typed, .timestamp) != nil {
+                    let a = NSAlert()
+                    a.messageText = typed.isEmpty ? loc("Enter the timestamp server's address, or untick the document timestamp.")
+                        : loc("That timestamp server can't be used: {0}.", LtvClient.whyRefused(typed, .timestamp) ?? "")
+                    a.runModal()
+                    return nil
+                }
+                return .addLongTerm(timestampUrl: typed)
+            }
         case .optimize(let o):
             alert.informativeText = loc("Pictures shown larger than the chosen resolution are downsampled and stored as JPEG; identical streams merged, uncompressed ones compressed.")
             let qualities = [loc("High quality (200 dpi)"), loc("Medium (150 dpi)"), loc("Low (96 dpi)"), loc("Keep pictures as they are")]
@@ -1066,6 +1118,13 @@ final class FolderWatches {
             preset = try BatchPresets.load(w.preset)
         } catch {
             w.status = loc("The preset can't be read: {0}", (error as? BatchPresetError)?.message ?? "\(error)")
+            w.enabled = false
+            changed?()
+            return
+        }
+        // A watched folder in the app never goes online: it says so now, instead of failing every signed file.
+        if preset.steps.contains(where: \.isAddLongTerm) {
+            w.status = loc("This preset adds long-term validation data, which goes online, and a watched folder in the app never does. Run the preset from Batch, or watch the folder with inkvoltpdf --watch <folder> --preset <file> --online.")
             w.enabled = false
             changed?()
             return

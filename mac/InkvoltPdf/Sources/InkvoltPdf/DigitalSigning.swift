@@ -21,6 +21,8 @@ final class SigningState {
     var signing = false
     /// The summary already shown in the notice bar after the last verification.
     var shownSummary: String?
+    /// Revocation data Check Signatures Online brought: counts for this window's view of the signatures, written nowhere.
+    var online: RevocationSnapshot?
 }
 
 /// What the Sign Digitally dialog chose.
@@ -33,6 +35,10 @@ struct SignChoice {
     var timestamp: Bool
     var timestampUrl: String
     var certify: CertificationLevel
+    /// PAdES B-LT or B-LTA (Pro): the chain's revocation data stored after the signature, and a document timestamp.
+    var longTerm = LongTermLevel.none
+    /// When certifying a form: the fields to lock (Pro).
+    var lock: FieldLock?
 }
 
 extension DocumentWindowController {
@@ -44,11 +50,13 @@ extension DocumentWindowController {
     /// document's (the edit transaction then asks before an edit breaks one).
     func verifySignatures(onOpen: Bool) {
         guard let session = pdf.session else { return }
-        let data = session.data, password = session.password, repaired = session.repairedLength
+        let data = session.data, password = session.password, repaired = session.repairedLength, online = signing.online
         signing.generation += 1
         let generation = signing.generation
         signing.verifying = Task { @MainActor in
-            let found = await Task.detached { SignatureProbe.mayHaveSignatures(data) ? Signatures.verify(data, password, repairedLength: repaired) : [] }.value
+            let found = await Task.detached {
+                SignatureProbe.mayHaveSignatures(data) ? Signatures.verify(data, password, online: online, repairedLength: repaired) : []
+            }.value
             guard generation == self.signing.generation, !Task.isCancelled else { return }
             self.showSignatures(found, onOpen: onOpen)
             self.signing.verifying = nil
@@ -190,7 +198,10 @@ extension DocumentWindowController {
         }
         let widget = field.flatMap { name in form.widgets.first { $0.fieldName == name } }
         let fieldVisible = widget.map { !$0.rect.isEmpty } ?? true
-        guard let choice = scripted ?? SignDialog.run(field: field, fieldVisible: fieldVisible, alreadySigned: isSigned, window: window) else { return }
+        var lockable: [String] = []
+        for w in form.widgets where w.kind != .signature && !lockable.contains(w.fieldName) { lockable.append(w.fieldName) }
+        guard let choice = scripted ?? SignDialog.run(field: field, fieldVisible: fieldVisible, alreadySigned: isSigned, lockable: lockable,
+                                                       window: window) else { return }
         signing.signing = true
         startLongTask {
             defer { self.signing.signing = false }
@@ -211,8 +222,23 @@ extension DocumentWindowController {
             request.location = choice.location
             request.look = choice.look
             request.certify = choice.certify
-            if choice.timestamp, let url = URL(string: choice.timestampUrl) { request.timestamp = Self.timestampClient(url) }
-            self.notify(choice.timestamp ? loc("Signing and getting a timestamp…") : loc("Signing…"))
+            request.lock = choice.lock
+            // The timestamp server and, for the long term, the addresses the ID's chain names: only through LtvClient,
+            // after a window listing every one of them.
+            let client = Self.newLtvClient()
+            if choice.timestamp { request.timestamp = client.timestampSender(choice.timestampUrl) }
+            if choice.longTerm != .none {
+                let id = choice.id, url = choice.timestampUrl
+                let plan = await Task.detached { Ltv.plan(signer: id.certificate, chain: id.chain, timestampUrl: url, client: client) }.value
+                guard LtvDialogs.confirmSign(plan, choice.longTerm, window: self.window) else {
+                    self.notify(loc("Signing cancelled."))
+                    return
+                }
+                request.longTerm = choice.longTerm
+                request.longTermClient = client
+            }
+            self.notify(choice.longTerm != .none ? loc("Signing and getting the long-term data…")
+                : choice.timestamp ? loc("Signing and getting a timestamp…") : loc("Signing…"))
             guard await self.applySignature(request) else { return }
             await self.saveSigned(to: saveTo)
         }
@@ -284,22 +310,7 @@ extension DocumentWindowController {
         }
     }
 
-    /// The RFC 3161 exchange with a timestamp server: posts the request (a hash of the signature only), returns the reply.
-    nonisolated static func timestampClient(_ url: URL) -> @Sendable ([UInt8]) async throws -> [UInt8] {
-        { request in
-            var post = URLRequest(url: url, timeoutInterval: 30)
-            post.httpMethod = "POST"
-            post.setValue("application/timestamp-query", forHTTPHeaderField: "Content-Type")
-            post.httpBody = Data(request)
-            let (data, response) = try await URLSession.shared.data(for: post)
-            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-                throw SigningError(loc("the server answered {0}", http.statusCode))
-            }
-            return Array(data)
-        }
-    }
-
-    private func info(_ title: String, _ text: String) {
+    func info(_ title: String, _ text: String) {
         if Report.skipsDialogs {
             notify("\(title): \(text)")
             return
@@ -341,8 +352,11 @@ struct SignatureCard {
         if let l = info.location, !l.trimmingCharacters(in: .whitespaces).isEmpty { lines.append(loc("Location: {0}", l)) }
         if let f = info.subFilter { lines.append(loc("Format: {0}", f)) }
         if info.status != .unsigned {
-            lines.append(info.coversWholeDocument ? loc("Covers the whole document") : loc("Doesn't cover the whole document (changed after signing)"))
+            lines.append(info.coversWholeDocument ? loc("Covers the whole document")
+                : info.longTerm?.onlyValidationDataAfter == true ? loc("Covers the whole document; long-term validation data was added after it")
+                : loc("Doesn't cover the whole document (changed after signing)"))
         }
+        if let summary = info.longTerm?.summary { lines.append(summary) }
         if let c = info.certificate {
             let short = DateFormatter()
             short.dateStyle = .short
@@ -354,17 +368,39 @@ struct SignatureCard {
             lines.append(loc("Trust: {0}", info.certificateTrusted ? loc("trusted by this Mac") : info.certificateStatus))
             lines.append(loc("SHA-1 fingerprint: {0}", c.fingerprint))
         }
+        for check in info.longTerm?.chain ?? [] { lines.append(loc("Revocation data: {0}: {1}", check.name, Self.describe(check))) }
         if let d = info.detail, !d.isEmpty { lines.append(d) }
         return lines.joined(separator: "\n")
     }
 }
 
-/// The sidebar's Signatures pane: a summary, Sign Digitally…, then a card per signature field.
+extension SignatureCard {
+    /// What the file holds about one certificate of a chain (the Windows app's Signatures pane words).
+    static func describe(_ c: PdfCore.CertificateCheck) -> String {
+        switch c.outcome {
+        case .root: loc("a root, needs none")
+        case .noCheckNeeded: loc("an OCSP responder, needs none")
+        case .good: loc("not revoked")
+        case .revoked: c.revokedAt.map { loc("REVOKED on {0}", ltvDay($0)) } ?? loc("REVOKED")
+        case .revokedLater: loc("revoked later, on {0}", ltvDay(c.revokedAt))
+        case .unknown: loc("unknown to its authority")
+        case .stale: loc("too old to speak for the signing time")
+        case .noIssuer: loc("its issuer isn't in the file or on this Mac")
+        case .noData: loc("none in the file")
+        }
+    }
+}
+
+/// The sidebar's Signatures pane: a summary, what long-term validation last did (with its details), Sign Digitally…, then
+/// a card per signature field.
 @MainActor
 final class SignaturesPane: NSView {
     private let stack = NSStackView()
     private let summaryLabel = NSTextField(wrappingLabelWithString: "")
     private var cards: [(name: String, box: NSBox)] = []
+    /// What Add Verification Information or Check Signatures Online last did, and the details behind it (kept across
+    /// verifications).
+    private(set) var outcome: (text: String, details: String)?
     var onGo: ((SignatureInfo) -> Void)?
     var onSign: ((String?) -> Void)?
 
@@ -412,9 +448,39 @@ final class SignaturesPane: NSView {
         summaryLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         stack.addArrangedSubview(summaryLabel)
         summaryLabel.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
+        if let outcome {
+            let text = NSTextField(wrappingLabelWithString: outcome.text)
+            text.font = .boldSystemFont(ofSize: NSFont.smallSystemFontSize)
+            stack.addArrangedSubview(text)
+            text.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
+            let details = NSTextField(wrappingLabelWithString: outcome.details)
+            details.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+            details.textColor = .secondaryLabelColor
+            details.isSelectable = true
+            details.isHidden = true
+            details.setAccessibilityLabel(loc("What was asked"))
+            let disclose = NSButton(title: loc("What was asked"), target: nil, action: nil)
+            disclose.bezelStyle = .disclosure
+            disclose.setButtonType(.pushOnPushOff)
+            disclose.state = .off
+            outcomeToggle = ControlAction(disclose) { details.isHidden = disclose.state == .off }
+            let row = NSStackView(views: [disclose, NSTextField(labelWithString: loc("What was asked"))])
+            row.spacing = 4
+            stack.addArrangedSubview(row)
+            stack.addArrangedSubview(details)
+            details.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -20).isActive = true
+        }
         let sign = NSButton(title: loc("Sign Digitally…"), target: self, action: #selector(signClicked))
         stack.addArrangedSubview(sign)
         for card in list { add(card) }
+    }
+
+    private var outcomeToggle: ControlAction?
+
+    /// Shows what long-term validation did above the cards.
+    func showOutcome(_ text: String, _ details: String) {
+        outcome = (text, details)
+        show(shown)
     }
 
     private func add(_ card: SignatureCard) {
@@ -493,7 +559,6 @@ enum SignDialog {
         [loc("I am the author of this document"), loc("I approve this document"), loc("I have reviewed this document"),
          loc("I agree to the terms defined by this document")]
     }
-    static let defaultTimestampUrl = "http://timestamp.digicert.com"
 
     @MainActor
     private final class IdPicker: NSObject {
@@ -527,7 +592,7 @@ enum SignDialog {
         }
     }
 
-    static func run(field: String?, fieldVisible: Bool, alreadySigned: Bool, window: NSWindow?) -> SignChoice? {
+    static func run(field: String?, fieldVisible: Bool, alreadySigned: Bool, lockable: [String], window: NSWindow?) -> SignChoice? {
         let d = AppSettings.defaults
         let alert = NSAlert()
         alert.messageText = field.map { loc("Sign “{0}” Digitally", $0) } ?? loc("Sign Digitally")
@@ -561,8 +626,21 @@ enum SignDialog {
         image.selectItem(at: (handwritten.firstIndex { $0.path == d.string(forKey: "SignImagePath") } ?? -1) + 1)
         image.setAccessibilityLabel(loc("Image beside the text"))
         let timestamp = check(loc("Add a trusted timestamp"), "SignTimestamp", false)
-        let tsaUrl = NSTextField(string: d.string(forKey: "TimestampUrl") ?? defaultTimestampUrl)
+        let tsaUrl = NSTextField(string: LtvDialogs.chosenTimestampUrl)
         tsaUrl.setAccessibilityLabel(loc("Timestamp server"))
+        let longTerm = NSPopUpButton(frame: .zero, pullsDown: false)
+        longTerm.addItems(withTitles: [loc("None"), loc("Store revocation data (PAdES B-LT)"), loc("Store revocation data, add a document timestamp (PAdES B-LTA)")])
+        longTerm.selectItem(at: Pro.allows(.longTermValidation) ? min(max(d.integer(forKey: "SignLongTerm"), 0), 2) : 0)
+        longTerm.isEnabled = Pro.allows(.longTermValidation)
+        longTerm.setAccessibilityLabel(loc("Long-term validation"))
+        func syncTimestamp() {
+            if longTerm.indexOfSelectedItem > 0 { timestamp.state = .on } // both levels rest on it
+            timestamp.isEnabled = longTerm.indexOfSelectedItem == 0
+            tsaUrl.isEnabled = timestamp.state == .on
+        }
+        let timestampChanged = ControlAction(timestamp) { syncTimestamp() }
+        let longTermChanged = ControlAction(longTerm) { syncTimestamp() }
+        syncTimestamp()
         let certify = NSPopUpButton(frame: .zero, pullsDown: false)
         certify.addItems(withTitles: [loc("Don't certify (approval signature)"), loc("Certify: no changes allowed"), loc("Certify: form filling allowed"),
                                       loc("Certify: form filling and comments allowed")])
@@ -571,6 +649,45 @@ enum SignDialog {
             certify.toolTip = loc("Only the first signature can certify a document.")
         }
         certify.setAccessibilityLabel(loc("Certify"))
+        // Certifying a form: which of its fields to lock (FieldMDP). A locked field changed later shows as not allowed.
+        let lockChoice = NSPopUpButton(frame: .zero, pullsDown: false)
+        lockChoice.addItems(withTitles: FieldLocks.choices)
+        lockChoice.setAccessibilityLabel(loc("Lock form fields"))
+        let lockBoxes = lockable.map { NSButton(checkboxWithTitle: String($0.prefix(80)), target: nil, action: nil) }
+        let lockList = NSStackView(views: lockBoxes)
+        lockList.orientation = .vertical
+        lockList.alignment = .leading
+        lockList.spacing = 2
+        let lockScroll = NSScrollView()
+        let lockDoc = FlippedView()
+        lockDoc.translatesAutoresizingMaskIntoConstraints = false
+        lockList.translatesAutoresizingMaskIntoConstraints = false
+        lockDoc.addSubview(lockList)
+        lockScroll.documentView = lockDoc
+        lockScroll.hasVerticalScroller = true
+        lockScroll.borderType = .bezelBorder
+        lockScroll.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            lockScroll.widthAnchor.constraint(equalToConstant: 300),
+            lockScroll.heightAnchor.constraint(equalToConstant: min(132, CGFloat(max(1, lockable.count)) * 20 + 6)),
+            lockDoc.widthAnchor.constraint(equalTo: lockScroll.contentView.widthAnchor),
+            lockList.leadingAnchor.constraint(equalTo: lockDoc.leadingAnchor, constant: 4), lockList.topAnchor.constraint(equalTo: lockDoc.topAnchor, constant: 3),
+            lockList.bottomAnchor.constraint(equalTo: lockDoc.bottomAnchor, constant: -3),
+        ])
+        lockScroll.setAccessibilityLabel(loc("Form fields"))
+        lockScroll.toolTip = loc("The fields to lock, or to leave open")
+        let lockNote = SheetForm.caption("", width: 340)
+        let canLock = !lockable.isEmpty && !alreadySigned && field == nil
+        func syncLock() {
+            let certifying = certify.indexOfSelectedItem > 0
+            lockChoice.isEnabled = certifying && Pro.allows(.fieldLocking)
+            lockScroll.isHidden = !(certifying && (lockChoice.indexOfSelectedItem == 2 || lockChoice.indexOfSelectedItem == 3))
+            lockNote.stringValue = !Pro.allows(.fieldLocking) ? Pro.locked(.fieldLocking)
+                : certifying ? FieldLocks.note(lockChoice.indexOfSelectedItem) : loc("Certify to lock form fields.")
+        }
+        let certifyChanged = ControlAction(certify) { syncLock() }
+        let lockChanged = ControlAction(lockChoice) { syncLock() }
+        syncLock()
 
         for v in [picker.popup, reason, location, tsaUrl] as [NSView] { v.widthAnchor.constraint(equalToConstant: 300).isActive = true }
         // What most signatures need in sight; the look, the timestamp and certifying behind More Options (UX review,
@@ -587,8 +704,17 @@ enum SignDialog {
         form.row(loc("Image"), image, advanced: true)
         form.row(loc("Timestamp"), timestamp, advanced: true)
         form.row(loc("Server"), tsaUrl, advanced: true)
-        form.note(loc("The server receives only a code made from the signature, never the document."), advanced: true)
+        form.note(loc("Sectigo's free server is suggested; you can enter another that starts with https://. It is contacted only if you add a timestamp, and receives only a hash of the signature, never the document."), advanced: true)
+        form.row(loc("Long-term validation"), longTerm, advanced: true)
+        form.note(Pro.allows(.longTermValidation) ? loc("Keeps the signature checkable after your certificate expires. You see which addresses are asked before anything goes online.")
+            : Pro.locked(.longTermValidation), advanced: true)
         form.row(loc("Certify"), certify, advanced: true)
+        if canLock {
+            form.row(loc("Lock form fields"), lockChoice, advanced: true)
+            form.row(nil, lockScroll, advanced: true)
+            form.row(nil, lockNote, advanced: true)
+        }
+        form.onToggle = { syncLock() }
         form.install(in: alert)
         alert.addButton(withTitle: loc("Sign"))
         alert.addButton(withTitle: loc("Cancel"))
@@ -598,9 +724,22 @@ enum SignDialog {
                 problem(loc("Choose a digital ID."), loc("Create a personal digital ID, or import one from a .p12 file, if your keychain has none."))
                 continue
             }
+            _ = (timestampChanged, longTermChanged, certifyChanged, lockChanged)
             let url = tsaUrl.stringValue.trimmingCharacters(in: .whitespaces)
-            if timestamp.state == .on, URL(string: url).map({ $0.scheme == "http" || $0.scheme == "https" }) != true {
-                problem(loc("Enter the timestamp server's address."), loc("It starts with http:// or https://."))
+            if timestamp.state == .on {
+                if url.isEmpty {
+                    problem(loc("Enter the timestamp server's address (https://…), or untick the timestamp."), "")
+                    continue
+                }
+                if let why = LtvClient.whyRefused(url, .timestamp) {
+                    problem(loc("That timestamp server can't be used: {0}.", why), "")
+                    continue
+                }
+            }
+            let picked = zip(lockable, lockBoxes).filter { $0.1.state == .on }.map(\.0)
+            let locking = canLock && lockChoice.isEnabled && certify.indexOfSelectedItem > 0
+            if locking && (lockChoice.indexOfSelectedItem == 2 || lockChoice.indexOfSelectedItem == 3) && picked.isEmpty {
+                problem(lockChoice.indexOfSelectedItem == 2 ? loc("Choose the fields to lock.") : loc("Choose the fields to leave open."), "")
                 continue
             }
             d.set(reason.stringValue, forKey: "SignReason")
@@ -613,15 +752,19 @@ enum SignDialog {
             d.set(chosenImage?.path, forKey: "SignImagePath")
             d.set(timestamp.state == .on, forKey: "SignTimestamp")
             d.set(url, forKey: "TimestampUrl")
+            if Pro.allows(.longTermValidation) { d.set(longTerm.indexOfSelectedItem, forKey: "SignLongTerm") }
             var look = SignatureLook()
             look.showDate = showDate.state == .on
             look.showReason = showReason.state == .on
             look.showDistinguishedName = showDn.state == .on
             look.image = chosenImage.flatMap { SignatureLibrary.shared.image($0) }
             func empty(_ s: String) -> String? { s.trimmingCharacters(in: .whitespaces).isEmpty ? nil : s }
+            let level: LongTermLevel = longTerm.indexOfSelectedItem == 2 ? .lta : longTerm.indexOfSelectedItem == 1 ? .lt : .none
             return SignChoice(id: id, reason: empty(reason.stringValue), location: empty(location.stringValue), visible: visible.state == .on,
                               look: look, timestamp: timestamp.state == .on, timestampUrl: url,
-                              certify: CertificationLevel(rawValue: max(certify.indexOfSelectedItem, 0)) ?? .none)
+                              certify: CertificationLevel(rawValue: max(certify.indexOfSelectedItem, 0)) ?? .none,
+                              longTerm: Pro.allows(.longTermValidation) ? level : .none,
+                              lock: locking ? FieldLocks.from(lockChoice.indexOfSelectedItem, picked) : nil)
         }
     }
 

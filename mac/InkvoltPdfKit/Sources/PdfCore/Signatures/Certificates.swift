@@ -89,11 +89,29 @@ public struct Certificate: Sendable, Hashable {
     let subjectKeyId: [UInt8]?
     let subjectNames: [(oid: String, value: String)]
     let issuerNames: [(oid: String, value: String)]
+    /// The signed part, the signature's algorithm (its whole AlgorithmIdentifier) and the signature: what `CertFacts.signedBy` checks.
+    let tbs: [UInt8]
+    let signatureAlgorithm: [UInt8]
+    let signatureValue: [UInt8]
+    /// The subjectPublicKey BIT STRING's bytes (.NET's `PublicKey.EncodedKeyValue`): what an OCSP CertID's key hash is of.
+    let publicKeyBits: [UInt8]
+    /// What the certificate names (RFC 5280 4.2.2.1, 4.2.1.13; RFC 6960 4.2.2.2.1), read leniently: a damaged extension names nothing.
+    let ocspUrls: [String]
+    let issuerUrls: [String]
+    let crlUrls: [String]
+    let ocspNoCheck: Bool
+    /// BasicConstraints says it is a certificate authority.
+    let isCa: Bool
 
     public init(der: [UInt8]) throws {
         self.der = der
         let cert = try Der.parse(der)
-        let tbs = try cert.child(0).children()
+        let outer = try cert.children()
+        guard outer.count >= 3, outer[2].tag == 0x03 else { throw Der.Malformed() }
+        self.tbs = outer[0].raw
+        signatureAlgorithm = outer[1].raw
+        signatureValue = Array(outer[2].content.dropFirst())
+        let tbs = try outer[0].children()
         var i = 0
         if tbs.first?.context == 0 { i = 1 }
         guard tbs.count >= i + 6 else { throw Der.Malformed() }
@@ -107,6 +125,8 @@ public struct Certificate: Sendable, Hashable {
         subjectNames = try Certificate.names(tbs[i + 4])
         issuerNames = try Certificate.names(tbs[i + 2])
         let spki = try tbs[i + 5].children()
+        guard spki.count >= 2, spki[1].tag == 0x03 else { throw Der.Malformed() }
+        publicKeyBits = Array(spki[1].content.dropFirst())
         let alg = try spki[0].children()
         keyAlgorithm = try alg[0].oid()
         curve = alg.count > 1 && alg[1].tag == 0x06 ? try alg[1].oid() : nil
@@ -117,15 +137,23 @@ public struct Certificate: Sendable, Hashable {
             keyBits = curve == Oids.p384 ? 384 : curve == Oids.p521 ? 521 : 256
         }
         var ku: [UInt8]?, eku: [String]?, ski: [UInt8]?
+        var ocsp: [String] = [], issuers: [String] = [], crls: [String] = [], noCheck = false, ca = false
         if let ext = tbs.dropFirst(i + 6).first(where: { $0.context == 3 }) {
             for e in try ext.child(0).children() {
                 let parts = try e.children()
                 guard let id = try? parts.first?.oid(), let value = parts.last, value.tag == 0x04 else { continue }
+                if id == Oids.ocspNoCheck {
+                    noCheck = true
+                    continue
+                }
                 let inner = try Der.parse(value.content)
                 switch id {
                 case Oids.keyUsage: ku = Array(inner.content.dropFirst())
                 case Oids.extendedKeyUsage: eku = try inner.children().map { try $0.oid() }
                 case Oids.subjectKeyId: ski = inner.content
+                case Oids.authorityInfoAccess: (ocsp, issuers) = Certificate.accessUrls(inner)
+                case Oids.crlDistributionPoints: crls = Certificate.distributionUrls(inner)
+                case Oids.basicConstraints: ca = (try? inner.children().first.map { $0.tag == 0x01 && $0.content.first.map { $0 != 0 } == true }) == true
                 default: break
                 }
             }
@@ -133,7 +161,54 @@ public struct Certificate: Sendable, Hashable {
         keyUsage = ku
         extendedKeyUsages = eku
         subjectKeyId = ski
+        ocspUrls = ocsp
+        issuerUrls = issuers
+        crlUrls = crls
+        ocspNoCheck = noCheck
+        isCa = ca
     }
+
+    /// At most this many addresses of each kind are read from one certificate: real ones name one or two.
+    private static let maxUrls = 4
+
+    /// AuthorityInfoAccess's OCSP and caIssuers URIs (GeneralName [6]).
+    private static func accessUrls(_ aia: Der) -> (ocsp: [String], issuers: [String]) {
+        var ocsp: [String] = [], issuers: [String] = []
+        for d in (try? aia.children()) ?? [] {
+            guard let p = try? d.children(), p.count == 2, let method = try? p[0].oid(), p[1].tag == 0x86,
+                  let uri = uri(p[1].content) else { continue }
+            if method == "1.3.6.1.5.5.7.48.1", ocsp.count < maxUrls { ocsp.append(uri) }
+            if method == "1.3.6.1.5.5.7.48.2", issuers.count < maxUrls { issuers.append(uri) }
+        }
+        return (ocsp, issuers)
+    }
+
+    /// The URIs of the CRL distribution points' full names ([0] [0] GeneralNames, URI [6]).
+    private static func distributionUrls(_ cdp: Der) -> [String] {
+        var urls: [String] = []
+        for point in (try? cdp.children()) ?? [] where urls.count < maxUrls {
+            guard let name = try? point.children().first, name.tag == 0xA0,
+                  let full = try? name.children().first, full.tag == 0xA0 else { continue }
+            for g in (try? full.children()) ?? [] where g.tag == 0x86 && urls.count < maxUrls {
+                if let uri = uri(g.content) { urls.append(uri) }
+            }
+        }
+        return urls
+    }
+
+    /// An OCSP responder whose issuer says it needn't be checked (RFC 6960 4.2.2.2.1): the extension counts only on a
+    /// certificate for OCSP signing, never on a signer or an authority.
+    var isNoCheckResponder: Bool { ocspNoCheck && extendedKeyUsages?.contains(Oids.ocspSigning) == true }
+
+    /// An address as a certificate names it, when it is one: visible ASCII only (no space, line break or control character
+    /// that could pass for more lines where it is shown).
+    private static func uri(_ bytes: [UInt8]) -> String? {
+        guard !bytes.isEmpty, bytes.count <= 2048, bytes.allSatisfy({ $0 > 0x20 && $0 < 0x7F }) else { return nil }
+        return String(decoding: bytes, as: UTF8.self)
+    }
+
+    /// The SHA-1 of the DER (.NET's `Thumbprint`): how certificates are told apart and remembered.
+    var thumbprint: String { DigestAlgorithm.sha1.hash(der).map { String(format: "%02X", $0) }.joined() }
 
     public static func == (a: Certificate, b: Certificate) -> Bool { a.der == b.der }
     public func hash(into h: inout Hasher) { h.combine(der) }

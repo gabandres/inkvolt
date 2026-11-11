@@ -15,9 +15,11 @@ public struct CommandLineRequest: Equatable, Sendable {
     public var quiet = false
     public var name: String?
     public var flatten = false
+    /// Lets "Add long-term validation data" go online.
+    public var online = false
 
     public init(_ kind: CommandKind, preset: String? = nil, inputs: [String]? = nil, folder: String? = nil, output: String? = nil,
-                recursive: Bool = false, once: Bool = false, quiet: Bool = false, name: String? = nil, flatten: Bool = false) {
+                recursive: Bool = false, once: Bool = false, quiet: Bool = false, name: String? = nil, flatten: Bool = false, online: Bool = false) {
         self.kind = kind
         self.preset = preset
         self.inputs = inputs
@@ -28,6 +30,7 @@ public struct CommandLineRequest: Equatable, Sendable {
         self.quiet = quiet
         self.name = name
         self.flatten = flatten
+        self.online = online
     }
 }
 
@@ -83,12 +86,15 @@ public enum BatchCommandLine {
     public static let usage = """
         Inkvolt PDF command line: run a saved Batch preset without a window.
 
-          inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--quiet]
+          inkvoltpdf --batch <preset.json> <files or folders>... [--out <folder>] [--recursive] [--online] [--quiet]
               Runs the preset on PDFs and images (a folder: the PDFs and images in it), a line per file.
               --out <folder>   where the results go (default: the preset's folder)
               --recursive      the folders' subfolders too
+              --online         lets "Add long-term validation data" go online: the OCSP, CRL and issuer addresses
+                               each signature's certificates name, and the preset's timestamp server (each file's
+                               line says which it asked). A preset with that action doesn't run without it.
 
-          inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--quiet]
+          inkvoltpdf --watch <folder> --preset <preset.json> [--out <folder>] [--once] [--online] [--quiet]
               Runs the preset on each PDF or image that lands in the folder, once it has stopped growing.
               Originals move to "done" or "failed" below the folder; inkvolt-watch.log there has a line per file.
               Ctrl+C stops (the files being worked on finish their current action first).
@@ -134,7 +140,7 @@ public enum BatchCommandLine {
         if kind == .help { return CommandLineRequest(kind) }
 
         var firstValue: String?, preset: String?, output: String?, name: String?
-        var recursive = false, once = false, quiet = false, flatten = false
+        var recursive = false, once = false, quiet = false, flatten = false, online = false
         var inputs: [String] = []
         var i = 1
         func value(_ name: String) throws -> String {
@@ -150,6 +156,7 @@ public enum BatchCommandLine {
             case "--recursive": recursive = true
             case "--once": once = true
             case "--quiet": quiet = true
+            case "--online" where kind != .fill: online = true
             case "--name" where kind == .fill: name = try value("--name")
             case "--flatten" where kind == .fill: flatten = true
             default:
@@ -168,13 +175,13 @@ public enum BatchCommandLine {
             if preset != nil { throw CommandLineError("--batch takes the preset right after it, not with --preset.") }
             if once { throw CommandLineError("--once goes with --watch.") }
             if inputs.isEmpty { throw CommandLineError("--batch needs the files or folders to run the preset on, after the preset.") }
-            return CommandLineRequest(kind, preset: firstValue, inputs: inputs, output: output, recursive: recursive, quiet: quiet)
+            return CommandLineRequest(kind, preset: firstValue, inputs: inputs, output: output, recursive: recursive, quiet: quiet, online: online)
         }
         guard let firstValue else { throw CommandLineError("--watch needs the folder to watch.") }
         if !inputs.isEmpty { throw CommandLineError("--watch takes one folder (\"\(inputs[0])\" is one too many).") }
         guard let preset else { throw CommandLineError("--watch needs a preset: --preset <preset.json>.") }
         if recursive { throw CommandLineError("--recursive goes with --batch (a watched folder takes the files at its top).") }
-        return CommandLineRequest(kind, preset: preset, folder: firstValue, output: output, once: once, quiet: quiet)
+        return CommandLineRequest(kind, preset: preset, folder: firstValue, output: output, once: once, quiet: quiet, online: online)
     }
 
     /// Runs the command line; returns the exit code. `host`: the recognizer (OCR) when there is one; its password prompt
@@ -217,8 +224,14 @@ public enum BatchCommandLine {
             stderr.writeLine("The preset protects files with a password: set \(openPasswordVariable) and/or \(permissionsPasswordVariable) (presets never keep passwords).")
             return wrong
         }
+        // Going online needs the person's word: in the app the window listing every address, here --online.
+        if steps.contains(where: \.isAddLongTerm) && !request.online {
+            stderr.writeLine("The preset adds long-term validation data, which goes online (the addresses its signatures' certificates name, and its timestamp server): add --online to allow it.")
+            return wrong
+        }
         preset.steps = steps
-        let quiet = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage, reader: host.reader)
+        let quiet = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage, reader: host.reader,
+                              longTermClient: request.online ? host.longTermClient ?? { LtvClient() } : nil, isOnline: host.isOnline)
         return request.kind == .batch
             ? await batch(request, preset, quiet, stdout, stderr, cancel)
             : await watch(request, preset, quiet, stdout, stderr, cancel)

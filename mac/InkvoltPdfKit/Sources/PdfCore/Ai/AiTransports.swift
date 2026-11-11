@@ -728,7 +728,11 @@ public final class AiLoopbackServer: @unchecked Sendable {
     public struct Received: Sendable {
         public let head: String
         public let body: String
+        /// The body as received, for a binary one (an OCSP or timestamp request).
+        public var bodyBytes: [UInt8] = []
         public var requestLine: String { head.components(separatedBy: "\r\n").first ?? "" }
+        /// The request's path ("/ocsp").
+        public var path: String { requestLine.split(separator: " ").dropFirst().first.map(String.init) ?? "" }
     }
 
     /// One answer: raw bytes written in pieces, with an optional pause between them, then the connection closed
@@ -877,7 +881,8 @@ public final class AiLoopbackServer: @unchecked Sendable {
             }
         }
         let end = headEnd ?? data.count
-        let received = Received(head: String(decoding: data[..<end], as: UTF8.self), body: String(decoding: data[min(end + 4, data.count)...], as: UTF8.self))
+        let body = Array(data[min(end + 4, data.count)...])
+        let received = Received(head: String(decoding: data[..<end], as: UTF8.self), body: String(decoding: body, as: UTF8.self), bodyBytes: body)
         lock.withLock { requests.append(received) }
         let reply = answer(received)
         for (i, piece) in reply.pieces.enumerated() {
