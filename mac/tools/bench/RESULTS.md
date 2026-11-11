@@ -100,6 +100,22 @@ The save with the pass before it (`UnsharePassTimingTests`, opt-in, release buil
 (`text.pdf`), 0.12 s (`comments.pdf`), 0.01 s (`scan.pdf`, `drawings.pdf`), no copies needed in any; a compacting save
 0.05, 0.26, 0.72 and 1.49 s with it, about 0.03, 0.13, 0.71 and 1.48 s without.
 
+## Before 1.12.0 (2026-11-11, the same Air, the same corpus)
+
+`run` on master at `3ce8aca5` (long-term validation and redaction by pattern merged), 3 runs each, at a load of 1.5 to 5.6:
+
+| Measure | `text.pdf` | `scan.pdf` | `drawings.pdf` | `comments.pdf` |
+|---|---|---|---|---|
+| First page | 42 ms | 118 ms | 326 ms | 182 ms |
+| Scrolling proxy, ms/page (slowest) | 1 (7) | 26 (26) | 202 (209) | 6 (14) |
+| Find | 0.57 s | 0.01 s | 7.97 s | 0.07 s |
+| Comment list | 0.01 s | 0.02 s | 0.02 s | 0.22 s (10,000) |
+| Peak memory | 156 MB | 983 MB | 1.35 GB | 147 MB |
+
+Faster than 1.11.0's (a quieter Air). Neither feature touches opening, drawing or Find: verifying signatures reads a /DSS
+only in signed files, and the corpus has none. Still missed: `drawings.pdf`, 15 of the first 20 pages over 200 ms (202 ms on
+average) and Find 7.97 s.
+
 ## What missed
 
 - `drawings.pdf`: 20 of the first 20 pages took over 200 ms to render (slowest 251 ms; 223 ms on average).
