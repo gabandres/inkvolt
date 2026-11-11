@@ -28,7 +28,7 @@ public enum Redaction {
                                      skipText: CancelToken? = nil) throws -> RedactedData {
         let redacted = try apply(data, password, areasByPage, cancel: cancel)
         guard let recognize, redacted != data else { return RedactedData(data: redacted, textSkipped: false, recognized: 0) }
-        return try textBack(redacted, password, areasByPage, recognize, language: language, progress: progress, skipText: skipText)
+        return try textBack(redacted, password, areasByPage, recognize, language: language, progress: progress, cancel: cancel, skipText: skipText)
     }
 
     /// The redacted pages of `redacted`, pictures now, recognized and given their text again as an invisible text layer, so
@@ -37,10 +37,11 @@ public enum Redaction {
     /// show, and the recognizer may have guessed them. `progress`: (pages read, pages). `skipText` fired: the pages stay
     /// without text (`textSkipped`), the redaction is kept.
     public static func textBack(_ redacted: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], _ recognize: Recognizer,
-                                language: String? = nil, progress: ((Int, Int) -> Void)? = nil, skipText: CancelToken? = nil) throws -> RedactedData {
+                                language: String? = nil, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
+                                skipText: CancelToken? = nil) throws -> RedactedData {
         let pages = areasByPage.keys.sorted()
         do {
-            var (words, _) = try PageOcr.recognizePages(redacted, password, pages, recognize, exclude: areasByPage, cancel: skipText, progress: progress)
+            var (words, _) = try PageOcr.recognizePages(redacted, password, pages, recognize, exclude: areasByPage, cancel: skipText ?? cancel, progress: progress)
             for (page, list) in words {
                 let black = (areasByPage[page] ?? []).map { $0.inflate(1) }
                 words[page] = list.filter { w in !black.contains { !$0.intersect(w.rect).isEmpty } }
@@ -50,6 +51,8 @@ public enum Redaction {
             try skipText.check()
             return RedactedData(data: try TextLayer.addInvisibleText(redacted, password, words, language: language), textSkipped: false, recognized: n)
         } catch is CancellationError where skipText?.isCancelled == true {
+            // The whole edit cancelled (Batch's Stop, the same token): nothing is kept.
+            if cancel?.isCancelled == true { throw CancellationError() }
             return RedactedData(data: redacted, textSkipped: true, recognized: 0)
         }
     }

@@ -164,7 +164,9 @@ public enum RedactionSearch {
         let found = try find(engine, options, ocr: ocr, progress: progress, cancel: cancel, ocrOnly: redactedPages)
         var keptByPage: [Int: RectIndex] = [:]
         for (page, list) in Dictionary(grouping: kept, by: \.page) { keptByPage[page] = RectIndex(list.flatMap(\.rects)) }
-        let left = found.hits.filter { h in !(keptByPage[h.page]?.touches(h.rects) ?? false) }
+        // Kept means where a kept hit is (most of a box on it): a box that only touches one (a recognized word's box is grown,
+        // so two values side by side touch) is still there (Windows: touches).
+        let left = found.hits.filter { h in !(keptByPage[h.page]?.liesOn(h.rects) ?? false) }
         return (left, found.skipped)
     }
 
@@ -220,9 +222,6 @@ public enum RedactionSearch {
             }
         }
 
-        func touches(_ rects: [RectD]) -> Bool {
-            rects.contains { r in Self.bands(r).contains { b in (bands[b] ?? []).contains { !$0.intersect(r).isEmpty } } }
-        }
     }
 
     // ---- The page's ink ----

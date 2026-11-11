@@ -405,8 +405,11 @@ public enum RedactionPatterns {
         var builtIn: [(pattern: RedactionPattern, start: Int, end: Int)] = []
         for rule in rules where options.patterns.contains(rule.pattern) {
             do {
-                var m = try TimedRegex.first(rule.regex, in: view, from: 0, seconds: 2)
-                while let match = m {
+                // One search a rule; a new one from a later place only where a check cut or refused a number.
+                var list = try TimedRegex.matches(rule.regex, in: view, seconds: 2)
+                var k = 0
+                while k < list.count {
+                    let match = list[k]
                     let at = match.range.location, length = match.range.length
                     let end = accept(rule, match, view, viewUnits, lenient)
                     if let end { builtIn.append((rule.pattern, at, end)) }
@@ -417,8 +420,12 @@ public enum RedactionPatterns {
                     if rule.trim && end != at + length {
                         if let end { next = end } else { next = firstSeparator(viewUnits, at, length) }
                     }
-                    let from = next > at ? next : at + max(length, 1)
-                    m = from <= view.length ? try TimedRegex.first(rule.regex, in: view, from: from, seconds: 2) : nil
+                    if next > at {
+                        list = try TimedRegex.matches(rule.regex, in: view, from: next, seconds: 2)
+                        k = 0
+                    } else {
+                        k += 1
+                    }
                     try spend()
                 }
             } catch is TimedRegex.Timeout {

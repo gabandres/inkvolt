@@ -21329,6 +21329,17 @@
           }
         }
       }
+    },
+    "The set couldn't be deleted: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo eliminar el conjunto: {0}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -658,7 +658,9 @@ final class RedactPatternSheet: NSWindowController {
     }
 
     @objc func deleteSetClicked() {
-        guard let window, setPopup.indexOfSelectedItem > 0, let name = setPopup.titleOfSelectedItem else { return }
+        let i = setPopup.indexOfSelectedItem - 1
+        guard let window, sets.indices.contains(i) else { return }
+        let set = sets[i], name = set.name
         let alert = NSAlert()
         alert.messageText = loc("Delete the set \"{0}\"?", name)
         alert.informativeText = loc("It goes from this Mac. What you chose below stays until you close this window.")
@@ -668,7 +670,13 @@ final class RedactPatternSheet: NSWindowController {
         alert.beginSheetModal(for: window) { response in
             MainActor.assumeIsolated {
                 guard response == .alertFirstButtonReturn else { return }
-                RedactionPatternSets.delete(name, self.setsFolder)
+                do {
+                    try RedactionPatternSets.delete(set)
+                    self.problem.isHidden = true
+                } catch {
+                    self.problem.stringValue = loc("The set couldn't be deleted: {0}", NSAlert.plainText(error))
+                    self.problem.isHidden = false
+                }
                 self.reloadSets()
             }
         }

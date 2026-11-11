@@ -1876,7 +1876,11 @@ stops; a recognized word that touches a blacked-out area at all is left out of t
 inside); a saved set's pattern is ICU's, so one written on Windows can read differently or be refused, and ICU refuses a
 pattern nested 990 deep in plain words (A_pattern_nested_very_deep… accepts either); the value check needs no splitting
 of its search (ICU has no .NET size limit); Batch's step editor fills its fields from a saved set instead of opening the
-sheet. Not checked: Vision on a real scan in this flow (the corpus uses the stand-in), a person looking at the list and the
+sheet. Stricter than Windows after the port's code review: a hit counts as kept only where most of a box lies on a kept
+one (Windows: touches, so a value beside a kept one read by OCR passed); values cut past the check's 500 that the patterns
+didn't read outside the pages make it incomplete; an earlier version whose objects can't be read makes it incomplete; a
+name tree's names aren't searched but the scripts and files they lead to are; a set is deleted from the file it was read
+from; the list's VoiceOver labels say whether a line is ticked. Not checked: Vision on a real scan in this flow (the corpus uses the stand-in), a person looking at the list and the
 report on screen, VoiceOver on the list.
 
 ## Open decisions

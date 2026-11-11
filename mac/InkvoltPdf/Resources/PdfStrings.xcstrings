@@ -24640,6 +24640,39 @@
           }
         }
       }
+    },
+    "{0}, {1}. Not checked: it stays a mark.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, {1}. Sin marcar: se queda como marca."
+          }
+        }
+      }
+    },
+    "{0}, {1}: {2}. Not checked: it will be kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, {1}: {2}. Sin marcar: se conservará."
+          }
+        }
+      }
+    },
+    "{0}: {1} Not checked: the places where nothing was read stay as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: {1} Sin marcar: los lugares donde no se leyó nada se quedan como están."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

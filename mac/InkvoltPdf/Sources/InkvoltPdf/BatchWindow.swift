@@ -842,11 +842,13 @@ enum ActionSheet {
                 _ = fill // kept alive while the alert is open
                 var n = r
                 n.patterns = Set(zip(RedactionPatterns.builtIn, boxes).filter { $0.1.state == .on }.map(\.0))
-                n.phrases = phrases.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                let i = setPopup.indexOfSelectedItem - 1
+                // A set's phrases as they are while the field still shows them (one may hold a comma), else the field's.
+                n.phrases = sets.indices.contains(i) && phrases.stringValue == sets[i].options.phrases.joined(separator: ", ") ? sets[i].options.phrases
+                    : phrases.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                 n.expression = expression.stringValue.isEmpty ? nil : expression.stringValue
                 n.wholeWord = whole.state == .on
                 n.matchCase = caseBox.state == .on
-                let i = setPopup.indexOfSelectedItem - 1
                 n.setName = sets.indices.contains(i) && sets[i].options.patterns == n.patterns && sets[i].options.phrases == n.phrases
                     && sets[i].options.expression == n.expression && sets[i].options.wholeWord == n.wholeWord && sets[i].options.matchCase == n.matchCase
                     ? sets[i].name : nil

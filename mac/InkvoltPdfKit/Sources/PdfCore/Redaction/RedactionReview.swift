@@ -71,12 +71,18 @@ public struct RedactionReviewRow: Sendable {
         }
     }
 
-    /// The line for a screen reader.
+    /// The line for a screen reader, as it is ticked now.
     public var spoken: String {
         switch item {
-        case .hit: loc("{0}, {1}: {2}. Checked: it will be redacted.", place, kind, before + value + after)
-        case .earlier: loc("{0}, {1}. Checked: it will be redacted.", place, kind)
-        case .look(let l): loc("{0}: {1} Checked: the places where nothing was read will be blacked out.", place, l.text)
+        case .hit:
+            accepted ? loc("{0}, {1}: {2}. Checked: it will be redacted.", place, kind, before + value + after)
+                : loc("{0}, {1}: {2}. Not checked: it will be kept.", place, kind, before + value + after)
+        case .earlier:
+            accepted ? loc("{0}, {1}. Checked: it will be redacted.", place, kind) : loc("{0}, {1}. Not checked: it stays a mark.", place, kind)
+        case .look(let l):
+            !tickable ? loc("{0}: {1}", place, l.text)
+                : accepted ? loc("{0}: {1} Checked: the places where nothing was read will be blacked out.", place, l.text)
+                : loc("{0}: {1} Not checked: the places where nothing was read stay as they are.", place, l.text)
         }
     }
 }

@@ -349,7 +349,14 @@ extension RedactionCheck {
         case .dict:
             for key in item.keys {
                 guard !(signature && key == "Contents"), let v = item[key], !v.isRef else { continue }
-                if !names && ["Dest", "D", "Names", "Limits"].contains(key) { continue }
+                if !names && ["Dest", "D", "Names", "Limits"].contains(key) {
+                    // The names themselves go; a dictionary they lead to (a script's /JS, a file's /Desc, a layer setting) stays.
+                    if v.kind == .string { continue }
+                    if v.isArray {
+                        for e in v.elements where !e.isRef && e.kind != .string { strings(e, &sb, signature, depth + 2, names: names) }
+                        continue
+                    }
+                }
                 strings(v, &sb, signature, depth + 1, names: names)
             }
         case .array:
@@ -862,6 +869,7 @@ extension RedactionCheck.Check {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
+            incomplete = true
             notes.append(loc("{0}: what it held besides its pages couldn't be read on its own.", place))
         }
     }

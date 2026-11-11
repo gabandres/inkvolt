@@ -229,12 +229,13 @@ public enum RedactionCheck {
         try Check(data, password, options, progress, cancel).run()
     }
 
-    /// The areas to redact to fix the findings that a redaction fixes, per page.
     /// A finding about what was just redacted still being in the file, rather than about the file as it came (a box that
     /// hides text elsewhere, a hidden layer).
     public static func isLeftover(_ kind: RedactionLeak) -> Bool {
         ![.coveredText, .coveredContent, .unappliedMark, .glyphSpacing, .hiddenContent].contains(kind)
     }
+
+    /// The areas to redact to fix the findings that a redaction fixes, per page.
 
     public static func redactAreas(_ findings: [RedactionFinding]) -> [Int: [RectD]] {
         var out: [Int: [RectD]] = [:]
@@ -591,8 +592,11 @@ extension RedactionCheck {
             let all = RedactionCheck.clean(outside + options.values + found).filter { !kept.contains($0.lowercased()) }
             let values = Array(all.prefix(RedactionCheck.maxValues))
             if all.count > values.count {
-                // With the patterns run over the rest of the file, whatever they can read there has been looked for anyway.
-                if options.patterns == nil || outside.count > RedactionCheck.maxValues { incomplete = true }
+                // With the patterns run over the rest of the file, what they read there has been looked for anyway; a value they
+                // didn't read there (a removed page value, one under a cover) wasn't looked for in earlier versions or the raw
+                // bytes, so the check is incomplete (stricter than Windows, which counts on the patterns alone).
+                let read = Set(outside.map { $0.lowercased() })
+                if options.patterns == nil || all.dropFirst(values.count).contains(where: { !read.contains($0.lowercased()) }) { incomplete = true }
                 let first = CoreLanguage.number(values.count), of = CoreLanguage.number(all.count)
                 notes.append(loc("Only the first {0} of {1} redacted values were looked for as written in the rest of the file.", first, of))
             }

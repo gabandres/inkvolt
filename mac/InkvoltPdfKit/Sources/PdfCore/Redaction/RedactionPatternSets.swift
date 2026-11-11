@@ -6,10 +6,13 @@ import PrintCore
 public struct RedactionPatternSet: Equatable, Sendable {
     public var name: String
     public var options: RedactionPatternOptions
+    /// The file it was read from (nil: not saved yet), which Delete removes whatever it is called.
+    public var path: String?
 
-    public init(_ name: String, _ options: RedactionPatternOptions) {
+    public init(_ name: String, _ options: RedactionPatternOptions, path: String? = nil) {
         self.name = name
         self.options = options
+        self.path = path
     }
 }
 
@@ -112,7 +115,9 @@ public enum RedactionPatternSets {
         guard let json = String(data: data, encoding: .utf8) else {
             throw RedactionPatternSetError(message: loc("The saved set {0} can't be used: it holds text that can't be read.", name))
         }
-        return try read(json, name)
+        var set = try read(json, name)
+        set.path = path
+        return set
     }
 
     /// Saves a set whole (through a temporary file), in place of one with the same name; returns the file written.
@@ -139,6 +144,13 @@ public enum RedactionPatternSets {
 
     public static func delete(_ name: String, _ folder: String) {
         try? FileManager.default.removeItem(atPath: (folder as NSString).appendingPathComponent(fileName(name)))
+    }
+
+    /// Deletes the file `set` was read from (a set copied in under another file name too).
+    /// - Throws: the file system's error when it can't be removed.
+    public static func delete(_ set: RedactionPatternSet) throws {
+        guard let path = set.path else { return }
+        try FileManager.default.removeItem(atPath: path)
     }
 
     /// The set as its file holds it: pretty-printed JSON, keys in a fixed order, as Windows writes it.
