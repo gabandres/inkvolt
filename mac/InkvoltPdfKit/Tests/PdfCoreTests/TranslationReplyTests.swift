@@ -159,9 +159,16 @@ final class EndlessBody: AiBody, @unchecked Sendable {
     }
 
     func read(_ cancel: CancelToken) async throws -> [UInt8]? {
-        // A yield, not a sleep: in a full run the other suites keep the cooperative pool busy, and a sleep's wake-up came
-        // minutes late.
-        await Task.yield()
+        if keepAlive {
+            // A sleep, not a yield: what ends these streams is a deadline's timer on GCD's global queue, and reads that
+            // never suspend kept the cooperative threads busy, so on CI's 3-core runner GCD started no thread for that
+            // timer and the run went on until the job's time limit (ignia-mac: 0.2 s timeouts kept for 9 minutes).
+            try await Task.sleep(nanoseconds: 1_000_000)
+        } else {
+            // A yield, not a sleep: in a full run the other suites keep the cooperative pool busy, and a sleep's wake-up
+            // came minutes late; what stops this stream is the answer's length guard, not a clock.
+            await Task.yield()
+        }
         try cancel.check()
         onChunk?()
         return keepAlive ? Self.ping : Self.piece
