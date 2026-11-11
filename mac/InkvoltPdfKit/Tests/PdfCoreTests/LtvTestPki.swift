@@ -191,10 +191,13 @@ final class LtvTestPki: @unchecked Sendable {
     }
 
     /// The issuer's CRL now, listing what was revoked.
-    func crl(_ issuer: Issued) throws -> [UInt8] {
+    /// `unreadableDates`: each entry's revocation date is a time no reader can read.
+    func crl(_ issuer: Issued, unreadableDates: Bool = false) throws -> [UInt8] {
         let now = Date()
         let listed = lock.withLock { revoked }
-        let entries = listed.sorted { $0.key.lexicographicallyPrecedes($1.key) }.map { DerWriter.seq([DerWriter.tlv(0x02, $0.key), DerWriter.time($0.value)]) }
+        let entries = listed.sorted { $0.key.lexicographicallyPrecedes($1.key) }.map {
+            DerWriter.seq([DerWriter.tlv(0x02, $0.key), unreadableDates ? DerWriter.tlv(0x17, Array("99".utf8)) : DerWriter.time($0.value)])
+        }
         let sigAlg = DerWriter.seq([DerWriter.oid("1.2.840.113549.1.1.11"), DerWriter.null])
         var tbs: [[UInt8]] = [DerWriter.int(1), sigAlg, issuer.cert.subjectRaw, DerWriter.time(now - 1), DerWriter.time(now + 7 * 86400)]
         if !entries.isEmpty { tbs.append(DerWriter.seq(entries)) }

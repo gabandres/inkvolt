@@ -91,15 +91,19 @@ final class SignatureFacts {
     var vriKey: String { DigestAlgorithm.sha1.hash(contentsForVri ?? []).map { String(format: "%02X", $0) }.joined() }
 }
 
-/// A date as the long-term texts show it (2026-11-11, UTC).
-func ltvDay(_ d: Date?) -> String {
+/// A date as the long-term texts show it (2026-11-11, UTC): the Signatures pane's too.
+public func ltvDay(_ d: Date?) -> String {
     guard let d else { return "?" }
+    return ltvDayFormat.string(from: d)
+}
+
+private let ltvDayFormat: DateFormatter = {
     let f = DateFormatter()
     f.locale = Locale(identifier: "en_US_POSIX")
     f.timeZone = TimeZone(identifier: "UTC")
     f.dateFormat = "yyyy-MM-dd"
-    return f.string(from: d)
-}
+    return f
+}()
 
 /// Judges each signature from what the file holds, and from nothing else (the Windows app's `LongTermCheck`): its chain
 /// against the /DSS and the signature's own archived revocation data, the level it reaches, and a revocation found there
@@ -135,7 +139,8 @@ enum LongTermCheck {
 
             // Revocation takes away the trust at the time that counts for trust: a trusted timestamp's, else now.
             let trustAt = f.trustTime ?? Date()
-            if let revoked = walk(cert, pool, trustAt, anchors).first(where: { $0.outcome == .revoked }) {
+            let atTrust = f.trustTime != nil && f.trustTime == when ? chain : walk(cert, pool, trustAt, anchors)
+            if let revoked = atTrust.first(where: { $0.outcome == .revoked }) {
                 f.info.certificateTrusted = false
                 f.info.certificateStatus = revoked.revokedAt.map { loc("Revoked on {0}: {1}", ltvDay($0), revoked.name) } ?? loc("Revoked: {0}", revoked.name)
             }

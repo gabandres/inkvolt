@@ -311,6 +311,43 @@ struct LtvTests {
         #expect(s.certificateStatus.contains("Revoked"))
     }
 
+    /// A Mac addition (the port's review): signing promises the long term for the new signature only, so another signer's
+    /// certificate that names only local addresses doesn't stop it; that signer's chain is left as it could be covered.
+    @Test func signingForTheLongTermDoesntFailOnAnotherSignersGap() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let hostile = try pki.issue("Hostile", pki.intermediate, ku: 0x40, ocsp: ["http://192.168.1.1/probe"], crl: ["http://169.254.169.254/x"])
+        let first = try await SigningTests.sign(TestPdf.make(1), hostile.id)
+        let pdf = try await Self.signLongTerm(pki, .lt, first)
+        let all = Signatures.verify(pdf, nil, anchors: pki.anchors)
+        #expect(all.first { $0.signerName == "Test Long-Term Signer" }?.longTerm?.level == .blt)
+        #expect(all.first { $0.signerName == "Hostile" }?.longTerm?.dataComplete == false)
+    }
+
+    /// A Mac addition (the port's review): a list that names the certificate with a date nobody can read still says it
+    /// was revoked.
+    @Test func aListedCertificateWithAnUnreadableDateCountsAsRevoked() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let signed = try await Self.signBb(pki)
+        pki.revoke(pki.signer, at: Date() - 86400)
+        let crl = try pki.crl(pki.intermediate, unreadableDates: true)
+        let pdf = try Dss.append(signed, nil, [VriEntry(key: "AA", certs: [pki.intermediate.cert.der], ocsps: [], crls: [crl])])
+        let s = try Self.first(pdf, pki)
+        #expect(!s.certificateTrusted)
+        #expect(s.certificateStatus.contains("Revoked"), "\(s.certificateStatus)")
+    }
+
+    /// A Mac addition (the port's review): "/Encrypt" in a page's text doesn't make a file encrypted.
+    @Test func theWordsEncryptInAPageDontRefuseTheFile() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let signed = try await Self.signBb(pki, TestPdf.make(1, marker: "/Encrypt"))
+        #expect(signed.firstRange(of: Array("/Encrypt".utf8)) != nil)
+        let result = try await Ltv.addVerification(signed, nil, pki.client())
+        #expect(result.changed)
+    }
+
     @Test func checkingOnlineChangesNothingAndFindsARevocation() async throws {
         let pki = try LtvTestPki()
         defer { pki.stop() }

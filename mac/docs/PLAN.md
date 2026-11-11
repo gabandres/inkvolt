@@ -1917,7 +1917,14 @@ Mac differences:
 - **Batch**: the run's cancel token cancels the long-term task; "offline" means no interface but loopback is up with an
   address (getifaddrs; .NET's `GetIsNetworkAvailable`). The window's list of addresses is worked out in PdfCore
   (`Ltv.plan(files:)`, tested), where Windows' app does it.
-- **Check Signatures Online**'s answer counts for the window until it closes (Windows: the tab).
+- **Check Signatures Online**'s answer counts for the window until it closes (Windows: the tab). It judges each signer's
+  chain at the time the window's list was worked out for (its timestamp's), so it asks what the window listed.
+- **Stricter or kinder than Windows after the port's review**: signing for the long term demands a complete chain for the
+  new signature only (an earlier signer whose certificate names nothing usable no longer stops it: Windows refuses); a CRL
+  that lists the certificate with a date it can't read counts as revoked (Windows: not revoked); a delegated responder is
+  looked for among all the certificates its issuer issued for OCSP signing before the cap; a file is encrypted by its
+  trailer, not by the bytes "/Encrypt" anywhere in it (signing, Add Verification Information, Batch); a certificate's name is
+  shortened to 120 characters where it is shown.
 - **Signature changes**: a key the later revision has with a null value counts as there (a /DSS of null reads as validation
   data, as on Windows, where PDFsharp keeps the null).
 - **Tests**: a stalled server waits with `LtvTestPki.pause`, which `stop` ends; the exploding stream packs 64 MB (400 MB on

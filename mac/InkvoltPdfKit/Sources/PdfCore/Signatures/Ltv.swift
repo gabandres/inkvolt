@@ -125,7 +125,7 @@ public enum Ltv {
         for path in paths {
             // Unreadable here, it fails as the batch runs, before anything is asked.
             guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)).map({ $0 }) else { continue }
-            if data.firstRange(of: Array("/Encrypt".utf8)) != nil { continue }
+            if isEncrypted(data) { continue }
             if !Signatures.inspect(data, nil).contains(where: { $0.intact && $0.info.certificate != nil }) { continue }
             if PdfRepair.normalize(data, nil).repaired { continue } // skipped in the run: a damaged file's signatures are never extended
             signed += 1
@@ -192,7 +192,7 @@ public enum Ltv {
         let gather = Gatherer(client, RevocationPool(), useStored: false)
         for f in facts where f.intact { // as the plan: what the person was shown is all that is asked
             guard let cert = f.info.certificate else { continue }
-            _ = try await gather.coverChain(cert, f.certs, Date())
+            _ = try await gather.coverChain(cert, f.certs, f.stamped ?? Date()) // at the time the plan built the chain at
             if let tsa = f.tsa { _ = try await gather.coverChain(tsa, f.tsaCerts, f.stamped ?? Date()) }
         }
         let snapshot = RevocationSnapshot()
@@ -204,7 +204,7 @@ public enum Ltv {
     /// signature is extended in a repaired file (`repairedLength`), else such a file is refused.
     static func extend(_ data: [UInt8], _ password: String?, _ client: LtvClient, _ documentTimestamp: (@Sendable ([UInt8]) async throws -> [UInt8])?,
                        strict: Bool, repairedLength: Int = 0) async throws -> LtvResult {
-        if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+        if isEncrypted(data) {
             throw SigningError(loc("Encrypted (password-protected) PDFs can't take long-term data, since an update can't be appended to them without breaking their signatures. Nothing was changed."))
         }
         let before = Signatures.inspect(data, password, repairedLength: repairedLength)
@@ -232,8 +232,18 @@ public enum Ltv {
 
         let gather = Gatherer(client, storedPool(output, password), useStored: true)
         var entries: [VriEntry] = []
-        for f in intact { entries.append(try await gather.entry(for: f)) }
-        try stop(gather, strict)
+        if strict, let newest = intact.max(by: { $0.end < $1.end }) {
+            // Signing promises B-LT for the new signature only: its chain must be complete. Earlier signers' get what can
+            // be had, and a gap or a server failing for them doesn't stop the signing.
+            let (entry, used) = try await gather.entry(for: newest)
+            try stop(gather, used)
+            entries.append(entry)
+            for f in intact where f !== newest { entries.append(try await gather.entry(for: f).vri) }
+            gather.forgetFailures()
+        } else {
+            for f in intact { entries.append(try await gather.entry(for: f).vri) }
+            try stop(gather, nil)
+        }
 
         if !Dss.holds(output, password, entries) {
             output = try Dss.append(output, password, entries)
@@ -246,8 +256,8 @@ public enum Ltv {
             guard let stamp = Signatures.inspect(output, password).filter({ $0.documentTimestamp && $0.intact }).max(by: { $0.end < $1.end }) else {
                 throw SigningError(loc("The document timestamp doesn't check out. Nothing was changed."))
             }
-            let entry = try await gather.entry(for: stamp)
-            try stop(gather, strict)
+            let (entry, used) = try await gather.entry(for: stamp)
+            try stop(gather, strict ? used : nil)
             output = try Dss.append(output, password, [entry])
         }
 
@@ -263,15 +273,23 @@ public enum Ltv {
         return LtvResult(pdf: output, changed: changed, certificates: gather.results(), contacts: client.contacts)
     }
 
-    private static func stop(_ gather: Gatherer, _ strict: Bool) throws {
+    /// A server's failure ends it all; with `strict` (signing), so does a revoked certificate or a gap among those.
+    private static func stop(_ gather: Gatherer, _ strict: [Gatherer.Entry]?) throws {
         if let failure = gather.firstFailure { throw SigningError(loc("{0} Nothing was changed.", failure), serverFailure: true) }
-        guard strict else { return }
-        if let revoked = gather.entries.first(where: { $0.outcome == .revoked }) {
+        guard let strict else { return }
+        if let revoked = strict.first(where: { $0.outcome == .revoked }) {
             throw SigningError(loc("{0} has been revoked, so it can't sign for the long term. Nothing was changed.", CertFacts.name(revoked.cert)))
         }
-        if let gap = gather.entries.first(where: { !$0.outcome.covered }) {
+        if let gap = strict.first(where: { !$0.outcome.covered }) {
             throw SigningError(loc("Long-term data can't be complete: {0}. Sign without long-term validation, or use a digital ID whose authority can be asked. Nothing was changed.", gap.detail))
         }
+    }
+
+    /// The file is encrypted, by its trailer (the bytes "/Encrypt" in a page's text don't make it so); one MuPDF can't
+    /// open is taken as it reads.
+    static func isEncrypted(_ data: [UInt8]) -> Bool {
+        if let doc = try? MuDoc.open(data) { return doc.hasEncrypt }
+        return data.firstRange(of: Array("/Encrypt".utf8)) != nil
     }
 
     private static func storedPool(_ data: [UInt8], _ password: String?) -> RevocationPool {
@@ -300,6 +318,9 @@ public enum Ltv {
         private var order: [Entry] = []
         private(set) var firstFailure: String?
 
+        /// What failed so far no longer stops the run (earlier signers' chains, when signing).
+        func forgetFailures() { firstFailure = nil }
+
         init(_ client: LtvClient, _ pool: RevocationPool, useStored: Bool) {
             self.client = client
             self.pool = pool
@@ -312,13 +333,13 @@ public enum Ltv {
             order.map { LtvCertificateResult(name: CertFacts.name($0.cert), outcome: $0.detail, covered: $0.outcome.covered) }
         }
 
-        /// Covers a signature's chain and its timestamp's, and says what of it is this signature's.
-        func entry(for f: SignatureFacts) async throws -> VriEntry {
+        /// Covers a signature's chain and its timestamp's, and says what of it is this signature's (and which certificates).
+        func entry(for f: SignatureFacts) async throws -> (vri: VriEntry, used: [Entry]) {
             let when = f.stamped ?? Date()
             var used = try await coverChain(f.info.certificate!, f.certs, when)
             if let tsa = f.tsa, tsa != f.info.certificate { used += try await coverChain(tsa, f.tsaCerts, when) }
             let certs = used.map(\.cert.der) + used.compactMap { $0.responder?.der }
-            return VriEntry(key: f.vriKey, certs: Self.distinct(certs), ocsps: Self.distinct(used.compactMap(\.ocsp)), crls: Self.distinct(used.compactMap(\.crl)))
+            return (VriEntry(key: f.vriKey, certs: Self.distinct(certs), ocsps: Self.distinct(used.compactMap(\.ocsp)), crls: Self.distinct(used.compactMap(\.crl))), used)
         }
 
         private static func distinct(_ items: [[UInt8]]) -> [[UInt8]] {

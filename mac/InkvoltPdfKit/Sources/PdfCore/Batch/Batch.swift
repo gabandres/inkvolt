@@ -830,7 +830,7 @@ public enum BatchRunner {
         /// Outcomes: no signature (skipped), already long-term (done, no copy), offline or a server that failed (failed,
         /// nothing changed). The original is never touched; the result is saved as Batch saves any.
         private func addLongTerm(_ data: [UInt8], _ timestampUrl: String?) async throws -> [UInt8] {
-            if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+            if Ltv.isEncrypted(data) {
                 throw BatchSkip(reason: loc("Protected: long-term data can't be added to an encrypted PDF without breaking its signatures"))
             }
             // Its signatures can't be checked in the repaired copy: never extended.

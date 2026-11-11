@@ -381,22 +381,13 @@ extension SignatureCard {
         case .root: loc("a root, needs none")
         case .noCheckNeeded: loc("an OCSP responder, needs none")
         case .good: loc("not revoked")
-        case .revoked: c.revokedAt.map { loc("REVOKED on {0}", SignatureCard.day($0)) } ?? loc("REVOKED")
-        case .revokedLater: loc("revoked later, on {0}", c.revokedAt.map(SignatureCard.day) ?? "?")
+        case .revoked: c.revokedAt.map { loc("REVOKED on {0}", ltvDay($0)) } ?? loc("REVOKED")
+        case .revokedLater: loc("revoked later, on {0}", ltvDay(c.revokedAt))
         case .unknown: loc("unknown to its authority")
         case .stale: loc("too old to speak for the signing time")
         case .noIssuer: loc("its issuer isn't in the file or on this Mac")
         case .noData: loc("none in the file")
         }
-    }
-
-    /// 2026-11-11 (UTC), as revocation dates are given.
-    static func day(_ d: Date) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: d)
     }
 }
 

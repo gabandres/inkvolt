@@ -177,8 +177,10 @@ final class OcspResponse {
     /// (issued by it, for OCSP signing, valid when the response was made). Nil `signed` when neither did.
     func signed(for issuer: Certificate, known: [Certificate]) -> (signed: Bool, responder: Certificate?) {
         if DerSignature.verify(issuer, algorithm, tbs, signature) { return (true, nil) }
-        for c in (certs + known).prefix(Self.maxCerts * 4) {
-            guard c.issuerRaw == issuer.subjectRaw, CertFacts.hasEku(c, Oids.ocspSigning) else { continue }
+        // Only those its issuer issued for OCSP signing, then a few: many unrelated certificates in a store can't push the
+        // responder out of reach.
+        let candidates = (certs + known).filter { $0.issuerRaw == issuer.subjectRaw && CertFacts.hasEku($0, Oids.ocspSigning) }
+        for c in candidates.prefix(Self.maxCerts * 4) {
             guard producedAt >= c.notBefore && producedAt <= c.notAfter else { continue }
             if DerSignature.verify(c, algorithm, tbs, signature) && CertFacts.signedBy(c, issuer) { return (true, c) }
         }
@@ -294,19 +296,20 @@ final class CrlDocument {
         return DerSignature.verify(issuer, algorithm, tbs, signature)
     }
 
-    /// When the list says `cert` was revoked; nil when it isn't listed (or was taken off hold).
-    func revokedAt(_ cert: Certificate) -> Date? {
-        guard let entries else { return nil }
+    /// Whether the list names `cert` as revoked (not when taken off hold), and when; a date that can't be read is nil.
+    func revocation(of cert: Certificate) -> (listed: Bool, at: Date?) {
+        guard let entries else { return (false, nil) }
         let wanted = canonicalInteger(cert.serial)
         var at = 0
-        // The signature checked out, so the issuer wrote this; what can't be read says nothing.
+        // The signature checked out, so the issuer wrote this; an entry that can't be read says nothing.
         while at < entries.count {
-            guard let (entry, next) = try? Der.read(entries, at: at), let parts = try? entry.children(), parts.count >= 2 else { return nil }
+            guard let (entry, next) = try? Der.read(entries, at: at), let parts = try? entry.children(), parts.count >= 2 else { return (false, nil) }
             at = next
-            guard parts[0].tag == 0x02, canonicalInteger(parts[0].content) == wanted, let when = try? parts[1].time() else { continue }
-            return parts.count > 2 && Self.removedFromHold(parts[2]) ? nil : when
+            guard parts[0].tag == 0x02, canonicalInteger(parts[0].content) == wanted else { continue }
+            if parts.count > 2 && Self.removedFromHold(parts[2]) { return (false, nil) }
+            return (true, try? parts[1].time())
         }
-        return nil
+        return (false, nil)
     }
 
     private static func removedFromHold(_ exts: Der) -> Bool {
@@ -379,13 +382,17 @@ final class RevocationPool: @unchecked Sendable {
     func restartBudget() { started = DispatchTime.now().uptimeNanoseconds }
 
     func addCert(_ der: [UInt8]) {
-        memo.removeAll()
         if der.count > Self.maxCertBytes || certs.count >= Self.maxCerts {
             skipped += 1
             return
         }
         guard certHashes.insert(DigestAlgorithm.sha256.hash(der)).inserted else { return }
-        if let c = try? Certificate(der: der) { certs.append(c) } else { skipped += 1 }
+        if let c = try? Certificate(der: der) {
+            certs.append(c)
+            memo.removeAll() // a new certificate can make an answer verify (a delegated responder)
+        } else {
+            skipped += 1
+        }
     }
 
     func addCert(_ cert: Certificate) { addCert(cert.der) }
@@ -406,13 +413,13 @@ final class RevocationPool: @unchecked Sendable {
     }
 
     private func room(_ der: [UInt8], _ max: Int) -> Bool {
-        memo.removeAll()
         if der.count > max || ocsps.count + crls.count >= Self.maxResponses || bytes + der.count > Self.maxTotalBytes {
             skipped += 1
             return false
         }
         guard hashes.insert(DigestAlgorithm.sha256.hash(der)).inserted else { return false }
         bytes += der.count
+        memo.removeAll()
         return true
     }
 
@@ -477,12 +484,16 @@ final class RevocationPool: @unchecked Sendable {
             if outOfBudget || checks >= Self.maxChecksPerCertificate { break }
             guard c.issuerName == issuer.subjectRaw, c.thisUpdate <= now, c.speaks(for: cert, issuer) else { continue }
             checks += 1
-            if let at = c.revokedAt(cert) {
+            let listed = c.revocation(of: cert)
+            if listed.listed, let at = listed.at {
                 if at > when {
                     best = Self.rank(best, RevocationVerdict(answer: .revokedLater, revokedAt: at, evidence: c.der))
                 } else {
                     return RevocationVerdict(answer: .revoked, revokedAt: at, evidence: c.der)
                 }
+            } else if listed.listed {
+                // Listed, its date unreadable: revoked, when unknown.
+                return RevocationVerdict(answer: .revoked, evidence: c.der)
             } else {
                 best = Self.rank(best, RevocationVerdict(answer: Self.covers(c.thisUpdate, c.nextUpdate, when) ? .good : .stale, evidence: c.der))
             }

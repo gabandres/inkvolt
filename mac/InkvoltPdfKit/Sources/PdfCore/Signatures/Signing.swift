@@ -135,7 +135,7 @@ public enum Signing {
     private static let rangePlaceholder = "[0 1000000000 1000000000 1000000000]"
 
     public static func sign(_ data: [UInt8], _ password: String?, _ req: SignRequest) async throws -> [UInt8] {
-        if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+        if Ltv.isEncrypted(data) {
             throw SigningError(loc("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign."))
         }
         if req.longTerm != .none && (req.timestamp == nil || req.longTermClient == nil) {
@@ -187,7 +187,7 @@ public enum Signing {
     /// the file as it stands, as an incremental update. A timestamp may follow any signature, even a no-changes certification.
     /// - Parameter timestamp: the exchange with the server: gets a DER request holding a hash of the file, returns the DER reply.
     public static func addDocumentTimestamp(_ data: [UInt8], _ password: String?, _ timestamp: @Sendable ([UInt8]) async throws -> [UInt8]) async throws -> [UInt8] {
-        if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+        if Ltv.isEncrypted(data) {
             throw SigningError(loc("Encrypted (password-protected) PDFs can't take a document timestamp. Nothing was changed."))
         }
         // A token with its chain is a few KB. The hash covers the reserved space, so a second try means asking the server
