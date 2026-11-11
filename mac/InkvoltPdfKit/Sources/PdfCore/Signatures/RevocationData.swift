@@ -398,6 +398,9 @@ final class RevocationPool: @unchecked Sendable {
     /// The budget is for this data, not for whatever else a large file took to read first.
     func restartBudget() { started = DispatchTime.now().uptimeNanoseconds }
 
+    /// This pool's work counts against `other`'s budget (a revision's data judged within the file's time).
+    func shareBudget(with other: RevocationPool) { started = other.started }
+
     func addCert(_ der: [UInt8]) {
         if der.count > Self.maxCertBytes || certs.count >= Self.maxCerts {
             skipped += 1

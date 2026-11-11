@@ -123,11 +123,17 @@ enum LongTermCheck {
             for c in f.tsaCerts { pool.addCert(c) }
             if let archived = f.signer?.signed(Oids.revocationArchival)?.first { pool.addArchival(archived) }
         }
-        // Only document timestamps a trusted authority made speak for a time.
-        let stamps = all.filter { $0.intact && $0.documentTimestamp && $0.vouchedTime != nil }.sorted { $0.end < $1.end }
         var revisions: [Int: RevocationPool] = [:]
+        // Document timestamps first: whether each one's authority stays trusted decides whether it speaks for a time for
+        // the signatures under it, whatever order the form lists them in.
+        let ordered = all.filter { $0.intact && $0.documentTimestamp } + all.filter { $0.intact && !$0.documentTimestamp }
+        var stamps: [SignatureFacts] = []
 
-        for f in all where f.intact {
+        for f in ordered {
+            if !f.documentTimestamp && stamps.isEmpty {
+                // Only document timestamps a trusted authority made speak for a time.
+                stamps = all.filter { $0.intact && $0.documentTimestamp && $0.vouchedTime != nil }.sorted { $0.end < $1.end }
+            }
             guard let cert = f.info.certificate else { continue }
             if pool.outOfBudget {
                 outOfBudget(f, pool)
@@ -160,6 +166,8 @@ enum LongTermCheck {
     private static func outOfBudget(_ f: SignatureFacts, _ pool: RevocationPool) {
         f.info.longTerm = LongTermInfo(level: .none, dataComplete: false, chain: [], summary: summary(f, .none, false, [], pool),
                                        onlyValidationDataAfter: f.onlyValidationDataAfter)
+        // A reason it is already untrusted for (a revocation, an untrusted root) is the one to show.
+        guard f.info.certificateTrusted else { return }
         f.info.certificateTrusted = false
         f.info.certificateStatus = loc("The file's validation data is more than a check reads, so it wasn't fully checked.")
     }
@@ -180,11 +188,13 @@ enum LongTermCheck {
                 revision = known
             } else {
                 revision = revisionPool(data, stamp.end, password, pool)
+                revision.shareBudget(with: pool)
                 revisions[stamp.end] = revision
             }
             let when = f.vouchedTime ?? later[0].vouchedTime ?? Date()
             guard let cert = f.info.certificate else { break }
             let covered = walk(cert, revision, when, anchors).allSatisfy(\.covered) && (tsa.map { walk($0, revision, when, anchors).allSatisfy(\.covered) } ?? true)
+            if revision.outOfBudget { break } // what wasn't all judged covers nothing
             if covered { return .blta }
         }
         return .blt
@@ -258,7 +268,7 @@ enum LongTermCheck {
         case .bb: text = complete
             ? loc("PAdES B-B: the file holds the validation data, but no timestamp proves when it was signed, so it can't be checked once the certificate expires.")
             : loc("PAdES B-B: no timestamp and no validation data in the file, so it can't be checked once the certificate expires.")
-        case .none: text = complete && f.stamped != nil
+        case .none: text = complete && f.vouchedTime != nil
             ? loc("LTV enabled, though not in the PAdES format: the file holds the validation data for every certificate.")
             : loc("Not in the PAdES format. The file doesn't hold what it takes to check it in the long term.{0}", which)
         }

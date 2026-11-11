@@ -492,9 +492,16 @@ enum SignatureChanges {
             Comparison.walk([catalog["DSS"], catalog["Extensions"]], &r.validationData, stop)
             // Validation data is what only the store reaches: an object the document uses too (an attachment, a script, an
             // outline) a store names doesn't become free to change.
+            // Pages and the form are judged by their own roles before validation data is (content, widgets, comments), so
+            // the walk starts from the rest; it never goes back into the catalog (and through it into /DSS). A walk cut short
+            // by its limit leaves no validation data at all: nothing it didn't reach may count as free.
             var elsewhere = Set<Int>()
-            Comparison.walk(catalog.keys.filter { $0 != "DSS" && $0 != "Extensions" }.map { catalog[$0] } + [info], &elsewhere, [])
-            r.validationData.subtract(elsewhere)
+            let roots = catalog.keys.filter { !["DSS", "Extensions", "Pages", "AcroForm"].contains($0) }.map { catalog[$0] } + [info, acro?["DR"]]
+            if Comparison.walk(roots, &elsewhere, r.catalog >= 0 ? [r.catalog] : []) {
+                r.validationData.subtract(elsewhere)
+            } else {
+                r.validationData.removeAll()
+            }
             Comparison.walk([catalog["Metadata"], catalog["Perms"], info, acro?["DR"]], &r.meta, stop)
             if let names = catalog["Names"], names.isRef { r.names = names.num }
             let namesDict = catalog.dict("Names")
@@ -504,16 +511,19 @@ enum SignatureChanges {
             return r
         }
 
-        private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool = false) {
+        /// False when the walk stopped at its limit before reaching everything.
+        @discardableResult
+        private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool = false) -> Bool {
             var none: [Int: PObj] = [:]
-            walk(roots, &into, stop, record: record, objects: &none, keep: false)
+            return walk(roots, &into, stop, record: record, objects: &none, keep: false)
         }
 
         /// Collects the indirect objects reachable from `roots`, not following references back up the structure
         /// (/Parent, /P, …) nor into `stop` (pages: their content is judged on its own). With `record` everything is
         /// followed, and each object is kept in `objects`.
+        @discardableResult
         private static func walk(_ roots: [PObj?], _ into: inout Set<Int>, _ stop: Set<Int>, record: Bool, objects: inout [Int: PObj],
-                                 keep: Bool = true) {
+                                 keep: Bool = true) -> Bool {
             var stack = roots.compactMap { $0 }
             var visitedDirect = 0
             while let item = stack.popLast() {
@@ -523,7 +533,7 @@ enum SignatureChanges {
                     if keep { objects[n] = item }
                 } else {
                     visitedDirect += 1
-                    if visitedDirect > 1_000_000 { return }
+                    if visitedDirect > 1_000_000 { return false }
                 }
                 if item.isDict {
                     for key in item.keys where record || !upward.contains(key) {
@@ -533,6 +543,7 @@ enum SignatureChanges {
                     for child in item.elements where child.isRef || child.isDict || child.isArray { stack.append(child) }
                 }
             }
+            return true
         }
     }
 }
