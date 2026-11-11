@@ -91,6 +91,24 @@ runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a passwo
    - **Later:** Explorer's right-click "Convert to Word with Inkvolt PDF".
 
    Research 2026-11-08: Nitro (Convert tab: To Word, To Excel, then an options window), Foxit (Convert › To MS Office, plus Explorer's right-click), PDF-XChange (Convert tab), PDFgear (Convert menu and a floating To Word button), Acrobat (Convert in the top bar, then a side panel; paid).
+**Inkvolt PDF for Mac 1.11.0 published 2026-11-10** (`pdf-mac-v1.11.0` on `d4d777fe`, notarized DMG sha256 7f77f557…c964ee95,
+39.4 MB, appcast with Spanish notes, not Latest; Homebrew cask `d8d4108` (pushed from a clone), website `076b516` deployed, not
+pushed (Z:\portfolio's two privacy-policy commits from another session sit under it, already live); 2.1 paragraph editing and 3.1
+Translate): hostile-input review merged first (`e31c21c8`). **Mac CI fixed** (`d4d777fe`; red on every run since the Translate
+merge `8371ce80`): the silent exit 1 was jetsam killing swiftpm-testing-helper (vm-compressor-space-shortage, 42.8 GB compressed on
+the 7.5 GB runner; hunt run 1's variants: without TranslationHostileTests also died, that suite alone passed). AiClient moved its
+AiDeadline on every streamed line, each move a timer left queued on GCD's global queue; TranslationReplyTests' endless keep-alive
+streams queued millions. AiDeadline keeps one timer now. Hunt run 3 then hung to the 45-minute limit: those streams read without
+suspending and held the runner's 3 cooperative threads, so GCD gave the deadline's timer no thread; they sleep 1 ms a read now.
+Master's Mac CI green (pdf 1824 tests, 17 min). A timer queue of its own (overcommit) was tried and dropped: on time during a busy
+run's long pool stalls, it failed aHugeAnswerIsStoppedEarly and aKeyGoesOnly… on ignia-mac. Reviews: medium (5, 4 fixed, a race
+older than the change kept), low (1, fixed), medium on the hang fix (clean). Installed build of `d4d777fe` (load 3–5): self-test en
+670/0, es 670/0; `--only-paragraph-edit` 58/0, `--only-translate` 63/0, `--only-redaction` 71/0 in both; es strings complete
+(PdfStrings 2124, Localizable 1914, CoreStrings 925). **A dev build from build.sh updates itself to the released version through
+Sparkle while a self-test runs** (it did at 19:58: the later runs tested 1.10.0, and its update window failed sheet checks): set
+`SUEnableAutomaticChecks` and `SUAutomaticallyUpdate` to NO in `com.bermudezsystems.InkvoltPdf` for the run, then back to YES;
+`--update-test` also needs automatic checks off (with them on, the launch check holds Sparkle's session: TIMEOUT). The released
+1.10.0 finds 1.11.0 in the feed (en, es); /Applications holds 1.11.0 from the DMG (notarized, accepted).
 **Inkvolt PDF for Mac 1.10.0 published 2026-11-09** (`pdf-mac-v1.10.0` on `537261d8`, notarized DMG sha256 04d4130a…db34f6326,
 38.9 MB, appcast with Spanish notes, not Latest; Homebrew cask `38a5e71` (pushed from a clone), website `5c3d0bc` deployed; the
 command bar, with Microsoft Office as the converter **off** (`6e1f0081`, `45525c98`: LibreOffice converts as in 1.9.0, no Apple
