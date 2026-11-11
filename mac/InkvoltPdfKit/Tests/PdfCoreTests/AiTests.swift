@@ -359,6 +359,36 @@ struct AiClientTests {
         #expect(got.all == ["Hal"])
     }
 
+    /// The client moves its deadline on every line: a stream of keep-alives read as fast as they come queued a timer a
+    /// line (42 GB on CI before the system killed the tests).
+    @Test func aDeadlineMovedOnEveryLineKeepsOneTimer() async throws {
+        let deadline = AiDeadline(nil)
+        for _ in 0..<100_000 { deadline.cancelAfter(60) }
+        #expect(deadline.timersScheduled == 1)
+        let start = DispatchTime.now()
+        let fired = AiOnce<DispatchTime>()
+        _ = deadline.token.register { fired.resume(with: .success(.now())) }
+        deadline.cancelAfter(0.05) // sooner: a timer of its own
+        deadline.cancelAfter(0.4) // later again: that one wakes early and sleeps on
+        let firedAt = try await withCheckedThrowingContinuation { fired.begin($0) }
+        // Never before the time last set (a loaded Mac can only make it later).
+        let waited = Double(firedAt.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+        #expect(waited >= 0.4, "fired after \(waited) s")
+        #expect((2...3).contains(deadline.timersScheduled)) // 2 when the 0.05 s timer woke after 0.4 s (a loaded Mac)
+        deadline.finish()
+    }
+
+    @Test func aFinishedDeadlineDoesntFire() async throws {
+        let deadline = AiDeadline(nil)
+        deadline.cancelAfter(0.05)
+        deadline.finish()
+        // A later deadline on the same queue firing shows the first one's timer had its turn.
+        let later = AiDeadline(nil)
+        later.cancelAfter(0.2)
+        try? await waitForCancel(later.token)
+        #expect(!deadline.token.isCancelled)
+    }
+
     @Test func givesUpOnAStalledStream() async throws {
         let client = AiClient(parsed(AiEndpoint.ollamaUrl), "m", apiKey: nil, handler: FakeAiHandler(Self.stalling),
                               timeouts: AiTimeouts(connect: 1, firstByte: 5, idle: 0.2))
