@@ -420,6 +420,9 @@ public enum DocumentCommands {
             .submenu(CommandMenu("Place Saved Signature", .savedSignatures, [])),
             sep,
             c("Sign Digitally…", "signDigitally:", needs: [.notSigning, .idle]),
+            // Long-term validation (roadmap 3.4; Windows: Review › Add Verification Information…, Check Signatures Online…).
+            c("Add Verification Information…", "addVerificationInformation:", needs: [.signatures, .notSigning, .idle]),
+            c("Check Signatures Online…", "checkSignaturesOnline:", needs: [.signatures, .notSigning, .idle]),
         ])),
         .tools(.editContent),
         .submenu(CommandMenu("Redact", [

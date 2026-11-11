@@ -396,9 +396,9 @@ Unlike PrintCore, PdfCore needs MuPDF, so it builds and tests on the Mac and in 
 
 Ported since 1.0 with their steps (D5a-D5c, E1-E16): the rest of the list that stood here (`ContentEditor`, the export
 writers, `Signatures`, `Signing`, compare, `PdfA`, `Batch`, `Layers`, `Attachments`, `Conversion`, `Ai*` and the others).
-Not on the Mac yet (1.4's `CommentFiles`, `FormDataFiles`, `FormMerge` and `CommentSummary` came 2026-11-03, see 1.4 under Mac differences): the long-term validation code
-(3.4), `CompareLooks`,
-`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5). Paragraph editing (2.1)
+Not on the Mac yet (1.4's `CommentFiles`, `FormDataFiles`, `FormMerge` and `CommentSummary` came 2026-11-03, see 1.4 under Mac differences): `CompareLooks`,
+`CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5). The long-term validation code (3.4) came
+2026-11-11 (`RevocationData`, `LongTermCheck`, `Dss`, `Ltv`, `LtvClient`: "Long-term validation" under Mac differences). Paragraph editing (2.1)
 came 2026-11-10 (`ContentEditor+Paragraphs`, `+Looks`, `+Forms`, `+Turned`, `StandInFonts`, `ZapfDingbats`), and Translate
 (3.1) the same day (`Translate/`, `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`, `+TranslateLooks`). 1.1's
 2026-11-01 additions came 2026-11-11 (`RedactionSearch`, `RedactionPatternSets`, `RedactionReport`, `PatternRedaction`,
@@ -1548,7 +1548,7 @@ Mac differences:
   the cross-reference with PDFsharp. The rest is Windows': `DocumentSession.repairedLength`, a bar that says so until closed, a
   signature over no more than the copy (or one that can't be placed in it) `.unsupported` and `inRepairedFile`, no certifying,
   `RecoveryInfo.repairedLength`. `Signatures.verify` also takes bytes no session made sound (a damaged file read as it is) as
-  repaired whole. Windows' long-term data checks have no Mac counterpart yet (the Mac doesn't add long-term data).
+  repaired whole. Long-term data (3.4) is never added to a repaired file, as on Windows.
 - **A repaired file written whole** has every object loaded first (`MuDoc.write`): MuPDF's writer takes a repaired cross-reference
   for one without object streams and, with garbage collection, silently dropped what they hold (bookmarks, structure trees).
 - **Comb cells under a format.** A format's separators that don't fit the cells (SSN in 9 cells) would push the last digits out;
@@ -1882,6 +1882,52 @@ didn't read outside the pages make it incomplete; an earlier version whose objec
 name tree's names aren't searched but the scripts and files they lead to are; a set is deleted from the file it was read
 from; the list's VoiceOver labels say whether a line is ticked. Not checked: Vision on a real scan in this flow (the corpus uses the stand-in), a person looking at the list and the
 report on screen, VoiceOver on the list.
+
+### Long-term validation (roadmap 3.4, 2026-11-11)
+
+Windows' 3.4 (272c7f0f, the field locks of 0b142662 and Batch's action) on the Mac, its tests ported under their own names:
+LtvTests (60 with LtvProTests; the five that were here before kept), FieldLockTests (4), BatchLongTermTests (9, and one of the
+Mac's), SignatureChangeTests' five FieldMDP additions, against `LtvTestPki` (a generated root, intermediate, signer, timestamp
+authority and delegated OCSP responder, with an OCSP responder, CRLs, issuer certificates and an RFC 3161 server on this
+Mac's loopback; nothing needs the internet). PdfCore/Signatures: `RevocationData` (`CertFacts`, `DerSignature`,
+`OcspResponse`, `CrlDocument`, `RevocationPool`: hostile data bounded on the way in, nothing counts until it verifies, a 20 s
+budget), `LongTermCheck` (the PAdES level, the chain judged from the file alone, a revocation found there takes the trust
+away), `Dss` (/DSS and /VRI read as hostile and written as an update), `Ltv` (the plan, Add Verification Information, Check
+Online, signing's extension), `LtvClient` (the one way online), `Signing`'s long-term level, chosen field lock and document
+timestamp, `SignatureChanges`' only-validation-data and FieldMDP rules, Batch's `addLongTerm` (presets' `addLongTermData`,
+the command line's `--online`), `ProFeature.longTermValidation` and `.fieldLocking` (the gate stays off). The app: the Sign
+window's Long-term validation (None, B-LT, B-LTA) and, when certifying a form, Lock form fields with its list; Fill & Sign ›
+Add Verification Information… and Check Signatures Online…; a window listing every address before anything goes online;
+what was done at the top of the Signatures pane, each card's PAdES level and revocation data; Batch's Add long-term
+validation data with its window before the run. English and Spanish. `--edit` signs, then adds the data and checks online
+with the self-signed ID (`SignTest`: nothing to ask, nothing asked).
+
+Mac differences:
+- **Going online.** `LtvClient` resolves a name itself (getaddrinfo), refuses it when any address is this Mac's or a local
+  network's, and connects only to the addresses it checked, through Network.framework (`AiSocketTransport`, as the AI
+  assistant does for this Mac and the network: no proxy, plain HTTP/1.1, one request a connection, TLS checked against the
+  name); Windows checks on the connection made, in `SocketsHttpHandler`'s connect callback. A request's time limit is the AI client's
+  `AiDeadline` (one GCD timer: a sleeping task didn't fire while a loaded run kept the cooperative pool busy). Every timestamp the app asks for goes through it
+  too, so a timestamp server must use https:// (signing used URLSession with the address typed; the http DigiCert default is
+  gone, Sectigo's suggested, as on Windows).
+- **Chains** are built by `SecTrust` with network fetching off (Windows' `X509Chain` with no revocation and no downloads); the
+  tests trust their root for one check (`Signatures.verify(_:_:anchors:)`, SecTrust's anchors only). Verifying no longer goes
+  online at all: `Signatures.verify(online:)` takes what Check Signatures Online brought (`RevocationSnapshot`), not a flag that
+  let SecTrust fetch revocation.
+- **Batch**: the run's cancel token cancels the long-term task; "offline" means no interface but loopback is up with an
+  address (getifaddrs; .NET's `GetIsNetworkAvailable`). The window's list of addresses is worked out in PdfCore
+  (`Ltv.plan(files:)`, tested), where Windows' app does it.
+- **Check Signatures Online**'s answer counts for the window until it closes (Windows: the tab).
+- **Signature changes**: a key the later revision has with a null value counts as there (a /DSS of null reads as validation
+  data, as on Windows, where PDFsharp keeps the null).
+- **Tests**: a stalled server waits with `LtvTestPki.pause`, which `stop` ends; the exploding stream packs 64 MB (400 MB on
+  Windows) and the time is checked, not .NET's allocation counter; the server is `AiLoopbackServer` (threads of its own).
+- **Each reply's connection is closed** once read (`body.close()`): a reply that came whole with its head otherwise kept its
+  socket open (8 a file in a probe; a full test run under a shell's 256 open files then failed every loopback test). Measured
+  flat after the fix: 25 rounds of Add Verification Information, Check Online and failing requests, 9 descriptors throughout.
+Not checked: EU DSS's validator on the Mac's files (`pdf/tools/pades-check` was run on Windows' files only), Acrobat's "LTV
+enabled", a real certificate authority and timestamp server (`INKVOLTPDF_REAL_TSA` runs the one test against Sectigo), a
+person looking at the windows and the pane, VoiceOver on the address lists.
 
 ## Open decisions
 

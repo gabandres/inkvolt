@@ -24,6 +24,11 @@ public enum ProFeature: CaseIterable, Sendable {
     /// File › Compare Files with an Office file or a picture of a page on either side, scans' words recognized, and
     /// formatting changes listed (comparing two PDFs, moves and the overlay stay free).
     case compareOfficeAndScans
+    /// Adding long-term validation data: signing for B-LT and B-LTA, Add Verification Information and Batch's action
+    /// (verifying, the level shown and Check Signatures Online stay free).
+    case longTermValidation
+    /// Certifying a form with a choice of fields to lock (a field's own /Lock is always honored).
+    case fieldLocking
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -89,6 +94,8 @@ public enum Pro {
         case .accessibleOutput: loc("Accessible PDF/A-2a")
         case .folderSearch: loc("Folder search")
         case .compareOfficeAndScans: loc("Compare Office files and scans")
+        case .longTermValidation: loc("Long-term validation")
+        case .fieldLocking: loc("Field locking")
         }
     }
 
@@ -113,6 +120,10 @@ public enum Pro {
             loc("Index whole folders on this Mac, nothing sent anywhere, and find a word across thousands of PDFs in under a second, with the text around each hit; a result opens at the hit, and the index keeps up as files change.")
         case .compareOfficeAndScans:
             loc("Compare a Word, Excel or PowerPoint file or a scan with a PDF, the scan's words recognized on this Mac, and see font, size, bold, italic and color changes listed apart from wording.")
+        case .longTermValidation:
+            loc("Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.")
+        case .fieldLocking:
+            loc("When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.")
         }
     }
 
@@ -128,6 +139,8 @@ public enum Pro {
         case .accessibleOutput: loc("Saving accessible PDF/A-2a files is part of Inkvolt Pro.")
         case .folderSearch: loc("Searching folders is part of Inkvolt Pro.")
         case .compareOfficeAndScans: loc("Comparing Office files, scans and formatting is part of Inkvolt Pro.")
+        case .longTermValidation: loc("Adding long-term validation data is part of Inkvolt Pro.")
+        case .fieldLocking: loc("Choosing fields to lock is part of Inkvolt Pro.")
         }
     }
 

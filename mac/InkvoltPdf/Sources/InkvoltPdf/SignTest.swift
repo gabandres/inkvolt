@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// The self-test's scenario for E2 (`--edit`, after `RedactTest`, on the synthetic text document): a box dragged for a
 /// new visible signature through the page view's own mouse handling, then Sign Digitally through the window's own flow
@@ -77,7 +78,7 @@ struct SignTest {
         var look = SignatureLook()
         look.showDistinguishedName = true
         let choice = SignChoice(id: id, reason: "I have reviewed this document", location: nil, visible: true, look: look, timestamp: false,
-                                timestampUrl: SignDialog.defaultTimestampUrl, certify: .none)
+                                timestampUrl: LtvPlan.suggestedTimestampServer, certify: .none)
         let url = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("signed.pdf"))
         let before = session.data.count
         controller.signDigitally(field: nil, scripted: choice, box: box ?? (0, RectD(300, 600, 220, 60)), saveTo: url)
@@ -94,6 +95,24 @@ struct SignTest {
         check(!controller.noticeBar.isHidden, "the notice bar sums up the signature")
         controller.showSignatures(nil)
         check(controller.sidebar.shownSegment == 3, "View › Show Signatures shows the pane")
+        check(cards.first?.info.longTerm?.level == .bb && cards.first?.details.contains("PAdES B-B") == true,
+              "the card says what the file holds for the long term (PAdES B-B)")
+
+        // Long-term validation (roadmap 3.4) with a self-signed ID: nothing to ask online, its certificate stored.
+        let ltvUrl = URL(fileURLWithPath: (folder as NSString).appendingPathComponent("signed-ltv.pdf"))
+        controller.addVerificationInformation(scripted: ("", ltvUrl))
+        await settle()
+        let ltv = (try? Data(contentsOf: ltvUrl)).map { Array($0) } ?? []
+        let ltvSigs = Signatures.verify(ltv)
+        check(ltv.count > saved.count && Array(ltv.prefix(saved.count)) == saved && ltvSigs.first?.status == .valid
+              && ltvSigs.first?.longTerm?.onlyValidationDataAfter == true,
+              "Add Verification Information: an update after the signature, saved as a copy, the signature still valid")
+        check(controller.sidebar.signatures.outcome?.text == loc("Long-term data added.") && controller.sidebar.signatures.outcome?.details.contains(loc("Nothing was asked online.")) == true,
+              "the Signatures pane says what was added, and that nothing was asked online")
+        controller.checkSignaturesOnline(scripted: true)
+        await settle()
+        check(controller.sidebar.signatures.outcome?.text == loc("Checked online. The file wasn't changed.") && controller.pdf.session?.data == ltv,
+              "Check Signatures Online with nothing to ask: the file unchanged")
 
         // A comment is appended: the signature stays intact.
         let noted = await controller.editor.run("Add note") { d, pw in try Annotations.addNote(d, pw, 0, 72, 72, "Checked", author: "Self Test") }

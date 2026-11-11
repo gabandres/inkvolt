@@ -26,7 +26,7 @@ struct SignatureChangeTests {
     }
 
     /// Appends an incremental update (classic xref table) redefining or adding `objects`.
-    private static func append(_ pdf: [UInt8], _ objects: [Int: String]) -> [UInt8] {
+    static func append(_ pdf: [UInt8], _ objects: [Int: String]) -> [UInt8] {
         let text = latin1(pdf)
         let prev = lastMatch(text, #"startxref\s+(\d+)"#) ?? "0"
         let ns = text as NSString
@@ -47,7 +47,7 @@ struct SignatureChangeTests {
     }
 
     /// The body of object `n` as it is in the file (between "n 0 obj" and "endobj").
-    private static func body(_ pdf: [UInt8], _ n: Int) throws -> String {
+    static func body(_ pdf: [UInt8], _ n: Int) throws -> String {
         let text = latin1(pdf)
         let start = try #require(text.range(of: "\n\(n) 0 obj", options: .backwards)).upperBound
         let end = try #require(text[start...].range(of: "endobj")).lowerBound
@@ -237,5 +237,81 @@ struct SignatureChangeTests {
             Core2Pdf.stream("BT /F1 24 Tf 72 720 Td (Form) Tj ET"),
             "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         ])
+    }
+}
+
+/// Ported from SignatureChangeTests.cs's additions with roadmap 3.4 (2026-10-31): FieldMDP holds a locked field's
+/// appearance, its other properties and its name, and a /DSS in the signed revision frees nothing it points at.
+extension SignatureChangeTests {
+    /// A form signed in "Witness", with "Name" given an appearance stream of its own (object 8) and locked by the signature.
+    private static func signedWithLockedAppearance(_ lockEntry: String, _ catalogExtra: String = "") async throws -> (pdf: [UInt8], field: Int, appearance: Int) {
+        let form = Core2Pdf.build([
+            "<< /Type /Catalog /Pages 2 0 R\(catalogExtra) /AcroForm << /Fields [4 0 R 5 0 R 9 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv 7 0 R >> >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [4 0 R 5 0 R 9 0 R] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Ada) /Rect [72 500 300 530] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) /AP << /N 8 0 R >> >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Sig /T (Witness) /Rect [72 400 272 450] /P 3 0 R /F 4\(lockEntry) >>",
+            Core2Pdf.stream("BT /F1 24 Tf 72 720 Td (Form) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 228 30] /Length 5 >>\nstream\n0 0 m\nendstream",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Free) /Rect [72 300 300 330] /P 3 0 R /F 4 /DA (/Helv 12 Tf 0 g) >>",
+        ])
+        return (try await SigningTests.sign(form, try SigningTests.rsaId()) { $0.fieldName = "Witness" }, 4, 8)
+    }
+
+    private static let lockName = " /Lock << /Type /SigFieldLock /Action /Include /Fields [(Name)] >>"
+    private static let payEve = "<< /Type /XObject /Subtype /Form /BBox [0 0 228 30] /Length 22 >>\nstream\nBT (Pay Eve) Tj ET    \nendstream"
+
+    private static func witness(_ pdf: [UInt8]) throws -> SignatureInfo {
+        try #require(Signatures.verify(pdf).first { $0.fieldName == "Witness" })
+    }
+
+    @Test func swappingALockedFieldsAppearanceIsCaughtWithoutTouchingItsValue() async throws {
+        // What the reader sees changes while /V stays as signed: an appearance stream redefined under its old number.
+        let (signed, _, appearance) = try await Self.signedWithLockedAppearance(Self.lockName)
+        let s = try Self.witness(Self.append(signed, [appearance: Self.payEve]))
+        #expect(s.status == .disallowedChanges)
+        #expect(s.detail?.contains("locked field") == true, "\(s.detail ?? "")")
+    }
+
+    @Test func aStoreThatPointsAtALockedAppearanceDoesntFreeIt() async throws {
+        // Prepared before signing: a /DSS naming the field's appearance stream, as if it were validation data.
+        let (signed, _, appearance) = try await Self.signedWithLockedAppearance(Self.lockName, " /DSS << /Certs [8 0 R] >>")
+        #expect(try Self.witness(Self.append(signed, [appearance: Self.payEve])).status == .disallowedChanges)
+    }
+
+    @Test func anyChangeToALockedFieldsDictionaryIsCaught() async throws {
+        let (signed, field, _) = try await Self.signedWithLockedAppearance(Self.lockName)
+        let body = try Self.body(signed, field)
+        let s = try Self.witness(Self.append(signed, [field: body.replacingOccurrences(of: "/Rect", with: "/MK << /BC [1 0 0] >> /Rect")]))
+        #expect(s.status == .disallowedChanges)
+        #expect(s.detail?.contains("locked field") == true, "\(s.detail ?? "")")
+    }
+
+    @Test func fieldsOutsideTheLockStayFillable() async throws {
+        let (signed, _, _) = try await Self.signedWithLockedAppearance(Self.lockName)
+        let filled = try FormEditor.setValues(signed, nil, ["Free": "Open"])
+        #expect(try Self.witness(filled).status == .modifiedAfterSigning)
+    }
+
+    @Test func aNewFieldUnderALockedFieldsNameIsCaught() async throws {
+        let (signed, _, _) = try await Self.signedWithLockedAppearance(Self.lockName)
+        let text = latin1(signed)
+        let re = try NSRegularExpression(pattern: #"/Root (\d+) 0 R"#)
+        let ns = text as NSString
+        let rootMatch = try #require(re.matches(in: text, range: NSRange(location: 0, length: ns.length)).last)
+        let root = try #require(Int(ns.substring(with: rootMatch.range(at: 1))))
+        let catalog = try Self.body(signed, root)
+        let page = try Self.body(signed, 3)
+        let fields = try NSRegularExpression(pattern: #"/Fields\s*\["#)
+        let annots = try NSRegularExpression(pattern: #"/Annots\s*\["#)
+        let shadow = Self.append(signed, [
+            root: fields.stringByReplacingMatches(in: catalog, range: NSRange(location: 0, length: (catalog as NSString).length), withTemplate: "/Fields [40 0 R "),
+            3: annots.stringByReplacingMatches(in: page, range: NSRange(location: 0, length: (page as NSString).length), withTemplate: "/Annots [40 0 R "),
+            40: "<< /Type /Annot /Subtype /Widget /FT /Tx /T (Name) /V (Eve) /Rect [72 500 300 530] /P 3 0 R /F 4 >>",
+        ])
+        let s = try Self.witness(shadow)
+        #expect(s.status == .disallowedChanges)
+        #expect(s.detail?.contains("locked field") == true, "\(s.detail ?? "")")
     }
 }

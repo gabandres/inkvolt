@@ -38,8 +38,9 @@ public struct SignatureInfo: Sendable, Equatable {
     /// Carries an RFC 3161 timestamp that belongs to this signature (or is a document timestamp); `detail` says when its
     /// authority isn't trusted.
     public var hasTimestamp = false
-    /// The certificate may sign documents and its chain builds to a root this Mac trusts (the system's and the user's
-    /// keychains), at the time of a timestamp from a trusted authority, else now.
+    /// The certificate may sign documents, its chain builds to a root this Mac trusts (the system's and the user's
+    /// keychains) and no verified data in hand says it was revoked, at the time of a timestamp from a trusted authority,
+    /// else now.
     public var certificateTrusted = false
     /// "OK" or the chain problems (e.g. "UntrustedRoot, NotTimeValid").
     public var certificateStatus = ""
@@ -55,12 +56,15 @@ public struct SignatureInfo: Sendable, Equatable {
     /// Not checked because the file was damaged and these are its repaired bytes (`Signatures.verify`): `status` is then
     /// `.unsupported`.
     public var inRepairedFile = false
+    /// What the file holds for checking this signature years from now (nil for an empty field or one that didn't check out).
+    public var longTerm: LongTermInfo?
 }
 
 /// Verifies digital signatures on the raw file bytes (the Windows app's `Signatures`): /ByteRange digests and CMS
 /// signatures (adbe.pkcs7.detached, ETSI.CAdES.detached, adbe.pkcs7.sha1, ETSI.RFC3161 document timestamps). The CMS is
 /// read by PdfCore's own DER reader and its signature checked with Security.framework's keys; certificate trust is
-/// Security.framework's `SecTrust` (the Mac's trusted roots); revocation is only checked when asked (it goes online).
+/// Security.framework's `SecTrust` (the Mac's trusted roots), never going online; revocation is judged from what the file
+/// holds (`LongTermCheck`), plus what the person asked for online (`Ltv.checkOnline`).
 public enum Signatures {
     /// The signatures that checked out in `original` (the `verify` result kept from when the file was opened) but no
     /// longer do in `current` (the edited bytes), matched by field name: the UI says "changed by your edits" for these.
@@ -74,31 +78,52 @@ public enum Signatures {
         }
     }
 
-    /// - Parameter repairedLength: the document's `DocumentSession.repairedLength` (0 for a sound file): a signature made
-    ///   before the repair (its signed bytes end within the repaired copy, or can't be placed in it) is never shown valid;
-    ///   it is `.unsupported`, `inRepairedFile`. Bytes no session made sound (a damaged file read as it is, a stale tail
-    ///   hiding objects) count as repaired whole.
-    public static func verify(_ data: [UInt8], _ password: String? = nil, online: Bool = false, repairedLength: Int = 0) -> [SignatureInfo] {
-        var found = inspect(data, password, online)
+    /// Never goes online: revocation is judged from what the file holds (`LongTermCheck`), plus what the person asked for
+    /// online (`Ltv.checkOnline`).
+    /// - Parameters:
+    ///   - online: revocation data the person asked for with `Ltv.checkOnline`, for this check only.
+    ///   - repairedLength: the document's `DocumentSession.repairedLength` (0 for a sound file): a signature made before
+    ///     the repair (its signed bytes end within the repaired copy, or can't be placed in it) is never shown valid; it is
+    ///     `.unsupported`, `inRepairedFile`. Bytes no session made sound (a damaged file read as it is, a stale tail hiding
+    ///     objects) count as repaired whole.
+    public static func verify(_ data: [UInt8], _ password: String? = nil, online: RevocationSnapshot? = nil, repairedLength: Int = 0) -> [SignatureInfo] {
+        inspect(data, password, online: online, repairedLength: repairedLength).map(\.info)
+    }
+
+    /// With roots trusted for this check alone, for tests: the generated ones are in no keychain.
+    static func verify(_ data: [UInt8], _ password: String?, anchors: [Certificate]) -> [SignatureInfo] {
+        inspect(data, password, anchors: anchors).map(\.info)
+    }
+
+    /// Everything found checking each signature field, in the file's order. Each signature made before a repair is not
+    /// checked, never valid or intact, since the repair may have changed what its bytes mean.
+    static func inspect(_ data: [UInt8], _ password: String?, online: RevocationSnapshot? = nil, anchors: [Certificate]? = nil,
+                        repairedLength: Int = 0) -> [SignatureFacts] {
+        let found = check(data, password, online, anchors)
         var before = repairedLength
-        if before <= 0 && found.contains(where: { $0.status != .unsigned }) && PdfRepair.isDamaged(data, password) { before = data.count }
+        if before <= 0 && found.contains(where: { $0.info.status != .unsigned }) && PdfRepair.isDamaged(data, password) { before = data.count }
         guard before > 0 else { return found }
-        for i in found.indices where found[i].status != .unsigned {
-            let s = found[i].signedLength
+        for f in found where f.info.status != .unsigned {
+            let s = f.info.signedLength
             if s <= before || s > data.count {
-                found[i].status = .unsupported
-                found[i].inRepairedFile = true
-                found[i].certificateTrusted = false
-                found[i].detail = loc("The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.")
+                f.info.status = .unsupported
+                f.info.inRepairedFile = true
+                f.info.certificateTrusted = false
+                f.info.longTerm = nil
+                f.info.detail = loc("The file was damaged and Inkvolt PDF repaired it to open it, so this signature can't be checked against it. Open the original in the program that signed it to check the signature.")
             }
         }
         return found
     }
 
-    private static func inspect(_ data: [UInt8], _ password: String?, _ online: Bool) -> [SignatureInfo] {
+    private static func check(_ data: [UInt8], _ password: String?, _ online: RevocationSnapshot?, _ anchors: [Certificate]?) -> [SignatureFacts] {
         guard let doc = try? PdfEdit.openToRead(data, password),
               let fields = try? FormEditor.collect(doc, doc.catalog.dict("AcroForm")),
-              let count = try? doc.pageCount() else { return rawScan(data, online) }
+              let count = try? doc.pageCount() else { return rawScan(data, anchors) }
+        let pool = RevocationPool()
+        // What the person asked for goes first: nothing a file holds can push it out of the pool's limits.
+        if let online { pool.addFrom(online.pool) }
+        Dss.readInto(doc, pool)
         var pageOf: [UInt: Int] = [:]
         var pages: [PObj] = []
         for p in 0..<count {
@@ -106,7 +131,7 @@ public enum Signatures {
             pages.append(page)
             for a in page.array("Annots")?.elements ?? [] where a.isDict && pageOf[a.identity] == nil { pageOf[a.identity] = p }
         }
-        var results: [SignatureInfo] = []
+        var results: [SignatureFacts] = []
         for f in fields where f.type == "Sig" {
             var page = -1
             var rect = RectD.zero
@@ -119,11 +144,11 @@ public enum Signatures {
             let value = FormEditor.inherited(f.dict, "V")
             if let value, value.isRef, !value.isDict {
                 // A signature dictionary that can't be read (damaged, or something slipped into it) is no signature.
-                results.append(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .invalid, detail: loc("The signature can't be read.")))
+                results.append(SignatureFacts(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .invalid, detail: loc("The signature can't be read."))))
                 continue
             }
             guard let v = value, v.isDict, let br = v.array("ByteRange"), br.count >= 4 else {
-                results.append(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .unsigned))
+                results.append(SignatureFacts(SignatureInfo(fieldName: f.name, pageIndex: page, rect: rect, status: .unsigned)))
                 continue
             }
             let range = (0..<4).map { i -> Int in
@@ -139,25 +164,34 @@ public enum Signatures {
                 changes = SignatureChanges.analyze(data, signedLength, f.name, password)
             }
             let e = changes?.signed ?? SignatureChanges.entries(of: v)
-            var info = check(data, range, e.subFilter, f.name, page, rect, e.name, PdfDates.parse(e.m), e.reason, e.location, online)
-            info.certificationLevel = e.certificationLevel
-            info.signedLength = signedLength
-            if info.status == .modifiedAfterSigning, let changes, let problem = changes.problem {
-                info.status = changes.permitted ? .modifiedAfterSigning : .disallowedChanges
-                info.detail = info.detail.map { "\(problem) \($0)" } ?? problem
+            let facts = check(data, range, e.subFilter, f.name, page, rect, e.name, PdfDates.parse(e.m), e.reason, e.location, pool, anchors)
+            facts.info.certificationLevel = e.certificationLevel
+            facts.info.signedLength = signedLength
+            if facts.info.status == .modifiedAfterSigning, let changes, let problem = changes.problem {
+                facts.info.status = changes.permitted ? .modifiedAfterSigning : .disallowedChanges
+                facts.info.detail = facts.info.detail.map { "\(problem) \($0)" } ?? problem
+            } else if facts.info.status == .modifiedAfterSigning, changes?.onlyValidationData == true {
+                // Only long-term data and document timestamps since: what the signer signed is still the whole document.
+                facts.info.status = .valid
+                if facts.info.detail == afterSigning { facts.info.detail = nil }
+                facts.onlyValidationDataAfter = true
             }
-            results.append(info)
+            results.append(facts)
         }
+        LongTermCheck.apply(data, password, results, pool, anchors)
         return results
     }
 
+    private static var afterSigning: String { loc("The document was changed after it was signed.") }
+
     /// Fallback when the file can't be parsed: find /ByteRange entries in the raw bytes.
-    private static func rawScan(_ data: [UInt8], _ online: Bool) -> [SignatureInfo] {
+    private static func rawScan(_ data: [UInt8], _ anchors: [Certificate]?) -> [SignatureFacts] {
         let text = latin1(data)
         let ns = text as NSString
         guard let re = try? NSRegularExpression(pattern: #"/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]"#),
               let sub = try? NSRegularExpression(pattern: #"/SubFilter\s*/([\w.]+)"#) else { return [] }
-        var list: [SignatureInfo] = []
+        let pool = RevocationPool()
+        var list: [SignatureFacts] = []
         var seen = Set<String>()
         for m in re.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
             guard seen.insert(ns.substring(with: m.range)).inserted else { continue }
@@ -168,7 +202,7 @@ public enum Signatures {
             let start = max(0, m.range.location - 4000)
             let window = NSRange(location: start, length: min(8000, ns.length - start))
             let filter = sub.firstMatch(in: text, range: window).map { ns.substring(with: $0.range(at: 1)) }
-            list.append(check(data, range, filter, "Signature\(list.count + 1)", -1, .zero, nil, nil, nil, nil, online))
+            list.append(check(data, range, filter, "Signature\(list.count + 1)", -1, .zero, nil, nil, nil, nil, pool, anchors))
         }
         return list
     }
@@ -178,15 +212,16 @@ public enum Signatures {
     }
 
     private static func check(_ data: [UInt8], _ br: [Int], _ subFilter: String?, _ field: String, _ page: Int, _ rect: RectD,
-                              _ nameEntry: String?, _ mDate: Date?, _ reason: String?, _ location: String?, _ online: Bool) -> SignatureInfo {
+                              _ nameEntry: String?, _ mDate: Date?, _ reason: String?, _ location: String?, _ pool: RevocationPool,
+                              _ anchors: [Certificate]?) -> SignatureFacts {
         var info = SignatureInfo(fieldName: field, pageIndex: page, rect: rect, status: .invalid, signerName: nameEntry, signingTime: mDate,
                                  reason: reason, location: location, subFilter: subFilter)
-        func result(_ status: SignatureStatus, _ detail: String, covers: Bool = false) -> SignatureInfo {
+        func result(_ status: SignatureStatus, _ detail: String, covers: Bool = false) -> SignatureFacts {
             var r = info
             r.status = status
             r.detail = detail
             r.coversWholeDocument = covers
-            return r
+            return SignatureFacts(r)
         }
         // Each entry is checked against the file length first, so the sums below can't overflow.
         if br.contains(where: { $0 < 0 || $0 > data.count }) || br[2] < br[0] + br[1] || br[2] + br[3] > data.count {
@@ -247,16 +282,20 @@ public enum Signatures {
         // The certificate is judged at a time someone other than the signer vouches for (a verified timestamp), else
         // now: the signing-time attribute and /M are whatever the signer's clock (or a forger) said.
         var hasTimestamp = docTimestamp
-        var stamped: Date?
+        var stamped: Date? = docTimestamp ? claimed : nil
+        var tsa: Certificate? = docTimestamp ? cert : nil
+        var tsaCerts = extra
         if ok, let signer {
-            let t = verifiedTimestamp(signer, extra, online)
+            let t = verifiedTimestamp(signer, extra, pool, anchors)
             stamped = t.time
+            tsa = t.tsa
+            tsaCerts = t.tsaCerts
             hasTimestamp = t.time != nil
             if t.trusted { trustTime = t.time }
             if let note = t.problem { detail = detail.map { "\($0) \(note)" } ?? note }
         }
         let time = stamped ?? claimed ?? mDate
-        let judged = cert.map { trust($0, extra, at: trustTime, online: online, eku: docTimestamp ? timestampingEku : nil) } ?? (false, loc("No certificate"))
+        let judged = cert.map { trust($0, pooled(extra, $0, pool), at: trustTime, anchors: anchors, eku: docTimestamp ? timestampingEku : nil) } ?? (false, loc("No certificate"))
         let trusted = judged.0
         var chainStatus = judged.1
         if !trusted && trustTime == nil && chainStatus.contains("NotTimeValid") {
@@ -274,23 +313,64 @@ public enum Signatures {
         info.certificateValidAtSigningTime = cert.flatMap { c in time.map { c.notBefore <= $0 && $0 <= c.notAfter } }
         info.detail = detail
         info.certificate = cert
-        return info
+        let facts = SignatureFacts(info)
+        facts.end = br[2] + br[3]
+        facts.contentsForVri = docTimestamp ? contents : paddedContents(gap)
+        facts.documentTimestamp = docTimestamp
+        facts.signer = signer
+        facts.certs = extra
+        facts.tsa = tsa
+        facts.tsaCerts = tsaCerts
+        facts.stamped = stamped
+        facts.trustTime = trustTime
+        facts.isPades = subFilter == "ETSI.CAdES.detached" && signer.map(isPadesBaseline) == true
+        return facts
+    }
+
+    /// A PAdES baseline signature names its certificate in a signed attribute and keeps its time in /M, not in a
+    /// signing-time attribute.
+    private static func isPadesBaseline(_ si: CmsSignerInfo) -> Bool {
+        si.signed(Oids.signingCertificateV2) != nil && si.signed(Oids.signingTime) == nil
+    }
+
+    /// The CMS's own certificates and those the file keeps (/DSS) that could be in this certificate's chain: an
+    /// intermediate may be there alone.
+    private static func pooled(_ extra: [Certificate], _ cert: Certificate, _ pool: RevocationPool) -> [Certificate] {
+        pool.certs.isEmpty ? extra : extra + RevocationPool.chainCandidates(cert, pool.certs)
+    }
+
+    /// The /Contents value as written, zero padding included: what a /VRI key for an ordinary signature is the hash of.
+    private static func paddedContents(_ gap: [UInt8]) -> [UInt8] {
+        var digits = gap.dropFirst().dropLast().filter(isHex)
+        if digits.count % 2 == 1 { digits.append(48) }
+        func value(_ b: UInt8) -> UInt8 { b <= 57 ? b - 48 : (b | 0x20) - 87 }
+        var bytes = [UInt8]()
+        bytes.reserveCapacity(digits.count / 2)
+        var i = digits.startIndex
+        while i < digits.endIndex {
+            bytes.append(value(digits[i]) << 4 | value(digits[i + 1]))
+            i += 2
+        }
+        return bytes
     }
 
     /// The signature's embedded RFC 3161 timestamp, when it belongs to this signature (the token's own signature verifies
-    /// and its message imprint is the hash of this signature's value), and whether its authority is trusted. The token
-    /// sits in the unsigned attributes, outside what the signer signed, so anyone can put one there: only a trusted one
-    /// may vouch for the signing time.
-    private static func verifiedTimestamp(_ si: CmsSignerInfo, _ extra: [Certificate], _ online: Bool) -> (time: Date?, trusted: Bool, problem: String?) {
-        guard let attr = si.unsignedAttributes.first(where: { $0.oid == Oids.timestampToken && !$0.values.isEmpty }) else { return (nil, false, nil) }
-        guard let token = try? Rfc3161.Token(der: attr.values[0].raw) else { return (nil, false, loc("The embedded timestamp can't be read, so it was ignored.")) }
+    /// and its message imprint is the hash of this signature's value), whether its authority is trusted, and the authority
+    /// with the certificates it may chain through. The token sits in the unsigned attributes, outside what the signer
+    /// signed, so anyone can put one there: only a trusted one may vouch for the signing time.
+    private static func verifiedTimestamp(_ si: CmsSignerInfo, _ extra: [Certificate], _ pool: RevocationPool, _ anchors: [Certificate]?)
+        -> (time: Date?, trusted: Bool, problem: String?, tsa: Certificate?, tsaCerts: [Certificate]) {
+        guard let attr = si.unsignedAttributes.first(where: { $0.oid == Oids.timestampToken && !$0.values.isEmpty }) else { return (nil, false, nil, nil, extra) }
+        guard let token = try? Rfc3161.Token(der: attr.values[0].raw) else {
+            return (nil, false, loc("The embedded timestamp can't be read, so it was ignored."), nil, extra)
+        }
         let candidates = extra + token.cms.certificates
         guard let tsa = token.verify(stamping: si.signature, candidates: candidates) else {
-            return (nil, false, loc("The embedded timestamp doesn't belong to this signature, so it was ignored."))
+            return (nil, false, loc("The embedded timestamp doesn't belong to this signature, so it was ignored."), nil, extra)
         }
-        let (trusted, status) = trust(tsa, candidates, at: token.time, online: online, eku: timestampingEku)
+        let (trusted, status) = trust(tsa, pooled(candidates, tsa, pool), at: token.time, anchors: anchors, eku: timestampingEku)
         return (token.time, trusted,
-                trusted ? nil : loc("The timestamp authority isn't trusted ({0}), so the certificate was checked at the current time.", status))
+                trusted ? nil : loc("The timestamp authority isn't trusted ({0}), so the certificate was checked at the current time.", status), tsa, candidates)
     }
 
     static let timestampingEku = "1.3.6.1.5.5.7.3.8"
@@ -305,13 +385,14 @@ public enum Signatures {
         "2.5.29.37.0", // any
     ]
 
-    /// Builds the chain at `time` (nil: now) with `SecTrust`. Revocation is checked online when asked, and only
-    /// "couldn't check" problems are forgiven (a revoked certificate never is). The end certificate must be meant for the
-    /// job: document signing (`eku` nil) or timestamping. The problems are named as .NET's chain status names them.
-    static func trust(_ cert: Certificate, _ extra: [Certificate], at time: Date?, online: Bool, eku: String? = nil) -> (Bool, String) {
+    /// Builds the chain at `time` (nil: now) with `SecTrust`, with no network: a certificate in a file must not be able to
+    /// send the app to an address it names (`forbidNetwork`); revocation is `LongTermCheck`'s, from the data in hand. The
+    /// end certificate must be meant for the job: document signing (`eku` nil) or timestamping. The problems are named as
+    /// .NET's chain status names them. `anchors`: roots trusted for this check alone (tests), instead of the keychains'.
+    static func trust(_ cert: Certificate, _ extra: [Certificate], at time: Date?, anchors: [Certificate]? = nil, eku: String? = nil) -> (Bool, String) {
         if let unfit = unfit(cert, eku) { return (false, unfit) }
         let at = time ?? Date()
-        guard let first = evaluate(cert, extra, at, online) else { return (false, loc("Chain can't be built: {0}", loc("the certificate can't be read"))) }
+        guard let first = evaluate(cert, extra, at, anchors) else { return (false, loc("Chain can't be built: {0}", loc("the certificate can't be read"))) }
         if first.ok { return (true, "OK") }
         var problems: [String] = []
         let expired = first.chain.contains { at < $0.notBefore || at > $0.notAfter }
@@ -320,7 +401,7 @@ public enum Signatures {
         if expired {
             let start = first.chain.map(\.notBefore).max() ?? cert.notBefore
             let end = first.chain.map(\.notAfter).min() ?? cert.notAfter
-            chainCode = start <= end ? evaluate(cert, extra, start + (end.timeIntervalSince(start)) / 2, online).flatMap { $0.ok ? nil : $0.code } : nil
+            chainCode = start <= end ? evaluate(cert, extra, start + (end.timeIntervalSince(start)) / 2, anchors).flatMap { $0.ok ? nil : $0.code } : nil
         }
         if let chainCode {
             switch chainCode {
@@ -338,14 +419,22 @@ public enum Signatures {
     /// errSecIncompleteCertRevocationCheck.
     private static let incompleteRevocationCheck: OSStatus = -67635
 
-    private static func evaluate(_ cert: Certificate, _ extra: [Certificate], _ at: Date, _ online: Bool) -> (ok: Bool, code: OSStatus, chain: [Certificate])? {
+    /// No revocation lookups and no fetching of missing issuers: nothing in a chain build may contact an address a
+    /// certificate names (`SecTrustSetNetworkFetchAllowed` covers both, and the basic X.509 policy asks no revocation).
+    static func forbidNetwork(_ trust: SecTrust) {
+        SecTrustSetNetworkFetchAllowed(trust, false)
+    }
+
+    private static func evaluate(_ cert: Certificate, _ extra: [Certificate], _ at: Date, _ anchors: [Certificate]?) -> (ok: Bool, code: OSStatus, chain: [Certificate])? {
         guard let sec = cert.secCertificate else { return nil }
         let others = extra.filter { $0 != cert }.compactMap(\.secCertificate)
-        var policies: [SecPolicy] = [SecPolicyCreateBasicX509()]
-        if online, let revocation = SecPolicyCreateRevocation(CFOptionFlags(kSecRevocationUseAnyAvailableMethod)) { policies.append(revocation) }
         var made: SecTrust?
-        guard SecTrustCreateWithCertificates(([sec] + others) as CFArray, policies as CFArray, &made) == errSecSuccess, let trust = made else { return nil }
-        SecTrustSetNetworkFetchAllowed(trust, online)
+        guard SecTrustCreateWithCertificates(([sec] + others) as CFArray, SecPolicyCreateBasicX509(), &made) == errSecSuccess, let trust = made else { return nil }
+        forbidNetwork(trust)
+        if let anchors {
+            SecTrustSetAnchorCertificates(trust, anchors.compactMap(\.secCertificate) as CFArray)
+            SecTrustSetAnchorCertificatesOnly(trust, true)
+        }
         SecTrustSetVerifyDate(trust, at as CFDate)
         var error: CFError?
         let ok = SecTrustEvaluateWithError(trust, &error)

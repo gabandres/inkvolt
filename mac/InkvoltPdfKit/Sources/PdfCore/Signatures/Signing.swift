@@ -54,14 +54,73 @@ public struct SignRequest: Sendable {
     public var certify = CertificationLevel.none
     /// The time written to /M and shown in the appearance (default: now).
     public var time: Date?
+    /// How far beyond the signature to go: B-LT and B-LTA need `timestamp` and `longTermClient`, and go online through
+    /// the client for the chain's revocation data (and B-LTA for a document timestamp too). Part of Inkvolt Pro
+    /// (`ProFeature.longTermValidation`, asked by the app).
+    public var longTerm = LongTermLevel.none
+    /// The way online for `longTerm`. Nil means not going there.
+    public var longTermClient: LtvClient?
+    /// When certifying a form: the fields to lock (FieldMDP), beside whatever the signature field's own /Lock names. Part
+    /// of Inkvolt Pro (`ProFeature.fieldLocking`).
+    public var lock: FieldLock?
 
     public init(id: DigitalId) { self.id = id }
+}
+
+/// Which fields a lock covers (ISO 32000-1 Table 233's /Action).
+public enum FieldLockAction: String, Sendable {
+    case all = "All", include = "Include", exclude = "Exclude"
+}
+
+/// The fields a certification locks: all of them, those named, or all but those named.
+public struct FieldLock: Sendable, Equatable {
+    public var action: FieldLockAction
+    public var fields: [String]
+    public init(_ action: FieldLockAction, _ fields: [String]) {
+        self.action = action
+        self.fields = fields
+    }
+
+    public static let allFields = FieldLock(.all, [])
+}
+
+/// The Sign window's "Lock form fields" choice when certifying: its entries, the line under it, and the lock it makes
+/// (the Windows app's `FieldLocks`).
+public enum FieldLocks {
+    public static var choices: [String] {
+        [loc("Don't lock fields"), loc("Lock all fields"), loc("Lock these fields"), loc("Lock all fields but these")]
+    }
+
+    /// What the chosen entry does, in a line.
+    public static func note(_ choice: Int) -> String {
+        switch choice {
+        case 1: loc("No field can be changed after you certify without it showing as not allowed.")
+        case 2: loc("Only the fields you choose are locked; the others can still be filled in.")
+        case 3: loc("The fields you choose stay open for others to fill in; the rest are locked.")
+        default: loc("Fields can be filled in after you certify, as the certification allows.")
+        }
+    }
+
+    /// The lock for entry `choice` with the fields picked in the list; nil for "Don't lock fields".
+    public static func from(_ choice: Int, _ picked: [String]) -> FieldLock? {
+        switch choice {
+        case 1: .allFields
+        case 2: FieldLock(.include, picked)
+        case 3: FieldLock(.exclude, picked)
+        default: nil
+        }
+    }
 }
 
 /// A signing refusal the UI shows as is (.NET's `SigningException`).
 public struct SigningError: Error, Equatable, Sendable, CustomStringConvertible {
     public var message: String
-    public init(_ message: String) { self.message = message }
+    /// A server's doing (couldn't be reached, answered with an error or nothing usable): Batch tells it apart.
+    public var serverFailure = false
+    public init(_ message: String, serverFailure: Bool = false) {
+        self.message = message
+        self.serverFailure = serverFailure
+    }
     public var description: String { message }
 }
 
@@ -69,7 +128,8 @@ public struct SigningError: Error, Equatable, Sendable, CustomStringConvertible 
 /// always appended as an incremental update (MuPDF's), so the original bytes, and any earlier signature, stay intact;
 /// /Contents is reserved as a zero-filled hex string, the /ByteRange around it is patched in and hashed, and the CMS
 /// (written by PdfCore, signed by the ID's key through Security.framework) goes into the gap. A signature field's /Lock is
-/// honored (FieldMDP reference, locked fields made read-only). Not supported: encrypted documents, LTV.
+/// honored (FieldMDP reference, locked fields made read-only). With a long-term level, the validation data and a document
+/// timestamp follow in further updates (`Ltv`). Not supported: encrypted documents.
 public enum Signing {
     /// The placeholder MuPDF writes for the byte range (ten digits each, so the real offsets fit in its place).
     private static let rangePlaceholder = "[0 1000000000 1000000000 1000000000]"
@@ -77,6 +137,13 @@ public enum Signing {
     public static func sign(_ data: [UInt8], _ password: String?, _ req: SignRequest) async throws -> [UInt8] {
         if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
             throw SigningError(loc("Encrypted (password-protected) PDFs can't be signed here. Remove the protection first (Save As without a password), then sign."))
+        }
+        if req.longTerm != .none && (req.timestamp == nil || req.longTermClient == nil) {
+            throw SigningError(loc("Long-term validation needs a timestamp server."))
+        }
+        if req.lock != nil && !Pro.allows(.fieldLocking) { throw SigningError(Pro.locked(.fieldLocking)) }
+        if let lock = req.lock, lock.action != .all, lock.fields.isEmpty {
+            throw SigningError(loc("Choose at least one field to lock, or lock all of them."))
         }
         if req.certify != .none && (req.repairedLength > 0 || PdfRepair.isDamaged(data, password)) {
             throw SigningError(loc("This file was damaged and Inkvolt PDF repaired it to open it, so it can't be certified now. Save it, open the saved copy, then certify it."))
@@ -107,11 +174,111 @@ public enum Signing {
             let hex = Array(der.map { String(format: "%02X", $0) }.joined().utf8)
             if hex.count <= gapEnd - gapStart - 2 {
                 pdf.replaceSubrange((gapStart + 1)..<(gapStart + 1 + hex.count), with: hex)
-                return pdf
+                guard req.longTerm != .none, let client = req.longTermClient else { return pdf }
+                return try await Ltv.extend(pdf, password, client, req.longTerm == .lta ? req.timestamp : nil, strict: true,
+                                            repairedLength: req.repairedLength).pdf
             }
             reserve = der.count + 8192
         }
         throw SigningError(loc("The signature doesn't fit the space reserved for it."))
+    }
+
+    /// Adds a document timestamp (PAdES B-LTA, ETSI.RFC3161): an invisible signature field holding an RFC 3161 token over
+    /// the file as it stands, as an incremental update. A timestamp may follow any signature, even a no-changes certification.
+    /// - Parameter timestamp: the exchange with the server: gets a DER request holding a hash of the file, returns the DER reply.
+    public static func addDocumentTimestamp(_ data: [UInt8], _ password: String?, _ timestamp: @Sendable ([UInt8]) async throws -> [UInt8]) async throws -> [UInt8] {
+        if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+            throw SigningError(loc("Encrypted (password-protected) PDFs can't take a document timestamp. Nothing was changed."))
+        }
+        // A token with its chain is a few KB. The hash covers the reserved space, so a second try means asking the server
+        // again; twice is the limit.
+        var reserve = 16384
+        for _ in 0..<2 {
+            try Task.checkCancellation()
+            var (pdf, gapStart, gapEnd) = try prepareTimestamp(data, password, reserve)
+            let signed = Array(pdf[..<gapStart]) + Array(pdf[gapEnd...])
+            var nonce = [UInt8](repeating: 0, count: 8)
+            _ = SecRandomCopyBytes(kSecRandomDefault, nonce.count, &nonce)
+            nonce[0] = (nonce[0] & 0x7F) | 0x01
+            let reply: [UInt8]
+            do {
+                reply = try await timestamp(Rfc3161.request(signed, nonce: nonce))
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw SigningError(loc("The timestamp server couldn't be reached: {0} Nothing was changed.", "\(error)"), serverFailure: true)
+            }
+            let der: [UInt8]
+            do {
+                der = try Rfc3161.token(fromReply: reply, stamping: signed, nonce: nonce).der
+            } catch let e as SigningError {
+                throw SigningError(loc("The timestamp server's reply isn't usable: {0} Nothing was changed.", e.message), serverFailure: true)
+            } catch {
+                throw SigningError(loc("The timestamp server's reply isn't usable: {0} Nothing was changed.", loc("it isn't a timestamp response.")), serverFailure: true)
+            }
+            let hex = Array(der.map { String(format: "%02X", $0) }.joined().utf8)
+            if hex.count <= gapEnd - gapStart - 2 {
+                pdf.replaceSubrange((gapStart + 1)..<(gapStart + 1 + hex.count), with: hex)
+                return pdf
+            }
+            reserve = der.count + 8192
+        }
+        throw SigningError(loc("The timestamp doesn't fit the space reserved for it. Nothing was changed."))
+    }
+
+    private static func prepareTimestamp(_ data: [UInt8], _ password: String?, _ reserve: Int) throws -> (pdf: [UInt8], gapStart: Int, gapEnd: Int) {
+        let cantExtend = SigningError(loc("This document's file structure can't be extended, so a document timestamp would break its signatures. Nothing was changed."))
+        guard let doc = try? PdfEdit.open(data, password), doc.canAppend else { throw cantExtend }
+        let catalog = doc.catalog
+        let acro: PObj
+        if let a = catalog.dict("AcroForm") {
+            acro = a
+        } else {
+            acro = doc.dict()
+            catalog.set("AcroForm", acro)
+        }
+        let fields: PObj
+        if let f = acro.array("Fields") {
+            fields = f
+        } else {
+            fields = doc.array()
+            acro.set("Fields", fields)
+        }
+        acro.set("SigFlags", doc.int(3))
+        guard (try? doc.pageCount()) ?? 0 > 0 else { throw cantExtend }
+        let page = doc.page(0)
+        let names = Set(try FormEditor.collect(doc, acro).map(\.name))
+        var n = 1
+        while names.contains("Timestamp\(n)") { n += 1 }
+        let sig = doc.add(doc.dict([("Type", doc.name("DocTimeStamp")), ("Filter", doc.name("Adobe.PPKLite")), ("SubFilter", doc.name("ETSI.RFC3161")),
+                                    ("ByteRange", doc.array([doc.int(0), doc.int(1_000_000_000), doc.int(1_000_000_000), doc.int(1_000_000_000)])),
+                                    ("Contents", doc.string([UInt8](repeating: 0, count: reserve)))]))
+        let widget = doc.add(doc.dict([("Type", doc.name("Annot")), ("Subtype", doc.name("Widget")), ("FT", doc.name("Sig")),
+                                       ("T", doc.text("Timestamp\(n)")), ("F", doc.int(132)), ("P", page), // print + locked
+                                       ("Rect", doc.array([doc.int(0), doc.int(0), doc.int(0), doc.int(0)])),
+                                       ("AP", doc.dict([("N", doc.formXObject([], 0, 0, 0, 0, nil))])), ("V", sig)]))
+        doc.annots(page).append(widget)
+        fields.append(widget)
+        do {
+            try doc.checkFailure()
+        } catch {
+            throw SigningError(loc("A document timestamp can't be appended to this PDF. Nothing was changed."))
+        }
+        var pdf: [UInt8]
+        do {
+            pdf = try doc.append(original: data)
+        } catch {
+            throw SigningError(loc("A document timestamp can't be appended to this PDF. Nothing was changed."))
+        }
+        let from = min(doc.appendsAfter ?? data.count, data.count)
+        let zeros = [60] + [UInt8](repeating: 48, count: reserve * 2) + [62]
+        guard let gap = pdf[from...].lastRange(of: zeros), let rangeAt = pdf[from...].lastRange(of: Array(rangePlaceholder.utf8)) else {
+            throw SigningError(loc("The timestamp's placeholder wasn't written. Nothing was changed."))
+        }
+        var range = "[0 \(gap.lowerBound) \(gap.upperBound) \(pdf.count - gap.upperBound)"
+        range = range.padding(toLength: rangePlaceholder.count - 1, withPad: " ", startingAt: 0) + "]"
+        pdf.replaceSubrange(rangeAt, with: Array(range.utf8))
+        return (pdf, gap.lowerBound, gap.upperBound)
     }
 
     /// The certification level of a document's certifying signature (catalog /Perms /DocMDP), else `.none`.
@@ -205,14 +372,17 @@ public enum Signing {
             let tp = doc.dict([("Type", doc.name("TransformParams")), ("P", doc.int(req.certify.rawValue)), ("V", doc.name("1.2"))])
             references.append(doc.dict([("Type", doc.name("SigRef")), ("TransformMethod", doc.name("DocMDP")), ("TransformParams", tp)]))
         }
-        // A signature field's /Lock names the fields signing it locks (FieldMDP): record it in the signature, and make
-        // those fields read-only, as Acrobat does.
-        if let name = req.fieldName, let lock = fieldDict.dict("Lock") {
-            let tp = doc.dict([("Type", doc.name("TransformParams")), ("Action", lock["Action"] ?? doc.name("All"))])
-            if let lockFields = lock["Fields"] { tp.set("Fields", lockFields) }
-            tp.set("V", doc.name("1.2"))
-            references.append(doc.dict([("Type", doc.name("SigRef")), ("TransformMethod", doc.name("FieldMDP")), ("TransformParams", tp)]))
-            try lockFields(doc, acro, lock, name)
+        // The fields signing locks (FieldMDP): what a signature field's own /Lock names, and what the person chose. Each is
+        // recorded in the signature (a reference of its own: a later change must keep to both), and those fields are made
+        // read-only, as Acrobat does. The chosen lock also goes into the field's /Lock when it has none.
+        let fieldName = req.fieldName ?? fieldDict.text("T") ?? ""
+        if req.fieldName != nil, let own = fieldDict.dict("Lock") {
+            references.append(try fieldMdp(doc, acro, own, fieldName))
+        }
+        if let chosen = req.lock {
+            let lockDict = try lockDictionary(doc, acro, chosen, fieldName)
+            references.append(try fieldMdp(doc, acro, lockDict, fieldName))
+            if fieldDict["Lock"] == nil { fieldDict.set("Lock", doc.add(lockDict)) }
         }
         if !references.isEmpty { sig.set("Reference", doc.array(references)) }
         let sigRef = doc.add(sig)
@@ -244,6 +414,36 @@ public enum Signing {
             return p
         }
         return nil
+    }
+
+    /// A signature field lock dictionary (ISO 32000-1 Table 233) for `chosen`: /Type /SigFieldLock, /Action, and /Fields
+    /// for /Include and /Exclude. Each name must be a form field other than the signature's own.
+    private static func lockDictionary(_ doc: MuDoc, _ acro: PObj, _ chosen: FieldLock, _ signatureField: String) throws -> PObj {
+        let lockDict = doc.dict([("Type", doc.name("SigFieldLock")), ("Action", doc.name(chosen.action.rawValue))])
+        if chosen.action == .all { return lockDict }
+        let names = try FormEditor.collect(doc, acro).map(\.name).filter { $0 != signatureField }
+        var seen = Set<String>()
+        let fields = doc.array()
+        for name in chosen.fields where seen.insert(name).inserted {
+            if !names.contains(where: { $0 == name || $0.hasPrefix(name + ".") }) {
+                throw SigningError(loc("This document has no form field named \"{0}\" to lock.", name))
+            }
+            fields.append(doc.text(name))
+        }
+        lockDict.set("Fields", fields)
+        return lockDict
+    }
+
+    /// `lockDict` as a FieldMDP signature reference (ISO 32000-1 Tables 253 and 256: /Type /SigRef, /TransformMethod
+    /// /FieldMDP, /Data the catalog, /TransformParams with /Action, /Fields and /V /1.2), the fields it locks made read-only.
+    private static func fieldMdp(_ doc: MuDoc, _ acro: PObj, _ lockDict: PObj, _ signatureField: String) throws -> PObj {
+        let tp = doc.dict([("Type", doc.name("TransformParams")), ("Action", lockDict["Action"] ?? doc.name("All"))])
+        if let lockFields = lockDict["Fields"] { tp.set("Fields", lockFields) }
+        tp.set("V", doc.name("1.2"))
+        let ref = doc.dict([("Type", doc.name("SigRef")), ("TransformMethod", doc.name("FieldMDP")), ("TransformParams", tp)])
+        if let root = doc.trailer["Root"] { ref.set("Data", root) }
+        try lockFields(doc, acro, lockDict, signatureField)
+        return ref
     }
 
     /// Sets the read-only flag on the fields a signature field's /Lock names (/All, /Include or /Exclude).

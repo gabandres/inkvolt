@@ -263,4 +263,11 @@ enum Oids {
     static let basicConstraints = "2.5.29.19"
     static let subjectKeyId = "2.5.29.14"
     static let subjectAltName = "2.5.29.17"
+    static let authorityInfoAccess = "1.3.6.1.5.5.7.1.1"
+    static let crlDistributionPoints = "2.5.29.31"
+    static let ocspNoCheck = "1.3.6.1.5.5.7.48.1.5"
+    static let ocspSigning = "1.3.6.1.5.5.7.3.9"
+    static let ocspBasic = "1.3.6.1.5.5.7.48.1.1"
+    /// Adobe's signed attribute for revocation data taken at signing (revocationInfoArchival).
+    static let revocationArchival = "1.2.840.113583.1.1.8"
 }

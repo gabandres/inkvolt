@@ -206,6 +206,11 @@ public enum BatchStep: Equatable, Sendable {
     case saveAsPdfA2a
     /// `dpi`: resolution of page images (PNG, JPEG).
     case export(BatchExportFormat, dpi: Int)
+    /// Add Verification Information (`Ltv.addVerification`) on each signed file: what it takes to check its signatures
+    /// years from now, stored as an update after them, a document timestamp over it when `timestampUrl` is set (PAdES
+    /// B-LTA). Goes online through the run's one `BatchHost.longTermClient`, one file at a time. A file without a signature
+    /// is skipped; one that already holds everything is saved no copy of.
+    case addLongTerm(timestampUrl: String?)
 
     /// The action changes the PDF (an export only reads it).
     public var changesPdf: Bool {
@@ -234,6 +239,7 @@ public enum BatchStep: Equatable, Sendable {
         case .makeAccessible: loc("Make accessible")
         case .saveAsPdfA: loc("Save as PDF/A")
         case .saveAsPdfA2a: loc("Save as PDF/A-2a")
+        case .addLongTerm: loc("Add long-term validation data")
         case .export(let format, _):
             switch format {
             case .word: loc("Export to Word")
@@ -261,8 +267,14 @@ public enum BatchStep: Equatable, Sendable {
         case .makeAccessible: .autoTagging
         case .saveAsPdfA2a: .accessibleOutput
         case .redactPatterns: .patternRedaction
+        case .addLongTerm: .longTermValidation
         default: nil
         }
+    }
+
+    public var isAddLongTerm: Bool {
+        if case .addLongTerm = self { return true }
+        return false
     }
 
     /// One of the Save as PDF/A actions.
@@ -338,11 +350,12 @@ public struct BatchPlan: Sendable {
         }
     }
 
-    /// Bates numbers run on across files, so the files are done one at a time, in order.
+    /// Bates numbers run on across files, or long-term data is asked for (one client, one request at a time): the files
+    /// are done one at a time, in order.
     public var isSequential: Bool {
         steps.contains {
             if case .headerFooter(let o, let continueBates) = $0 { return continueBates && o.bates != nil }
-            return false
+            return $0.isAddLongTerm
         }
     }
 
@@ -368,6 +381,10 @@ public struct BatchPlan: Sendable {
         var formats = Set<BatchExportFormat>()
         for s in steps {
             if let f = s.exportFormat, !formats.insert(f).inserted { return loc("\"{0}\" is in the list twice.", s.title) }
+        }
+        if steps.filter(\.isAddLongTerm).count > 1 { return loc("\"Add long-term validation data\" is in the list twice.") }
+        if steps.contains(where: \.isAddLongTerm) && steps.contains(where: { $0.changesPdf && !$0.isAddLongTerm }) {
+            return loc("\"Add long-term validation data\" goes with checks, reports and exports only: it adds to signed files as they are, and other changes would break their signatures.")
         }
         for case .redactPatterns(let r) in steps {
             if r.isEmpty { return loc("Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.") }
@@ -410,13 +427,38 @@ public struct BatchHost: Sendable {
     /// pages their text back with (Windows' `BatchHost.Ocr`'s recognizer). Unset: scanned pages can't be searched, and a
     /// file that has them fails Redact Patterns.
     public var reader: (any TextRecognizer)?
+    /// Makes the client long-term data goes online through: called once per run. The app makes it after the person has
+    /// seen every address (the command line after --online). Unset: that action can't go online, and each signed file that
+    /// needs anything fails saying so.
+    public var longTermClient: (@Sendable () -> LtvClient)?
+    /// Whether this Mac is on a network, to tell "offline" from a server that didn't answer (tests give their own).
+    public var isOnline: @Sendable () -> Bool = BatchHost.systemIsOnline
 
     public init(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil, recognize: Recognizer? = nil,
-                recognizeLanguage: String? = nil, reader: (any TextRecognizer)? = nil) {
+                recognizeLanguage: String? = nil, reader: (any TextRecognizer)? = nil, longTermClient: (@Sendable () -> LtvClient)? = nil,
+                isOnline: (@Sendable () -> Bool)? = nil) {
         self.askPassword = askPassword
         self.recognize = recognize
         self.recognizeLanguage = recognizeLanguage
         self.reader = reader
+        self.longTermClient = longTermClient
+        if let isOnline { self.isOnline = isOnline }
+    }
+
+    /// A network interface other than loopback is up and has an address.
+    @Sendable public static func systemIsOnline() -> Bool {
+        var list: UnsafeMutablePointer<ifaddrs>?
+        guard getifaddrs(&list) == 0 else { return true }
+        defer { freeifaddrs(list) }
+        var at = list
+        while let a = at {
+            let flags = Int32(a.pointee.ifa_flags)
+            let family = a.pointee.ifa_addr?.pointee.sa_family
+            if flags & IFF_UP != 0, flags & IFF_RUNNING != 0, flags & IFF_LOOPBACK == 0,
+               family == sa_family_t(AF_INET) || family == sa_family_t(AF_INET6) { return true }
+            at = a.pointee.ifa_next
+        }
+        return false
     }
 }
 
@@ -527,6 +569,13 @@ public enum BatchRunner {
         let parallel = plan.isSequential ? 1 : max(1, plan.maxParallel)
         let slots = AsyncSemaphore(parallel)
         var bates = 0 // pages numbered so far, when Bates numbers run on (sequential)
+        var ltv: LtvClient?
+        if let longTerm = plan.steps.first(where: \.isAddLongTerm) {
+            ltv = host.longTermClient?()
+            if case .addLongTerm(let url?) = longTerm, let refused = ltv?.why(url, .timestamp) {
+                throw PdfEditError(loc("That timestamp server can't be used: {0}.", refused))
+            }
+        }
 
         await withTaskGroup(of: Void.self) { group in
             for (index, file) in files.enumerated() {
@@ -539,7 +588,7 @@ public enum BatchRunner {
                     slots.signal()
                     break
                 }
-                let job = Job(file, index, plan, host, names, prompts, progress, cancel, batesOffset: bates)
+                let job = Job(file, index, plan, host, names, prompts, progress, cancel, batesOffset: bates, longTermClient: ltv)
                 group.addTask {
                     let result = await job.run()
                     results.set(index, result)
@@ -646,7 +695,12 @@ public enum BatchRunner {
         let progress: (@Sendable (BatchProgress) -> Void)?
         let cancel: CancelToken?
         let batesOffset: Int
+        let longTermClient: LtvClient?
         private(set) var pageCount = 0
+        /// The file already held all the long-term data there was to add: no copy of it is saved.
+        private var alreadyLongTerm = false
+        /// The file was damaged and is worked on as its repaired copy.
+        private var repaired = false
 
         private var outputs: [String] = []
         private var notes: [String] = []
@@ -662,7 +716,7 @@ public enum BatchRunner {
         private var redaction: RedactionFileReport?
 
         init(_ file: BatchFile, _ index: Int, _ plan: BatchPlan, _ host: BatchHost, _ names: OutputNames, _ prompts: AsyncSemaphore,
-             _ progress: (@Sendable (BatchProgress) -> Void)?, _ cancel: CancelToken?, batesOffset: Int) {
+             _ progress: (@Sendable (BatchProgress) -> Void)?, _ cancel: CancelToken?, batesOffset: Int, longTermClient: LtvClient?) {
             self.file = file
             self.index = index
             self.plan = plan
@@ -672,6 +726,7 @@ public enum BatchRunner {
             self.progress = progress
             self.cancel = cancel
             self.batesOffset = batesOffset
+            self.longTermClient = longTermClient
         }
 
         private func report(_ message: String, _ fraction: Double) {
@@ -704,9 +759,13 @@ public enum BatchRunner {
                     // As a document opens in a window: a damaged file is worked on as its repaired copy, and the report says so.
                     let normal = PdfRepair.normalize(data, password)
                     data = normal.data
-                    if normal.repaired { notes.append(loc("Damaged: repaired to open it; the results are made from the repaired copy")) }
+                    if normal.repaired {
+                        repaired = true
+                        notes.append(loc("Damaged: repaired to open it; the results are made from the repaired copy"))
+                    }
                 }
-                let changes = plan.steps.contains { $0.changesPdf }
+                // Long-term data is for signed files: it never counts as a change that would leave them alone.
+                let changes = plan.steps.contains { $0.changesPdf && !$0.isAddLongTerm }
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
                 let keepSigned = changes && plan.signedFiles == .skip && BatchRunner.isSigned(data, password)
                 // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
@@ -739,13 +798,15 @@ public enum BatchRunner {
                         let words = try recognize(data)
                         let language = host.recognizeLanguage
                         if !words.isEmpty { data = try await edit(data) { d, pw in try TextLayer.addInvisibleText(d, pw, words, language: language) } }
+                    case .addLongTerm(let url):
+                        data = try await addLongTerm(data, url)
                     default:
                         data = try await edit(data) { d, pw in try self.apply(step, d, pw) }
                         afterStep(step)
                     }
                 }
                 try cancel.check()
-                if plan.writesPdf(file) && !keepSigned {
+                if plan.writesPdf(file) && !keepSigned && !alreadyLongTerm {
                     let bytes = data
                     outputs.insert(try names.place(folder, baseName + ".pdf") { try Data(bytes).write(to: URL(fileURLWithPath: $0)) }, at: 0)
                 }
@@ -763,6 +824,56 @@ public enum BatchRunner {
             } catch {
                 return result(.failed, BatchRunner.describe(error))
             }
+        }
+
+        /// Add long-term validation data, as Add Verification Information does it to one file, through the run's client.
+        /// Outcomes: no signature (skipped), already long-term (done, no copy), offline or a server that failed (failed,
+        /// nothing changed). The original is never touched; the result is saved as Batch saves any.
+        private func addLongTerm(_ data: [UInt8], _ timestampUrl: String?) async throws -> [UInt8] {
+            if data.firstRange(of: Array("/Encrypt".utf8)) != nil {
+                throw BatchSkip(reason: loc("Protected: long-term data can't be added to an encrypted PDF without breaking its signatures"))
+            }
+            // Its signatures can't be checked in the repaired copy: never extended.
+            if repaired { throw BatchSkip(reason: loc("Damaged: repaired to open it, so its signatures can't be checked and no long-term data was added")) }
+            let facts = Signatures.inspect(data, password)
+            if facts.allSatisfy({ $0.info.status == .unsigned }) { throw BatchSkip(reason: loc("No signature: nothing to add long-term data for")) }
+            if !facts.contains(where: { $0.intact && $0.info.certificate != nil }) {
+                throw BatchSkip(reason: loc("No signature checks out: nothing to add long-term data for"))
+            }
+            guard let client = longTermClient else { throw BatchCheckFailed(message: loc("Not added: this batch may not go online")) }
+            client.nextFile()
+            let asked = client.contacts.count
+            let pw = password
+            // The run's cancel token stops the requests (Swift's task cancellation is what the client listens to).
+            let work = Task { try await Ltv.addVerification(data, pw, client, documentTimestamp: timestampUrl.map(client.timestampSender)) }
+            let id = cancel?.register { work.cancel() }
+            defer { cancel?.unregister(id) }
+            let result: LtvResult
+            do {
+                result = try await work.value
+            } catch let e as SigningError where e.serverFailure && cancel?.isCancelled != true {
+                throw BatchCheckFailed(message: host.isOnline() ? loc("Couldn't reach the service: {0}", e.message)
+                    : loc("Offline: this Mac isn't connected to a network, so nothing was added. Run it again once it is"))
+            }
+            try cancel.check()
+            var hosts: [String] = []
+            for c in client.contacts.dropFirst(asked) {
+                let h = LtvClient.host(c.url)
+                if !hosts.contains(where: { $0.caseInsensitiveCompare(h) == .orderedSame }) { hosts.append(h) }
+            }
+            if !hosts.isEmpty { notes.append(loc("Asked {0}", hosts.joined(separator: ", "))) }
+            if !result.changed {
+                alreadyLongTerm = true
+                notes.append(loc("Already long-term: it holds everything that could be added, so no copy was saved"))
+                return data
+            }
+            let gaps = result.certificates.filter { !$0.covered }
+            if !gaps.isEmpty {
+                let which = gaps.map { "\($0.name): \($0.outcome)" }.joined(separator: "; ")
+                notes.append(gaps.count == 1 ? loc("{0} certificate has no long-term data: {1}", CoreLanguage.number(1), which)
+                    : loc("{0} certificates have no long-term data: {1}", CoreLanguage.number(gaps.count), which))
+            }
+            return result.pdf
         }
 
         /// Asks for the open password until it opens the file (or the user skips it).
