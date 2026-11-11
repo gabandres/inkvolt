@@ -157,40 +157,28 @@ public class ConvertQueueTests
     }
 
     [Fact]
-    public async Task AnAnswerHoldsForTheRunAndANewRunAsksAgain()
+    public async Task AnAnswerHoldsForItsSelectionOnly()
     {
-        // 500 protected files ask once (ConvertAnswers); the next selection, after the queue was idle, asks again.
+        // 500 protected files ask once (ConvertAnswers); another selection, even one queued while these run, asks again.
         var asked = 0;
         var gate = new TaskCompletionSource();
-        ConvertQueue? q = null;
-        var queue = q = new ConvertQueue(async (job, _) =>
+        var queue = new ConvertQueue(async (job, _) =>
         {
             await gate.Task;
-            if (q!.Answers.ExportProtected is null)
+            if (job.Answers.ExportProtected is null)
             {
                 asked++;
-                q.Answers.ExportProtected = true;
+                job.Answers.ExportProtected = true;
             }
             return Saved(job.Pdf);
         });
-        queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
-        queue.Add(Word(@"C:\c.pdf"));
+        var first = queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
+        var second = queue.Add(Word(@"C:\c.pdf"));
+        Assert.Same(first[0].Answers, first[1].Answers);
+        Assert.NotSame(first[0].Answers, second[0].Answers);
         gate.SetResult();
         await queue.Idle;
-        Assert.Equal(1, asked);
-        queue.Add(Word(@"C:\d.pdf"));
-        await queue.Idle;
         Assert.Equal(2, asked);
-    }
-
-    [Fact]
-    public void CancellingAllForgetsTheAnswers()
-    {
-        var queue = new ConvertQueue((job, _) => new TaskCompletionSource<ConvertOutcome>().Task);
-        queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
-        queue.Answers.AskPasswords = false;
-        queue.CancelAll();
-        Assert.True(queue.Answers.AskPasswords);
     }
 
     [Fact]
@@ -201,20 +189,44 @@ public class ConvertQueueTests
         queue.Add(Word([.. Enumerable.Range(0, 400).Select(i => $@"C:\{i}.pdf")]));
         Assert.Equal(ConvertQueue.MaxWaiting - 400, queue.Room);
         for (var b = 1; b < ConvertQueue.MaxWaiting / 400 + 2; b++)
-            queue.Add(Word([.. Enumerable.Range(0, Math.Min(400, queue.Room)).Select(i => $@"C:\{b}-{i}.pdf")]));
+            queue.Add(queue.Fit(Word([.. Enumerable.Range(0, 400).Select(i => $@"C:\{b}-{i}.pdf")])).Taken);
         Assert.Equal(0, queue.Room);
+        // Files already waiting aren't cut (Add skips them); new ones are, and counted.
+        var (taken, cut) = queue.Fit(Word([.. Enumerable.Range(0, 400).Select(i => $@"C:\{i}.pdf"), @"C:\new.pdf"]));
+        Assert.Equal((0, 1), (taken.Files.Count, cut));
+        Assert.Empty(queue.Add(taken));
+        (taken, cut) = queue.Fit(Word(@"C:\new.pdf", @"C:\new2.pdf"));
+        Assert.Equal((0, 2), (taken.Files.Count, cut));
     }
 }
 
 /// <summary>How a launch reaches the running copy: a conversion launch waits for it rather than converting alongside.</summary>
 public class LaunchHandoffTests
 {
-    private static (LaunchHandoff.Way Way, int Forwards, TimeSpan Waited) Run(bool convert, bool owns, Func<int, bool> forwardsOn, bool slot)
+    private sealed class Slot : IDisposable
+    {
+        public bool Released;
+        public void Dispose() => Released = true;
+    }
+
+    private static (LaunchHandoff.Way Way, int Forwards, TimeSpan Waited) Run(bool convert, bool owns, Func<int, bool> forwardsOn, bool slot,
+        Slot? waiter = null, bool waiterFree = true)
     {
         var forwards = 0;
         var clock = TimeSpan.Zero;
-        var way = LaunchHandoff.Find(convert, () => owns, () => forwardsOn(++forwards), () => slot, () => clock, d => clock += d + TimeSpan.FromSeconds(10));
+        var way = LaunchHandoff.Find(convert, () => owns, () => forwardsOn(++forwards), () => waiterFree ? waiter ?? new Slot() : null, () => slot,
+            () => clock, d => clock += d + TimeSpan.FromSeconds(10));
         return (way, forwards, clock);
+    }
+
+    [Fact]
+    public void OnlyAFewConversionLaunchesWaitTheRestGiveUpAtOnce()
+    {
+        var (way, forwards, waited) = Run(true, owns: false, _ => false, slot: true, waiterFree: false);
+        Assert.Equal((LaunchHandoff.Way.Dropped, 1, TimeSpan.Zero), (way, forwards, waited));
+        var waiter = new Slot();
+        Assert.Equal(LaunchHandoff.Way.Forwarded, Run(true, owns: false, n => n == 2, slot: true, waiter).Way);
+        Assert.True(waiter.Released);
     }
 
     [Fact]

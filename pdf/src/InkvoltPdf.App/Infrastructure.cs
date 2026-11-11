@@ -192,6 +192,7 @@ public sealed class SingleInstance : IDisposable
                 return created;
             },
             forward: () => Forward(args),
+            waiterSlot: WaiterSlot,
             standaloneSlot: () => (slot = ConvertSlot()) is not null,
             elapsed: () => clock.Elapsed,
             wait: Thread.Sleep);
@@ -206,6 +207,25 @@ public sealed class SingleInstance : IDisposable
                 return null;
             default:
                 return null;
+        }
+    }
+
+    // A few conversion launches wait for an owner that doesn't answer (null: as many already do). A slot a crashed launch
+    // held comes back once no launch has the semaphore open (Windows then deletes it; the next one makes it anew).
+    private static IDisposable? WaiterSlot()
+    {
+        var waiters = new Semaphore(4, 4, $@"Local\{Id}-wait");
+        if (waiters.WaitOne(0)) return new Waiter(waiters);
+        waiters.Dispose();
+        return null;
+    }
+
+    private sealed class Waiter(Semaphore semaphore) : IDisposable
+    {
+        public void Dispose()
+        {
+            try { semaphore.Release(); } catch (SemaphoreFullException) { }
+            semaphore.Dispose();
         }
     }
 

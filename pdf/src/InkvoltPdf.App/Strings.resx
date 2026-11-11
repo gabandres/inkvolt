@@ -11478,6 +11478,14 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>{0} more files weren't added: Inkvolt PDF converts up to {1} at a time.</value>
     <comment>{0} the count of files left out, {1} the most at a time (500)</comment>
   </data>
+  <data name="Explorer_TooMany_One" xml:space="preserve">
+    <value>{0} more file wasn't added: up to {1} files can wait to be converted. Try it again once these are done.</value>
+    <comment>{0} the count of files left out, {1} the most that wait (5,000)</comment>
+  </data>
+  <data name="Explorer_TooMany_Many" xml:space="preserve">
+    <value>{0} more files weren't added: up to {1} files can wait to be converted. Try them again once these are done.</value>
+    <comment>{0} the count of files left out, {1} the most that wait (5,000)</comment>
+  </data>
   <data name="Explorer_CantConvert" xml:space="preserve">
     <value>Can't convert</value>
     <comment>Title of the message when the convert command line is wrong</comment>

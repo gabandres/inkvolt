@@ -114,6 +114,10 @@ public class ConvertCommandTests
     [InlineData(@"\\.\COM1")]
     [InlineData(@"//./pipe/inkvolt")]
     [InlineData(@"\\?\GLOBALROOT\Device\Null")]
+    [InlineData(@"\\localhost\pipe\inkvolt")]
+    [InlineData(@"\\server\PIPE.\x")]
+    [InlineData(@"\\?\UNC\localhost\pipe\inkvolt")]
+    [InlineData(@"\\localhost\mailslot\x")]
     [InlineData(@"\\?\Volume{12345678-1234-1234-1234-123456789abc}\x.pdf")]
     [InlineData(@"\??\C:\x.pdf")]
     public void ADevicePathIsRefusedNotRead(string path)
