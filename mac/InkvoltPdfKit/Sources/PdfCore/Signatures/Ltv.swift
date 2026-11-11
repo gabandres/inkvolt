@@ -227,7 +227,7 @@ public enum Ltv {
         }) {
             output = try await Signing.addDocumentTimestamp(output, password, documentTimestamp)
             changed = true
-            intact = Signatures.inspect(output, password).filter { $0.intact && $0.info.certificate != nil }
+            intact = Signatures.inspect(output, password, repairedLength: repairedLength).filter { $0.intact && $0.info.certificate != nil }
         }
 
         let gather = Gatherer(client, storedPool(output, password), useStored: true)
