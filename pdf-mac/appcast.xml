@@ -6,6 +6,26 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.11.0</title>
+      <pubDate>Wed, 11 Nov 2026 01:15:50 GMT</pubDate>
+      <sparkle:version>1.11.0</sparkle:version>
+      <sparkle:shortVersionString>1.11.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">Inkvolt PDF edits whole paragraphs and translates documents with your own AI service, each paragraph kept in its place.
+
+- Edit Text &amp; Images edits whole paragraphs: click a paragraph and type, and its text rewraps inside its box with its own font, alignment and line spacing. What follows stays put, and you're asked before longer text would run into it. The bar above the text gives a selection another font, size, color, bold or italic.
+- Translate with AI (Tools › AI Assistant): a translated copy of the pages you choose opens beside the document and scrolls with it, each paragraph in its box, tables cell by cell, bold, italic and links kept. It uses the AI endpoint you set up, shows exactly what is sent before anything is, and can be stopped any time. The document isn't changed.
+- Fixed: in PDFs whose pages share their resources, a header, footer, watermark or flattening could leave other pages' text unreadable once saved.
+- PDFs made to freeze the app no longer stall paragraph editing or Translate.</description>
+      <description sparkle:format="markdown" xml:lang="es">Inkvolt PDF edita párrafos enteros y traduce documentos con tu propio servicio de IA, cada párrafo en su lugar.
+
+- Editar texto e imágenes edita párrafos enteros: haz clic en un párrafo y escribe, y su texto se reajusta dentro de su cuadro con su propia fuente, alineación e interlineado. Lo que sigue se queda en su lugar, y se te pregunta antes de que un texto más largo choque con ello. La barra sobre el texto da a una selección otra fuente, tamaño, color, negrita o cursiva.
+- Traducir con IA (Herramientas › Asistente de IA): una copia traducida de las páginas que elijas se abre junto al documento y se desplaza con él, cada párrafo en su cuadro, las tablas celda por celda, con la negrita, la cursiva y los enlaces. Usa el servicio de IA que configuraste, muestra exactamente lo que se envía antes de enviar nada y se puede detener en cualquier momento. El documento no se cambia.
+- Corregido: en los PDF cuyas páginas comparten sus recursos, un encabezado, un pie de página, una marca de agua o un aplanado podía dejar ilegible el texto de otras páginas al guardar.
+- Los PDF hechos para trabar la app ya no detienen la edición de párrafos ni la traducción.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.11.0/Inkvolt-PDF-1.11.0.dmg" length="39432944" type="application/octet-stream" sparkle:edSignature="+SxEeqzwqhwmzulw9Ltj5jF3HnlORo5tEDUkLipdLJ9BYIeuDsZSWcC1iaAv+qvdX1VsfZyVLtsS9VImcAB/CQ==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.10.0</title>
       <pubDate>Mon, 09 Nov 2026 21:41:08 GMT</pubDate>
       <sparkle:version>1.10.0</sparkle:version>
