@@ -365,11 +365,16 @@ struct AiClientTests {
         let deadline = AiDeadline(nil)
         for _ in 0..<100_000 { deadline.cancelAfter(60) }
         #expect(deadline.timersScheduled == 1)
+        let start = DispatchTime.now()
+        let firedAt = AiRecorder<DispatchTime>()
+        _ = deadline.token.register { firedAt.add(.now()) }
         deadline.cancelAfter(0.05) // sooner: a timer of its own
-        deadline.cancelAfter(0.1) // later again: that one wakes early and sleeps on
+        deadline.cancelAfter(0.4) // later again: that one wakes early and sleeps on
         try? await waitForCancel(deadline.token)
-        #expect(deadline.token.isCancelled)
-        #expect((2...3).contains(deadline.timersScheduled)) // 2 when the 0.05 s timer woke after 0.1 s (a loaded Mac)
+        // Never before the time last set (a loaded Mac can only make it later).
+        let waited = Double((firedAt.all.first ?? start).uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+        #expect(waited >= 0.4, "fired after \(waited) s")
+        #expect((2...3).contains(deadline.timersScheduled)) // 2 when the 0.05 s timer woke after 0.4 s (a loaded Mac)
         deadline.finish()
     }
 
@@ -377,7 +382,10 @@ struct AiClientTests {
         let deadline = AiDeadline(nil)
         deadline.cancelAfter(0.05)
         deadline.finish()
-        try await Task.sleep(nanoseconds: 300_000_000)
+        // A later deadline on the same queue firing shows the first one's timer had its turn.
+        let later = AiDeadline(nil)
+        later.cancelAfter(0.2)
+        try? await waitForCancel(later.token)
         #expect(!deadline.token.isCancelled)
     }
 

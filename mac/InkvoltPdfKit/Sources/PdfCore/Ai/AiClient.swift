@@ -95,7 +95,7 @@ final class AiDeadline: @unchecked Sendable {
     private var parentId: Int?
     private let lock = NSLock()
     private var due = DispatchTime.distantFuture
-    /// When the earliest pending timer wakes (nil: none pending).
+    /// When the timer scheduled last wakes (nil: none yet); never later than `due` while the deadline runs.
     private var wakeAt: DispatchTime?
     private var finished = false
     private var scheduled = 0
@@ -121,7 +121,8 @@ final class AiDeadline: @unchecked Sendable {
     private func schedule(_ when: DispatchTime) {
         wakeAt = when
         scheduled += 1
-        DispatchQueue.global().asyncAfter(deadline: when) { [self] in wake() }
+        // Weak: a finished request's deadline (and its parent token) isn't kept for the rest of a 10-minute timer.
+        DispatchQueue.global().asyncAfter(deadline: when) { [weak self] in self?.wake() }
     }
 
     private func wake() {
