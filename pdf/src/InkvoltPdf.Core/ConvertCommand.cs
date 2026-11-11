@@ -54,12 +54,12 @@ public static class ConvertCommand
             int over = 0, refused = 0;
             foreach (var r in requests.Where(r => r.Format == format))
             {
-                over += r.OverLimit;
-                refused += r.Refused;
+                over = AddLeftOut(over, r.OverLimit);
+                refused = AddLeftOut(refused, r.Refused);
                 foreach (var f in r.Files)
                 {
                     if (!seen.Add(f)) continue;
-                    if (files.Count >= MaxFiles) over++;
+                    if (files.Count >= MaxFiles) over = AddLeftOut(over, 1);
                     else files.Add(f);
                 }
             }
@@ -122,7 +122,7 @@ public static class ConvertCommand
         if (FormatNamed(parts[0]) is not { } format
             || parts.Length is not (1 or 3)
             || parts.Length == 3 && !(int.TryParse(parts[1], out over) && int.TryParse(parts[2], out refused)
-                                      && over is >= 0 and <= 1_000_000 && refused is >= 0 and <= 1_000_000))
+                                      && over is >= 0 and <= MaxLeftOut && refused is >= 0 and <= MaxLeftOut))
         {
             error = ParseError.UnknownFormat;
             return false;
@@ -135,13 +135,13 @@ public static class ConvertCommand
             if (string.IsNullOrWhiteSpace(arg)) continue;
             if (arg.Any(char.IsControl) || Full(arg) is not { } full)
             {
-                refused++;
+                refused = AddLeftOut(refused, 1);
                 continue;
             }
             if (!seen.Add(full)) continue;
             if (files.Count >= MaxFiles)
             {
-                over++;
+                over = AddLeftOut(over, 1);
                 continue;
             }
             files.Add(full);
@@ -166,16 +166,37 @@ public static class ConvertCommand
 
     private static string? Full(string arg)
     {
-        if (Path.IsPathFullyQualified(arg)) return arg;
+        string full;
         try
         {
-            return Path.GetFullPath(arg);
+            full = Path.IsPathFullyQualified(arg) ? arg : Path.GetFullPath(arg);
         }
         catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException or IOException)
         {
             return null;
         }
+        return OnDisk(full) ? full : null;
     }
+
+    /// <summary>
+    /// A path to a file on a disk or a share: not a device (<c>\\.\pipe\x</c>, <c>\\.\COM1</c>, <c>\\?\GLOBALROOT\…</c>,
+    /// or an NT path, <c>\??\…</c>), whose read can hang a conversion for good. <c>\\?\C:\…</c> and <c>\\?\UNC\…</c> (long
+    /// paths) are files.
+    /// </summary>
+    internal static bool OnDisk(string full)
+    {
+        var p = full.Replace('/', '\\');
+        if (p.StartsWith(@"\\.\", StringComparison.Ordinal) || p.StartsWith(@"\??\", StringComparison.Ordinal)) return false;
+        if (!p.StartsWith(@"\\?\", StringComparison.Ordinal)) return true;
+        return p.Length >= 7 && char.IsAsciiLetter(p[4]) && p[5] == ':' && p[6] == '\\'
+               || p.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The most a left-out count says (a forwarded launch's own counts are bounded so; sums stop there).</summary>
+    public const int MaxLeftOut = 1_000_000;
+
+    /// <summary><paramref name="a"/> + <paramref name="b"/>, at most <see cref="MaxLeftOut"/> (never overflowing).</summary>
+    public static int AddLeftOut(int a, int b) => (int)Math.Min(MaxLeftOut, Math.Max(0L, (long)a + b));
 
     /// <summary>The request as one launch hands it to another: the format joined to the switch, then the full paths.</summary>
     /// <remarks>What the launch left out travels in the switch (<c>--convert-to=word:3:1</c>: over the limit, refused), so the
@@ -295,9 +316,22 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
         return added;
     }
 
+    /// <summary>The most files that wait at once: a request past it is cut (<see cref="Room"/>), so a flood of launches can't grow the list for good.</summary>
+    public const int MaxWaiting = 5_000;
+
+    /// <summary>How many more files may wait now.</summary>
+    public int Room => Math.Max(0, MaxWaiting - _jobs.Count(j => j.State != ConvertJob.States.Done));
+
+    /// <summary>
+    /// What the user answered once for the conversions going now: a new one starts when the queue starts again after it
+    /// was idle, or after <see cref="CancelAll"/>.
+    /// </summary>
+    public ConvertAnswers Answers { get; private set; } = new();
+
     /// <summary>Stops the conversion running and those waiting (each ends Cancelled).</summary>
     public void CancelAll()
     {
+        Answers = new ConvertAnswers();
         _cancel.Cancel();
         foreach (var job in _jobs.Where(j => j.State == ConvertJob.States.Waiting).ToList()) Finish(job, ConvertOutcome.Failed(ConvertResult.Cancelled, null));
     }
@@ -305,6 +339,7 @@ public sealed class ConvertQueue(Func<ConvertJob, CancellationToken, Task<Conver
     private async Task RunAsync()
     {
         _running = true;
+        Answers = new ConvertAnswers();
         if (_idle.Task.IsCompleted) _idle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         try
         {
@@ -402,5 +437,43 @@ public sealed class ConvertGather
         var merged = ConvertCommand.Merge(_requests);
         _requests.Clear();
         return merged;
+    }
+}
+
+/// <summary>
+/// What the user answered once for a run of Explorer conversions (<see cref="ConvertQueue.Answers"/>), so a selection
+/// of 500 protected files doesn't ask 500 times: a cancelled password prompt asks for no more passwords (those files end
+/// Cancelled), and the answer to "export a protected file anyway?" holds for the rest.
+/// </summary>
+public sealed class ConvertAnswers
+{
+    public bool AskPasswords { get; set; } = true;
+
+    public bool? ExportProtected { get; set; }
+}
+
+/// <summary>
+/// How a launch reaches the copy of the app that owns the session (the app's single instance): it becomes the owner when
+/// none runs, else hands its arguments over. When the owner can't be reached, an ordinary launch opens on its own; a
+/// conversion launch (<see cref="ConvertCommand"/>; Explorer starts one per selected file) keeps trying for
+/// <see cref="ConvertPatience"/>, then converts on its own only if no other such copy does (<c>standaloneSlot</c>), and
+/// otherwise gives up: two thousand copies converting at once would run the PC out of memory.
+/// </summary>
+public static class LaunchHandoff
+{
+    public enum Way { Owner, Forwarded, Standalone, Dropped }
+
+    public static readonly TimeSpan ConvertPatience = TimeSpan.FromSeconds(60);
+
+    public static Way Find(bool convert, Func<bool> own, Func<bool> forward, Func<bool> standaloneSlot, Func<TimeSpan> elapsed, Action<TimeSpan> wait)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            if (own()) return Way.Owner;
+            if (forward()) return Way.Forwarded;
+            if (!convert) return Way.Standalone;
+            if (elapsed() >= ConvertPatience) return standaloneSlot() ? Way.Standalone : Way.Dropped;
+            wait(TimeSpan.FromMilliseconds(500 << Math.Min(attempt, 3)));
+        }
     }
 }

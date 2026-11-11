@@ -30,7 +30,7 @@ internal static class ExplorerConvert
     {
         var queue = new ConvertQueue((job, cancel) =>
             ExportActions.ConvertFile(Noticed.Contains(job) && _main is { } m ? m : (Window?)_list ?? Application.Current.MainWindow!,
-                job.Pdf, job.Format, () => false, cancel)); // a notice's result opens once the launches have settled (OpenWhenSettled)
+                job.Pdf, job.Format, () => false, _queue!.Answers, cancel)); // a notice's result opens once the launches have settled (OpenWhenSettled)
         queue.Changed += OnChanged;
         return queue;
     }
@@ -105,7 +105,14 @@ internal static class ExplorerConvert
     {
         _main = main;
         var queue = Queue;
-        var leftOut = request.OverLimit + request.Refused;
+        // A flood of launches can't grow the list for good (ConvertQueue.MaxWaiting): what doesn't fit is said as left out.
+        if (request.Files.Count > queue.Room)
+            request = request with
+            {
+                Files = [.. request.Files.Take(queue.Room)],
+                OverLimit = ConvertCommand.AddLeftOut(request.OverLimit, request.Files.Count - queue.Room),
+            };
+        var leftOut = ConvertCommand.AddLeftOut(request.OverLimit, request.Refused);
         // A notice still converting, or whose result waits to open, came from the same selection when another launch
         // follows (a loaded PC spaces them out past ConvertGather.Quiet): it joins the list, and nothing opens.
         var folded = Fold();
@@ -335,6 +342,16 @@ internal sealed class ConvertWindow : Window
         var row = new StackPanel { Margin = new Thickness(0, 8, 0, 4) };
         _tracked.Add((job, row));
         _rows.Children.Add(row);
+        // The rows follow the queue's list (it keeps the last ConvertQueue.MaxListed finished): no row for good per file.
+        if (_tracked.Count > _queue.Jobs.Count)
+        {
+            var listed = _queue.Jobs.ToHashSet();
+            foreach (var gone in _tracked.Where(t => !listed.Contains(t.Job)).ToList())
+            {
+                _rows.Children.Remove(gone.Row);
+                _tracked.Remove(gone);
+            }
+        }
         Fill(job, row);
         Refresh();
     }
@@ -344,8 +361,8 @@ internal sealed class ConvertWindow : Window
     /// <summary>What the launches left out, said apart: past the 500-file limit, and names that can't be a file.</summary>
     public void SayLeftOut(int overLimit, int refused)
     {
-        _overLimit += overLimit;
-        _refused += refused;
+        _overLimit = ConvertCommand.AddLeftOut(_overLimit, overLimit);
+        _refused = ConvertCommand.AddLeftOut(_refused, refused);
         var lines = new List<string>();
         if (_overLimit > 0) lines.Add(Loc.Plural(_overLimit, Strings.Explorer_Dropped_One, Strings.Explorer_Dropped_Many, ConvertCommand.MaxFiles));
         if (_refused > 0) lines.Add(Loc.Plural(_refused, Strings.Explorer_Refused_One, Strings.Explorer_Refused_Many));

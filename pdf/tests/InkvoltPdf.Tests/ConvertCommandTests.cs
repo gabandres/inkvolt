@@ -109,6 +109,31 @@ public class ConvertCommandTests
         Assert.EndsWith(Path.GetFileName(path), r.Files[0], StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData(@"\\.\pipe\inkvolt")] // a read that never ends would hold the queue for good
+    [InlineData(@"\\.\COM1")]
+    [InlineData(@"//./pipe/inkvolt")]
+    [InlineData(@"\\?\GLOBALROOT\Device\Null")]
+    [InlineData(@"\\?\Volume{12345678-1234-1234-1234-123456789abc}\x.pdf")]
+    [InlineData(@"\??\C:\x.pdf")]
+    public void ADevicePathIsRefusedNotRead(string path)
+    {
+        var r = Parse("--convert-to", "word", path, @"C:\d.pdf");
+        Assert.Equal([@"C:\d.pdf"], r.Files);
+        Assert.Equal(1, r.Refused);
+    }
+
+    [Fact]
+    public void LeftOutCountsStopAtTheirLimitInsteadOfOverflowing()
+    {
+        var most = $"--convert-to=word:{MaxLeftOut}:{MaxLeftOut}";
+        var flood = Enumerable.Range(0, 5000).Select(_ => Parse(most, @"C:\a.pdf")).ToList();
+        var merged = Merge(flood).Single();
+        Assert.Equal((MaxLeftOut, MaxLeftOut), (merged.OverLimit, merged.Refused));
+        Assert.Equal(MaxLeftOut, AddLeftOut(int.MaxValue, int.MaxValue));
+        Assert.Equal(ParseError.UnknownFormat, Refused($"--convert-to=word:{MaxLeftOut + 1}:0", @"C:\a.pdf"));
+    }
+
     [Fact]
     public void ALongPathIsKept()
     {

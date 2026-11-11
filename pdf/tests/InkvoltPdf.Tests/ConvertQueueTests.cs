@@ -155,4 +155,91 @@ public class ConvertQueueTests
         await queue.Idle.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.False(queue.IsBusy);
     }
+
+    [Fact]
+    public async Task AnAnswerHoldsForTheRunAndANewRunAsksAgain()
+    {
+        // 500 protected files ask once (ConvertAnswers); the next selection, after the queue was idle, asks again.
+        var asked = 0;
+        var gate = new TaskCompletionSource();
+        ConvertQueue? q = null;
+        var queue = q = new ConvertQueue(async (job, _) =>
+        {
+            await gate.Task;
+            if (q!.Answers.ExportProtected is null)
+            {
+                asked++;
+                q.Answers.ExportProtected = true;
+            }
+            return Saved(job.Pdf);
+        });
+        queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
+        queue.Add(Word(@"C:\c.pdf"));
+        gate.SetResult();
+        await queue.Idle;
+        Assert.Equal(1, asked);
+        queue.Add(Word(@"C:\d.pdf"));
+        await queue.Idle;
+        Assert.Equal(2, asked);
+    }
+
+    [Fact]
+    public void CancellingAllForgetsTheAnswers()
+    {
+        var queue = new ConvertQueue((job, _) => new TaskCompletionSource<ConvertOutcome>().Task);
+        queue.Add(Word(@"C:\a.pdf", @"C:\b.pdf"));
+        queue.Answers.AskPasswords = false;
+        queue.CancelAll();
+        Assert.True(queue.Answers.AskPasswords);
+    }
+
+    [Fact]
+    public void NoMoreThanMaxWaitingFilesWait()
+    {
+        var queue = new ConvertQueue((job, _) => new TaskCompletionSource<ConvertOutcome>().Task); // the first never ends
+        Assert.Equal(ConvertQueue.MaxWaiting, queue.Room);
+        queue.Add(Word([.. Enumerable.Range(0, 400).Select(i => $@"C:\{i}.pdf")]));
+        Assert.Equal(ConvertQueue.MaxWaiting - 400, queue.Room);
+        for (var b = 1; b < ConvertQueue.MaxWaiting / 400 + 2; b++)
+            queue.Add(Word([.. Enumerable.Range(0, Math.Min(400, queue.Room)).Select(i => $@"C:\{b}-{i}.pdf")]));
+        Assert.Equal(0, queue.Room);
+    }
+}
+
+/// <summary>How a launch reaches the running copy: a conversion launch waits for it rather than converting alongside.</summary>
+public class LaunchHandoffTests
+{
+    private static (LaunchHandoff.Way Way, int Forwards, TimeSpan Waited) Run(bool convert, bool owns, Func<int, bool> forwardsOn, bool slot)
+    {
+        var forwards = 0;
+        var clock = TimeSpan.Zero;
+        var way = LaunchHandoff.Find(convert, () => owns, () => forwardsOn(++forwards), () => slot, () => clock, d => clock += d + TimeSpan.FromSeconds(10));
+        return (way, forwards, clock);
+    }
+
+    [Fact]
+    public void TheFirstLaunchOwnsTheSession() => Assert.Equal(LaunchHandoff.Way.Owner, Run(true, owns: true, _ => false, slot: true).Way);
+
+    [Fact]
+    public void AnOrdinaryLaunchOpensOnItsOwnWhenTheOwnerDoesntAnswer()
+    {
+        var (way, forwards, _) = Run(false, owns: false, _ => false, slot: false);
+        Assert.Equal((LaunchHandoff.Way.Standalone, 1), (way, forwards));
+    }
+
+    [Fact]
+    public void AConversionLaunchTriesAgainUntilTheOwnerAnswers()
+    {
+        var (way, forwards, _) = Run(true, owns: false, n => n == 3, slot: true);
+        Assert.Equal((LaunchHandoff.Way.Forwarded, 3), (way, forwards));
+    }
+
+    [Fact]
+    public void AConversionLaunchConvertsAloneOnlyAfterAMinuteAndOnlyOneAtATime()
+    {
+        var alone = Run(true, owns: false, _ => false, slot: true);
+        Assert.Equal(LaunchHandoff.Way.Standalone, alone.Way);
+        Assert.True(alone.Waited >= LaunchHandoff.ConvertPatience);
+        Assert.Equal(LaunchHandoff.Way.Dropped, Run(true, owns: false, _ => false, slot: false).Way);
+    }
 }

@@ -132,26 +132,42 @@ internal static class ExportActions
     /// <paramref name="open"/> (a request for this one file). Nothing is shown here: the outcome says what happened, and
     /// the caller shows it (<see cref="ExplorerConvert"/>: the notice, or the conversions window).
     /// </summary>
-    public static async Task<ConvertOutcome> ConvertFile(Window owner, string pdf, ExportFormat format, Func<bool> open, CancellationToken cancel)
+    public static async Task<ConvertOutcome> ConvertFile(Window owner, string pdf, ExportFormat format, Func<bool> open,
+        ConvertAnswers answers, CancellationToken cancel)
     {
         var fileName = Path.GetFileName(pdf);
-        if (!await Task.Run(() => File.Exists(pdf), cancel))
+        // A read that stalls (a share that stopped answering) doesn't hold the queue: Cancel ends the wait.
+        if (!await Task.Run(() => File.Exists(pdf)).WaitAsync(cancel))
             return ConvertOutcome.Failed(ConvertResult.NotFound, Loc.Format(Strings.Main_NotFound, fileName));
         DocumentSession session;
         string? password = null;
         var wrong = false;
         while (true)
         {
+            var pw = password;
+            var opening = Task.Run(() => DocumentSession.Open(pdf, pw));
             try
             {
-                var pw = password;
-                session = await Task.Run(() => DocumentSession.Open(pdf, pw), cancel);
+                session = await opening.WaitAsync(cancel);
                 break;
+            }
+            catch (OperationCanceledException)
+            {
+                // Left to finish: the file it opens is closed then.
+                _ = opening.ContinueWith(t => t.Result.Dispose(), CancellationToken.None, TaskContinuationOptions.OnlyOnRanToCompletion, TaskScheduler.Default);
+                throw;
             }
             catch (PasswordRequiredException ex)
             {
+                // Cancelling one password prompt asks for no more in this run of conversions (ConvertAnswers).
+                cancel.ThrowIfCancellationRequested();
+                if (!answers.AskPasswords) return ConvertOutcome.Failed(ConvertResult.Cancelled, null);
                 password = PdfFiles.PromptPassword(owner, fileName, wrong || ex.WrongPassword);
-                if (password is null) return ConvertOutcome.Failed(ConvertResult.Cancelled, null);
+                if (password is null)
+                {
+                    answers.AskPasswords = false;
+                    return ConvertOutcome.Failed(ConvertResult.Cancelled, null);
+                }
                 wrong = true;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -168,9 +184,14 @@ internal static class ExportActions
             {
                 var pages = Enumerable.Range(0, session.Engine.PageCount).ToArray();
                 if (pages.Length == 0) return ConvertOutcome.Failed(ConvertResult.NothingToSave, Loc.Format(Strings.Export_NothingPages, ""));
-                if (session.Engine.IsEncrypted
-                    && !Prompt.Confirm(owner, Strings.Organize_ProtectedTitle, Strings.Export_Unprotected, Strings.Comments_ExportAnyway, warning: true))
-                    return ConvertOutcome.Failed(ConvertResult.Cancelled, null);
+                if (session.Engine.IsEncrypted)
+                {
+                    // Asked once for this run of conversions (ConvertAnswers).
+                    cancel.ThrowIfCancellationRequested();
+                    answers.ExportProtected ??= Prompt.Confirm(owner, Strings.Organize_ProtectedTitle, Strings.Export_Unprotected,
+                        Strings.Comments_ExportAnyway, warning: true);
+                    if (answers.ExportProtected != true) return ConvertOutcome.Failed(ConvertResult.Cancelled, null);
+                }
                 var target = await Reserve(pdf, ConvertCommand.OutputName(pdf, format));
                 if (target is null)
                 {

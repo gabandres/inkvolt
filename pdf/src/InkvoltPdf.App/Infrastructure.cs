@@ -161,6 +161,7 @@ public sealed class SingleInstance : IDisposable
     private static readonly string Id = $"InkvoltPdf-{AppPaths.UserId}-{Process.GetCurrentProcess().SessionId}";
     private const int ConnectTimeoutMs = 10_000;
     private const int MaxListenFailures = 8;
+    private const int MaxForwardedChars = 4 << 20;
 
     /// <summary>Null when this copy runs standalone because the owner couldn't be reached.</summary>
     private readonly Mutex? _mutex;
@@ -171,13 +172,57 @@ public sealed class SingleInstance : IDisposable
     /// <summary>True for the copy that owns the session (and listens for other launches).</summary>
     public bool IsOwner => _mutex is not null;
 
-    /// <summary>Returns the owner instance, or null after forwarding <paramref name="args"/> to the running one.</summary>
-    public static SingleInstance? TryAcquire(string[] args)
+    // A standalone conversion copy's claim (LaunchHandoff): held for the process's life.
+    private Mutex? _convertSlot;
+
+    /// <summary>
+    /// Returns the owner instance, or null after forwarding <paramref name="args"/> to the running one; for a conversion
+    /// launch (<paramref name="convert"/>) also null when it gives up (<see cref="Core.LaunchHandoff"/>).
+    /// </summary>
+    public static SingleInstance? TryAcquire(string[] args, bool convert = false)
     {
-        var mutex = new Mutex(initiallyOwned: true, $@"Local\{Id}", out var created);
-        if (created) return new SingleInstance(mutex);
+        Mutex? mine = null, slot = null;
+        var clock = Stopwatch.StartNew();
+        var way = Core.LaunchHandoff.Find(convert,
+            own: () =>
+            {
+                var mutex = new Mutex(initiallyOwned: true, $@"Local\{Id}", out var created);
+                if (created) mine = mutex;
+                else mutex.Dispose();
+                return created;
+            },
+            forward: () => Forward(args),
+            standaloneSlot: () => (slot = ConvertSlot()) is not null,
+            elapsed: () => clock.Elapsed,
+            wait: Thread.Sleep);
+        switch (way)
+        {
+            case Core.LaunchHandoff.Way.Owner:
+                return new SingleInstance(mine);
+            case Core.LaunchHandoff.Way.Standalone:
+                return new SingleInstance(null) { _convertSlot = slot };
+            case Core.LaunchHandoff.Way.Dropped:
+                Log.Write("Convert from Explorer: the running Inkvolt PDF didn't answer for a minute and another copy converts on its own; this launch's files were left out.");
+                return null;
+            default:
+                return null;
+        }
+    }
+
+    // One standalone conversion copy at a time (null: another one has it).
+    private static Mutex? ConvertSlot()
+    {
+        var mutex = new Mutex(initiallyOwned: false, $@"Local\{Id}-convert");
+        try
+        {
+            if (mutex.WaitOne(0)) return mutex;
+        }
+        catch (AbandonedMutexException)
+        {
+            return mutex; // its last holder ended without letting go: ours now
+        }
         mutex.Dispose();
-        return Forward(args) ? null : new SingleInstance(null);
+        return null;
     }
 
     /// <summary>
@@ -292,8 +337,21 @@ public sealed class SingleInstance : IDisposable
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeout.CancelAfter(10_000);
                 using var reader = new StreamReader(server, Encoding.UTF8);
-                var text = await reader.ReadToEndAsync(timeout.Token);
-                onArgs(text.Split('\n', StringSplitOptions.RemoveEmptyEntries));
+                // Bounded: a launch's command line is at most 32,767 characters (its paths made full stay far below
+                // this); anything else writing to the pipe can't fill memory.
+                var text = new StringBuilder();
+                var buffer = new char[8192];
+                int read;
+                while ((read = await reader.ReadAsync(buffer, timeout.Token)) > 0)
+                {
+                    if (text.Length + read > MaxForwardedChars)
+                    {
+                        Log.Write("Single-instance: dropped a forwarded launch over its size limit");
+                        return;
+                    }
+                    text.Append(buffer, 0, read);
+                }
+                onArgs(text.ToString().Split('\n', StringSplitOptions.RemoveEmptyEntries));
             }
         }
         catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
@@ -343,6 +401,7 @@ public sealed class SingleInstance : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+        _convertSlot?.Dispose(); // let go at exit (abandoned is taken as free too)
         if (_mutex is null) return;
         try { _mutex.ReleaseMutex(); } catch (ApplicationException) { }
         _mutex.Dispose();
