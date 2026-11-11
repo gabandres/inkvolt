@@ -158,4 +158,40 @@ public partial class ParagraphEditTests
         Assert.Contains("form XObject", content.Images.Single().Blocked);
         Assert.Null(content.Runs.Single(r => r.Text == "Hello").Blocked);
     }
+
+    [Fact]
+    public void AFormDrawnTwiceCloseTogetherIsTwoParagraphsAndEachEditsAlone()
+    {
+        // A one-line form drawn twice 14 pt apart: the two drawings line up as a paragraph would, but they are two pieces
+        // of content (one operator draws both), so each is a paragraph of its own (the Mac's review, 2026-11-10).
+        const string line = "A single line of text drawn by a form";
+        var pdf = ContentEditPdf.Make("q /Fm1 Do Q q 1 0 0 1 0 -14 cm /Fm1 Do Q", form: $"BT /FA {N(Size)} Tf 72 700 Td ({line}) Tj ET", fontText: Chars);
+        var paras = ContentEditor.Read(pdf, null, 0).Paragraphs.Where(p => p.Text.Contains("single line")).OrderBy(p => p.Box.Y).ToList();
+        Assert.Equal(2, paras.Count);
+        Assert.All(paras, p => Assert.True(p.Lines.Count == 1 && p.Blocked is null));
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, paras[1], "Changed text in the lower one");
+        var after = ContentEditor.Read(edited, null, 0).Paragraphs.OrderBy(p => p.Box.Y).Select(p => p.Text).ToList();
+        Assert.Equal([line, "Changed text in the lower one"], after);
+    }
+
+    [Fact]
+    public void AParagraphInAFormIsWrittenWhereItsFirstLineWas()
+    {
+        // A background drawn between the first line and the rest: the new text is written where the first line's
+        // operator was, before it, as on the page.
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td ({lines[0]}) Tj ET 0.9 g 60 500 320 180 re f 0 g");
+        sb.Append($" BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top - Step)} Td ({lines[1]}) Tj");
+        foreach (var l in lines.Skip(2)) sb.Append($" T* ({l}) Tj");
+        sb.Append(" ET");
+        var pdf = ContentEditPdf.Make("q /Fm1 Do Q", form: sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, Twenty + " " + Body);
+        var stream = FormStream(edited);
+        var text = stream.IndexOf("Then seven", StringComparison.Ordinal);
+        var background = stream.IndexOf(" re f", StringComparison.Ordinal);
+        Assert.True(text >= 0 && background >= 0 && text < background, stream);
+        Assert.Equal(Twenty + " " + Body, Body0(edited, "Then seven").Text);
+    }
 }
