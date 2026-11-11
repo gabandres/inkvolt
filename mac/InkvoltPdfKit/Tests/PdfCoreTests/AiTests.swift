@@ -366,13 +366,13 @@ struct AiClientTests {
         for _ in 0..<100_000 { deadline.cancelAfter(60) }
         #expect(deadline.timersScheduled == 1)
         let start = DispatchTime.now()
-        let firedAt = AiRecorder<DispatchTime>()
-        _ = deadline.token.register { firedAt.add(.now()) }
+        let fired = AiOnce<DispatchTime>()
+        _ = deadline.token.register { fired.resume(with: .success(.now())) }
         deadline.cancelAfter(0.05) // sooner: a timer of its own
         deadline.cancelAfter(0.4) // later again: that one wakes early and sleeps on
-        try? await waitForCancel(deadline.token)
+        let firedAt = try await withCheckedThrowingContinuation { fired.begin($0) }
         // Never before the time last set (a loaded Mac can only make it later).
-        let waited = Double((firedAt.all.first ?? start).uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
+        let waited = Double(firedAt.uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
         #expect(waited >= 0.4, "fired after \(waited) s")
         #expect((2...3).contains(deadline.timersScheduled)) // 2 when the 0.05 s timer woke after 0.4 s (a loaded Mac)
         deadline.finish()
