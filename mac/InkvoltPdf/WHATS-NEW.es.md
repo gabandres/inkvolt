@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+
+## 1.12.0
 - Eliminar por patrón muestra cada coincidencia con su página y las palabras de alrededor, junto a la propia página: desmarca las que quieras conservar y pulsa Eliminar. Las páginas escaneadas y las imágenes de texto se buscan con reconocimiento de texto y se señalan para que las revises, sin darlas nunca por limpias. Después el resultado se vuelve a leer, a buscar y a comprobar, y un informe enumera lo eliminado, enmascarado.
 - Inkvolt Pro: guarda conjuntos de patrones y frases, usa tu propio patrón y aplica un conjunto a una carpeta con En lote, con un informe de eliminación (CSV) junto a los resultados.
 - Validación a largo plazo (Inkvolt Pro): Firmar digitalmente puede guardar la prueba de que tu certificado era válido al firmar, para que la firma se pueda comprobar después de que caduque (PAdES B-LT), y agregar encima una marca de tiempo del documento (B-LTA). Llenar y firmar › Agregar información de verificación… hace lo mismo con archivos firmados antes, y En lote con una carpeta de ellos.

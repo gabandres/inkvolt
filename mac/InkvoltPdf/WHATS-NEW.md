@@ -6,6 +6,8 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+
+## 1.12.0
 - Redact by Pattern lists every match with its page and the words around it, beside the page itself: untick any you want to keep, then Redact. Scanned pages and pictures of text are searched through text recognition and flagged for you to look at, never called clean. Afterwards the result is read back, searched again and checked, and a report lists what was removed, masked.
 - Inkvolt Pro: save sets of patterns and phrases, use your own pattern, run a set over a folder in Batch with a removal report (CSV) beside the results.
 - Long-term validation (Inkvolt Pro): Sign Digitally can store the proof that your certificate was good when you signed, so the signature can still be checked after it expires (PAdES B-LT), and add a document timestamp over it (B-LTA). Fill & Sign › Add Verification Information… does the same for files signed earlier, and Batch for a folder of them.
