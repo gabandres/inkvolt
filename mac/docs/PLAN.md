@@ -1925,6 +1925,13 @@ Mac differences:
   looked for among all the certificates its issuer issued for OCSP signing before the cap; a file is encrypted by its
   trailer, not by the bytes "/Encrypt" anywhere in it (signing, Add Verification Information, Batch); a certificate's name is
   shortened to 120 characters where it is shown.
+- **Stricter after the hostile-input review before 1.12.0** (Windows has each of these open): a file whose validation data
+  outlasts the check's 20 s never leaves a certificate trusted (a store built to use up the time could hide a revocation);
+  what a /DSS names counts as validation data only when nothing else in the document reaches it (an attachment a store
+  names stays the document's); a CRL that says which distribution point it is speaks only for certificates naming it; only a
+  timestamp from a trusted authority gives a signature its time for the level and the chain (an untrusted one leaves it
+  B-B); the no-check extension counts only on an OCSP responder; an address with a space or control character in a
+  certificate is no address, and names are shown on one line without control or direction characters.
 - **Signature changes**: a key the later revision has with a null value counts as there (a /DSS of null reads as validation
   data, as on Windows, where PDFsharp keeps the null).
 - **Tests**: a stalled server waits with `LtvTestPki.pause`, which `stop` ends; the exploding stream packs 64 MB (400 MB on

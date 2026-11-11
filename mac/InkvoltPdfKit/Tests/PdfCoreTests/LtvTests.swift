@@ -353,6 +353,56 @@ struct LtvTests {
         #expect(result.changed)
     }
 
+    /// Mac additions (the hostile-input review before 1.12.0).
+    /// A timestamp from an authority nobody trusts proves no time: the signature is B-B, not B-T.
+    @Test func anUntrustedTimestampProvesNoTime() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let fake = try FakeTsa()
+        let stamped = try await SigningTests.sign(TestPdf.make(1), pki.signer.id) { req in req.timestamp = { request in try fake.respond(request) } }
+        let s = try Self.first(stamped, pki)
+        #expect(s.hasTimestamp)
+        #expect(s.longTerm?.level == .bb, "\(String(describing: s.longTerm?.level))")
+    }
+
+    /// The no-check extension counts only on an OCSP responder: a signer carrying it is still asked about.
+    @Test func noCheckOnASignerDoesntExcuseIt() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let sly = try pki.issue("Sly Signer", pki.intermediate, ku: 0xC0, noCheck: true)
+        let signed = try await SigningTests.sign(TestPdf.make(1), sly.id)
+        let result = try await Ltv.addVerification(signed, nil, pki.client())
+        let s = try Self.first(result.pdf, pki)
+        #expect(s.longTerm?.chain.first { $0.name == "Sly Signer" }?.outcome == .good)
+    }
+
+    /// An address with a line break in it isn't one: it can't add lines to the window that lists what will be asked.
+    @Test func anAddressWithALineBreakIsntListed() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let odd = try pki.issue("Odd", pki.intermediate, ku: 0x40, ocsp: ["http://a.example.com/\nb.example.com, about Test: http://c.example.com/"])
+        let signed = try await SigningTests.sign(TestPdf.make(1), odd.id)
+        #expect(!Ltv.plan(signed).addresses.contains { $0.url.contains("\n") })
+    }
+
+    /// A store in the signed revision that names an attachment's stream doesn't make a later change to it "only
+    /// validation data".
+    @Test func aStoreNamingAnAttachmentDoesntHideItsChange() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let pdf = Core1TestPdf.build([
+            1: "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a.txt) 5 0 R] >> >> /DSS << /Certs [6 0 R] >> >>",
+            2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            3: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            4: Core1TestPdf.stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            5: "<< /Type /Filespec /F (a.txt) /EF << /F 6 0 R >> >>",
+            6: Core1TestPdf.stream("the attachment", "/Type /EmbeddedFile"),
+        ])
+        let signed = try await Self.signBb(pki, pdf)
+        let swapped = SignatureChangeTests.append(signed, [6: Core1TestPdf.stream("another one", "/Type /EmbeddedFile")])
+        #expect(try Self.first(swapped, pki).status == .modifiedAfterSigning)
+    }
+
     @Test func checkingOnlineChangesNothingAndFindsARevocation() async throws {
         let pki = try LtvTestPki()
         defer { pki.stop() }

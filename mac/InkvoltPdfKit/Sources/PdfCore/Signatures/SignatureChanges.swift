@@ -490,6 +490,11 @@ enum SignatureChanges {
             }
 
             Comparison.walk([catalog["DSS"], catalog["Extensions"]], &r.validationData, stop)
+            // Validation data is what only the store reaches: an object the document uses too (an attachment, a script, an
+            // outline) a store names doesn't become free to change.
+            var elsewhere = Set<Int>()
+            Comparison.walk(catalog.keys.filter { $0 != "DSS" && $0 != "Extensions" }.map { catalog[$0] } + [info], &elsewhere, [])
+            r.validationData.subtract(elsewhere)
             Comparison.walk([catalog["Metadata"], catalog["Perms"], info, acro?["DR"]], &r.meta, stop)
             if let names = catalog["Names"], names.isRef { r.names = names.num }
             let namesDict = catalog.dict("Names")

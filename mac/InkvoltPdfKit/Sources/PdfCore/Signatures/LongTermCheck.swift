@@ -89,6 +89,10 @@ final class SignatureFacts {
     var intact: Bool { info.status == .valid || info.status == .modifiedAfterSigning }
 
     var vriKey: String { DigestAlgorithm.sha1.hash(contentsForVri ?? []).map { String(format: "%02X", $0) }.joined() }
+
+    /// The time a trusted timestamp vouches for (a document timestamp's own, when its authority is trusted); nil when no
+    /// trusted authority says when: a token anyone can put in a file proves nothing about the long term.
+    var vouchedTime: Date? { documentTimestamp ? (info.certificateTrusted ? stamped : nil) : trustTime }
 }
 
 /// A date as the long-term texts show it (2026-11-11, UTC): the Signatures pane's too.
@@ -119,22 +123,21 @@ enum LongTermCheck {
             for c in f.tsaCerts { pool.addCert(c) }
             if let archived = f.signer?.signed(Oids.revocationArchival)?.first { pool.addArchival(archived) }
         }
-        let stamps = all.filter { $0.intact && $0.documentTimestamp }.sorted { $0.end < $1.end }
+        // Only document timestamps a trusted authority made speak for a time.
+        let stamps = all.filter { $0.intact && $0.documentTimestamp && $0.vouchedTime != nil }.sorted { $0.end < $1.end }
         var revisions: [Int: RevocationPool] = [:]
 
         for f in all where f.intact {
             guard let cert = f.info.certificate else { continue }
             if pool.outOfBudget {
-                f.info.longTerm = LongTermInfo(level: .none, dataComplete: false, chain: [], summary: summary(f, .none, false, [], pool),
-                                               onlyValidationDataAfter: f.onlyValidationDataAfter)
+                outOfBudget(f, pool)
                 continue
             }
             let firstStamp = stamps.first { $0.end > f.end }
-            let when = f.stamped ?? firstStamp?.stamped ?? Date()
+            let when = f.vouchedTime ?? firstStamp?.vouchedTime ?? Date()
+            let tsa = f.documentTimestamp ? nil : f.vouchedTime != nil ? f.tsa : firstStamp?.tsa
             let chain = walk(cert, pool, when, anchors)
-            let tsa = f.documentTimestamp ? nil : f.tsa ?? firstStamp?.tsa
-            let tsaWhen = f.stamped ?? firstStamp?.stamped ?? when
-            let tsaChain = tsa.map { walk($0, pool, tsaWhen, anchors) } ?? []
+            let tsaChain = tsa.map { walk($0, pool, when, anchors) } ?? []
             let complete = chain.allSatisfy(\.covered) && tsaChain.allSatisfy(\.covered)
 
             // Revocation takes away the trust at the time that counts for trust: a trusted timestamp's, else now.
@@ -148,19 +151,29 @@ enum LongTermCheck {
             let level = self.level(data, password, f, stamps, pool, &revisions, complete, anchors)
             f.info.longTerm = LongTermInfo(level: level, dataComplete: complete, chain: chain + tsaChain, summary: summary(f, level, complete, chain + tsaChain, pool),
                                            onlyValidationDataAfter: f.onlyValidationDataAfter)
+            if pool.outOfBudget { outOfBudget(f, pool) }
         }
+    }
+
+    /// A file that makes the check run out of time never leaves a certificate trusted: what it held wasn't all judged, and a
+    /// revocation among it could have been missed.
+    private static func outOfBudget(_ f: SignatureFacts, _ pool: RevocationPool) {
+        f.info.longTerm = LongTermInfo(level: .none, dataComplete: false, chain: [], summary: summary(f, .none, false, [], pool),
+                                       onlyValidationDataAfter: f.onlyValidationDataAfter)
+        f.info.certificateTrusted = false
+        f.info.certificateStatus = loc("The file's validation data is more than a check reads, so it wasn't fully checked.")
     }
 
     private static func level(_ data: [UInt8], _ password: String?, _ f: SignatureFacts, _ stamps: [SignatureFacts], _ pool: RevocationPool,
                               _ revisions: inout [Int: RevocationPool], _ complete: Bool, _ anchors: [Certificate]?) -> PadesLevel {
         if f.documentTimestamp || !f.isPades { return .none }
         let later = stamps.filter { $0.end > f.end }
-        if f.stamped == nil && later.isEmpty { return .bb }
+        if f.vouchedTime == nil && later.isEmpty { return .bb }
         if !complete { return .bt }
         // B-LTA: a document timestamp over this signature's data. A signature without a timestamp of its own has its time
         // from the first document timestamp, which is then its B-T: it takes one more.
-        let over = f.stamped == nil ? Array(later.dropFirst()) : later
-        let tsa = f.tsa ?? later.first?.tsa
+        let over = f.vouchedTime == nil ? Array(later.dropFirst()) : later
+        let tsa = f.vouchedTime != nil ? f.tsa : later.first?.tsa
         for stamp in over.reversed().prefix(maxStampsRead) {
             let revision: RevocationPool
             if let known = revisions[stamp.end] {
@@ -169,7 +182,7 @@ enum LongTermCheck {
                 revision = revisionPool(data, stamp.end, password, pool)
                 revisions[stamp.end] = revision
             }
-            let when = f.stamped ?? later[0].stamped ?? Date()
+            let when = f.vouchedTime ?? later[0].vouchedTime ?? Date()
             guard let cert = f.info.certificate else { break }
             let covered = walk(cert, revision, when, anchors).allSatisfy(\.covered) && (tsa.map { walk($0, revision, when, anchors).allSatisfy(\.covered) } ?? true)
             if covered { return .blta }
@@ -209,7 +222,7 @@ enum LongTermCheck {
             result.append(CertificateCheck(name: name, outcome: .noIssuer))
             return
         }
-        if c.ocspNoCheck {
+        if c.isNoCheckResponder {
             result.append(CertificateCheck(name: name, outcome: .noCheckNeeded))
             return
         }

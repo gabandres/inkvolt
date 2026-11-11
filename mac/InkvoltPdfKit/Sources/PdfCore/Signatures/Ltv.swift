@@ -153,7 +153,7 @@ public enum Ltv {
         func addChain(_ cert: Certificate, _ extra: [Certificate], _ when: Date) {
             let chain = RevocationPool.buildChain(cert, extra + pool.certs, at: when)
             for (i, c) in chain.enumerated() {
-                guard seen.insert(c.thumbprint).inserted, !CertFacts.isSelfSigned(c), !c.ocspNoCheck else { continue }
+                guard seen.insert(c.thumbprint).inserted, !CertFacts.isSelfSigned(c), !c.isNoCheckResponder else { continue }
                 let issuer = i + 1 < chain.count ? chain[i + 1] : nil
                 let name = CertFacts.name(c)
                 if let issuer {
@@ -406,7 +406,7 @@ public enum Ltv {
                 e.detail = loc("a root: needs no revocation data")
                 return
             }
-            if c.ocspNoCheck {
+            if c.isNoCheckResponder {
                 e.outcome = .noCheckNeeded
                 e.detail = loc("an OCSP responder that needs no check of its own")
                 return

@@ -176,7 +176,7 @@ public struct Certificate: Sendable, Hashable {
         var ocsp: [String] = [], issuers: [String] = []
         for d in (try? aia.children()) ?? [] {
             guard let p = try? d.children(), p.count == 2, let method = try? p[0].oid(), p[1].tag == 0x86,
-                  let uri = String(bytes: p[1].content, encoding: .ascii) else { continue }
+                  let uri = uri(p[1].content) else { continue }
             if method == "1.3.6.1.5.5.7.48.1", ocsp.count < maxUrls { ocsp.append(uri) }
             if method == "1.3.6.1.5.5.7.48.2", issuers.count < maxUrls { issuers.append(uri) }
         }
@@ -190,10 +190,21 @@ public struct Certificate: Sendable, Hashable {
             guard let name = try? point.children().first, name.tag == 0xA0,
                   let full = try? name.children().first, full.tag == 0xA0 else { continue }
             for g in (try? full.children()) ?? [] where g.tag == 0x86 && urls.count < maxUrls {
-                if let uri = String(bytes: g.content, encoding: .ascii) { urls.append(uri) }
+                if let uri = uri(g.content) { urls.append(uri) }
             }
         }
         return urls
+    }
+
+    /// An OCSP responder whose issuer says it needn't be checked (RFC 6960 4.2.2.2.1): the extension counts only on a
+    /// certificate for OCSP signing, never on a signer or an authority.
+    var isNoCheckResponder: Bool { ocspNoCheck && extendedKeyUsages?.contains(Oids.ocspSigning) == true }
+
+    /// An address as a certificate names it, when it is one: visible ASCII only (no space, line break or control character
+    /// that could pass for more lines where it is shown).
+    private static func uri(_ bytes: [UInt8]) -> String? {
+        guard !bytes.isEmpty, bytes.count <= 2048, bytes.allSatisfy({ $0 > 0x20 && $0 < 0x7F }) else { return nil }
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     /// The SHA-1 of the DER (.NET's `Thumbprint`): how certificates are told apart and remembered.

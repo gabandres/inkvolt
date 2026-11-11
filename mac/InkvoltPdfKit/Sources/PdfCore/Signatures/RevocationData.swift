@@ -14,10 +14,10 @@ enum CertFacts {
 
     static func hasEku(_ c: Certificate, _ eku: String) -> Bool { c.extendedKeyUsages?.contains(eku) == true }
 
-    /// The name shown for a certificate: its common name, else its subject, shortened (a file's certificate can say anything).
+    /// The name shown for a certificate: its common name, else its subject, on one line, without control, format or
+    /// direction characters, shortened (a file's certificate can say anything).
     static func name(_ c: Certificate) -> String {
-        let n = c.commonName.flatMap { $0.isEmpty ? nil : $0 } ?? c.subject
-        return n.count > 120 ? String(n.prefix(120)) + "…" : n
+        RedactionPatterns.displayable(c.commonName.flatMap { $0.isEmpty ? nil : $0 } ?? c.subject, 120)
     }
 }
 
@@ -202,9 +202,11 @@ final class CrlDocument {
     private let onlyUsers: Bool
     private let onlyCas: Bool
     private let unusable: Bool
+    /// The distribution point the list says it is, when it names one: then it speaks only for certificates naming it.
+    private let scope: [String]?
 
     private init(der: [UInt8], tbs: [UInt8], algorithm: [UInt8], signature: [UInt8], issuerName: [UInt8], thisUpdate: Date, nextUpdate: Date?,
-                 entries: [UInt8]?, onlyUsers: Bool, onlyCas: Bool, unusable: Bool) {
+                 entries: [UInt8]?, onlyUsers: Bool, onlyCas: Bool, unusable: Bool, scope: [String]?) {
         self.der = der
         self.tbs = tbs
         self.algorithm = algorithm
@@ -216,6 +218,7 @@ final class CrlDocument {
         self.onlyUsers = onlyUsers
         self.onlyCas = onlyCas
         self.unusable = unusable
+        self.scope = scope
     }
 
     static func parse(_ der: [UInt8]) -> CrlDocument? {
@@ -251,6 +254,7 @@ final class CrlDocument {
                 item = try next()
             }
             var onlyUsers = false, onlyCas = false, unusable = false
+            var scope: [String]?
             if let x = item, x.tag == 0xA0 {
                 for ext in try x.child(0).children() {
                     let p = try ext.children()
@@ -259,26 +263,37 @@ final class CrlDocument {
                     let critical = p.count == 3 && p[1].tag == 0x01 && p[1].content.first.map { $0 != 0 } == true
                     let value = p[p.count - 1]
                     if oid == "2.5.29.27" { unusable = true } // a delta list says nothing alone
-                    else if oid == "2.5.29.28" { readScope(try value.octets(), &onlyUsers, &onlyCas, &unusable) }
+                    else if oid == "2.5.29.28" { scope = readScope(try value.octets(), &onlyUsers, &onlyCas, &unusable) }
                     else if critical { unusable = true }
                 }
             }
             return CrlDocument(der: der, tbs: tbsNode.raw, algorithm: algNode.raw, signature: Array(sigNode.content.dropFirst()), issuerName: issuer.raw,
-                               thisUpdate: thisUpdate, nextUpdate: nextUpdate, entries: entries, onlyUsers: onlyUsers, onlyCas: onlyCas, unusable: unusable)
+                               thisUpdate: thisUpdate, nextUpdate: nextUpdate, entries: entries, onlyUsers: onlyUsers, onlyCas: onlyCas, unusable: unusable,
+                               scope: scope)
         } catch {
             return nil
         }
     }
 
-    /// IssuingDistributionPoint: which certificates the list speaks for (attribute and indirect lists aren't used).
-    private static func readScope(_ value: [UInt8], _ onlyUsers: inout Bool, _ onlyCas: inout Bool, _ unusable: inout Bool) {
+    /// IssuingDistributionPoint: which certificates the list speaks for (attribute and indirect lists aren't used). Returns
+    /// the URIs of the distribution point it names (a partitioned list speaks only for the certificates that name one).
+    private static func readScope(_ value: [UInt8], _ onlyUsers: inout Bool, _ onlyCas: inout Bool, _ unusable: inout Bool) -> [String]? {
         guard let idp = try? Der.parse(value).children() else {
             unusable = true
-            return
+            return nil
         }
+        var scope: [String]?
         for d in idp {
             let on = d.content.first.map { $0 != 0 } == true
             switch d.tag {
+            case 0xA0:
+                // distributionPoint: a fullName [0] of URIs; a name relative to the issuer can't be matched here.
+                guard let full = try? d.children().first, full.tag == 0xA0, let names = try? full.children() else {
+                    unusable = true
+                    continue
+                }
+                scope = names.filter { $0.tag == 0x86 }.prefix(16).map { String(decoding: $0.content, as: UTF8.self) }
+                if scope?.isEmpty == true { unusable = true }
             case 0x81: onlyUsers = on
             case 0x82: onlyCas = on
             case 0x83, 0xA3: unusable = true // only some reasons: can't vouch for a certificate alone
@@ -286,6 +301,7 @@ final class CrlDocument {
             default: break
             }
         }
+        return scope
     }
 
     /// The list was issued by `issuer`'s name and key, and speaks for `cert`.
@@ -293,6 +309,7 @@ final class CrlDocument {
         if unusable || issuerName != issuer.subjectRaw { return false }
         if onlyUsers && cert.isCa { return false }
         if onlyCas && !cert.isCa { return false }
+        if let scope, !cert.crlUrls.contains(where: scope.contains) { return false }
         return DerSignature.verify(issuer, algorithm, tbs, signature)
     }
 
