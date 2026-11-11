@@ -41,7 +41,13 @@ public enum Redaction {
                                 skipText: CancelToken? = nil) throws -> RedactedData {
         let pages = areasByPage.keys.sorted()
         do {
-            var (words, _) = try PageOcr.recognizePages(redacted, password, pages, recognize, exclude: areasByPage, cancel: skipText ?? cancel, progress: progress)
+            // Each page watches both: Cancel ends the edit, skipping ends only the reading (`cancel` isn't caught below).
+            let watched: Recognizer = { engine, page, token in
+                try cancel.check()
+                return try recognize(engine, page, token)
+            }
+            var (words, _) = try PageOcr.recognizePages(redacted, password, pages, watched, exclude: areasByPage, cancel: skipText ?? cancel, progress: progress)
+            try cancel.check()
             for (page, list) in words {
                 let black = (areasByPage[page] ?? []).map { $0.inflate(1) }
                 words[page] = list.filter { w in !black.contains { !$0.intersect(w.rect).isEmpty } }

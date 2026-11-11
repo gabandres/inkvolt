@@ -236,7 +236,6 @@ public enum RedactionCheck {
     }
 
     /// The areas to redact to fix the findings that a redaction fixes, per page.
-
     public static func redactAreas(_ findings: [RedactionFinding]) -> [Int: [RectD]] {
         var out: [Int: [RectD]] = [:]
         for f in findings where f.fix == .redact {
