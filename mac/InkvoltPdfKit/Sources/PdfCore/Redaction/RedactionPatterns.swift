@@ -40,15 +40,18 @@ public struct RedactionPatternOptions: Equatable, Sendable {
     public var expression: String?
     /// The pages to search (0-based); nil for all of them.
     public var pages: [Int]?
+    /// The saved set these came from (`RedactionPatternSets`), when they came from one.
+    public var setName: String?
 
     public init(patterns: Set<RedactionPattern> = RedactionPatterns.defaults, phrases: [String] = [], wholeWord: Bool = true,
-                matchCase: Bool = false, expression: String? = nil, pages: [Int]? = nil) {
+                matchCase: Bool = false, expression: String? = nil, pages: [Int]? = nil, setName: String? = nil) {
         self.patterns = patterns
         self.phrases = phrases
         self.wholeWord = wholeWord
         self.matchCase = matchCase
         self.expression = expression
         self.pages = pages
+        self.setName = setName
     }
 
     /// Nothing to look for.
@@ -69,6 +72,35 @@ public struct RedactionMatch: Equatable, Sendable {
     public var text: String
     /// Its boxes on the page, one per line it covers (page space).
     public var rects: [RectD]
+    /// The match as the patterns read it: line breaks as spaces, hyphens at line ends gone, recognizer slips put right.
+    public var normalized: String
+    /// The text just before and just after the match, safe to show (`RedactionPatterns.displayable`).
+    public var before: String
+    public var after: String
+    /// Found in what text recognition read on the page, not in the page's own text.
+    public var fromOcr: Bool
+
+    public init(page: Int, pattern: RedactionPattern, start: Int, end: Int, text: String, rects: [RectD], normalized: String? = nil,
+                before: String = "", after: String = "", fromOcr: Bool = false) {
+        self.page = page
+        self.pattern = pattern
+        self.start = start
+        self.end = end
+        self.text = text
+        self.rects = rects
+        self.normalized = normalized ?? text
+        self.before = before
+        self.after = after
+        self.fromOcr = fromOcr
+    }
+}
+
+/// A document has more matches than can be reviewed. Nothing is applied: a partial list must not look complete (.NET's
+/// `TooManyHitsException`).
+public struct TooManyHits: Error, Equatable, Sendable, CustomStringConvertible {
+    public var limit: Int
+    public var message: String { loc("More than {0} matches were found, so the search stopped and nothing was changed. Choose fewer kinds or a narrower pattern.", CoreLanguage.number(limit)) }
+    public var description: String { message }
 }
 
 /// A pattern took too long on a page, so the search stopped (.NET's `TimeoutException` with a
@@ -96,6 +128,17 @@ public enum RedactionPatterns {
 
     /// How long the user's expression may take on one page before the search stops.
     public static let expressionTimeout = 1.0
+
+    /// How long one page may take in all (seconds): each regex call has its own time limit, and a page can make very many
+    /// calls. Tests shorten it.
+    @TaskLocal static var pageBudgetForTests: Double?
+    static var pageBudget: Double { pageBudgetForTests ?? 10 }
+
+    /// Most matches in a document before the search stops (`TooManyHits`).
+    public static let maxHits = 100_000
+
+    /// The longest own pattern, the most phrases and the longest phrase: what a hand or a tampered file can give.
+    public static let maxExpressionLength = 2_000, maxPhrases = 2_000, maxPhraseLength = 500
 
     public static func name(_ pattern: RedactionPattern) -> String {
         switch pattern {
@@ -130,6 +173,9 @@ public enum RedactionPatterns {
     /// What is wrong with a user's expression, in plain words; nil when it is fine (or empty).
     public static func validateExpression(_ expression: String?) -> String? {
         guard let expression, !expression.isEmpty else { return nil }
+        if expression.utf16.count > maxExpressionLength {
+            return loc("This pattern is too long: keep it under {0} characters.", CoreLanguage.number(maxExpressionLength))
+        }
         guard let regex = try? NSRegularExpression(pattern: expression) else {
             // NSRegularExpression says only that the pattern can't be read, not where: the usual mistake, a parenthesis
             // or bracket without its partner, is looked for here and pointed at.
@@ -144,6 +190,46 @@ public enum RedactionPatterns {
             return loc("This pattern takes too long even on empty text. Make it simpler.")
         }
         return nil
+    }
+
+    /// What is wrong with a whole set of choices (from the dialog, a saved set or a preset), in plain words; nil when fine.
+    public static func validate(_ options: RedactionPatternOptions) -> String? {
+        if options.phrases.count > maxPhrases { return loc("There are too many words and phrases: at most {0}.", CoreLanguage.number(maxPhrases)) }
+        if options.phrases.contains(where: { $0.utf16.count > maxPhraseLength }) {
+            return loc("A word or phrase is too long: at most {0} characters.", CoreLanguage.number(maxPhraseLength))
+        }
+        return validateExpression(options.expression)
+    }
+
+    /// Text that came from a file, made safe to show: control and invisible format characters (bidirectional overrides that
+    /// would make it read differently) gone, whitespace as single spaces, at most `max` UTF-16 units, then "…".
+    public static func displayable(_ text: String, _ max: Int = 120) -> String {
+        var out: [Unicode.Scalar] = []
+        var units = 0
+        var cut = false
+        for (n, c) in text.unicodeScalars.enumerated() {
+            if n >= max * 8 { break }
+            if units > max {
+                cut = true
+                break
+            }
+            if c.properties.isWhitespace {
+                if let last = out.last, last != " " {
+                    out.append(" ")
+                    units += 1
+                }
+                continue
+            }
+            switch c.properties.generalCategory {
+            case .control, .format, .unassigned, .privateUse, .surrogate: continue
+            default: break
+            }
+            out.append(c)
+            units += c.utf16.count
+        }
+        if !cut && units <= max { return String(String.UnicodeScalarView(out)) }
+        while units > max, let last = out.popLast() { units -= last.utf16.count }
+        return String(String.UnicodeScalarView(out)) + "…"
     }
 
     /// The first parenthesis or bracket without its partner, as (its position, counted from 1; what is wrong); nil when
@@ -188,6 +274,13 @@ public enum RedactionPatterns {
         try findOnPage(text, page, options, compile(options))
     }
 
+    /// The values the patterns find in text that isn't on a page (a comment, a property), as the patterns read them.
+    static func findValues(_ text: String, _ options: RedactionPatternOptions, _ custom: NSRegularExpression?) throws -> [String] {
+        let box = RectD(0, 0, 1, 1)
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map { line in line.unicodeScalars.map { (String($0), box) } }
+        return try findOnPage(PageText(lines), 0, options, custom).map(\.normalized)
+    }
+
     /// The matches on the chosen pages (all of them when none are chosen), page by page; `progress` gets (pages done,
     /// pages to search). A page the engine refuses is skipped, and `skipped` says which.
     /// - Throws: as `find(_:_:_:)`; `CancellationError` when `cancel` fires.
@@ -203,6 +296,7 @@ public enum RedactionPatterns {
             if let text = try skipped.unlessRefused({ try engine.text(p, cache: pages.count <= 8, cancel: cancel) }) {
                 matches += try findOnPage(text, p, options, custom)
             }
+            if matches.count > maxHits { throw TooManyHits(limit: maxHits) }
             progress?(i + 1, pages.count)
         }
         return matches
@@ -249,9 +343,9 @@ public enum RedactionPatterns {
 
     // ---- Finding ----
 
-    private static func compile(_ options: RedactionPatternOptions) throws -> NSRegularExpression? {
+    static func compile(_ options: RedactionPatternOptions) throws -> NSRegularExpression? {
+        if let error = validate(options) { throw PdfEditError(error) }
         guard let expression = options.expression, !expression.isEmpty else { return nil }
-        if let error = validateExpression(expression) { throw PdfEditError(error) }
         do {
             return try NSRegularExpression(pattern: expression, options: options.matchCase ? [] : [.caseInsensitive])
         } catch {
@@ -259,34 +353,79 @@ public enum RedactionPatterns {
         }
     }
 
-    private static func findOnPage(_ text: PageText, _ page: Int, _ options: RedactionPatternOptions,
-                                   _ custom: NSRegularExpression?) throws -> [RedactionMatch] {
+    private static let contextChars = 48
+
+    /// `lenient`: the text came from a recognizer: read slips kindly (`lenientView`), and a number of the right length counts
+    /// even when its check digit fails, since one misread digit would otherwise hide it.
+    static func findOnPage(_ text: PageText, _ page: Int, _ options: RedactionPatternOptions, _ custom: NSRegularExpression?,
+                           lenient: Bool = false) throws -> [RedactionMatch] {
         var found: [RedactionMatch] = []
         if text.isEmpty { return found }
         let units = Array(text.text.utf16)
-        let (viewUnits, map) = view(units)
+        let (plainUnits, plainMap) = view(units)
+        // The kinds read a recognizer's text kindly; the person's own pattern reads what was read ("CASE-12" isn't "CA5E-12").
+        let (viewUnits, map) = lenient ? lenientView(plainUnits, plainMap) : (plainUnits, plainMap)
         let view = String(decoding: viewUnits, as: UTF16.self) as NSString
+        let plain = String(decoding: plainUnits, as: UTF16.self) as NSString
+        let started = Date()
+        let budget = pageBudget
+        func spend() throws {
+            if Date().timeIntervalSince(started) > budget {
+                throw RedactionSearchTimeout(message: loc("Looking at page {0} took too long, so the search stopped and nothing was changed.", CoreLanguage.number(page + 1)),
+                                             userExpression: false)
+            }
+        }
 
-        func add(_ pattern: RedactionPattern, _ start: Int, _ end: Int, inView: Bool) {
+        func add(_ pattern: RedactionPattern, _ start: Int, _ end: Int, _ readIn: NSString?, _ readMap: [Int]?) throws {
             if end <= start { return }
-            let (s, e) = inView ? (map[start], map[end - 1] + 1) : (start, end)
-            let rects = text.rects(s, e).filter { !$0.isEmpty }
-            if !rects.isEmpty { found.append(RedactionMatch(page: page, pattern: pattern, start: s, end: e, text: text.string(s, e), rects: rects)) }
+            var (s, e) = (start, end)
+            let normalized: String
+            if let readIn {
+                normalized = readIn.substring(with: NSRange(location: s, length: e - s))
+            } else {
+                let (v, _) = Self.view(Array(units[s..<e]))
+                normalized = String(decoding: v, as: UTF16.self).trimmingCharacters(in: .whitespaces)
+            }
+            if let readMap { (s, e) = (readMap[s], readMap[e - 1] + 1) }
+            var rects = text.rects(s, e).filter { !$0.isEmpty }
+            // Text without a box of its own (glyphs of no size) is still text in the file: its page has to go too.
+            if rects.isEmpty {
+                let b = text.boxAt(s)
+                rects.append(RectD(b.x, b.y, 1, 1))
+            }
+            let after = min(units.count, e + contextChars)
+            let space = e < after && PageText.isWhiteSpace(units[e]) ? " " : ""
+            found.append(RedactionMatch(page: page, pattern: pattern, start: s, end: e, text: text.string(s, e), rects: rects, normalized: normalized,
+                                        before: displayable(text.string(max(0, s - contextChars), s), contextChars),
+                                        after: space + displayable(text.string(e, after), contextChars)))
+            if found.count > maxHits { throw TooManyHits(limit: maxHits) }
         }
 
         // Built-in kinds: every rule's matches, then where two kinds overlap the stronger (earlier in `strength`) keeps the text.
         var builtIn: [(pattern: RedactionPattern, start: Int, end: Int)] = []
         for rule in rules where options.patterns.contains(rule.pattern) {
-            let all: [NSTextCheckingResult]
             do {
-                all = try TimedRegex.matches(rule.regex, in: view, seconds: 2)
-            } catch {
+                var m = try TimedRegex.first(rule.regex, in: view, from: 0, seconds: 2)
+                while let match = m {
+                    let at = match.range.location, length = match.range.length
+                    let end = accept(rule, match, view, viewUnits, lenient)
+                    if let end { builtIn.append((rule.pattern, at, end)) }
+                    if builtIn.count > maxHits * 4 { throw TooManyHits(limit: maxHits) }
+                    // What a check cut off or refused may hold the next number ("2026 4111 1111 1111 1111"): look again from
+                    // where the number that counted ends, or after the first group of one that didn't.
+                    var next = -1
+                    if rule.trim && end != at + length {
+                        if let end { next = end } else { next = firstSeparator(viewUnits, at, length) }
+                    }
+                    let from = next > at ? next : at + max(length, 1)
+                    m = from <= view.length ? try TimedRegex.first(rule.regex, in: view, from: from, seconds: 2) : nil
+                    try spend()
+                }
+            } catch is TimedRegex.Timeout {
                 throw RedactionSearchTimeout(message: loc("Looking for {0} took too long on page {1}.", name(rule.pattern).lowercased(), CoreLanguage.number(page + 1)),
                                              userExpression: false)
             }
-            for m in all {
-                if let end = accept(rule, m, view, viewUnits) { builtIn.append((rule.pattern, m.range.location, end)) }
-            }
+            try spend()
         }
         let ordered = builtIn.enumerated().sorted { a, b in
             let sa = strength.firstIndex(of: a.element.pattern) ?? 99, sb = strength.firstIndex(of: b.element.pattern) ?? 99
@@ -295,27 +434,35 @@ public enum RedactionPatterns {
             if la != lb { return la > lb }
             return a.offset < b.offset
         }.map(\.element)
-        var kept: [(pattern: RedactionPattern, start: Int, end: Int)] = []
-        for m in ordered where !kept.contains(where: { $0.start < m.end && m.start < $0.end }) { kept.append(m) }
-        for k in kept { add(k.pattern, k.start, k.end, inView: true) }
+        // Each unit at most once: a page of hostile text can hold hundreds of thousands of matches.
+        var taken = [Bool](repeating: false, count: viewUnits.count)
+        for m in ordered {
+            if taken[m.start..<m.end].contains(true) { continue }
+            for i in m.start..<m.end { taken[i] = true }
+            try add(m.pattern, m.start, m.end, view, map)
+        }
 
         // The user's phrases go through the page search (whole words, case, hyphenation, whitespace as it does).
         var seen = Set<String>()
         for phrase in options.phrases.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where !phrase.isEmpty {
             if !seen.insert(options.matchCase ? phrase : phrase.lowercased()).inserted { continue }
             for hit in text.find(phrase, matchCase: options.matchCase, wholeWord: options.wholeWord) {
-                add(.phrase, hit.start, hit.end, inView: false)
+                try add(.phrase, hit.start, hit.end, nil, nil)
             }
+            try spend()
         }
 
         if let custom {
             let all: [NSTextCheckingResult]
             do {
-                all = try TimedRegex.matches(custom, in: view, seconds: expressionTimeout)
+                all = try TimedRegex.matches(custom, in: plain, seconds: expressionTimeout)
             } catch {
                 throw RedactionSearchTimeout(message: loc("Your pattern took too long on page {0}, so the search stopped. Make it simpler: a repeat inside a repeat, such as (a+)+, can take very long on some text.", CoreLanguage.number(page + 1)), userExpression: true)
             }
-            for m in all where m.range.length > 0 { add(.expression, m.range.location, m.range.location + m.range.length, inView: true) }
+            for m in all where m.range.length > 0 {
+                try add(.expression, m.range.location, m.range.location + m.range.length, plain, plainMap)
+                try spend()
+            }
         }
         return found.enumerated().sorted { a, b in
             if a.element.start != b.element.start { return a.element.start < b.element.start }
@@ -324,9 +471,16 @@ public enum RedactionPatterns {
         }.map(\.element)
     }
 
-    /// The page text as the patterns read it, with each unit's index in the text: whitespace (line breaks too) as a
-    /// space, dashes as '-', soft hyphens dropped, a hyphen at a line break between letters dropped with the break (one
-    /// word) and one between digits kept without the break (one number).
+    /// The first space or dash in `units[at..<at+length]`, else -1.
+    private static func firstSeparator(_ units: [UInt16], _ at: Int, _ length: Int) -> Int {
+        for i in at..<min(units.count, at + length) where units[i] == 32 || units[i] == 45 { return i }
+        return -1
+    }
+
+    /// The page text as the patterns read it, with each unit's index in the text: whitespace (line breaks too) as a space,
+    /// dashes as '-', soft hyphens and other invisible characters dropped, wide forms as plain ones ("１２３" as "123"), a
+    /// hyphen at a line break between letters dropped with the break (one word) and one between digits kept without the
+    /// break (one number), as is one that starts the next line.
     private static func view(_ text: [UInt16]) -> (view: [UInt16], map: [Int]) {
         var out: [UInt16] = []
         var map: [Int] = []
@@ -334,18 +488,28 @@ public enum RedactionPatterns {
         map.reserveCapacity(text.count)
         var i = 0
         while i < text.count {
-            let c = text[i]
+            var c = text[i]
             if c == 0xAD {
                 if i + 1 < text.count && text[i + 1] == 10 { i += 1 }
                 i += 1
                 continue
             }
+            if isFormat(c) {
+                i += 1
+                continue
+            }
+            if c == 10 && i > 0 && i + 2 < text.count && isDigit(text[i - 1]) && isDash(text[i + 1]) && isDigit(text[i + 2]) {
+                i += 1
+                continue
+            }
+            if c >= 0xFF01 && c <= 0xFF5E && !isDash(c) { c -= 0xFEE0 }
             if isDash(c) && i > 0 && i + 2 < text.count && text[i + 1] == 10 {
                 if PageText.isLetter(text[i - 1]) && PageText.isLetter(text[i + 2]) {
                     i += 2
                     continue
                 }
-                if isDigit(text[i - 1]) && isDigit(text[i + 2]) {
+                // Between digits (a number), or a letter and a digit (CASE-0412): the hyphen stays, the break goes.
+                if isLetterOrDigit(text[i - 1]) && isLetterOrDigit(text[i + 2]) {
                     out.append(45)
                     map.append(i)
                     i += 2
@@ -359,16 +523,74 @@ public enum RedactionPatterns {
         return (out, map)
     }
 
+    /// The letters a recognizer takes for digits, and the digit each is: O o → 0, l I | ! → 1, S s → 5, B → 8, Z z → 2.
+    private static let slips: [UInt16: UInt16] = [79: 48, 111: 48, 108: 49, 73: 49, 124: 49, 33: 49, 83: 53, 115: 53, 66: 56, 90: 50, 122: 50]
+
+    /// The view for text a recognizer read: in a word of digits and letters recognizers take for digits, those letters become
+    /// the digits ("l23-45-6789", "4111 1lll 1111 1111"), and spaces it put around a dash, slash or at sign go.
+    private static func lenientView(_ view: [UInt16], _ map: [Int]) -> (view: [UInt16], map: [Int]) {
+        var chars = view
+        let space: UInt16 = 32
+        var start = 0
+        while start < chars.count {
+            if chars[start] == space {
+                start += 1
+                continue
+            }
+            var end = start
+            while end < chars.count && chars[end] != space { end += 1 }
+            var digits = 0, others = 0
+            for i in start..<end {
+                let c = chars[i]
+                if isDigit(c) {
+                    digits += 1
+                } else if (PageText.isLetter(c) && slips[c] == nil) || c == 64 {
+                    others += 1 // a letter no recognizer takes for a digit, or an at sign
+                }
+            }
+            if digits >= 1 && others == 0 {
+                for i in start..<end { if let d = slips[chars[i]] { chars[i] = d } }
+            }
+            start = end
+        }
+        func joins(_ before: UInt16, _ after: UInt16, _ afterThat: UInt16) -> Bool {
+            if before == 64 || after == 64 { return true }
+            if isDigit(before) && (after == 45 || after == 47) && (isDigit(afterThat) || afterThat == space) { return true }
+            return (before == 45 || before == 47) && isDigit(after)
+        }
+        var out: [UInt16] = []
+        var kept: [Int] = []
+        out.reserveCapacity(chars.count)
+        kept.reserveCapacity(chars.count)
+        for i in 0..<chars.count {
+            if chars[i] == space, let last = out.last {
+                var next = i + 1
+                while next < chars.count && chars[next] == space { next += 1 }
+                if next < chars.count && joins(last, chars[next], next + 1 < chars.count ? chars[next + 1] : space) { continue }
+            }
+            out.append(chars[i])
+            kept.append(map[i])
+        }
+        return (out, kept)
+    }
+
     private static func isDash(_ c: UInt16) -> Bool { c == 45 || (0x2010...0x2015).contains(c) || c == 0x2212 || c == 0xFE63 || c == 0xFF0D }
 
     private static func isDigit(_ c: UInt16) -> Bool { c >= 48 && c <= 57 }
 
+    private static func isFormat(_ c: UInt16) -> Bool { Unicode.Scalar(c)?.properties.generalCategory == .format }
+
+    private static func isLetterOrDigit(_ c: UInt16) -> Bool {
+        PageText.isLetter(c) || Unicode.Scalar(c)?.properties.numericType == .decimal
+    }
+
     /// Where a rule's match ends once checked (a card or IBAN may lose groups that came after it), or nil.
-    private static func accept(_ rule: Rule, _ m: NSTextCheckingResult, _ view: NSString, _ units: [UInt16]) -> Int? {
+    private static func accept(_ rule: Rule, _ m: NSTextCheckingResult, _ view: NSString, _ units: [UInt16], _ lenient: Bool) -> Int? {
         let start = m.range.location
         var end = start + m.range.length
         while true {
-            if rule.valid(m, view, view.substring(with: NSRange(location: start, length: end - start))) { return end }
+            let value = view.substring(with: NSRange(location: start, length: end - start))
+            if rule.valid(m, view, value) || (lenient && rule.relaxed?(value) == true) { return end }
             if !rule.trim { return nil }
             // The last space or dash before the end (.NET's LastIndexOfAny over [start, end - 1]).
             var cut = end - 1
@@ -380,21 +602,28 @@ public enum RedactionPatterns {
 
     // ---- The patterns ----
 
-    /// `trim`: on a failed check, try again without the last group (a year or code printed after the number).
+    /// `trim`: on a failed check, try again without the last group (a year or code printed after the number). `relaxed`:
+    /// what counts on a recognized page, where one misread digit must not hide a number: no check digit.
     private struct Rule: Sendable {
         var pattern: RedactionPattern
         var regex: NSRegularExpression
         var valid: @Sendable (NSTextCheckingResult, NSString, String) -> Bool
         var trim = false
+        var relaxed: (@Sendable (String) -> Bool)?
     }
 
     /// Which kind keeps text two kinds claim: checked numbers first, the loosest last.
     private static let strength: [RedactionPattern] = [.paymentCard, .iban, .socialSecurity, .email, .ipAddress, .phone, .date, .zipCode]
 
-    // A number starts where no letter, digit or '@' comes before it, nor a digit and a separator (it would be the tail
-    // of a longer number), and ends the same way.
-    private static let lead = #"(?<![\w@])(?<![0-9][.,/-])"#
-    private static let trail = #"(?![\w@])(?![.,/-][0-9])"#
+    // A number starts where no letter, digit or '@' comes before it, nor a digit and a dot or dash (it would be the tail
+    // of a longer number), and ends the same way. A comma or slash between numbers is a list ("123-45-6789,987-65-4321",
+    // a printed CSV), or a network's size after an address (10.0.0.1/24).
+    private static let lead = #"(?<![\w@])(?<![0-9][.-])"#
+    private static let trail = #"(?![\w@])(?![.-][0-9])"#
+    // A date with numbers for its month ends only at a digit after its own separator: another separator between two dates
+    // is a list or a range ("01/01/2025-12/31/2025").
+    private static let dateLead = #"(?<![\w@])(?:(?=[0-9]{1,4}-)(?<![0-9]-)|(?=[0-9]{1,4}/)(?<![0-9]/)|(?=[0-9]{1,4}\.)(?<![0-9]\.))"#
+    private static let dateTrail = #"(?![\w@])(?!\k<s>[0-9])"#
     private static let months = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?"
     private static let octet = "(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])"
 
@@ -447,12 +676,12 @@ public enum RedactionPatterns {
             let separators = Set(value.filter { $0 == " " || $0 == "-" })
             let d = digits(value)
             return separators.count <= 1 && (13...19).contains(d.count) && luhn(d)
-        }, trim: true))
-        list.append(Rule(pattern: .date, regex: r(lead + #"(?<y>(?:1[89]|2[0-9])[0-9]{2})(?<s>[-/.])(?<m>0?[1-9]|1[0-2])\k<s>(?<d>0?[1-9]|[12][0-9]|3[01])"# + trail)) { m, v, _ in
+        }, trim: true, relaxed: { value in [15, 16].contains(digits(value).count) }))
+        list.append(Rule(pattern: .date, regex: r(dateLead + #"(?<y>(?:1[89]|2[0-9])[0-9]{2})(?<s>[-/.])(?<m>0?[1-9]|1[0-2])\k<s>(?<d>0?[1-9]|[12][0-9]|3[01])"# + dateTrail)) { m, v, _ in
             isDay(int(m, v, "y"), int(m, v, "m"), int(m, v, "d"))
         })
         // 10/27/2026 or 27.10.2026: month first or day first, whichever makes a date; two-digit years only with slashes.
-        list.append(Rule(pattern: .date, regex: r(lead + #"(?<a>[0-9]{1,2})(?<s>[-/.])(?<b>[0-9]{1,2})\k<s>(?<y>[0-9]{4}|[0-9]{2})"# + trail)) { m, v, _ in
+        list.append(Rule(pattern: .date, regex: r(dateLead + #"(?<a>[0-9]{1,2})(?<s>[-/.])(?<b>[0-9]{1,2})\k<s>(?<y>[0-9]{4}|[0-9]{2})"# + dateTrail)) { m, v, _ in
             var y = int(m, v, "y")
             if group(m, v, "y").count == 2 { y = group(m, v, "s") == "/" ? 2000 + y : -1 }
             if y < 1800 || y > 2199 { return false }
@@ -469,7 +698,7 @@ public enum RedactionPatterns {
         // Two letters, two check digits, then up to 30 letters and digits, printed in groups of four or run together.
         list.append(Rule(pattern: .iban, regex: r(#"(?<![\w])[A-Z]{2}[0-9]{2}(?: ?[A-Z0-9]{4}){2,7}(?: ?[A-Z0-9]{1,3})?(?![\w])"#), valid: { _, _, value in
             ibanValid(value.replacingOccurrences(of: " ", with: ""))
-        }, trim: true))
+        }, trim: true, relaxed: { value in (15...34).contains(value.replacingOccurrences(of: " ", with: "").utf16.count) }))
         list.append(Rule(pattern: .ipAddress, regex: r(lead + "(?:\(octet)\\.){3}\(octet)" + trail)) { _, _, _ in true })
         // IPv6: hex groups and colons; written in full (eight groups) or shortened with "::".
         list.append(Rule(pattern: .ipAddress, regex: r(#"(?<![\w:])(?:[0-9A-Fa-f]{0,4}:){2,7}[0-9A-Fa-f]{0,4}(?![\w:])"#)) { _, _, value in

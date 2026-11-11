@@ -28,6 +28,9 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
     let presetPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     let runButton = NSButton(title: loc("Run"), target: nil, action: nil)
     let stopButton = NSButton(title: loc("Stop"), target: nil, action: nil)
+    /// The last run's removal report, when the plan had Redact Patterns.
+    let reportButton = NSButton(title: loc("Redaction Report…"), target: nil, action: nil)
+    private var reportSheet: RemovalReportSheet?
     let summary = NSTextField(labelWithString: "")
     private let progress = NSProgressIndicator()
     /// What an empty list says to do (UX review, round 2: two blank tables and a disabled Run, nothing said why).
@@ -185,6 +188,9 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         stopButton.target = self
         stopButton.action = #selector(stopClicked)
         stopButton.isEnabled = false
+        reportButton.target = self
+        reportButton.action = #selector(reportClicked)
+        reportButton.isHidden = true
         progress.style = .bar
         progress.minValue = 0
         progress.maxValue = 1
@@ -192,7 +198,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         progress.widthAnchor.constraint(equalToConstant: 220).isActive = true
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let bottom = NSStackView(views: [summary, spacer, progress, stopButton, runButton])
+        let bottom = NSStackView(views: [summary, spacer, reportButton, progress, stopButton, runButton])
 
         // Spare height goes below the options, not between their rows.
         let filler = NSView()
@@ -279,6 +285,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         noFiles.isHidden = !files.isEmpty
         noActions.isHidden = !steps.isEmpty
         progress.isHidden = !running && lastSummary == nil
+        reportButton.isHidden = running || lastSummary?.redactionReport == nil
         if !running {
             summary.stringValue = lastSummary?.text ?? (files.isEmpty ? loc("Add files and actions.") : Self.counts(files.count, steps.count))
         }
@@ -347,7 +354,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         case .export(let f, let dpi): f == .png || f == .jpeg ? loc("{0} at {1} dpi", step.title, CoreLanguage.number(dpi)) : step.title
         case .protect(let p): "\(step.title): \(passwordsNamed(p))"
         case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", CoreLanguage.number(items.count)))"
-        case .redactPatterns(let r): step.title + ": " + (r.patterns.map { RedactionPatterns.name($0) } + r.phrases).joined(separator: ", ")
+        case .redactPatterns(let r): step.title + ": " + (r.setName.map { loc("Saved set \"{0}\"", $0) } ?? (r.patterns.map { RedactionPatterns.name($0) } + r.phrases).joined(separator: ", "))
         default: step.title
         }
     }
@@ -566,6 +573,17 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
             status[p.index] = p.message
         }
         fileTable.reloadData(forRowIndexes: IndexSet(integer: p.index), columnIndexes: IndexSet(integer: 1))
+    }
+
+    /// The last run's removal report as a page.
+    @objc func reportClicked() {
+        guard let report = lastSummary?.redactionReport, let window, reportSheet == nil else { return }
+        let sheet = RemovalReportSheet(report, suggestedName: loc("Batch"))
+        reportSheet = sheet
+        Task { @MainActor in
+            await sheet.run(on: window)
+            reportSheet = nil
+        }
     }
 
     @objc private func stopClicked() {
@@ -798,14 +816,40 @@ enum ActionSheet {
             let whole = check(loc("Whole words only"), r.wholeWord)
             let caseBox = check(loc("Match case"), r.matchCase)
             for f in [phrases, expression] { f.widthAnchor.constraint(equalToConstant: 380).isActive = true }
-            alert.accessoryView = column(boxes + [phrases, expression, whole, caseBox], width: 420)
+            // A saved set fills the choices in (Pro); changed after, the step is the person's own again.
+            let (sets, _) = RedactionPatternSets.list(RedactionPatternSets.defaultFolder)
+            let setPopup = popup([loc("No saved set")] + sets.map(\.name), max(0, (sets.firstIndex { $0.name == r.setName } ?? -1) + 1))
+            setPopup.setAccessibilityLabel(loc("Saved set"))
+            let fill = SetFiller {
+                let i = setPopup.indexOfSelectedItem - 1
+                guard sets.indices.contains(i) else { return }
+                guard Pro.allows(.patternRedaction) else {
+                    setPopup.selectItem(at: 0)
+                    ProWindowController.show(feature: .patternRedaction)
+                    return
+                }
+                let o = sets[i].options
+                for (kind, box) in zip(RedactionPatterns.builtIn, boxes) { box.state = o.patterns.contains(kind) ? .on : .off }
+                phrases.stringValue = o.phrases.joined(separator: ", ")
+                expression.stringValue = o.expression ?? ""
+                whole.state = o.wholeWord ? .on : .off
+                caseBox.state = o.matchCase ? .on : .off
+            }
+            setPopup.target = fill
+            setPopup.action = #selector(SetFiller.picked)
+            alert.accessoryView = column([setPopup] + boxes + [phrases, expression, whole, caseBox], width: 420)
             read = {
+                _ = fill // kept alive while the alert is open
                 var n = r
                 n.patterns = Set(zip(RedactionPatterns.builtIn, boxes).filter { $0.1.state == .on }.map(\.0))
                 n.phrases = phrases.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                 n.expression = expression.stringValue.isEmpty ? nil : expression.stringValue
                 n.wholeWord = whole.state == .on
                 n.matchCase = caseBox.state == .on
+                let i = setPopup.indexOfSelectedItem - 1
+                n.setName = sets.indices.contains(i) && sets[i].options.patterns == n.patterns && sets[i].options.phrases == n.phrases
+                    && sets[i].options.expression == n.expression && sets[i].options.wholeWord == n.wholeWord && sets[i].options.matchCase == n.matchCase
+                    ? sets[i].name : nil
                 return .redactPatterns(n)
             }
         case .watermark(let o):
@@ -1172,4 +1216,12 @@ final class WatchedFoldersWindowController: NSWindowController, NSTableViewDataS
         guard row >= 0 else { return NSSound.beep() }
         FolderWatches.shared.remove(FolderWatches.shared.all[row])
     }
+}
+
+/// Runs a closure when a saved set is picked in Redact Patterns' editor.
+@MainActor
+final class SetFiller: NSObject {
+    private let action: () -> Void
+    init(_ action: @escaping () -> Void) { self.action = action }
+    @objc func picked() { action() }
 }

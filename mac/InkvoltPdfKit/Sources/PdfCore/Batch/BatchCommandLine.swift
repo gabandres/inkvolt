@@ -218,7 +218,7 @@ public enum BatchCommandLine {
             return wrong
         }
         preset.steps = steps
-        let quiet = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage)
+        let quiet = BatchHost(recognize: host.recognize, recognizeLanguage: host.recognizeLanguage, reader: host.reader)
         return request.kind == .batch
             ? await batch(request, preset, quiet, stdout, stderr, cancel)
             : await watch(request, preset, quiet, stdout, stderr, cancel)
@@ -290,6 +290,7 @@ public enum BatchCommandLine {
             return wrong
         }
         stdout.writeLine(summary.text)
+        if let report = summary.redactionReportPath { stdout.writeLine("Redaction report: \(report)") }
         if summary.cancelled > 0 || cancel?.isCancelled == true { return stopped }
         return summary.failed + summary.skipped > 0 ? someFailed : done
     }

@@ -23364,6 +23364,1282 @@
           }
         }
       }
+    },
+    " Tick to black out the {0} place nothing was read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Marca la casilla para tapar con negro {0} lugar donde no se leyó nada."
+          }
+        }
+      }
+    },
+    " Tick to black out the {0} places nothing was read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Marca la casilla para tapar con negro los {0} lugares donde no se leyó nada."
+          }
+        }
+      }
+    },
+    " {0} place has ink where nothing was read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Hay {0} lugar con tinta donde no se leyó nada."
+          }
+        }
+      }
+    },
+    " {0} places have ink where nothing was read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " Hay {0} lugares con tinta donde no se leyó nada."
+          }
+        }
+      }
+    },
+    "\"{0}\" has too many items.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» tiene demasiados elementos."
+          }
+        }
+      }
+    },
+    "\"{0}\" is missing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "falta «{0}»."
+          }
+        }
+      }
+    },
+    "\"{0}\" should be a list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» debería ser una lista."
+          }
+        }
+      }
+    },
+    "\"{0}\" should be text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» debería ser texto."
+          }
+        }
+      }
+    },
+    "\"{0}\" should be true or false.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» debería ser true o false."
+          }
+        }
+      }
+    },
+    "\"{0}\" should list text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» debería ser una lista de textos."
+          }
+        }
+      }
+    },
+    ", {0} kept as you chose [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", {0} conservados como elegiste"
+          }
+        }
+      }
+    },
+    ", {0} kept as you chose [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": ", {0} conservado como elegiste"
+          }
+        }
+      }
+    },
+    "A hidden layer's text was searched, but a picture in one can't be.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se buscó en el texto de una capa oculta, pero no se puede buscar en una imagen dentro de ella."
+          }
+        }
+      }
+    },
+    "A scan that text recognition couldn't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un escaneo que el reconocimiento de texto no pudo leer."
+          }
+        }
+      }
+    },
+    "A scan that text recognition couldn't read: only a text layer, if it has one, was searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un escaneo que el reconocimiento de texto no pudo leer: solo se buscó en su capa de texto, si la tiene."
+          }
+        }
+      }
+    },
+    "A scan, read by OCR.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un escaneo, leído con OCR."
+          }
+        }
+      }
+    },
+    "A scan, read by text recognition, which can misread words and miss whole lines.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un escaneo, leído con reconocimiento de texto, que puede leer mal palabras y pasar por alto líneas enteras."
+          }
+        }
+      }
+    },
+    "A word or phrase is too long: at most {0} characters.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una palabra o frase es demasiado larga: como máximo {0} caracteres."
+          }
+        }
+      }
+    },
+    "An area you marked earlier": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un área que marcaste antes"
+          }
+        }
+      }
+    },
+    "Another part of the file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otra parte del archivo"
+          }
+        }
+      }
+    },
+    "Can't be searched: {0} are scans that text recognition couldn't read. Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede buscar: {0} son escaneos que el reconocimiento de texto no pudo leer. No se guardó nada."
+          }
+        }
+      }
+    },
+    "Can't be searched: {0} is a scan that text recognition couldn't read. Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede buscar: {0} es un escaneo que el reconocimiento de texto no pudo leer. No se guardó nada."
+          }
+        }
+      }
+    },
+    "Choose something to look for first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero elige algo que buscar."
+          }
+        }
+      }
+    },
+    "Don't share a failed result: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No compartas un resultado con errores: {0}"
+          }
+        }
+      }
+    },
+    "Failed: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error: {0}"
+          }
+        }
+      }
+    },
+    "Finished: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminado: {0}"
+          }
+        }
+      }
+    },
+    "Found, file not saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrado, archivo no guardado"
+          }
+        }
+      }
+    },
+    "Goes with the rest. Untick to leave it as a mark.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se elimina con lo demás. Desmárcala para dejarla como marca."
+          }
+        }
+      }
+    },
+    "Has pictures or drawn text that text recognition couldn't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiene imágenes o texto dibujado que el reconocimiento de texto no pudo leer."
+          }
+        }
+      }
+    },
+    "Has pictures or drawn text, read by text recognition, which can misread words and miss whole lines.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiene imágenes o texto dibujado, leídos con reconocimiento de texto, que puede leer mal palabras y pasar por alto líneas enteras."
+          }
+        }
+      }
+    },
+    "Keep All": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conservar todo"
+          }
+        }
+      }
+    },
+    "Kept by you": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conservado por ti"
+          }
+        }
+      }
+    },
+    "Look at this page by hand": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa esta página a mano"
+          }
+        }
+      }
+    },
+    "Look at {0} yourself, whatever the list says: {1}, so these pages can't be taken as clean. Each is flagged in the list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa tú mismo {0}, diga lo que diga la lista: {1}, así que estas páginas no pueden darse por limpias. Cada una está señalada en la lista."
+          }
+        }
+      }
+    },
+    "Look by hand": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar a mano"
+          }
+        }
+      }
+    },
+    "Look by hand at {0}: pictures or drawn text that couldn't be read, not even by text recognition": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa a mano {0}: imágenes o texto dibujado que no se pudieron leer, ni siquiera con reconocimiento de texto"
+          }
+        }
+      }
+    },
+    "Look by hand at {0}: read by text recognition, which can miss text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa a mano {0}: leído con reconocimiento de texto, que puede pasar texto por alto"
+          }
+        }
+      }
+    },
+    "Look by hand: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar a mano: {0}"
+          }
+        }
+      }
+    },
+    "Looking at page {0} took too long, so the search stopped and nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar la página {0} tardó demasiado, así que la búsqueda se detuvo y no se cambió nada."
+          }
+        }
+      }
+    },
+    "More than {0} matches were found, so the search stopped and nothing was changed. Choose fewer kinds or a narrower pattern.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontraron más de {0} coincidencias, así que la búsqueda se detuvo y no se cambió nada. Elige menos tipos o un patrón más preciso."
+          }
+        }
+      }
+    },
+    "Name the set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ponle nombre al conjunto."
+          }
+        }
+      }
+    },
+    "Nothing is removed until you press Redact. Pages with something to remove become pictures, and you can undo it until you save.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se elimina nada hasta que pulses Eliminar. Las páginas con algo que eliminar se convierten en imágenes, y puedes deshacerlo hasta que guardes."
+          }
+        }
+      }
+    },
+    "Nothing matching was found.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró nada que coincida."
+          }
+        }
+      }
+    },
+    "Nothing was removed{0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se eliminó nada{0}."
+          }
+        }
+      }
+    },
+    "Pattern redaction": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminación por patrones"
+          }
+        }
+      }
+    },
+    "Pattern sets, regex, Batch and the report are part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los conjuntos de patrones, las expresiones regulares, En lote y el informe forman parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "Pictures or drawn text that text recognition couldn't read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes o texto dibujado que el reconocimiento de texto no pudo leer."
+          }
+        }
+      }
+    },
+    "Pictures or drawn text, read by OCR.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes o texto dibujado, leídos con OCR."
+          }
+        }
+      }
+    },
+    "Put \"Redact patterns\" before exports and reports: what they save would still hold what it removes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon «Eliminar patrones» antes de las exportaciones y los informes: lo que guardan seguiría conteniendo lo que elimina."
+          }
+        }
+      }
+    },
+    "Read back after redacting: {0} match is still there, on {1}. Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releído después de eliminar: sigue habiendo {0} coincidencia, en {1}. No se guardó nada."
+          }
+        }
+      }
+    },
+    "Read back after redacting: {0} matches are still there, on {1}. Nothing was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releído después de eliminar: siguen habiendo {0} coincidencias, en {1}. No se guardó nada."
+          }
+        }
+      }
+    },
+    "Read back and searched again: none of what was removed is left in the text of the file. {0} removed{1}. [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se volvió a leer y a buscar: no queda nada de lo eliminado en el texto del archivo. {0} eliminados{1}."
+          }
+        }
+      }
+    },
+    "Read back and searched again: none of what was removed is left in the text of the file. {0} removed{1}. [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se volvió a leer y a buscar: no queda nada de lo eliminado en el texto del archivo. {0} eliminado{1}."
+          }
+        }
+      }
+    },
+    "Read back and searched again: none of what was removed is left in the text of the files. {0} removed{1}. [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se volvió a leer y a buscar: no queda nada de lo eliminado en el texto de los archivos. {0} eliminados{1}."
+          }
+        }
+      }
+    },
+    "Read back and searched again: none of what was removed is left in the text of the files. {0} removed{1}. [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se volvió a leer y a buscar: no queda nada de lo eliminado en el texto de los archivos. {0} eliminado{1}."
+          }
+        }
+      }
+    },
+    "Reading the result back": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Releyendo el resultado"
+          }
+        }
+      }
+    },
+    "Redact {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar {0}"
+          }
+        }
+      }
+    },
+    "Redaction check: {0} Nothing was saved. Sanitize can remove most of these: add it before Redact Patterns.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobación de la eliminación: {0} No se guardó nada. Sanear puede quitar la mayoría: añádelo antes de Eliminar patrones."
+          }
+        }
+      }
+    },
+    "Removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitado"
+          }
+        }
+      }
+    },
+    "Result for this file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resultado de este archivo"
+          }
+        }
+      }
+    },
+    "Save your own sets of patterns and phrases on this Mac, search with your own regular expression, redact a set over a whole folder in Batch, and get a report per file of each removal's page, pattern and masked value.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda tus propios conjuntos de patrones y frases en este Mac, busca con tu propia expresión regular, elimina un conjunto en toda una carpeta con En lote y obtén un informe por archivo con la página, el patrón y el valor enmascarado de cada eliminación."
+          }
+        }
+      }
+    },
+    "Searching": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando"
+          }
+        }
+      }
+    },
+    "Signed: not redacted, so its signatures stay valid. Choose to change signed PDFs to redact it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Firmado: no se eliminó nada, así que sus firmas siguen siendo válidas. Elige cambiar los PDF firmados para eliminar en él"
+          }
+        }
+      }
+    },
+    "Something the patterns find in what it held besides its pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo que los patrones encuentran en lo que contenía además de sus páginas"
+          }
+        }
+      }
+    },
+    "Still in the file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigue en el archivo"
+          }
+        }
+      }
+    },
+    "Text the patterns find, no longer on the pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto que los patrones encuentran y que ya no está en las páginas"
+          }
+        }
+      }
+    },
+    "The redaction report couldn't be saved in the results folder.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El informe de eliminación no se pudo guardar en la carpeta de resultados."
+          }
+        }
+      }
+    },
+    "The saved set {0} can't be read: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede leer el conjunto guardado {0}: {1}"
+          }
+        }
+      }
+    },
+    "The saved set {0} can't be used: it holds text that can't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede usar el conjunto guardado {0}: contiene texto que no se puede leer."
+          }
+        }
+      }
+    },
+    "The saved set {0} can't be used: it isn't valid JSON.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede usar el conjunto guardado {0}: no es JSON válido."
+          }
+        }
+      }
+    },
+    "The saved set {0} can't be used: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede usar el conjunto guardado {0}: {1}"
+          }
+        }
+      }
+    },
+    "The saved set {0} isn't there any more.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El conjunto guardado {0} ya no está."
+          }
+        }
+      }
+    },
+    "The saved sets can't be read: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pueden leer los conjuntos guardados: {0}"
+          }
+        }
+      }
+    },
+    "There are too many words and phrases: at most {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay demasiadas palabras y frases: como máximo {0}."
+          }
+        }
+      }
+    },
+    "This doesn't say those pages are clean. Look by hand at {0}: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esto no dice que esas páginas estén limpias. Revisa a mano {0}: {1}."
+          }
+        }
+      }
+    },
+    "This pattern is too long: keep it under {0} characters.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este patrón es demasiado largo: mantenlo por debajo de {0} caracteres."
+          }
+        }
+      }
+    },
+    "it asks for a kind this version doesn't know ({0}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pide un tipo que esta versión no conoce ({0})."
+          }
+        }
+      }
+    },
+    "it comes from a newer version of Inkvolt PDF.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "viene de una versión más reciente de Inkvolt PDF."
+          }
+        }
+      }
+    },
+    "it has no name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no tiene nombre."
+          }
+        }
+      }
+    },
+    "it has nothing to look for.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no tiene nada que buscar."
+          }
+        }
+      }
+    },
+    "it isn't a set of redaction patterns.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no es un conjunto de patrones de eliminación."
+          }
+        }
+      }
+    },
+    "it isn't a set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no es un conjunto."
+          }
+        }
+      }
+    },
+    "its version is missing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "falta su versión."
+          }
+        }
+      }
+    },
+    "look by hand at {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "revisa a mano {0}"
+          }
+        }
+      }
+    },
+    "no pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ninguna página"
+          }
+        }
+      }
+    },
+    "nothing found": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se encontró nada"
+          }
+        }
+      }
+    },
+    "pages {0} and {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "páginas {0} y {1}"
+          }
+        }
+      }
+    },
+    "scans and pictures with text in them couldn't be read, not even by text recognition": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se pudieron leer los escaneos ni las imágenes con texto, ni siquiera con reconocimiento de texto"
+          }
+        }
+      }
+    },
+    "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el texto de los escaneos y las imágenes se lee con reconocimiento de texto (OCR), que puede leer mal palabras y pasar por alto líneas enteras"
+          }
+        }
+      }
+    },
+    "text in scans and pictures is read by text recognition (OCR), which can misread words and miss whole lines, and some scans and pictures with text in them couldn't be read, not even by text recognition": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el texto de los escaneos y las imágenes se lee con reconocimiento de texto (OCR), que puede leer mal palabras y pasar por alto líneas enteras, y algunos escaneos e imágenes con texto no se pudieron leer, ni siquiera con reconocimiento de texto"
+          }
+        }
+      }
+    },
+    "{0} (read by OCR)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} (leído con OCR)"
+          }
+        }
+      }
+    },
+    "{0} area you marked earlier, on {1}, will go too. It is in the list: select it to see it, untick it to leave it as a mark, or Cancel to change nothing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} área que marcaste antes, en {1}, también se eliminará. Está en la lista: selecciónala para verla, desmárcala para dejarla como marca, o pulsa Cancelar para no cambiar nada."
+          }
+        }
+      }
+    },
+    "{0} areas you marked earlier, on {1}, will go too. They are in the list: select one to see it, untick to leave it as a mark, or Cancel to change nothing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} áreas que marcaste antes, en {1}, también se eliminarán. Están en la lista: selecciona una para verla, desmárcala para dejarla como marca, o pulsa Cancelar para no cambiar nada."
+          }
+        }
+      }
+    },
+    "{0} couldn't be searched to the end: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo buscar en {0} hasta el final: {1}"
+          }
+        }
+      }
+    },
+    "{0} couldn't be searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo buscar en {0}."
+          }
+        }
+      }
+    },
+    "{0} done ({1} to look at by hand)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} terminados ({1} para revisar a mano)"
+          }
+        }
+      }
+    },
+    "{0} found, not saved [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} encontrados, sin guardar"
+          }
+        }
+      }
+    },
+    "{0} found, not saved [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} encontrado, sin guardar"
+          }
+        }
+      }
+    },
+    "{0} is a PDF that couldn't be opened, so its pages weren't searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} es un PDF que no se pudo abrir, así que no se buscó en sus páginas."
+          }
+        }
+      }
+    },
+    "{0} is too large to be a saved set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} es demasiado grande para ser un conjunto guardado."
+          }
+        }
+      }
+    },
+    "{0} kept [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} conservados"
+          }
+        }
+      }
+    },
+    "{0} kept [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} conservado"
+          }
+        }
+      }
+    },
+    "{0} match was found. Untick it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontró {0} coincidencia. Desmárcala para conservarla."
+          }
+        }
+      }
+    },
+    "{0} matches were found. Untick any you want to keep.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontraron {0} coincidencias. Desmarca las que quieras conservar."
+          }
+        }
+      }
+    },
+    "{0} other marked area removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} otra área marcada eliminada"
+          }
+        }
+      }
+    },
+    "{0} other marked areas removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} otras áreas marcadas eliminadas"
+          }
+        }
+      }
+    },
+    "{0} pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas"
+          }
+        }
+      }
+    },
+    "{0} removed [many]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} eliminados"
+          }
+        }
+      }
+    },
+    "{0} removed [one]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} eliminado"
+          }
+        }
+      }
+    },
+    "{0}, {1}. Checked: it will be redacted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, {1}. Marcado: se eliminará."
+          }
+        }
+      }
+    },
+    "{0}, {1}: {2}. Checked: it will be redacted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, {1}: {2}. Marcado: se eliminará."
+          }
+        }
+      }
+    },
+    "{0}: look by hand at {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: revisa a mano {1}"
+          }
+        }
+      }
+    },
+    "{0}: page {1} of {2}…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: página {1} de {2}…"
+          }
+        }
+      }
+    },
+    "{0}: what it held besides its pages couldn't be read on its own.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: lo que contenía además de sus páginas no se pudo leer por separado."
+          }
+        }
+      }
+    },
+    "{0}: {1} Checked: the places where nothing was read will be blacked out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}: {1} Marcado: los lugares donde no se leyó nada se taparán con negro."
+          }
+        }
+      }
+    },
+    "{1} of {2} files failed. Don't share a failed result: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1} de {2} archivos dieron error. No compartas un resultado con errores: {0}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

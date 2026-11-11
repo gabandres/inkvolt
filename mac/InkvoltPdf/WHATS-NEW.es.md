@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Eliminar por patrón muestra cada coincidencia con su página y las palabras de alrededor, junto a la propia página: desmarca las que quieras conservar y pulsa Eliminar. Las páginas escaneadas y las imágenes de texto se buscan con reconocimiento de texto y se señalan para que las revises, sin darlas nunca por limpias. Después el resultado se vuelve a leer, a buscar y a comprobar, y un informe enumera lo eliminado, enmascarado.
+- Inkvolt Pro: guarda conjuntos de patrones y frases, usa tu propio patrón y aplica un conjunto a una carpeta con En lote, con un informe de eliminación (CSV) junto a los resultados.
 
 ## 1.11.0
 - Traducir con IA (Herramientas › Asistente de IA): una copia traducida de las páginas que elijas se abre junto al documento y se desplaza con él. Cada párrafo queda en su cuadro, las tablas celda por celda, con su negrita, su cursiva y su texto pequeño elevado o rebajado; los enlaces se mueven con las palabras que marcan. Usa el servicio de IA que configuraste (en este Mac o el tuyo), muestra exactamente lo que se envía antes de enviar nada y se puede detener en cualquier momento, conservando lo hecho. El documento no se cambia.

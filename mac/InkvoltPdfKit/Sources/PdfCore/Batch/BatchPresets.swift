@@ -171,6 +171,7 @@ public enum BatchPresets {
                 w.bool("wholeWord", r.wholeWord)
                 w.bool("matchCase", r.matchCase)
                 w.string("expression", (r.expression ?? "").isEmpty ? nil : r.expression)
+                if let set = r.setName { w.string("setName", set) }
                 if let pages = r.pages {
                     w.array("pages") { for page in pages { w.value(Double(page + 1)) } }
                 } else {
@@ -473,7 +474,8 @@ public enum BatchPresets {
                 wholeWord: try f.bool("wholeWord", true),
                 matchCase: try f.bool("matchCase", false),
                 expression: (try f.text("expression", nil)).flatMap { $0.isEmpty ? nil : $0 },
-                pages: try f.pages("pages")))
+                pages: try f.pages("pages"),
+                setName: (try f.text("setName", nil)).flatMap { $0.isEmpty ? nil : RedactionPatternSets.cleanName($0) }))
         case "checkRedaction":
             step = .checkRedaction
         case "checkAccessibility":

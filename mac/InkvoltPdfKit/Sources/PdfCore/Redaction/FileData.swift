@@ -165,4 +165,25 @@ enum TimedRegex {
         if late { throw Timeout() }
         return out
     }
+
+    /// The first match at or after `from` (a UTF-16 offset), or nil; `Timeout` when the search took longer than `seconds`.
+    /// What comes before `from` is still seen by look-behinds (transparent bounds), as .NET's `Regex.Match(text, start)`.
+    static func first(_ regex: NSRegularExpression, in text: NSString, from: Int, seconds: Double) throws -> NSTextCheckingResult? {
+        guard from >= 0, from <= text.length else { return nil }
+        let deadline = Date().addingTimeInterval(seconds)
+        var found: NSTextCheckingResult?
+        var late = false
+        regex.enumerateMatches(in: text as String, options: [.reportProgress, .withTransparentBounds, .withoutAnchoringBounds],
+                               range: NSRange(location: from, length: text.length - from)) { m, _, stop in
+            if let m {
+                found = m
+                stop.pointee = true
+            } else if Date() > deadline {
+                late = true
+                stop.pointee = true
+            }
+        }
+        if late && found == nil { throw Timeout() }
+        return found
+    }
 }

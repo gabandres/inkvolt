@@ -208,9 +208,11 @@ enum SavedOcr {
         return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling(language: reader.language) : nil)
     }
 
-    /// A batch's host: the recognizer and its language, and the password prompt when someone is there to answer.
+    /// A batch's host: the recognizer and its language, the reader Redact Patterns searches scans with, and the password
+    /// prompt when someone is there to answer.
     static func batchHost(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil) -> BatchHost {
-        BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: language)
+        BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: language,
+                  reader: VisionRecognizer(languages: language.map { [$0] }))
     }
 }
 

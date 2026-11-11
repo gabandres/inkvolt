@@ -260,6 +260,7 @@ public enum BatchStep: Equatable, Sendable {
         switch self {
         case .makeAccessible: .autoTagging
         case .saveAsPdfA2a: .accessibleOutput
+        case .redactPatterns: .patternRedaction
         default: nil
         }
     }
@@ -370,7 +371,11 @@ public struct BatchPlan: Sendable {
         }
         for case .redactPatterns(let r) in steps {
             if r.isEmpty { return loc("Redact patterns has nothing to look for: choose a kind of text, a phrase or a pattern.") }
-            if let e = RedactionPatterns.validateExpression(r.expression) { return e }
+            if let e = RedactionPatterns.validate(r) { return e }
+        }
+        if let last = steps.lastIndex(where: { if case .redactPatterns = $0 { true } else { false } }),
+           steps[..<last].contains(where: { if case .export = $0 { true } else { $0 == .reportContents } }) {
+            return loc("Put \"Redact patterns\" before exports and reports: what they save would still hold what it removes.")
         }
         if !ocrAvailable && steps.contains(.ocr) { return loc("Text recognition isn't available on this Mac.") }
         return nil
@@ -401,12 +406,17 @@ public struct BatchHost: Sendable {
     public var recognize: Recognizer?
     /// The language `recognize` reads in (a BCP-47 tag), kept with the text layer for its review.
     public var recognizeLanguage: String?
+    /// The recognizer Redact Patterns searches scans with (it also reads single places of a page again) and gives redacted
+    /// pages their text back with (Windows' `BatchHost.Ocr`'s recognizer). Unset: scanned pages can't be searched, and a
+    /// file that has them fails Redact Patterns.
+    public var reader: (any TextRecognizer)?
 
     public init(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil, recognize: Recognizer? = nil,
-                recognizeLanguage: String? = nil) {
+                recognizeLanguage: String? = nil, reader: (any TextRecognizer)? = nil) {
         self.askPassword = askPassword
         self.recognize = recognize
         self.recognizeLanguage = recognizeLanguage
+        self.reader = reader
     }
 }
 
@@ -420,13 +430,17 @@ public struct BatchItemResult: Equatable, Sendable {
     public var message: String
     public var outputs: [String]
     public var notes: [String]
+    /// What Redact Patterns did to this file (masked values only), when the plan has that action.
+    public var redaction: RedactionFileReport?
 
-    public init(_ file: BatchFile, _ state: BatchItemState, _ message: String, _ outputs: [String] = [], _ notes: [String] = []) {
+    public init(_ file: BatchFile, _ state: BatchItemState, _ message: String, _ outputs: [String] = [], _ notes: [String] = [],
+                redaction: RedactionFileReport? = nil) {
         self.file = file
         self.state = state
         self.message = message
         self.outputs = outputs
         self.notes = notes
+        self.redaction = redaction
     }
 }
 
@@ -441,8 +455,21 @@ public struct BatchProgress: Sendable {
 
 public struct BatchSummary: Equatable, Sendable {
     public var items: [BatchItemResult]
+    /// Where the removal report went (the plan has Redact Patterns and some file got that far).
+    public var redactionReportPath: String?
+    /// Why the removal report couldn't be written; the files' own results stand.
+    public var redactionReportProblem: String?
 
     public init(_ items: [BatchItemResult]) { self.items = items }
+
+    /// The removal report; nil when the plan has no Redact Patterns.
+    public var redactionReport: RedactionReport? {
+        let files = items.compactMap(\.redaction)
+        return files.isEmpty ? nil : RedactionReport(files)
+    }
+
+    /// Files done, with pages the search couldn't vouch for.
+    public var toLookAt: Int { items.filter { $0.state == .done && !($0.redaction?.looks.isEmpty ?? true) }.count }
 
     public var done: Int { items.filter { $0.state == .done }.count }
     public var skipped: Int { items.filter { $0.state == .skipped }.count }
@@ -452,11 +479,16 @@ public struct BatchSummary: Equatable, Sendable {
     /// "3 done, 1 skipped, 2 failed."
     public var text: String {
         var parts: [String] = []
-        if done > 0 { parts.append(done == 1 ? loc("1 done") : loc("{0} done", CoreLanguage.number(done))) }
+        if done > 0 && toLookAt > 0 {
+            parts.append(loc("{0} done ({1} to look at by hand)", CoreLanguage.number(done), CoreLanguage.number(toLookAt)))
+        } else if done > 0 {
+            parts.append(done == 1 ? loc("1 done") : loc("{0} done", CoreLanguage.number(done)))
+        }
         if skipped > 0 { parts.append(skipped == 1 ? loc("1 skipped") : loc("{0} skipped", CoreLanguage.number(skipped))) }
         if failed > 0 { parts.append(failed == 1 ? loc("1 failed") : loc("{0} failed", CoreLanguage.number(failed))) }
         if cancelled > 0 { parts.append(cancelled == 1 ? loc("1 cancelled") : loc("{0} cancelled", CoreLanguage.number(cancelled))) }
-        return parts.isEmpty ? loc("No files.") : parts.joined(separator: ", ") + "."
+        let text = parts.isEmpty ? loc("No files.") : parts.joined(separator: ", ") + "."
+        return redactionReportProblem.map { text + " " + $0 } ?? text
     }
 }
 
@@ -522,11 +554,31 @@ public enum BatchRunner {
             }
         }
         var items = results.all()
+        let redacts = plan.steps.contains { if case .redactPatterns = $0 { true } else { false } }
         for i in items.indices where items[i] == nil {
-            items[i] = BatchItemResult(files[i], .cancelled, loc("Cancelled"))
+            items[i] = BatchItemResult(files[i], .cancelled, loc("Cancelled"),
+                                       redaction: redacts ? RedactionFileReport(reportName(files[i]), [], [], loc("Cancelled")) : nil)
             progress?(BatchProgress(index: i, state: .cancelled, message: loc("Cancelled"), fraction: 0, result: items[i]))
         }
-        return BatchSummary(items.map { $0! })
+        var summary = BatchSummary(items.map { $0! })
+        guard let report = summary.redactionReport else { return summary }
+        // Beside the results; its name carries the time so a later run doesn't replace it. Masked values only.
+        let stamp = HeaderFooter.formatDate(plan.date, "yyyy-MM-dd HHmmss", HeaderFooter.invariant)
+        do {
+            let csv = report.csv()
+            summary.redactionReportPath = try names.place(plan.outputFolder, "Redaction report \(stamp).csv") { try Data(csv).write(to: URL(fileURLWithPath: $0)) }
+        } catch {
+            // The results are made and said for; a folder that won't take the report mustn't lose them.
+            summary.redactionReportProblem = loc("The redaction report couldn't be saved in the results folder.")
+        }
+        return summary
+    }
+
+    /// A file in the removal report: by its name within the batch. Where it lives on this Mac is no business of a report
+    /// that gets passed on.
+    static func reportName(_ file: BatchFile) -> String {
+        let name = (file.namedAs as NSString).lastPathComponent
+        return file.relativeFolder.isEmpty ? name : (file.relativeFolder as NSString).appendingPathComponent(name)
     }
 
     /// The results as they finish, from any task.
@@ -606,6 +658,8 @@ public enum BatchRunner {
         private var redactedValues: [String] = []
         private var redactedAreas: [Int: [RectD]] = [:]
         private var beforeRedaction: [UInt8]?
+        /// What Redact Patterns did, for the removal report.
+        private var redaction: RedactionFileReport?
 
         init(_ file: BatchFile, _ index: Int, _ plan: BatchPlan, _ host: BatchHost, _ names: OutputNames, _ prompts: AsyncSemaphore,
              _ progress: (@Sendable (BatchProgress) -> Void)?, _ cancel: CancelToken?, batesOffset: Int) {
@@ -624,7 +678,15 @@ public enum BatchRunner {
             progress?(BatchProgress(index: index, state: .running, message: message, fraction: fraction, result: nil))
         }
 
-        private func result(_ state: BatchItemState, _ message: String) -> BatchItemResult { BatchItemResult(file, state, message, outputs, notes) }
+        private var redacts: Bool { plan.steps.contains { if case .redactPatterns = $0 { true } else { false } } }
+
+        private func result(_ state: BatchItemState, _ message: String) -> BatchItemResult {
+            // Whatever stopped the file, nothing it found was removed from a saved result. Stopped before the search, it is
+            // still in the report.
+            let report = state == .done ? redaction
+                : (redaction ?? (redacts ? RedactionFileReport(BatchRunner.reportName(file), [], [], nil) : nil))?.withoutResult(message)
+            return BatchItemResult(file, state, message, outputs, notes, redaction: report)
+        }
 
         func run() async -> BatchItemResult {
             do {
@@ -647,6 +709,10 @@ public enum BatchRunner {
                 let changes = plan.steps.contains { $0.changesPdf }
                 // A signed file is left as it is (its signatures stay valid); its exports are still made from it.
                 let keepSigned = changes && plan.signedFiles == .skip && BatchRunner.isSigned(data, password)
+                // Redaction left out, its exports would hold what it was meant to remove: nothing is made from such a file.
+                if keepSigned && redacts {
+                    return result(.skipped, loc("Signed: not redacted, so its signatures stay valid. Choose to change signed PDFs to redact it"))
+                }
                 if keepSigned && plan.steps.allSatisfy({ $0.changesPdf }) {
                     return result(.skipped, loc("Signed: left as it is so its signatures stay valid"))
                 }
@@ -667,6 +733,8 @@ public enum BatchRunner {
                         try checkAccessibility(data)
                     case .reportContents:
                         try reportContents(data)
+                    case .redactPatterns(let options):
+                        data = try await redactPatterns(data, options)
                     case .ocr:
                         let words = try recognize(data)
                         let language = host.recognizeLanguage
@@ -681,7 +749,11 @@ public enum BatchRunner {
                     let bytes = data
                     outputs.insert(try names.place(folder, baseName + ".pdf") { try Data(bytes).write(to: URL(fileURLWithPath: $0)) }, at: 0)
                 }
-                return result(.done, outputs.isEmpty ? loc("Done (nothing to save)") : loc("Done"))
+                let finished = outputs.isEmpty ? loc("Done (nothing to save)") : loc("Done")
+                if let looks = redaction?.looks, !looks.isEmpty {
+                    return result(.done, loc("{0}: look by hand at {1}", finished, RedactionReport.pages(looks.map(\.page))))
+                }
+                return result(.done, finished)
             } catch is CancellationError {
                 return result(.cancelled, loc("Cancelled"))
             } catch let skip as BatchSkip {
@@ -750,19 +822,6 @@ public enum BatchRunner {
                 return try PdfSecurity.unprotect(d, pw)
             case .sanitize(let items):
                 return try Sanitizer.sanitize(d, pw, items).data
-            case .redactPatterns(let options):
-                let (redacted, matches, unsearched) = try RedactionPatterns.redact(d, pw, options, cancel: cancel)
-                // A page that couldn't be searched may still show what was looked for: nobody is there to judge, so the
-                // file fails and nothing is saved (Windows' Incomplete).
-                if let note = SkippedPages.note(unsearched) { throw BatchCheckFailed(message: BatchRunner.incompleteMessage([note])) }
-                let pages = Set(matches.map(\.page)).count
-                if !matches.isEmpty {
-                    if beforeRedaction == nil { beforeRedaction = d }
-                    redactedValues += matches.map(\.text)
-                    for (page, areas) in RedactionPatterns.areas(matches) { redactedAreas[page, default: []] += areas }
-                }
-                notes.append(BatchRunner.redactedNote(matches.count, pages, matches.isEmpty ? "" : RedactionPatterns.summary(matches)))
-                return redacted
             case .watermark(let w):
                 return try Watermarks.apply(d, pw, all, w)
             case .headerFooter(let h, let continueBates):
@@ -817,7 +876,96 @@ public enum BatchRunner {
             }
         }
 
-        /// The redaction check: anything found fails the file (the first findings go in its notes).
+        /// Redact Patterns: finds the matches (through OCR on scans), then a `PatternRedaction` run of all of them,
+        /// unattended: blacks them out (the redacted pages' text recognized again), reads the result back and searches it
+        /// again, then looks for what it removed in everything else the file holds. A match still there, a scan nothing could
+        /// read, a page the engine refused or a part of the file that couldn't be searched fails the file: nothing is saved.
+        private func redactPatterns(_ data: [UInt8], _ options: RedactionPatternOptions) async throws -> [UInt8] {
+            let ocr = host.reader
+            func pages(_ doing: String) -> (Int, Int) -> Void {
+                { [self] done, total in
+                    self.report(loc("{0}: page {1} of {2}…", doing, CoreLanguage.number(done), CoreLanguage.number(total)), Double(done) / Double(max(1, total)))
+                }
+            }
+            let engine = try PdfEngine.open(data, password: password)
+            let found: RedactionSearchResult
+            do {
+                found = try RedactionSearch.find(engine, options, ocr: ocr, progress: pages(loc("Searching")), cancel: cancel)
+                engine.close()
+            } catch {
+                engine.close()
+                throw error
+            }
+            let hits = found.hits
+            let name = BatchRunner.reportName(file)
+            var made = PatternRedaction(file: name, patterns: options, found: found, accepted: hits, skipped: [], mode: .unattended, ocr: ocr)
+            made.earlierValues = redactedValues
+            let run = made
+            let earlier = redaction
+            redaction = Self.merge(earlier, RedactionFileReport(name, hits.map { RedactionReport.row($0, .notSaved) }, found.looks, nil))
+
+            let unread = found.unreadScans
+            if !unread.isEmpty {
+                let pagesText = RedactionReport.pages(unread)
+                throw BatchCheckFailed(message: unread.count == 1
+                    ? loc("Can't be searched: {0} is a scan that text recognition couldn't read. Nothing was saved.", pagesText)
+                    : loc("Can't be searched: {0} are scans that text recognition couldn't read. Nothing was saved.", pagesText))
+            }
+            // A page the engine refused wasn't searched: nobody is there to judge, so the file fails (a Mac difference).
+            if let note = SkippedPages.note(found.skipped) { throw BatchCheckFailed(message: BatchRunner.incompleteMessage([note])) }
+
+            var result = data
+            let areas = run.areas
+            if !hits.isEmpty {
+                // The redacted pages get their text back from the recognizer, as the app's Apply Redactions gives it them.
+                result = try await edit(data) { d, pw in try run.redact(d, pw, cancel: self.cancel, skipText: self.cancel).data }
+                if beforeRedaction == nil { beforeRedaction = data }
+                redactedValues += RedactionSearch.soughtValues(hits)
+                for (page, list) in areas { redactedAreas[page, default: []] += list }
+            }
+            let outcome = try run.verify(result, password, data, readBack: pages(loc("Reading the result back")), cancel: cancel)
+            redaction = Self.merge(earlier, outcome.report)
+            if outcome.verdict == .stillThere {
+                let n = outcome.stillThere.count, on = RedactionReport.pages(outcome.stillThere.map(\.page))
+                throw BatchCheckFailed(message: n == 1
+                    ? loc("Read back after redacting: {0} match is still there, on {1}. Nothing was saved.", CoreLanguage.number(n), on)
+                    : loc("Read back after redacting: {0} matches are still there, on {1}. Nothing was saved.", CoreLanguage.number(n), on))
+            }
+            notes.append(BatchRunner.redactedNote(hits.count, areas.count, hits.isEmpty ? "" : RedactionPatterns.summary(hits)))
+
+            // What no page shows: the values just removed, and whatever the patterns find, in comments, fields, properties, ...
+            let check = outcome.check!
+            if outcome.verdict == .leftInFile {
+                for f in check.findings.prefix(10) { notes.append(Self.note(f)) }
+                if check.findings.count > 10 { notes.append(loc("… and {0} more", CoreLanguage.number(check.findings.count - 10))) }
+                throw BatchCheckFailed(message: loc("Redaction check: {0} Nothing was saved. Sanitize can remove most of these: add it before Redact Patterns.", check.summary))
+            }
+            if outcome.verdict == .incomplete { throw BatchCheckFailed(message: BatchRunner.incompleteMessage(check.notes)) }
+            notes += check.notes
+
+            let notRead = found.looks.filter { $0.reason == .picturesNotRead }.map(\.page)
+            if !notRead.isEmpty { notes.append(loc("Look by hand at {0}: pictures or drawn text that couldn't be read, not even by text recognition", RedactionReport.pages(notRead))) }
+            let readByOcr = found.looks.filter { $0.reason != .picturesNotRead }.map(\.page)
+            if !readByOcr.isEmpty { notes.append(loc("Look by hand at {0}: read by text recognition, which can miss text", RedactionReport.pages(readByOcr))) }
+            return result
+        }
+
+        /// A finding as a note: its kind and page. Notes go to the console and to a watched folder's log, and where a
+        /// finding is can be named by the file itself (an attachment called "123-45-6789.pdf", a field's name), which may be
+        /// what was looked for.
+        private static func note(_ f: RedactionFinding) -> String {
+            f.page >= 0 ? loc("Page {0}: {1}", CoreLanguage.number(f.page + 1), RedactionCheck.name(f.kind)) : RedactionCheck.name(f.kind)
+        }
+
+        /// This Redact Patterns action's report added to an earlier one's (a plan can hold two).
+        private static func merge(_ before: RedactionFileReport?, _ next: RedactionFileReport) -> RedactionFileReport {
+            guard var r = before else { return next }
+            r.removals += next.removals
+            r.looks += next.looks.filter { l in !r.looks.contains { $0.page == l.page } }
+            return r
+        }
+
+        /// The redaction check: anything found fails the file (the first findings go in its notes, by kind and page).
         private func checkRedaction(_ data: [UInt8]) throws {
             let report = try RedactionCheck.run(data, password, RedactionCheckOptions(values: redactedValues, areas: redactedAreas, original: beforeRedaction),
                                                 progress: { [self] done, total in self.report(loc("Checking redaction…"), Double(done) / Double(max(1, total))) }, cancel: cancel)
@@ -826,7 +974,7 @@ public enum BatchRunner {
                 if report.incomplete { throw BatchCheckFailed(message: BatchRunner.incompleteMessage(report.notes)) }
                 return
             }
-            for f in report.findings.prefix(10) { notes.append("\(f.place): \(RedactionCheck.name(f.kind))") }
+            for f in report.findings.prefix(10) { notes.append(Self.note(f)) }
             if report.findings.count > 10 { notes.append(loc("… and {0} more", CoreLanguage.number(report.findings.count - 10))) }
             if report.incomplete { notes += report.notes }
             throw BatchCheckFailed(message: loc("Redaction check: {0}", report.summary))

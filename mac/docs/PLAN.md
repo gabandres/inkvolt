@@ -397,10 +397,12 @@ Unlike PrintCore, PdfCore needs MuPDF, so it builds and tests on the Mac and in 
 Ported since 1.0 with their steps (D5a-D5c, E1-E16): the rest of the list that stood here (`ContentEditor`, the export
 writers, `Signatures`, `Signing`, compare, `PdfA`, `Batch`, `Layers`, `Attachments`, `Conversion`, `Ai*` and the others).
 Not on the Mac yet (1.4's `CommentFiles`, `FormDataFiles`, `FormMerge` and `CommentSummary` came 2026-11-03, see 1.4 under Mac differences): the long-term validation code
-(3.4), `RedactionPatternSets`, `RedactionReport` and the scan search (1.1's 2026-11-01 additions), `CompareLooks`,
+(3.4), `CompareLooks`,
 `CompareMoves`, `CompareScan`, `CompareAlign` (3.3), the folder index (3.5). Paragraph editing (2.1)
 came 2026-11-10 (`ContentEditor+Paragraphs`, `+Looks`, `+Forms`, `+Turned`, `StandInFonts`, `ZapfDingbats`), and Translate
-(3.1) the same day (`Translate/`, `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`, `+TranslateLooks`).
+(3.1) the same day (`Translate/`, `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`, `+TranslateLooks`). 1.1's
+2026-11-01 additions came 2026-11-11 (`RedactionSearch`, `RedactionPatternSets`, `RedactionReport`, `PatternRedaction`,
+`RedactionReview`: "Redaction by pattern, Windows' additions" under Mac differences).
 
 ### Steps
 
@@ -1841,6 +1843,41 @@ Crafted files and replies the two medium reviews didn't reach (`ParagraphEditTes
   pass. They run on threads of their own now (`onItsOwnThread`). `ACancelStopsBandsThatOnlySkipAsSoonAsOneThread`
   ("1 bands: not cancelled, 10 times", 4 runs since 2026-11-09) draws four times the list, so one thread is still drawing
   when the canceller wakes; what it measures, Cancel to stop, doesn't grow with the list.
+
+### Redaction by pattern, Windows' additions (roadmap 1.1, 2026-11-11)
+
+Windows' 2026-11-01 and 11-02 work (79ba338 to c94b50a9, and `PatternRedaction` of d76a64e7) on the Mac, its tests ported
+under their own names: RedactionCorpusTests (37), RedactionSetsAndReportTests (19), PatternRedactionTests (7), the
+redaction half of ReleaseBugHuntTests (34; its four Translate tests are 3.1's), with `RedactionCorpus` and `PlantedReader`
+(a stand-in recognizer given RGB pictures). PdfCore/Redaction: `RedactionSearch` (each page's own text, then what Vision
+reads on a page whose ink its text doesn't explain, places nothing read read again alone at 300 dpi; `InkMap`; a page read
+by OCR always comes back as a page to look at), `RedactionPatterns` (Windows' additions: the read form of a match, its words
+around, hits read by OCR read kindly, a page's 10 s budget, 100,000 hits at most, lists and ranges, wide and invisible
+characters), `RedactionPatternSets` (one JSON file a set in Application Support's `Inkvolt PDF/Redaction patterns`, the same
+format as Windows', read strictly and whole), `RedactionReport` (masked values, the CSV with formula guards),
+`PatternRedaction` (one run for the sheet, reviewed, and Batch, unattended: the redaction with the text laid back, the
+read-back, the check, the verdict), `RedactionReview` (the list's rows and what the person chose, a Mac addition so the
+tests reach it: RedactionReviewListTests), the check's `patterns`, `kept` and `valuesOnly` (what the patterns read in
+comments, fields, properties, XMP, XFA, attachments and attached PDFs' pages, hidden layers, earlier versions; program
+versions and time stamps aren't values; a stream's pixels aren't text), `Redaction.applyWithText` (Apply, the sheet and
+Batch redact through it). Batch: `BatchHost.reader` (the recognizer Redact Patterns searches with), a file fails on a scan
+nothing could read, a hit still there or anything the check finds, the removal report as CSV beside the results, a signed
+file left as it is isn't exported unredacted, Redact patterns must come before exports, a preset keeps a set's name;
+`ProFeature.patternRedaction` (sets, your own pattern, Batch's action, the report's rows and CSV). The app: Redact by
+Pattern's sheet has the saved sets (None, Save As…, Delete); Find… opens Check What Was Found (the list beside the page,
+Accept All, Skip All, Redact N or Keep All, areas marked earlier listed and untickable), then Redact, read back, the removal
+report (Save CSV…), and the check's own report when the file came with something; Batch has Redaction Report… after a run
+and a saved set in Redact patterns' editor. English and Spanish.
+
+Mac differences: Vision is always there, so "couldn't be read" means no recognizer was given or it failed, never a missing
+OCR language (the wording says text recognition couldn't read it); a page the engine refuses (page checks) is listed as not
+searched, makes the check incomplete and fails Batch's file (`RedactionSearchResult.skipped`), where Windows' search
+stops; a recognized word that touches a blacked-out area at all is left out of the text laid back (Windows: mostly
+inside); a saved set's pattern is ICU's, so one written on Windows can read differently or be refused, and ICU refuses a
+pattern nested 990 deep in plain words (A_pattern_nested_very_deep… accepts either); the value check needs no splitting
+of its search (ICU has no .NET size limit); Batch's step editor fills its fields from a saved set instead of opening the
+sheet. Not checked: Vision on a real scan in this flow (the corpus uses the stand-in), a person looking at the list and the
+report on screen, VoiceOver on the list.
 
 ## Open decisions
 
