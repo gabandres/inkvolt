@@ -6,6 +6,20 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.12.1</title>
+      <pubDate>Thu, 12 Nov 2026 13:32:44 GMT</pubDate>
+      <sparkle:version>1.12.1</sparkle:version>
+      <sparkle:shortVersionString>1.12.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">A fix for signed files built to mislead.
+
+- A signed file's later changes can no longer hide behind the validation data it stores: a change to what a comment written into a page's list draws, to a page size or turn the pages inherit, or to the page order now shows as a change after signing.</description>
+      <description sparkle:format="markdown" xml:lang="es">Una corrección para archivos firmados hechos para engañar.
+
+- Los cambios posteriores a un archivo firmado ya no pueden esconderse tras los datos de validación que guarda: un cambio en lo que dibuja un comentario escrito dentro de la lista de una página, en un tamaño o giro que heredan las páginas o en el orden de las páginas se muestra ahora como un cambio después de firmar.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.12.1/Inkvolt-PDF-1.12.1.dmg" length="39887402" type="application/octet-stream" sparkle:edSignature="FCSJTZIFVMoZXeBgGV5JgOSoB4i1x7C3gIE4XVTu2qe9QkKbH8x9GGkiroQkPEdsxi5LXXK4XBCoEzQYD2dWBA==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.12.0</title>
       <pubDate>Wed, 11 Nov 2026 22:44:51 GMT</pubDate>
       <sparkle:version>1.12.0</sparkle:version>
