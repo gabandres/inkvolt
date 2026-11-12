@@ -446,6 +446,9 @@ internal static class SignatureChanges
             var notBack = new HashSet<int>(stop);
             if (r.Catalog >= 0) notBack.Add(r.Catalog);
             Walk([.. catalog.Elements.Keys.Where(k => k is not ("/DSS" or "/Extensions" or "/Pages")).Select(k => catalog.Elements[k]), info], elsewhere, notBack);
+            // An annotation written inside a page's list is compared by what it says (CompareDirectAnnots), and what it draws
+            // with has no role of its own: never validation data either.
+            Walk(r.DirectAnnots.Select(a => (PdfItem?)a.Dict), elsewhere, notBack);
             r.ValidationData.ExceptWith(elsewhere);
             Walk([catalog.Elements["/Metadata"], catalog.Elements["/Perms"], info, acro?.Elements["/DR"]], r.Meta, stop);
             if (catalog.Elements["/Names"] is PdfReference names) r.Names = names.ObjectNumber;

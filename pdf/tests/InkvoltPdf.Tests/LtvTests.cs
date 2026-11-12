@@ -1104,6 +1104,24 @@ public class LtvTests
         Assert.Equal(SignatureStatus.DisallowedChanges, First(swapped, pki).Status); // the form's data, as without a store
     }
 
+    /// <summary>What an annotation written inside a page's list draws with isn't validation data because a store names it (the medium review).</summary>
+    [Fact]
+    public void A_store_naming_what_a_direct_annotation_draws_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Annots [<< /Type /Annot /Subtype /Square /Rect [0 0 612 792] /AP << /N 5 0 R >> >>] >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = Core1TestPdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]"),
+        });
+        var signed = SignBb(pki, pdf);
+        var drawn = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = Core1TestPdf.Stream("0 0 612 792 re f", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]") });
+        Assert.NotEqual(SignatureStatus.Valid, First(drawn, pki).Status);
+    }
+
     /// <summary>
     /// Signing promises the long term for the new signature only, so another signer's certificate that names only local
     /// addresses doesn't stop it; that signer's chain is left as it could be covered. With B-LTA the document timestamp
