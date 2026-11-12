@@ -52,24 +52,16 @@
   "screenshots": ["01-laser.png", "02-dark-cdm.png", "03-inkjet.png", "04-office.png", "05-snmp.png", "06-scan.png", "07-photos.png", "08-print-photos.png"],
   "reviewContactFrom": "com.bermudezsystems.inkvolt",
   "whatsNew": [
-    "New in Inkvolt Print 1.3:",
+    "New in Inkvolt Print 1.3.1:",
     "",
-    "• Inkvolt Print speaks Spanish: the whole app, its alerts and messages follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.",
-    "• SNMP access: a printer that answers only SNMP and whose administrator changed its read community can be added with that community (Add a Printer › Know its address? › SNMP access) and changed later (SNMP Access… in the printer's menu in the sidebar). It's kept in your keychain and used only to read the printer.",
-    "• SNMPv3: the same SNMP access fields take a printer's SNMPv3 user and its two passphrases (SHA-256 authentication, AES-128 privacy). Every request is signed and encrypted, only reads, and a wrong user name or passphrase is named (an Inkvolt Pro feature, free for now).",
-    "• A damaged PDF from a scanner no longer stops or freezes Inkvolt Print, and a very long ink and toner history opens quickly.",
-    "• A scanned page too large to edit (over 300 million pixels) is saved just as the scanner sent it, and its note says it wasn't straightened, cropped or turned, instead of filling your Mac's memory."
+    "• A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too."
   ],
   "localizations": {
     "es-MX": {
       "whatsNew": [
-        "Novedades de Inkvolt Print 1.3:",
+        "Novedades de Inkvolt Print 1.3.1:",
         "",
-        "• Inkvolt Print habla español: toda la app, sus alertas y sus mensajes siguen el idioma que elijas para ella en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.",
-        "• Acceso SNMP: una impresora que solo responde por SNMP y cuyo administrador cambió su comunidad de lectura se puede agregar con esa comunidad (Agregar una impresora › ¿Sabes su dirección? › Acceso SNMP) y cambiarla después (Acceso SNMP… en el menú de la impresora en la barra lateral). Se guarda en tu llavero y solo se usa para leer la impresora.",
-        "• SNMPv3: los mismos campos de Acceso SNMP aceptan el usuario SNMPv3 de una impresora y sus dos frases de contraseña (autenticación SHA-256, privacidad AES-128). Cada solicitud va firmada y cifrada y solo lee, y si el nombre de usuario o una frase de contraseña no es correcto, se indica cuál (una función de Inkvolt Pro, gratis por ahora).",
-        "• Un PDF dañado que envía un escáner ya no detiene ni congela Inkvolt Print, y un historial de tinta y tóner muy largo se abre rápido.",
-        "• Una página escaneada demasiado grande para editarla (más de 300 millones de píxeles) se guarda tal como la envió el escáner, y su nota dice que no se enderezó, recortó ni giró, en lugar de llenar la memoria de tu Mac."
+        "• Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC."
       ]
     }
   }

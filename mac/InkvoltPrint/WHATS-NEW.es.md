@@ -7,6 +7,9 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 
 ## Next
 
+## 1.3.1
+- Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.
+
 ## 1.3
 - Inkvolt Print habla español: toda la app, sus alertas y sus mensajes siguen el idioma que elijas para ella en macOS (Configuración del Sistema › General › Idioma y región › Aplicaciones) o en Configuración › Idioma.
 - Acceso SNMP: una impresora que solo responde por SNMP y cuyo administrador cambió su comunidad de lectura se puede agregar con esa comunidad (Agregar una impresora › ¿Sabes su dirección? › Acceso SNMP) y cambiarla después (Acceso SNMP… en el menú de la impresora en la barra lateral). Se guarda en tu llavero y solo se usa para leer la impresora.
