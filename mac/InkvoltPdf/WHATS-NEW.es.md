@@ -6,6 +6,9 @@ WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los enc
 
 ## Next
 
+## 1.12.1
+- Los cambios posteriores a un archivo firmado ya no pueden esconderse tras los datos de validación que guarda: un cambio en lo que dibuja un comentario escrito dentro de la lista de una página, en un tamaño o giro que heredan las páginas o en el orden de las páginas se muestra ahora como un cambio después de firmar.
+
 ## 1.12.0
 - Eliminar por patrón muestra cada coincidencia con su página y las palabras de alrededor, junto a la propia página: desmarca las que quieras conservar y pulsa Eliminar. Las páginas escaneadas y las imágenes de texto se buscan con reconocimiento de texto y se señalan para que las revises, sin darlas nunca por limpias. Después el resultado se vuelve a leer, a buscar y a comprobar, y un informe enumera lo eliminado, enmascarado.
 - Inkvolt Pro: guarda conjuntos de patrones y frases, usa tu propio patrón y aplica un conjunto a una carpeta con En lote, con un informe de eliminación (CSV) junto a los resultados.

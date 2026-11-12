@@ -7,6 +7,9 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 
 ## Next
 
+## 1.12.1
+- A signed file's later changes can no longer hide behind the validation data it stores: a change to what a comment written into a page's list draws, to a page size or turn the pages inherit, or to the page order now shows as a change after signing.
+
 ## 1.12.0
 - Redact by Pattern lists every match with its page and the words around it, beside the page itself: untick any you want to keep, then Redact. Scanned pages and pictures of text are searched through text recognition and flagged for you to look at, never called clean. Afterwards the result is read back, searched again and checked, and a report lists what was removed, masked.
 - Inkvolt Pro: save sets of patterns and phrases, use your own pattern, run a set over a folder in Batch with a removal report (CSV) beside the results.
