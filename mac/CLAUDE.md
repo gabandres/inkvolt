@@ -26,6 +26,8 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   from the app delegate, never a view (a locked screen shows no window). `screencapture` doesn't work over SSH: ask the
   owner what the screen shows. New files in `Sources/InkvoltPrint` and `Resources` join the Xcode project by themselves
   (synchronized folders).
+- **A new Mac.** ignia-mac was sold in November 2026. Setting up the next one (where each signing secret goes, the
+  tools, a dry check that signs, notarizes and runs `sign_update` without publishing): `docs/NEW-MAC.md`.
 - **App Store builds** go through `mac/InkvoltPrint/release.sh <build> --upload` only (README), run detached on the Mac;
   read its status file before running it again (a build number can't be uploaded twice), then check App Store Connect
   with `asc-builds.mjs <build> --wait`. Upload or submit for review only when the owner says. No Sentry or other crash
