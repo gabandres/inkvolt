@@ -403,6 +403,57 @@ struct LtvTests {
         #expect(try Self.first(swapped, pki).status == .modifiedAfterSigning)
     }
 
+    /// What an annotation written inside a page's list draws with isn't validation data because a store names it
+    /// (Windows 1.14.0.0's medium review).
+    @Test func aStoreNamingWhatADirectAnnotationDrawsDoesntHideItsChange() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let pdf = Core1TestPdf.build([
+            1: "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            3: "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Annots [<< /Type /Annot /Subtype /Square /Rect [0 0 612 792] /AP << /N 5 0 R >> >>] >>",
+            4: Core1TestPdf.stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            5: Core1TestPdf.stream("", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]"),
+        ])
+        let signed = try await Self.signBb(pki, pdf)
+        let drawn = SignatureChangeTests.append(signed, [5: Core1TestPdf.stream("0 0 612 792 re f", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]")])
+        #expect(try Self.first(drawn, pki).status != .valid)
+    }
+
+    /// What the page tree holds (an inherited page size) isn't validation data because a store names it (Windows
+    /// 1.14.0.0's low re-check).
+    @Test func aStoreNamingWhatThePageTreeHoldsDoesntHideItsChange() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let pdf = Core1TestPdf.build([
+            1: "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            2: "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox 5 0 R >>",
+            3: "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+            4: Core1TestPdf.stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            5: "[0 0 612 792]",
+        ])
+        let signed = try await Self.signBb(pki, pdf)
+        let resized = SignatureChangeTests.append(signed, [5: "[0 0 100 100]"])
+        #expect(try Self.first(resized, pki).status != .valid)
+    }
+
+    /// Nor the page order a page tree written inside the catalog holds (its /Kids an object a store names): a Mac addition.
+    @Test func aStoreNamingADirectPageTreesKidsDoesntHideItsChange() async throws {
+        let pki = try LtvTestPki()
+        defer { pki.stop() }
+        let pdf = Core1TestPdf.build([
+            1: "<< /Type /Catalog /Pages << /Type /Pages /Kids 5 0 R /Count 2 >> /DSS << /Certs [5 0 R] >> >>",
+            2: "<< /Type /Page /MediaBox [0 0 612 792] /Contents 6 0 R >>",
+            3: "<< /Type /Page /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            4: Core1TestPdf.stream("BT /F1 12 Tf 72 720 Td (First) Tj ET"),
+            5: "[3 0 R 2 0 R]",
+            6: Core1TestPdf.stream("BT /F1 12 Tf 72 720 Td (Second) Tj ET"),
+        ])
+        let signed = try await Self.signBb(pki, pdf)
+        let reordered = SignatureChangeTests.append(signed, [5: "[2 0 R 3 0 R]"])
+        #expect(try Self.first(reordered, pki).status != .valid)
+    }
+
     @Test func checkingOnlineChangesNothingAndFindsARevocation() async throws {
         let pki = try LtvTestPki()
         defer { pki.stop() }
