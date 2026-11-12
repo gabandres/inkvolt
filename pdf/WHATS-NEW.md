@@ -6,6 +6,12 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.14.0
+- Checking signatures for the long term is stricter with files built to mislead: a timestamp only counts when its authority is trusted, a certificate is never left trusted when a file holds more validation data than a check reads, and data stored in a file can't hide a later change to the document (an attachment, the form, a page's size).
+- Revocation lists are read more carefully: one that names a certificate with a date it can't read counts it as revoked, and one made for another part of an authority's certificates says nothing about yours.
+- Signing for the long term needs complete validation data for your own signature only: another signer's certificate that names no usable address no longer stops you.
+- Certificate names and addresses from a file are shown on one line, without hidden characters.
+
 ## 1.13.0
 - Right-click a PDF in File Explorer and choose "Convert to Word with Inkvolt PDF": the Word file is saved next to it (never over another file), without opening the PDF. Select several PDFs to convert them all at once. On Windows 11 it's under "Show more options"; it shows when Inkvolt PDF is the app that opens your PDFs.
 - Converting many protected PDFs at once asks once whether to go on, and cancelling a password stops asking for the rest.

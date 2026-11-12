@@ -1014,6 +1014,250 @@ public class LtvTests
         Assert.Contains(result.Certificates, c => c.Outcome.Contains("CRL"));
     }
 
+    // ---- PDF for Mac 1.12.0's reviews, on Windows (the Mac's test names) ----
+
+    /// <summary>A timestamp from an authority nobody trusts proves no time: the signature is B-B, not B-T.</summary>
+    [Fact]
+    public async Task An_untrusted_timestamp_proves_no_time()
+    {
+        using var pki = new LtvTestPki();
+        using var fake = new FakeTsa();
+        var stamped = await Signing.SignAsync(TestPdf.Make(1), null, new SignRequest { Certificate = pki.Signer, Timestamp = fake.Respond });
+        var s = First(stamped, pki);
+        Assert.True(s.HasTimestamp);
+        Assert.Equal(PadesLevel.BB, s.LongTerm!.Level);
+    }
+
+    /// <summary>The no-check extension counts only on an OCSP responder: a signer carrying it is still asked about.</summary>
+    [Fact]
+    public async Task No_check_on_a_signer_doesnt_excuse_it()
+    {
+        using var pki = new LtvTestPki();
+        using var sly = pki.Issue("CN=Sly Signer,O=Inkvolt Tests,C=PR", pki.Intermediate, ku: X509KeyUsageFlags.NonRepudiation | X509KeyUsageFlags.DigitalSignature, noCheck: true);
+        var signed = Signing.Sign(TestPdf.Make(1), null, new SignRequest { Certificate = sly });
+        using var client = pki.Client();
+        var result = await Ltv.AddVerificationAsync(signed, null, client);
+        var s = Signatures.Verify(result.Pdf, null, pki.Anchors).First();
+        Assert.Contains(s.LongTerm!.Chain, c => c.Name == "Sly Signer" && c.Outcome == CertificateCheckOutcome.Good);
+    }
+
+    /// <summary>An address with a line break in it isn't one: it can't add lines to the window that lists what will be asked.</summary>
+    [Fact]
+    public void An_address_with_a_line_break_isnt_listed()
+    {
+        using var pki = new LtvTestPki();
+        using var odd = pki.Issue("CN=Odd,O=Inkvolt Tests,C=PR", pki.Intermediate, ku: X509KeyUsageFlags.DigitalSignature,
+            ocsp: ["http://a.example.com/\nb.example.com, about Test: http://c.example.com/"], crl: ["http://d.example.com/ x.crl"]);
+        var signed = Signing.Sign(TestPdf.Make(1), null, new SignRequest { Certificate = odd });
+        var plan = Ltv.Plan(signed);
+        Assert.DoesNotContain(plan.Addresses, a => a.Url.Any(c => c <= ' '));
+    }
+
+    /// <summary>A certificate's name is shown on one line, without control or direction characters (a Windows addition).</summary>
+    [Fact]
+    public void A_certificate_s_name_is_shown_on_one_line()
+    {
+        var name = new X500DistinguishedNameBuilder();
+        name.AddCommonName("Eve‮\r\nexe.pdf" + new string('x', 300));
+        using var key = RSA.Create(2048);
+        using var cert = new CertificateRequest(name.Build(), key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1).CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+        var shown = CertFacts.Name(cert);
+        Assert.DoesNotContain(shown, c => char.IsControl(c) || c == '‮');
+        Assert.StartsWith("Eve exe.pdf", shown);
+        Assert.True(shown.Length <= 121, shown);
+    }
+
+    /// <summary>A store in the signed revision that names an attachment's stream doesn't make a later change to it "only validation data".</summary>
+    [Fact]
+    public void A_store_naming_an_attachment_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /Names << /EmbeddedFiles << /Names [(a.txt) 5 0 R] >> >> /DSS << /Certs [6 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = "<< /Type /Filespec /F (a.txt) /EF << /F 6 0 R >> >>",
+            [6] = Core1TestPdf.Stream("the attachment", "/Type /EmbeddedFile"),
+        });
+        var signed = SignBb(pki, pdf);
+        var swapped = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [6] = Core1TestPdf.Stream("another one", "/Type /EmbeddedFile") });
+        Assert.Equal(SignatureStatus.ModifiedAfterSigning, First(swapped, pki).Status);
+    }
+
+    /// <summary>The form's own data (here its XFA) a store names doesn't become free to change either (a Windows addition, the Mac's low re-check).</summary>
+    [Fact]
+    public void A_store_naming_the_form_s_data_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [] /XFA 5 0 R >> /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = Core1TestPdf.Stream("<xdp:xdp/>"),
+        });
+        var signed = SignBb(pki, pdf);
+        var swapped = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = Core1TestPdf.Stream("<xdp:xdp><script/></xdp:xdp>") });
+        Assert.Equal(SignatureStatus.DisallowedChanges, First(swapped, pki).Status); // the form's data, as without a store
+    }
+
+    /// <summary>What an annotation written inside a page's list draws with isn't validation data because a store names it (the medium review).</summary>
+    [Fact]
+    public void A_store_naming_what_a_direct_annotation_draws_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Annots [<< /Type /Annot /Subtype /Square /Rect [0 0 612 792] /AP << /N 5 0 R >> >>] >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = Core1TestPdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]"),
+        });
+        var signed = SignBb(pki, pdf);
+        var drawn = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = Core1TestPdf.Stream("0 0 612 792 re f", "/Type /XObject /Subtype /Form /BBox [0 0 612 792]") });
+        Assert.NotEqual(SignatureStatus.Valid, First(drawn, pki).Status);
+    }
+
+    /// <summary>What the page tree holds (an inherited page size) isn't validation data because a store names it (the low re-check).</summary>
+    [Fact]
+    public void A_store_naming_what_the_page_tree_holds_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox 5 0 R >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = "[0 0 612 792]",
+        });
+        var signed = SignBb(pki, pdf);
+        var resized = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = "[0 0 100 100]" });
+        Assert.NotEqual(SignatureStatus.Valid, First(resized, pki).Status);
+    }
+
+    /// <summary>
+    /// Signing promises the long term for the new signature only, so another signer's certificate that names only local
+    /// addresses doesn't stop it; that signer's chain is left as it could be covered. With B-LTA the document timestamp
+    /// added first for the earlier signature isn't what is judged: a revoked new signer still can't sign.
+    /// </summary>
+    [Fact]
+    public async Task Signing_for_the_long_term_doesnt_fail_on_another_signers_gap()
+    {
+        using var pki = new LtvTestPki();
+        using var hostile = pki.Issue("CN=Hostile,O=Inkvolt Tests,C=PR", pki.Intermediate, ku: X509KeyUsageFlags.NonRepudiation,
+            ocsp: ["http://192.168.1.1/probe"], crl: ["http://169.254.169.254/x"]);
+        var first = Signing.Sign(TestPdf.Make(1), null, new SignRequest { Certificate = hostile });
+        var pdf = await SignLongTerm(pki, LongTermLevel.Lt, first);
+        var all = Signatures.Verify(pdf, null, pki.Anchors);
+        Assert.Equal(PadesLevel.BLT, all.Single(s => s.SignerName == "Test Long-Term Signer").LongTerm!.Level);
+        Assert.False(all.Single(s => s.SignerName == "Hostile").LongTerm!.DataComplete);
+
+        Assert.NotNull(First(await SignLongTerm(pki, LongTermLevel.Lta, first), pki).LongTerm);
+        pki.Revoke(pki.Signer, DateTimeOffset.UtcNow.AddDays(-1));
+        var ex = await Assert.ThrowsAsync<SigningException>(() => SignLongTerm(pki, LongTermLevel.Lta, first));
+        Assert.Contains("revoked", ex.Message);
+    }
+
+    /// <summary>A list that names the certificate with a date nobody can read still says it was revoked.</summary>
+    [Fact]
+    public void A_listed_certificate_with_an_unreadable_date_counts_as_revoked()
+    {
+        using var pki = new LtvTestPki();
+        var signed = SignBb(pki);
+        pki.Revoke(pki.Signer, DateTimeOffset.UtcNow.AddDays(-1));
+        var crl = pki.Crl(pki.Intermediate, unreadableDates: true);
+        var pdf = Dss.Append(signed, null, [new VriEntry("AA", [pki.Intermediate.RawData], [], [crl])]);
+        var s = First(pdf, pki);
+        Assert.False(s.CertificateTrusted);
+        Assert.Contains("Revoked", s.CertificateStatus);
+    }
+
+    /// <summary>A CRL that says which distribution point it is speaks only for certificates naming that point (a Windows addition).</summary>
+    [Fact]
+    public void A_crl_for_another_distribution_point_says_nothing_about_a_certificate()
+    {
+        using var pki = new LtvTestPki();
+        var signed = SignBb(pki);
+        var own = CertFacts.CrlUrls(pki.Signer).Single();
+        CertificateCheckOutcome SignerWith(string point)
+        {
+            var pdf = Dss.Append(signed, null, [new VriEntry("AA", [pki.Intermediate.RawData], [], [pki.Crl(pki.Intermediate, unreadableDates: false, point)])]);
+            return First(pdf, pki).LongTerm!.Chain.First(c => c.Name == "Test Long-Term Signer").Outcome;
+        }
+        Assert.Equal(CertificateCheckOutcome.Good, SignerWith(own));
+        Assert.Equal(CertificateCheckOutcome.NoData, SignerWith("http://elsewhere.example.com/other.crl"));
+    }
+
+    /// <summary>A delegated responder is found among its issuer's OCSP-signing certificates, however many unrelated ones come first.</summary>
+    [Fact]
+    public void A_delegated_responder_is_found_past_unrelated_certificates()
+    {
+        using var pki = new LtvTestPki { DelegateOcsp = true };
+        var reply = OcspResponse.Parse(pki.OcspReply(LtvTestPki.OcspRequest(pki.Signer, pki.Intermediate)), out _)!;
+        var bare = new OcspResponse
+        {
+            Der = reply.Der, Tbs = reply.Tbs, Algorithm = reply.Algorithm, Signature = reply.Signature, ProducedAt = reply.ProducedAt,
+            Singles = reply.Singles, Certs = [],
+        };
+        Assert.True(bare.SignedFor(pki.Intermediate, [.. Enumerable.Repeat(pki.Root, 100), pki.Responder], out var responder));
+        Assert.Equal(pki.Responder.Thumbprint, responder!.Thumbprint);
+    }
+
+    /// <summary>
+    /// A file whose validation data outlasts the check's time never leaves a certificate trusted (decoys and forged answers
+    /// could hide a revocation); a reason it is already untrusted for (a revocation) is the one shown.
+    /// </summary>
+    [Fact]
+    public async Task A_file_whose_data_outlasts_the_check_leaves_no_certificate_trusted()
+    {
+        using var pki = new LtvTestPki();
+        var signed = SignBb(pki);
+        using (var client = pki.Client())
+        {
+            var covered = (await Ltv.AddVerificationAsync(signed, null, client)).Pdf; // the intermediate comes with the data
+            var facts = Signatures.Inspect(covered, null, null, pki.Anchors);
+            Assert.True(facts[0].Info.CertificateTrusted, facts[0].Info.CertificateStatus);
+            LongTermCheck.Apply(covered, null, facts, new RevocationPool(TimeSpan.Zero), pki.Anchors);
+            Assert.False(facts[0].Info.CertificateTrusted);
+            Assert.Equal(PdfStrings.Ltv_OutOfBudget, facts[0].Info.CertificateStatus);
+        }
+
+        pki.Revoke(pki.Signer, DateTimeOffset.UtcNow.AddDays(-1));
+        using var again = pki.Client();
+        var revoked = (await Ltv.AddVerificationAsync(signed, null, again)).Pdf;
+        var after = Signatures.Inspect(revoked, null, null, pki.Anchors);
+        Assert.Contains("Revoked", after[0].Info.CertificateStatus);
+        LongTermCheck.Apply(revoked, null, after, new RevocationPool(TimeSpan.Zero), pki.Anchors);
+        Assert.False(after[0].Info.CertificateTrusted);
+        Assert.Contains("Revoked", after[0].Info.CertificateStatus);
+    }
+
+    /// <summary>
+    /// The Mac kept 8 sockets a file (a reply's connection left open). Here every operation's client is disposed and takes
+    /// its connections with it: 25 rounds of Add Verification Information and Check Online leave none open to the server.
+    /// </summary>
+    [Fact]
+    public async Task Each_reply_s_connection_is_closed()
+    {
+        using var pki = new LtvTestPki();
+        var port = new Uri(pki.BaseUrl).Port;
+        for (var i = 0; i < 25; i++)
+        {
+            using var client = pki.Client();
+            var signed = SignBb(pki, TestPdf.Make(1));
+            await Ltv.AddVerificationAsync(signed, null, client);
+            await Ltv.CheckOnlineAsync(signed, null, client);
+        }
+        Assert.NotEmpty(pki.Hits);
+        var open = System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpConnections()
+            .Count(c => c.RemoteEndPoint.Port == port && IPAddress.IsLoopback(c.RemoteEndPoint.Address) && c.State != System.Net.NetworkInformation.TcpState.TimeWait);
+        Assert.Equal(0, open);
+    }
 }
 
 /// <summary>Long-term validation's Pro gate. In the Pro collection: ProTests turns <see cref="Pro.Enforced"/> on meanwhile.</summary>

@@ -26,7 +26,7 @@ internal static class CertFacts
         try
         {
             if (c.Extensions[AiaOid] is not { } ext) return [];
-            return [.. pick(new X509AuthorityInformationAccessExtension(ext.RawData, ext.Critical)).Take(MaxUrls)];
+            return [.. pick(new X509AuthorityInformationAccessExtension(ext.RawData, ext.Critical)).Where(IsAddress).Take(MaxUrls)];
         }
         catch (Exception ex) when (ex is CryptographicException or AsnContentException or ArgumentException or InvalidOperationException)
         {
@@ -53,7 +53,10 @@ internal static class CertFacts
                 {
                     var tag = general.PeekTag();
                     if (tag.HasSameClassAndValue(new Asn1Tag(TagClass.ContextSpecific, 6)))
-                        urls.Add(general.ReadCharacterString(UniversalTagNumber.IA5String, new Asn1Tag(TagClass.ContextSpecific, 6)));
+                    {
+                        var url = general.ReadCharacterString(UniversalTagNumber.IA5String, new Asn1Tag(TagClass.ContextSpecific, 6));
+                        if (IsAddress(url) && urls.Count < MaxUrls) urls.Add(url);
+                    }
                     else general.ReadEncodedValue();
                 }
             }
@@ -65,8 +68,17 @@ internal static class CertFacts
         return urls;
     }
 
-    /// <summary>The certificate says its OCSP responder needn't be checked itself (RFC 6960 4.2.2.2.1).</summary>
-    public static bool HasOcspNoCheck(X509Certificate2 c) => c.Extensions[OcspNoCheckOid] is not null;
+    /// <summary>
+    /// An address as a certificate names it, when it is one: visible ASCII only (no space, line break or control character
+    /// that could pass for more lines where it is shown), and not endless.
+    /// </summary>
+    internal static bool IsAddress(string url) => url.Length is > 0 and <= 2048 && url.All(c => c is > ' ' and < '\x7F');
+
+    /// <summary>
+    /// An OCSP responder whose issuer says it needn't be checked (RFC 6960 4.2.2.2.1): the extension counts only on a
+    /// certificate for OCSP signing, never on a signer or an authority.
+    /// </summary>
+    public static bool IsNoCheckResponder(X509Certificate2 c) => c.Extensions[OcspNoCheckOid] is not null && HasEku(c, OcspSigningEku);
 
     public static bool HasEku(X509Certificate2 c, string eku) =>
         c.Extensions.OfType<X509EnhancedKeyUsageExtension>().Any(e => e.EnhancedKeyUsages.Cast<Oid>().Any(o => o.Value == eku));
@@ -92,10 +104,14 @@ internal static class CertFacts
         }
     }
 
+    /// <summary>
+    /// The name shown for a certificate: its common name, else its subject, on one line, without control, format or
+    /// direction characters, shortened (a file's certificate can say anything).
+    /// </summary>
     public static string Name(X509Certificate2 c)
     {
         var name = c.GetNameInfo(X509NameType.SimpleName, false);
-        return string.IsNullOrEmpty(name) ? c.Subject : name;
+        return RedactionPatterns.Displayable(string.IsNullOrEmpty(name) ? c.Subject : name);
     }
 }
 
@@ -320,9 +336,11 @@ internal sealed class OcspResponse
     {
         responder = null;
         if (DerSignature.Verify(issuer, Algorithm, Tbs, Signature)) return true;
-        foreach (var c in Certs.Concat(known).Take(MaxCerts * 4))
+        // Only those its issuer issued for OCSP signing, then a few: many unrelated certificates in a store can't push the
+        // responder out of reach.
+        var candidates = Certs.Concat(known).Where(c => c.IssuerName.RawData.AsSpan().SequenceEqual(issuer.SubjectName.RawData) && CertFacts.HasEku(c, CertFacts.OcspSigningEku));
+        foreach (var c in candidates.Take(MaxCerts * 4))
         {
-            if (!c.IssuerName.RawData.AsSpan().SequenceEqual(issuer.SubjectName.RawData) || !CertFacts.HasEku(c, CertFacts.OcspSigningEku)) continue;
             if (ProducedAt.UtcDateTime < c.NotBefore.ToUniversalTime() || ProducedAt.UtcDateTime > c.NotAfter.ToUniversalTime()) continue;
             if (DerSignature.Verify(c, Algorithm, Tbs, Signature) && CertFacts.SignedBy(c, issuer))
             {
@@ -353,6 +371,8 @@ internal sealed class CrlDocument
     private bool OnlyUsers { get; init; }
     private bool OnlyCas { get; init; }
     private bool Unusable { get; init; }
+    /// <summary>The distribution point the list says it is, when it names one: then it speaks only for certificates naming it.</summary>
+    private IReadOnlyList<string>? Scope { get; init; }
 
     public static CrlDocument? Parse(byte[] der)
     {
@@ -373,6 +393,7 @@ internal sealed class CrlDocument
             ReadOnlyMemory<byte> entries = default;
             if (tbs.HasData && tbs.PeekTag().HasSameClassAndValue(Asn1Tag.Sequence)) entries = tbs.ReadEncodedValue();
             bool onlyUsers = false, onlyCas = false, unusable = false;
+            List<string>? scope = null;
             if (tbs.HasData && tbs.PeekTag().HasSameClassAndValue(new Asn1Tag(TagClass.ContextSpecific, 0)))
             {
                 var exts = tbs.ReadSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true)).ReadSequence();
@@ -383,7 +404,7 @@ internal sealed class CrlDocument
                     var critical = ext.PeekTag().HasSameClassAndValue(Asn1Tag.Boolean) && ext.ReadBoolean();
                     var value = ext.ReadOctetString();
                     if (oid == DeltaIndicatorOid) unusable = true; // a delta list says nothing alone
-                    else if (oid == DistributionPointOid) ReadScope(value, ref onlyUsers, ref onlyCas, ref unusable);
+                    else if (oid == DistributionPointOid) scope = ReadScope(value, ref onlyUsers, ref onlyCas, ref unusable);
                     else if (critical) unusable = true;
                 }
             }
@@ -400,6 +421,7 @@ internal sealed class CrlDocument
                 OnlyUsers = onlyUsers,
                 OnlyCas = onlyCas,
                 Unusable = unusable,
+                Scope = scope,
             };
         }
         catch (Exception ex) when (ex is AsnContentException or CryptographicException or ArgumentException or OverflowException)
@@ -408,9 +430,13 @@ internal sealed class CrlDocument
         }
     }
 
-    /// <summary>IssuingDistributionPoint: which certificates the list speaks for (attribute and indirect lists aren't used).</summary>
-    private static void ReadScope(byte[] value, ref bool onlyUsers, ref bool onlyCas, ref bool unusable)
+    /// <summary>
+    /// IssuingDistributionPoint: which certificates the list speaks for (attribute and indirect lists aren't used). Returns
+    /// the URIs of the distribution point it names (a partitioned list speaks only for the certificates that name one).
+    /// </summary>
+    private static List<string>? ReadScope(byte[] value, ref bool onlyUsers, ref bool onlyCas, ref bool unusable)
     {
+        List<string>? scope = null;
         var idp = new AsnReader(value, AsnEncodingRules.BER).ReadSequence();
         while (idp.HasData)
         {
@@ -422,6 +448,22 @@ internal sealed class CrlDocument
             }
             switch (tag.TagValue)
             {
+                case 0:
+                    // distributionPoint: a fullName [0] of URIs; a name relative to the issuer can't be matched here.
+                    var point = idp.ReadSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true));
+                    if (!point.HasData || !point.PeekTag().HasSameClassAndValue(new Asn1Tag(TagClass.ContextSpecific, 0, true)))
+                    {
+                        unusable = true;
+                        break;
+                    }
+                    var names = point.ReadSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true));
+                    scope = [];
+                    while (names.HasData && scope.Count < 16)
+                        if (names.PeekTag().HasSameClassAndValue(new Asn1Tag(TagClass.ContextSpecific, 6)))
+                            scope.Add(names.ReadCharacterString(UniversalTagNumber.IA5String, new Asn1Tag(TagClass.ContextSpecific, 6)));
+                        else names.ReadEncodedValue();
+                    if (scope.Count == 0) unusable = true;
+                    break;
                 case 1: onlyUsers = idp.ReadBoolean(new Asn1Tag(TagClass.ContextSpecific, 1)); break;
                 case 2: onlyCas = idp.ReadBoolean(new Asn1Tag(TagClass.ContextSpecific, 2)); break;
                 case 3: // only some reasons: can't vouch for a certificate alone
@@ -437,6 +479,7 @@ internal sealed class CrlDocument
                 default: idp.ReadEncodedValue(); break;
             }
         }
+        return scope;
     }
 
     private static DateTimeOffset ReadTime(AsnReader r) =>
@@ -452,13 +495,14 @@ internal sealed class CrlDocument
             if (OnlyUsers && ca) return false;
             if (OnlyCas && !ca) return false;
         }
+        if (Scope is not null && !CertFacts.CrlUrls(cert).Any(Scope.Contains)) return false;
         return DerSignature.Verify(issuer, Algorithm, Tbs, Signature);
     }
 
-    /// <summary>When the list says <paramref name="cert"/> was revoked; null when it isn't listed (or was taken off hold).</summary>
-    public DateTimeOffset? RevokedAt(X509Certificate2 cert)
+    /// <summary>Whether the list names <paramref name="cert"/> as revoked (not when taken off hold), and when; a date that can't be read is null.</summary>
+    public (bool Listed, DateTimeOffset? At) Revocation(X509Certificate2 cert)
     {
-        if (Entries.IsEmpty) return null;
+        if (Entries.IsEmpty) return (false, null);
         var wanted = new BigInteger(Convert.FromHexString(cert.SerialNumber), isUnsigned: false, isBigEndian: true);
         try
         {
@@ -467,15 +511,31 @@ internal sealed class CrlDocument
             {
                 var entry = entries.ReadSequence();
                 if (entry.ReadInteger() != wanted) continue;
-                var at = ReadTime(entry);
-                return RemovedFromHold(entry) ? null : at;
+                // The signature checked out, so the issuer listed it: a date that can't be read leaves it revoked, when unknown.
+                DateTimeOffset? at;
+                try
+                {
+                    at = ReadTime(entry);
+                }
+                catch (AsnContentException)
+                {
+                    return (true, null);
+                }
+                try
+                {
+                    return RemovedFromHold(entry) ? (false, null) : (true, at);
+                }
+                catch (AsnContentException)
+                {
+                    return (true, at);
+                }
             }
         }
         catch (AsnContentException)
         {
-            // The signature checked out, so the issuer wrote this; what can't be read says nothing.
+            // An entry that can't be read says nothing.
         }
-        return null;
+        return (false, null);
     }
 
     private static bool RemovedFromHold(AsnReader entry)
@@ -534,17 +594,32 @@ internal sealed class RevocationPool
     private readonly List<CrlDocument> _crls = [];
     private readonly HashSet<string> _hashes = [];
     private readonly Dictionary<string, (RevocationAnswer, DateTimeOffset?, X509Certificate2?, byte[]?)> _memo = [];
-    private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private TimeSpan _budget;
     private long _bytes;
 
     /// <summary>How long one file's data may keep a check busy.</summary>
     private static readonly TimeSpan Budget = TimeSpan.FromSeconds(20);
 
+    public RevocationPool() : this(Budget)
+    {
+    }
+
+    /// <param name="budget">Tests only: a shorter time than a check is given.</param>
+    internal RevocationPool(TimeSpan budget) => _budget = budget;
+
     /// <summary>The file asked for more work than a check does, so what is reported isn't complete.</summary>
-    public bool OutOfBudget => _clock.Elapsed > Budget;
+    public bool OutOfBudget => _clock.Elapsed > _budget;
 
     /// <summary>The budget is for this data, not for whatever else a large file took to read first.</summary>
     public void RestartBudget() => _clock.Restart();
+
+    /// <summary>This pool's work counts against <paramref name="other"/>'s time (a revision's data, judged within the file's).</summary>
+    public void ShareBudget(RevocationPool other)
+    {
+        _clock = other._clock;
+        _budget = other._budget;
+    }
 
     /// <summary>Data the limits or a parse left out.</summary>
     public int Skipped { get; private set; }
@@ -555,7 +630,6 @@ internal sealed class RevocationPool
 
     public void AddCert(byte[] der)
     {
-        _memo.Clear();
         if (der.Length > MaxCertBytes || _certs.Count >= MaxCerts)
         {
             Skipped++;
@@ -565,6 +639,7 @@ internal sealed class RevocationPool
         try
         {
             _certs.Add(X509CertificateLoader.LoadCertificate(der));
+            _memo.Clear(); // a new certificate can make an answer verify (a delegated responder)
         }
         catch (CryptographicException)
         {
@@ -594,7 +669,6 @@ internal sealed class RevocationPool
 
     private bool Room(byte[] der, int max)
     {
-        _memo.Clear();
         if (der.Length > max || _ocsps.Count + _crls.Count >= MaxResponses || _bytes + der.Length > MaxTotalBytes)
         {
             Skipped++;
@@ -602,6 +676,7 @@ internal sealed class RevocationPool
         }
         if (!_hashes.Add(Convert.ToHexString(SHA256.HashData(der)))) return false;
         _bytes += der.Length;
+        _memo.Clear();
         return true;
     }
 
@@ -694,9 +769,11 @@ internal sealed class RevocationPool
             if (!c.IssuerName.AsSpan().SequenceEqual(issuer.SubjectName.RawData)) continue;
             if (c.ThisUpdate > now || !c.SpeaksFor(cert, issuer)) continue;
             checks++;
-            if (c.RevokedAt(cert) is { } at)
+            var (listed, at) = c.Revocation(cert);
+            if (listed)
             {
-                if (at > when) best = Rank(best, (RevocationAnswer.RevokedLater, at, null, c.Der));
+                // Listed with a date that can't be read: revoked, when unknown.
+                if (at is { } later && later > when) best = Rank(best, (RevocationAnswer.RevokedLater, at, null, c.Der));
                 else return (RevocationAnswer.Revoked, at, null, c.Der);
             }
             else best = Rank(best, (Covers(c.ThisUpdate, c.NextUpdate, when) ? RevocationAnswer.Good : RevocationAnswer.Stale, null, null, c.Der));

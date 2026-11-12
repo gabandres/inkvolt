@@ -86,6 +86,12 @@ internal sealed class SignatureFacts(SignatureInfo info)
     public bool Intact => Info.Status is SignatureStatus.Valid or SignatureStatus.ModifiedAfterSigning;
 
     public string VriKey => Convert.ToHexString(SHA1.HashData(ContentsForVri ?? []));
+
+    /// <summary>
+    /// The time a trusted timestamp vouches for (a document timestamp's own, when its authority is trusted); null when no
+    /// trusted authority says when: a token anyone can put in a file proves nothing about the long term.
+    /// </summary>
+    public DateTimeOffset? VouchedTime => DocumentTimestamp ? (Info.CertificateTrusted ? Stamped : null) : TrustTime;
 }
 
 /// <summary>
@@ -109,28 +115,34 @@ internal static class LongTermCheck
             foreach (var c in f.TsaCerts) pool.AddCert(c);
             AddArchived(f.Signer, pool);
         }
-        var stamps = all.Where(f => f.Intact && f.DocumentTimestamp).OrderBy(f => f.End).ToList();
         var revisions = new Dictionary<long, RevocationPool>();
+        // Document timestamps first: whether each one's authority stays trusted decides whether it speaks for a time for the
+        // signatures under it, whatever order the form lists them in.
+        var ordered = all.Where(f => f.Intact && f.DocumentTimestamp).Concat(all.Where(f => f.Intact && !f.DocumentTimestamp)).ToList();
+        List<SignatureFacts> stamps = [];
 
-        foreach (var f in all.Where(f => f.Intact && f.Info.Certificate is not null))
+        foreach (var f in ordered)
         {
+            // Only document timestamps a trusted authority made speak for a time.
+            if (!f.DocumentTimestamp && stamps.Count == 0)
+                stamps = [.. all.Where(s => s.Intact && s.DocumentTimestamp && s.VouchedTime is not null).OrderBy(s => s.End)];
+            if (f.Info.Certificate is not { } cert) continue;
             if (pool.OutOfBudget)
             {
-                f.Info = f.Info with { LongTerm = new LongTermInfo(PadesLevel.None, false, [], Summary(f, PadesLevel.None, false, [], pool), f.OnlyValidationDataAfter) };
+                OutOfBudget(f, pool);
                 continue;
             }
-            var cert = f.Info.Certificate!;
             var firstStamp = stamps.FirstOrDefault(s => s.End > f.End);
-            var when = f.Stamped ?? firstStamp?.Stamped ?? DateTimeOffset.UtcNow;
+            var when = f.VouchedTime ?? firstStamp?.VouchedTime ?? DateTimeOffset.UtcNow;
             var chain = Walk(cert, pool, when, anchors);
-            var tsa = f.DocumentTimestamp ? null : f.Tsa ?? firstStamp?.Tsa;
-            var tsaWhen = f.Stamped ?? firstStamp?.Stamped ?? when;
-            var tsaChain = tsa is null ? [] : Walk(tsa, pool, tsaWhen, anchors);
+            var tsa = f.DocumentTimestamp ? null : f.VouchedTime is not null ? f.Tsa : firstStamp?.Tsa;
+            var tsaChain = tsa is null ? [] : Walk(tsa, pool, when, anchors);
             var complete = chain.All(c => c.Covered) && tsaChain.All(c => c.Covered);
 
             // Revocation takes away the trust at the time that counts for trust: a trusted timestamp's, else now.
             var trustAt = f.TrustTime ?? DateTimeOffset.UtcNow;
-            var revoked = Walk(cert, pool, trustAt, anchors).FirstOrDefault(c => c.Outcome == CertificateCheckOutcome.Revoked);
+            var atTrust = f.TrustTime is { } t && t == when ? chain : Walk(cert, pool, trustAt, anchors);
+            var revoked = atTrust.FirstOrDefault(c => c.Outcome == CertificateCheckOutcome.Revoked);
             if (revoked is not null)
                 f.Info = f.Info with
                 {
@@ -143,7 +155,19 @@ internal static class LongTermCheck
             {
                 LongTerm = new LongTermInfo(level, complete, [.. chain, .. tsaChain], Summary(f, level, complete, chain.Concat(tsaChain).ToList(), pool), f.OnlyValidationDataAfter),
             };
+            if (pool.OutOfBudget) OutOfBudget(f, pool);
         }
+    }
+
+    /// <summary>
+    /// A file that makes the check run out of time never leaves a certificate trusted: what it held wasn't all judged, and a
+    /// revocation among it could have been missed. A reason it is already untrusted for (a revocation, an untrusted root)
+    /// is the one shown.
+    /// </summary>
+    private static void OutOfBudget(SignatureFacts f, RevocationPool pool)
+    {
+        f.Info = f.Info with { LongTerm = new LongTermInfo(PadesLevel.None, false, [], Summary(f, PadesLevel.None, false, [], pool), f.OnlyValidationDataAfter) };
+        if (f.Info.CertificateTrusted) f.Info = f.Info with { CertificateTrusted = false, CertificateStatus = PdfStrings.Ltv_OutOfBudget };
     }
 
     private static PadesLevel Level(byte[] data, string? password, SignatureFacts f, List<SignatureFacts> stamps, RevocationPool pool,
@@ -151,12 +175,12 @@ internal static class LongTermCheck
     {
         if (f.DocumentTimestamp || !f.IsPades) return PadesLevel.None;
         var later = stamps.Where(s => s.End > f.End).ToList();
-        if (f.Stamped is null && later.Count == 0) return PadesLevel.BB;
+        if (f.VouchedTime is null && later.Count == 0) return PadesLevel.BB;
         if (!complete) return PadesLevel.BT;
         // B-LTA: a document timestamp over this signature's data. A signature without a timestamp of its own has its time
         // from the first document timestamp, which is then its B-T: it takes one more.
-        var over = f.Stamped is null ? later.Skip(1).ToList() : later;
-        var tsa = f.Tsa ?? later.FirstOrDefault()?.Tsa;
+        var over = f.VouchedTime is null ? later.Skip(1).ToList() : later;
+        var tsa = f.VouchedTime is not null ? f.Tsa : later.FirstOrDefault()?.Tsa;
         foreach (var stamp in Enumerable.Reverse(over).Take(MaxStampsRead))
         {
             if (!revisions.TryGetValue(stamp.End, out var revision))
@@ -164,9 +188,10 @@ internal static class LongTermCheck
                 revision = RevisionPool(data, stamp.End, password, pool);
                 revisions[stamp.End] = revision;
             }
-            var when = f.Stamped ?? later[0].Stamped ?? DateTimeOffset.UtcNow;
+            var when = f.VouchedTime ?? later[0].VouchedTime ?? DateTimeOffset.UtcNow;
             var covered = Walk(f.Info.Certificate!, revision, when, anchors).All(c => c.Covered)
                           && (tsa is null || Walk(tsa, revision, when, anchors).All(c => c.Covered));
+            if (revision.OutOfBudget) break; // what wasn't all judged covers nothing
             if (covered) return PadesLevel.BLTA;
         }
         return PadesLevel.BLT;
@@ -176,6 +201,7 @@ internal static class LongTermCheck
     private static RevocationPool RevisionPool(byte[] data, long end, string? password, RevocationPool whole)
     {
         var revision = new RevocationPool();
+        revision.ShareBudget(whole); // reading the revision's store and judging it count against the file's time too
         foreach (var c in whole.Certs) revision.AddCert(c);
         try
         {
@@ -218,7 +244,7 @@ internal static class LongTermCheck
             result.Add(new CertificateCheck(name, CertificateCheckOutcome.NoIssuer));
             return;
         }
-        if (CertFacts.HasOcspNoCheck(c))
+        if (CertFacts.IsNoCheckResponder(c))
         {
             result.Add(new CertificateCheck(name, CertificateCheckOutcome.NoCheckNeeded));
             return;
@@ -261,7 +287,7 @@ internal static class LongTermCheck
             PadesLevel.BT => Loc.Format(PdfStrings.Ltv_Bt, which),
             PadesLevel.BB when complete => PdfStrings.Ltv_BbComplete,
             PadesLevel.BB => PdfStrings.Ltv_BbNothing,
-            _ when complete && f.Stamped is not null => PdfStrings.Ltv_NotPadesComplete,
+            _ when complete && f.VouchedTime is not null => PdfStrings.Ltv_NotPadesComplete,
             _ => Loc.Format(PdfStrings.Ltv_NotPades, which),
         }) + note;
     }

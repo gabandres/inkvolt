@@ -6,6 +6,12 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 
 ## Next
 
+## 1.14.0
+- La comprobación de firmas a largo plazo es más estricta con archivos hechos para engañar: una marca de tiempo solo cuenta si su autoridad es de confianza, un certificado nunca queda como de confianza si el archivo tiene más datos de validación de los que lee una comprobación, y los datos guardados en un archivo no pueden ocultar un cambio posterior al documento (un adjunto, el formulario, el tamaño de una página).
+- Las listas de revocación se leen con más cuidado: una que nombra un certificado con una fecha que no se puede leer lo cuenta como revocado, y una hecha para otra parte de los certificados de una autoridad no dice nada del tuyo.
+- Firmar a largo plazo solo exige datos de validación completos para tu propia firma: el certificado de otro firmante que no nombra ninguna dirección utilizable ya no te lo impide.
+- Los nombres y las direcciones de los certificados de un archivo se muestran en una sola línea, sin caracteres ocultos.
+
 ## 1.13.0
 - Haz clic derecho en un PDF en el Explorador de archivos y elige "Convertir a Word con Inkvolt PDF": el archivo de Word se guarda junto a él (sin reemplazar otro archivo), sin abrir el PDF. Selecciona varios PDF para convertirlos todos a la vez. En Windows 11 está en "Mostrar más opciones"; aparece cuando Inkvolt PDF es la aplicación que abre tus PDF.
 - Al convertir muchos PDF protegidos a la vez, se pregunta una sola vez si seguir, y cancelar una contraseña deja de pedirla para los demás.
