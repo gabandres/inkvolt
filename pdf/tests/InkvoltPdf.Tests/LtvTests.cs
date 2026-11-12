@@ -1141,6 +1141,33 @@ public class LtvTests
     }
 
     /// <summary>
+    /// Nor the page order a page tree written inside the catalog holds (its /Kids an object a store names; Mac 1.12.1's
+    /// review). Inkvolt doesn't sign such a file (PDFsharp won't open it to change it), so it is signed by hand, as another
+    /// app would. Green without a change on Windows: PDFsharp can't read the pages under a node written inside the catalog
+    /// or its parent, so the check falls back to the raw scan, which never takes a later change for validation data. The
+    /// test guards that, should a PDFsharp update read such a tree.
+    /// </summary>
+    [Fact]
+    public void A_store_naming_a_direct_page_trees_kids_doesnt_hide_its_change()
+    {
+        const string placeholder = "[0 0000000000 0000000000 0000000000]";
+        var signed = IncrSignatureTests.Sign(Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages << /Type /Pages /Kids 5 0 R /Count 2 >> /AcroForm << /Fields [7 0 R] /SigFlags 3 >> /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Page /MediaBox [0 0 612 792] /Contents 6 0 R >>",
+            [3] = "<< /Type /Page /MediaBox [0 0 612 792] /Contents 4 0 R /Annots [7 0 R] >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (First) Tj ET"),
+            [5] = "[3 0 R 2 0 R]",
+            [6] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Second) Tj ET"),
+            [7] = "<< /Type /Annot /Subtype /Widget /FT /Sig /T (Approval) /Rect [0 0 0 0] /V 8 0 R /P 3 0 R /F 4 >>",
+            [8] = $"<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange {placeholder} /Contents <{new string('0', IncrSignatureTests.ContentsHexLength)}> >>",
+        }), placeholder);
+        Assert.Equal(SignatureStatus.Valid, Signatures.Verify(signed).Single().Status);
+        var reordered = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = "[2 0 R 3 0 R]" });
+        Assert.NotEqual(SignatureStatus.Valid, Signatures.Verify(reordered).Single().Status);
+    }
+
+    /// <summary>
     /// Signing promises the long term for the new signature only, so another signer's certificate that names only local
     /// addresses doesn't stop it; that signer's chain is left as it could be covered. With B-LTA the document timestamp
     /// added first for the earlier signature isn't what is judged: a revoked new signer still can't sign.
