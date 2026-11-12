@@ -7,6 +7,9 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 
 ## Next
 
+## 1.3.1
+- A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.
+
 ## 1.3
 - Inkvolt Print speaks Spanish: the whole app, its alerts and messages follow the language you choose for it in macOS (System Settings › General › Language & Region › Applications) or in Settings › Language.
 - SNMP access: a printer that answers only SNMP and whose administrator changed its read community can be added with that community (Add a Printer › Know its address? › SNMP access) and changed later (SNMP Access… in the printer's menu in the sidebar). It's kept in your keychain and used only to read the printer.
