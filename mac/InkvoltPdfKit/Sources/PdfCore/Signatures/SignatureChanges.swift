@@ -428,11 +428,15 @@ enum SignatureChanges {
             let count = try doc.pageCount()
             let pages = (0..<count).map { doc.page($0) }
             for (p, page) in pages.enumerated() where page.isRef && r.pages[page.num] == nil { r.pages[page.num] = p }
+            // Every node of the page tree, a node written inside its parent (or the catalog) included: what it holds is the
+            // page tree's, never validation data (below).
             var nodes: [PObj] = catalog["Pages"].map { [$0] } ?? []
+            var treeNodes: [PObj] = []
             while let node = nodes.popLast() {
-                if node.isRef, node.isDict, node.name("Type") != "Page", r.pageNodes.insert(node.num).inserted {
-                    nodes += node.array("Kids")?.elements ?? []
-                }
+                guard node.isDict, node.name("Type") != "Page" else { continue }
+                if node.isRef && !r.pageNodes.insert(node.num).inserted { continue }
+                treeNodes.append(node)
+                nodes += node.array("Kids")?.elements ?? []
             }
             let stop = Set(r.pages.keys).union(r.pageNodes)
 
@@ -498,7 +502,16 @@ enum SignatureChanges {
             // as free.
             var elsewhere = Set<Int>()
             let roots = catalog.keys.filter { !["DSS", "Extensions", "Pages"].contains($0) }.map { catalog[$0] } + [info]
-            if Comparison.walk(roots, &elsewhere, r.catalog >= 0 ? [r.catalog] : []) {
+            // An annotation written inside a page's list is compared by what it says (compareDirectAnnots), and what it
+            // draws with has no role of its own: never validation data either. Nor what the page tree's nodes hold (an
+            // inherited page size or turn, an indirect /Kids array), written inside the catalog or a parent too. Both walks
+            // stop at pages and nodes, as Windows' do.
+            var notBack = stop
+            if r.catalog >= 0 { notBack.insert(r.catalog) }
+            var onPages: [PObj?] = r.directAnnots.map { $0.dict }
+            for node in treeNodes { onPages += node.keys.filter { $0 != "Parent" }.map { node[$0] } }
+            if Comparison.walk(roots, &elsewhere, r.catalog >= 0 ? [r.catalog] : []),
+               Comparison.walk(onPages, &elsewhere, notBack) {
                 r.validationData.subtract(elsewhere)
             } else {
                 r.validationData.removeAll()

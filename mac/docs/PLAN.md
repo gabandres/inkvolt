@@ -1932,6 +1932,9 @@ Mac differences:
   timestamp from a trusted authority gives a signature its time for the level and the chain (an untrusted one leaves it
   B-B); the no-check extension counts only on an OCSP responder; an address with a space or control character in a
   certificate is no address, and names are shown on one line without control or direction characters.
+  Since 1.12.1 (Windows 1.14.0.0's reviews): nor what an annotation written inside a page's list draws with, nor what the
+  page tree's nodes hold (an inherited page size or turn, an indirect /Kids array), a node written inside the catalog or
+  its parent too (a Mac addition: Windows walks only nodes that are objects of their own).
 - **Signature changes**: a key the later revision has with a null value counts as there (a /DSS of null reads as validation
   data, as on Windows, where PDFsharp keeps the null).
 - **Tests**: a stalled server waits with `LtvTestPki.pause`, which `stop` ends; the exploding stream packs 64 MB (400 MB on
