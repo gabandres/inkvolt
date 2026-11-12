@@ -1122,6 +1122,24 @@ public class LtvTests
         Assert.NotEqual(SignatureStatus.Valid, First(drawn, pki).Status);
     }
 
+    /// <summary>What the page tree holds (an inherited page size) isn't validation data because a store names it (the low re-check).</summary>
+    [Fact]
+    public void A_store_naming_what_the_page_tree_holds_doesnt_hide_its_change()
+    {
+        using var pki = new LtvTestPki();
+        var pdf = Core1TestPdf.Build(new Dictionary<int, string>
+        {
+            [1] = "<< /Type /Catalog /Pages 2 0 R /DSS << /Certs [5 0 R] >> >>",
+            [2] = "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox 5 0 R >>",
+            [3] = "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>",
+            [4] = Core1TestPdf.Stream("BT /F1 12 Tf 72 720 Td (Hello) Tj ET"),
+            [5] = "[0 0 612 792]",
+        });
+        var signed = SignBb(pki, pdf);
+        var resized = SignatureChangeTests.Append(signed, new Dictionary<int, string> { [5] = "[0 0 100 100]" });
+        Assert.NotEqual(SignatureStatus.Valid, First(resized, pki).Status);
+    }
+
     /// <summary>
     /// Signing promises the long term for the new signature only, so another signer's certificate that names only local
     /// addresses doesn't stop it; that signer's chain is left as it could be covered. With B-LTA the document timestamp

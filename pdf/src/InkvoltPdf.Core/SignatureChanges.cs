@@ -449,6 +449,10 @@ internal static class SignatureChanges
             // An annotation written inside a page's list is compared by what it says (CompareDirectAnnots), and what it draws
             // with has no role of its own: never validation data either.
             Walk(r.DirectAnnots.Select(a => (PdfItem?)a.Dict), elsewhere, notBack);
+            // Nor what the page tree's nodes hold (an inherited page size or turn, an indirect /Kids array).
+            foreach (var n in r.PageNodes)
+                if (r.Objects.GetValueOrDefault(n) is PdfDictionary node)
+                    Walk(node.Elements.Keys.Where(k => k != "/Parent").Select(k => node.Elements[k]), elsewhere, notBack);
             r.ValidationData.ExceptWith(elsewhere);
             Walk([catalog.Elements["/Metadata"], catalog.Elements["/Perms"], info, acro?.Elements["/DR"]], r.Meta, stop);
             if (catalog.Elements["/Names"] is PdfReference names) r.Names = names.ObjectNumber;
