@@ -221,6 +221,69 @@ internal sealed class LtvTestPki : IDisposable
         return b.Build(issuer, 1, now.AddDays(7), HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1, now.AddSeconds(-1));
     }
 
+    /// <summary>
+    /// The issuer's CRL written by hand, for what .NET's builder won't write: <paramref name="unreadableDates"/> gives each
+    /// entry a revocation date no reader can read; <paramref name="distributionPoint"/> scopes the list to that distribution
+    /// point (IssuingDistributionPoint's fullName).
+    /// </summary>
+    public byte[] Crl(X509Certificate2 issuer, bool unreadableDates, string? distributionPoint = null)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var tbs = new AsnWriter(AsnEncodingRules.DER);
+        using (tbs.PushSequence())
+        {
+            tbs.WriteInteger(1);
+            WriteSha256Rsa(tbs);
+            tbs.WriteEncodedValue(issuer.SubjectName.RawData);
+            tbs.WriteUtcTime(now.AddSeconds(-1));
+            tbs.WriteUtcTime(now.AddDays(7));
+            lock (_revoked)
+                if (_revoked.Count > 0)
+                    using (tbs.PushSequence())
+                        foreach (var (serial, at) in _revoked.Values)
+                            using (tbs.PushSequence())
+                            {
+                                tbs.WriteInteger(serial);
+                                if (unreadableDates) tbs.WriteEncodedValue([0x17, 0x02, (byte)'9', (byte)'9']);
+                                else tbs.WriteUtcTime(at);
+                            }
+            if (distributionPoint is not null)
+            {
+                var idp = new AsnWriter(AsnEncodingRules.DER);
+                using (idp.PushSequence())
+                using (idp.PushSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true)))
+                using (idp.PushSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true)))
+                    idp.WriteCharacterString(UniversalTagNumber.IA5String, distributionPoint, new Asn1Tag(TagClass.ContextSpecific, 6));
+                using (tbs.PushSequence(new Asn1Tag(TagClass.ContextSpecific, 0, true)))
+                using (tbs.PushSequence())
+                using (tbs.PushSequence())
+                {
+                    tbs.WriteObjectIdentifier("2.5.29.28");
+                    tbs.WriteBoolean(true);
+                    tbs.WriteOctetString(idp.Encode());
+                }
+            }
+        }
+        var tbsDer = tbs.Encode();
+        var w = new AsnWriter(AsnEncodingRules.DER);
+        using (w.PushSequence())
+        {
+            w.WriteEncodedValue(tbsDer);
+            WriteSha256Rsa(w);
+            w.WriteBitString(issuer.GetRSAPrivateKey()!.SignData(tbsDer, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1));
+        }
+        return w.Encode();
+
+        static void WriteSha256Rsa(AsnWriter a)
+        {
+            using (a.PushSequence())
+            {
+                a.WriteObjectIdentifier("1.2.840.113549.1.1.11");
+                a.WriteNull();
+            }
+        }
+    }
+
     /// <summary>An RFC 3161 reply from the test authority.</summary>
     public byte[] TimestampReply(byte[] requestDer)
     {

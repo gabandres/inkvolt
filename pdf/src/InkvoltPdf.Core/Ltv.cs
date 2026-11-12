@@ -113,7 +113,7 @@ public static class Ltv
             for (var i = 0; i < chain.Count; i++)
             {
                 var c = chain[i];
-                if (!_seen.Add(c.Thumbprint) || CertFacts.IsSelfSigned(c) || CertFacts.HasOcspNoCheck(c)) continue;
+                if (!_seen.Add(c.Thumbprint) || CertFacts.IsSelfSigned(c) || CertFacts.IsNoCheckResponder(c)) continue;
                 var issuer = i + 1 < chain.Count ? chain[i + 1] : null;
                 var name = CertFacts.Name(c);
                 if (issuer is null)
@@ -157,7 +157,7 @@ public static class Ltv
         var gather = new Gatherer(client, new RevocationPool(), useStored: false);
         foreach (var f in facts.Where(f => f.Intact && f.Info.Certificate is not null)) // as Plan: what the person was shown is all that is asked
         {
-            await gather.CoverChain(f.Info.Certificate!, f.Certs, DateTimeOffset.UtcNow, cancel).ConfigureAwait(false);
+            await gather.CoverChain(f.Info.Certificate!, f.Certs, f.Stamped ?? DateTimeOffset.UtcNow, cancel).ConfigureAwait(false); // at the time the plan built the chain at
             if (f.Tsa is { } tsa) await gather.CoverChain(tsa, f.TsaCerts, f.Stamped ?? DateTimeOffset.UtcNow, cancel).ConfigureAwait(false);
         }
         var snapshot = new RevocationSnapshot();
@@ -195,8 +195,21 @@ public static class Ltv
 
         var gather = new Gatherer(client, StoredPool(output, password), useStored: true);
         var entries = new List<VriEntry>();
-        foreach (var f in intact) entries.Add(await gather.EntryFor(f, cancel).ConfigureAwait(false));
-        Stop(gather, strict);
+        if (strict && intact.Where(f => !f.DocumentTimestamp).MaxBy(f => f.End) is { } newest) // not a timestamp added above
+        {
+            // Signing promises B-LT for the new signature only: its chain must be complete. Earlier signers' get what can be
+            // had, and a gap or a server failing for them doesn't stop the signing.
+            var (entry, used) = await gather.EntryFor(newest, cancel).ConfigureAwait(false);
+            Stop(gather, used);
+            entries.Add(entry);
+            foreach (var f in intact.Where(f => !ReferenceEquals(f, newest))) entries.Add((await gather.EntryFor(f, cancel).ConfigureAwait(false)).Vri);
+            gather.ForgetFailures();
+        }
+        else
+        {
+            foreach (var f in intact) entries.Add((await gather.EntryFor(f, cancel).ConfigureAwait(false)).Vri);
+            Stop(gather, null);
+        }
 
         if (!Dss.Holds(output, password, entries))
         {
@@ -210,8 +223,8 @@ public static class Ltv
             // The stamp's own authority, so the timestamp can be checked later too.
             var stamp = Signatures.Inspect(output, password).Where(f => f.DocumentTimestamp && f.Intact).MaxBy(f => f.End)
                 ?? throw new SigningException(PdfStrings.Ltv_DocTimestampBad);
-            var entry = await gather.EntryFor(stamp, cancel).ConfigureAwait(false);
-            Stop(gather, strict);
+            var (entry, used) = await gather.EntryFor(stamp, cancel).ConfigureAwait(false);
+            Stop(gather, strict ? used : null);
             output = Dss.Append(output, password, [entry]);
         }
 
@@ -226,13 +239,14 @@ public static class Ltv
         return new LtvResult(output, changed, gather.Results(), client.Contacts);
     }
 
-    private static void Stop(Gatherer gather, bool strict)
+    /// <summary>A server's failure ends it all; with <paramref name="strict"/> (signing), so does a revoked certificate or a gap among those.</summary>
+    private static void Stop(Gatherer gather, List<Gatherer.Entry>? strict)
     {
         if (gather.FirstFailure is { } failure) throw new SigningException(Loc.Format(PdfStrings.Ltv_FailureNoChange, failure), new LtvFetchException(failure)); // inner: a server's doing (Batch tells it apart)
-        if (!strict) return;
-        var revoked = gather.Entries.FirstOrDefault(e => e.Outcome == CertificateCheckOutcome.Revoked);
+        if (strict is null) return;
+        var revoked = strict.FirstOrDefault(e => e.Outcome == CertificateCheckOutcome.Revoked);
         if (revoked is not null) throw new SigningException(Loc.Format(PdfStrings.Ltv_Revoked, CertFacts.Name(revoked.Cert)));
-        var gap = gather.Entries.FirstOrDefault(e => !new CertificateCheck("", e.Outcome).Covered);
+        var gap = strict.FirstOrDefault(e => !new CertificateCheck("", e.Outcome).Covered);
         if (gap is not null) throw new SigningException(Loc.Format(PdfStrings.Ltv_Incomplete, gap.Detail));
     }
 
@@ -267,20 +281,22 @@ public static class Ltv
         private readonly Dictionary<string, Entry> _entries = [];
         public RevocationPool Pool { get; } = pool;
         public string? FirstFailure { get; private set; }
-        public IEnumerable<Entry> Entries => _entries.Values;
+
+        /// <summary>What failed so far no longer stops the run (earlier signers' chains, when signing).</summary>
+        public void ForgetFailures() => FirstFailure = null;
 
         public IReadOnlyList<LtvCertificateResult> Results() =>
             [.. _entries.Values.Select(e => new LtvCertificateResult(CertFacts.Name(e.Cert), e.Detail, new CertificateCheck("", e.Outcome).Covered))];
 
-        /// <summary>Covers a signature's chain and its timestamp's, and says what of it is this signature's.</summary>
-        public async Task<VriEntry> EntryFor(SignatureFacts f, CancellationToken cancel)
+        /// <summary>Covers a signature's chain and its timestamp's, and says what of it is this signature's (and which certificates).</summary>
+        public async Task<(VriEntry Vri, List<Entry> Used)> EntryFor(SignatureFacts f, CancellationToken cancel)
         {
             var when = f.Stamped ?? DateTimeOffset.UtcNow;
             var used = await CoverChain(f.Info.Certificate!, f.Certs, when, cancel).ConfigureAwait(false);
             if (f.Tsa is { } tsa && !ReferenceEquals(tsa, f.Info.Certificate))
                 used.AddRange(await CoverChain(tsa, f.TsaCerts, when, cancel).ConfigureAwait(false));
             var certs = used.Select(e => e.Cert.RawData).Concat(used.Where(e => e.Responder is not null).Select(e => e.Responder!.RawData)).ToList();
-            return new VriEntry(f.VriKey, Distinct(certs), Distinct(used.Where(e => e.Ocsp is not null).Select(e => e.Ocsp!)), Distinct(used.Where(e => e.Crl is not null).Select(e => e.Crl!)));
+            return (new VriEntry(f.VriKey, Distinct(certs), Distinct(used.Where(e => e.Ocsp is not null).Select(e => e.Ocsp!)), Distinct(used.Where(e => e.Crl is not null).Select(e => e.Crl!))), used);
         }
 
         private static List<byte[]> Distinct(IEnumerable<byte[]> items)
@@ -375,7 +391,7 @@ public static class Ltv
                 e.Detail = PdfStrings.Ltv_Root;
                 return;
             }
-            if (CertFacts.HasOcspNoCheck(c))
+            if (CertFacts.IsNoCheckResponder(c))
             {
                 e.Outcome = CertificateCheckOutcome.NoCheckNeeded;
                 e.Detail = PdfStrings.Ltv_NoCheckResponder;

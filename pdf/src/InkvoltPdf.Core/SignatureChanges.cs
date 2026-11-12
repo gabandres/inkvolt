@@ -438,6 +438,15 @@ internal static class SignatureChanges
             }
 
             Walk([catalog.Elements["/DSS"], catalog.Elements["/Extensions"]], r.ValidationData, stop);
+            // Validation data is what only the store reaches: an object the document uses too (an attachment, a script, an
+            // outline, the form's XFA or values) a store names doesn't become free to change. Pages are judged by their own
+            // roles first (content, widgets, comments), so the walk starts from the rest of the catalog and the Info; it never
+            // goes back into the catalog (and through it into /DSS).
+            var elsewhere = new HashSet<int>();
+            var notBack = new HashSet<int>(stop);
+            if (r.Catalog >= 0) notBack.Add(r.Catalog);
+            Walk([.. catalog.Elements.Keys.Where(k => k is not ("/DSS" or "/Extensions" or "/Pages")).Select(k => catalog.Elements[k]), info], elsewhere, notBack);
+            r.ValidationData.ExceptWith(elsewhere);
             Walk([catalog.Elements["/Metadata"], catalog.Elements["/Perms"], info, acro?.Elements["/DR"]], r.Meta, stop);
             if (catalog.Elements["/Names"] is PdfReference names) r.Names = names.ObjectNumber;
             var namesDict = PdfObj.Dict(catalog.Elements["/Names"]);

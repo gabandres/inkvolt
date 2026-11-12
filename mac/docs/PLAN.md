@@ -1919,13 +1919,13 @@ Mac differences:
   (`Ltv.plan(files:)`, tested), where Windows' app does it.
 - **Check Signatures Online**'s answer counts for the window until it closes (Windows: the tab). It judges each signer's
   chain at the time the window's list was worked out for (its timestamp's), so it asks what the window listed.
-- **Stricter or kinder than Windows after the port's review**: signing for the long term demands a complete chain for the
-  new signature only (an earlier signer whose certificate names nothing usable no longer stops it: Windows refuses); a CRL
-  that lists the certificate with a date it can't read counts as revoked (Windows: not revoked); a delegated responder is
-  looked for among all the certificates its issuer issued for OCSP signing before the cap; a file is encrypted by its
-  trailer, not by the bytes "/Encrypt" anywhere in it (signing, Add Verification Information, Batch); a certificate's name is
-  shortened to 120 characters where it is shown.
-- **Stricter after the hostile-input review before 1.12.0** (Windows has each of these open): a file whose validation data
+- **After the port's review** (Windows the same since PDF 1.14.0.0, but for the last): signing for the long term demands a
+  complete chain for the new signature only (an earlier signer whose certificate names nothing usable no longer stops it); a
+  CRL that lists the certificate with a date it can't read counts as revoked; a delegated responder is looked for among all
+  the certificates its issuer issued for OCSP signing before the cap; a certificate's name is shortened to 120 characters
+  where it is shown. **A Mac difference:** a file is encrypted by its trailer, not by the bytes "/Encrypt" anywhere in it
+  (signing, Add Verification Information, Batch); Windows keeps the byte rule, which its append and signing paths share.
+- **Stricter after the hostile-input review before 1.12.0** (Windows the same since PDF 1.14.0.0): a file whose validation data
   outlasts the check's 20 s never leaves a certificate trusted (a store built to use up the time could hide a revocation);
   what a /DSS names counts as validation data only when nothing else in the document reaches it (an attachment a store
   names stays the document's); a CRL that says which distribution point it is speaks only for certificates naming it; only a
