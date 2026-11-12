@@ -94,11 +94,10 @@ runs `mac/docs/PLAN.md`'s checklist** (the Automation prompt, each app, a passwo
    Research 2026-11-08: Nitro (Convert tab: To Word, To Excel, then an options window), Foxit (Convert › To MS Office, plus Explorer's right-click), PDF-XChange (Convert tab), PDFgear (Convert menu and a floating To Word button), Acrobat (Convert in the top bar, then a side panel; paid).
 **ignia-mac is being sold (2026-11-12): last Mac work done, release secrets backed up.** Restore on the next Mac:
 `mac/docs/NEW-MAC.md`.
-- **Print for Mac 1.3.1 (build 8) submitted 2026-11-12, Waiting for Review**: the held `ReservedFileNames` change (a scan
+- **Print for Mac 1.3.1 (build 8) approved 2026-11-12** (tag `print-mac-v1.3.1` on `3546cac7`, website 1.3.1 `90a8aa1` deployed): the held `ReservedFileNames` change (a scan
   named COM0 or LPT0 gets `_`; `6ebd77df`), version and What's New en/es merged `3546cac7` (es-MX skipped: the version has
   no es-MX localization, as 1.3). Hostile-input review of the diff inline (usage gate STOP, 80%): clean. PrintCore
-  1243/1243 on the PC; archive, preflight, upload, VALID, listing, submit on ignia-mac. **Follow-up after approval:** tag
-  `print-mac-v1.3.1` on `3546cac7`, website 1.3.1, mac/CLAUDE.md's status line. Needs no Mac.
+  1243/1243 on the PC; archive, preflight, upload, VALID, listing, submit on ignia-mac. Follow-ups done 2026-11-12.
 - **Backup**: `Z:\backups\ignia-mac\inkvolt-release-2026-11-12\inkvolt-release-2026-11-12.tgz` (21,175 bytes, SHA-256
   matched both ends, Mac copy deleted): both keychains, the Sparkle key pair, `.env.local`, both AuthKey .p8, Print's Mac
   App Store profile. Z: is a local NTFS volume, not under OneDrive or Dropbox.
