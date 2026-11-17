@@ -11,6 +11,14 @@ data in flate filter" just before) and a full run hung once after 2,793 tests, b
 on master. For a person: the new tool icons, dragging marks in a turned view, the Comments pane's Color menu, the SNMP
 dialog with Narrator, a refused SNMPv3 printer (the demo has none).
 
+**Released (owner's go, 2026-11-17): Inkvolt PDF 1.15.0.0 and Inkvolt Print 1.6.0.0 submitted to the Store**, both packed
+from `a162009b` (tags `pdf-v1.15.0.0`, `print-v1.6.0.0`, GitHub releases, PDF marked Latest). Before it: a hostile-input
+review of each app's changes since its last release (PDF 5 findings, Print 3, all fixed: `659d6d5c`, `1b96ca76`), the
+bench (`8a40bcf8`; scan.pdf's on-screen 48 fps is this PC's load: 1.14.0.0 measured the same then), smoke side by side
+for both. PDF submission 1152921505702431116, Print 1152921505702430623; release notes en and es through the API.
+**Left:** when `msstore submission status` says Published, the website's `softwareVersion` for both (`Z:\portfolio`,
+`firebase deploy --only hosting`).
+
 # Plan from 2026-11-06 (owner, 2026-11-05): close the gap, smallest first
 
 Mac missing features and Windows partials, three lanes, one agent each, every item reviewed (`/code-review`) before merge.
