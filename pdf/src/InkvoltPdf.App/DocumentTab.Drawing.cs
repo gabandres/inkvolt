@@ -126,6 +126,23 @@ public partial class DocumentTab
             button.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleColor, s => WithColor(s, color));
             StyleSwatches.Children.Add(button);
         }
+        // The Comments pane's Color menu: a note's or a text mark's color, as the style bar's swatches.
+        foreach (var (nameOf, color) in Swatches)
+        {
+            var dot = new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1),
+                Background = Frozen(new SolidColorBrush(Color.FromRgb(Byte(color.R), Byte(color.G), Byte(color.B)))) };
+            dot.SetResourceReference(Border.BorderBrushProperty, "ControlStrongStrokeColorDefaultBrush");
+            var item = new MenuItem { Header = nameOf(), Icon = dot };
+            item.Click += (_, _) => { if (SelectedComment() is { } a) _ = RecolorComment(a, color); };
+            CommentColorMenu.Items.Add(item);
+        }
+        CommentColorMenu.Items.Add(new Separator());
+        var more = new MenuItem { Header = Strings.Tab_MoreColorsTip };
+        more.Click += (_, _) =>
+        {
+            if (SelectedComment() is { } a && PickColor(a.Color ?? AnnotColor.Yellow) is { } picked) _ = RecolorComment(a, picked);
+        };
+        CommentColorMenu.Items.Add(more);
         StyleCustomColor.Click += (_, _) =>
         {
             if (StyleTarget() is not { } t) return;
@@ -185,6 +202,9 @@ public partial class DocumentTab
         if (Viewer.EditingText is { } t) return (t.Tool, t.Style, null, true, t.Existing);
         if (Viewer.SelectedDrawing is { } a && DrawTools.ToolOf(a) is { } tool)
             return (tool, _pendingStyle is { } p && p.Id == a.Id ? p.Style : a.Style!, a, false, true);
+        // A note or a text mark: only its color (the tool stands in for the bar's checks; nothing else shows).
+        if (Viewer.SelectedDrawing is { } c && DrawTools.IsComment(c))
+            return (ViewerTool.AddNote, _pendingStyle is { } p && p.Id == c.Id ? p.Style : DrawTools.CommentStyle(c), c, false, true);
         if (DrawTools.IsDrawTool(Viewer.Tool)) return (Viewer.Tool, DrawStyles.Get(Viewer.Tool), null, false, false);
         return null;
     }
@@ -218,6 +238,14 @@ public partial class DocumentTab
         StyleStartArrow.IsChecked = s.StartEnding != LineEnding.None;
         StyleEndArrow.IsChecked = s.EndEnding != LineEnding.None;
         StyleDeleteGroup.Visibility = t.Annot is not null ? Visibility.Visible : Visibility.Collapsed;
+        StyleOpacityGroup.Visibility = Visibility.Visible;
+        if (t.Annot is { } comment && DrawTools.IsComment(comment))
+        {
+            // A note or a text mark changes only its color.
+            StyleBarIcon.Text = comment.Subtype == "Text" ? "" : "";
+            StyleWidthGroup.Visibility = StyleFontGroup.Visibility = StyleOpacityGroup.Visibility = Visibility.Collapsed;
+            StyleFillGroup.Visibility = StyleArrowGroup.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// <summary>Applies a style change from the bar to its target (one undo step for a drawing in the document).</summary>
@@ -228,7 +256,16 @@ public partial class DocumentTab
         if (StyleTarget() is { } t)
         {
             var next = change(t.Style);
-            if (DrawStyles.IsValid(t.Tool, next) && next != t.Style)
+            if (t.Annot is { } c && DrawTools.IsComment(c))
+            {
+                // A note or a text mark: a new color is one undoable edit; the bar offers nothing else for it.
+                if (next.Color is { } color && next.Color != t.Style.Color)
+                {
+                    _pendingStyle = (c.Id, t.Style with { Color = color });
+                    _ = RecolorComment(c, color);
+                }
+            }
+            else if (DrawStyles.IsValid(t.Tool, next) && next != t.Style)
             {
                 if (t.Text)
                 {
@@ -260,6 +297,26 @@ public partial class DocumentTab
         try
         {
             await RunDrawingEdit(label, (d, pw) => Annotations.UpdateStyle(d, pw, id, style));
+        }
+        finally
+        {
+            if (--_styleEdits == 0) _pendingStyle = null;
+        }
+    }
+
+    /// <summary>The note or text mark selected in the Comments pane.</summary>
+    private AnnotationInfo? SelectedComment() =>
+        CommentList.SelectedItem is CommentItem { Info: var a } && Annotations.MovesInPlace(a) ? a : null;
+
+    /// <summary>A note's or a text mark's new color (from the style bar or the Comments pane's menu): one undo step.</summary>
+    private async Task<bool> RecolorComment(AnnotationInfo a, AnnotColor color)
+    {
+        var id = a.Id;
+        _styleEdits++;
+        try
+        {
+            return await RunDrawingEdit(Loc.Format(Strings.Drawing_RestyleColor, CommentItem.TitleOf(a).ToLowerInvariant()),
+                (d, pw) => Annotations.SetColor(d, pw, id, color));
         }
         finally
         {
@@ -316,6 +373,18 @@ public partial class DocumentTab
         if (c.Geometry is not { } g)
             return RunDrawingEdit(Loc.Format(Strings.Drawing_EditDelete, title), (d, pw) => Annotations.Delete(d, pw, id), id);
         var label = c.Edit switch { DrawingEdit.Move => Strings.Drawing_EditMove, DrawingEdit.Resize => Strings.Drawing_EditResize, _ => Strings.Drawing_EditReshape };
+        if (DrawTools.IsComment(c.Annotation))
+        {
+            // A note or a text mark moves by the difference from where it was shown when the gesture began.
+            var from = (c.From ?? c.Annotation.Geometry!).Bounds;
+            double dx = g.Bounds.X - from.X, dy = g.Bounds.Y - from.Y;
+            if (dx == 0 && dy == 0)
+            {
+                Viewer.ForgetPendingDrawing(id);
+                return Task.FromResult(false);
+            }
+            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditMove, title), (d, pw) => Annotations.Move(d, pw, id, dx, dy), id, quiet: true);
+        }
         return RunDrawingEdit(Loc.Format(label, title), (d, pw) => Annotations.UpdateGeometry(d, pw, id, g), id, quiet: true);
     }
 

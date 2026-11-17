@@ -1722,6 +1722,10 @@
   <data name="Tab_MenuDelete" xml:space="preserve">
     <value>_Delete</value>
   </data>
+  <data name="Tab_MenuColor" xml:space="preserve">
+    <value>C_olor</value>
+    <comment>The Comments pane's menu: a note's or a text mark's color</comment>
+  </data>
   <data name="Tab_SaveAttachmentTip" xml:space="preserve">
     <value>Save the attachment as a file…</value>
   </data>

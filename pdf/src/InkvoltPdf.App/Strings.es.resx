@@ -1722,6 +1722,9 @@
   <data name="Tab_MenuDelete" xml:space="preserve">
     <value>_Eliminar</value>
   </data>
+  <data name="Tab_MenuColor" xml:space="preserve">
+    <value>_Color</value>
+  </data>
   <data name="Tab_SaveAttachmentTip" xml:space="preserve">
     <value>Guardar el archivo adjunto como archivo…</value>
   </data>

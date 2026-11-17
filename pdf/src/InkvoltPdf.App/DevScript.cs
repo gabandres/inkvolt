@@ -1792,7 +1792,7 @@ internal static class DevScript
     {
         var list = tab.Comments.Where(c => !c.IsInkvoltPdfStamp).ToList();
         return $"annots: {list.Count}" + string.Concat(list.Select(c =>
-            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}: '{Trunc(c.Contents)}'"));
+            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} color={DrawStyles.Hex(c.Color) ?? "-"} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}: '{Trunc(c.Contents)}'"));
     }
 
     /// <summary>The drawing annotations (index, kind, where, look), one line each.</summary>

@@ -115,4 +115,19 @@ public static class DrawTools
 
     /// <summary>A drawing annotation Inkvolt PDF can select, move, resize and restyle.</summary>
     public static bool IsDrawing(AnnotationInfo a) => a.Geometry is not null && a.Style is not null && !a.IsInkvoltPdfStamp;
+
+    /// <summary>
+    /// A sticky note or a text mark as the page view holds it (with <see cref="DrawingGeometry.OfComment"/>'s geometry):
+    /// selected, moved and recolored like a drawing, never resized (<see cref="Annotations.Move"/>, <see cref="Annotations.SetColor"/>).
+    /// </summary>
+    public static bool IsComment(AnnotationInfo a) => a.Geometry is not null && a.Style is null && Annotations.MovesInPlace(a);
+
+    /// <summary>What the page view selects with the hand or select text tool: a drawing, a note or a text mark.</summary>
+    public static bool IsSelectable(AnnotationInfo a) => IsDrawing(a) || IsComment(a);
+
+    /// <summary>A comment from the document (no geometry added) that the page view can select.</summary>
+    public static bool CanSelect(AnnotationInfo a) => IsDrawing(a) || DrawingGeometry.OfComment(a) is not null;
+
+    /// <summary>How a note or a text mark is previewed and shown in the style bar: its color.</summary>
+    public static AnnotStyle CommentStyle(AnnotationInfo a) => new() { Color = a.Color ?? AnnotColor.Yellow, Width = 1 };
 }

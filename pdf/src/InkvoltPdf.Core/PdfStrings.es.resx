@@ -4525,6 +4525,9 @@
   <data name="Annot_CantReply" xml:space="preserve">
     <value>No se puede responder a ese comentario.</value>
   </data>
+  <data name="Annot_CantMoveThisWay" xml:space="preserve">
+    <value>Solo las notas y las marcas de texto (resaltado, subrayado, tachado) se mueven y cambian de color así.</value>
+  </data>
   <data name="Stamp_NeedsSize" xml:space="preserve">
     <value>El sello necesita un tamaño.</value>
   </data>

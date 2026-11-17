@@ -26,7 +26,8 @@ PLAN.md's E1-E16. Done on the Mac since: 3.3 and 3.5 (2026-11-07), 2.1 and 3.1 (
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
 follows in the same release cycle. PLAN.md's "Parity with Windows" steps (1.0, then E1-E16) are done; what the Mac still
 lacks is the list above. One Pro key works on both.
-Mac first, Windows to follow: moving and recoloring notes and text markups (the Mac's `AnnotationMoves`, D7 part d).
+Moving and recoloring notes and text markups (the Mac's `AnnotationMoves`, D7 part d): Mac first, on Windows since
+2026-11-17 (`Annotations.Move` and `SetColor`, the Mac's CommentMoveTests ported).
 
 ## Free and Pro
 

@@ -607,8 +607,9 @@ Mac differences for the PDF app (so far):
   Links open as on Windows: a page or web and mail addresses at once, any other address after "Open this link?". New
   bookmarks go after the one selected and are named in a sheet (Windows edits the title in the list). Extract writes one
   PDF (opened in a tab unless unticked); Windows also offers a file per page. Mac additions (not on Windows yet): the
-  Polygon and Polyline tools, and moving and recoloring sticky notes and text marks (`Annotations.move`,
-  `Annotations.setColor`, CommentMoveTests). A text mark over a selection across pages is one undo step.
+  Polygon and Polyline tools. Moving and recoloring sticky notes and text marks (`Annotations.move`,
+  `Annotations.setColor`, CommentMoveTests) came to Windows on 2026-11-17 (`Annotations.Move`, `SetColor`, the same
+  tests). A text mark over a selection across pages is one undo step.
 - The app (D7 part e): the start page is a window of its own (Windows: the main window's page while no tab is open) that
   steps aside when a document opens; its recent list offers Open and Show in Finder (AppKit keeps the list, so no Remove
   from List). Combine Files is a window (Windows: a dialog). Scans, combined files and PDFs from pictures or the clipboard

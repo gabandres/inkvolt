@@ -116,6 +116,25 @@ public static class DrawingGeometry
     public static AnnotGeometry WithFrame(string subtype, AnnotGeometry g, RectD frame) =>
         subtype == "FreeText" ? new AnnotGeometry { Box = frame, Paths = g.Paths, Callout = g.Callout } : g.MapTo(frame);
 
+    /// <summary>
+    /// What the page view selects and moves a sticky note or a text mark by (<see cref="Annotations.Move"/>): a note's
+    /// icon as <see cref="AnnotGeometry.Box"/>; a text mark's line boxes, each a closed path of its four corners. Null for
+    /// other kinds, for a reply (it moves with its comment), and for a mark of more lines than
+    /// <see cref="Annotations.MaxQuads"/> or with a position that isn't a number.
+    /// </summary>
+    public static AnnotGeometry? OfComment(AnnotationInfo a)
+    {
+        if (!Annotations.MovesInPlace(a) || a.ReplyTo is not null || a.IsInkvoltPdfStamp) return null;
+        static bool Finite(RectD r) => double.IsFinite(r.X) && double.IsFinite(r.Y) && double.IsFinite(r.Width) && double.IsFinite(r.Height);
+        if (a.Subtype == "Text" || a.QuadRects.Count == 0)
+            return Finite(a.Rect) && !a.Rect.IsEmpty ? new AnnotGeometry { Box = a.Rect } : null;
+        if (a.QuadRects.Count > Annotations.MaxQuads || !a.QuadRects.All(Finite)) return null;
+        return new AnnotGeometry
+        {
+            Paths = [.. a.QuadRects.Select(q => (IReadOnlyList<PointD>)[new(q.X, q.Y), new(q.Right, q.Y), new(q.Right, q.Bottom), new(q.X, q.Bottom)])],
+        };
+    }
+
     /// <summary>Distance from <paramref name="p"/> to the segment <paramref name="a"/>–<paramref name="b"/>.</summary>
     public static double DistanceToSegment(PointD p, PointD a, PointD b)
     {
@@ -192,6 +211,9 @@ public static class DrawingGeometry
                 leader.Add(NearestOnRect(g.Box, leader[^1]));
                 return DistanceToPath(p, leader) <= near;
             }
+            case "Highlight" or "Underline" or "StrikeOut" or "Squiggly" when g.Paths.Count > 0:
+                // Anywhere on a marked line (its corners from OfComment).
+                return g.Paths.Any(path => InsidePolygon(p, path) || DistanceToPath(p, path, closed: true) <= tolerance);
             default:
                 return g.Bounds.Inflate(tolerance + stroke / 2).Contains(p.X, p.Y);
         }

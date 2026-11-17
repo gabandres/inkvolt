@@ -14,8 +14,12 @@ public sealed record DrawingRequest(string Id, int PageIndex, ViewerTool Tool, A
 
 public enum DrawingEdit { Move, Resize, Reshape, Delete }
 
-/// <summary>A drawing annotation was moved, resized or reshaped (<see cref="Geometry"/>), or deleted (null).</summary>
-public sealed record DrawingChange(AnnotationInfo Annotation, DrawingEdit Edit, AnnotGeometry? Geometry);
+/// <summary>
+/// A drawing annotation (or a note or text mark, <see cref="DrawTools.IsComment"/>) was moved, resized or reshaped
+/// (<see cref="Geometry"/>), or deleted (null). <see cref="From"/>: where it was shown when the gesture began (a move of a
+/// note or text mark is the difference, since an earlier move may not be in the document yet).
+/// </summary>
+public sealed record DrawingChange(AnnotationInfo Annotation, DrawingEdit Edit, AnnotGeometry? Geometry, AnnotGeometry? From = null);
 
 /// <summary>
 /// A text box or callout editor closed. <see cref="Id"/> null: a new one (add it as <see cref="NewId"/>; never empty);
@@ -146,12 +150,16 @@ public sealed partial class PageViewer
     {
         foreach (var list in _annotsByPage.Values)
             foreach (var a in list)
-                if (a.Id == id && DrawTools.IsDrawing(a)) return a;
+                if (a.Id == id && DrawTools.IsSelectable(a)) return a;
         return null;
     }
 
+    /// <summary>The drawings, notes and text marks on a page.</summary>
     private IEnumerable<AnnotationInfo> DrawingsOn(int page) =>
-        page >= 0 && _annotsByPage.TryGetValue(page, out var list) ? list.Where(DrawTools.IsDrawing) : [];
+        page >= 0 && _annotsByPage.TryGetValue(page, out var list) ? list.Where(DrawTools.IsSelectable) : [];
+
+    /// <summary>How a drawing looks (a note or text mark: its color).</summary>
+    private static AnnotStyle ShownStyle(AnnotationInfo a) => a.Style ?? DrawTools.CommentStyle(a);
 
     /// <summary>Where a drawing is shown now: while dragged, nudged or waiting for its edit, not where the page draws it.</summary>
     private AnnotGeometry ShownGeometry(AnnotationInfo a)
@@ -216,6 +224,7 @@ public sealed partial class PageViewer
         var page = a.PageIndex;
         var reach = HandlePx / 2 + 3;
         bool Near(Point p) => Math.Abs(p.X - sp.X) <= reach && Math.Abs(p.Y - sp.Y) <= reach;
+        if (DrawTools.IsComment(a)) return null; // notes and text marks only move
         if (a.Subtype == "Line" && g.Paths is [{ Count: 2 } seg])
         {
             for (var i = 0; i < 2; i++)
@@ -416,7 +425,7 @@ public sealed partial class PageViewer
             DragKind.Move => DrawingEdit.Move,
             DragKind.Resize => DrawingEdit.Resize,
             _ => DrawingEdit.Reshape,
-        }, g));
+        }, g, d.Annot.Geometry));
         return true;
     }
 
@@ -596,7 +605,7 @@ public sealed partial class PageViewer
         var g = DrawingGeometry.Translate(start, v.X, v.Y);
         _pendingGeometry[id] = (a.Geometry!.Bounds, g);
         _surface.InvalidateVisual();
-        DrawingChanged?.Invoke(this, new DrawingChange(a, DrawingEdit.Move, g));
+        DrawingChanged?.Invoke(this, new DrawingChange(a, DrawingEdit.Move, g, start));
     }
 
     private void DiscardNudge()
@@ -747,7 +756,7 @@ public sealed partial class PageViewer
         {
             // Moved or resized: shown at the new place until the page is redrawn with it there.
             var moved = _drawDrag is { } d && d.Annot.Id == a.Id && _dragged || _pendingGeometry.ContainsKey(a.Id) || _nudgeId == a.Id && _nudge != default;
-            if (moved) DrawShape(dc, page, a.Subtype, ShownGeometry(a), a.Style!, 0.8);
+            if (moved) DrawShape(dc, page, a.Subtype, ShownGeometry(a), ShownStyle(a), 0.8);
         }
         if (_editorDrawing is { Callout.Count: > 0 } ed && ed.Page == page)
         {
@@ -851,6 +860,35 @@ public sealed partial class PageViewer
                 }
                 break;
             }
+            case "Text": // a sticky note: its icon's bubble in its color
+            {
+                var r = ToSurfaceRect(page, g.Box);
+                r.Inflate(-r.Width * 0.08, -r.Height * 0.08);
+                dc.DrawRoundedRectangle(Solid(s.Color), Frozen(new Pen(Frozen(new SolidColorBrush(Color.FromArgb((byte)(opacity * 255), 0x59, 0x59, 0x59))), 1)), r, 2, 2);
+                break;
+            }
+            case "Highlight" or "Underline" or "StrikeOut" or "Squiggly":
+            {
+                var brush = Solid(s.Color);
+                foreach (var path in g.Paths.Where(p => p.Count == 4))
+                {
+                    // OfComment's corners: top-left, top-right, bottom-right, bottom-left.
+                    var line = ToSurfaceRect(page, new RectD(path[0].X, path[0].Y, path[1].X - path[0].X, path[2].Y - path[0].Y));
+                    if (subtype == "Highlight")
+                    {
+                        dc.DrawRectangle(s.Color is { } c ? Frozen(new SolidColorBrush(ToColor(c, opacity * 0.4))) : null, null, line);
+                        continue;
+                    }
+                    // The mark's line across the text, the way the page shows it (a turned view: along the longer side).
+                    var across = line.Width >= line.Height;
+                    var h = across ? line.Height : line.Width;
+                    var at = subtype == "StrikeOut" ? 0.55 : 0.88;
+                    var linePen = Frozen(new Pen(brush, Math.Max(1, h / 14)));
+                    if (across) dc.DrawLine(linePen, new Point(line.Left, line.Top + h * at), new Point(line.Right, line.Top + h * at));
+                    else dc.DrawLine(linePen, new Point(line.Left + h * at, line.Top), new Point(line.Left + h * at, line.Bottom));
+                }
+                break;
+            }
         }
     }
 
@@ -917,6 +955,7 @@ public sealed partial class PageViewer
         }
         var fr = FrameRect(a, g);
         dc.DrawRectangle(null, framePen, fr);
+        if (DrawTools.IsComment(a)) return; // moved, never resized: no handles
         var frame = new RectD(fr.X, fr.Y, fr.Width, fr.Height);
         for (var i = 0; i < 8; i++)
         {
