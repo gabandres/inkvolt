@@ -4531,6 +4531,12 @@
   <data name="Annot_CantMoveThisWay" xml:space="preserve">
     <value>Solo las notas y las marcas de texto (resaltado, subrayado, tachado) se mueven y cambian de color así.</value>
   </data>
+  <data name="Annot_CantMoveBroken" xml:space="preserve">
+    <value>La posición de este comentario en el archivo no es un número, así que no se puede mover.</value>
+  </data>
+  <data name="Pdf_NotANumber" xml:space="preserve">
+    <value>Un valor que se iba a escribir en el archivo no es un número.</value>
+  </data>
   <data name="Stamp_NeedsSize" xml:space="preserve">
     <value>El sello necesita un tamaño.</value>
   </data>

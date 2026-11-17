@@ -23,7 +23,7 @@ public readonly record struct AnnotColor(double R, double G, double B)
 /// <summary>A markup annotation (comment) on a page. Rects are in page space.</summary>
 /// <param name="Id">Stable id: the annotation's /NM, else "p&lt;page&gt;:&lt;index&gt;" (valid for the bytes it was read from).</param>
 /// <param name="Subtype">The PDF subtype without the slash ("Highlight", "Text", ...).</param>
-/// <param name="QuadRects">Text markup: the marked line boxes (from /QuadPoints); empty for other kinds.</param>
+/// <param name="QuadRects">Text markup: the marked line boxes (from /QuadPoints), at most one more than <see cref="Annotations.MaxQuads"/>; empty for other kinds.</param>
 /// <param name="IsInkvoltPdfStamp">A Fill &amp; Sign stamp (managed by <see cref="TextStamps"/>).</param>
 /// <param name="ReplyTo">Id of the annotation this one replies to (/IRT), if any.</param>
 /// <param name="Hidden">Hidden or NoView flag set: viewers don't draw it.</param>
@@ -109,12 +109,16 @@ public static partial class Annotations
         return list;
     }
 
-    /// <summary>A text mark's marked line boxes (from /QuadPoints) in page space; empty for other kinds.</summary>
+    /// <summary>
+    /// A text mark's marked line boxes (from /QuadPoints) in page space; empty for other kinds. At most one more than
+    /// <see cref="MaxQuads"/> (a hostile file lists millions, or has hundreds of marks share one huge list): enough for
+    /// a caller to see the mark has too many to draw or select.
+    /// </summary>
     private static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a)
     {
         var quads = new List<RectD>();
         if (PdfObj.Array(a.Elements["/QuadPoints"]) is { } qp)
-            for (var k = 0; k + 7 < qp.Elements.Count; k += 8)
+            for (var k = 0; k + 7 < qp.Elements.Count && quads.Count <= MaxQuads; k += 8)
             {
                 var xs = new[] { PdfObj.Num(qp, k), PdfObj.Num(qp, k + 2), PdfObj.Num(qp, k + 4), PdfObj.Num(qp, k + 6) };
                 var ys = new[] { PdfObj.Num(qp, k + 1), PdfObj.Num(qp, k + 3), PdfObj.Num(qp, k + 5), PdfObj.Num(qp, k + 7) };
@@ -284,30 +288,36 @@ public static partial class Annotations
 
     /// <summary>
     /// An annotation with everything that goes with it: its replies (any kind bound to it by /IRT) and theirs, and their
-    /// popups (named by /Popup, or naming one of them as /Parent). What a delete removes and a move takes along.
+    /// popups (named by /Popup, or naming one of them as /Parent). What a delete removes and a move takes along. One pass
+    /// over the listed annotations, then a walk down from the root: linear however the replies are ordered (a hostile
+    /// file's chain listed last first took a pass per reply), and never more than the listed annotations and their popups.
     /// </summary>
     internal static HashSet<PdfDictionary> ThreadOf(PdfDocument doc, PdfDictionary root)
     {
-        var all = new List<PdfDictionary>();
+        // Who answers or pops up for whom.
+        var children = new Dictionary<PdfDictionary, List<PdfDictionary>>(ReferenceEqualityComparer.Instance);
+        void Child(PdfDictionary? parent, PdfDictionary a)
+        {
+            if (parent is null) return;
+            if (!children.TryGetValue(parent, out var list)) children[parent] = list = [];
+            list.Add(a);
+        }
         for (var p = 0; p < doc.PageCount; p++)
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is { } annots)
-                all.AddRange(annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>());
+                foreach (var a in annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>())
+                {
+                    Child(PdfObj.Dict(a.Elements["/IRT"]), a);
+                    if (PdfObj.NameOf(a, "/Subtype") == "/Popup") Child(PdfObj.Dict(a.Elements["/Parent"]), a);
+                }
 
         var thread = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
-        var grew = true;
-        while (grew)
+        var todo = new Stack<PdfDictionary>([root]);
+        while (todo.TryPop(out var a))
         {
-            grew = false;
-            foreach (var a in all)
-            {
-                if (thread.Contains(a)) continue;
-                var irt = PdfObj.Dict(a.Elements["/IRT"]);
-                var parent = PdfObj.Dict(a.Elements["/Parent"]);
-                if (irt is not null && thread.Contains(irt) || parent is not null && thread.Contains(parent) && PdfObj.NameOf(a, "/Subtype") == "/Popup")
-                    grew |= thread.Add(a);
-            }
-            foreach (var a in thread.ToList())
-                if (PdfObj.Dict(a.Elements["/Popup"]) is { } popup) grew |= thread.Add(popup);
+            if (children.TryGetValue(a, out var list))
+                foreach (var c in list)
+                    if (thread.Add(c)) todo.Push(c);
+            if (PdfObj.Dict(a.Elements["/Popup"]) is { } popup && thread.Add(popup)) todo.Push(popup);
         }
         return thread;
     }

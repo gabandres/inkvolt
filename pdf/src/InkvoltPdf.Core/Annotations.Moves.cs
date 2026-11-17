@@ -18,10 +18,12 @@ public static partial class Annotations
     /// Moves a note or a text mark by (<paramref name="dx"/>, <paramref name="dy"/>) page points on its page. Its /Rect and
     /// /QuadPoints (and its popup) shift; the appearance follows /Rect, so it looks the same where it lands. Its replies of
     /// any kind (and replies to them) and their popups come along (<see cref="ThreadOf"/>, what a delete removes). A move by
-    /// nothing gives the same bytes back.
+    /// nothing, or of a comment with no place to move, gives the same bytes back. A comment listed on several pages moves
+    /// on all of them (it's one annotation); a reply's or popup's number that isn't one is left as it is.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The move isn't a finite number.</exception>
-    /// <exception cref="InvalidOperationException">There is no such comment, or it is another kind.</exception>
+    /// <exception cref="InvalidOperationException">There is no such comment, it is another kind, or a number of its place
+    /// isn't one.</exception>
     public static byte[] Move(byte[] data, string? password, string id, double dx, double dy)
     {
         CheckPosition(dx, dy, nameof(dx));
@@ -29,8 +31,7 @@ public static partial class Annotations
         var (p, annot) = Find(doc, id) ?? throw new InvalidOperationException(PdfStrings.Annot_Gone);
         CheckMovable(annot);
         if (dx == 0 && dy == 0) return data;
-        MoveIn(doc, p, annot, dx, dy);
-        return PdfObj.Save(doc);
+        return MoveIn(doc, p, annot, dx, dy) ? PdfObj.Save(doc) : data;
     }
 
     /// <summary>
@@ -40,7 +41,8 @@ public static partial class Annotations
     /// (cancelled, refused) isn't counted. Already there: the same bytes back.
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The place isn't a finite number.</exception>
-    /// <exception cref="InvalidOperationException">There is no such comment, or it is another kind.</exception>
+    /// <exception cref="InvalidOperationException">There is no such comment, it is another kind, or a number of its place
+    /// isn't one.</exception>
     public static byte[] MoveTo(byte[] data, string? password, string id, double x, double y)
     {
         CheckPosition(x, y, nameof(x));
@@ -52,14 +54,16 @@ public static partial class Annotations
         double dx = x - frame.X, dy = y - frame.Y;
         if (!double.IsFinite(dx) || !double.IsFinite(dy)) throw new ArgumentOutOfRangeException(nameof(x), PdfStrings.Annot_PositionNotNumber);
         if (Math.Abs(dx) < 1e-6 && Math.Abs(dy) < 1e-6) return data;
-        MoveIn(doc, p, annot, dx, dy);
-        return PdfObj.Save(doc);
+        return MoveIn(doc, p, annot, dx, dy) ? PdfObj.Save(doc) : data;
     }
 
-    /// <summary>Where a note or a text mark is (page space): its marked lines' bounds, else its /Rect.</summary>
+    /// <summary>
+    /// Where a note or a text mark is (page space), as <see cref="DrawingGeometry.OfComment"/> shows it: a note's /Rect
+    /// (its icon, whatever stray /QuadPoints it has), a mark's lines' bounds, else its /Rect.
+    /// </summary>
     private static RectD FrameOf(PdfPage page, PdfDictionary annot)
     {
-        var quads = QuadRectsOf(page, annot);
+        var quads = PdfObj.Name(annot.Elements["/Subtype"]) == "Text" ? [] : QuadRectsOf(page, annot);
         if (quads.Count > 0)
             return RectD.FromEdges(quads.Min(q => q.X), quads.Min(q => q.Y), quads.Max(q => q.Right), quads.Max(q => q.Bottom));
         return PdfObj.Array(annot.Elements["/Rect"]) is { } r ? PdfObj.RectToPage(page, r) : default;
@@ -71,7 +75,13 @@ public static partial class Annotations
             throw new ArgumentOutOfRangeException(name, PdfStrings.Annot_PositionNotNumber);
     }
 
-    private static void MoveIn(PdfDocument doc, int p, PdfDictionary annot, double dx, double dy)
+    /// <summary>
+    /// Shifts the comment and what goes with it. False when nothing had a place to shift (the document is left as it
+    /// was, so the edit reads as no change and the page view drops its preview).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A number of the comment's own place isn't one (a hostile file's
+    /// 400-digit /Rect reads as infinity), or wouldn't be once moved.</exception>
+    private static bool MoveIn(PdfDocument doc, int p, PdfDictionary annot, double dx, double dy)
     {
         var page = doc.Pages[p];
         var o = PdfObj.ToPdf(page, 0, 0);
@@ -79,31 +89,47 @@ public static partial class Annotations
         double vx = d.X - o.X, vy = d.Y - o.Y;
 
         // Every point an annotation of any kind keeps: its box, marked lines, line ends, vertices, ink and callout line.
+        // Null for fewer than two numbers, or for one that isn't a number before or after the move: never written back.
         PdfArray? Shifted(PdfArray arr)
         {
             if (arr.Elements.Count < 2) return null;
             var values = new double[arr.Elements.Count];
-            for (var i = 0; i < values.Length; i++) values[i] = PdfObj.Num(arr, i) + (i % 2 == 0 ? vx : vy);
+            for (var i = 0; i < values.Length; i++)
+                if (!double.IsFinite(values[i] = PdfObj.Num(arr, i) + (i % 2 == 0 ? vx : vy))) return null;
             return PdfObj.Reals(doc, values);
         }
-        void Shift(PdfDictionary a)
+        IEnumerable<(PdfArray Array, Action<PdfArray> Put)> Places(PdfDictionary a)
         {
             foreach (var key in (string[])["/Rect", "/QuadPoints", "/L", "/Vertices", "/CL"])
-                if (PdfObj.Array(a.Elements[key]) is { } arr && Shifted(arr) is { } moved) a.Elements[key] = moved;
+                if (PdfObj.Array(a.Elements[key]) is { } arr) yield return (arr, moved => a.Elements[key] = moved);
             if (PdfObj.Array(a.Elements["/InkList"]) is { } ink)
                 for (var i = 0; i < ink.Elements.Count; i++)
-                    if (PdfObj.Array(ink.Elements[i]) is { } stroke && Shifted(stroke) is { } moved) ink.Elements[i] = moved;
+                {
+                    var at = i;
+                    if (PdfObj.Array(ink.Elements[i]) is { } stroke) yield return (stroke, moved => ink.Elements[at] = moved);
+                }
         }
 
-        // The comment, its replies and their popups; one listed on another page stays where it is.
+        // The comment's own place must all move, or nothing does (refused before anything changes); a reply's or popup's
+        // entry that can't stays as it is.
+        var own = Places(annot).Where(e => e.Array.Elements.Count >= 2).Select(e => (e.Put, Moved: Shifted(e.Array))).ToList();
+        if (own.Any(e => e.Moved is null)) throw new InvalidOperationException(PdfStrings.Annot_CantMoveBroken);
+        if (own.Count == 0) return false;
+
+        // The comment (wherever else it's listed: it's the one moved), its replies and their popups; a reply or popup
+        // listed on another page stays where it is.
         var elsewhere = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         for (var q = 0; q < doc.PageCount; q++)
             if (q != p && PdfObj.Array(doc.Pages[q].Elements["/Annots"]) is { } others)
                 foreach (var item in others.Elements)
                     if (PdfObj.Dict(item) is { } a) elsewhere.Add(a);
+        foreach (var (put, moved) in own) put(moved!);
         foreach (var a in ThreadOf(doc, annot))
-            if (!elsewhere.Contains(a)) Shift(a);
+            if (!ReferenceEquals(a, annot) && !elsewhere.Contains(a))
+                foreach (var (arr, put) in Places(a).ToList())
+                    if (Shifted(arr) is { } moved) put(moved);
         annot.Elements["/M"] = PdfObj.DateString(DateTimeOffset.Now);
+        return true;
     }
 
     /// <summary>
