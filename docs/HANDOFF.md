@@ -1,3 +1,16 @@
+# 2026-11-17: Windows catches up with the Mac (no Mac from now on)
+
+**Owner, 2026-11-17: no Mac any more; all work is Windows.** Mac items in this file wait indefinitely. The three Mac-first
+features Windows lacked are ported and merged (not released): Inkvolt Print's SNMP access… check and refused state
+(`f29e3ed9`), Inkvolt PDF's moving and recoloring of notes and text marks, and its Polygon and Polyline tools (`820e75b0`);
+each reviewed with `/code-review` medium, all findings fixed. Also `441f2a66`: the build on .NET SDK 11.0.100 (IppPrintDevice
+gated at build 22621), and `tools/test.ps1` now fails an aborted run (a crashed test host once left ~530 PDF tests unrun
+and passed). Master's `tools/test.ps1` on SDK 11: Print 2,482, PDF 2,942, 0 warnings; flaky under load:
+`PageCheckTests.APageTheLimitRefusedDrawnSmoothIsRefusedStill`. Open: a PDF test host crashed once (MuPDF "premature end of
+data in flate filter" just before) and a full run hung once after 2,793 tests, both in an agent's run under load; not seen
+on master. For a person: the new tool icons, dragging marks in a turned view, the Comments pane's Color menu, the SNMP
+dialog with Narrator, a refused SNMPv3 printer (the demo has none).
+
 # Plan from 2026-11-06 (owner, 2026-11-05): close the gap, smallest first
 
 Mac missing features and Windows partials, three lanes, one agent each, every item reviewed (`/code-review`) before merge.
