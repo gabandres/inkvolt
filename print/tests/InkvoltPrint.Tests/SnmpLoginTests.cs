@@ -256,6 +256,75 @@ public class SnmpLoginTests
         Assert.True(monitor.CanAcceptDevice);
     }
 
+    /// <summary>A switch with SNMPv3 at the address (DHCP gave it the printer's old one): it refuses a user it doesn't know.</summary>
+    private static SnmpAgent Switch() =>
+        new(SnmpAgent.ParseWalk(".1.3.6.1.2.1.1.5.0 = STRING: \"core-switch\""), new SnmpV3User("admin", "switch-auth-1", "switch-priv-1"), "switch-engine"u8.ToArray());
+
+    [Fact]
+    public async Task A_refusal_from_an_engine_not_known_as_the_printers_is_offline_not_refused()
+    {
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(V3Agent(), Host, V3Login()))!.Identity);
+        Assert.Equal(Convert.ToHexString(Engine), known.EngineId); // remembered from its signed answer
+
+        // Another device's engine: offline, so Fix it… looks for the printer; no refused alert.
+        var events = new List<MonitorEvent>();
+        using (var monitor = Monitor(Switch(), known, V3Login(), events))
+        {
+            Assert.False(await monitor.CheckAsync(false, default));
+            Assert.False(monitor.View.IsRefused);
+            Assert.Equal(CoreStrings.Monitor_CantReach, monitor.View.StatusMessage);
+            lock (events) Assert.All(events.OfType<MonitorEvent.Observed>(), o => Assert.Null(o.Snapshot.LoginRefused));
+        }
+
+        // No engine remembered (never read over SNMPv3): even the printer's own refusal can't be told from another device's.
+        using var session = new PrinterSession(Printer, new PrinterRecipe(() => new HostRouter(new Dictionary<string, HttpMessageHandler>()), V3Agent(),
+            SnmpLogin: () => V3Login(auth: "wrong-auth-pass")), () => [], _ => { });
+        Assert.IsType<SessionStep.Offline>(await session.ConnectAsync(new PrinterWhere(Host, Snmp: known with { EngineId = null }), default));
+        Assert.IsType<SessionStep.Offline>(await session.ConnectAsync(new PrinterWhere(Host, Snmp: known with { EngineId = "80001F8880AAAAAAAAAAAAAAAA" }), default));
+        Assert.IsType<SessionStep.Refused>(await session.ConnectAsync(new PrinterWhere(Host, Snmp: known), default));
+    }
+
+    [Fact]
+    public async Task A_signed_connection_remembers_the_printers_engine_so_its_refusal_counts_after()
+    {
+        var agent = new SnmpV3Tests.Spoofer(V3Agent());
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, Host, V3Login()))!.Identity) with { EngineId = null }; // read over v2c before, say
+        using var monitor = Monitor(agent, known, V3Login());
+        Assert.True(await monitor.CheckAsync(false, default));
+        Assert.Equal(Convert.ToHexString(Engine), monitor.Target.Snmp!.EngineId); // kept in state.json when the app remembers it
+        Assert.Equal(known.SerialNumber, monitor.Target.Snmp.SerialNumber);
+
+        (agent.Counter, agent.EngineId) = (Usm.WrongDigests, Engine); // its administrator changed the key
+        await Task.Delay(SnmpPrinterClient.Shared + TimeSpan.FromMilliseconds(100));
+        Assert.False(await monitor.CheckAsync(false, default)); // on the open connection: offline (anyone can send one)
+        Assert.False(await monitor.CheckAsync(false, default)); // a new connection, its own engine: refused
+        Assert.True(monitor.View.IsRefused);
+
+        // What state.json keeps of it: the engine ID (not a secret), never the login.
+        var remembered = JsonSerializer.Serialize(monitor.Target.Snmp);
+        Assert.Contains(Convert.ToHexString(Engine), remembered);
+        Assert.DoesNotContain(User.AuthPassphrase, remembered);
+        Assert.DoesNotContain(User.PrivPassphrase, remembered);
+        Assert.DoesNotContain(User.Name, remembered);
+    }
+
+    [Fact]
+    public async Task Checking_a_login_refused_by_an_engine_not_known_as_the_printers_may_be_saved_anyway()
+    {
+        var device = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(V3Agent(), Host, V3Login()))!.Identity);
+        Assert.Equal(new SnmpLoginCheck.Refused(SnmpRefusal.UnknownUser, FromThisPrinter: false), await SnmpLoginCheck.CheckAsync(V3Login(), Host, device, Switch()));
+        Assert.Equal(new SnmpLoginCheck.Refused(SnmpRefusal.WrongAuthKey, FromThisPrinter: false),
+            await SnmpLoginCheck.CheckAsync(V3Login(auth: "wrong-auth-pass"), Host, device with { EngineId = null }, V3Agent()));
+        Assert.Equal(new SnmpLoginCheck.Refused(SnmpRefusal.WrongAuthKey, FromThisPrinter: false), await SnmpLoginCheck.CheckAsync(V3Login(auth: "wrong-auth-pass"), Host, null, V3Agent()));
+
+        var save = new SnmpLoginSave(SnmpLogin.Public, (_, _) => SnmpLoginCheck.CheckAsync(V3Login(), Host, device, Switch()));
+        var (keep, problem) = await save.SaveAsync(V3Login());
+        Assert.False(keep);
+        Assert.Equal(string.Format(CoreStrings.SnmpCheck_RefusedUnknown, CoreStrings.Snmp_UnknownUser), problem);
+        Assert.True(save.IsSaveAnyway(V3Login()));
+        Assert.Equal((true, (string?)null), await save.SaveAsync(V3Login())); // Save anyway: kept as it is
+    }
+
     [Fact]
     public void The_cards_own_offline_state_drops_the_refused_one()
     {

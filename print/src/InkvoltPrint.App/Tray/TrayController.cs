@@ -320,11 +320,8 @@ public sealed class TrayController : IDisposable
     };
 
     public IReadOnlyList<(PrinterViewModel Printer, PrinterLine Line)> Lines() =>
-        _vm.Printers.Select(p => (p, new PrinterLine(p.Name, Max(_tracker.Level(p.Uuid), !p.IsOnline && !p.IsConnecting ? AlertLevel.Offline : AlertLevel.Ok),
+        _vm.Printers.Select(p => (p, new PrinterLine(p.Name, TrayText.LineLevel(_tracker.Level(p.Uuid), p.IsOnline, p.IsConnecting, p.IsRefused),
             _tracker.Problem(p.Uuid) ?? p.StatusMessage))).ToList();
-
-    /// <summary>A printer not answering right now shows grey in the menu at once; the icon waits for the offline hold.</summary>
-    private static AlertLevel Max(AlertLevel a, AlertLevel b) => a > b ? a : b;
 
     public AlertLevel Overall => _tracker.Overall;
 

@@ -67,10 +67,15 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   by the clock, with a .zip of it to attach (on the Mac, in the container's `Recordings`, its files stored: `ZipArchive`).
 - **SNMP login** (of a printer): how it's read over SNMP: a community, or (Pro) an SNMPv3 user with two passphrases (`SnmpLogin`). A secret: kept in Credential Manager by printer id (`ISnmpLogins`; on the Mac the Keychain, `SnmpLogins` and PrintMac's `SnmpLoginKeychain`), never in `state.json`; public when none is kept. On the Mac the USM's hashes and cipher come from the system through **`SnmpCrypto`** (PrintMac's `AppleSnmpCrypto`), installed at launch as `Usm.crypto`.
 - **Login check** (SNMP access…'s): the printer at its address asked with a login before it's kept: answered (as itself), refused
-  saying which part, another device, or no answer, which Save anyway keeps as it is (`SnmpLoginCheck`, `SnmpLoginSave`).
-- **Refused** (a printer's state): its SNMPv3 agent answers but refuses the login (the user or a key). Not offline: no offline
-  alert and no Fix it…; SNMP access… is the fix (`SessionStep.Refused`, `PrinterView.IsRefused`; on the Mac `.refused` and
-  `PrinterView.Phase.refused`).
+  saying which part, another device, or no answer, which Save anyway keeps as it is (`SnmpLoginCheck`, `SnmpLoginSave`). A
+  refusal from an engine not known to be the printer's (see Its engine) may be saved anyway too.
+- **Its engine** (an SNMPv3 printer's): the engine ID its signed answers came from, remembered in `state.json` with what it said
+  about itself (`SnmpDevice.EngineId`; not a secret). A refusal is unsigned and names an engine anyone can claim: it is the
+  printer's only from that engine (`SnmpDevice.IsItsEngine`). Once an agent has answered signed, a refusal from it is no answer.
+- **Refused** (a printer's state): its SNMPv3 agent, its engine, answers but refuses the login (the user or a key). Not offline:
+  no Fix it…; SNMP access… is the fix (`SessionStep.Refused`, `PrinterView.IsRefused`; on the Mac `.refused` and
+  `PrinterView.Phase.refused`). A refusal from another engine, or with none remembered, is offline. The refused alert comes after
+  an error's hold; offline's hold runs on through it, so offline is told at its time unless the refusal was.
 - **Interface** (of a printer): a protocol it answers on: HP's LEDM and CDM, IPP, SNMP's Printer MIB, eSCL for scanning.
 - **Supply history**: the levels and page counts kept on this PC, one row a day per supply per printer
   (`Core/History/SupplyHistoryStore`); what it says (cartridges, days left, the chart) is worked out from it, never stored.

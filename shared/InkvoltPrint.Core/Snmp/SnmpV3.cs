@@ -119,6 +119,12 @@ public sealed class SnmpAccessException(SnmpRefusal reason) : Exception(Words(re
 {
     public SnmpRefusal Reason { get; } = reason;
 
+    /// <summary>
+    /// The engine ID of the agent that refused, in hex, as discovered (unsigned: any device can claim one); null when not from
+    /// an agent. A refusal is this printer's only when that engine is the one its signed answers came from (<see cref="SnmpDevice.IsItsEngine"/>).
+    /// </summary>
+    public string? EngineId { get; init; }
+
     private static string Words(SnmpRefusal reason) => reason switch
     {
         SnmpRefusal.UnknownUser => CoreStrings.Snmp_UnknownUser,

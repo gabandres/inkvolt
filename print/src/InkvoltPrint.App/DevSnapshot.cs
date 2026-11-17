@@ -333,6 +333,8 @@ internal static class DevSnapshot
                 "snmp-noanswer" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForCommunity("demo-community", out _)!, new Core.Snmp.SnmpLoginCheck.NoAnswer()),
                 "snmp-refused" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!,
                     new Core.Snmp.SnmpLoginCheck.Refused(Core.Snmp.SnmpRefusal.WrongAuthKey)),
+                "snmp-refused-unknown" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!,
+                    new Core.Snmp.SnmpLoginCheck.Refused(Core.Snmp.SnmpRefusal.UnknownUser, FromThisPrinter: false)),
                 "snmp-other" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForCommunity("demo-community", out _)!, new Core.Snmp.SnmpLoginCheck.AnotherDevice()),
                 _ => null,
             };

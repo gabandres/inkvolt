@@ -5,7 +5,8 @@ namespace InkvoltPrint.Core.Snmp;
 /// <summary>
 /// SNMP access…'s check of a login before it's kept (roadmap 3.2): the printer at its address asked with it, as a probe asks.
 /// What the dialog says comes from it (<see cref="SnmpLoginSave"/>): kept once answered; a refusal names the part the agent
-/// refused (as Add a printer's <see cref="InkvoltPrint.Core.Probe.ProbeResult.SnmpRefused"/> does) and keeps nothing; no answer may be a printer
+/// refused (as Add a printer's <see cref="InkvoltPrint.Core.Probe.ProbeResult.SnmpRefused"/> does) and keeps nothing when the agent is
+/// the printer's own (else, as no answer, it may be kept anyway); no answer may be a printer
 /// that's off or an agent ignoring a wrong community (v1 and v2c agents say nothing), so the user may keep it anyway.
 /// </summary>
 public abstract record SnmpLoginCheck
@@ -15,8 +16,12 @@ public abstract record SnmpLoginCheck
     /// <summary>The printer answered with it, as itself.</summary>
     public sealed record Answered : SnmpLoginCheck;
 
-    /// <summary>The SNMPv3 agent refused the user or one of its keys.</summary>
-    public sealed record Refused(SnmpRefusal Reason) : SnmpLoginCheck;
+    /// <summary>
+    /// The SNMPv3 agent refused the user or one of its keys. <paramref name="FromThisPrinter"/>: the agent is the printer's own (its
+    /// engine is the one its signed answers came from, <see cref="SnmpDevice.IsItsEngine"/>); otherwise it may be another device
+    /// at the address, or a printer never read over SNMPv3, so Save anyway may keep the login.
+    /// </summary>
+    public sealed record Refused(SnmpRefusal Reason, bool FromThisPrinter = true) : SnmpLoginCheck;
 
     /// <summary>Nothing answered with it.</summary>
     public sealed record NoAnswer : SnmpLoginCheck;
@@ -33,11 +38,11 @@ public abstract record SnmpLoginCheck
         CancellationToken ct = default)
     {
         var gate = new object();
-        SnmpRefusal? refused = null;
+        (SnmpRefusal Reason, string? By)? refused = null;
         SnmpPrinterClient? found;
         try
         {
-            found = await SnmpPrinterClient.ProbeAsync(transport, host, login, ct, r => { lock (gate) refused ??= r; }).ConfigureAwait(false);
+            found = await SnmpPrinterClient.ProbeAsync(transport, host, login, ct, (r, by) => { lock (gate) refused ??= (r, by); }).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
@@ -45,7 +50,7 @@ public abstract record SnmpLoginCheck
         }
         if (found is null)
         {
-            lock (gate) return refused is { } why ? new Refused(why) : new NoAnswer();
+            lock (gate) return refused is { } why ? new Refused(why.Reason, known?.IsItsEngine(why.By) == true) : new NoAnswer();
         }
         return known?.Identify(found.Identity) == DeviceIdentity.Different ? new AnotherDevice() : new Answered();
     }
@@ -53,8 +58,9 @@ public abstract record SnmpLoginCheck
 
 /// <summary>
 /// SNMP access…'s Save: the login kept now is kept again without asking; any other is asked first (<see cref="SnmpLoginCheck"/>)
-/// and kept only once the printer answers with it as itself. A refusal says which part and keeps nothing; another device keeps
-/// nothing; no answer says what may be wrong, and Save again with the same login (Save anyway) keeps it as it is.
+/// and kept only once the printer answers with it as itself. The printer's own refusal says which part and keeps nothing; another
+/// device keeps nothing; no answer, or a refusal from an agent not known to be the printer's, says what may be wrong, and Save
+/// again with the same login (Save anyway) keeps it as it is.
 /// </summary>
 /// <param name="current">The login kept now (public when none).</param>
 /// <param name="check">Asks the printer with a login (the app: <see cref="SnmpLoginCheck.CheckAsync"/> at its address).</param>
@@ -77,8 +83,11 @@ public sealed class SnmpLoginSave(SnmpLogin current, Func<SnmpLogin, Cancellatio
         {
             case SnmpLoginCheck.Answered:
                 return (true, null);
-            case SnmpLoginCheck.Refused refused:
+            case SnmpLoginCheck.Refused { FromThisPrinter: true } refused:
                 return (false, string.Format(CoreStrings.SnmpCheck_Refused, new SnmpAccessException(refused.Reason).Message));
+            case SnmpLoginCheck.Refused refused: // an agent not known to be this printer's: it may not be, so Save anyway may keep it
+                _unanswered = login;
+                return (false, string.Format(CoreStrings.SnmpCheck_RefusedUnknown, new SnmpAccessException(refused.Reason).Message));
             case SnmpLoginCheck.AnotherDevice:
                 return (false, CoreStrings.SnmpCheck_AnotherDevice);
             default:

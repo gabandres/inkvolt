@@ -8,9 +8,28 @@ namespace InkvoltPrint.Core.Snmp;
 /// device at its address is still it. Only these printers are read over SNMP: a printer that answers HTTP and doesn't for a
 /// moment (asleep, waking) is offline, never turned into an SNMP-only printer.
 /// </summary>
-public sealed record SnmpDevice(string? SerialNumber, string? Model, string? SystemName)
+/// <param name="EngineId">
+/// Over SNMPv3, the engine ID (hex) its signed answers last came from (<see cref="SnmpIdentity.EngineId"/>; not a secret): a
+/// refusal counts as this printer's only from that engine (<see cref="IsItsEngine"/>). Null until it answered signed.
+/// </param>
+public sealed record SnmpDevice(string? SerialNumber, string? Model, string? SystemName, string? EngineId = null)
 {
-    public static SnmpDevice From(SnmpIdentity id) => new(Clean(id.SerialNumber), Clean(id.Model), Clean(id.SystemName));
+    public static SnmpDevice From(SnmpIdentity id) => new(Clean(id.SerialNumber), Clean(id.Model), Clean(id.SystemName), Clean(id.EngineId));
+
+    /// <summary>
+    /// An SNMPv3 refusal from <paramref name="engineId"/> is this printer's: its engine is known (from a signed answer) and is that
+    /// one. A refusal is unsigned and its engine ID only claimed, so any other (an unknown engine, another device that took the
+    /// address, a printer never read over SNMPv3) can't tell the printer refused: it is no answer from it.
+    /// </summary>
+    public bool IsItsEngine(string? engineId) =>
+        EngineId is not null && Clean(engineId) is { } id && string.Equals(EngineId, id, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// After a signed answer over SNMPv3 (<paramref name="answered"/> its identity) as this printer: the engine it came from is
+    /// remembered (this; or a copy when the engine is new). Nothing changes for v1 and v2c, which have no engine.
+    /// </summary>
+    public SnmpDevice Answered(SnmpIdentity answered) =>
+        Clean(answered.EngineId) is { } id && !IsItsEngine(id) ? this with { EngineId = id } : this;
 
     /// <summary>Where a printer's connection may go over SNMP: <paramref name="transport"/> for a printer added as SNMP-only, else nowhere.</summary>
     public static ISnmpTransport? TransportFor(SnmpDevice? addedSnmpOnly, ISnmpTransport transport) => addedSnmpOnly is null ? null : transport;

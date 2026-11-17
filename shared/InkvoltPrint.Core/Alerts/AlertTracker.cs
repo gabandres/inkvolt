@@ -179,9 +179,14 @@ public sealed partial class AlertTracker
         return notices;
     }
 
-    /// <summary>An empty cartridge is also low, a full waste box also almost full: tell the worse one only.</summary>
+    /// <summary>
+    /// An empty cartridge is also low, a full waste box also almost full: tell the worse one only. A printer whose refused login
+    /// was told is also unreadable: offline isn't told on top of it.
+    /// </summary>
     private bool Outranked(string uuid, Track t)
     {
+        if (t.Kind == AlertKind.Offline)
+            return _printers[uuid].Tracks.TryGetValue(nameof(AlertKind.LoginRefused), out var refused) && refused.Present && refused.Confirmed;
         var worse = t.Kind switch { AlertKind.SupplyLow => AlertKind.SupplyEmpty, AlertKind.WasteAlmostFull => AlertKind.WasteFull, _ => (AlertKind?)null };
         if (worse is null) return false;
         var detail = t.Condition!.Key[(t.Condition.Key.IndexOf('|') + 1)..];
@@ -260,6 +265,17 @@ public static class TrayText
 {
     /// <summary>The notification area's tooltip holds 127 characters (NOTIFYICONDATA.szTip).</summary>
     public const int MaxLength = 127;
+
+    /// <summary>
+    /// A printer's level in the tray's menu and tooltip: its ongoing alerts (<paramref name="alerted"/>), or what its card shows
+    /// now when that is worse: grey at once when it isn't answering (connecting is neither), red at once when its SNMP login is
+    /// refused (an error, as on the card and the Fleet page, not offline). The icon waits for the holds (<see cref="AlertTracker.Overall"/>).
+    /// </summary>
+    public static AlertLevel LineLevel(AlertLevel alerted, bool online, bool connecting, bool refused)
+    {
+        var now = online || connecting ? AlertLevel.Ok : refused ? AlertLevel.Error : AlertLevel.Offline;
+        return alerted > now ? alerted : now;
+    }
 
     /// <summary>"Inkvolt Print" then a line per printer, problems first, cut to fit with "+n more".</summary>
     public static string Tooltip(IReadOnlyList<PrinterLine> printers, bool paused)

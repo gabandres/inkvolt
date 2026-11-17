@@ -84,7 +84,7 @@ public sealed class InkvoltPrinters
                     {
                         IppUri = Uri.TryCreate(Str(p, "IppUri"), UriKind.Absolute, out var ipp) ? ipp : null,
                         Snmp = p.TryGetProperty("Snmp", out var snmp) && snmp.ValueKind == JsonValueKind.Object
-                            ? new Snmp.SnmpDevice(Str(snmp, "SerialNumber"), Str(snmp, "Model"), Str(snmp, "SystemName")) : null,
+                            ? new Snmp.SnmpDevice(Str(snmp, "SerialNumber"), Str(snmp, "Model"), Str(snmp, "SystemName"), Str(snmp, "EngineId")) : null,
                         AcceptedUuids = Accepted(doc.RootElement, uuid),
                         Firmware = doc.RootElement.TryGetProperty("Firmware", out var firmware) && firmware.ValueKind == JsonValueKind.Object
                             && firmware.TryGetProperty(uuid, out var record) && record.ValueKind == JsonValueKind.Object ? Str(record, "Version") : null,

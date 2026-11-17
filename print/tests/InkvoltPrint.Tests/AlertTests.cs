@@ -267,6 +267,48 @@ public class AlertTests
     }
 
     [Fact]
+    public void Refused_and_offline_by_turns_still_alert_offline_at_its_time()
+    {
+        // A v3 printer that is really off, with someone on the path spoofing a refusal every other reconnect: neither resets
+        // the other's hold; offline fires at its time.
+        var t = Tracker();
+        var refused = Unreachable() with { LoginRefused = Core.Snmp.SnmpRefusal.UnknownUser };
+        Assert.Empty(t.Observe(Unreachable(), T0));
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(5)));
+        Assert.Empty(t.Observe(Unreachable(), T0.AddMinutes(10)));
+        var n = Assert.Single(t.Observe(refused, T0.AddMinutes(15)));
+        Assert.Equal(AlertKind.Offline, n.Kind);
+        Assert.Empty(t.Observe(Unreachable(), T0.AddMinutes(20))); // once
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(25)));
+        Assert.Equal(AlertLevel.Offline, t.Level(Laser));
+    }
+
+    [Fact]
+    public void A_refusal_that_settles_alerts_once_not_again_as_offline()
+    {
+        var t = Tracker();
+        var refused = Unreachable() with { LoginRefused = Core.Snmp.SnmpRefusal.WrongAuthKey };
+        Assert.Empty(t.Observe(refused, T0));
+        Assert.Equal(AlertKind.LoginRefused, Assert.Single(t.Observe(refused, T0.AddMinutes(2))).Kind);
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(20))); // past offline's hold: the refusal said it already
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(60)));
+        Assert.Equal(AlertLevel.Error, t.Level(Laser));
+        Assert.Equal(Core.CoreStrings.Monitor_RefusedTitle, t.Problem(Laser));
+        // Fixed and read again: nothing more to tell.
+        Assert.Empty(t.Observe(Seen(Ready), T0.AddMinutes(65)));
+        Assert.Equal(AlertLevel.Ok, t.Level(Laser));
+    }
+
+    [Theory]
+    [InlineData(AlertLevel.Ok, false, false, false, AlertLevel.Offline)] // not answering: grey at once
+    [InlineData(AlertLevel.Ok, false, false, true, AlertLevel.Error)] // refused: red, as on its card and the Fleet page
+    [InlineData(AlertLevel.Ok, false, true, true, AlertLevel.Ok)] // connecting: neither
+    [InlineData(AlertLevel.Warning, false, false, false, AlertLevel.Warning)] // a low toner outranks offline
+    [InlineData(AlertLevel.Error, true, false, false, AlertLevel.Error)]
+    public void The_tray_menu_shows_a_printer_as_its_card_does(AlertLevel alerted, bool online, bool connecting, bool refused, AlertLevel shown) =>
+        Assert.Equal(shown, TrayText.LineLevel(alerted, online, connecting, refused));
+
+    [Fact]
     public void Offline_alerts_can_be_turned_off_but_the_icon_still_shows_it()
     {
         var t = Tracker(new AlertRules { Offline = false });

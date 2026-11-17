@@ -21,6 +21,9 @@ public sealed partial class SnmpClient
         public Usm.Keys Keys { get; } = keys;
         public int Boots { get; private set; } = boots;
 
+        /// <summary>It answered a request, signed with the user's keys localized to <see cref="Id"/>: the ID is its own, and no refusal is taken from it after.</summary>
+        public bool Answered { get; set; }
+
         /// <summary>The engine's time now, as this manager reckons it (RFC 3414 §2.3).</summary>
         public int Time => (int)Math.Min(int.MaxValue, _time + (long)Stopwatch.GetElapsedTime(_at).TotalSeconds);
 
@@ -72,10 +75,12 @@ public sealed partial class SnmpClient
             {
                 if (answer.RequestId != pdu.RequestId) continue; // signed, but not this request's answer: ask again
                 engine.Saw(reply.EngineBoots, reply.EngineTime); // in its window (ExchangeAsync)
+                engine.Answered = true;
                 return answer;
             }
             var said = Counter(answer);
-            if (!Usm.NotInTimeWindows.Equals(said)) throw new SnmpAccessException(Refusals.First(r => r.Counter.Equals(said)).Reason);
+            if (!Usm.NotInTimeWindows.Equals(said))
+                throw new SnmpAccessException(Refusals.First(r => r.Counter.Equals(said)).Reason) { EngineId = Convert.ToHexString(engine.Id) };
             // Signed (ExchangeAsync lets no other through): the engine's own clock, taken once a request; again, it's no answer.
             if (resynchronized) break;
             resynchronized = true;
@@ -96,15 +101,18 @@ public sealed partial class SnmpClient
     /// <summary>
     /// A report this manager acts on (RFC 3414 §3.2, §4): before the engine is known, only discovery's unknownEngineID
     /// (unsigned: there are no keys yet); after, a notInTimeWindow only signed (the clock is set from it), or a refusal from
-    /// the engine discovered, signed or not (an agent can't sign for a user or key it refuses). Any other report could come
-    /// from anyone on the network: no answer.
+    /// the engine discovered, signed or not (an agent can't sign for a user or key it refuses), until the engine has answered
+    /// signed: it took the login then, so a refusal after is anyone's on the network. Any other report: no answer.
     /// </summary>
     private static bool ActedOn(SnmpV3Message reply, Oid? counter, V3Engine? engine)
     {
         if (engine is null) return Usm.UnknownEngineIds.Equals(counter) && !reply.Authenticated;
         if (Usm.NotInTimeWindows.Equals(counter)) return reply.Authenticated;
-        return reply.EngineId.AsSpan().SequenceEqual(engine.Id) && Refusals.Any(r => r.Counter.Equals(counter));
+        return !engine.Answered && reply.EngineId.AsSpan().SequenceEqual(engine.Id) && Refusals.Any(r => r.Counter.Equals(counter));
     }
+
+    /// <summary>The engine ID (hex) of the agent once it has answered signed (<see cref="V3Engine.Answered"/>); null before, and over v1 and v2c.</summary>
+    public string? SignedEngineId => _engine is { Answered: true } e ? Convert.ToHexString(e.Id) : null;
 
     /// <summary>RFC 3414 §4: an empty request, neither signed nor encrypted; the agent reports its engine ID, boots and time.</summary>
     private async Task<V3Engine> DiscoverAsync(SnmpV3User user, CancellationToken ct)
