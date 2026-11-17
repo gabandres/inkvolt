@@ -1,4 +1,5 @@
 using System.Text.Json;
+using InkvoltPrint.Core;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Snmp;
@@ -144,6 +145,158 @@ public class SnmpLoginTests
             Assert.True(session.Connection!.OverSnmp);
         }
         Assert.Contains(agent.Received, m => m.Community == Secret);
+    }
+
+    // ------------------------------------------------------------------ SNMP access…'s check and the refused state (the Mac's first)
+
+    /// <summary>SnmpV3Tests' passphrases (and wrong ones).</summary>
+    private static readonly SnmpV3User User = new("reader", "authpass-2026", "privpass-2026");
+
+    private static readonly byte[] Engine = "inkvolt-engine"u8.ToArray();
+
+    private static SnmpAgent V3Agent() =>
+        new(SnmpAgent.ParseWalk(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "snmp-demo", "workgroup-laser.txt"))), User, Engine);
+
+    private static SnmpLogin V3Login(string? auth = null, string? priv = null) =>
+        SnmpLogin.ForUser(User.Name, auth ?? User.AuthPassphrase, priv ?? User.PrivPassphrase, out _)!;
+
+    private static PrinterMonitor Monitor(ISnmpTransport agent, SnmpDevice known, SnmpLogin login, List<MonitorEvent>? events = null) =>
+        new(Printer, () => "Laser", new PrinterWhere(Host, Snmp: known),
+            new PrinterRecipe(() => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent, SnmpLogin: () => login),
+            () => [], _ => { }, e =>
+            {
+                if (events is null) return;
+                lock (events) events.Add(e);
+            });
+
+    [Fact]
+    public async Task A_refused_login_is_its_own_state_not_offline()
+    {
+        var agent = V3Agent();
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, Host, V3Login()))!.Identity);
+        var events = new List<MonitorEvent>();
+        using var monitor = Monitor(agent, known, V3Login(auth: "wrong-auth-pass"), events);
+
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.True(monitor.View.IsRefused);
+        Assert.False(monitor.View.IsOnline);
+        Assert.NotEqual(CoreStrings.Monitor_CantReach, monitor.View.StatusMessage);
+        Assert.Contains("authentication passphrase", monitor.View.StatusDetail);
+        Assert.Equal(monitor.View.StatusMessage, monitor.View.ListLine);
+        // It answers: no offline alert follows (the snapshot is reachable, with nothing read).
+        lock (events) Assert.All(events.OfType<MonitorEvent.Observed>(), o => Assert.True(o.Snapshot.Reachable));
+
+        using var session = new PrinterSession(Printer, new PrinterRecipe(() => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent,
+            SnmpLogin: () => V3Login(priv: "wrong-priv-pass")), () => [], _ => { });
+        var refused = Assert.IsType<SessionStep.Refused>(await session.ConnectAsync(new PrinterWhere(Host, Snmp: known), default));
+        Assert.Equal(SnmpRefusal.WrongPrivKey, refused.Reason);
+        Assert.Null(session.Connection);
+    }
+
+    [Fact]
+    public async Task A_login_refused_on_a_connection_reads_as_refused_not_offline()
+    {
+        var agent = new SnmpV3Tests.Spoofer(V3Agent());
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, Host, V3Login()))!.Identity);
+        using var monitor = Monitor(agent, known, V3Login());
+        Assert.True(await monitor.CheckAsync(false, default));
+
+        (agent.Counter, agent.EngineId) = (Usm.WrongDigests, Engine); // the printer's administrator changed its key
+        await Task.Delay(SnmpPrinterClient.Shared + TimeSpan.FromMilliseconds(100)); // past the read shared by status and supplies
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.True(monitor.View.IsRefused);
+        Assert.Contains("authentication passphrase", monitor.View.StatusDetail);
+
+        (agent.Counter, agent.EngineId) = (null, []); // SNMP access… set it right: the next check connects and reads again
+        Assert.True(await monitor.CheckAsync(false, default));
+        Assert.False(monitor.View.IsRefused);
+        Assert.True(monitor.View.IsOnline);
+    }
+
+    [Fact]
+    public async Task Checking_a_login_says_whether_its_answered_or_which_part_is_refused()
+    {
+        var agent = V3Agent();
+        var device = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, Host, V3Login()))!.Identity);
+        Assert.IsType<SnmpLoginCheck.Answered>(await SnmpLoginCheck.CheckAsync(V3Login(), Host, device, agent));
+        Assert.Equal(new SnmpLoginCheck.Refused(SnmpRefusal.WrongAuthKey), await SnmpLoginCheck.CheckAsync(V3Login(auth: "wrong-auth-pass"), Host, device, agent));
+        Assert.Equal(new SnmpLoginCheck.Refused(SnmpRefusal.WrongPrivKey), await SnmpLoginCheck.CheckAsync(V3Login(priv: "wrong-priv-pass"), Host, device, agent));
+        Assert.IsType<SnmpLoginCheck.NoAnswer>(await SnmpLoginCheck.CheckAsync(Login(Secret), Host, device, agent));
+
+        var other = new SnmpAgent(SnmpAgent.ParseWalk(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "snmp-demo", "workgroup-laser.txt"))
+            .Replace("DEMO0005200", "OTHER0001")), Secret);
+        Assert.IsType<SnmpLoginCheck.AnotherDevice>(await SnmpLoginCheck.CheckAsync(Login(Secret), Host, device, other));
+    }
+
+    [Fact]
+    public async Task A_refusal_spoofed_from_another_engine_is_no_answer_not_a_refusal()
+    {
+        // Anyone on the network can send an unsigned report: one from another engine says nothing about this printer's login.
+        var agent = new SnmpV3Tests.Spoofer(V3Agent()) { Counter = Usm.WrongDigests, EngineId = "someone-else"u8.ToArray() };
+        Assert.IsType<SnmpLoginCheck.NoAnswer>(await SnmpLoginCheck.CheckAsync(V3Login(), Host, null, agent));
+    }
+
+    [Fact]
+    public async Task A_check_whose_network_fails_oddly_is_no_answer_and_only_cancelling_it_stops_it()
+    {
+        Assert.IsType<SnmpLoginCheck.NoAnswer>(await SnmpLoginCheck.CheckAsync(Login(Secret), Host, null, new Throwing(new IOException("unreachable"))));
+        Assert.IsType<SnmpLoginCheck.NoAnswer>(await SnmpLoginCheck.CheckAsync(Login(Secret), Host, null, new Throwing(new OperationCanceledException())));
+        Assert.IsType<SnmpLoginCheck.NoAnswer>(await SnmpLoginCheck.CheckAsync(V3Login(), Host, null, new Garbage()));
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => SnmpLoginCheck.CheckAsync(Login(Secret), Host, null, Agent(), cancelled.Token));
+    }
+
+    [Fact]
+    public async Task Saving_keeps_the_login_kept_now_unasked_and_any_other_only_once_answered_or_saved_anyway()
+    {
+        var asked = new List<SnmpLogin>();
+        SnmpLoginCheck answer = new SnmpLoginCheck.NoAnswer();
+        var save = new SnmpLoginSave(Login(Secret), (login, _) =>
+        {
+            asked.Add(login);
+            return Task.FromResult(answer);
+        });
+
+        Assert.Equal((true, (string?)null), await save.SaveAsync(Login(Secret))); // unchanged: nothing to ask
+        Assert.Empty(asked);
+
+        var (keep, problem) = await save.SaveAsync(Login("new-one"));
+        Assert.False(keep);
+        Assert.Contains("didn't answer with this community", problem);
+        Assert.True(save.IsSaveAnyway(Login("new-one")));
+        Assert.False(save.IsSaveAnyway(Login("another")));
+        Assert.Equal((true, (string?)null), await save.SaveAsync(Login("new-one"))); // Save anyway: kept as it is, not asked again
+        Assert.Single(asked);
+
+        Assert.Contains("SNMPv3", (await save.SaveAsync(V3Login())).Problem); // another login: asked, and Save anyway is for it only
+        Assert.False(save.IsSaveAnyway(Login("new-one")));
+
+        answer = new SnmpLoginCheck.Refused(SnmpRefusal.UnknownUser);
+        (keep, problem) = await save.SaveAsync(V3Login(auth: "wrong-auth-pass"));
+        Assert.False(keep);
+        Assert.Equal(string.Format(CoreStrings.SnmpCheck_Refused, CoreStrings.Snmp_UnknownUser), problem);
+        Assert.False(save.IsSaveAnyway(V3Login(auth: "wrong-auth-pass"))); // a refusal is never kept anyway
+        Assert.False((await save.SaveAsync(V3Login(auth: "wrong-auth-pass"))).Keep);
+
+        answer = new SnmpLoginCheck.AnotherDevice();
+        Assert.Equal((false, CoreStrings.SnmpCheck_AnotherDevice), await save.SaveAsync(Login("other-device")));
+        answer = new SnmpLoginCheck.Answered();
+        Assert.Equal((true, (string?)null), await save.SaveAsync(Login("other-device")));
+        // What the dialog shows never holds the secret typed.
+        Assert.All(new[] { CoreStrings.SnmpCheck_NoAnswerCommunity, CoreStrings.SnmpCheck_NoAnswerUser }, s => Assert.DoesNotContain("new-one", s));
+    }
+
+    /// <summary>A network that fails with <paramref name="error"/> on every request.</summary>
+    private sealed class Throwing(Exception error) : ISnmpTransport
+    {
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct) => Task.FromException<byte[]?>(error);
+    }
+
+    /// <summary>An agent that answers every request with bytes that aren't SNMP.</summary>
+    private sealed class Garbage : ISnmpTransport
+    {
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct) => Task.FromResult<byte[]?>([0x30, 0x84, 0xff, 0xff, 0xff, 0xff, 0x02]);
     }
 
     [Fact]

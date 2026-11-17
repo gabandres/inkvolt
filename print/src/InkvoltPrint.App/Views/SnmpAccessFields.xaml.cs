@@ -63,9 +63,13 @@ public partial class SnmpAccessFields : UserControl
         return login;
     }
 
+    /// <summary>Something was typed or the kind changed (SNMP access…'s Save anyway then goes back to Save).</summary>
+    public event Action? Edited;
+
     private void Kind_Changed(object sender, RoutedEventArgs e)
     {
         if (CommunityPanel is null || V3Panel is null) return; // while loading
+        Edited?.Invoke();
         var v3 = UseV3.IsChecked == true;
         CommunityPanel.Visibility = v3 ? Visibility.Collapsed : Visibility.Visible;
         V3Panel.Visibility = v3 ? Visibility.Visible : Visibility.Collapsed;
@@ -75,5 +79,9 @@ public partial class SnmpAccessFields : UserControl
         Error.Visibility = Visibility.Collapsed;
     }
 
-    private void Field_Changed(object sender, RoutedEventArgs e) => Error.Visibility = Visibility.Collapsed;
+    private void Field_Changed(object sender, RoutedEventArgs e)
+    {
+        Error.Visibility = Visibility.Collapsed;
+        Edited?.Invoke();
+    }
 }

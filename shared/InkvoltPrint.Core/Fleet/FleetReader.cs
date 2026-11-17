@@ -127,8 +127,10 @@ public static class FleetReader
         var where = new PrinterWhere(p.Host, p.EsclRoot, p.IppUri, p.Snmp);
         var step = await session.ConnectAsync(where, ct).ConfigureAwait(false);
         if (step is SessionStep.Elsewhere) return Elsewhere(p);
+        if (step is SessionStep.Refused) return Silent(p, pc, CoreStrings.Monitor_RefusedTitle); // it answers: not "can't reach"
         if (step is not SessionStep.Connected { Connection: var conn }) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         if (await session.ReadAsync(where, ct).ConfigureAwait(false) is not SessionStep.Read { Reading: var reading }) return Elsewhere(p);
+        if (reading.SnmpRefused is not null) return Silent(p, pc, CoreStrings.Monitor_RefusedTitle);
         if (reading.IsOffline) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         var known = reading.Supplies is null || reading.Usage is null ? Known(p.Uuid, pc) : null;
         return new FleetFacts(p.Uuid, conn.Probe.Product?.MakeAndModel ?? p.Name, FleetKind.Network)

@@ -342,19 +342,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The printer's SNMP login as it's used now (an SNMPv3 user only with Inkvolt Pro).</summary>
     private SnmpLogin? SnmpLoginNow() => _pc.SnmpLogins.Usable(Uuid);
 
-    /// <summary>Asks for a printer's SNMP login (its name, the login kept now); null: cancelled. Set by the app (a dialog).</summary>
-    public static Func<string, SnmpLogin, SnmpLogin?>? AskSnmpLogin { get; set; }
+    /// <summary>
+    /// Asks for a printer's SNMP login (its name, and the Save rule over the login kept now: <see cref="SnmpLoginSave"/>); null:
+    /// cancelled. Set by the app (a dialog).
+    /// </summary>
+    public static Func<string, SnmpLoginSave, SnmpLogin, SnmpLogin?>? AskSnmpLogin { get; set; }
 
     /// <summary>
-    /// The printer's menu › SNMP access…: the community it's read with, kept in Credential Manager (public: nothing kept), then a
-    /// new connection with it.
+    /// The printer's menu › SNMP access…: the community or SNMPv3 user it's read with. Save asks the printer with it first
+    /// (<see cref="SnmpLoginCheck"/>, at its address, as itself); once it answers (or Save anyway after no answer) it's kept in
+    /// Credential Manager (public: nothing kept), then a new connection with it.
     /// </summary>
     [RelayCommand]
     private void SetSnmpLogin()
     {
-        if (!CanSetSnmpLogin || AskSnmpLogin is not { } ask) return;
+        if (!CanSetSnmpLogin || AskSnmpLogin is not { } ask || _monitor is not { } monitor) return;
         var current = _pc.SnmpLogins.Get(Uuid) ?? SnmpLogin.Public;
-        if (ask(Name, current) is not { } chosen || chosen == current) return;
+        var save = new SnmpLoginSave(current, (login, ct) => SnmpLoginCheck.CheckAsync(login, monitor.Target.Host, monitor.Target.Snmp, _pc.Snmp, ct));
+        if (ask(Name, save, current) is not { } chosen || chosen == current) return;
         try
         {
             _pc.SnmpLogins.Save(Uuid, chosen);
@@ -431,12 +436,23 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     [ObservableProperty] public partial bool IsElsewhere { get; set; }
 
+    /// <summary>
+    /// The printer's SNMPv3 agent refused its login (<see cref="PrinterView.IsRefused"/>): it answers, so it isn't offline. The
+    /// card offers SNMP access… instead of Fix it…, and the dot is an error's.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StatusKind), nameof(ShowOfflineFix))]
+    public partial bool IsRefused { get; set; }
+
+    /// <summary>The status card's Fix it… while the printer isn't online: not for a refused login (SNMP access… is its fix, not another address).</summary>
+    public bool ShowOfflineFix => CanFix && !IsRefused;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusKind), nameof(ListStatus), nameof(ShowQueueFix))]
     public partial Severity StatusSeverity { get; set; } = Severity.Info;
 
-    /// <summary>For the status dot: connecting, offline, ok, warning, error.</summary>
-    public string StatusKind => !IsOnline ? (IsConnecting ? "connecting" : "offline")
+    /// <summary>For the status dot: connecting, offline, ok, warning, error (also a refused SNMP login).</summary>
+    public string StatusKind => !IsOnline ? (IsConnecting ? "connecting" : IsRefused ? "error" : "offline")
         : StatusSeverity switch { Severity.Error => "error", Severity.Warning => "warning", _ => "ok" };
 
     /// <summary>Toner and usage figures on screen are from before the printer went offline.</summary>
@@ -787,6 +803,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     private void Show(PrinterView v)
     {
         IsElsewhere = v.IsElsewhere;
+        IsRefused = v.IsRefused;
         IsConnecting = v.IsConnecting;
         IsOnline = v.IsOnline;
         StatusMessage = v.StatusMessage;

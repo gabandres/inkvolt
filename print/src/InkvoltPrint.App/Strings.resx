@@ -3062,6 +3062,14 @@ HP's updates have brought "dynamic security", which stops cartridges with non-HP
     <value>{0} Help › Inkvolt Pro… enters a key.</value>
     <comment>{0} = 'needs Inkvolt Pro' sentence; Help › Inkvolt Pro… is a menu path</comment>
   </data>
+  <data name="Snmp_SaveAnyway" xml:space="preserve">
+    <value>Save anyway</value>
+    <comment>button: keeps an SNMP login the printer didn't answer to</comment>
+  </data>
+  <data name="Snmp_Asking" xml:space="preserve">
+    <value>Asking the printer…</value>
+    <comment>while SNMP access… checks a login before keeping it</comment>
+  </data>
   <data name="Password_Title" xml:space="preserve">
     <value>Password</value>
     <comment>window title; screen readers: the password box</comment>

@@ -442,7 +442,16 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   byte for byte (cipher text and digest from Python's own hashlib, hmac and AES), every changed byte failing the digest, the
   made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
   set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
-  Windows** (no hardware: never tried on a printer's agent). 
+  Windows** (no hardware: never tried on a printer's agent).
+- **Now (Windows): SNMP access… asks the printer first, and a refused login is its own state, ported from the Mac 2026-11-17.**
+  Save in the printer's menu › SNMP access… asks the printer at its address with the login (`SnmpLoginCheck`, Core): kept once it
+  answers as itself; a refusal says which part and keeps nothing; another device keeps nothing; no answer says what to check and turns
+  Save into Save anyway (`SnmpLoginSave`). A printer whose SNMPv3 agent refuses its login, when connecting or on a connection already
+  made, shows "The printer refused its SNMP login" with which part and an SNMP access… button (`SessionStep.Refused`,
+  `PrinterView.IsRefused`, `PrinterReading.SnmpRefused`), never offline: no offline alert, no Fix it…; the Fleet page and
+  `status --all` say so too. `SnmpLoginTests` (the Mac's three, plus a refusal spoofed from another engine, a network that fails
+  oddly, the Save rule) and `FleetReadTests.A_printer_whose_SNMP_login_is_refused_says_so_not_cant_reach`. `--dialog snmp-noanswer`,
+  `snmp-refused`, `snmp-other` render the dialog after Save. Not checked: a printer's own SNMPv3 agent. 
 - **Now (Mac): a community per printer, built 2026-11-06.** PrintCore's `SnmpLogin` and `SnmpLogins` (Windows' tests ported, same
   names: `SnmpLoginTests`), in the connection recipe as on Windows; kept in the Keychain (PrintMac `SnmpLoginKeychain`, one item per
   printer id, replaced in place, nothing for `public`, deleted with the printer), never in `state.json`. Add a Printer › Know its

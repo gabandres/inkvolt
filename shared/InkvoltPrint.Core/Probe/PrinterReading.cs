@@ -21,6 +21,12 @@ namespace InkvoltPrint.Core.Probe;
 public sealed record PrinterReading(PrinterStatus Status, IReadOnlyList<Consumable>? Supplies, UsageCounters? Usage)
 {
     public bool IsOffline => Status.Code == "offline";
+
+    /// <summary>
+    /// The printer's SNMPv3 agent refused the login when its status was asked (Status is then Offline, nothing read): it answers,
+    /// so the printer monitor shows it refused, not offline. Null otherwise.
+    /// </summary>
+    public SnmpRefusal? SnmpRefused { get; init; }
 }
 
 /// <summary>The parts of a <see cref="PrinterReading"/> a caller wants (only those are asked of the printer).</summary>
@@ -55,6 +61,7 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
         IReadOnlyList<Consumable>? supplies = null;
         UsageCounters? usage = null;
         bool statusMissed = false, suppliesMissed = false, offline = false;
+        SnmpRefusal? refused = null;
         var need = parts;
         foreach (var source in sources)
         {
@@ -72,13 +79,15 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
             if (s.Result.Offline) // status decides: the printer isn't there
             {
                 offline = true;
+                refused = s.Result.Refused;
                 break;
             }
             // Supplies that timed out aren't asked of the next interface (the same host), but they end nothing: status still
             // comes from whichever interface gives it. Usage counters are extra: their failure ends nothing either.
             if (c.Result.Offline) need &= ~ReadParts.Supplies;
         }
-        if (status is null && offline) return new PrinterReading(PrinterStatus.Offline(CoreStrings.Probe_NotResponding), null, null); // nothing else counts
+        if (status is null && offline) // nothing else counts
+            return new PrinterReading(PrinterStatus.Offline(CoreStrings.Probe_NotResponding), null, null) { SnmpRefused = refused };
         return new PrinterReading(
             status ?? (offline ? PrinterStatus.Offline(CoreStrings.Probe_NotResponding)
                 : statusMissed ? PrinterStatus.Unavailable(CoreStrings.Probe_BusyUpdateShortly)
@@ -103,7 +112,8 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
         return [];
     }
 
-    private readonly record struct Outcome<T>(T? Value, bool Missed, bool Offline) where T : class
+    /// <param name="Refused">Offline because an SNMPv3 agent refused the login (it answers): which part.</param>
+    private readonly record struct Outcome<T>(T? Value, bool Missed, bool Offline, SnmpRefusal? Refused = null) where T : class
     {
         /// <summary>The part's read, settled: the value, or which kind of failure. Cancellation and other faults propagate.</summary>
         public static async Task<Outcome<T>> Of(Task<T?>? read)
@@ -115,7 +125,7 @@ internal sealed class PrinterReader(IReadOnlyList<ReadingSource> sources)
             }
             catch (Exception ex) when (PrinterConnection.IsOffline(ex))
             {
-                return new(null, false, true);
+                return new(null, false, true, (ex as SnmpAccessException)?.Reason);
             }
             catch (Exception ex) when (PrinterConnection.IsTransient(ex))
             {

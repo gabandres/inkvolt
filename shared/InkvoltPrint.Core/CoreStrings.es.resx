@@ -3136,6 +3136,24 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Monitor_ElsewhereDetail" xml:space="preserve">
     <value>Ahora otro dispositivo tiene {0}, así que su estado no se muestra aquí. Probablemente la impresora recibió una nueva dirección: Inkvolt Print la busca en la red, o elige Resolver… para encontrarla. Si la impresora se reparó o se restableció y de verdad es ella, elige Esta es mi impresora.</value>
   </data>
+  <data name="Monitor_RefusedTitle" xml:space="preserve">
+    <value>La impresora rechazó su acceso SNMP</value>
+  </data>
+  <data name="Monitor_RefusedDetail" xml:space="preserve">
+    <value>{0} Elige Acceso SNMP… en el menú de la impresora para cambiarlo.</value>
+  </data>
+  <data name="SnmpCheck_Refused" xml:space="preserve">
+    <value>{0} No se cambió nada.</value>
+  </data>
+  <data name="SnmpCheck_AnotherDevice" xml:space="preserve">
+    <value>Con este acceso responde otro dispositivo en la dirección de esta impresora, así que no se guardó.</value>
+  </data>
+  <data name="SnmpCheck_NoAnswerUser" xml:space="preserve">
+    <value>La impresora no respondió por SNMPv3: comprueba que esté encendida y que tenga SNMPv3 activado. Guardar de todos modos lo guarda tal como está.</value>
+  </data>
+  <data name="SnmpCheck_NoAnswerCommunity" xml:space="preserve">
+    <value>La impresora no respondió con esta comunidad: revísala y comprueba que la impresora esté encendida. Guardar de todos modos la guarda tal como está.</value>
+  </data>
   <data name="NeedsDriver_ListStatusNoDriverScanner" xml:space="preserve">
     <value>Conectado, le falta su controlador</value>
     <comment>a scanner (masculine in Spanish)</comment>

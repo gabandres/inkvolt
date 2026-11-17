@@ -312,7 +312,8 @@ internal static class DevSnapshot
                 await Task.Delay(TimeSpan.FromSeconds(2));
             }
         }
-        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro|snmp|snmp3: that window instead of the main one.
+        // --dialog settings|help|whatsnew|report|addprinter|confirm|pro|snmp|snmp3|snmp-noanswer|snmp-refused|snmp-other: that window
+        // instead of the main one (snmp-*: SNMP access… with Save pressed against a made-up answer).
         if (Value(args, "--dialog") is { } name && window.DataContext is ViewModels.MainViewModel dialogMain)
         {
             if (name == "pro" && args.Contains("--pro-enforce")) Core.Pro.Enforced = true; // the locked wording (demo: memory only)
@@ -328,6 +329,11 @@ internal static class DevSnapshot
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer",
                     Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!),
+                // Save pressed with a made-up answer from the printer: no answer (Save anyway), a refused passphrase, another device.
+                "snmp-noanswer" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForCommunity("demo-community", out _)!, new Core.Snmp.SnmpLoginCheck.NoAnswer()),
+                "snmp-refused" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!,
+                    new Core.Snmp.SnmpLoginCheck.Refused(Core.Snmp.SnmpRefusal.WrongAuthKey)),
+                "snmp-other" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForCommunity("demo-community", out _)!, new Core.Snmp.SnmpLoginCheck.AnotherDevice()),
                 _ => null,
             };
             if (dialog is ProWindow pro && Value(args, "--pro-key") is { } proKey) pro.DevEnter(proKey);
@@ -342,6 +348,7 @@ internal static class DevSnapshot
             {
                 dialog.Owner = window;
                 dialog.Show();
+                if (dialog is SnmpAccessDialog snmpCheck && name.StartsWith("snmp-", StringComparison.Ordinal)) await snmpCheck.DevSaveAsync();
                 // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
                 if (scrollToEnd)
@@ -388,6 +395,11 @@ internal static class DevSnapshot
 
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary>SNMP access… showing <paramref name="typed"/> (public kept now), its Save answered with <paramref name="answer"/>; nothing reaches the network.</summary>
+    private static SnmpAccessDialog SnmpCheckPreview(ViewModels.MainViewModel main, Core.Snmp.SnmpLogin typed, Core.Snmp.SnmpLoginCheck answer) =>
+        SnmpAccessDialog.Create(main.Selected?.Name ?? "Demo printer", typed,
+            new Core.Snmp.SnmpLoginSave(Core.Snmp.SnmpLogin.Public, (_, _) => Task.FromResult(answer)));
 
     /// <summary>
     /// <c>--maintenance [n]</c>: scrolls to the Maintenance card ("Printer maintenance…") and, with <c>--demo</c> only, runs

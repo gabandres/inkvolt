@@ -2488,6 +2488,12 @@ Las actualizaciones de HP han traído la "seguridad dinámica", que impide que f
   <data name="Snmp_ProNote" xml:space="preserve">
     <value>{0} En Ayuda › Inkvolt Pro… puedes escribir una clave.</value>
   </data>
+  <data name="Snmp_SaveAnyway" xml:space="preserve">
+    <value>Guardar de todos modos</value>
+  </data>
+  <data name="Snmp_Asking" xml:space="preserve">
+    <value>Consultando a la impresora…</value>
+  </data>
   <data name="Password_Title" xml:space="preserve">
     <value>Contraseña</value>
   </data>
