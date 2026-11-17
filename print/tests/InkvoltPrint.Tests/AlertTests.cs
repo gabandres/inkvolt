@@ -246,6 +246,27 @@ public class AlertTests
     }
 
     [Fact]
+    public void A_refused_SNMP_login_alerts_as_itself_not_offline_and_keeps_what_was_known()
+    {
+        var t = Tracker(new AlertRules { Offline = false }); // offline alerts off: a refusal still alerts
+        Assert.Single(t.Observe(Seen(Ready, Toner(10)), T0));
+        Assert.Empty(t.Observe(Unreachable(), T0.AddMinutes(5)));
+        var refused = Unreachable() with { LoginRefused = Core.Snmp.SnmpRefusal.WrongAuthKey };
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(6)));
+        var n = Assert.Single(t.Observe(refused, T0.AddMinutes(8))); // after the error's hold, not offline's
+        Assert.Equal(AlertKind.LoginRefused, n.Kind);
+        Assert.Equal("Office laser refused its SNMP login", n.Title);
+        Assert.Contains("authentication passphrase", n.Body);
+        Assert.Equal(AlertLevel.Error, t.Level(Laser));
+        Assert.Equal("The printer refused its SNMP login", t.Problem(Laser));
+        Assert.Empty(t.Observe(refused, T0.AddMinutes(40))); // once
+        // SNMP access… fixed it: the refusal clears, and the low toner known from before doesn't alert again.
+        Assert.Empty(t.Observe(Seen(Ready, Toner(10)), T0.AddMinutes(45)));
+        Assert.Empty(t.Observe(Seen(Ready, Toner(10)), T0.AddMinutes(60)));
+        Assert.Equal(AlertLevel.Warning, t.Level(Laser));
+    }
+
+    [Fact]
     public void Offline_alerts_can_be_turned_off_but_the_icon_still_shows_it()
     {
         var t = Tracker(new AlertRules { Offline = false });

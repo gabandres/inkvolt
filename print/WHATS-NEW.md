@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, Save anyway keeps it as it is.
+- A printer that refuses its SNMP login now says so, with which part and an SNMP access… button, instead of showing as offline, and its notification says so too.
 
 ## 1.5.0
 - A USB scanner plugged in with no driver now shows on the printer list and in the Scan tab as "Plugged in, needs its driver", the moment it's plugged in.

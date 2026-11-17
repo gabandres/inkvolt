@@ -211,11 +211,28 @@ public sealed class FleetReadTests : IDisposable
                 Assert.False(text.Contains(word, StringComparison.OrdinalIgnoreCase), $"{word} left in {text}");
     }
 
-    private sealed class OnePrinterPc(InkvoltPrinter printer, Func<HttpMessageHandler> transport, ISnmpTransport snmp) : IFleetPc
+    [Fact]
+    public async Task A_printer_whose_SNMP_login_is_refused_says_so_not_cant_reach()
+    {
+        const string host = "192.0.2.14";
+        var user = new SnmpV3User("reader", "authpass-2026", "privpass-2026");
+        var agent = new SnmpAgent(SnmpAgent.ParseWalk(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "snmp-demo", "workgroup-laser.txt"))),
+            user, "inkvolt-engine"u8.ToArray());
+        var known = new InkvoltPrinter(PrinterId.Normalize(null, host), "SNMP printer", null, host, null) { Snmp = new SnmpDevice("DEMO0005200", null, null) };
+        var wrong = SnmpLogin.ForUser(user.Name, "wrong-auth-pass", user.PrivPassphrase, out _);
+
+        var read = await FleetReader.ReadAllAsync(new OnePrinterPc(known, () => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent, wrong), Now);
+        var printer = Assert.Single(read.Printers);
+        Assert.Equal(CoreStrings.Monitor_RefusedTitle, printer.Status);
+        Assert.Equal(FleetTrouble.Error, printer.Trouble); // it answers: an error of its own, not counted offline
+        Assert.DoesNotContain("reached", FleetPage.Summary(read.Printers.ToList())); // "1 with an error", not "can't be reached"
+    }
+
+    private sealed class OnePrinterPc(InkvoltPrinter printer, Func<HttpMessageHandler> transport, ISnmpTransport snmp, SnmpLogin? login = null) : IFleetPc
     {
         public InkvoltPrinters Remembered { get; } = new([printer], new Dictionary<string, string>());
         public IReadOnlyCollection<string> Hidden => [];
-        public PrinterRecipe Recipe(InkvoltPrinter p) => new(transport, snmp);
+        public PrinterRecipe Recipe(InkvoltPrinter p) => new(transport, snmp, SnmpLogin: () => login);
         public Task<IReadOnlyList<SpoolerQueue>> QueuesAsync(Func<SpoolerQueue, bool> needsPresence, CancellationToken ct) => Task.FromResult<IReadOnlyList<SpoolerQueue>>([]);
         public IQueueStatusSource QueueStatus(SpoolerQueue q) => throw new InvalidOperationException();
         public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => Task.FromResult<IReadOnlyList<WiaDeviceInfo>>([]);

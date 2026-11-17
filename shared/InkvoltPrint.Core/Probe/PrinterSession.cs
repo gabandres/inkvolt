@@ -27,6 +27,9 @@ public abstract record SessionStep
     /// <summary>Nothing answers at the printer's address.</summary>
     public sealed record Offline : SessionStep;
 
+    /// <summary>The printer's SNMPv3 agent refused its login (the user, or one of its keys): it answers, so it isn't offline.</summary>
+    public sealed record Refused(SnmpRefusal Reason) : SessionStep;
+
     /// <summary>
     /// Another device answers at the address (it reports other UUIDs, or over SNMP another serial number, model or name). The
     /// session has let go of every connection: nothing of that device is read under this printer's name.
@@ -91,7 +94,10 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
     /// <summary>The printer's connection; null before the first connection and after another device was found at its address.</summary>
     public PrinterConnection? Connection { get; private set; }
 
-    /// <summary>Connects at <paramref name="where"/>: <see cref="SessionStep.Connected"/>, or Offline, or Elsewhere (nothing kept).</summary>
+    /// <summary>
+    /// Connects at <paramref name="where"/>: <see cref="SessionStep.Connected"/>, or Offline, Refused (an SNMPv3 agent refused the
+    /// login) or Elsewhere (nothing kept).
+    /// </summary>
     public async Task<SessionStep> ConnectAsync(PrinterWhere where, CancellationToken ct)
     {
         var conn = await PrinterConnection.OpenAsync(where.Host, where.EsclHint, ct, recipe.Pin, recipe.Transport(), where.IppHint,
@@ -99,7 +105,7 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
-            return new SessionStep.Offline();
+            return conn.Probe.SnmpRefused is { } why ? new SessionStep.Refused(why) : new SessionStep.Offline();
         }
         if (Identify(where.Host, conn.Probe.ReportedUuids) == DeviceIdentity.Different) return LetGo(conn, conn.Probe.ReportedUuids, where.Host);
         if (conn.Probe.Snmp is { } snmp && where.Snmp?.Identify(snmp) == DeviceIdentity.Different) return LetGo(conn, [], where.Host, snmp);

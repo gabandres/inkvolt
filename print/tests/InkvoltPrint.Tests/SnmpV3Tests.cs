@@ -306,8 +306,11 @@ public class SnmpV3Tests
         Assert.Equal(2, agent.V3Log.Count(e => e == "notInTimeWindows")); // resynchronized once, then no answer
     }
 
-    /// <summary>Unsigned reports of <see cref="Counter"/> from <see cref="EngineId"/>, once set, for every request but a discovery: anyone on the network can send one.</summary>
-    private sealed class Spoofer(SnmpAgent agent) : ISnmpTransport
+    /// <summary>
+    /// Unsigned reports of <see cref="Counter"/> from <see cref="EngineId"/>, once set, for every request but a discovery: anyone on
+    /// the network can send one (also SnmpLoginTests', as a printer whose administrator changed its key).
+    /// </summary>
+    internal sealed class Spoofer(SnmpAgent agent) : ISnmpTransport
     {
         public InkvoltPrint.Core.Snmp.Oid? Counter { get; set; }
         public byte[] EngineId { get; set; } = [];

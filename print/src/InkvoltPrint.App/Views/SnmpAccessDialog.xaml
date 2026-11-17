@@ -10,10 +10,18 @@
         <TextBlock TextWrapping="Wrap" Margin="0,0,0,16" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                    Text="{x:Static loc:Strings.Snmp_Intro}" />
         <views:SnmpAccessFields x:Name="Fields" />
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button x:Name="Ok" Content="{x:Static loc:Strings.Common_Save}" IsDefault="True" Click="Ok_Click" MinWidth="96" Margin="0,0,8,0"
-                    Style="{DynamicResource AccentButtonStyle}" />
-            <Button Content="{x:Static loc:Strings.Common_Cancel}" IsCancel="True" MinWidth="96" />
-        </StackPanel>
+        <!-- What asking the printer with the login came to: refused (which part), another device, or no answer (Save anyway).
+             Announced by the code (Prompt.Announce), as is "Asking the printer…" -->
+        <TextBlock x:Name="Problem" Margin="0,12,0,0" Visibility="Collapsed" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+        <DockPanel Margin="0,24,0,0">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="Ok" Content="{x:Static loc:Strings.Common_Save}" IsDefault="True" Click="Ok_Click" MinWidth="96" Margin="0,0,8,0"
+                        Style="{DynamicResource AccentButtonStyle}" />
+                <Button Content="{x:Static loc:Strings.Common_Cancel}" IsCancel="True" MinWidth="96" />
+            </StackPanel>
+            <TextBlock x:Name="Asking" Text="{x:Static loc:Strings.Snmp_Asking}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,12,0"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Visibility="Collapsed" />
+        </DockPanel>
     </StackPanel>
 </Window>

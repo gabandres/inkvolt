@@ -442,7 +442,19 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   byte for byte (cipher text and digest from Python's own hashlib, hmac and AES), every changed byte failing the digest, the
   made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
   set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
-  Windows** (no hardware: never tried on a printer's agent). 
+  Windows** (no hardware: never tried on a printer's agent).
+- **Now (Windows): SNMP access… asks the printer first, and a refused login is its own state, ported from the Mac 2026-11-17.**
+  Save in the printer's menu › SNMP access… asks the printer at its address with the login (`SnmpLoginCheck`, Core): kept once it
+  answers as itself; a refusal says which part and keeps nothing; another device keeps nothing; no answer says what to check and turns
+  Save into Save anyway (`SnmpLoginSave`; editing the fields asks again). A printer whose SNMPv3 agent refuses its login when connecting
+  (from the engine just discovered) shows "The printer refused its SNMP login" with which part and an SNMP access… button
+  (`SessionStep.Refused`, `PrinterView.IsRefused`), never offline: its alert is "… refused its SNMP login" (`AlertKind.LoginRefused`,
+  an error, alerted even with offline alerts off), no Fix it…; the Fleet page and `status --all` count it an error. A refusal on a
+  connection whose login has answered signed is read as offline (a refusal can't be signed, so anyone on the network can send one);
+  the next connection decides. `SnmpLoginTests` (the Mac's three, plus refusals spoofed from another engine and on a connection, a
+  refusal after another device answered, a network that fails oddly, the Save rule), `AlertTests.A_refused_SNMP_login_alerts_as_itself_…`
+  and `FleetReadTests.A_printer_whose_SNMP_login_is_refused_says_so_not_cant_reach`. `--dialog snmp-noanswer`, `snmp-refused`,
+  `snmp-other` render the dialog after Save. Not checked: a printer's own SNMPv3 agent. 
 - **Now (Mac): a community per printer, built 2026-11-06.** PrintCore's `SnmpLogin` and `SnmpLogins` (Windows' tests ported, same
   names: `SnmpLoginTests`), in the connection recipe as on Windows; kept in the Keychain (PrintMac `SnmpLoginKeychain`, one item per
   printer id, replaced in place, nothing for `public`, deleted with the printer), never in `state.json`. Add a Printer › Know its

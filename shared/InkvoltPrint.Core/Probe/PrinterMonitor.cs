@@ -17,6 +17,12 @@ public sealed record PrinterView
     /// <summary>Another device answers at the printer's address: nothing of it is shown, and "This is my printer" may accept it.</summary>
     public bool IsElsewhere { get; init; }
 
+    /// <summary>
+    /// The printer's SNMPv3 agent refused its login: it answers, but nothing can be read until SNMP access… changes it. Not online,
+    /// and not offline either: no offline alert, and the offline fixer has nothing to look for.
+    /// </summary>
+    public bool IsRefused { get; init; }
+
     public string StatusMessage { get; init; } = CoreStrings.Monitor_Connecting;
     public string? StatusDetail { get; init; }
     public Severity Severity { get; init; } = Severity.Info;
@@ -296,8 +302,8 @@ public sealed class PrinterMonitor : IDisposable
     // ---------------------------------------------------------------- steps
 
     /// <summary>
-    /// Connects through the session. False, with the state set, when nothing answers there or another device does: that device's
-    /// status, supplies and alerts are never shown or alerted under this printer's name.
+    /// Connects through the session. False, with the state set, when nothing answers there, its SNMPv3 agent refuses the login,
+    /// or another device answers: that device's status, supplies and alerts are never shown or alerted under this printer's name.
     /// </summary>
     private async Task<bool> ConnectAsync(CancellationToken ct)
     {
@@ -308,6 +314,9 @@ public sealed class PrinterMonitor : IDisposable
                 return true;
             case SessionStep.Elsewhere elsewhere:
                 SetElsewhere(elsewhere);
+                return false;
+            case SessionStep.Refused refused:
+                SetRefused(refused.Reason);
                 return false;
             default:
                 SetOffline();
@@ -335,7 +344,7 @@ public sealed class PrinterMonitor : IDisposable
             if (changed) _log("firmware version changed"); // never the versions: they can identify a unit
             notice = shown;
         }
-        Show(View with { IsElsewhere = false, Probe = p, FirmwareNotice = notice });
+        Show(View with { IsElsewhere = false, IsRefused = false, Probe = p, FirmwareNotice = notice });
         _onEvent(new MonitorEvent.Connected(conn, upgraded));
     }
 
@@ -351,6 +360,8 @@ public sealed class PrinterMonitor : IDisposable
         }
         var reading = ((SessionStep.Read)step).Reading;
         var status = reading.Status;
+        // A refusal on a connection whose login has answered signed isn't trusted (a refusal can't be signed, so anyone on the
+        // network can send one): offline, and the next connection asks again, where the engine just discovered decides.
         if (reading.IsOffline)
         {
             SetOffline();
@@ -360,6 +371,7 @@ public sealed class PrinterMonitor : IDisposable
         {
             IsConnecting = false,
             IsOnline = true,
+            IsRefused = false,
             Supplies = reading.Supplies ?? View.Supplies, // not read this time: they stay as they were
             Usage = reading.Usage ?? View.Usage,
         };
@@ -379,10 +391,26 @@ public sealed class PrinterMonitor : IDisposable
     {
         Show(View with
         {
-            IsConnecting = false, IsOnline = false, IsElsewhere = elsewhere || View.IsElsewhere, StatusMessage = message, StatusDetail = detail,
-            Severity = Severity.Error, Alerts = [],
+            IsConnecting = false, IsOnline = false, IsRefused = false, IsElsewhere = elsewhere || View.IsElsewhere, StatusMessage = message,
+            StatusDetail = detail, Severity = Severity.Error, Alerts = [],
         });
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null)));
+    }
+
+    /// <summary>
+    /// The printer's SNMPv3 agent refused its login when connecting: its own state, saying which part, with where to change it.
+    /// Its alert is that refusal, an error, not offline (the snapshot reads nothing, so what was known of its status and supplies
+    /// stands as for offline). Whether another device answered stays as it was: a refusing agent never said who it is.
+    /// </summary>
+    private void SetRefused(SnmpRefusal why)
+    {
+        if (!View.IsRefused) _log($"its SNMPv3 agent refused the login ({why})"); // once, which part only, never the user or a passphrase
+        Show(View with
+        {
+            IsConnecting = false, IsOnline = false, IsRefused = true, StatusMessage = CoreStrings.Monitor_RefusedTitle,
+            StatusDetail = string.Format(CoreStrings.Monitor_RefusedDetail, new SnmpAccessException(why).Message), Severity = Severity.Error, Alerts = [],
+        });
+        _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null) { LoginRefused = why }));
     }
 
     /// <summary>
