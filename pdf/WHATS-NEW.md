@@ -7,6 +7,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Move a sticky note, a highlight, an underline or a strike-out: drag it with the hand tool, or nudge it with the arrow keys. Its replies come along.
 - Change a note's or a text mark's color from the bar that shows when you select it, or from Color in the Comments pane's menu. Ctrl+Z undoes either.
+- Polygon and Polyline tools in the Draw menu (keys V and Z): click each corner, then double-click or press Enter to finish; a click on a polygon's first corner closes it. Backspace takes a corner back, Esc cancels. Color, line width and fill as for the other shapes.
 
 ## 1.14.0
 - Checking signatures for the long term is stricter with files built to mislead: a timestamp only counts when its authority is trusted, a certificate is never left trusted when a file holds more validation data than a check reads, and data stored in a file can't hide a later change to the document (an attachment, the form, a page's size).

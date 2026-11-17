@@ -7,6 +7,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 ## Next
 - Mueve una nota, un resaltado, un subrayado o un tachado: arrástralo con la herramienta mano o desplázalo con las flechas del teclado. Sus respuestas se mueven con él.
 - Cambia el color de una nota o de una marca de texto desde la barra que aparece al seleccionarla, o desde Color en el menú del panel Comentarios. Ctrl+Z deshace cualquiera de los dos cambios.
+- Herramientas Polígono y Polilínea en el menú Dibujar (teclas V y Z): haz clic en cada esquina y luego doble clic o Enter para terminar; un clic en la primera esquina de un polígono lo cierra. Retroceso quita una esquina, Esc cancela. Color, grosor de línea y relleno como en las demás figuras.
 
 ## 1.14.0
 - La comprobación de firmas a largo plazo es más estricta con archivos hechos para engañar: una marca de tiempo solo cuenta si su autoridad es de confianza, un certificado nunca queda como de confianza si el archivo tiene más datos de validación de los que lee una comprobación, y los datos guardados en un archivo no pueden ocultar un cambio posterior al documento (un adjunto, el formulario, el tamaño de una página).

@@ -11,7 +11,7 @@ namespace InkvoltPdf.App;
 /// Developer aid: <c>InkvoltPdf.exe file.pdf --script steps.txt</c> runs UI steps off-screen and saves window snapshots,
 /// so the UI can be verified without capturing the user's screen. One step per line:
 /// <c>wait ms · shot out.png · page N · zoom 150|fitwidth|fitpage · layout Continuous|Facing|… · find text ·
-/// findnext · tool hand|select|snapshot|addtext|check|note|redact|pen|marker|rect|ellipse|line|arrow|textbox|callout · selectall · rotateview cw|ccw|0|90|180|270 · keys text (real key messages, Shift
+/// findnext · tool hand|select|snapshot|addtext|check|note|redact|pen|marker|rect|ellipse|line|arrow|polygon|polyline|textbox|callout · selectall · rotateview cw|ccw|0|90|180|270 · keys text (real key messages, Shift
 /// for capitals and symbols; {tab} {enter} {sp}; sent to the open dialog if there is one) · editor · nav pages|bookmarks|search · select 1,3 · rotate 90 ·
 /// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· findworkers word · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
 /// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
@@ -206,7 +206,7 @@ internal static class DevScript
             case "rotateview": v!.SetViewRotation(int.Parse(arg)); break;
             case "tool": v!.Tool = arg switch { "select" => ViewerTool.SelectText, "snapshot" => ViewerTool.Snapshot, "addtext" => ViewerTool.AddText, "check" => ViewerTool.AddCheck, "note" => ViewerTool.AddNote, "redact" => ViewerTool.Redact,
                 "pen" => ViewerTool.Pen, "marker" or "highlighter" => ViewerTool.Highlighter, "rect" or "rectangle" => ViewerTool.Rectangle, "ellipse" => ViewerTool.Ellipse,
-                "line" => ViewerTool.Line, "arrow" => ViewerTool.Arrow, "textbox" => ViewerTool.TextBox, "callout" => ViewerTool.Callout, "link" => ViewerTool.AddLink, "measure-distance" => ViewerTool.MeasureDistance,
+                "line" => ViewerTool.Line, "arrow" => ViewerTool.Arrow, "textbox" => ViewerTool.TextBox, "callout" => ViewerTool.Callout, "polygon" => ViewerTool.Polygon, "polyline" => ViewerTool.PolyLine, "link" => ViewerTool.AddLink, "measure-distance" => ViewerTool.MeasureDistance,
                 "measure-perimeter" => ViewerTool.MeasurePerimeter, "measure-area" => ViewerTool.MeasureArea, _ => ViewerTool.Hand }; break;
             case "selectall": v!.SelectAll(); break;
             case "find": Cmd.Find.Execute(null, window); SetFindText(tab!, arg); tab!.FindNext(false); break;
@@ -290,7 +290,7 @@ internal static class DevScript
             }
             case "annots": log.Add(Annotations(tab!)); break;
             case "drawings": log.Add(Drawings(tab!)); break;
-            case "drawsel": log.Add($"selected drawing: {v!.SelectedDrawing?.Id ?? "(none)"} {(v.SelectedDrawing is { } sd ? CommentItem.TitleOf(sd) : "")}; tool={v.Tool}; editing text={v.EditingText?.Tool.ToString() ?? "no"}; style bar: {tab!.DevStyleBar}"); break;
+            case "drawsel": log.Add($"selected drawing: {v!.SelectedDrawing?.Id ?? "(none)"} {(v.SelectedDrawing is { } sd ? CommentItem.TitleOf(sd) : "")}; tool={v.Tool}; editing text={v.EditingText?.Tool.ToString() ?? "no"}; corners clicked={v.DevVerticesInProgress ?? "-"}; style bar: {tab!.DevStyleBar}"); break;
             case "selectdrawing": v!.SelectDrawing(arg == "none" ? null : tab!.DevDrawings[int.Parse(arg)].Id); break;
             case "drawstyle":
             {

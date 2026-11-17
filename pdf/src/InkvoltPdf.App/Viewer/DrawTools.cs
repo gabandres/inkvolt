@@ -7,13 +7,19 @@ namespace InkvoltPdf.App.Viewer;
 public static class DrawTools
 {
     public static readonly ViewerTool[] All =
-        [ViewerTool.Pen, ViewerTool.Highlighter, ViewerTool.Rectangle, ViewerTool.Ellipse, ViewerTool.Line, ViewerTool.Arrow, ViewerTool.TextBox, ViewerTool.Callout];
+    [
+        ViewerTool.Pen, ViewerTool.Highlighter, ViewerTool.Rectangle, ViewerTool.Ellipse, ViewerTool.Line, ViewerTool.Arrow,
+        ViewerTool.Polygon, ViewerTool.PolyLine, ViewerTool.TextBox, ViewerTool.Callout,
+    ];
 
     public static bool IsDrawTool(ViewerTool tool) => Array.IndexOf(All, tool) >= 0;
 
     public static bool IsInk(ViewerTool tool) => tool is ViewerTool.Pen or ViewerTool.Highlighter;
 
     public static bool IsText(ViewerTool tool) => tool is ViewerTool.TextBox or ViewerTool.Callout;
+
+    /// <summary>The tools that draw by clicking corners (<see cref="VertexDraft"/>), not by a drag.</summary>
+    public static bool IsVertexTool(ViewerTool tool) => tool is ViewerTool.Polygon or ViewerTool.PolyLine;
 
     /// <summary>The PDF subtype the tool creates.</summary>
     public static string Subtype(ViewerTool tool) => tool switch
@@ -22,6 +28,8 @@ public static class DrawTools
         ViewerTool.Rectangle => "Square",
         ViewerTool.Ellipse => "Circle",
         ViewerTool.Line or ViewerTool.Arrow => "Line",
+        ViewerTool.Polygon => "Polygon",
+        ViewerTool.PolyLine => "PolyLine",
         _ => "FreeText",
     };
 
@@ -29,8 +37,8 @@ public static class DrawTools
     {
         ViewerTool.Pen => AnnotStyle.Pen(new AnnotColor(0.1, 0.4, 0.9), 2),
         ViewerTool.Highlighter => AnnotStyle.Marker(),
-        ViewerTool.Rectangle or ViewerTool.Ellipse => new AnnotStyle { Color = AnnotColor.Red, Width = 2 },
-        ViewerTool.Line => AnnotStyle.Pen(AnnotColor.Red, 2),
+        ViewerTool.Rectangle or ViewerTool.Ellipse or ViewerTool.Polygon => new AnnotStyle { Color = AnnotColor.Red, Width = 2 },
+        ViewerTool.Line or ViewerTool.PolyLine => AnnotStyle.Pen(AnnotColor.Red, 2),
         ViewerTool.Arrow => AnnotStyle.Arrow(AnnotColor.Red, 2),
         ViewerTool.Callout => AnnotStyle.TextBox(12, AnnotColor.Red, new AnnotColor(1, 1, 1)),
         _ => AnnotStyle.Typewriter(12),
@@ -47,6 +55,8 @@ public static class DrawTools
         ViewerTool.Arrow => Strings.Viewer_ToolArrow,
         ViewerTool.TextBox => Strings.Viewer_ToolTextBox,
         ViewerTool.Callout => Strings.Viewer_ToolCallout,
+        ViewerTool.Polygon => Strings.Viewer_ToolPolygon,
+        ViewerTool.PolyLine => Strings.Viewer_ToolPolyline,
         _ => tool.ToString(),
     };
 
@@ -61,6 +71,8 @@ public static class DrawTools
         ViewerTool.Arrow => Strings.Viewer_ToolArrowDesc,
         ViewerTool.TextBox => Strings.Viewer_ToolTextBoxDesc,
         ViewerTool.Callout => Strings.Viewer_ToolCalloutDesc,
+        ViewerTool.Polygon => Strings.Viewer_ToolPolygonDesc,
+        ViewerTool.PolyLine => Strings.Viewer_ToolPolylineDesc,
         _ => "",
     };
 
@@ -83,6 +95,8 @@ public static class DrawTools
         ViewerTool.Arrow => "",
         ViewerTool.TextBox => "",
         ViewerTool.Callout => "",
+        ViewerTool.Polygon => "\uEDD7",  // a triangle's outline
+        ViewerTool.PolyLine => "\uED65", // two straight pieces
         _ => "",
     };
 
@@ -97,6 +111,8 @@ public static class DrawTools
         ViewerTool.Arrow => Key.W,
         ViewerTool.TextBox => Key.B,
         ViewerTool.Callout => Key.C,
+        ViewerTool.Polygon => Key.V, // the Mac's keys
+        ViewerTool.PolyLine => Key.Z,
         _ => Key.None,
     };
 
@@ -106,9 +122,11 @@ public static class DrawTools
     public static ViewerTool? ToolOf(AnnotationInfo a) => a.Subtype switch
     {
         "Ink" => a.Style?.Highlighter == true ? ViewerTool.Highlighter : ViewerTool.Pen,
-        "Square" or "Polygon" => ViewerTool.Rectangle,
+        "Square" => ViewerTool.Rectangle,
         "Circle" => ViewerTool.Ellipse,
-        "Line" or "PolyLine" => a.Style is { } s && (s.StartEnding != LineEnding.None || s.EndEnding != LineEnding.None) ? ViewerTool.Arrow : ViewerTool.Line,
+        "Polygon" => ViewerTool.Polygon,
+        "PolyLine" => ViewerTool.PolyLine,
+        "Line" => a.Style is { } s && (s.StartEnding != LineEnding.None || s.EndEnding != LineEnding.None) ? ViewerTool.Arrow : ViewerTool.Line,
         "FreeText" when !a.IsInkvoltPdfStamp => a.Geometry?.Callout.Count > 0 ? ViewerTool.Callout : ViewerTool.TextBox,
         _ => null,
     };

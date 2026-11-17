@@ -52,8 +52,8 @@ public static class DrawStyles
     /// <summary>What Core accepts: lines and ink need a stroke; shapes a stroke or a fill.</summary>
     public static bool IsValid(ViewerTool tool, AnnotStyle s) => DrawTools.Subtype(tool) switch
     {
-        "Ink" or "Line" => s.Color is not null && s.Width > 0,
-        "Square" or "Circle" => s.Color is not null && s.Width > 0 || s.Fill is not null,
+        "Ink" or "Line" or "PolyLine" => s.Color is not null && s.Width > 0,
+        "Square" or "Circle" or "Polygon" => s.Color is not null && s.Width > 0 || s.Fill is not null,
         _ => true,
     };
 
@@ -360,6 +360,7 @@ public partial class DocumentTab
             ViewerTool.Pen or ViewerTool.Highlighter => (d, pw) => Annotations.AddInk(d, pw, page, g.Paths, s, author, id),
             ViewerTool.Rectangle => (d, pw) => Annotations.AddShape(d, pw, page, ShapeKind.Rectangle, g.Box, s, author, id),
             ViewerTool.Ellipse => (d, pw) => Annotations.AddShape(d, pw, page, ShapeKind.Ellipse, g.Box, s, author, id),
+            ViewerTool.Polygon or ViewerTool.PolyLine => (d, pw) => Annotations.AddPolygon(d, pw, page, g.Paths[0], r.Tool == ViewerTool.Polygon, s, author, id),
             _ => (d, pw) => Annotations.AddLine(d, pw, page, g.Paths[0][0], g.Paths[0][1], s, author, id),
         };
         // Quiet: what was drawn is on the page (Ctrl+Z undoes it); a toast per stroke would only get in the way.

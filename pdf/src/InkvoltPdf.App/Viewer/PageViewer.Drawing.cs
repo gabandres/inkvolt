@@ -33,7 +33,8 @@ internal sealed record DrawingTextEdit(int Page, RectD Box, bool AutoWidth, stri
     string Original, AnnotStyle OriginalStyle, RectD OriginalBox);
 
 /// <summary>
-/// Drawing on the page (pen, highlighter, rectangle, ellipse, line, arrow, text box, callout) with a live preview, and
+/// Drawing on the page (pen, highlighter, rectangle, ellipse, line, arrow, text box, callout; polygon and polyline in
+/// PageViewer.Vertices) with a live preview, and
 /// selecting, moving, resizing, nudging and deleting drawing annotations with the Hand or Select text tool. Everything
 /// is worked out in page space through the page ↔ surface mapping, so a turned view and turned pages just work; the
 /// host turns each finished gesture into one undoable edit.
@@ -103,6 +104,7 @@ public sealed partial class PageViewer
     private void OnDrawToolChanged()
     {
         CancelDrawingDrag();
+        CancelVertices();
         var drawing = DrawTools.IsDrawTool(_tool);
         // A pen draws: no press-and-hold right click or flicks.
         Stylus.SetIsPressAndHoldEnabled(this, !drawing);
@@ -257,6 +259,11 @@ public sealed partial class PageViewer
             if (DrawTools.IsText(_tool) && DrawingAt(page, pt) is { Subtype: "FreeText" } existing)
             {
                 OpenDrawingText(existing);
+                return true;
+            }
+            if (DrawTools.IsVertexTool(_tool))
+            {
+                ClickVertex(page, pt, e.ClickCount);
                 return true;
             }
             _drawPage = page;
@@ -533,6 +540,7 @@ public sealed partial class PageViewer
     /// <summary>Esc cancels a gesture; the selected drawing: Delete, arrows nudge (Shift: 10 pt), Enter edits, Esc deselects.</summary>
     private bool HandleDrawingKey(KeyEventArgs e)
     {
+        if (HandleVertexKey(e)) return true;
         if (e.Key == Key.Escape && (_drawPage >= 0 || _drawDrag is not null))
         {
             CancelDrawingDrag();
@@ -736,6 +744,7 @@ public sealed partial class PageViewer
     private void ResetDrawing()
     {
         CancelDrawingDrag();
+        CancelVertices();
         DiscardNudge();
         _pendingNew.Clear();
         _pendingGeometry.Clear();
@@ -752,6 +761,7 @@ public sealed partial class PageViewer
         foreach (var p in _pendingNew)
             if (p.Page == page) DrawShape(dc, page, p.Subtype, p.Geometry, p.Style, 1);
         if (_drawPage == page) PaintDrawingPreview(dc, page);
+        PaintVertices(dc, page);
         foreach (var a in DrawingsOn(page))
         {
             // Moved or resized: shown at the new place until the page is redrawn with it there.
