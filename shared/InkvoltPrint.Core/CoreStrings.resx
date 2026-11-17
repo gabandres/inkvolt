@@ -1052,6 +1052,10 @@
     <value>Inkvolt Print can't reach it. It may be turned off, asleep or off the network.</value>
     <comment>notification text (the printer)</comment>
   </data>
+  <data name="Alert_LoginRefusedTitle" xml:space="preserve">
+    <value>{0} refused its SNMP login</value>
+    <comment>notification title; {0} = printer name</comment>
+  </data>
   <data name="Alert_FirmwareTitle" xml:space="preserve">
     <value>{0}: firmware changed</value>
     <comment>notification title; {0} = printer name</comment>

@@ -198,15 +198,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             Model = Model,
             Connection = IsScannerOnly ? "Windows scanner" : WindowsQueue is { } q ? Core.Fleet.FleetReader.ConnectionWord(QueueKinds.Connection(q))
                 : _monitor?.Connection is { } c ? string.Join(", ", c.Probe.Interfaces) : null,
-            Reachable = IsOnline || waiting,
-            Status = waiting ? PrinterStatus.Unavailable(StatusMessage) : new PrinterStatus("", StatusMessage, StatusSeverity, Alerts.ToList()),
+            Reachable = IsOnline || waiting || IsRefused, // a refused login answers: an error of its own, not offline
+            Status = waiting ? PrinterStatus.Unavailable(StatusMessage) : IsRefused ? Core.Fleet.FleetReader.RefusedStatus
+                : new PrinterStatus("", StatusMessage, StatusSeverity, Alerts.ToList()),
             Supplies = live.Count > 0 ? live : known?.Supplies ?? [],
             Pages = _pages ?? known?.Pages,
             Firmware = _state.GetFirmware(Uuid)?.Version,
             LastReading = _lastReading,
             LastReadingDay = _lastReading is null ? known?.Day : null,
             LastKnown = !IsOnline && !waiting && (live.Count > 0 || known is not null || _pages is not null),
-            OldSupplies = live.Count == 0,
+            OldSupplies = live.Count == 0 || IsRefused, // refused: the levels on screen are from before
         };
     }
 
@@ -1076,6 +1077,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         IsConnecting = false;
         IsOnline = false;
+        IsRefused = false; // can't reach it: Fix it…, not SNMP access…
         StatusMessage = message;
         StatusDetail = detail;
         StatusSeverity = Severity.Error;

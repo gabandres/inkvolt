@@ -183,8 +183,9 @@ public class SnmpLoginTests
         Assert.NotEqual(CoreStrings.Monitor_CantReach, monitor.View.StatusMessage);
         Assert.Contains("authentication passphrase", monitor.View.StatusDetail);
         Assert.Equal(monitor.View.StatusMessage, monitor.View.ListLine);
-        // It answers: no offline alert follows (the snapshot is reachable, with nothing read).
-        lock (events) Assert.All(events.OfType<MonitorEvent.Observed>(), o => Assert.True(o.Snapshot.Reachable));
+        // Its alert is the refusal, not offline: nothing read, which part said.
+        lock (events)
+            Assert.All(events.OfType<MonitorEvent.Observed>(), o => Assert.Equal(SnmpRefusal.WrongAuthKey, o.Snapshot.LoginRefused));
 
         using var session = new PrinterSession(Printer, new PrinterRecipe(() => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent,
             SnmpLogin: () => V3Login(priv: "wrong-priv-pass")), () => [], _ => { });
@@ -203,6 +204,10 @@ public class SnmpLoginTests
 
         (agent.Counter, agent.EngineId) = (Usm.WrongDigests, Engine); // the printer's administrator changed its key
         await Task.Delay(SnmpPrinterClient.Shared + TimeSpan.FromMilliseconds(100)); // past the read shared by status and supplies
+        // Windows difference: a refusal on a connection whose login answered signed isn't trusted (anyone can send one), so that
+        // read is offline; the next connection discovers the engine again and its refusal decides.
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.False(monitor.View.IsRefused);
         Assert.False(await monitor.CheckAsync(false, default));
         Assert.True(monitor.View.IsRefused);
         Assert.Contains("authentication passphrase", monitor.View.StatusDetail);
@@ -211,6 +216,55 @@ public class SnmpLoginTests
         Assert.True(await monitor.CheckAsync(false, default));
         Assert.False(monitor.View.IsRefused);
         Assert.True(monitor.View.IsOnline);
+    }
+
+    [Fact]
+    public async Task A_refusal_spoofed_on_a_connection_never_shows_the_printer_refused_or_silences_its_alerts()
+    {
+        var agent = new SnmpV3Tests.Spoofer(V3Agent());
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(agent, Host, V3Login()))!.Identity);
+        var events = new List<MonitorEvent>();
+        using var monitor = Monitor(agent, known, V3Login(), events);
+        Assert.True(await monitor.CheckAsync(false, default));
+
+        (agent.Counter, agent.EngineId) = (Usm.UnknownUserNames, Engine); // unsigned, from the printer's own engine ID, by someone else
+        await Task.Delay(SnmpPrinterClient.Shared + TimeSpan.FromMilliseconds(100));
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.False(monitor.View.IsRefused); // offline: its offline alert follows as for any printer that stops answering
+        lock (events) Assert.False(events.OfType<MonitorEvent.Observed>().Last().Snapshot.Reachable);
+
+        (agent.Counter, agent.EngineId) = (null, []); // gone: connected again, read as itself
+        Assert.True(await monitor.CheckAsync(false, default));
+        lock (events) Assert.DoesNotContain(events.OfType<MonitorEvent.Observed>(), o => o.Snapshot.LoginRefused is not null);
+    }
+
+    [Fact]
+    public async Task A_refusal_after_another_device_answered_keeps_it_elsewhere()
+    {
+        var known = SnmpDevice.From((await SnmpPrinterClient.ProbeAsync(V3Agent(), Host, V3Login()))!.Identity);
+        var other = new SnmpV3Tests.Spoofer(new SnmpAgent(SnmpAgent.ParseWalk(File.ReadAllText(
+            Path.Combine(AppContext.BaseDirectory, "Fixtures", "snmp-demo", "workgroup-laser.txt")).Replace("DEMO0005200", "OTHER0001")), User, Engine));
+        using var monitor = Monitor(other, known, V3Login());
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.True(monitor.View.IsElsewhere);
+        Assert.True(monitor.CanAcceptDevice);
+
+        (other.Counter, other.EngineId) = (Usm.WrongDigests, Engine); // it refuses now, without saying who it is
+        Assert.False(await monitor.CheckAsync(false, default));
+        Assert.True(monitor.View.IsRefused);
+        Assert.True(monitor.View.IsElsewhere); // still the device that answered last: "This is my printer" stays offered
+        Assert.True(monitor.CanAcceptDevice);
+    }
+
+    [Fact]
+    public void The_cards_own_offline_state_drops_the_refused_one()
+    {
+        // The view model's own offline (a check that failed, a queue or scanner path) says Can't reach: Fix it…, not SNMP access….
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Inkvolt.slnx"))) dir = dir.Parent;
+        var source = File.ReadAllText(Path.Combine(dir!.FullName, "print", "src", "InkvoltPrint.App", "ViewModels", "PrinterViewModel.cs"));
+        var setOffline = source[source.IndexOf("private void SetOffline(string message, string detail)", StringComparison.Ordinal)..];
+        Assert.Contains("IsRefused = false;", setOffline[..setOffline.IndexOf("Observe(", StringComparison.Ordinal)]);
     }
 
     [Fact]
@@ -278,6 +332,15 @@ public class SnmpLoginTests
         Assert.Equal(string.Format(CoreStrings.SnmpCheck_Refused, CoreStrings.Snmp_UnknownUser), problem);
         Assert.False(save.IsSaveAnyway(V3Login(auth: "wrong-auth-pass"))); // a refusal is never kept anyway
         Assert.False((await save.SaveAsync(V3Login(auth: "wrong-auth-pass"))).Keep);
+
+        // No answer, then the fields edited and the same login typed back: asked again, never kept unasked.
+        answer = new SnmpLoginCheck.NoAnswer();
+        Assert.False((await save.SaveAsync(Login("typed-back"))).Keep);
+        save.Edited();
+        Assert.False(save.IsSaveAnyway(Login("typed-back")));
+        var before = asked.Count;
+        Assert.False((await save.SaveAsync(Login("typed-back"))).Keep);
+        Assert.Equal(before + 1, asked.Count);
 
         answer = new SnmpLoginCheck.AnotherDevice();
         Assert.Equal((false, CoreStrings.SnmpCheck_AnotherDevice), await save.SaveAsync(Login("other-device")));

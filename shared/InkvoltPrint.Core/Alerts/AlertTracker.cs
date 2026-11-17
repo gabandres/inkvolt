@@ -157,7 +157,7 @@ public sealed partial class AlertTracker
 
     /// <summary>Whether a snapshot shows this kind of problem at all (else what was known stands).</summary>
     private static bool Observable(AlertKind kind, PrinterSnapshot snap) =>
-        kind == AlertKind.Offline || (snap.Reachable && (kind == AlertKind.FirmwareChanged || (AlertCondition.IsSupply(kind) ? snap.Supplies is not null : snap.Status is not null)));
+        kind is AlertKind.Offline or AlertKind.LoginRefused || (snap.Reachable && (kind == AlertKind.FirmwareChanged || (AlertCondition.IsSupply(kind) ? snap.Supplies is not null : snap.Status is not null)));
 
     /// <summary>Alerts due and not shown yet: called after each check and on a timer (quiet hours ending).</summary>
     public IReadOnlyList<AlertNotice> Release(DateTimeOffset now)
@@ -224,7 +224,12 @@ public sealed partial class AlertTracker
     /// <summary>A printer's worst ongoing problem in a few words ("Paper jam", "Offline"), or null when there's none.</summary>
     public string? Problem(string uuid) =>
         Current(uuid).Where(t => AlertCondition.LevelOf(t.Kind) > AlertLevel.Ok).OrderByDescending(t => AlertCondition.LevelOf(t.Kind)).ThenBy(t => t.Kind)
-            .Select(t => t.Kind == AlertKind.Offline ? CoreStrings.Queue_Offline : t.Condition!.Title).FirstOrDefault();
+            .Select(t => t.Kind switch
+            {
+                AlertKind.Offline => CoreStrings.Queue_Offline,
+                AlertKind.LoginRefused => CoreStrings.Monitor_RefusedTitle,
+                _ => t.Condition!.Title,
+            }).FirstOrDefault();
 
     /// <summary>Keys of the alerts shown that are still going on, per printer: kept across restarts.</summary>
     public Dictionary<string, IReadOnlyList<string>> Shown() =>

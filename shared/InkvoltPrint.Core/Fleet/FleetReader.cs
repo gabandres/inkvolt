@@ -127,10 +127,9 @@ public static class FleetReader
         var where = new PrinterWhere(p.Host, p.EsclRoot, p.IppUri, p.Snmp);
         var step = await session.ConnectAsync(where, ct).ConfigureAwait(false);
         if (step is SessionStep.Elsewhere) return Elsewhere(p);
-        if (step is SessionStep.Refused) return Silent(p, pc, CoreStrings.Monitor_RefusedTitle); // it answers: not "can't reach"
+        if (step is SessionStep.Refused) return Refused(p, pc);
         if (step is not SessionStep.Connected { Connection: var conn }) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         if (await session.ReadAsync(where, ct).ConfigureAwait(false) is not SessionStep.Read { Reading: var reading }) return Elsewhere(p);
-        if (reading.SnmpRefused is not null) return Silent(p, pc, CoreStrings.Monitor_RefusedTitle);
         if (reading.IsOffline) return Silent(p, pc, CoreStrings.Queue_CantReachPrinterTitle);
         var known = reading.Supplies is null || reading.Usage is null ? Known(p.Uuid, pc) : null;
         return new FleetFacts(p.Uuid, conn.Probe.Product?.MakeAndModel ?? p.Name, FleetKind.Network)
@@ -155,6 +154,20 @@ public static class FleetReader
         Reachable = false,
         Status = PrinterStatus.Offline(CoreStrings.Fleet_DifferentDevice),
     };
+
+    /// <summary>
+    /// The printer's SNMPv3 agent refused its login: it answers, so not offline but an error of its own line (SNMP access… is the
+    /// fix, not another address); nothing read, so its supplies are the last known.
+    /// </summary>
+    private static FleetFacts Refused(InkvoltPrinter p, IFleetPc pc) => Silent(p, pc, CoreStrings.Monitor_RefusedTitle) with
+    {
+        Reachable = true,
+        Status = RefusedStatus,
+        OldSupplies = true,
+    };
+
+    /// <summary>A refused SNMP login as the Fleet page's status (the app's own rows say the same).</summary>
+    public static PrinterStatus RefusedStatus => new("snmpLoginRefused", CoreStrings.Monitor_RefusedTitle, Severity.Error, []);
 
     private static FleetFacts Silent(InkvoltPrinter p, IFleetPc pc, string why)
     {

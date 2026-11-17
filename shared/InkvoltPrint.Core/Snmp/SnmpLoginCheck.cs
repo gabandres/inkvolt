@@ -65,6 +65,9 @@ public sealed class SnmpLoginSave(SnmpLogin current, Func<SnmpLogin, Cancellatio
     /// <summary>The login typed is the one that got no answer: Save keeps it as it is, and its button says Save anyway.</summary>
     public bool IsSaveAnyway(SnmpLogin? typed) => typed is not null && typed == _unanswered;
 
+    /// <summary>The fields were edited: Save asks the printer again, even when the same login is typed back.</summary>
+    public void Edited() => _unanswered = null;
+
     /// <summary>What Save with <paramref name="login"/> came to: keep it, or the problem to show (nothing kept).</summary>
     public async Task<(bool Keep, string? Problem)> SaveAsync(SnmpLogin login, CancellationToken ct = default)
     {

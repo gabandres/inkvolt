@@ -224,7 +224,8 @@ public sealed class FleetReadTests : IDisposable
         var read = await FleetReader.ReadAllAsync(new OnePrinterPc(known, () => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent, wrong), Now);
         var printer = Assert.Single(read.Printers);
         Assert.Equal(CoreStrings.Monitor_RefusedTitle, printer.Status);
-        Assert.NotEqual(CoreStrings.Queue_CantReachPrinterTitle, printer.Status);
+        Assert.Equal(FleetTrouble.Error, printer.Trouble); // it answers: an error of its own, not counted offline
+        Assert.DoesNotContain("reached", FleetPage.Summary(read.Printers.ToList())); // "1 with an error", not "can't be reached"
     }
 
     private sealed class OnePrinterPc(InkvoltPrinter printer, Func<HttpMessageHandler> transport, ISnmpTransport snmp, SnmpLogin? login = null) : IFleetPc

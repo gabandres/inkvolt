@@ -4,8 +4,8 @@ namespace InkvoltPrint.Core.Alerts;
 
 /// <summary>What an alert is about. Supplies and waste boxes come from the supplies; <see cref="FirmwareChanged"/> from the firmware
 /// watch (news, not a problem: it never colors the tray icon); <see cref="JobFailed"/> and <see cref="JobStuck"/> from the printer's Windows queue;
-/// the rest from the printer's status.</summary>
-public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged, JobFailed, JobStuck }
+/// <see cref="LoginRefused"/> when the printer's SNMPv3 agent refuses its login (<see cref="PrinterSnapshot.LoginRefused"/>); the rest from the printer's status.</summary>
+public enum AlertKind { SupplyLow, SupplyEmpty, WasteAlmostFull, WasteFull, PaperJam, PaperOut, CoverOpen, Error, Offline, FirmwareChanged, JobFailed, JobStuck, LoginRefused }
 
 /// <summary>The tray icon's state, in rank order: an error outranks a low supply, which outranks a printer that's off.</summary>
 public enum AlertLevel { Ok, Offline, Warning, Error }
@@ -21,6 +21,12 @@ public sealed record PrinterSnapshot(string Uuid, string Name, bool Reachable, P
 
     /// <summary>The printer's last firmware change while its notice shows (<see cref="History.FirmwareWatch.Notice"/>): alerted once.</summary>
     public History.FirmwareChange? FirmwareChange { get; init; }
+
+    /// <summary>
+    /// Nothing was read because the printer's SNMPv3 agent refused its login (which part): alerted as that, an error, instead of
+    /// offline. Set only with <see cref="Reachable"/> false, so what was known of its status and supplies stands as for offline.
+    /// </summary>
+    public Snmp.SnmpRefusal? LoginRefused { get; init; }
 }
 
 /// <summary>A problem seen on a printer. <see cref="Key"/> is stable while it lasts ("SupplyLow|Black toner|K").</summary>
@@ -60,8 +66,10 @@ public static class AlertConditions
         var found = new List<AlertCondition>();
         if (!snap.Reachable)
         {
-            found.Add(new AlertCondition("Offline", AlertKind.Offline, string.Format(CoreStrings.Alert_OfflineTitle, snap.Name),
-                CoreStrings.Alert_OfflineBody));
+            found.Add(snap.LoginRefused is { } why
+                ? new AlertCondition(nameof(AlertKind.LoginRefused), AlertKind.LoginRefused, string.Format(CoreStrings.Alert_LoginRefusedTitle, snap.Name),
+                    string.Format(CoreStrings.Monitor_RefusedDetail, new Snmp.SnmpAccessException(why).Message))
+                : new AlertCondition("Offline", AlertKind.Offline, string.Format(CoreStrings.Alert_OfflineTitle, snap.Name), CoreStrings.Alert_OfflineBody));
             return found;
         }
         if (snap.Status is { } status) AddStatus(found, snap.Name, status);

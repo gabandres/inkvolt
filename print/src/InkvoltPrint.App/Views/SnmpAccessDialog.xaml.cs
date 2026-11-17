@@ -1,4 +1,5 @@
 using System.Windows;
+using InkvoltPrint.App.ViewModels;
 using InkvoltPrint.Core.Snmp;
 
 namespace InkvoltPrint.App.Views;
@@ -6,7 +7,8 @@ namespace InkvoltPrint.App.Views;
 /// <summary>
 /// The printer's menu › SNMP access…: the community or SNMPv3 user a printer read over SNMP is asked with. Save asks the printer
 /// with it first (<see cref="SnmpLoginSave"/>): kept once it answers as itself; a refusal says which part and keeps nothing;
-/// another device keeps nothing; no answer (it may be off, or ignore a wrong community) turns Save into Save anyway.
+/// another device keeps nothing; no answer (it may be off, or ignore a wrong community) turns Save into Save anyway. What it asks
+/// and what came of it are announced to screen readers (<see cref="Prompt.Announce"/>).
 /// </summary>
 public partial class SnmpAccessDialog : Window
 {
@@ -21,8 +23,13 @@ public partial class SnmpAccessDialog : Window
         {
             Problem.Visibility = Visibility.Collapsed;
             Ok.Content = Strings.Common_Save;
+            _save?.Edited(); // the same login typed back is asked again, never kept unasked
         };
-        Closed += (_, _) => _closed.Cancel(); // closed while asking: the answer is dropped
+        Closed += (_, _) =>
+        {
+            _closed.Cancel(); // closed while asking: the answer is dropped
+            _closed.Dispose();
+        };
     }
 
     /// <summary>The login to keep for <paramref name="printer"/> (checked with the printer through <paramref name="save"/>); null when cancelled.</summary>
@@ -40,9 +47,10 @@ public partial class SnmpAccessDialog : Window
     /// </summary>
     public static SnmpAccessDialog Create(string printer, SnmpLogin current, SnmpLoginSave? save = null)
     {
-        var dlg = new SnmpAccessDialog { _save = save };
+        var dlg = new SnmpAccessDialog();
         dlg.Heading.Text = string.Format(Strings.Snmp_Heading, printer);
         dlg.Fields.Show(current);
+        dlg._save = save; // after Show: filling the fields isn't an edit
         dlg.Loaded += (_, _) => dlg.Fields.FocusFirst();
         return dlg;
     }
@@ -60,13 +68,15 @@ public partial class SnmpAccessDialog : Window
             Keep(login);
             return;
         }
+        var closed = _closed.Token;
         Problem.Visibility = Visibility.Collapsed;
         Asking.Visibility = Visibility.Visible;
+        Prompt.Announce(Strings.Snmp_Asking);
         Ok.IsEnabled = Fields.IsEnabled = false; // nothing edited while it's asked
         (bool Keep, string? Problem) outcome;
         try
         {
-            outcome = await _save.SaveAsync(login, _closed.Token);
+            outcome = await _save.SaveAsync(login, closed);
         }
         catch (OperationCanceledException)
         {
@@ -77,7 +87,7 @@ public partial class SnmpAccessDialog : Window
             Asking.Visibility = Visibility.Collapsed;
             Ok.IsEnabled = Fields.IsEnabled = true;
         }
-        if (_closed.IsCancellationRequested) return; // answered just as it was closed: nothing kept
+        if (closed.IsCancellationRequested) return; // answered just as it was closed: nothing kept
         if (outcome.Keep)
         {
             Keep(login);
@@ -86,6 +96,8 @@ public partial class SnmpAccessDialog : Window
         Problem.Text = outcome.Problem;
         Problem.Visibility = Visibility.Visible;
         Ok.Content = _save.IsSaveAnyway(login) ? Strings.Snmp_SaveAnyway : Strings.Common_Save;
+        Ok.Focus(); // the keyboard was on Save (or a field) before it was disabled: back on Save (anyway)
+        if (outcome.Problem is { } problem) Prompt.Announce(problem);
     }
 
     private void Keep(SnmpLogin login)

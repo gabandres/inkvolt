@@ -826,6 +826,9 @@
   <data name="Alert_OfflineBody" xml:space="preserve">
     <value>Inkvolt Print no puede conectar con ella. Puede estar apagada, en reposo o fuera de la red.</value>
   </data>
+  <data name="Alert_LoginRefusedTitle" xml:space="preserve">
+    <value>{0} rechazó su acceso SNMP</value>
+  </data>
   <data name="Alert_FirmwareTitle" xml:space="preserve">
     <value>{0}: cambió el firmware</value>
   </data>
