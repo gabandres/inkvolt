@@ -45,18 +45,8 @@ public static partial class Annotations
                 Validate(subtype, d.Geometry, d.Style);
                 Apply(doc, page, annot, subtype, d.Geometry, d.Style);
             }
-            else if (Enum.TryParse<TextMarkupKind>(subtype, out var markup))
-            {
-                var quads = new List<Quad>();
-                if (PdfObj.Array(e["/QuadPoints"]) is { } qp)
-                    for (var k = 0; k + 7 < qp.Elements.Count && quads.Count < MaxPoints; k += 8)
-                        quads.Add(new Quad((PdfObj.Num(qp, k), PdfObj.Num(qp, k + 1)), (PdfObj.Num(qp, k + 2), PdfObj.Num(qp, k + 3)),
-                            (PdfObj.Num(qp, k + 4), PdfObj.Num(qp, k + 5)), (PdfObj.Num(qp, k + 6), PdfObj.Num(qp, k + 7))));
-                if (quads.Count == 0) return;
-                var (form, _, _, _, _) = MarkupAppearance(doc, markup, quads, color ?? AnnotColor.Yellow);
-                SetAppearance(doc, annot, form);
-            }
-            else if (subtype == "Text") SetAppearance(doc, annot, NoteAppearance(doc, page, color ?? AnnotColor.Yellow));
+            else if (subtype == "Text" || MarkupSubtypes.Contains(subtype))
+                RedrawComment(doc, page, annot, color ?? AnnotColor.Yellow, fitRect: false);
             else if (subtype == "Stamp" && PdfObj.Array(e["/Rect"]) is { Elements.Count: 4 } r)
             {
                 var name = PdfObj.Name(e["/Name"]) ?? "Draft";

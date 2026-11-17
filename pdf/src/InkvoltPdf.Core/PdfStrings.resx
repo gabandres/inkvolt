@@ -4525,6 +4525,12 @@
   <data name="Annot_CantReply" xml:space="preserve">
     <value>That comment can't be replied to.</value>
   </data>
+  <data name="Annot_TooManyLines" xml:space="preserve">
+    <value>This mark covers too many lines to change its color.</value>
+  </data>
+  <data name="Annot_CantMoveThisWay" xml:space="preserve">
+    <value>Only notes and text marks (highlight, underline, strike-out) move and change color this way.</value>
+  </data>
   <data name="Stamp_NeedsSize" xml:space="preserve">
     <value>The stamp needs a size.</value>
   </data>

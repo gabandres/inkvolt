@@ -595,6 +595,12 @@
   <data name="Cmd_ToolCallout" xml:space="preserve">
     <value>_Callout</value>
   </data>
+  <data name="Cmd_ToolPolygon" xml:space="preserve">
+    <value>Pol_ygon</value>
+  </data>
+  <data name="Cmd_ToolPolyline" xml:space="preserve">
+    <value>Polyli_ne</value>
+  </data>
   <data name="Cmd_RecognizeText" xml:space="preserve">
     <value>Recognize Te_xt (OCR)…</value>
   </data>
@@ -1373,6 +1379,12 @@
   <data name="Main_HintCallout" xml:space="preserve">
     <value>Drag from what the callout points at to where its text goes</value>
   </data>
+  <data name="Main_HintPolygon" xml:space="preserve">
+    <value>Click each corner; double-click, Enter or a click on the first corner closes it. Backspace takes a corner back, Esc cancels</value>
+  </data>
+  <data name="Main_HintPolyline" xml:space="preserve">
+    <value>Click each point; double-click or Enter ends it. Backspace takes a point back, Esc cancels</value>
+  </data>
   <data name="Main_HintMeasureDistance" xml:space="preserve">
     <value>Click the start and the end; Shift keeps it straight. The value is saved as a measurement at the page's scale (Review › Measure › Set Scale)</value>
     <comment>Menu path: keep it matching the Review menu's translation</comment>
@@ -1721,6 +1733,10 @@
   </data>
   <data name="Tab_MenuDelete" xml:space="preserve">
     <value>_Delete</value>
+  </data>
+  <data name="Tab_MenuColor" xml:space="preserve">
+    <value>C_olor</value>
+    <comment>The Comments pane's menu: a note's or a text mark's color</comment>
   </data>
   <data name="Tab_SaveAttachmentTip" xml:space="preserve">
     <value>Save the attachment as a file…</value>
@@ -5828,6 +5844,14 @@ To keep the signed original, undo the change, or save your changes as a copy (Sa
     <value>Callout</value>
     <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
   </data>
+  <data name="Viewer_ToolPolygon" xml:space="preserve">
+    <value>Polygon</value>
+    <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
+  </data>
+  <data name="Viewer_ToolPolyline" xml:space="preserve">
+    <value>Polyline</value>
+    <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
+  </data>
   <data name="Viewer_ToolPenDesc" xml:space="preserve">
     <value>Draw freehand with the mouse, a pen or a finger</value>
     <comment>Under the tool's name in the Draw menu</comment>
@@ -5858,6 +5882,14 @@ To keep the signed original, undo the change, or save your changes as a copy (Sa
   </data>
   <data name="Viewer_ToolCalloutDesc" xml:space="preserve">
     <value>A text box with a line pointing at something</value>
+    <comment>Under the tool's name in the Draw menu</comment>
+  </data>
+  <data name="Viewer_ToolPolygonDesc" xml:space="preserve">
+    <value>Click its corners; a closed shape</value>
+    <comment>Under the tool's name in the Draw menu</comment>
+  </data>
+  <data name="Viewer_ToolPolylineDesc" xml:space="preserve">
+    <value>Click its points; an open line of straight pieces</value>
     <comment>Under the tool's name in the Draw menu</comment>
   </data>
   <data name="Viewer_ToolPen" xml:space="preserve">

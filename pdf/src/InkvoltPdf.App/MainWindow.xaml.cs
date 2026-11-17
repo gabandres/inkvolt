@@ -2026,7 +2026,7 @@ public partial class MainWindow : Window
             };
             Describe(mi, Cmd.DrawTool(tool).Text, DrawTools.Description(tool));
             menu.Items.Add(mi);
-            if (tool is ViewerTool.Highlighter or ViewerTool.Arrow) menu.Items.Add(new Separator());
+            if (tool is ViewerTool.Highlighter or ViewerTool.PolyLine) menu.Items.Add(new Separator());
         }
     }
 
@@ -2046,6 +2046,8 @@ public partial class MainWindow : Window
             ViewerTool.Line or ViewerTool.Arrow => Strings.Main_HintLine,
             ViewerTool.TextBox => Strings.Main_HintTextBox,
             ViewerTool.Callout => Strings.Main_HintCallout,
+            ViewerTool.Polygon => Strings.Main_HintPolygon,
+            ViewerTool.PolyLine => Strings.Main_HintPolyline,
             ViewerTool.MeasureDistance => Strings.Main_HintMeasureDistance,
             ViewerTool.MeasurePerimeter or ViewerTool.MeasureArea => Strings.Main_HintMeasureArea,
             ViewerTool.MeasureCalibrate => Strings.Main_HintMeasureCalibrate,

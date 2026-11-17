@@ -15,7 +15,7 @@ public enum ViewerTool
     // Pictures, links and stamps (see PageViewer.Signing, PageViewer.Links)
     AddImage, AddLink, AddStamp,
     // Drawing (see DrawTools)
-    Pen, Highlighter, Rectangle, Ellipse, Line, Arrow, TextBox, Callout,
+    Pen, Highlighter, Rectangle, Ellipse, Line, Arrow, TextBox, Callout, Polygon, PolyLine,
     // Prepare Form: placing and editing form fields (see PageViewer.FormDesign)
     PrepareForm,
     // Edit Text & Images: the page's own text and pictures (see PageViewer.EditContent)
@@ -1438,6 +1438,7 @@ public sealed partial class PageViewer : ScrollViewer
             return;
         }
         MoveMeasure(sp);
+        MoveVertexHover(sp);
         UpdateCursor(sp);
     }
 
@@ -1523,6 +1524,11 @@ public sealed partial class PageViewer : ScrollViewer
         var dragged = _dragged;
         var wasSelecting = _selecting;
         EndDrag();
+        if (EndMarkPress(dragged))
+        {
+            UpdateCursor(sp);
+            return;
+        }
 
         if (!dragged && link is not null && HitPage(sp) == linkPage && LinkAt(linkPage, ToPagePoint(linkPage, sp)) == link)
         {

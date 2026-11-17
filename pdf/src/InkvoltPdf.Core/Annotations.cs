@@ -30,6 +30,7 @@ public readonly record struct AnnotColor(double R, double G, double B)
 /// <param name="Geometry">Drawing annotations (ink, shapes, lines, polygons, FreeText other than Fill &amp; Sign stamps): where
 /// they are, for selecting, moving and resizing (see <see cref="Annotations.UpdateGeometry"/>); null for other kinds.</param>
 /// <param name="Style">Drawing annotations: how they look (see <see cref="Annotations.UpdateStyle"/>); null for other kinds.</param>
+/// <param name="PageRotation">Its page's /Rotate (0, 90, 180 or 270): which way a text mark's lines run as the page is shown.</param>
 public sealed record AnnotationInfo(
     string Id,
     AnnotationKind Kind,
@@ -47,7 +48,8 @@ public sealed record AnnotationInfo(
     bool Hidden,
     double Opacity = 1,
     AnnotGeometry? Geometry = null,
-    AnnotStyle? Style = null);
+    AnnotStyle? Style = null,
+    int PageRotation = 0);
 
 /// <summary>
 /// Reads and edits comments (markup annotations): text highlights/underlines/strike-outs/squiggles and sticky notes.
@@ -84,14 +86,7 @@ public static partial class Annotations
                 if (subtype is "Widget" or "Link" or "Popup" or "") continue;
                 var rect = PdfObj.Array(a.Elements["/Rect"]) is { } r ? PdfObj.RectToPage(page, r) : default;
                 var flags = PdfObj.Int(a.Elements["/F"]) ?? 0;
-                var quads = new List<RectD>();
-                if (PdfObj.Array(a.Elements["/QuadPoints"]) is { } qp)
-                    for (var k = 0; k + 7 < qp.Elements.Count; k += 8)
-                    {
-                        var xs = new[] { PdfObj.Num(qp, k), PdfObj.Num(qp, k + 2), PdfObj.Num(qp, k + 4), PdfObj.Num(qp, k + 6) };
-                        var ys = new[] { PdfObj.Num(qp, k + 1), PdfObj.Num(qp, k + 3), PdfObj.Num(qp, k + 5), PdfObj.Num(qp, k + 7) };
-                        quads.Add(FormEditor.ToPageSpace(page, xs.Min(), ys.Min(), xs.Max(), ys.Max()));
-                    }
+                var quads = QuadRectsOf(page, a);
                 var nm = PdfObj.Str(a.Elements["/NM"]);
                 var drawing = IsDrawing(a, subtype) ? Describe(page, a, subtype) : null;
                 list.Add(new AnnotationInfo(
@@ -107,10 +102,25 @@ public static partial class Annotations
                     (flags & (FlagHidden | FlagNoView)) != 0,
                     PdfObj.Num(a.Elements["/CA"], 1),
                     drawing?.Geometry,
-                    drawing?.Style));
+                    drawing?.Style,
+                    ((page.Rotate % 360) + 360) % 360));
             }
         }
         return list;
+    }
+
+    /// <summary>A text mark's marked line boxes (from /QuadPoints) in page space; empty for other kinds.</summary>
+    private static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a)
+    {
+        var quads = new List<RectD>();
+        if (PdfObj.Array(a.Elements["/QuadPoints"]) is { } qp)
+            for (var k = 0; k + 7 < qp.Elements.Count; k += 8)
+            {
+                var xs = new[] { PdfObj.Num(qp, k), PdfObj.Num(qp, k + 2), PdfObj.Num(qp, k + 4), PdfObj.Num(qp, k + 6) };
+                var ys = new[] { PdfObj.Num(qp, k + 1), PdfObj.Num(qp, k + 3), PdfObj.Num(qp, k + 5), PdfObj.Num(qp, k + 7) };
+                quads.Add(FormEditor.ToPageSpace(page, xs.Min(), ys.Min(), xs.Max(), ys.Max()));
+            }
+        return quads;
     }
 
     /// <summary>
@@ -261,28 +271,7 @@ public static partial class Annotations
     {
         if (Find(doc, id) is not { } found) return false;
         SignedEdits.NoteRemoval();
-        var all = new List<PdfDictionary>();
-        for (var p = 0; p < doc.PageCount; p++)
-            if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is { } annots)
-                all.AddRange(annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>());
-
-        var doomed = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { found.Annot };
-        var grew = true;
-        while (grew)
-        {
-            grew = false;
-            foreach (var a in all)
-            {
-                if (doomed.Contains(a)) continue;
-                var irt = PdfObj.Dict(a.Elements["/IRT"]);
-                var parent = PdfObj.Dict(a.Elements["/Parent"]);
-                if (irt is not null && doomed.Contains(irt) || parent is not null && doomed.Contains(parent) && PdfObj.NameOf(a, "/Subtype") == "/Popup")
-                    grew |= doomed.Add(a);
-            }
-            foreach (var a in doomed.ToList())
-                if (PdfObj.Dict(a.Elements["/Popup"]) is { } popup) grew |= doomed.Add(popup);
-        }
-
+        var doomed = ThreadOf(doc, found.Annot);
         for (var p = 0; p < doc.PageCount; p++)
         {
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is null) continue;
@@ -291,6 +280,36 @@ public static partial class Annotations
                 if (PdfObj.Dict(annots.Elements[i]) is { } a && doomed.Contains(a)) annots.Elements.RemoveAt(i);
         }
         return true;
+    }
+
+    /// <summary>
+    /// An annotation with everything that goes with it: its replies (any kind bound to it by /IRT) and theirs, and their
+    /// popups (named by /Popup, or naming one of them as /Parent). What a delete removes and a move takes along.
+    /// </summary>
+    internal static HashSet<PdfDictionary> ThreadOf(PdfDocument doc, PdfDictionary root)
+    {
+        var all = new List<PdfDictionary>();
+        for (var p = 0; p < doc.PageCount; p++)
+            if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is { } annots)
+                all.AddRange(annots.Elements.Select(PdfObj.Dict).OfType<PdfDictionary>());
+
+        var thread = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance) { root };
+        var grew = true;
+        while (grew)
+        {
+            grew = false;
+            foreach (var a in all)
+            {
+                if (thread.Contains(a)) continue;
+                var irt = PdfObj.Dict(a.Elements["/IRT"]);
+                var parent = PdfObj.Dict(a.Elements["/Parent"]);
+                if (irt is not null && thread.Contains(irt) || parent is not null && thread.Contains(parent) && PdfObj.NameOf(a, "/Subtype") == "/Popup")
+                    grew |= thread.Add(a);
+            }
+            foreach (var a in thread.ToList())
+                if (PdfObj.Dict(a.Elements["/Popup"]) is { } popup) grew |= thread.Add(popup);
+        }
+        return thread;
     }
 
     internal static (int Page, PdfDictionary Annot)? Find(PdfDocument doc, string id)

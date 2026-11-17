@@ -147,6 +147,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   overlap) and by each **measurement** (a Line, PolyLine or Polygon comment with /Measure, labeled with its value).
   Without one, values are real size. The Mac calls a measurement still being clicked a **measurement under way**
   (`MeasureDraft`, in PdfCore; Windows keeps it in `PageViewer.Measure`).
+- **Vertex draft** (`Core/VertexDraft.cs`, Windows; the Mac keeps it in its page view's `vertices`): a polygon or
+  polyline still being clicked with the Polygon or Polyline tool, its corners on one page so far, and what the next click,
+  Enter, Backspace or Esc does to it. Finished, it becomes the comment `Annotations.AddPolygon` adds.
 - **Reading order state** (`ReadingOrder.state`, `ReadingOrderState`; Mac, in PdfCore): what the Reading Order pane shows for a
   tag plan on a page: its pieces numbered, the boxes on every page, the summary, what can be done. Windows keeps the same rules
   in `DocumentTab.ReadingOrder`.

@@ -595,6 +595,12 @@
   <data name="Cmd_ToolCallout" xml:space="preserve">
     <value>_Llamada</value>
   </data>
+  <data name="Cmd_ToolPolygon" xml:space="preserve">
+    <value>Polí_gono</value>
+  </data>
+  <data name="Cmd_ToolPolyline" xml:space="preserve">
+    <value>Polilí_nea</value>
+  </data>
   <data name="Cmd_RecognizeText" xml:space="preserve">
     <value>Reconocer te_xto (OCR)…</value>
   </data>
@@ -1373,6 +1379,12 @@
   <data name="Main_HintCallout" xml:space="preserve">
     <value>Arrastra desde lo que señala la llamada hasta donde va su texto</value>
   </data>
+  <data name="Main_HintPolygon" xml:space="preserve">
+    <value>Haz clic en cada esquina; doble clic, Enter o un clic en la primera esquina lo cierra. Retroceso quita una esquina, Esc cancela</value>
+  </data>
+  <data name="Main_HintPolyline" xml:space="preserve">
+    <value>Haz clic en cada punto; doble clic o Enter la termina. Retroceso quita un punto, Esc cancela</value>
+  </data>
   <data name="Main_HintMeasureDistance" xml:space="preserve">
     <value>Haz clic en el inicio y en el final; Shift la mantiene recta. El valor se guarda como una medida a la escala de la página (Revisar › Medir › Establecer escala)</value>
     <comment>Menu path: keep it matching the Review menu's translation</comment>
@@ -1721,6 +1733,9 @@
   </data>
   <data name="Tab_MenuDelete" xml:space="preserve">
     <value>_Eliminar</value>
+  </data>
+  <data name="Tab_MenuColor" xml:space="preserve">
+    <value>_Color</value>
   </data>
   <data name="Tab_SaveAttachmentTip" xml:space="preserve">
     <value>Guardar el archivo adjunto como archivo…</value>
@@ -5828,6 +5843,14 @@ Para conservar el original firmado, deshaz el cambio o guarda los cambios como u
     <value>Llamada</value>
     <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
   </data>
+  <data name="Viewer_ToolPolygon" xml:space="preserve">
+    <value>Polígono</value>
+    <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
+  </data>
+  <data name="Viewer_ToolPolyline" xml:space="preserve">
+    <value>Polilínea</value>
+    <comment>What a drawing tool makes, as a noun (also a comment's title)</comment>
+  </data>
   <data name="Viewer_ToolPenDesc" xml:space="preserve">
     <value>Dibuja a mano alzada con el mouse, una pluma o un dedo</value>
     <comment>Under the tool's name in the Draw menu</comment>
@@ -5858,6 +5881,14 @@ Para conservar el original firmado, deshaz el cambio o guarda los cambios como u
   </data>
   <data name="Viewer_ToolCalloutDesc" xml:space="preserve">
     <value>Un cuadro de texto con una línea que señala algo</value>
+    <comment>Under the tool's name in the Draw menu</comment>
+  </data>
+  <data name="Viewer_ToolPolygonDesc" xml:space="preserve">
+    <value>Haz clic en sus esquinas; una figura cerrada</value>
+    <comment>Under the tool's name in the Draw menu</comment>
+  </data>
+  <data name="Viewer_ToolPolylineDesc" xml:space="preserve">
+    <value>Haz clic en sus puntos; una línea abierta de tramos rectos</value>
     <comment>Under the tool's name in the Draw menu</comment>
   </data>
   <data name="Viewer_ToolPen" xml:space="preserve">

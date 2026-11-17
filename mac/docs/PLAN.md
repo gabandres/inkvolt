@@ -606,9 +606,14 @@ Mac differences for the PDF app (so far):
   megapixels at the zoom shown are drawn in 512-pixel tiles of the part in view over a 16-megapixel picture of the page.
   Links open as on Windows: a page or web and mail addresses at once, any other address after "Open this link?". New
   bookmarks go after the one selected and are named in a sheet (Windows edits the title in the list). Extract writes one
-  PDF (opened in a tab unless unticked); Windows also offers a file per page. Mac additions (not on Windows yet): the
-  Polygon and Polyline tools, and moving and recoloring sticky notes and text marks (`Annotations.move`,
-  `Annotations.setColor`, CommentMoveTests). A text mark over a selection across pages is one undo step.
+  PDF (opened in a tab unless unticked); Windows also offers a file per page. The Mac's additions are on Windows
+  too since 2026-11-17: the Polygon and Polyline tools (the same keys V and Z; Windows' `VertexDraft` also takes a corner
+  back with Backspace and keeps Shift's 45° steps), and moving and recoloring sticky notes and text marks
+  (`Annotations.move`, `Annotations.setColor`, CommentMoveTests; Windows' `Annotations.Move`, `SetColor`, the same tests).
+  Windows differs: its hand tool pans over a text mark that isn't selected (a click selects it, then a drag moves it), a
+  recolor also recolors the replies lying on a note and keeps another app's note icon, and a move takes replies of every
+  kind with it; the Mac picks a mark up at once and redraws any note as its bubble.
+  A text mark over a selection across pages is one undo step.
 - The app (D7 part e): the start page is a window of its own (Windows: the main window's page while no tab is open) that
   steps aside when a document opens; its recent list offers Open and Show in Finder (AppKit keeps the list, so no Remove
   from List). Combine Files is a window (Windows: a dialog). Scans, combined files and PDFs from pictures or the clipboard

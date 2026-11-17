@@ -52,8 +52,8 @@ public static class DrawStyles
     /// <summary>What Core accepts: lines and ink need a stroke; shapes a stroke or a fill.</summary>
     public static bool IsValid(ViewerTool tool, AnnotStyle s) => DrawTools.Subtype(tool) switch
     {
-        "Ink" or "Line" => s.Color is not null && s.Width > 0,
-        "Square" or "Circle" => s.Color is not null && s.Width > 0 || s.Fill is not null,
+        "Ink" or "Line" or "PolyLine" => s.Color is not null && s.Width > 0,
+        "Square" or "Circle" or "Polygon" => s.Color is not null && s.Width > 0 || s.Fill is not null,
         _ => true,
     };
 
@@ -126,6 +126,23 @@ public partial class DocumentTab
             button.Click += (_, _) => ApplyStyle(Strings.Drawing_RestyleColor, s => WithColor(s, color));
             StyleSwatches.Children.Add(button);
         }
+        // The Comments pane's Color menu: a note's or a text mark's color, as the style bar's swatches.
+        foreach (var (nameOf, color) in Swatches)
+        {
+            var dot = new Border { Width = 12, Height = 12, CornerRadius = new CornerRadius(6), BorderThickness = new Thickness(1),
+                Background = Frozen(new SolidColorBrush(Color.FromRgb(Byte(color.R), Byte(color.G), Byte(color.B)))) };
+            dot.SetResourceReference(Border.BorderBrushProperty, "ControlStrongStrokeColorDefaultBrush");
+            var item = new MenuItem { Header = nameOf(), Icon = dot };
+            item.Click += (_, _) => { if (SelectedComment() is { } a) _ = RecolorComment(a, color); };
+            CommentColorMenu.Items.Add(item);
+        }
+        CommentColorMenu.Items.Add(new Separator());
+        var more = new MenuItem { Header = Strings.Tab_MoreColorsTip };
+        more.Click += (_, _) =>
+        {
+            if (SelectedComment() is { } a && PickColor(a.Color ?? AnnotColor.Yellow) is { } picked) _ = RecolorComment(a, picked);
+        };
+        CommentColorMenu.Items.Add(more);
         StyleCustomColor.Click += (_, _) =>
         {
             if (StyleTarget() is not { } t) return;
@@ -185,6 +202,9 @@ public partial class DocumentTab
         if (Viewer.EditingText is { } t) return (t.Tool, t.Style, null, true, t.Existing);
         if (Viewer.SelectedDrawing is { } a && DrawTools.ToolOf(a) is { } tool)
             return (tool, _pendingStyle is { } p && p.Id == a.Id ? p.Style : a.Style!, a, false, true);
+        // A note or a text mark: only its color (the tool stands in for the bar's checks; nothing else shows).
+        if (Viewer.SelectedDrawing is { } c && DrawTools.IsComment(c))
+            return (ViewerTool.AddNote, _pendingStyle is { } p && p.Id == c.Id ? p.Style : DrawTools.CommentStyle(c), c, false, true);
         if (DrawTools.IsDrawTool(Viewer.Tool)) return (Viewer.Tool, DrawStyles.Get(Viewer.Tool), null, false, false);
         return null;
     }
@@ -218,6 +238,14 @@ public partial class DocumentTab
         StyleStartArrow.IsChecked = s.StartEnding != LineEnding.None;
         StyleEndArrow.IsChecked = s.EndEnding != LineEnding.None;
         StyleDeleteGroup.Visibility = t.Annot is not null ? Visibility.Visible : Visibility.Collapsed;
+        StyleOpacityGroup.Visibility = Visibility.Visible;
+        if (t.Annot is { } comment && DrawTools.IsComment(comment))
+        {
+            // A note or a text mark changes only its color.
+            StyleBarIcon.Text = comment.Subtype == "Text" ? "" : "";
+            StyleWidthGroup.Visibility = StyleFontGroup.Visibility = StyleOpacityGroup.Visibility = Visibility.Collapsed;
+            StyleFillGroup.Visibility = StyleArrowGroup.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// <summary>Applies a style change from the bar to its target (one undo step for a drawing in the document).</summary>
@@ -228,7 +256,16 @@ public partial class DocumentTab
         if (StyleTarget() is { } t)
         {
             var next = change(t.Style);
-            if (DrawStyles.IsValid(t.Tool, next) && next != t.Style)
+            if (t.Annot is { } c && DrawTools.IsComment(c))
+            {
+                // A note or a text mark: a new color is one undoable edit; the bar offers nothing else for it.
+                if (next.Color is { } color && next.Color != t.Style.Color)
+                {
+                    _pendingStyle = (c.Id, t.Style with { Color = color });
+                    _ = RecolorComment(c, color);
+                }
+            }
+            else if (DrawStyles.IsValid(t.Tool, next) && next != t.Style)
             {
                 if (t.Text)
                 {
@@ -260,6 +297,29 @@ public partial class DocumentTab
         try
         {
             await RunDrawingEdit(label, (d, pw) => Annotations.UpdateStyle(d, pw, id, style));
+        }
+        finally
+        {
+            if (--_styleEdits == 0) _pendingStyle = null;
+        }
+    }
+
+    /// <summary>
+    /// The note or text mark selected in the Comments pane that takes a color: the page view's rule
+    /// (<see cref="DrawingGeometry.OfComment"/>), so not a reply (it takes its comment's) nor a mark of too many lines.
+    /// </summary>
+    private AnnotationInfo? SelectedComment() =>
+        CommentList.SelectedItem is CommentItem { Info: var a } && DrawingGeometry.OfComment(a) is not null ? a : null;
+
+    /// <summary>A note's or a text mark's new color (from the style bar or the Comments pane's menu): one undo step.</summary>
+    private async Task<bool> RecolorComment(AnnotationInfo a, AnnotColor color)
+    {
+        var id = a.Id;
+        _styleEdits++;
+        try
+        {
+            return await RunDrawingEdit(Loc.Format(Strings.Drawing_RestyleColor, CommentItem.TitleOf(a).ToLowerInvariant()),
+                (d, pw) => Annotations.SetColor(d, pw, id, color));
         }
         finally
         {
@@ -303,6 +363,7 @@ public partial class DocumentTab
             ViewerTool.Pen or ViewerTool.Highlighter => (d, pw) => Annotations.AddInk(d, pw, page, g.Paths, s, author, id),
             ViewerTool.Rectangle => (d, pw) => Annotations.AddShape(d, pw, page, ShapeKind.Rectangle, g.Box, s, author, id),
             ViewerTool.Ellipse => (d, pw) => Annotations.AddShape(d, pw, page, ShapeKind.Ellipse, g.Box, s, author, id),
+            ViewerTool.Polygon or ViewerTool.PolyLine => (d, pw) => Annotations.AddPolygon(d, pw, page, g.Paths[0], r.Tool == ViewerTool.Polygon, s, author, id),
             _ => (d, pw) => Annotations.AddLine(d, pw, page, g.Paths[0][0], g.Paths[0][1], s, author, id),
         };
         // Quiet: what was drawn is on the page (Ctrl+Z undoes it); a toast per stroke would only get in the way.
@@ -316,6 +377,13 @@ public partial class DocumentTab
         if (c.Geometry is not { } g)
             return RunDrawingEdit(Loc.Format(Strings.Drawing_EditDelete, title), (d, pw) => Annotations.Delete(d, pw, id), id);
         var label = c.Edit switch { DrawingEdit.Move => Strings.Drawing_EditMove, DrawingEdit.Resize => Strings.Drawing_EditResize, _ => Strings.Drawing_EditReshape };
+        if (DrawTools.IsComment(c.Annotation))
+        {
+            // A note or a text mark goes where it is shown, from where the document has it when the edit runs (an earlier
+            // move still waiting, or cancelled, isn't counted twice).
+            var (x, y) = (g.Bounds.X, g.Bounds.Y);
+            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditMove, title), (d, pw) => Annotations.MoveTo(d, pw, id, x, y), id, quiet: true);
+        }
         return RunDrawingEdit(Loc.Format(label, title), (d, pw) => Annotations.UpdateGeometry(d, pw, id, g), id, quiet: true);
     }
 

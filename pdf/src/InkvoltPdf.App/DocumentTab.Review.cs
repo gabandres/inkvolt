@@ -305,14 +305,15 @@ public partial class DocumentTab
             var sel = CommentList.SelectedItem as CommentItem;
             CommentEditButton.IsEnabled = CommentEditMenu.IsEnabled = sel is not null;
             CommentDeleteButton.IsEnabled = CommentDeleteMenu.IsEnabled = sel is not null;
+            CommentColorMenu.Visibility = SelectedComment() is not null ? Visibility.Visible : Visibility.Collapsed;
             if (sel is not null && !_syncingComments)
             {
                 FlashComment(sel.Info);
-                // A drawing picked in the list is selected on the page too (ready to move, restyle or delete).
+                // A drawing, note or text mark picked in the list is selected on the page too (ready to move, restyle or delete).
                 _syncingComments = true;
                 try
                 {
-                    Viewer.SelectDrawing(DrawTools.IsDrawing(sel.Info) ? sel.Info.Id : null);
+                    Viewer.SelectDrawing(DrawTools.CanSelect(sel.Info) ? sel.Info.Id : null);
                     // A placed picture, signature or stamp too.
                     Viewer.SelectPlacedStamp(sel.Info.Kind == AnnotationKind.Stamp ? sel.Info.Id : null);
                 }
@@ -322,7 +323,7 @@ public partial class DocumentTab
         CommentList.PreviewMouseLeftButtonUp += (_, e) =>
         {
             // Clicking the drawing already selected in the list selects it on the page again (after the page lost it).
-            if (ItemData<CommentItem>(e.OriginalSource) is { } c && c == CommentList.SelectedItem && DrawTools.IsDrawing(c.Info) && Viewer.SelectedDrawing?.Id != c.Info.Id)
+            if (ItemData<CommentItem>(e.OriginalSource) is { } c && c == CommentList.SelectedItem && DrawTools.CanSelect(c.Info) && Viewer.SelectedDrawing?.Id != c.Info.Id)
                 Viewer.SelectDrawing(c.Info.Id);
         };
         CommentList.MouseDoubleClick += (_, e) =>

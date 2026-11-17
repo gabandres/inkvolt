@@ -195,7 +195,7 @@ public static class Cmd
     public static readonly RoutedUICommand ImportFormData = Make(Strings.Cmd_ImportFormData, nameof(ImportFormData));
     public static readonly RoutedUICommand FillFormsFromCsv = Make(Strings.Cmd_FillFormsFromCsv, nameof(FillFormsFromCsv));
 
-    // Drawing tools. Their keys (P, M, R, E, L, W, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.
+    // Drawing tools. Their keys (P, M, R, E, L, W, V, Z, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.
     public static readonly RoutedUICommand ToolPen = Make(Strings.Cmd_ToolPen, nameof(ToolPen));
     public static readonly RoutedUICommand ToolHighlighter = Make(Strings.Cmd_ToolHighlighter, nameof(ToolHighlighter));
     public static readonly RoutedUICommand ToolRectangle = Make(Strings.Cmd_ToolRectangle, nameof(ToolRectangle));
@@ -204,6 +204,8 @@ public static class Cmd
     public static readonly RoutedUICommand ToolArrow = Make(Strings.Cmd_ToolArrow, nameof(ToolArrow));
     public static readonly RoutedUICommand ToolTextBox = Make(Strings.Cmd_ToolTextBox, nameof(ToolTextBox));
     public static readonly RoutedUICommand ToolCallout = Make(Strings.Cmd_ToolCallout, nameof(ToolCallout));
+    public static readonly RoutedUICommand ToolPolygon = Make(Strings.Cmd_ToolPolygon, nameof(ToolPolygon));
+    public static readonly RoutedUICommand ToolPolyline = Make(Strings.Cmd_ToolPolyline, nameof(ToolPolyline));
 
     /// <summary>The command that picks a drawing tool.</summary>
     public static RoutedUICommand DrawTool(Viewer.ViewerTool tool) => tool switch
@@ -216,6 +218,8 @@ public static class Cmd
         Viewer.ViewerTool.Arrow => ToolArrow,
         Viewer.ViewerTool.TextBox => ToolTextBox,
         Viewer.ViewerTool.Callout => ToolCallout,
+        Viewer.ViewerTool.Polygon => ToolPolygon,
+        Viewer.ViewerTool.PolyLine => ToolPolyline,
         _ => throw new ArgumentOutOfRangeException(nameof(tool)),
     };
     public static readonly RoutedUICommand RecognizeText = Make(Strings.Cmd_RecognizeText, nameof(RecognizeText));

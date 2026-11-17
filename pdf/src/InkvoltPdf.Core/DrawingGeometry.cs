@@ -116,6 +116,57 @@ public static class DrawingGeometry
     public static AnnotGeometry WithFrame(string subtype, AnnotGeometry g, RectD frame) =>
         subtype == "FreeText" ? new AnnotGeometry { Box = frame, Paths = g.Paths, Callout = g.Callout } : g.MapTo(frame);
 
+    /// <summary>
+    /// What the page view selects, moves and recolors a sticky note or a text mark by (<see cref="Annotations.MoveTo"/>,
+    /// <see cref="Annotations.SetColor"/>): a note's icon as <see cref="AnnotGeometry.Box"/>; a text mark's line boxes,
+    /// each a closed path of its corners as the text reads on the page (<see cref="AnnotationInfo.PageRotation"/>): the
+    /// baseline's start and end, then the top's end and start, with <see cref="AnnotGeometry.Box"/> their bounds. Null for
+    /// other kinds, for a reply (it moves with its comment and takes its color), and for a mark of more lines than
+    /// <see cref="Annotations.MaxQuads"/> or with a position that isn't a number.
+    /// </summary>
+    public static AnnotGeometry? OfComment(AnnotationInfo a)
+    {
+        if (!Annotations.MovesInPlace(a) || a.ReplyTo is not null || a.IsInkvoltPdfStamp) return null;
+        static bool Finite(RectD r) => double.IsFinite(r.X) && double.IsFinite(r.Y) && double.IsFinite(r.Width) && double.IsFinite(r.Height);
+        if (a.Subtype == "Text" || a.QuadRects.Count == 0)
+            return Finite(a.Rect) && !a.Rect.IsEmpty ? new AnnotGeometry { Box = a.Rect } : null;
+        if (a.QuadRects.Count > Annotations.MaxQuads || !a.QuadRects.All(Finite)) return null;
+        var rotation = a.PageRotation;
+        IReadOnlyList<PointD> Corners(RectD q)
+        {
+            PointD tl = new(q.X, q.Y), tr = new(q.Right, q.Y), br = new(q.Right, q.Bottom), bl = new(q.X, q.Bottom);
+            // The page's /Rotate turns the text: its baseline is at the bottom (0), left (90), top (180) or right (270).
+            return rotation switch
+            {
+                90 => [tl, bl, br, tr],
+                180 => [tr, tl, bl, br],
+                270 => [br, tr, tl, bl],
+                _ => [bl, br, tr, tl],
+            };
+        }
+        return new AnnotGeometry
+        {
+            Box = RectD.FromEdges(a.QuadRects.Min(q => q.X), a.QuadRects.Min(q => q.Y), a.QuadRects.Max(q => q.Right), a.QuadRects.Max(q => q.Bottom)),
+            Paths = [.. a.QuadRects.Select(Corners)],
+        };
+    }
+
+    /// <summary>What a press with the hand tool on a drawing, note or text mark does.</summary>
+    public enum HandPress
+    {
+        /// <summary>Selects it and drags it.</summary>
+        Move,
+        /// <summary>Pans the page; a click without a drag selects it.</summary>
+        PanOrSelect,
+    }
+
+    /// <summary>
+    /// The hand tool on <paramref name="a"/>: drawings and notes are picked up at once (as the Mac's hand tool does); a text
+    /// mark only once it is <paramref name="selected"/>, so a page full of highlights still pans, and a click selects one.
+    /// </summary>
+    public static HandPress OnHandPress(AnnotationInfo a, bool selected) =>
+        !selected && a.Subtype is "Highlight" or "Underline" or "StrikeOut" or "Squiggly" ? HandPress.PanOrSelect : HandPress.Move;
+
     /// <summary>Distance from <paramref name="p"/> to the segment <paramref name="a"/>–<paramref name="b"/>.</summary>
     public static double DistanceToSegment(PointD p, PointD a, PointD b)
     {
@@ -192,6 +243,10 @@ public static class DrawingGeometry
                 leader.Add(NearestOnRect(g.Box, leader[^1]));
                 return DistanceToPath(p, leader) <= near;
             }
+            case "Highlight" or "Underline" or "StrikeOut" or "Squiggly" when g.Paths.Count > 0:
+                // Anywhere on a marked line (its corners from OfComment); outside all of them (Box) no line is looked at.
+                if (!g.Box.IsEmpty && !g.Box.Inflate(tolerance).Contains(p.X, p.Y)) return false;
+                return g.Paths.Any(path => InsidePolygon(p, path) || DistanceToPath(p, path, closed: true) <= tolerance);
             default:
                 return g.Bounds.Inflate(tolerance + stroke / 2).Contains(p.X, p.Y);
         }
