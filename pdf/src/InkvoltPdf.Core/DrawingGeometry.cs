@@ -122,14 +122,16 @@ public static class DrawingGeometry
     /// each a closed path of its corners as the text reads on the page (<see cref="AnnotationInfo.PageRotation"/>): the
     /// baseline's start and end, then the top's end and start, with <see cref="AnnotGeometry.Box"/> their bounds. Null for
     /// other kinds, for a reply (it moves with its comment and takes its color), and for a mark of more lines than
-    /// <see cref="Annotations.MaxQuads"/> or with a position that isn't a number.
+    /// <see cref="Annotations.MaxQuads"/> or with a position (its lines or its /Rect) that isn't a number.
     /// </summary>
     public static AnnotGeometry? OfComment(AnnotationInfo a)
     {
         if (!Annotations.MovesInPlace(a) || a.ReplyTo is not null || a.IsInkvoltPdfStamp) return null;
         static bool Finite(RectD r) => double.IsFinite(r.X) && double.IsFinite(r.Y) && double.IsFinite(r.Width) && double.IsFinite(r.Height);
+        // A box that isn't a number (a hostile file's 400-digit /Rect) can't be moved: Annotations.Move refuses it.
+        if (!Finite(a.Rect)) return null;
         if (a.Subtype == "Text" || a.QuadRects.Count == 0)
-            return Finite(a.Rect) && !a.Rect.IsEmpty ? new AnnotGeometry { Box = a.Rect } : null;
+            return !a.Rect.IsEmpty ? new AnnotGeometry { Box = a.Rect } : null;
         if (a.QuadRects.Count > Annotations.MaxQuads || !a.QuadRects.All(Finite)) return null;
         var rotation = a.PageRotation;
         IReadOnlyList<PointD> Corners(RectD q)
@@ -149,6 +151,42 @@ public static class DrawingGeometry
             Box = RectD.FromEdges(a.QuadRects.Min(q => q.X), a.QuadRects.Min(q => q.Y), a.QuadRects.Max(q => q.Right), a.QuadRects.Max(q => q.Bottom)),
             Paths = [.. a.QuadRects.Select(Corners)],
         };
+    }
+
+    /// <summary>
+    /// The most marked lines one page's text marks are given selection geometry for: <see cref="OfComment"/> runs on
+    /// the UI thread at every reload and <see cref="Hit"/> at every mouse move, and a hostile file can have hundreds of
+    /// marks share one list of 20,000 lines.
+    /// </summary>
+    public const int MaxQuadsPerPage = 50_000;
+
+    /// <summary>
+    /// The annotations with the geometry the page view selects and moves notes and text marks by (<see cref="OfComment"/>;
+    /// drawings keep theirs). A page's text marks get it while its <see cref="MaxQuadsPerPage"/> lines last, in list
+    /// order; those past it aren't selectable for moving (the Comments pane still lists them).
+    /// </summary>
+    public static IEnumerable<AnnotationInfo> WithCommentGeometry(IEnumerable<AnnotationInfo> annotations)
+    {
+        var spent = new Dictionary<int, int>();
+        foreach (var a in annotations)
+        {
+            if (a.Geometry is not null || !Annotations.MovesInPlace(a))
+            {
+                yield return a;
+                continue;
+            }
+            // A note is one box; a mark of more lines than any is drawn for is refused by OfComment before it reads them.
+            var lines = a.Subtype == "Text" || a.QuadRects.Count > Annotations.MaxQuads ? 0 : a.QuadRects.Count;
+            var used = spent.GetValueOrDefault(a.PageIndex);
+            if (used + lines > MaxQuadsPerPage)
+            {
+                yield return a;
+                continue;
+            }
+            var g = OfComment(a);
+            if (g is not null) spent[a.PageIndex] = used + lines;
+            yield return g is null ? a : a with { Geometry = g };
+        }
     }
 
     /// <summary>What a press with the hand tool on a drawing, note or text mark does.</summary>
@@ -245,11 +283,29 @@ public static class DrawingGeometry
             }
             case "Highlight" or "Underline" or "StrikeOut" or "Squiggly" when g.Paths.Count > 0:
                 // Anywhere on a marked line (its corners from OfComment); outside all of them (Box) no line is looked at.
+                // Then each line's own bounds before its outline: a mark can have 20,000 lines, looked at every mouse move.
                 if (!g.Box.IsEmpty && !g.Box.Inflate(tolerance).Contains(p.X, p.Y)) return false;
-                return g.Paths.Any(path => InsidePolygon(p, path) || DistanceToPath(p, path, closed: true) <= tolerance);
+                foreach (var path in g.Paths)
+                    if (NearBounds(p, path, tolerance) && (InsidePolygon(p, path) || DistanceToPath(p, path, closed: true) <= tolerance)) return true;
+                return false;
             default:
                 return g.Bounds.Inflate(tolerance + stroke / 2).Contains(p.X, p.Y);
         }
+    }
+
+    /// <summary>True when <paramref name="p"/> is within <paramref name="tolerance"/> of <paramref name="path"/>'s bounds.</summary>
+    private static bool NearBounds(PointD p, IReadOnlyList<PointD> path, double tolerance)
+    {
+        double l = double.PositiveInfinity, t = double.PositiveInfinity, r = double.NegativeInfinity, b = double.NegativeInfinity;
+        for (var i = 0; i < path.Count; i++)
+        {
+            var q = path[i];
+            if (q.X < l) l = q.X;
+            if (q.X > r) r = q.X;
+            if (q.Y < t) t = q.Y;
+            if (q.Y > b) b = q.Y;
+        }
+        return p.X >= l - tolerance && p.X <= r + tolerance && p.Y >= t - tolerance && p.Y <= b + tolerance;
     }
 
     /// <summary>The point of <paramref name="r"/>'s outline nearest to <paramref name="p"/> (outside it: the nearest point of the box).</summary>

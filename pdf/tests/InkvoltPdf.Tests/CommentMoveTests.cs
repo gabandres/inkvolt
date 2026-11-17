@@ -358,4 +358,132 @@ public class CommentMoveTests
         Assert.Equal(DrawingGeometry.HandPress.Move, DrawingGeometry.OnHandPress(Get(pdf, "note-1"), selected: false)); // as on the Mac
         Assert.Equal(DrawingGeometry.HandPress.Move, DrawingGeometry.OnHandPress(Get(pdf, "box-1"), selected: false));
     }
+
+    // ───────────────────────────── Hostile input ─────────────────────────────
+
+    [Fact]
+    public void ANumberThatIsntOne_IsNeverWrittenBack_AndSuchAMarkIsntOffered()
+    {
+        // A 400-digit /Rect corner reads as infinity: the mark's lines are fine, its box isn't; so is a reply's box.
+        var huge = "1" + new string('0', 400);
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> /Annots [5 0 R 6 0 R 7 0 R] >>",
+            Core2Pdf.Stream(""),
+            $"<< /Type /Annot /Subtype /Highlight /NM (mark-1) /Rect [100 100 {huge} 120] /QuadPoints [100 120 200 120 100 100 200 100] >>",
+            "<< /Type /Annot /Subtype /Text /NM (note-1) /Rect [300 600 320 620] >>",
+            $"<< /Type /Annot /Subtype /Text /NM (reply-1) /IRT 6 0 R /Rect [300 600 {huge} 620] >>",
+        ]);
+        Assert.Null(DrawingGeometry.OfComment(Get(pdf, "mark-1"))); // the page view doesn't offer it
+        Assert.Throws<InvalidOperationException>(() => Annotations.Move(pdf, null, "mark-1", 5, 5));
+        Assert.Throws<InvalidOperationException>(() => Annotations.MoveTo(pdf, null, "mark-1", 50, 50));
+        // The note moves; its reply's broken box stays as it is, and the file still reads and edits.
+        var moved = Annotations.Move(pdf, null, "note-1", 10, 0);
+        Assert.DoesNotContain("Infinity", System.Text.Encoding.Latin1.GetString(moved));
+        Assert.Equal(310, Get(moved, "note-1").Rect.X, 0.01);
+        Assert.Equal(300, Get(moved, "reply-1").Rect.X, 0.01);
+        Assert.True(double.IsFinite(Get(moved, "reply-1").Rect.Width)); // written back as the largest real, read as one
+        Annotations.SetColor(moved, null, "note-1", AnnotColor.Red);
+        // Nothing writes a number that isn't one.
+        using var doc = new PdfSharp.Pdf.PdfDocument();
+        Assert.Throws<ArgumentOutOfRangeException>(() => PdfObj.Reals(doc, 1, double.PositiveInfinity));
+        Assert.Throws<ArgumentOutOfRangeException>(() => PdfObj.Reals(doc, double.NaN));
+    }
+
+    [Fact]
+    public void ANoteListedOnTwoPagesMoves()
+    {
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << >> /Annots [6 0 R] >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << >> /Annots [6 0 R] >>",
+            Core2Pdf.Stream(""),
+            "<< /Type /Annot /Subtype /Text /NM (note-1) /Rect [100 600 120 620] >>",
+        ]);
+        var before = Annotations.Read(pdf, null).First(a => a.Id == "note-1").Rect;
+        var moved = Annotations.MoveTo(pdf, null, "note-1", before.X + 50, before.Y);
+        Assert.All(Annotations.Read(moved, null).Where(a => a.Id == "note-1"), a => Assert.Equal(before.X + 50, a.Rect.X, 0.01));
+    }
+
+    [Fact]
+    public void LineListsAreBounded_PerMarkAndPerPage_ForSelecting()
+    {
+        // One mark lists more lines than any is drawn for; ten more share one indirect list of 15,000 lines.
+        static string Lines(int n) => string.Join(' ', Enumerable.Range(0, n).Select(i => $"72 {700 - i % 600} 82 {700 - i % 600} 72 {699 - i % 600} 82 {699 - i % 600}"));
+        var shared = Enumerable.Range(7, 10).Select(i => $"<< /Type /Annot /Subtype /Highlight /NM (shared-{i}) /Rect [72 100 82 700] /QuadPoints 6 0 R >>");
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> /Annots [{string.Join(' ', Enumerable.Range(5, 12).Where(i => i != 6).Select(i => $"{i} 0 R"))}] >>",
+            Core2Pdf.Stream(""),
+            $"<< /Type /Annot /Subtype /Highlight /NM (huge) /Rect [72 100 82 700] /QuadPoints [{Lines(Annotations.MaxQuads + 5_000)}] >>",
+            $"[{Lines(15_000)}]",
+            .. shared,
+        ]);
+        var all = Annotations.Read(pdf, null);
+        Assert.Equal(Annotations.MaxQuads + 1, all.Single(a => a.Id == "huge").QuadRects.Count); // enough to know it's too many
+        Assert.Equal(15_000, all.First(a => a.Id == "shared-7").QuadRects.Count);
+
+        // The page view gives selection geometry only while the page's budget of lines lasts.
+        var shown = DrawingGeometry.WithCommentGeometry(all).ToList();
+        Assert.Null(shown.Single(a => a.Id == "huge").Geometry);
+        var selectable = shown.Where(a => a.Id.StartsWith("shared-") && a.Geometry is not null).ToList();
+        Assert.Equal(new[] { "shared-7", "shared-8", "shared-9" }, selectable.Select(a => a.Id));
+        var g = selectable[0].Geometry!;
+        Assert.True(DrawingGeometry.Hit("Highlight", g, null, new PointD(77, 92.5), 0.5)); // on a line
+        Assert.False(DrawingGeometry.Hit("Highlight", g, null, new PointD(90, 92.5), 0.5)); // past its end
+    }
+
+    [Fact]
+    public void AThreadListedBackwardsIsFoundInOnePass()
+    {
+        // 20,000 replies, each to the one before, listed last first: a pass per reply took ~50 s.
+        using var doc = new PdfSharp.Pdf.PdfDocument();
+        doc.AddPage();
+        PdfSharp.Pdf.PdfDictionary Note()
+        {
+            var d = new PdfSharp.Pdf.PdfDictionary(doc);
+            d.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/Annot");
+            d.Elements["/Subtype"] = new PdfSharp.Pdf.PdfName("/Text");
+            doc.Internals.AddObject(d);
+            return d;
+        }
+        var root = Note();
+        var chain = new List<PdfSharp.Pdf.PdfDictionary> { root };
+        for (var k = 0; k < 20_000; k++)
+        {
+            var r = Note();
+            r.Elements["/IRT"] = chain[^1].Reference!;
+            chain.Add(r);
+        }
+        chain.Reverse();
+        doc.Pages[0].Elements["/Annots"] = new PdfSharp.Pdf.PdfArray(doc, [.. chain.Select(d => (PdfSharp.Pdf.PdfItem)d.Reference!)]);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var thread = Annotations.ThreadOf(doc, root);
+        Assert.Equal(20_001, thread.Count);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"{sw.Elapsed}");
+    }
+
+    [Fact]
+    public void ANoteWithStrayLinesMovesByItsIcon()
+    {
+        // Another app's note with /QuadPoints near the corner: the page view drags its icon (/Rect), and so does MoveTo.
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> /Annots [5 0 R] >>",
+            Core2Pdf.Stream(""),
+            "<< /Type /Annot /Subtype /Text /NM (note-1) /Rect [300 300 320 320] /QuadPoints [0 10 10 10 0 0 10 0] >>",
+        ]);
+        var box = DrawingGeometry.OfComment(Get(pdf, "note-1"))!.Box;
+        var moved = Get(Annotations.MoveTo(pdf, null, "note-1", box.X + 10, box.Y), "note-1");
+        Assert.Equal(box.X + 10, moved.Rect.X, 0.01);
+        Assert.Equal(box.Y, moved.Rect.Y, 0.01);
+    }
 }

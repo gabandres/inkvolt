@@ -43,9 +43,9 @@ public sealed partial class PageViewer
     /// <summary>Comments shown as hover text (and hit-tested for double-clicks); replaced after every edit.</summary>
     public void SetAnnotations(IReadOnlyList<AnnotationInfo> annotations)
     {
-        // Notes and text marks get the geometry they are selected and moved by, as drawings have theirs.
-        _annotsByPage = annotations.Where(a => !a.Hidden)
-            .Select(a => a.Geometry is null && DrawingGeometry.OfComment(a) is { } g ? a with { Geometry = g } : a)
+        // Notes and text marks get the geometry they are selected and moved by, as drawings have theirs (while the page's
+        // budget of marked lines lasts).
+        _annotsByPage = DrawingGeometry.WithCommentGeometry(annotations.Where(a => !a.Hidden))
             .GroupBy(a => a.PageIndex).ToDictionary(g => g.Key, g => g.ToList());
         if (_tipAnnot is not null) HideLinkTip();
         OnDrawingsReloaded();

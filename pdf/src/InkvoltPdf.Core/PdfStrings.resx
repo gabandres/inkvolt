@@ -4531,6 +4531,12 @@
   <data name="Annot_CantMoveThisWay" xml:space="preserve">
     <value>Only notes and text marks (highlight, underline, strike-out) move and change color this way.</value>
   </data>
+  <data name="Annot_CantMoveBroken" xml:space="preserve">
+    <value>This comment's place in the file isn't a number, so it can't be moved.</value>
+  </data>
+  <data name="Pdf_NotANumber" xml:space="preserve">
+    <value>A value to be written to the file isn't a number.</value>
+  </data>
   <data name="Stamp_NeedsSize" xml:space="preserve">
     <value>The stamp needs a size.</value>
   </data>

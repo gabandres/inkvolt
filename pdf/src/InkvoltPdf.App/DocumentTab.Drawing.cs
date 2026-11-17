@@ -344,9 +344,9 @@ public partial class DocumentTab
                 }
                 var outcome = await TryEdit(label, edit, quiet: quiet, contentOnly: true, veil: false);
                 if (outcome == EditOutcome.Busy && !_disposed) continue;
-                var ok = outcome is EditOutcome.Done or EditOutcome.NoChange;
-                if (!ok && pendingId is not null) Viewer.ForgetPendingDrawing(pendingId);
-                return ok;
+                // Not made, or nothing changed (no reload will show it where it went): the preview goes.
+                if (outcome != EditOutcome.Done && pendingId is not null) Viewer.ForgetPendingDrawing(pendingId);
+                return outcome is EditOutcome.Done or EditOutcome.NoChange;
             }
         }
         finally

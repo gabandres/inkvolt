@@ -154,8 +154,15 @@ internal static class PdfObj
     public static PdfString MakeString(string value) =>
         value.All(c => c < 128) ? new PdfString(value) : new PdfString(value, PdfStringEncoding.Unicode);
 
-    public static PdfArray Reals(PdfDocument doc, params double[] values) =>
-        new(doc, [.. values.Select(v => (PdfItem)new PdfReal(Math.Round(v, 4)))]);
+    /// <summary>An array of numbers to write.</summary>
+    /// <exception cref="ArgumentOutOfRangeException">A value is infinite or NaN: PDFsharp would write it as a word
+    /// ("Infinity") that no reader takes, so the file wouldn't open again.</exception>
+    public static PdfArray Reals(PdfDocument doc, params double[] values)
+    {
+        foreach (var v in values)
+            if (!double.IsFinite(v)) throw new ArgumentOutOfRangeException(nameof(values), PdfStrings.Pdf_NotANumber);
+        return new(doc, [.. values.Select(v => (PdfItem)new PdfReal(Math.Round(v, 4)))]);
+    }
 
     public static string F(double v) => Math.Round(v, 3).ToString("0.###", Inv);
 
@@ -232,6 +239,7 @@ internal static class PdfObj
         // Opened with the user password only (UserPasswordEdits): a rewrite would drop the encryption.
         if (rewrite && Incremental.IsUserPasswordEdit(doc)) throw new OwnerPasswordRequiredException(false);
         var xmp = Xmp.Read(doc);
+        MakeNumbersFinite(doc);
         var saved = !rewrite && Incremental.Save(doc, xmp) is { } appended ? appended : Rewrite(doc, xmp, bareXmp);
         PdfShapeGuard.MarkKnown(saved); // from a document that was read, so the next edit needn't look again
         return saved;
@@ -243,6 +251,38 @@ internal static class PdfObj
             doc.Save(ms, false);
             return Xmp.Patch(ms, doc.Info, xmp, bareXmp);
         }
+    }
+
+    /// <summary>
+    /// Numbers that aren't one, made finite before a save: PDFsharp reads a hostile file's 400-digit number as infinity and
+    /// would write it back as "Infinity", which no reader (PDFsharp included) takes, so the file wouldn't open again.
+    /// Infinity becomes the largest real a PDF holds (±3.4e38), NaN 0.
+    /// </summary>
+    private static void MakeNumbersFinite(PdfDocument doc)
+    {
+        static PdfItem? Finite(PdfItem? item) => item is PdfReal { Value: var v } && !double.IsFinite(v)
+            ? new PdfReal(double.IsNaN(v) ? 0 : Math.CopySign(float.MaxValue, v))
+            : null;
+        var todo = new Stack<PdfItem>(doc.Internals.GetAllObjects());
+        while (todo.TryPop(out var item))
+            switch (item)
+            {
+                case PdfArray arr:
+                    for (var i = 0; i < arr.Elements.Count; i++)
+                        if (Finite(arr.Elements[i]) is { } f) arr.Elements[i] = f;
+                        else if (arr.Elements[i] is PdfArray or PdfDictionary) todo.Push(arr.Elements[i]);
+                    break;
+                case PdfDictionary dict:
+                    List<(string, PdfItem)>? fixes = null;
+                    foreach (var (key, value) in dict.Elements)
+                        if (Finite(value) is { } f) (fixes ??= []).Add((key, f));
+                        else if (value is PdfArray or PdfDictionary) todo.Push(value);
+                    if (fixes is not null) foreach (var (key, f) in fixes) dict.Elements[key] = f;
+                    break;
+                case PdfRealObject { Value: var v } ro when !double.IsFinite(v):
+                    ro.Value = double.IsNaN(v) ? 0 : Math.CopySign(float.MaxValue, v);
+                    break;
+            }
     }
 
     /// <summary>Appends <paramref name="ops"/> after the page's content, which is wrapped in q/Q so its graphics state can't leak.</summary>
