@@ -16,10 +16,9 @@ public enum DrawingEdit { Move, Resize, Reshape, Delete }
 
 /// <summary>
 /// A drawing annotation (or a note or text mark, <see cref="DrawTools.IsComment"/>) was moved, resized or reshaped
-/// (<see cref="Geometry"/>), or deleted (null). <see cref="From"/>: where it was shown when the gesture began (a move of a
-/// note or text mark is the difference, since an earlier move may not be in the document yet).
+/// (<see cref="Geometry"/>), or deleted (null).
 /// </summary>
-public sealed record DrawingChange(AnnotationInfo Annotation, DrawingEdit Edit, AnnotGeometry? Geometry, AnnotGeometry? From = null);
+public sealed record DrawingChange(AnnotationInfo Annotation, DrawingEdit Edit, AnnotGeometry? Geometry);
 
 /// <summary>
 /// A text box or callout editor closed. <see cref="Id"/> null: a new one (add it as <see cref="NewId"/>; never empty);
@@ -61,6 +60,7 @@ public sealed partial class PageViewer
     private string? _nudgeId;
     private DispatcherTimer? _nudgeTimer;
     private DrawingTextEdit? _editorDrawing;
+    private string? _markPress;         // a text mark the hand tool pressed: selected if the press ends without a drag
 
     // Shown until the document catches up (the page bitmap still shows the old state)
     private readonly Dictionary<string, (RectD Before, AnnotGeometry After)> _pendingGeometry = [];
@@ -176,6 +176,8 @@ public sealed partial class PageViewer
     {
         var p = new PointD(pt.X, pt.Y);
         var tolerance = HitPx / (_zoom * PtToDip);
+        // The selected one first: a press on it picks it up even where another lies on top.
+        if (SelectedDrawing is { } sel && sel.PageIndex == page && DrawingGeometry.Hit(sel.Subtype, ShownGeometry(sel), sel.Style, p, tolerance)) return sel;
         AnnotationInfo? hit = null;
         foreach (var a in DrawingsOn(page))
             if (DrawingGeometry.Hit(a.Subtype, ShownGeometry(a), a.Style, p, tolerance)) hit = a; // the last one is on top
@@ -249,6 +251,7 @@ public sealed partial class PageViewer
     /// <summary>Drawing tools, and selecting / dragging drawings with the hand or select tool. True if consumed.</summary>
     private bool HandleDrawingDown(MouseButtonEventArgs e, int page, Point sp, bool hadTextEditor)
     {
+        _markPress = null;
         if (e.ChangedButton != MouseButton.Left || _engine is null) return false;
         FlushNudge();
         if (DrawTools.IsDrawTool(_tool))
@@ -290,6 +293,12 @@ public sealed partial class PageViewer
         if (hit is null)
         {
             if (_selDrawing is not null) SelectDrawing(null);
+            return false;
+        }
+        // The hand tool pans over a text mark that isn't selected (a click without a drag selects it, EndMarkPress).
+        if (_tool == ViewerTool.Hand && DrawingGeometry.OnHandPress(hit, hit.Id == _selDrawing) == DrawingGeometry.HandPress.PanOrSelect)
+        {
+            _markPress = hit.Id;
             return false;
         }
         // The select text tool selects text where there is text (unless the drawing is already selected).
@@ -432,7 +441,17 @@ public sealed partial class PageViewer
             DragKind.Move => DrawingEdit.Move,
             DragKind.Resize => DrawingEdit.Resize,
             _ => DrawingEdit.Reshape,
-        }, g, d.Annot.Geometry));
+        }, g));
+        return true;
+    }
+
+    /// <summary>The hand tool's press on a text mark ended: a click (no drag) selects it (true); a drag only panned.</summary>
+    private bool EndMarkPress(bool dragged)
+    {
+        if (_markPress is not { } id) return false;
+        _markPress = null;
+        if (dragged || _tool != ViewerTool.Hand) return false;
+        SelectDrawing(id);
         return true;
     }
 
@@ -532,6 +551,7 @@ public sealed partial class PageViewer
         var pt = ToPagePoint(page, sp);
         if (DrawingAt(page, pt) is not { } a) return null;
         if (_tool == ViewerTool.SelectText && a.Id != _selDrawing && _texts.TryGetValue(page, out var t) && t.IsOverText(pt.X, pt.Y)) return null;
+        if (_tool == ViewerTool.Hand && DrawingGeometry.OnHandPress(a, a.Id == _selDrawing) == DrawingGeometry.HandPress.PanOrSelect) return null;
         return Cursors.SizeAll;
     }
 
@@ -613,7 +633,7 @@ public sealed partial class PageViewer
         var g = DrawingGeometry.Translate(start, v.X, v.Y);
         _pendingGeometry[id] = (a.Geometry!.Bounds, g);
         _surface.InvalidateVisual();
-        DrawingChanged?.Invoke(this, new DrawingChange(a, DrawingEdit.Move, g, start));
+        DrawingChanged?.Invoke(this, new DrawingChange(a, DrawingEdit.Move, g));
     }
 
     private void DiscardNudge()
@@ -880,22 +900,29 @@ public sealed partial class PageViewer
             case "Highlight" or "Underline" or "StrikeOut" or "Squiggly":
             {
                 var brush = Solid(s.Color);
+                var tint = s.Color is { } c ? Frozen(new SolidColorBrush(ToColor(c, opacity * 0.4))) : null;
                 foreach (var path in g.Paths.Where(p => p.Count == 4))
                 {
-                    // OfComment's corners: top-left, top-right, bottom-right, bottom-left.
-                    var line = ToSurfaceRect(page, new RectD(path[0].X, path[0].Y, path[1].X - path[0].X, path[2].Y - path[0].Y));
+                    // OfComment's corners as the text reads (the page's /Rotate in them; the view's turn in P): the
+                    // baseline's start and end, then the top's end and start.
+                    Point ll = P(path[0]), lr = P(path[1]), ur = P(path[2]), ul = P(path[3]);
                     if (subtype == "Highlight")
                     {
-                        dc.DrawRectangle(s.Color is { } c ? Frozen(new SolidColorBrush(ToColor(c, opacity * 0.4))) : null, null, line);
+                        var box = new StreamGeometry();
+                        using (var ctx = box.Open())
+                        {
+                            ctx.BeginFigure(ll, true, true);
+                            ctx.PolyLineTo([lr, ur, ul], false, false);
+                        }
+                        box.Freeze();
+                        dc.DrawGeometry(tint, null, box);
                         continue;
                     }
-                    // The mark's line across the text, the way the page shows it (a turned view: along the longer side).
-                    var across = line.Width >= line.Height;
-                    var h = across ? line.Height : line.Width;
-                    var at = subtype == "StrikeOut" ? 0.55 : 0.88;
-                    var linePen = Frozen(new Pen(brush, Math.Max(1, h / 14)));
-                    if (across) dc.DrawLine(linePen, new Point(line.Left, line.Top + h * at), new Point(line.Right, line.Top + h * at));
-                    else dc.DrawLine(linePen, new Point(line.Left + h * at, line.Top), new Point(line.Left + h * at, line.Bottom));
+                    // The line across the text at Core's height (MarkupAppearance): an underline near the baseline.
+                    var up = ul - ll;
+                    var at = subtype == "StrikeOut" ? 0.45 : 0.12;
+                    var linePen = Frozen(new Pen(brush, Math.Max(1, up.Length / 14)));
+                    dc.DrawLine(linePen, ll + up * at, lr + up * at);
                 }
                 break;
             }

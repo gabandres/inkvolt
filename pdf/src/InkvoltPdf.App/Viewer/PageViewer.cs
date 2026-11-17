@@ -1524,6 +1524,11 @@ public sealed partial class PageViewer : ScrollViewer
         var dragged = _dragged;
         var wasSelecting = _selecting;
         EndDrag();
+        if (EndMarkPress(dragged))
+        {
+            UpdateCursor(sp);
+            return;
+        }
 
         if (!dragged && link is not null && HitPage(sp) == linkPage && LinkAt(linkPage, ToPagePoint(linkPage, sp)) == link)
         {

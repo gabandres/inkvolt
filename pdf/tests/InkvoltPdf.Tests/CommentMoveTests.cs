@@ -210,4 +210,152 @@ public class CommentMoveTests
         Assert.Null(DrawingGeometry.OfComment(Get(pdf, "mark-1") with { QuadRects = [new RectD(double.NaN, 1, 1, 1)] }));
         Assert.Null(DrawingGeometry.OfComment(Get(pdf, "note-1") with { Rect = new RectD(double.PositiveInfinity, 1, 20, 20) }));
     }
+
+    // ───────────────────────────── Review fixes ─────────────────────────────
+
+    [Fact]
+    public void RecoloringANoteRecolorsTheRepliesOnIt()
+    {
+        var pdf = Annotations.AddNote(TestPdf.Make(1), null, 0, 400, 300, "Look here", "Ana", id: "note-1");
+        pdf = Annotations.AddReply(pdf, null, "note-1", "Seen", "Bo", "reply-1");
+        AnnotColor green = new(0.15, 0.65, 0.2);
+        pdf = Annotations.SetColor(pdf, null, "note-1", green);
+        Assert.Equal(green, Get(pdf, "reply-1").Color);
+        var shown = Pixel(pdf, 410, 306); // the reply's bubble lies on the note's
+        Assert.True(shown is { G: > 120, R: < 100, B: < 100 }, $"green on the page: {shown}");
+    }
+
+    [Fact]
+    public void AMarkOfTooManyLinesIsRefused_NotDrawnShort()
+    {
+        var lines = Enumerable.Range(0, Annotations.MaxQuads + 1).Select(i => new RectD(72 + i % 40, 100 + i % 600, 10, 1)).ToList();
+        var pdf = Annotations.AddTextMarkup(TestPdf.Make(1), null, 0, TextMarkupKind.Highlight, lines, AnnotColor.Yellow, null, "Ana", "mark-1");
+        Assert.Throws<InvalidOperationException>(() => Annotations.SetColor(pdf, null, "mark-1", AnnotColor.Red));
+        var mark = Get(pdf, "mark-1");
+        Assert.Null(DrawingGeometry.OfComment(mark)); // the page view and the Comments pane's Color offer nothing for it
+        // A reply takes its comment's color: no color of its own to choose.
+        var noted = Annotations.AddReply(Annotations.AddNote(TestPdf.Make(1), null, 0, 300, 300, "x", "Ana", id: "note-1"), null, "note-1", "y", "Bo", "reply-1");
+        Assert.Null(DrawingGeometry.OfComment(Get(noted, "reply-1")));
+    }
+
+    [Fact]
+    public void AMoveTakesRepliesOfEveryKindAndPopupsNamingTheirParent()
+    {
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> /Annots [5 0 R 6 0 R 7 0 R 8 0 R] >>",
+            Core2Pdf.Stream(""),
+            "<< /Type /Annot /Subtype /Text /NM (note-1) /Rect [100 600 120 620] /Name /Comment >>",
+            "<< /Type /Annot /Subtype /FreeText /NM (reply-ft) /IRT 5 0 R /Rect [100 560 200 580] /DA (/Helv 10 Tf 0 g) /Contents (Seen) >>",
+            "<< /Type /Annot /Subtype /Highlight /NM (reply-hl) /IRT 5 0 R /Rect [100 500 200 515] /QuadPoints [100 515 200 515 100 500 200 500] >>",
+            "<< /Type /Annot /Subtype /Popup /Parent 5 0 R /Rect [130 600 300 680] >>",
+        ]);
+        var moved = Annotations.Move(pdf, null, "note-1", 10, 20); // 20 down the page: PDF y - 20
+        var all = Annotations.Read(moved, null);
+        Assert.Equal(110, all.Single(a => a.Id == "reply-ft").Rect.X, 0.01);
+        var hl = all.Single(a => a.Id == "reply-hl");
+        Assert.Equal(110, hl.QuadRects[0].X, 0.01);
+        Assert.Equal(792 - 515 + 20, hl.QuadRects[0].Y, 0.01);
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(moved), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var popup = ((PdfSharp.Pdf.PdfArray)doc.Pages[0].Elements.GetObject("/Annots")!).Elements
+            .Select(e => (e as PdfSharp.Pdf.Advanced.PdfReference)?.Value as PdfSharp.Pdf.PdfDictionary)
+            .Single(d => d?.Elements.GetName("/Subtype") == "/Popup")!;
+        var r = popup.Elements.GetArray("/Rect")!;
+        Assert.Equal(140, r.Elements.GetReal(0), 0.01);
+        Assert.Equal(580, r.Elements.GetReal(1), 0.01);
+    }
+
+    [Fact]
+    public void MoveToGoesWhereAsked_FromWhereTheDocumentHasIt()
+    {
+        var pdf = Annotations.AddNote(TestPdf.Make(1), null, 0, 400, 300, "Look here", "Ana", id: "note-1");
+        pdf = Annotations.AddTextMarkup(pdf, null, 0, TextMarkupKind.Underline, [new RectD(380, 200, 120, 14), new RectD(360, 216, 80, 14)],
+            AnnotColor.Red, null, "Ana", "mark-1");
+        // A first move that never reached the document (cancelled) doesn't count: the second lands where it was shown.
+        var once = Annotations.MoveTo(pdf, null, "note-1", 300, 250);
+        Assert.Equal(300, Get(once, "note-1").Rect.X, 0.01);
+        Assert.Equal(250, Get(once, "note-1").Rect.Y, 0.01);
+        Assert.Same(once, Annotations.MoveTo(once, null, "note-1", 300, 250)); // already there: nothing to do
+        // A mark's frame is its lines' bounds, as the page view shows it.
+        var mark = Annotations.MoveTo(pdf, null, "mark-1", 100, 500);
+        var bounds = DrawingGeometry.OfComment(Get(mark, "mark-1"))!.Bounds;
+        Assert.Equal(100, bounds.X, 0.01);
+        Assert.Equal(500, bounds.Y, 0.01);
+        Assert.Throws<ArgumentOutOfRangeException>(() => Annotations.MoveTo(pdf, null, "note-1", double.NaN, 0));
+    }
+
+    [Fact]
+    public void RecoloringAnotherAppsNoteKeepsItsIcon()
+    {
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> /Annots [5 0 R] >>",
+            Core2Pdf.Stream(""),
+            "<< /Type /Annot /Subtype /Text /NM (key-1) /Name /Key /Rect [100 600 120 620] /C [1 1 0] /F 4 /AP << /N 6 0 R >> >>",
+            Core2Pdf.Stream("1 1 0 rg 0 0 20 20 re f", "/Type /XObject /Subtype /Form /BBox [0 0 20 20]"),
+        ]);
+        var red = Annotations.SetColor(pdf, null, "key-1", AnnotColor.Red);
+        Assert.Equal(AnnotColor.Red, Get(red, "key-1").Color);
+        var text = System.Text.Encoding.Latin1.GetString(red);
+        Assert.Contains("/Key", text); // its icon, drawn by the viewer in the new color (MuPDF here)
+        using var engine = PdfEngine.Open(red, InputFileTypes.PDF, null);
+        var image = engine.Render(0, 1);
+        var reddish = 0;
+        for (var y = 172; y < 192; y++)
+            for (var x = 100; x < 120; x++)
+            {
+                var i = y * image.Stride + x * 3; // BGR
+                if (image.Pixels[i + 2] > 150 && image.Pixels[i + 1] < 90 && image.Pixels[i] < 90) reddish++;
+            }
+        Assert.True(reddish > 20, $"the key icon in red: {reddish} pixels");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(180)]
+    [InlineData(270)]
+    public void AMarksLinesRunTheWayThePageShowsThem(int rotation)
+    {
+        var pdf = rotation == 0 ? TestPdf.Make(1) : PageEditor.Rotate(TestPdf.Make(1), null, [0], rotation);
+        pdf = Annotations.AddTextMarkup(pdf, null, 0, TextMarkupKind.Underline, [new RectD(100, 300, 150, 14)], AnnotColor.Red, null, "Ana", "mark-1");
+        // Text drawn the usual way on the page runs along the turned page: its baseline start and end, as shown.
+        var mark = Get(pdf, "mark-1");
+        Assert.Equal(rotation, mark.PageRotation);
+        var line = DrawingGeometry.OfComment(mark)!.Paths[0];
+        var (along, up) = (new PointD(line[1].X - line[0].X, line[1].Y - line[0].Y), new PointD(line[3].X - line[0].X, line[3].Y - line[0].Y));
+        // Which way the PDF's own x axis runs on the shown page (the baseline), and its y axis (up from it).
+        var o = PdfObjAt(pdf, 0, 0);
+        var ex = PdfObjAt(pdf, 1, 0);
+        var ey = PdfObjAt(pdf, 0, 1);
+        double Dot(PointD v, (double X, double Y) a, (double X, double Y) b) => v.X * (b.X - a.X) + v.Y * (b.Y - a.Y);
+        Assert.True(Dot(along, o, ex) > 0, "the baseline runs with the text");
+        Assert.True(Dot(up, o, ey) > 0, "up from the baseline is up the text");
+        Assert.Equal(mark.QuadRects[0], DrawingGeometry.OfComment(mark)!.Box); // the bounds a press is checked against first
+    }
+
+    /// <summary>Where a PDF-space point (x, y) of the first page is in page space.</summary>
+    private static (double X, double Y) PdfObjAt(byte[] pdf, double x, double y)
+    {
+        using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var r = FormEditor.ToPageSpace(doc.Pages[0], x, y, x, y);
+        return (r.X, r.Y);
+    }
+
+    [Fact]
+    public void TheHandToolPansOverTextMarks_UntilOneIsSelected()
+    {
+        var pdf = Annotations.AddNote(TestPdf.Make(1), null, 0, 400, 300, "Look here", "Ana", id: "note-1");
+        pdf = Annotations.AddTextMarkup(pdf, null, 0, TextMarkupKind.Highlight, [new RectD(380, 200, 120, 14)], AnnotColor.Yellow, null, "Ana", "mark-1");
+        pdf = Annotations.AddShape(pdf, null, 0, ShapeKind.Rectangle, new RectD(100, 500, 50, 40), AnnotStyle.Pen(AnnotColor.Red), "Ana", "box-1");
+        var mark = Get(pdf, "mark-1");
+        Assert.Equal(DrawingGeometry.HandPress.PanOrSelect, DrawingGeometry.OnHandPress(mark, selected: false));
+        Assert.Equal(DrawingGeometry.HandPress.Move, DrawingGeometry.OnHandPress(mark, selected: true));
+        Assert.Equal(DrawingGeometry.HandPress.Move, DrawingGeometry.OnHandPress(Get(pdf, "note-1"), selected: false)); // as on the Mac
+        Assert.Equal(DrawingGeometry.HandPress.Move, DrawingGeometry.OnHandPress(Get(pdf, "box-1"), selected: false));
+    }
 }

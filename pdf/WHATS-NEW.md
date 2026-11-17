@@ -5,7 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
-- Move a sticky note, a highlight, an underline or a strike-out: drag it with the hand tool, or nudge it with the arrow keys. Its replies come along.
+- Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.
 - Change a note's or a text mark's color from the bar that shows when you select it, or from Color in the Comments pane's menu. Ctrl+Z undoes either.
 - Polygon and Polyline tools in the Draw menu (keys V and Z): click each corner, then double-click or press Enter to finish; a click on a polygon's first corner closes it. Backspace takes a corner back, Esc cancels. Color, line width and fill as for the other shapes.
 

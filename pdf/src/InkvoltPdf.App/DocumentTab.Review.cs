@@ -305,7 +305,7 @@ public partial class DocumentTab
             var sel = CommentList.SelectedItem as CommentItem;
             CommentEditButton.IsEnabled = CommentEditMenu.IsEnabled = sel is not null;
             CommentDeleteButton.IsEnabled = CommentDeleteMenu.IsEnabled = sel is not null;
-            CommentColorMenu.Visibility = sel is not null && Annotations.MovesInPlace(sel.Info) ? Visibility.Visible : Visibility.Collapsed;
+            CommentColorMenu.Visibility = SelectedComment() is not null ? Visibility.Visible : Visibility.Collapsed;
             if (sel is not null && !_syncingComments)
             {
                 FlashComment(sel.Info);

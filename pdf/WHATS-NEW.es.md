@@ -5,7 +5,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 `docs/SPANISH-REVIEW.md`'s.
 
 ## Next
-- Mueve una nota, un resaltado, un subrayado o un tachado: arrástralo con la herramienta mano o desplázalo con las flechas del teclado. Sus respuestas se mueven con él.
+- Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.
 - Cambia el color de una nota o de una marca de texto desde la barra que aparece al seleccionarla, o desde Color en el menú del panel Comentarios. Ctrl+Z deshace cualquiera de los dos cambios.
 - Herramientas Polígono y Polilínea en el menú Dibujar (teclas V y Z): haz clic en cada esquina y luego doble clic o Enter para terminar; un clic en la primera esquina de un polígono lo cierra. Retroceso quita una esquina, Esc cancela. Color, grosor de línea y relleno como en las demás figuras.
 

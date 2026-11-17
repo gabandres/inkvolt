@@ -304,9 +304,12 @@ public partial class DocumentTab
         }
     }
 
-    /// <summary>The note or text mark selected in the Comments pane.</summary>
+    /// <summary>
+    /// The note or text mark selected in the Comments pane that takes a color: the page view's rule
+    /// (<see cref="DrawingGeometry.OfComment"/>), so not a reply (it takes its comment's) nor a mark of too many lines.
+    /// </summary>
     private AnnotationInfo? SelectedComment() =>
-        CommentList.SelectedItem is CommentItem { Info: var a } && Annotations.MovesInPlace(a) ? a : null;
+        CommentList.SelectedItem is CommentItem { Info: var a } && DrawingGeometry.OfComment(a) is not null ? a : null;
 
     /// <summary>A note's or a text mark's new color (from the style bar or the Comments pane's menu): one undo step.</summary>
     private async Task<bool> RecolorComment(AnnotationInfo a, AnnotColor color)
@@ -376,15 +379,10 @@ public partial class DocumentTab
         var label = c.Edit switch { DrawingEdit.Move => Strings.Drawing_EditMove, DrawingEdit.Resize => Strings.Drawing_EditResize, _ => Strings.Drawing_EditReshape };
         if (DrawTools.IsComment(c.Annotation))
         {
-            // A note or a text mark moves by the difference from where it was shown when the gesture began.
-            var from = (c.From ?? c.Annotation.Geometry!).Bounds;
-            double dx = g.Bounds.X - from.X, dy = g.Bounds.Y - from.Y;
-            if (dx == 0 && dy == 0)
-            {
-                Viewer.ForgetPendingDrawing(id);
-                return Task.FromResult(false);
-            }
-            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditMove, title), (d, pw) => Annotations.Move(d, pw, id, dx, dy), id, quiet: true);
+            // A note or a text mark goes where it is shown, from where the document has it when the edit runs (an earlier
+            // move still waiting, or cancelled, isn't counted twice).
+            var (x, y) = (g.Bounds.X, g.Bounds.Y);
+            return RunDrawingEdit(Loc.Format(Strings.Drawing_EditMove, title), (d, pw) => Annotations.MoveTo(d, pw, id, x, y), id, quiet: true);
         }
         return RunDrawingEdit(Loc.Format(label, title), (d, pw) => Annotations.UpdateGeometry(d, pw, id, g), id, quiet: true);
     }
