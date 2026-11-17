@@ -21,14 +21,24 @@ if ($LASTEXITCODE -eq 0) { exit 0 }
 # Failed tests from the TRX files: their class and method, per test project.
 $projects = @{ 'InkvoltPdf.Tests' = 'pdf/tests/InkvoltPdf.Tests'; 'InkvoltPrint.Tests' = 'print/tests/InkvoltPrint.Tests' }
 $failed = [Collections.Generic.List[string]]::new()
+$aborted = [Collections.Generic.List[string]]::new()
 foreach ($trx in Get-ChildItem $results -Filter *.trx -Recurse) {
     [xml]$x = Get-Content -LiteralPath $trx.FullName -Raw
+    # A crashed or aborted test host leaves the tests after it unrun, and they aren't in the TRX as failed: retrying the
+    # recorded failures alone would pass a run that never ran them.
+    $summary = $x.TestRun.ResultSummary
+    # (Every failed test's output is an Error RunInfo too, so only the abort's own words count.)
+    $errors = @($summary.RunInfos.RunInfo | Where-Object { $_ -and $_.Text -match 'test run was aborted|test host process crashed' })
+    if ($summary.outcome -in 'Aborted', 'Timeout' -or $errors.Count -gt 0) {
+        $aborted.Add("$($trx.Name): $(@($errors | ForEach-Object { ($_.Text -split "`n")[0] }) -join ' ')")
+    }
     $methods = @{}
     foreach ($t in $x.TestRun.TestDefinitions.UnitTest) { $methods[$t.id] = "$($t.TestMethod.className).$($t.TestMethod.name)" }
     foreach ($r in $x.TestRun.Results.UnitTestResult) {
         if ($r.outcome -eq 'Failed' -and $methods[$r.testId]) { $failed.Add($methods[$r.testId]) }
     }
 }
+if ($aborted.Count -gt 0) { Write-Host 'The test run was aborted (a test host crashed?), so some tests never ran: no retry.'; $aborted | ForEach-Object { Write-Host "  $_" }; exit 1 }
 $failed = @($failed | Sort-Object -Unique)
 if ($failed.Count -eq 0) { Write-Host 'The run failed without a failed test (a build error?): no retry.'; exit 1 }
 if ($failed.Count -gt $MaxRetry) { Write-Host "$($failed.Count) tests failed (more than $MaxRetry): a real break, no retry."; exit 1 }
