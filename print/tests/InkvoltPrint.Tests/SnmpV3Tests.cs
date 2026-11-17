@@ -208,9 +208,49 @@ public class SnmpV3Tests
         Assert.DoesNotContain(auth, ex.Message);
         Assert.DoesNotContain(priv, ex.Message);
 
-        SnmpRefusal? told = null; // the probe finds nothing, and says why
-        Assert.Null(await SnmpPrinterClient.ProbeAsync(agent, "192.0.2.14", Login(new SnmpV3User(name, auth, priv)), refused: r => told = r));
-        Assert.Equal(reason, told);
+        Assert.Equal(Convert.ToHexString(Engine), ex.EngineId); // the engine it came from, as claimed
+        Assert.Null(client.SignedEngineId); // never answered signed: not known to be its own
+
+        (SnmpRefusal, string?)? told = null; // the probe finds nothing, and says why and which engine said it
+        Assert.Null(await SnmpPrinterClient.ProbeAsync(agent, "192.0.2.14", Login(new SnmpV3User(name, auth, priv)), refused: (r, by) => told = (r, by)));
+        Assert.Equal((reason, Convert.ToHexString(Engine)), told);
+    }
+
+    [Fact]
+    public async Task An_unsigned_refusal_after_a_signed_answer_is_no_answer_and_the_engine_is_known()
+    {
+        var spoofer = new Spoofer(Agent());
+        var client = new SnmpClient(spoofer, "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
+        await client.GetAsync([PrinterMib.SysName.Append(0)]);
+        Assert.Equal(Convert.ToHexString(Engine), client.SignedEngineId);
+        (spoofer.Counter, spoofer.EngineId) = (Usm.UnknownUserNames, Engine); // from its own engine ID, unsigned: someone on the path
+        await Assert.ThrowsAsync<TimeoutException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
+    }
+
+    [Fact]
+    public async Task A_probe_whose_agent_answered_signed_ignores_a_refusal_spoofed_after_and_reads_on()
+    {
+        // The GetNext answered signed; a refusal spoofed for the request after it is ignored, the request sent again and answered.
+        var spoofer = new Spoofer(Agent());
+        var told = new List<SnmpRefusal>();
+        var printer = await SnmpPrinterClient.ProbeAsync(new SpoofOnce(spoofer, Engine, 2), "192.0.2.14", Login(Right), refused: (r, _) => told.Add(r));
+        Assert.NotNull(printer);
+        Assert.Empty(told);
+        Assert.Equal(Convert.ToHexString(Engine), printer.Identity.EngineId);
+    }
+
+    /// <summary>Sends the <paramref name="nth"/> request after discovery to <paramref name="spoofer"/> as an unsigned unknownUserNames from <paramref name="engine"/>; the rest to the agent.</summary>
+    internal sealed class SpoofOnce(Spoofer spoofer, byte[] engine, int nth) : ISnmpTransport
+    {
+        private int _sent;
+
+        public async Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
+        {
+            if (SnmpV3Message.Decode(request).EngineId.Length == 0 || Interlocked.Increment(ref _sent) != nth) return await spoofer.SendAsync(host, request, timeout, ct);
+            (spoofer.Counter, spoofer.EngineId) = (Usm.UnknownUserNames, engine);
+            try { return await spoofer.SendAsync(host, request, timeout, ct); }
+            finally { spoofer.Counter = null; }
+        }
     }
 
     [Fact]
@@ -265,17 +305,6 @@ public class SnmpV3Tests
         spoofer.EngineId = fromItsEngine ? Engine : OtherEngine;
         await Assert.ThrowsAsync<TimeoutException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
         Assert.Single(agent.V3Log, e => e == "discovery");
-    }
-
-    [Fact]
-    public async Task An_unsigned_refusal_from_the_agents_own_engine_still_says_which()
-    {
-        var spoofer = new Spoofer(Agent());
-        var client = new SnmpClient(spoofer, "192.0.2.14", SnmpVersion.V3, Login(Right)) { Retries = 0 };
-        await client.GetAsync([PrinterMib.SysName.Append(0)]);
-        (spoofer.Counter, spoofer.EngineId) = (Usm.WrongDigests, Engine);
-        var ex = await Assert.ThrowsAsync<SnmpAccessException>(() => client.GetAsync([PrinterMib.SysName.Append(0)]));
-        Assert.Equal(SnmpRefusal.WrongAuthKey, ex.Reason);
     }
 
     [Theory]

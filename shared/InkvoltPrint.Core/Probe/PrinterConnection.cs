@@ -33,6 +33,12 @@ public sealed record ProbeResult(
     /// <summary>An SNMPv3 agent answered and refused the login's user or keys (nothing else answered); null otherwise.</summary>
     public SnmpRefusal? SnmpRefused { get; init; }
 
+    /// <summary>
+    /// With <see cref="SnmpRefused"/>: the engine ID the refusing agent claimed (hex). The refusal is a remembered printer's only
+    /// when that engine is its own (<see cref="SnmpDevice.IsItsEngine"/>).
+    /// </summary>
+    public string? SnmpRefusedBy { get; init; }
+
     public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null || Snmp is not null;
 
     public string? Uuid =>
@@ -191,12 +197,15 @@ public sealed class PrinterConnection : IDisposable
         var (scanner, esclRoot) = escl.Result;
         var (attrs, endpoint) = ipp.Result;
         // SNMP last, and only for a printer none of the others reached: a printer with LEDM, CDM or IPP never gets an SNMP request.
-        SnmpRefusal? refused = null;
+        (SnmpRefusal Reason, string? By)? refused = null;
         var snmpProbe = tree is null && cdm.Result is null && attrs is null && snmp is not null
-            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, snmpLogin, ct, r => refused = r).ConfigureAwait(false)
+            ? await SnmpPrinterClient.ProbeAsync(snmp, http.Host, snmpLogin, ct, (r, by) => refused = (r, by)).ConfigureAwait(false)
             : null;
         return new ProbeResult(http.Host, tree, product ?? cdm.Result?.Identity, scanner, esclRoot, attrs)
-            { IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity, SnmpRefused = snmpProbe is null ? refused : null };
+        {
+            IppEndpoint = endpoint, Cdm = cdm.Result, Snmp = snmpProbe?.Identity,
+            SnmpRefused = snmpProbe is null ? refused?.Reason : null, SnmpRefusedBy = snmpProbe is null ? refused?.By : null,
+        };
     }
 
     /// <summary>

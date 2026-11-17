@@ -335,7 +335,9 @@ public sealed class PrinterMonitor : IDisposable
     private void Attach(PrinterConnection conn, bool upgraded)
     {
         var p = conn.Probe;
-        Target = Target with { IppHint = p.IppEndpoint ?? Target.IppHint };
+        // Over SNMPv3 the engine that answered signed, as this printer, is remembered (the app keeps Target when it connects):
+        // a later refusal is the printer's only from it.
+        Target = Target with { IppHint = p.IppEndpoint ?? Target.IppHint, Snmp = Target.Snmp is { } known && p.Snmp is { } said ? known.Answered(said) : Target.Snmp };
         var notice = View.FirmwareNotice;
         if (_firmware is { } memory)
         {

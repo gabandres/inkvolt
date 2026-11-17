@@ -66,10 +66,12 @@ public static class AlertConditions
         var found = new List<AlertCondition>();
         if (!snap.Reachable)
         {
-            found.Add(snap.LoginRefused is { } why
-                ? new AlertCondition(nameof(AlertKind.LoginRefused), AlertKind.LoginRefused, string.Format(CoreStrings.Alert_LoginRefusedTitle, snap.Name),
-                    string.Format(CoreStrings.Monitor_RefusedDetail, new Snmp.SnmpAccessException(why).Message))
-                : new AlertCondition("Offline", AlertKind.Offline, string.Format(CoreStrings.Alert_OfflineTitle, snap.Name), CoreStrings.Alert_OfflineBody));
+            // Refused is unreadable too: offline's hold runs on through it (a spoofed refusal every other check can't reset it),
+            // and the tracker tells offline only when the refusal hasn't been told (AlertTracker.Outranked).
+            if (snap.LoginRefused is { } why)
+                found.Add(new AlertCondition(nameof(AlertKind.LoginRefused), AlertKind.LoginRefused, string.Format(CoreStrings.Alert_LoginRefusedTitle, snap.Name),
+                    string.Format(CoreStrings.Monitor_RefusedDetail, new Snmp.SnmpAccessException(why).Message)));
+            found.Add(new AlertCondition("Offline", AlertKind.Offline, string.Format(CoreStrings.Alert_OfflineTitle, snap.Name), CoreStrings.Alert_OfflineBody));
             return found;
         }
         if (snap.Status is { } status) AddStatus(found, snap.Name, status);

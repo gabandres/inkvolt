@@ -12,6 +12,9 @@ public sealed record SnmpIdentity(SnmpVersion Version, uint DeviceIndex, string?
     /// <summary>The login every later read of this printer uses.</summary>
     public SnmpLogin LoginOrPublic => Login ?? SnmpLogin.Public;
 
+    /// <summary>Over SNMPv3, the engine ID (hex) of the agent that answered, signed: its own (<see cref="SnmpClient.SignedEngineId"/>). Not a secret.</summary>
+    public string? EngineId { get; init; }
+
     /// <summary>The model: hrDeviceDescr ("Brand Model"), else the first line of sysDescr (often model plus firmware).</summary>
     public string? Model => DeviceDescription ?? (SystemDescription?.Split('\n', ';')[0].Trim() is { Length: > 0 } s ? s : null);
 }
@@ -58,9 +61,12 @@ public sealed class SnmpPrinterClient
     /// The printer's own login (<see cref="ISnmpLogins"/>); null: <see cref="SnmpLogin.Public"/>. With an SNMPv3 user only v3 is
     /// asked (authPriv), never v1 or v2c.
     /// </param>
-    /// <param name="refused">Told why an SNMPv3 agent refused the user or its keys (the probe then finds nothing).</param>
+    /// <param name="refused">
+    /// Told why an SNMPv3 agent refused the user or its keys, and that agent's engine ID (<see cref="SnmpAccessException.EngineId"/>);
+    /// the probe then finds nothing. Never after the agent answered signed (<see cref="SnmpClient.SignedEngineId"/>).
+    /// </param>
     public static async Task<SnmpPrinterClient?> ProbeAsync(ISnmpTransport transport, string host, SnmpLogin? login = null,
-        CancellationToken ct = default, Action<SnmpRefusal>? refused = null)
+        CancellationToken ct = default, Action<SnmpRefusal, string?>? refused = null)
     {
         login ??= SnmpLogin.Public;
         using var loser = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -99,11 +105,11 @@ public sealed class SnmpPrinterClient
                 var more = await client.GetAsync([PrinterMib.HrDeviceDescr.Append(index), PrinterMib.PrtGeneralSerialNumber.Append(index)], loser.Token)
                     .ConfigureAwait(false);
                 return new SnmpIdentity(version, index, more[0].Value.Text, Text(0, PrinterMib.SysDescr), Text(1, PrinterMib.SysName),
-                    Text(2, PrinterMib.SysLocation), more[1].Value.Text, login);
+                    Text(2, PrinterMib.SysLocation), more[1].Value.Text, login) { EngineId = client.SignedEngineId };
             }
             catch (SnmpAccessException ex)
             {
-                refused?.Invoke(ex.Reason);
+                refused?.Invoke(ex.Reason, ex.EngineId);
                 return null;
             }
             catch (Exception ex) when (ex is TimeoutException or FormatException or SnmpErrorException or OperationCanceledException)

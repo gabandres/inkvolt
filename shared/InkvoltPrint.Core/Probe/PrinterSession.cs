@@ -27,7 +27,10 @@ public abstract record SessionStep
     /// <summary>Nothing answers at the printer's address.</summary>
     public sealed record Offline : SessionStep;
 
-    /// <summary>The printer's SNMPv3 agent refused its login (the user, or one of its keys): it answers, so it isn't offline.</summary>
+    /// <summary>
+    /// The printer's SNMPv3 agent refused its login (the user, or one of its keys): it answers, so it isn't offline. Only from the
+    /// engine its signed answers came from (<see cref="SnmpDevice.IsItsEngine"/>).
+    /// </summary>
     public sealed record Refused(SnmpRefusal Reason) : SessionStep;
 
     /// <summary>
@@ -95,8 +98,10 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
     public PrinterConnection? Connection { get; private set; }
 
     /// <summary>
-    /// Connects at <paramref name="where"/>: <see cref="SessionStep.Connected"/>, or Offline, Refused (an SNMPv3 agent refused the
-    /// login) or Elsewhere (nothing kept).
+    /// Connects at <paramref name="where"/>: <see cref="SessionStep.Connected"/>, or Offline, Refused (the printer's own SNMPv3
+    /// agent refused the login) or Elsewhere (nothing kept). Identity before a refusal too: it is Refused only from the engine the
+    /// printer's signed answers came from (<see cref="SnmpDevice.IsItsEngine"/>); from any other (a switch or UPS that took the
+    /// address by DHCP, a printer never read over SNMPv3) it is Offline, and Fix it… looks for the printer.
     /// </summary>
     public async Task<SessionStep> ConnectAsync(PrinterWhere where, CancellationToken ct)
     {
@@ -105,7 +110,8 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
-            return conn.Probe.SnmpRefused is { } why ? new SessionStep.Refused(why) : new SessionStep.Offline();
+            return conn.Probe.SnmpRefused is { } why && where.Snmp?.IsItsEngine(conn.Probe.SnmpRefusedBy) == true
+                ? new SessionStep.Refused(why) : new SessionStep.Offline();
         }
         if (Identify(where.Host, conn.Probe.ReportedUuids) == DeviceIdentity.Different) return LetGo(conn, conn.Probe.ReportedUuids, where.Host);
         if (conn.Probe.Snmp is { } snmp && where.Snmp?.Identify(snmp) == DeviceIdentity.Different) return LetGo(conn, [], where.Host, snmp);

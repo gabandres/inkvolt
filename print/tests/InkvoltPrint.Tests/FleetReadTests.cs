@@ -218,7 +218,9 @@ public sealed class FleetReadTests : IDisposable
         var user = new SnmpV3User("reader", "authpass-2026", "privpass-2026");
         var agent = new SnmpAgent(SnmpAgent.ParseWalk(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "snmp-demo", "workgroup-laser.txt"))),
             user, "inkvolt-engine"u8.ToArray());
-        var known = new InkvoltPrinter(PrinterId.Normalize(null, host), "SNMP printer", null, host, null) { Snmp = new SnmpDevice("DEMO0005200", null, null) };
+        // Read signed over SNMPv3 before: its engine is remembered, so a refusal from it is its own.
+        var known = new InkvoltPrinter(PrinterId.Normalize(null, host), "SNMP printer", null, host, null)
+            { Snmp = new SnmpDevice("DEMO0005200", null, null, Convert.ToHexString("inkvolt-engine"u8)) };
         var wrong = SnmpLogin.ForUser(user.Name, "wrong-auth-pass", user.PrivPassphrase, out _);
 
         var read = await FleetReader.ReadAllAsync(new OnePrinterPc(known, () => new HostRouter(new Dictionary<string, HttpMessageHandler>()), agent, wrong), Now);
@@ -226,6 +228,24 @@ public sealed class FleetReadTests : IDisposable
         Assert.Equal(CoreStrings.Monitor_RefusedTitle, printer.Status);
         Assert.Equal(FleetTrouble.Error, printer.Trouble); // it answers: an error of its own, not counted offline
         Assert.DoesNotContain("reached", FleetPage.Summary(read.Printers.ToList())); // "1 with an error", not "can't be reached"
+    }
+
+    [Fact]
+    public async Task A_refusal_from_an_engine_not_known_as_the_printers_reads_as_cant_reach()
+    {
+        // The printer moved by DHCP; a switch with SNMPv3 took its old address and refuses the user it doesn't know.
+        const string host = "192.0.2.14";
+        var user = new SnmpV3User("reader", "authpass-2026", "privpass-2026");
+        var login = SnmpLogin.ForUser(user.Name, user.AuthPassphrase, user.PrivPassphrase, out _);
+        var device = new SnmpAgent(SnmpAgent.ParseWalk(".1.3.6.1.2.1.1.5.0 = STRING: \"core-switch\""), new SnmpV3User("admin", "switch-auth-1", "switch-priv-1"),
+            "switch-engine"u8.ToArray());
+        foreach (var engine in new[] { Convert.ToHexString("inkvolt-engine"u8), null }) // the printer's own engine remembered, or none yet
+        {
+            var known = new InkvoltPrinter(PrinterId.Normalize(null, host), "SNMP printer", null, host, null) { Snmp = new SnmpDevice("DEMO0005200", null, null, engine) };
+            var printer = Assert.Single((await FleetReader.ReadAllAsync(new OnePrinterPc(known, () => new HostRouter(new Dictionary<string, HttpMessageHandler>()), device, login), Now)).Printers);
+            Assert.Equal(FleetTrouble.Offline, printer.Trouble);
+            Assert.NotEqual(CoreStrings.Monitor_RefusedTitle, printer.Status);
+        }
     }
 
     private sealed class OnePrinterPc(InkvoltPrinter printer, Func<HttpMessageHandler> transport, ISnmpTransport snmp, SnmpLogin? login = null) : IFleetPc

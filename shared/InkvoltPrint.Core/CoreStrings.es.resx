@@ -3148,6 +3148,9 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="SnmpCheck_Refused" xml:space="preserve">
     <value>{0} No se cambió nada.</value>
   </data>
+  <data name="SnmpCheck_RefusedUnknown" xml:space="preserve">
+    <value>{0} Pero no se pudo saber si el dispositivo que lo dijo es esta impresora: aún no se ha leído por SNMPv3, u otro dispositivo tiene su dirección. Guardar de todos modos lo guarda tal como está.</value>
+  </data>
   <data name="SnmpCheck_AnotherDevice" xml:space="preserve">
     <value>Con este acceso responde otro dispositivo en la dirección de esta impresora, así que no se guardó.</value>
   </data>

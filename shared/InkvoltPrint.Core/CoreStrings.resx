@@ -3860,6 +3860,10 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>{0} Nothing was changed.</value>
     <comment>{0} = which part SNMP refused (a sentence)</comment>
   </data>
+  <data name="SnmpCheck_RefusedUnknown" xml:space="preserve">
+    <value>{0} But the device that said so couldn't be told to be this printer: it hasn't been read over SNMPv3 yet, or another device has its address. Save anyway keeps it as it is.</value>
+    <comment>{0} = which part SNMP refused (a sentence); 'Save anyway' is a button; it = the SNMPv3 user</comment>
+  </data>
   <data name="SnmpCheck_AnotherDevice" xml:space="preserve">
     <value>Another device answers at this printer's address with it, so it wasn't kept.</value>
     <comment>it = the SNMP community or SNMPv3 user</comment>
