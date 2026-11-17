@@ -50,6 +50,31 @@ public class VertexDraftTests
     }
 
     [Fact]
+    public void TheRestOfADoubleClickThatFinishedADrawingStartsNoOther()
+    {
+        // A polygon closed by a double-click on its first corner: the first press closes it, the second starts nothing.
+        var polygon = new VertexDraft(closed: true);
+        polygon.Click(0, new(100, 100), 1, 4);
+        polygon.Click(0, new(200, 100), 1, 4);
+        polygon.Click(0, new(150, 180), 1, 4);
+        Assert.True(polygon.Click(0, new(100, 100), 1, 4));
+        Assert.Equal(3, polygon.Finish()!.Count);
+        Assert.False(polygon.Click(0, new(100, 100), 2, 4));
+        Assert.False(polygon.IsActive);
+
+        // A triple-click ending a polyline: its third press after the finish starts nothing either.
+        var line = new VertexDraft(closed: false);
+        line.Click(0, new(100, 100), 1, 4);
+        line.Click(0, new(200, 100), 1, 4);
+        Assert.True(line.Click(0, new(200, 100), 2, 4));
+        Assert.Equal(2, line.Finish()!.Count);
+        Assert.False(line.Click(0, new(200, 100), 3, 4));
+        Assert.False(line.IsActive);
+        Assert.False(line.Click(0, new(300, 300), 1, 4)); // the next single click starts the next one
+        Assert.True(line.IsActive);
+    }
+
+    [Fact]
     public void TooFewCornersDrawNothing_AndEachPageStartsOver()
     {
         var polygon = new VertexDraft(closed: true);

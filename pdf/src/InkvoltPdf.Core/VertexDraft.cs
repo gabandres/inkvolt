@@ -28,11 +28,14 @@ public sealed class VertexDraft(bool closed)
     /// <summary>
     /// A click at <paramref name="p"/> on <paramref name="page"/> (<paramref name="clicks"/>: 2 for a double-click's second
     /// press). <paramref name="closeDistance"/>: how near the first corner (page points, across plus down) a click closes a
-    /// polygon. True when the drawing is finished: take it with <see cref="Finish"/>. A click on another page starts over there.
+    /// polygon. True when the drawing is finished: take it with <see cref="Finish"/>. A click on another page starts over there;
+    /// a double-click's later presses never start one.
     /// </summary>
     public bool Click(int page, PointD p, int clicks, double closeDistance)
     {
         if (page < 0 || !double.IsFinite(p.X) || !double.IsFinite(p.Y)) return false;
+        // The rest of a double- or triple-click whose first press finished a drawing doesn't start another.
+        if (clicks >= 2 && Page != page) return false;
         if (Page != page)
         {
             Page = page;
