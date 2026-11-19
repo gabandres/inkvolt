@@ -3373,4 +3373,19 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Windows no dejó que el instalador se iniciara: puede que SmartScreen, un antivirus o una directiva de este PC lo hayan detenido. No se instaló nada. Inténtalo de nuevo u obtén el controlador del sitio web de {0} más abajo.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="PrinterCopy_NotOffered" xml:space="preserve">
+    <value>Al final, la impresora no acepta solicitudes de copia de las aplicaciones. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_NotRead" xml:space="preserve">
+    <value>No se envió: no se pudo leer la configuración de copia de la impresora. Vuelve a intentarlo o elige A través de este PC.</value>
+  </data>
+  <data name="PrinterCopy_Busy" xml:space="preserve">
+    <value>La impresora está ocupada y no empezó la copia. Vuelve a intentarlo cuando esté inactiva.</value>
+  </data>
+  <data name="PrinterCopy_Refused" xml:space="preserve">
+    <value>La impresora rechazó la copia. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
+  </data>
 </root>

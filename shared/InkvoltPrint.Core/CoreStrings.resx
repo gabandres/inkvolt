@@ -4089,4 +4089,19 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Windows didn't let the installer start: SmartScreen, an antivirus or a policy on this PC may have stopped it. Nothing was installed. Try again, or get the driver from {0}'s website below.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="PrinterCopy_NotOffered" xml:space="preserve">
+    <value>The printer doesn't take copy requests from apps after all. Choose Through this PC, then copy again.</value>
+  </data>
+  <data name="PrinterCopy_NotRead" xml:space="preserve">
+    <value>Not sent: the printer's copy settings couldn't be read. Try again, or choose Through this PC.</value>
+  </data>
+  <data name="PrinterCopy_Busy" xml:space="preserve">
+    <value>The printer is busy and didn't start the copy. Try again when it's idle.</value>
+  </data>
+  <data name="PrinterCopy_Refused" xml:space="preserve">
+    <value>The printer turned the copy down. Choose Through this PC, then copy again.</value>
+  </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>The printer didn't answer, so it may already be copying. Check its control panel before copying again.</value>
+  </data>
 </root>

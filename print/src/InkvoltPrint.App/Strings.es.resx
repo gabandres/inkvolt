@@ -805,12 +805,6 @@
   <data name="Copy_SummaryBothSides" xml:space="preserve">
     <value>a doble cara</value>
   </data>
-  <data name="Copy_Summary" xml:space="preserve">
-    <value>{0}, {1}.</value>
-  </data>
-  <data name="Copy_SummaryTwoSided" xml:space="preserve">
-    <value>{0}, {1}, {2}.</value>
-  </data>
   <data name="Copy_WhatPages_One" xml:space="preserve">
     <value>{0} página</value>
   </data>
@@ -3559,5 +3553,65 @@ Empezar de nuevo</value>
   </data>
   <data name="Queue_SuppliesNotReported" xml:space="preserve">
     <value>Esta impresora no lo informa.</value>
+  </data>
+  <data name="Copy_CopyWith" xml:space="preserve">
+    <value>Copiar con</value>
+  </data>
+  <data name="Copy_OnPrinter" xml:space="preserve">
+    <value>La propia impresora</value>
+  </data>
+  <data name="Copy_OnPrinterHelp" xml:space="preserve">
+    <value>Con la configuración de su panel de control; no necesita la cola de Windows</value>
+  </data>
+  <data name="Copy_ThroughPc" xml:space="preserve">
+    <value>A través de este PC</value>
+  </data>
+  <data name="Copy_ThroughPcHelp" xml:space="preserve">
+    <value>Copias, vista previa, 2 o 4 páginas por hoja</value>
+  </data>
+  <data name="Copy_PagesPerSheet" xml:space="preserve">
+    <value>Páginas por hoja</value>
+  </data>
+  <data name="Copy_PerSheet_One" xml:space="preserve">
+    <value>Una página por hoja</value>
+  </data>
+  <data name="Copy_PerSheet_Many" xml:space="preserve">
+    <value>{0} páginas por hoja</value>
+  </data>
+  <data name="Copy_Collate" xml:space="preserve">
+    <value>Intercalar (1 2 3, 1 2 3)</value>
+  </data>
+  <data name="Copy_CollateTip" xml:space="preserve">
+    <value>Cada copia sale completa, en orden de páginas. Desactivado: todas las copias de la página 1, luego las de la página 2, y así sucesivamente.</value>
+  </data>
+  <data name="Copy_PreviewFirst" xml:space="preserve">
+    <value>Vista previa antes de imprimir</value>
+  </data>
+  <data name="Copy_PreviewFirstTip" xml:space="preserve">
+    <value>Escanea, muestra cada hoja tal como se imprimirá y espera a que presiones Imprimir.</value>
+  </data>
+  <data name="Copy_PreviewReady" xml:space="preserve">
+    <value>Revisa la vista previa y presiona Imprimir. Aún puedes cambiar las páginas por hoja y el tamaño.</value>
+  </data>
+  <data name="Copy_HintPrinter" xml:space="preserve">
+    <value>Pon las páginas boca arriba en el alimentador de documentos de la impresora, o una página boca abajo en su cristal, y presiona Copiar. La impresora copia por sí sola.</value>
+  </data>
+  <data name="Copy_SummaryOnPrinter" xml:space="preserve">
+    <value>La impresora copia con el número de copias, la doble cara y la demás configuración de su propio panel de control.</value>
+  </data>
+  <data name="Copy_SummaryUncollated" xml:space="preserve">
+    <value>sin intercalar</value>
+  </data>
+  <data name="Copy_StartingPrinter" xml:space="preserve">
+    <value>Pidiendo a la impresora que copie…</value>
+  </data>
+  <data name="Copy_SentPrinter" xml:space="preserve">
+    <value>La impresora está copiando, con la configuración de su panel de control.</value>
+  </data>
+  <data name="Copy_PrinterNeedsPassword" xml:space="preserve">
+    <value>{0} Guárdala en Configuración de la impresora y vuelve a copiar.</value>
+  </data>
+  <data name="Copy_PrinterFailed" xml:space="preserve">
+    <value>Algo falló al pedir a la impresora que copie, y puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
   </data>
 </root>

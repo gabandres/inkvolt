@@ -17,7 +17,8 @@ namespace InkvoltPrint.App;
 /// <c>--keep-separators</c> set the tab before scanning (with <c>--preset</c>, demo only: the preset scans a feeder batch and splits it);
 /// <c>--find-photos</c> turns on Several photos on the glass first (with <c>--demo</c>: the glass holds three made-up prints), and
 /// <c>--crop n</c> then opens the photo view on page n, <c>--photo-box n</c> selecting its n-th photo; <c>--scroll-end</c> scrolls the tab to its end; <c>--copy document|idcard-front|idcard</c> runs a copy
-/// (with <c>--demo</c>: generated scans, "printed" to the made-up queue); <c>--printer n</c> shows the n-th printer in the
+/// (with <c>--demo</c>: generated scans, "printed" to the made-up queue; the demo HP laser's own copier takes a page copy with
+/// <c>--copy-on-printer</c>; <c>--copy-per-sheet 2|4</c>, <c>--copy-preview</c>, <c>--uncollated</c>, <c>--copies n</c>, <c>--source feeder</c> set it up first); <c>--printer n</c> shows the n-th printer in the
 /// list first (with <c>--demo</c>: 2 is the inkjet, an IPP / eSCL printer without HP's interfaces, 3 the office laser that moved
 /// to a new address, 5 a printer that answers SNMP only, 6 a USB laser, 7 a printer shared from another PC and 8 a color MFP on a TCP/IP
 /// port read over SNMP, the last three listed from the made-up PC's Windows queues, the USB laser scanning through its made-up WIA
@@ -151,9 +152,23 @@ internal static class DevSnapshot
             finally { ViewModels.Prompt.Confirm = ask; }
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
-        if (copy is not null && window.DataContext is ViewModels.MainViewModel { Selected.Copy: { } copier })
+        if (copy is not null && window.DataContext is ViewModels.MainViewModel { Selected: { Copy: { } copier } copying })
         {
             copier.IdCard = copy.StartsWith("idcard", StringComparison.Ordinal);
+            // --copy-on-printer: The printer itself (an HP printer whose own copier takes requests; Through this PC is the default); --copy-per-sheet 2|4,
+            // --copy-preview (stops at Print), --uncollated and --copies n set the tab; --source feeder copies from the feeder
+            // (with --demo: the feeder holds a batch of pages).
+            if (args.Contains("--copy-on-printer")) copier.OnPrinterChosen = true;
+            if (int.TryParse(Value(args, "--copy-per-sheet"), out var perSheet))
+                copier.PagesPerSheet = copier.PagesPerSheetChoices.FirstOrDefault(c => c.Value == perSheet) ?? copier.PagesPerSheet;
+            if (args.Contains("--copy-preview")) copier.PreviewFirst = true;
+            if (args.Contains("--uncollated")) copier.Collate = false;
+            if (int.TryParse(Value(args, "--copies"), out var copies)) copier.Copies = copies;
+            if (Value(args, "--source") == "feeder" && copier.Sources.FirstOrDefault(s => s.Value == Core.Escl.ScanSource.Adf) is { } feeder)
+            {
+                copier.Source = feeder;
+                copying.Pc.PrepareScan(feederBatch: true, photosOnGlass: false);
+            }
             await copier.CopyCommand.ExecuteAsync(null);
             if (copy == "idcard") await copier.ScanBackCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromSeconds(2));
