@@ -4126,7 +4126,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>The printer didn't add this PC to its panel. It may not take computers added this way; scan from this tab instead.</value>
   </data>
   <data name="ScanButton_NotReached" xml:space="preserve">
-    <value>The printer isn't answering. This PC goes back on its panel when it does.</value>
+    <value>The printer isn't answering, or answered with an error. Inkvolt Print tries again and puts this PC back on its panel when it can.</value>
   </data>
   <data name="ScanButton_Adding" xml:space="preserve">
     <value>Adding this PC to the printer's panel…</value>
@@ -4145,5 +4145,8 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="ScanButton_DriverSwitch" xml:space="preserve">
     <value>Scan here when the scanner's button is pressed</value>
+  </data>
+  <data name="ScanButton_Failed" xml:space="preserve">
+    <value>Something went wrong while adding this PC to the printer's panel. Turn this off and on to try again, or scan from this tab.</value>
   </data>
 </root>

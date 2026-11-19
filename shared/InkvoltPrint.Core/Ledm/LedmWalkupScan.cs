@@ -98,9 +98,10 @@ public static class LedmWalkupScan
     /// <summary>
     /// The POST body that adds this PC: a destination with its name, host name and link type. The destination's namespace is the
     /// list's own; each child's is the one a destination already on the list uses, else the dictionary's (<c>Name</c>), the
-    /// assumed one (<c>Hostname</c>) or the list's (<c>LinkType</c>).
+    /// assumed one (<c>Hostname</c>) or the list's (<c>LinkType</c>). A list in no namespace gets a destination in none.
     /// </summary>
-    public static XDocument Build(XDocument list, string panelName)
+    /// <param name="hostName">What marks the destination as this app's (<see cref="Marker"/>): how a later run knows it again.</param>
+    public static XDocument Build(XDocument list, string panelName, string hostName)
     {
         var root = list.Root ?? throw new InvalidOperationException("The list has no root.");
         var wus = root.Name.Namespace;
@@ -110,14 +111,23 @@ public static class LedmWalkupScan
         var dd3 = Ns(Names.Hostname, Names.HostnameNamespace);
         var link = Ns(Names.LinkType, wus);
         var destination = new XElement(wus + Names.Destination,
-            new XAttribute(XNamespace.Xmlns + "wus", wus.NamespaceName),
             new XElement(dd + Names.Name, panelName),
-            new XElement(dd3 + Names.Hostname, panelName),
+            new XElement(dd3 + Names.Hostname, hostName),
             new XElement(link + Names.LinkType, Names.LinkTypeValue));
-        foreach (var (prefix, ns) in new[] { ("dd", dd), ("dd3", dd3) })
-            if (ns != wus && destination.Attributes().All(a => a.Value != ns.NamespaceName)) destination.Add(new XAttribute(XNamespace.Xmlns + prefix, ns.NamespaceName));
+        foreach (var (prefix, ns) in new[] { ("wus", wus), ("dd", dd), ("dd3", dd3) })
+            if (ns != XNamespace.None && destination.Attributes().All(a => a.Value != ns.NamespaceName)) destination.Add(new XAttribute(XNamespace.Xmlns + prefix, ns.NamespaceName));
         return new XDocument(destination);
     }
+
+    /// <summary>
+    /// The host name this app gives its destination: the panel name and a tag kept with the choice (<c>PC-iv1a2b3c</c>), so a
+    /// computer by this PC's name that another program added (HP's software) is never taken for this app's, and this app's own
+    /// is known again whatever became of the POST's answer.
+    /// </summary>
+    public static string Marker(string panelName, string tag) => $"{panelName}-iv{tag}";
+
+    /// <summary>A new tag for <see cref="Marker"/>: six hex digits.</summary>
+    public static string NewTag() => Convert.ToHexStringLower(System.Security.Cryptography.RandomNumberGenerator.GetBytes(3));
 
     /// <summary>What the event document says was done on the panel, or null when it isn't the document this code knows.</summary>
     public static string? EventType(XDocument doc) =>

@@ -7,13 +7,14 @@ namespace InkvoltPrint.Core.Presets;
 /// <summary>What the person chose for one printer's scan button (the app keeps it with its settings).</summary>
 /// <param name="On">Turned on. Off by default: on an HP panel it adds this PC to the printer's list, a change on the printer.</param>
 /// <param name="PresetId">The preset a press runs; null or gone: the first preset.</param>
-/// <param name="Destination">This PC's resource on the printer's panel as this app added it, so a run after a crash finds it again.</param>
-public sealed record ScanButtonChoice(bool On = false, string? PresetId = null, string? Destination = null);
+/// <param name="Tag">What marks this app's destination on the printer's list (<see cref="LedmWalkupScan.Marker"/>), made when first
+/// needed and kept, so a run after a crash or a lost answer knows its own destination and removes it.</param>
+public sealed record ScanButtonChoice(bool On = false, string? PresetId = null, string? Tag = null);
 
 /// <summary>How a press of the printer's button reaches this PC.</summary>
 public enum ScanButtonWay
 {
-    /// <summary>Not known yet (no connection or scanner has been looked at).</summary>
+    /// <summary>Not known yet (no connection or scanner has been looked at, or the printer couldn't be read yet).</summary>
     Unknown,
 
     /// <summary>Neither way: the Scan tab says so.</summary>
@@ -31,7 +32,8 @@ public enum ScanButtonWay
 /// Computer when the printer's panel offers it (this PC added to its list while turned on and the app or its notification-area
 /// icon runs, removed when turned off and on exit), else the button its Windows scanner's driver reports. Off until the person
 /// turns it on. The app hands it each new connection and its Windows scanner; it tells the app <see cref="Changed"/> and each
-/// press (both from any thread). Calls are serialized; the app makes them from its dispatcher.
+/// press (both from any thread). Calls are serialized; the app makes them from its dispatcher. Once closed (<see cref="Seal"/>,
+/// <see cref="CloseAsync"/>) it starts nothing and saves nothing again.
 /// </summary>
 public sealed class ScanButton
 {
@@ -43,7 +45,7 @@ public sealed class ScanButton
 
     private ScanButtonChoice _choice;
     private ScanToComputer? _panel;
-    private bool _panelKnown, _driverKnown;
+    private bool _panelKnown, _driverKnown, _closed;
     private (IWiaSystem System, string DeviceId, IReadOnlyList<string> Buttons)? _driver;
     private CancellationTokenSource? _run;
     private Task _running = Task.CompletedTask;
@@ -52,7 +54,7 @@ public sealed class ScanButton
     private bool _driverFailed;
 
     /// <param name="panelName">This PC's name on the printer's panel (<see cref="LedmWalkupScan.PanelName"/>).</param>
-    /// <param name="save">Keeps the choice (with the destination this app added) when it changes.</param>
+    /// <param name="save">Keeps the choice when it changes.</param>
     /// <param name="pressed">A press: run the chosen preset.</param>
     public ScanButton(string panelName, ScanButtonChoice? choice, Action<ScanButtonChoice> save, Action pressed, Action<string>? log = null)
     {
@@ -65,6 +67,12 @@ public sealed class ScanButton
 
     public string PanelName { get; }
 
+    /// <summary>How long after a printer that couldn't be read the panel is looked for again, on the same connection.</summary>
+    public TimeSpan DetectRetry { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>For the panel's run: how long after a check that got no answer the next one comes (<see cref="ScanToComputer.RetryDelay"/>).</summary>
+    public TimeSpan PanelRetry { get; init; } = TimeSpan.FromSeconds(30);
+
     /// <summary>Something the Scan tab shows changed.</summary>
     public event Action? Changed;
 
@@ -74,6 +82,12 @@ public sealed class ScanButton
     }
 
     public bool On => Choice.On;
+
+    /// <summary>Closed: the app is closing, or the printer forgotten.</summary>
+    public bool IsClosed
+    {
+        get { lock (_gate) return _closed; }
+    }
 
     /// <summary>How a press reaches this PC: the panel when the printer offers it, else the driver's button.</summary>
     public ScanButtonWay Way
@@ -112,6 +126,7 @@ public sealed class ScanButton
                 Ledm.PanelState.NeedsPassword => CoreStrings.ScanButton_NeedsPassword,
                 Ledm.PanelState.Refused => CoreStrings.ScanButton_Refused,
                 Ledm.PanelState.NotReached => CoreStrings.ScanButton_NotReached,
+                Ledm.PanelState.Failed => CoreStrings.ScanButton_Failed,
                 _ => CoreStrings.ScanButton_Adding,
             },
             ScanButtonWay.Driver when !On => CoreStrings.ScanButton_DriverOff,
@@ -124,24 +139,52 @@ public sealed class ScanButton
 
     /// <summary>
     /// A new connection to the printer (the session closed the one before), or null: none, or another device answers at the address
-    /// (nothing may reach it). Looks for the panel by reading only; the PC is added only while turned on.
+    /// (nothing may reach it). Looks for the panel by reading only; the PC is added only while turned on. A printer that can't be
+    /// read now is looked at again every <see cref="DetectRetry"/> on this connection (in the background, after this returns),
+    /// and until then nothing is said about it.
     /// </summary>
     public async Task UsePrinterAsync(PrinterConnection? connection, CancellationToken ct = default)
     {
         var generation = Interlocked.Increment(ref _generation);
-        ScanToComputer? panel = null;
-        if (connection is not null)
+        if (connection is null)
         {
-            try
+            await UsePanelAsync(null, known: false, generation).ConfigureAwait(false);
+            return;
+        }
+        var found = await DetectAsync(connection, ct).ConfigureAwait(false);
+        await UsePanelAsync(found.Panel, known: found.Read, generation).ConfigureAwait(false);
+        if (!found.Read) _ = RetryDetectAsync(connection, generation, ct);
+    }
+
+    private async Task<PanelFound> DetectAsync(PrinterConnection connection, CancellationToken ct)
+    {
+        try
+        {
+            return await ScanToComputer.DetectAsync(connection, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _log($"Scan to Computer not checked: {ex.Message}");
+            return new PanelFound(null, Read: false);
+        }
+    }
+
+    private async Task RetryDetectAsync(PrinterConnection connection, int generation, CancellationToken ct)
+    {
+        try
+        {
+            while (Volatile.Read(ref _generation) == generation && !IsClosed)
             {
-                panel = await ScanToComputer.DetectAsync(connection, Choice.Destination, ct).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                _log($"Scan to Computer not checked: {ex.Message}");
+                await Task.Delay(DetectRetry, ct).ConfigureAwait(false);
+                if (Volatile.Read(ref _generation) != generation || IsClosed) return;
+                var found = await DetectAsync(connection, ct).ConfigureAwait(false);
+                if (!found.Read) continue;
+                await UsePanelAsync(found.Panel, known: true, generation).ConfigureAwait(false);
+                return;
             }
         }
-        await UsePanelAsync(panel, known: connection is not null, generation).ConfigureAwait(false);
+        catch (OperationCanceledException) { }
+        catch (ObjectDisposedException) { } // the connection closed meanwhile: the next one is looked at anew
     }
 
     /// <summary>Connections handed over so far: a slow check of an older one never replaces a newer one's.</summary>
@@ -157,7 +200,7 @@ public sealed class ScanButton
         lock (_gate)
         {
             _panel = panel;
-            _panelKnown |= known;
+            _panelKnown = known; // not known: no connection, or one that couldn't be read yet (nothing is said until it is)
             _panelState = null;
         }
         await StartAsync().ConfigureAwait(false);
@@ -179,7 +222,7 @@ public sealed class ScanButton
     /// <summary>Turned on (the PC goes on the printer's panel, or the driver's button is heard) or off (taken off the panel).</summary>
     public Task SetOnAsync(bool on) => Serialized(async () =>
     {
-        if (On == on) return;
+        if (On == on || IsClosed) return;
         await StopAsync().ConfigureAwait(false);
         if (!on) await RemoveAsync(CancellationToken.None).ConfigureAwait(false);
         Save(Choice with { On = on });
@@ -194,35 +237,64 @@ public sealed class ScanButton
     }
 
     /// <summary>
-    /// The app is closing, or the printer is forgotten: stop hearing presses and take this PC off the printer's panel (one DELETE,
-    /// within <paramref name="ct"/>). The choice stays on, so the next run adds it again.
+    /// Closed from now on, at once: nothing starts and nothing is saved again (the printer is being forgotten, so its choice must
+    /// not come back; or the app is closing). <see cref="CloseAsync"/> then stops and takes this PC off the panel.
     /// </summary>
-    public Task CloseAsync(CancellationToken ct) => Serialized(async () =>
+    public void Seal()
     {
+        lock (_gate) _closed = true;
         Interlocked.Increment(ref _generation); // a check still under way doesn't start it again
-        await StopAsync().ConfigureAwait(false);
-        await RemoveAsync(ct).ConfigureAwait(false);
-        lock (_gate)
+    }
+
+    /// <summary>
+    /// The app is closing, or the printer is forgotten: closed (<see cref="Seal"/>), presses no longer heard, and this PC taken off
+    /// the printer's panel (one DELETE of this app's destination, within <paramref name="ct"/>). The choice stays as it was, so the
+    /// next run adds it again.
+    /// </summary>
+    public Task CloseAsync(CancellationToken ct)
+    {
+        Seal();
+        return Serialized(async () =>
         {
-            _panel = null;
-            _driver = null;
-        }
-    });
+            await StopAsync().ConfigureAwait(false);
+            if (On) await RemoveAsync(ct).ConfigureAwait(false);
+            lock (_gate)
+            {
+                _panel = null;
+                _driver = null;
+            }
+        });
+    }
 
     private async Task StartAsync()
     {
         ScanToComputer? panel;
         (IWiaSystem System, string DeviceId, IReadOnlyList<string> Buttons)? driver;
-        lock (_gate) (panel, driver) = (_panel, _driver);
+        bool closed;
+        lock (_gate) (panel, driver, closed) = (_panel, _driver, _closed);
+        if (closed) return;
         if (On && panel is not null)
         {
             var run = new CancellationTokenSource();
+            var owner = Owner();
+            panel.RetryDelay = PanelRetry;
             lock (_gate)
             {
                 _run = run;
                 _panelState = Ledm.PanelState.Adding;
             }
-            _running = Task.Run(() => panel.RunAsync(PanelName, state => Panel(panel, state), Pressed, run.Token));
+            _running = Task.Run(async () =>
+            {
+                try
+                {
+                    await panel.RunAsync(owner, state => Panel(panel, state), Pressed, run.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _log($"Scan to Computer stopped: {ex.Message}");
+                    Panel(panel, Ledm.PanelState.Failed); // said, not left on "Adding…"
+                }
+            });
         }
         else if (On && driver is { Buttons.Count: > 0 } d)
         {
@@ -238,6 +310,13 @@ public sealed class ScanButton
             }
         }
         Changed?.Invoke();
+    }
+
+    /// <summary>This PC on a printer's list: its name, and its marker, the tag made (and kept) the first time it's needed.</summary>
+    private PanelOwner Owner()
+    {
+        if (Choice.Tag is not { } tag) Save(Choice with { Tag = tag = LedmWalkupScan.NewTag() });
+        return new PanelOwner(PanelName, LedmWalkupScan.Marker(PanelName, tag));
     }
 
     /// <summary>Stops hearing presses (the PC stays on the panel).</summary>
@@ -259,17 +338,14 @@ public sealed class ScanButton
         run.Dispose();
     }
 
-    /// <summary>Takes this PC off the panel when this app put it there.</summary>
+    /// <summary>Takes this PC off the panel (this app's destination, found by its marker when its path isn't known).</summary>
     private async Task RemoveAsync(CancellationToken ct)
     {
         ScanToComputer? panel;
         lock (_gate) panel = _panel;
-        if (panel?.Path is null) return;
-        if (await panel.RemoveAsync(ct).ConfigureAwait(false))
-        {
-            Save(Choice with { Destination = null });
+        if (panel is null || Choice.Tag is null) return; // never added from here
+        if (await panel.RemoveAsync(new PanelOwner(PanelName, LedmWalkupScan.Marker(PanelName, Choice.Tag)), ct).ConfigureAwait(false))
             lock (_gate) _panelState = null;
-        }
         else _log("This PC couldn't be taken off the printer's panel (no answer, or refused).");
     }
 
@@ -277,16 +353,15 @@ public sealed class ScanButton
     {
         lock (_gate)
         {
-            if (_panel != panel) return; // a run that's being stopped
+            if (_panel != panel || _closed) return; // a run that's being stopped
             _panelState = state;
         }
-        if (Choice.Destination != panel.Path) Save(Choice with { Destination = panel.Path });
         Changed?.Invoke();
     }
 
     private void Pressed()
     {
-        if (!On) return;
+        if (!On || IsClosed) return;
         _pressed();
     }
 
@@ -294,7 +369,7 @@ public sealed class ScanButton
     {
         lock (_gate)
         {
-            if (_choice == choice) return;
+            if (_closed || _choice == choice) return; // closed: a forgotten printer's choice never comes back
             _choice = choice;
         }
         _save(choice);

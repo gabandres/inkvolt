@@ -32,6 +32,15 @@ public sealed class FakeScanToComputer(HttpMessageHandler documents, bool inTree
     /// <summary>What a POST to the list gets instead of 201 (401 for an admin password, 400…); null: the PC is added.</summary>
     public HttpStatusCode? PostAnswer { get; set; }
 
+    /// <summary>What a GET of the EventTable gets instead of the table (503: as if it weren't answering); null: the table.</summary>
+    public HttpStatusCode? TableAnswer { get; set; }
+
+    /// <summary>What a GET of the list gets instead of the list (503: busy for now); null: the list.</summary>
+    public HttpStatusCode? ListAnswer { get; set; }
+
+    /// <summary>A POST adds the computer and then gets this instead of 201 (its answer lost: 503, say); null: 201.</summary>
+    public HttpStatusCode? AddedThenAnswer { get; set; }
+
     /// <summary>A 201 without a <c>Location</c> (the list then says where it went).</summary>
     public bool NoLocation { get; set; }
 
@@ -50,12 +59,18 @@ public sealed class FakeScanToComputer(HttpMessageHandler documents, bool inTree
         get { lock (_gate) return [.. _listed.Select(l => $"{ListPath}/{l.Id}")]; }
     }
 
-    /// <summary>A computer already on the list (another PC, or HP's software for this one). Its path.</summary>
-    public string Add(string name)
+    /// <summary>The host names on the list now (this app's carry its marker).</summary>
+    public IReadOnlyList<string> Hosts
+    {
+        get { lock (_gate) return [.. _listed.Select(l => l.Host)]; }
+    }
+
+    /// <summary>A computer already on the list (another PC, HP's software for this one, or with <paramref name="host"/> an earlier run of this app's). Its path.</summary>
+    public string Add(string name, string? host = null)
     {
         lock (_gate)
         {
-            _listed.Add((_next, name, name));
+            _listed.Add((_next, name, host ?? name));
             return $"{ListPath}/{_next++}";
         }
     }
@@ -106,22 +121,27 @@ public sealed class FakeScanToComputer(HttpMessageHandler documents, bool inTree
         var path = request.RequestUri!.AbsolutePath;
         var method = request.Method;
         if (method == HttpMethod.Get && path == TreePath && inTree) return await TreeAsync(request, ct).ConfigureAwait(false);
-        if (method == HttpMethod.Get && path == TablePath) return await TableAsync(request, ct).ConfigureAwait(false);
+        if (method == HttpMethod.Get && path == TablePath)
+            return TableAnswer is { } down ? Reply(request, down) : await TableAsync(request, ct).ConfigureAwait(false);
         if (!inTree) return await base.SendAsync(request, ct).ConfigureAwait(false);
-        if (method == HttpMethod.Get && path == ListPath) return await ListAsync(request, ct).ConfigureAwait(false);
+        if (method == HttpMethod.Get && path == ListPath)
+            return ListAnswer is { } failing ? Reply(request, failing) : await ListAsync(request, ct).ConfigureAwait(false);
         if (method == HttpMethod.Get && path == EventPath) return await EventAsync(request, ct).ConfigureAwait(false);
         if (method == HttpMethod.Post && path == ListPath)
         {
             lock (_gate) Writes.Add($"POST {path}");
             if (PostAnswer is { } refused) return Reply(request, refused);
             var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-            var name = XDocument.Parse(body).Root?.Elements().FirstOrDefault(e => e.Name.LocalName == LedmWalkupScan.Names.Name)?.Value ?? "?";
+            var posted = XDocument.Parse(body).Root?.Elements().ToList() ?? [];
+            var name = posted.FirstOrDefault(e => e.Name.LocalName == LedmWalkupScan.Names.Name)?.Value ?? "?";
+            var host = posted.FirstOrDefault(e => e.Name.LocalName == LedmWalkupScan.Names.Hostname)?.Value ?? name;
             int id;
             lock (_gate)
             {
                 id = _next++;
-                _listed.Add((id, name, name));
+                _listed.Add((id, name, host));
             }
+            if (AddedThenAnswer is { } lost) return Reply(request, lost);
             var created = Reply(request, HttpStatusCode.Created);
             if (!NoLocation) created.Headers.Location = new Uri(request.RequestUri, $"{ListPath}/{id}");
             return created;
@@ -192,7 +212,27 @@ public sealed class FakeScanToComputer(HttpMessageHandler documents, bool inTree
     private async Task<HttpResponseMessage> TableAsync(HttpRequestMessage request, CancellationToken ct)
     {
         var asked = request.Headers.TryGetValues("If-None-Match", out var tags) ? tags.FirstOrDefault() : null;
-        if (asked is not null && asked == ETag)
+        if (asked is null) return await TableNowAsync(request, ct).ConfigureAwait(false);
+        var open = Interlocked.Increment(ref _polls);
+        lock (_gate) MostPolls = Math.Max(MostPolls, open);
+        try
+        {
+            return await LongPollAsync(request, asked, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _polls);
+        }
+    }
+
+    private int _polls;
+
+    /// <summary>The most EventTable long polls held open at once (one connection should hold one).</summary>
+    public int MostPolls { get; private set; }
+
+    private async Task<HttpResponseMessage> LongPollAsync(HttpRequestMessage request, string asked, CancellationToken ct)
+    {
+        if (asked == ETag)
         {
             Task changed;
             lock (_gate) changed = _changed.Task;
@@ -204,6 +244,11 @@ public sealed class FakeScanToComputer(HttpMessageHandler documents, bool inTree
                 return Reply(request, HttpStatusCode.NotModified);
             }
         }
+        return await TableNowAsync(request, ct).ConfigureAwait(false);
+    }
+
+    private async Task<HttpResponseMessage> TableNowAsync(HttpRequestMessage request, CancellationToken ct)
+    {
         using var plain = new HttpRequestMessage(HttpMethod.Get, request.RequestUri!.GetLeftPart(UriPartial.Path));
         using var inner = await base.SendAsync(plain, ct).ConfigureAwait(false);
         if (!inner.IsSuccessStatusCode) return Reply(request, inner.StatusCode);

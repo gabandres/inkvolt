@@ -9,7 +9,7 @@ namespace InkvoltPrint.App.ViewModels;
 /// The Scan tab's "Scan from the printer's button" card for one printer (roadmap 2.2): what <see cref="Core.Presets.ScanButton"/>
 /// says, its switch and the preset a press runs. What it decides lives in Core; this only shows it, on the dispatcher.
 /// </summary>
-public sealed partial class ScanButtonViewModel : ObservableObject
+public sealed partial class ScanButtonViewModel : ObservableObject, IDisposable
 {
     private readonly ScanPresetLibrary _presets;
     private readonly Action<string> _log;
@@ -19,9 +19,18 @@ public sealed partial class ScanButtonViewModel : ObservableObject
         Button = button;
         _presets = presets;
         _log = log;
-        button.Changed += () => Ui(Refresh);
-        presets.Changed += () => Ui(Refresh);
+        button.Changed += OnChanged;
+        presets.Changed += OnChanged;
         Refresh();
+    }
+
+    private void OnChanged() => Ui(Refresh);
+
+    /// <summary>The printer is gone: the presets (which outlive it) no longer hold on to this, nor through it the printer.</summary>
+    public void Dispose()
+    {
+        Button.Changed -= OnChanged;
+        _presets.Changed -= OnChanged;
     }
 
     public ScanButton Button { get; }

@@ -734,6 +734,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : Strings.Main_ForgetNotFromWindowsNetwork;
         if (!Prompt.Ask(string.Format(Strings.Main_ForgetAsk, p.Name) + warning + "\n\n" + again, Strings.Common_Remove))
             return;
+        p.ScanButton.Button.Seal(); // first: its scan button saves nothing from now on, so the choice removed below never comes back
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
         _pc.SnmpLogins.Delete(p.Uuid); // its community goes with it: Add a printer asks for it again

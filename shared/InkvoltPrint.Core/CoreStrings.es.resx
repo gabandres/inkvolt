@@ -3410,7 +3410,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>La impresora no agregó este PC a su panel. Puede que no acepte computadoras agregadas de esta forma; escanea desde esta pestaña.</value>
   </data>
   <data name="ScanButton_NotReached" xml:space="preserve">
-    <value>La impresora no responde. Este PC volverá a su panel cuando responda.</value>
+    <value>La impresora no responde o respondió con un error. Inkvolt Print lo vuelve a intentar y pondrá este PC en su panel en cuanto pueda.</value>
   </data>
   <data name="ScanButton_Adding" xml:space="preserve">
     <value>Agregando este PC al panel de la impresora…</value>
@@ -3429,5 +3429,8 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="ScanButton_DriverSwitch" xml:space="preserve">
     <value>Escanear aquí al pulsar el botón del escáner</value>
+  </data>
+  <data name="ScanButton_Failed" xml:space="preserve">
+    <value>Algo salió mal al agregar este PC al panel de la impresora. Desactiva y vuelve a activar esta opción para intentarlo de nuevo, o escanea desde esta pestaña.</value>
   </data>
 </root>

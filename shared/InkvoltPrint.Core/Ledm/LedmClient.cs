@@ -63,11 +63,26 @@ public sealed class LedmClient(DeviceHttp http)
     }
 
     /// <summary>
-    /// Yields each time the printer's event table changes. Uses the device's delayed-reply long poll
-    /// (<c>?timeout=</c> + <c>If-None-Match</c>), so an idle printer costs one request per minute, not a poll loop.
-    /// The first table is yielded immediately; an empty list is yielded once when the printer stops answering.
+    /// Yields each time the printer's event table changes, through the connection's one <see cref="Events"/> feed (so the status
+    /// and Scan to Computer share one long poll). The first table comes at once; an empty list comes once when the printer stops
+    /// answering.
     /// </summary>
     public async IAsyncEnumerable<IReadOnlyList<LedmEvent>> WatchEventsAsync([EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await foreach (var table in Events.SubscribeAsync(ct).ConfigureAwait(false)) yield return table.Events;
+    }
+
+    /// <summary>The printer's EventTable, read once for everyone watching this connection (<see cref="LedmEventFeed"/>).</summary>
+    public LedmEventFeed Events => LazyInitializer.EnsureInitialized(ref _events, () => new LedmEventFeed(PollEventsAsync));
+
+    private LedmEventFeed? _events;
+
+    /// <summary>
+    /// The long poll itself: the device's delayed reply (<c>?timeout=</c> + <c>If-None-Match</c>), so an idle printer costs one
+    /// request per minute, not a poll loop. The first table at once; an unanswered one (<see cref="LedmEventTable.Answered"/> false)
+    /// once per outage. Ends at once when the tree lists no EventTable.
+    /// </summary>
+    private async IAsyncEnumerable<LedmEventTable> PollEventsAsync([EnumeratorCancellation] CancellationToken ct)
     {
         var tree = await GetTreeAsync(ct).ConfigureAwait(false);
         if (tree?.UriFor(LedmResource.EventTable) is not { } path) yield break;
@@ -82,6 +97,7 @@ public sealed class LedmClient(DeviceHttp http)
             var failed = false;
             var started = DateTime.UtcNow;
             var notModified = false;
+            var recovered = false;
             try
             {
                 var uri = etag is null ? http.Http(path) : http.Http($"{path}?timeout={wait}");
@@ -97,18 +113,25 @@ public sealed class LedmClient(DeviceHttp http)
                     events = LedmParsers.ParseEventTable(Load(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false)));
                 }
                 backoff = TimeSpan.FromSeconds(2);
-                if (wasFailing) { wasFailing = false; etag = null; }
+                if (wasFailing)
+                {
+                    // Back: a table read now is the fresh start the watchers need, under its own ETag; a 304 on the old one says
+                    // nothing, so the whole table is read next, at once (not after the no-ETag pause below).
+                    wasFailing = false;
+                    recovered = true;
+                    if (events is null) etag = null;
+                }
             }
             catch (Exception ex) when (ex is HttpRequestException or TimeoutException or DeviceHttpException or System.Xml.XmlException)
             {
                 failed = true;
             }
 
-            if (events is not null) yield return events;
+            if (events is not null) yield return new LedmEventTable(events, true);
             if (failed)
             {
                 // Tell the caller once per outage so it can re-read status (and show "offline").
-                if (!wasFailing) yield return [];
+                if (!wasFailing) yield return new LedmEventTable([], false);
                 wasFailing = true;
                 await Task.Delay(backoff, ct).ConfigureAwait(false);
                 backoff = TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, TimeSpan.FromSeconds(30).Ticks));
@@ -118,7 +141,7 @@ public sealed class LedmClient(DeviceHttp http)
                 // Firmware that ignores ?timeout= answers 304 at once; don't spin.
                 await Task.Delay(TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
             }
-            else if (etag is null)
+            else if (etag is null && !recovered)
             {
                 // Device gave no ETag: long poll impossible, fall back to a slow refresh.
                 await Task.Delay(TimeSpan.FromSeconds(30), ct).ConfigureAwait(false);

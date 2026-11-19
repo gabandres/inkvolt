@@ -1391,6 +1391,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _watch?.Cancel();
         _watch = null;
         Fixer.CloseCommand.Execute(null);
+        ScanButton.Dispose();
         var limit = new CancellationTokenSource(CloseLimit);
         Closing = ScanButton.Button.CloseAsync(limit.Token); // at once when there's nothing to take off (its awaits don't need this thread)
         var monitor = _monitor;

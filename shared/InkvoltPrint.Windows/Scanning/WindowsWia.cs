@@ -63,21 +63,24 @@ public sealed class WindowsWia : IWiaSystem
         var thread = new WorkThread("Inkvolt WIA buttons", true);
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
         limit.CancelAfter(ListTimeout);
+        var claim = new WorkClaim<ButtonWatch>(late => late.StopHere());
         try
         {
-            return await thread.RunAsync(() => Wrap(() => ButtonWatch.Start(type, thread, deviceId, events, pressed)), limit.Token).ConfigureAwait(false);
+            return await thread.RunAsync(() => (IDisposable?)claim.Deliver(Wrap(() => ButtonWatch.Start(type, thread, deviceId, events, pressed))) ?? NoButtons.Instance,
+                limit.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        catch (Exception ex)
         {
-            thread.Finish();
-            throw new WiaException(WiaErrors.NotAnswering, "Windows didn't answer in time when asked for the scanner's buttons.");
-        }
-        catch
-        {
-            thread.Finish();
+            // Given up on (too slow, or the caller left) or failed: a registration that still comes is undone on its thread, never
+            // left to start scans nobody is waiting for.
+            if (claim.Abandon() is { } late) late.Dispose(); // done just before: undone (its Dispose ends the thread)
+            else thread.Finish();
+            if (ex is OperationCanceledException && !ct.IsCancellationRequested)
+                throw new WiaException(WiaErrors.NotAnswering, "Windows didn't answer in time when asked for the scanner's buttons.");
             throw;
         }
     }
+
 
     /// <summary>One app's registration for one scanner's buttons; touched on its own thread only.</summary>
     private sealed class ButtonWatch : IDisposable
@@ -135,6 +138,14 @@ public sealed class WindowsWia : IWiaSystem
                 return true;
             }, CancellationToken.None);
             _thread.Finish(); // the thread ends after that
+        }
+
+        /// <summary>Undone at once, on the buttons' thread (the caller is it): a registration nobody waited for.</summary>
+        public void StopHere()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            Stop();
+            _thread.Finish();
         }
 
         private void Stop()

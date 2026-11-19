@@ -284,14 +284,14 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   manifest, the destination list; the tree must list the EventTable); turned on, this PC (`LedmWalkupScan.PanelName`: the
   computer's name, plain letters, at most 32) is added with one POST over HTTPS, never resent (`LedmClient.PostPathAsync`), kept
   while the app or its tray icon runs (the window hidden stops the status loop, not this) and added again after the printer's
-  `PowerUpEvent` or a lost connection. Presses come through the EventTable long poll the status already uses
+  `PowerUpEvent` or a lost connection. Presses come through the connection's one EventTable long poll, shared with the status (`LedmEventFeed`)
   (`DelayedReplyResponse`, captured in the M234dw's EventCapabilities): **no listener and no port on this PC**. A press counts
   once (category and `AgingStamp`), only after the app started, only when the event names this PC's destination and the event
   document says `ScanRequested` (choosing the PC alone doesn't). Removed with one DELETE when turned off, on exit
   (`MainViewModel.Dispose` waits up to 4 s) and when the printer is forgotten; only a path below the printer's list is ever
   deleted (`LedmWalkupScan.OwnPath`), and nothing goes to another device found at the address. A computer by this PC's name that
-  the app didn't add (HP's software) is left alone and said; the destination is kept in `state.json`, so a run after a crash
-  adopts it rather than adding a second. 401/403, refusals and silence are told in words. **A Windows scanner's button:**
+  the app didn't add (HP's software) is left alone and said; this app's destination is known by a marker in its host name (a tag
+  kept in `state.json`), so a run after a crash or a lost answer adopts it rather than adding a second, and removes it. 401/403, refusals and silence are told in words. **A Windows scanner's button:**
   `WiaScannerInfo.Buttons` (the scan-button events among the driver's `Device.Events`; their GUIDs read from wiaaut.dll's type
   library) and `IWiaSystem.WatchButtonsAsync` (`WindowsWia`: `DeviceManager.RegisterEvent` with `OnEvent` through
   `ComEventsHelper`, on an STA thread of its own, for this run only, no administrator rights); the WSD scan driver raises these

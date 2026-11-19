@@ -20,7 +20,7 @@ namespace InkvoltPrint.Tests;
 /// </summary>
 public class ScanButtonTests
 {
-    private const string Host = "192.0.2.10", Pc = "TEST-PC";
+    private const string Host = "192.0.2.10", Pc = "TEST-PC", Tag = "abc123", Marker = "TEST-PC-ivabc123";
     private static readonly byte[] Page = [0xFF, 0xD8, 0xFF, 0xD9];
     private static readonly TimeSpan Wait = Timing.Limit(TimeSpan.FromSeconds(10));
 
@@ -53,12 +53,16 @@ public class ScanButtonTests
 
         public Button(ScanButtonChoice? choice = null, Action? pressed = null)
         {
-            Saved = choice ?? new ScanButtonChoice();
+            Saved = choice ?? new ScanButtonChoice(Tag: Tag);
             It = new ScanButton(Pc, Saved, c => Saved = c, () =>
             {
                 Interlocked.Increment(ref Presses);
                 pressed?.Invoke();
-            });
+            })
+            {
+                DetectRetry = TimeSpan.FromMilliseconds(100),
+                PanelRetry = TimeSpan.FromMilliseconds(100),
+            };
         }
     }
 
@@ -86,12 +90,12 @@ public class ScanButtonTests
     {
         var list = XDocument.Parse(System.Text.Encoding.UTF8.GetString(Document(["hp-demo"], "WalkupScanToComp_WalkupScanToCompDestinations.xml")!));
 
-        var body = LedmClient.Serialize(LedmWalkupScan.Build(list, Pc));
+        var body = LedmClient.Serialize(LedmWalkupScan.Build(list, Pc, Marker));
 
         Assert.Equal(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?><wus:WalkupScanToCompDestination xmlns:wus=\"http://www.hp.com/schemas/imaging/con/ledm/walkupscan/2010/09/28\""
             + " xmlns:dd=\"http://www.hp.com/schemas/imaging/con/dictionaries/1.0/\" xmlns:dd3=\"http://www.hp.com/schemas/imaging/con/dictionaries/2009/04/06\">"
-            + "<dd:Name>TEST-PC</dd:Name><dd3:Hostname>TEST-PC</dd3:Hostname><wus:LinkType>Network</wus:LinkType></wus:WalkupScanToCompDestination>", body);
+            + "<dd:Name>TEST-PC</dd:Name><dd3:Hostname>TEST-PC-ivabc123</dd3:Hostname><wus:LinkType>Network</wus:LinkType></wus:WalkupScanToCompDestination>", body);
     }
 
     [Theory]
@@ -143,7 +147,7 @@ public class ScanButtonTests
     {
         var printer = Panel(inTree: false);
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
 
@@ -157,14 +161,14 @@ public class ScanButtonTests
     {
         var printer = Panel();
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == PanelState.Listed, "listed");
 
         Assert.Equal(ScanButtonWay.Panel, button.It.Way);
         Assert.Equal([Pc], printer.Names);
-        Assert.Equal(printer.Paths[0], button.Saved.Destination); // kept, so a run after a crash finds it again
+        Assert.Equal([Marker], printer.Hosts); // its marker: a run after a crash finds it again
         Assert.Equal(string.Format(CoreStrings.ScanButton_Listed, Pc, "Document"), button.It.Text("Document"));
         Assert.Equal([$"POST {FakeScanToComputer.ListPath}"], printer.Writes);
 
@@ -172,7 +176,6 @@ public class ScanButtonTests
 
         Assert.Empty(printer.Names);
         Assert.Equal($"DELETE {FakeScanToComputer.ListPath}/1", printer.Writes[^1]);
-        Assert.Null(button.Saved.Destination);
         Assert.True(button.Saved.On); // the next run adds it again
     }
 
@@ -207,7 +210,7 @@ public class ScanButtonTests
         try
         {
             // What a press runs: the chosen preset, matched to this printer's scanner, its pages saved under its file name.
-            var button = new Button(new ScanButtonChoice(On: true, PresetId: preset.Id), () => _ = Task.Run(async () =>
+            var button = new Button(new ScanButtonChoice(On: true, PresetId: preset.Id, Tag: Tag), () => _ = Task.Run(async () =>
             {
                 var plan = PresetPlan.For(preset, conn.Probe.Scanner!, null, ocrAvailable: false, metric: false);
                 var pages = new List<byte[]>();
@@ -240,10 +243,10 @@ public class ScanButtonTests
         var printer = Panel();
         using var conn = await Connect(printer);
         var other = printer.Add("OTHER-PC");
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == PanelState.Listed, "listed");
-        var mine = button.Saved.Destination!;
+        var mine = printer.Paths[printer.Hosts.ToList().IndexOf(Marker)];
 
         printer.Press(other);                       // another computer chosen on the panel
         printer.Press(mine, "HostSelected");         // this PC chosen, Scan not pressed yet
@@ -261,9 +264,9 @@ public class ScanButtonTests
     {
         var printer = Panel();
         using var conn = await Connect(printer);
-        var mine = printer.Add(Pc); // as if added by an earlier run that crashed, and pressed since
+        var mine = printer.Add(Pc, Marker); // as if added by an earlier run that crashed, and pressed since
         printer.Press(mine);
-        var button = new Button(new ScanButtonChoice(On: true, Destination: mine));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == PanelState.Listed, "listed");
@@ -279,7 +282,7 @@ public class ScanButtonTests
     {
         var printer = Panel();
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
         await button.It.UsePrinterAsync(conn);
         await Until(() => printer.Names.Count == 1, "added");
 
@@ -297,7 +300,7 @@ public class ScanButtonTests
         var printer = Panel();
         printer.Add(Pc); // HP's software, say
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == PanelState.ListedByOther, "seen");
@@ -316,7 +319,7 @@ public class ScanButtonTests
         var printer = Panel();
         printer.PostAnswer = answer;
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == state, state.ToString());
@@ -325,7 +328,6 @@ public class ScanButtonTests
         await button.It.CloseAsync(CancellationToken.None);
 
         Assert.Single(printer.Writes);
-        Assert.Null(button.Saved.Destination);
     }
 
     [Fact]
@@ -334,12 +336,12 @@ public class ScanButtonTests
         var printer = Panel();
         printer.NoLocation = true;
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UsePrinterAsync(conn);
         await Until(() => button.It.PanelState == PanelState.Listed, "listed");
 
-        Assert.Equal(printer.Paths[0], button.Saved.Destination);
+        Assert.Equal([Marker], printer.Hosts);
         await button.It.CloseAsync(CancellationToken.None);
         Assert.Empty(printer.Names);
     }
@@ -349,7 +351,7 @@ public class ScanButtonTests
     {
         var printer = Panel();
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
         await button.It.UsePrinterAsync(conn);
         await Until(() => printer.Names.Count == 1, "added");
 
@@ -416,7 +418,7 @@ public class ScanButtonTests
     public async Task A_scanner_without_buttons_and_a_printer_without_the_panel_say_neither()
     {
         var scanner = WiaScanner(null);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
         var printer = Panel(inTree: false);
         using var conn = await Connect(printer);
 
@@ -434,7 +436,7 @@ public class ScanButtonTests
         var scanner = WiaScanner([WiaIds.ScanButtonEvents[0]]);
         var printer = Panel();
         using var conn = await Connect(printer);
-        var button = new Button(new ScanButtonChoice(On: true));
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
 
         await button.It.UseDriverAsync(new FakeWiaSystem([scanner]), Wsd.Id, scanner.Info.Buttons);
         Assert.Equal(1, scanner.Listeners);
@@ -451,5 +453,195 @@ public class ScanButtonTests
         Assert.Equal([WiaIds.ScanButtonEvents[0], WiaIds.ScanButtonEvents[4]],
             WiaIds.ScanButtonsIn(["a6c5a715-8c6e-11d2-977a-0000f87a926f", "{C686DCEE-54F2-419E-9A27-2FC7F2E98F9E}", "{A28BBADE-64B6-11D2-A231-00C04FA31809}", "junk"]));
         Assert.Empty(WiaIds.ScanButtonsIn([]));
+    }
+
+    // ------------------------------------------------------------------ review findings (c32c510c)
+
+    [Fact]
+    public async Task A_forgotten_printers_choice_never_comes_back()
+    {
+        var printer = Panel();
+        using var conn = await Connect(printer);
+        var kept = new Dictionary<string, ScanButtonChoice>();
+        var button = new ScanButton(Pc, new ScanButtonChoice(On: true, Tag: Tag), c => kept["printer"] = c, () => { }) { PanelRetry = TimeSpan.FromMilliseconds(100) };
+        await button.UsePrinterAsync(conn);
+        await Until(() => button.PanelState == PanelState.Listed, "listed");
+
+        button.Seal();           // forgetting it: first its button, then its choice
+        kept.Clear();
+        await button.CloseAsync(CancellationToken.None);
+        await button.SetOnAsync(false);
+        button.SetPreset("p2");
+
+        Assert.Empty(kept);
+        Assert.Empty(printer.Names); // still taken off the panel
+    }
+
+    [Fact]
+    public async Task Once_closed_nothing_starts_again()
+    {
+        var printer = Panel();
+        using var conn = await Connect(printer);
+        var scanner = WiaScanner([WiaIds.ScanButtonEvents[0]]);
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
+
+        await button.It.CloseAsync(CancellationToken.None);
+        await button.It.UsePrinterAsync(conn);
+        await button.It.UseDriverAsync(new FakeWiaSystem([scanner]), Wsd.Id, scanner.Info.Buttons);
+        scanner.Press();
+        await Task.Delay(300);
+
+        Assert.Empty(printer.Writes);
+        Assert.Equal(0, scanner.Listeners);
+        Assert.Equal(0, button.Presses);
+    }
+
+    [Fact]
+    public async Task A_busy_list_is_tried_again_not_taken_as_a_refusal()
+    {
+        var printer = Panel();
+        using var conn = await Connect(printer);
+        var button = new Button(new ScanButtonChoice(Tag: Tag));
+        await button.It.UsePrinterAsync(conn);
+
+        printer.ListAnswer = HttpStatusCode.ServiceUnavailable;
+        await button.It.SetOnAsync(true);
+        await Until(() => button.It.PanelState == PanelState.NotReached, "not reached");
+        printer.ListAnswer = null; // the printer recovers; its EventTable stays quiet
+
+        await Until(() => button.It.PanelState == PanelState.Listed, "listed after a retry");
+        Assert.Equal([Pc], printer.Names);
+        await button.It.CloseAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task A_POST_whose_answer_was_lost_is_found_by_its_marker_and_removed()
+    {
+        var printer = Panel();
+        printer.AddedThenAnswer = HttpStatusCode.ServiceUnavailable; // added, then a 503
+        using var conn = await Connect(printer);
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
+
+        await button.It.UsePrinterAsync(conn);
+        await Until(() => button.It.PanelState == PanelState.Listed, "listed by its marker");
+        await button.It.CloseAsync(CancellationToken.None);
+
+        Assert.Single(printer.Writes, w => w.StartsWith("POST", StringComparison.Ordinal)); // never a second one
+        Assert.Empty(printer.Names);
+    }
+
+    [Fact]
+    public async Task Exit_removes_this_apps_destination_even_when_its_path_was_never_known()
+    {
+        var printer = Panel();
+        using var conn = await Connect(printer);
+        printer.Add(Pc, Marker); // an earlier run's, its answer lost
+        var found = await ScanToComputer.DetectAsync(conn);
+
+        Assert.True(await found.Panel!.RemoveAsync(new PanelOwner(Pc, Marker)));
+        Assert.Empty(printer.Names);
+    }
+
+    [Fact]
+    public void A_list_in_no_namespace_gets_a_destination_in_none()
+    {
+        var body = LedmClient.Serialize(LedmWalkupScan.Build(XDocument.Parse("<WalkupScanToCompDestinations/>"), Pc, Marker));
+
+        Assert.Equal("<?xml version=\"1.0\" encoding=\"UTF-8\"?><WalkupScanToCompDestination xmlns:dd=\"http://www.hp.com/schemas/imaging/con/dictionaries/1.0/\""
+            + " xmlns:dd3=\"http://www.hp.com/schemas/imaging/con/dictionaries/2009/04/06\"><dd:Name>TEST-PC</dd:Name><dd3:Hostname>TEST-PC-ivabc123</dd3:Hostname>"
+            + "<LinkType>Network</LinkType></WalkupScanToCompDestination>", body);
+    }
+
+    [Fact]
+    public async Task A_printer_that_couldnt_be_read_says_nothing_yet_and_is_looked_at_again()
+    {
+        var printer = Panel();
+        printer.ListAnswer = HttpStatusCode.ServiceUnavailable;
+        using var conn = await Connect(printer);
+        var button = new Button();
+
+        await button.It.UsePrinterAsync(conn);
+        Assert.Equal(ScanButtonWay.Unknown, button.It.Way); // not "this printer offers no button"
+        Assert.Equal("", button.It.Text(null));
+
+        printer.ListAnswer = null;
+        await Until(() => button.It.Way == ScanButtonWay.Panel, "found on a retry");
+    }
+
+    [Fact]
+    public async Task The_status_and_the_panel_share_one_long_poll()
+    {
+        var printer = Panel();
+        using var conn = await Connect(printer);
+        using var stop = new CancellationTokenSource();
+        var status = Task.Run(async () =>
+        {
+            try { await foreach (var _ in conn.WatchAsync(TimeSpan.FromMinutes(1), stop.Token)) { } }
+            catch (OperationCanceledException) { }
+        });
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
+        await button.It.UsePrinterAsync(conn);
+        await Until(() => button.It.PanelState == PanelState.Listed, "listed");
+
+        printer.Press();
+        await Until(() => button.Presses == 1, "pressed");
+        await Task.Delay(300);
+
+        Assert.Equal(1, printer.MostPolls);
+        Assert.Equal(1, conn.Ledm!.Events.Polls);
+        await button.It.CloseAsync(CancellationToken.None);
+        await stop.CancelAsync();
+        await status;
+        await Until(() => conn.Ledm.Events.Polls == 0, "the poll stops when nobody watches");
+    }
+
+    [Fact]
+    public async Task Events_from_before_an_outage_at_start_are_not_presses()
+    {
+        var printer = Panel();
+        var mine = printer.Add(Pc, Marker);
+        printer.Press(mine); // pressed before this app started
+        printer.TableAnswer = HttpStatusCode.ServiceUnavailable; // and the EventTable isn't answering when it starts
+        using var conn = await Connect(printer);
+        var button = new Button(new ScanButtonChoice(On: true, Tag: Tag));
+
+        await button.It.UsePrinterAsync(conn);
+        await Until(() => button.It.PanelState == PanelState.Listed, "listed");
+        printer.TableAnswer = null;
+        await Task.Delay(Timing.Limit(TimeSpan.FromSeconds(3))); // the poll's first retry comes after 2 s
+
+        Assert.Equal(0, button.Presses);
+        printer.Press(mine);
+        await Until(() => button.Presses == 1, "a new press");
+        await button.It.CloseAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public void Seen_events_roll_without_ever_forgetting_what_the_table_still_holds()
+    {
+        var seen = new SeenEvents();
+        var old = new LedmEvent("ScanEvent", "1-1", null, null);
+        Assert.Empty(seen.Take([old], start: true));
+
+        for (var i = 0; i < 3 * SeenEvents.Max; i++)
+            Assert.Single(seen.Take([old, new LedmEvent("PowerUpEvent", $"{i + 2}-1", null, null)], start: false)); // only the new one
+
+        Assert.True(seen.Count <= SeenEvents.Max);
+        Assert.Empty(seen.Take([old], start: false));
+    }
+
+    [Fact]
+    public void A_registration_made_after_its_caller_gave_up_is_undone_on_its_thread()
+    {
+        var undone = new List<string>();
+        var late = new WorkClaim<string>(undone.Add);
+        Assert.Null(late.Abandon());              // timed out: nothing delivered yet
+        Assert.Null(late.Deliver("registration")); // then it comes
+        Assert.Equal(["registration"], undone);
+
+        var inTime = new WorkClaim<string>(undone.Add);
+        Assert.Equal("second", inTime.Deliver("second"));
+        Assert.Equal("second", inTime.Abandon());  // delivered just before the caller gave up: the caller undoes it
+        Assert.Single(undone);
     }
 }
