@@ -16,8 +16,7 @@ from `a162009b` (tags `pdf-v1.15.0.0`, `print-v1.6.0.0`, GitHub releases, PDF ma
 review of each app's changes since its last release (PDF 5 findings, Print 3, all fixed: `659d6d5c`, `1b96ca76`), the
 bench (`8a40bcf8`; scan.pdf's on-screen 48 fps is this PC's load: 1.14.0.0 measured the same then), smoke side by side
 for both. PDF submission 1152921505702431116, Print 1152921505702430623; release notes en and es through the API.
-**Left:** when `msstore submission status` says Published, the website's `softwareVersion` for both (`Z:\portfolio`,
-`firebase deploy --only hosting`).
+**Published** in the Store (both, seen 2026-11-19); the website's `softwareVersion` updated (1.15.0, 1.6.0) and deployed.
 
 # Plan from 2026-11-06 (owner, 2026-11-05): close the gap, smallest first
 
