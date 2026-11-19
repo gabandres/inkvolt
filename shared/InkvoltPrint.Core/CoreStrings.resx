@@ -4089,4 +4089,100 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Windows didn't let the installer start: SmartScreen, an antivirus or a policy on this PC may have stopped it. Nothing was installed. Try again, or get the driver from {0}'s website below.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="Direct_NoFormat" xml:space="preserve">
+    <value>This printer takes none of the formats Inkvolt Print sends without a driver (PWG raster, Apple raster, PCLm).</value>
+  </data>
+  <data name="Direct_NotTwoSided" xml:space="preserve">
+    <value>This printer doesn't print on both sides. Turn two-sided off and print again.</value>
+  </data>
+  <data name="Direct_Copies" xml:space="preserve">
+    <value>Copies must be between 1 and 999.</value>
+  </data>
+  <data name="Direct_NoPaper" xml:space="preserve">
+    <value>The printer doesn't offer that paper. Choose another paper size.</value>
+  </data>
+  <data name="Direct_NoAnswer" xml:space="preserve">
+    <value>The printer stopped answering while the job was sent. Check it before printing again: it may have the job.</value>
+  </data>
+  <data name="Direct_RefusedSignIn" xml:space="preserve">
+    <value>The printer wants a signed-in user for printing. Print through its Windows queue, or allow printing without signing in on its web page.</value>
+  </data>
+  <data name="Direct_RefusedFormat" xml:space="preserve">
+    <value>The printer refused the pages: it didn't take their format or settings. Nothing was printed.</value>
+  </data>
+  <data name="Direct_RefusedBusy" xml:space="preserve">
+    <value>The printer is busy and took nothing. Try again in a minute.</value>
+  </data>
+  <data name="Direct_Refused" xml:space="preserve">
+    <value>The printer refused the job. Nothing was printed.</value>
+  </data>
+  <data name="Direct_DoneWithErrors" xml:space="preserve">
+    <value>Printed, with errors the printer reported</value>
+  </data>
+  <data name="Direct_Printed" xml:space="preserve">
+    <value>Printed</value>
+  </data>
+  <data name="Direct_CanceledAtPrinter" xml:space="preserve">
+    <value>Cancelled at the printer</value>
+  </data>
+  <data name="Direct_Aborted" xml:space="preserve">
+    <value>The printer stopped the job</value>
+  </data>
+  <data name="Direct_AbortedBecause" xml:space="preserve">
+    <value>The printer stopped the job: {0}</value>
+    <comment>{0} = why, e.g. it couldn't read the pages</comment>
+  </data>
+  <data name="Direct_Waiting" xml:space="preserve">
+    <value>Waiting: {0}</value>
+    <comment>{0} = why, e.g. the printer is stopped</comment>
+  </data>
+  <data name="Direct_PrinterStopped" xml:space="preserve">
+    <value>the printer is stopped</value>
+  </data>
+  <data name="Direct_ReasonFormat" xml:space="preserve">
+    <value>it couldn't read the pages</value>
+  </data>
+  <data name="Direct_ReasonHeld" xml:space="preserve">
+    <value>it holds the job until it's released at the printer</value>
+  </data>
+  <data name="Direct_ReasonPaper" xml:space="preserve">
+    <value>it needs paper, or another paper</value>
+  </data>
+  <data name="Direct_PrintingPage" xml:space="preserve">
+    <value>Printing page {0} of {1}</value>
+    <comment>{0} = page, {1} = pages</comment>
+  </data>
+  <data name="Direct_Printing" xml:space="preserve">
+    <value>Printing</value>
+  </data>
+  <data name="Direct_Queued" xml:space="preserve">
+    <value>Waiting its turn at the printer</value>
+  </data>
+  <data name="PrinterCopy_NotOffered" xml:space="preserve">
+    <value>The printer doesn't take copy requests from apps after all. Choose Through this PC, then copy again.</value>
+  </data>
+  <data name="PrinterCopy_NotRead" xml:space="preserve">
+    <value>Not sent: the printer's copy settings couldn't be read. Try again, or choose Through this PC.</value>
+  </data>
+  <data name="PrinterCopy_Busy" xml:space="preserve">
+    <value>The printer is busy and didn't start the copy. Try again when it's idle.</value>
+  </data>
+  <data name="PrinterCopy_Refused" xml:space="preserve">
+    <value>The printer turned the copy down. Choose Through this PC, then copy again.</value>
+  </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>The printer didn't answer, so it may already be copying. Check its control panel before copying again.</value>
+  </data>
+  <data name="Direct_RefusedTooLarge" xml:space="preserve">
+    <value>The printer can't take a job this large. Print fewer pages at a time.</value>
+  </data>
+  <data name="Direct_NoQuality" xml:space="preserve">
+    <value>The printer doesn't offer that print quality. Choose another one.</value>
+  </data>
+  <data name="Direct_NoMediaType" xml:space="preserve">
+    <value>The printer doesn't take that paper type. Choose another one.</value>
+  </data>
+  <data name="Direct_CancelNotTaken" xml:space="preserve">
+    <value>The printer didn't take the cancel, so the job may still print. Cancel it on the printer's control panel.</value>
+  </data>
 </root>

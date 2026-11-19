@@ -3373,4 +3373,100 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Windows no dejó que el instalador se iniciara: puede que SmartScreen, un antivirus o una directiva de este PC lo hayan detenido. No se instaló nada. Inténtalo de nuevo u obtén el controlador del sitio web de {0} más abajo.</value>
     <comment>{0} = maker</comment>
   </data>
+  <data name="Direct_NoFormat" xml:space="preserve">
+    <value>Esta impresora no acepta ninguno de los formatos que Inkvolt Print envía sin controlador (PWG raster, Apple raster, PCLm).</value>
+  </data>
+  <data name="Direct_NotTwoSided" xml:space="preserve">
+    <value>Esta impresora no imprime a doble cara. Desactiva la doble cara e imprime de nuevo.</value>
+  </data>
+  <data name="Direct_Copies" xml:space="preserve">
+    <value>Las copias deben estar entre 1 y 999.</value>
+  </data>
+  <data name="Direct_NoPaper" xml:space="preserve">
+    <value>La impresora no ofrece ese papel. Elige otro tamaño de papel.</value>
+  </data>
+  <data name="Direct_NoAnswer" xml:space="preserve">
+    <value>La impresora dejó de responder mientras se enviaba el trabajo. Revísala antes de volver a imprimir: puede que tenga el trabajo.</value>
+  </data>
+  <data name="Direct_RefusedSignIn" xml:space="preserve">
+    <value>La impresora pide un usuario con sesión iniciada para imprimir. Imprime por su cola de Windows o permite imprimir sin iniciar sesión en su página web.</value>
+  </data>
+  <data name="Direct_RefusedFormat" xml:space="preserve">
+    <value>La impresora rechazó las páginas: no aceptó su formato o su configuración. No se imprimió nada.</value>
+  </data>
+  <data name="Direct_RefusedBusy" xml:space="preserve">
+    <value>La impresora está ocupada y no aceptó nada. Inténtalo de nuevo en un minuto.</value>
+  </data>
+  <data name="Direct_Refused" xml:space="preserve">
+    <value>La impresora rechazó el trabajo. No se imprimió nada.</value>
+  </data>
+  <data name="Direct_DoneWithErrors" xml:space="preserve">
+    <value>Impreso, con errores que indicó la impresora</value>
+  </data>
+  <data name="Direct_Printed" xml:space="preserve">
+    <value>Impreso</value>
+  </data>
+  <data name="Direct_CanceledAtPrinter" xml:space="preserve">
+    <value>Cancelado en la impresora</value>
+  </data>
+  <data name="Direct_Aborted" xml:space="preserve">
+    <value>La impresora detuvo el trabajo</value>
+  </data>
+  <data name="Direct_AbortedBecause" xml:space="preserve">
+    <value>La impresora detuvo el trabajo: {0}</value>
+    <comment>{0} = why, e.g. it couldn't read the pages</comment>
+  </data>
+  <data name="Direct_Waiting" xml:space="preserve">
+    <value>En espera: {0}</value>
+    <comment>{0} = why, e.g. the printer is stopped</comment>
+  </data>
+  <data name="Direct_PrinterStopped" xml:space="preserve">
+    <value>la impresora está detenida</value>
+  </data>
+  <data name="Direct_ReasonFormat" xml:space="preserve">
+    <value>no pudo leer las páginas</value>
+  </data>
+  <data name="Direct_ReasonHeld" xml:space="preserve">
+    <value>retiene el trabajo hasta que se libere en la impresora</value>
+  </data>
+  <data name="Direct_ReasonPaper" xml:space="preserve">
+    <value>necesita papel, u otro papel</value>
+  </data>
+  <data name="Direct_PrintingPage" xml:space="preserve">
+    <value>Imprimiendo la página {0} de {1}</value>
+    <comment>{0} = page, {1} = pages</comment>
+  </data>
+  <data name="Direct_Printing" xml:space="preserve">
+    <value>Imprimiendo</value>
+  </data>
+  <data name="Direct_Queued" xml:space="preserve">
+    <value>Esperando su turno en la impresora</value>
+  </data>
+  <data name="PrinterCopy_NotOffered" xml:space="preserve">
+    <value>Al final, la impresora no acepta solicitudes de copia de las aplicaciones. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_NotRead" xml:space="preserve">
+    <value>No se envió: no se pudo leer la configuración de copia de la impresora. Vuelve a intentarlo o elige A través de este PC.</value>
+  </data>
+  <data name="PrinterCopy_Busy" xml:space="preserve">
+    <value>La impresora está ocupada y no empezó la copia. Vuelve a intentarlo cuando esté inactiva.</value>
+  </data>
+  <data name="PrinterCopy_Refused" xml:space="preserve">
+    <value>La impresora rechazó la copia. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
+  </data>
+  <data name="Direct_RefusedTooLarge" xml:space="preserve">
+    <value>La impresora no acepta un trabajo tan grande. Imprime menos páginas cada vez.</value>
+  </data>
+  <data name="Direct_NoQuality" xml:space="preserve">
+    <value>La impresora no ofrece esa calidad de impresión. Elige otra.</value>
+  </data>
+  <data name="Direct_NoMediaType" xml:space="preserve">
+    <value>La impresora no acepta ese tipo de papel. Elige otro.</value>
+  </data>
+  <data name="Direct_CancelNotTaken" xml:space="preserve">
+    <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
+  </data>
 </root>

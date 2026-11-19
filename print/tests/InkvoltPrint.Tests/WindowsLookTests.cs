@@ -213,7 +213,10 @@ public class WindowsLookTests
         {
             var lines = File.ReadAllText(report);
             Assert.Contains("print button: in sight", lines);
-            Assert.Contains("pressed: ", lines); // the press reached the command (the demo printer has no Windows queue to print to)
+            // The demo inkjet has no Windows queue: the PDF goes straight to it (roadmap 2.1), drawn as PWG raster and taken by
+            // its made-up IPP server, which says it printed; the made-up print queue card lists it.
+            Assert.Contains("(error=False)", lines);
+            Assert.Contains("jobs added: 1", lines);
         }
         finally
         {

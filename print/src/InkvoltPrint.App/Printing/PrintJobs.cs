@@ -50,6 +50,34 @@ public sealed class WindowsJobQueueReader(Func<Task<string?>> findQueue) : IJobQ
     }
 }
 
+/// <summary>
+/// The print queue card of a printer that may print without its Windows queue (roadmap 2.1): while jobs go straight to the
+/// printer, the jobs the printer holds (Get-Jobs, Cancel-Job: <see cref="Core.Printing.Direct.PrinterJobs"/>); else the
+/// Windows queue's.
+/// </summary>
+public sealed class RoutedPrintJobs(IPrintJobs queue, Func<Task<PrintTarget?>> findTarget) : IPrintJobs
+{
+    public async Task<IReadOnlyList<QueueJob>?> ListAsync()
+    {
+        if (await findTarget() is not PrintTarget.Direct direct) return await queue.ListAsync();
+        var answer = await direct.Ipp.GetJobsAsync(Core.Printing.Direct.PrinterJobs.GetJobsRequest(direct.Ipp.PrinterUri, direct.User));
+        return Core.Printing.Direct.PrinterJobs.Parse(answer, DateTime.Now);
+    }
+
+    public async Task CancelAsync(int jobId)
+    {
+        if (await findTarget() is not PrintTarget.Direct direct)
+        {
+            await queue.CancelAsync(jobId);
+            return;
+        }
+        if (!await Core.Printing.Direct.DirectJob.CancelAsync(direct.Ipp, direct.User, jobId))
+            throw new PrintJobCancelException(Strings.Print_CancelFailed, false);
+    }
+
+    public void QueueChanged() => queue.QueueChanged();
+}
+
 public sealed class PrintJobCancelException(string message, bool accessDenied) : Exception(message)
 {
     public bool AccessDenied { get; } = accessDenied;

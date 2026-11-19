@@ -905,7 +905,15 @@
                             <CheckBox Content="{x:Static loc:Strings.PrintTab_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
                                       Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
 
+                            <CheckBox IsChecked="{Binding PrintDirect}" Margin="0,12,0,0" ToolTip="{x:Static loc:Strings.PrintTab_DirectTip}"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintTab_Direct}"
+                                      Visibility="{Binding CanChooseDirect, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Direct}" TextWrapping="Wrap" />
+                            </CheckBox>
+
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
+                            <TextBlock Text="{Binding RouteNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding RouteNote, Converter={StaticResource VisibleWhen}}" />
                         </StackPanel>
                     </StackPanel>
                     </ScrollViewer>
@@ -1023,13 +1031,33 @@
                                 </StackPanel>
                             </RadioButton>
 
-                            <StackPanel Visibility="{Binding IsDocument, Converter={StaticResource VisibleWhen}}">
-                                <TextBlock Text="{x:Static loc:Strings.ScanTab_Source}" Margin="0,20,0,6" FontWeight="SemiBold"
-                                           Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
-                                <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" HorizontalAlignment="Stretch"
-                                          AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Source}" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                            <!-- The printer's own copier (HP LEDM), or scan and print through this PC -->
+                            <StackPanel Visibility="{Binding ShowWhere, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.Copy_CopyWith}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <RadioButton AutomationProperties.Name="{x:Static loc:Strings.Copy_OnPrinter}" AutomationProperties.HelpText="{x:Static loc:Strings.Copy_OnPrinterHelp}"
+                                             IsChecked="{Binding OnPrinterChosen}" GroupName="copywhere" IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{x:Static loc:Strings.Copy_OnPrinter}" />
+                                        <TextBlock Text="{x:Static loc:Strings.Copy_OnPrinterHelp}" Style="{StaticResource Caption}" FontSize="12" />
+                                    </StackPanel>
+                                </RadioButton>
+                                <RadioButton AutomationProperties.Name="{x:Static loc:Strings.Copy_ThroughPc}" AutomationProperties.HelpText="{x:Static loc:Strings.Copy_ThroughPcHelp}"
+                                             IsChecked="{Binding OnPrinterChosen, Converter={StaticResource Not}}" GroupName="copywhere" Margin="0,6,0,0"
+                                             IsEnabled="{Binding IsBusy, Converter={StaticResource Not}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{x:Static loc:Strings.Copy_ThroughPc}" />
+                                        <TextBlock Text="{x:Static loc:Strings.Copy_ThroughPcHelp}" Style="{StaticResource Caption}" FontSize="12" />
+                                    </StackPanel>
+                                </RadioButton>
                             </StackPanel>
 
+                            <StackPanel Visibility="{Binding ShowSource, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_Source}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Source}" />
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding ShowCopies, Converter={StaticResource VisibleWhen}}">
                             <TextBlock Text="{x:Static loc:Strings.PrintTab_Copies}" Margin="0,20,0,6" FontWeight="SemiBold" />
                             <StackPanel Orientation="Horizontal">
                                 <Button Command="{Binding FewerCopiesCommand}" Width="36" ToolTip="{x:Static loc:Strings.PrintTab_FewerCopies}" AutomationProperties.Name="{x:Static loc:Strings.PrintTab_FewerCopies}">
@@ -1041,19 +1069,27 @@
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE710;" />
                                 </Button>
                             </StackPanel>
+                            <CheckBox Content="{x:Static loc:Strings.Copy_Collate}" IsChecked="{Binding Collate}" Margin="0,8,0,0"
+                                      ToolTip="{x:Static loc:Strings.Copy_CollateTip}" Visibility="{Binding ShowCollate, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
 
-                            <StackPanel Visibility="{Binding IsDocument, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel Visibility="{Binding ShowPcOptions, Converter={StaticResource VisibleWhen}}">
                                 <TextBlock Text="{x:Static loc:Strings.PrintTab_Size}" Margin="0,20,0,6" FontWeight="SemiBold" />
                                 <RadioButton Content="{x:Static loc:Strings.PrintTab_ActualSize}" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="copysize"
                                              ToolTip="{x:Static loc:Strings.Copy_ActualSizeTip}" />
                                 <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="copysize" Margin="0,6,0,0"
                                              ToolTip="{x:Static loc:Strings.Copy_FitToPaperTip}" />
+                                <TextBlock Text="{x:Static loc:Strings.Copy_PagesPerSheet}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <ComboBox ItemsSource="{Binding PagesPerSheetChoices}" SelectedItem="{Binding PagesPerSheet}" HorizontalAlignment="Stretch"
+                                          AutomationProperties.Name="{x:Static loc:Strings.Copy_PagesPerSheet}" />
                             </StackPanel>
 
                             <CheckBox Content="{x:Static loc:Strings.Copy_ColorCopy}" IsChecked="{Binding IsColor}" Margin="0,16,0,0"
-                                      ToolTip="{x:Static loc:Strings.Copy_ColorCopyTip}" />
+                                      ToolTip="{x:Static loc:Strings.Copy_ColorCopyTip}" Visibility="{Binding ShowColor, Converter={StaticResource VisibleWhen}}" />
                             <CheckBox Content="{x:Static loc:Strings.PrintTab_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,4,0,0"
                                       Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
+                            <CheckBox Content="{x:Static loc:Strings.Copy_PreviewFirst}" IsChecked="{Binding PreviewFirst}" Margin="0,4,0,0"
+                                      ToolTip="{x:Static loc:Strings.Copy_PreviewFirstTip}" Visibility="{Binding ShowPcOptions, Converter={StaticResource VisibleWhen}}" />
 
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
 
@@ -1106,6 +1142,11 @@
                         </TextBlock>
                         <Button Content="{x:Static loc:Strings.Copy_PrintAgain}" Command="{Binding PrintAgainCommand}" HorizontalAlignment="Stretch" Margin="0,12,0,0"
                                 Visibility="{Binding CanPrintAgain, Converter={StaticResource VisibleWhen}}" />
+                        <Button Content="{x:Static loc:Strings.Common_Print}" Command="{Binding PrintPreviewedCommand}" Style="{DynamicResource AccentButtonStyle}"
+                                HorizontalAlignment="Stretch" Padding="0,8" Margin="0,12,0,0"
+                                Visibility="{Binding AwaitingPrint, Converter={StaticResource VisibleWhen}}" />
+                        <Button Content="{x:Static loc:Strings.Copy_StartOver}" Command="{Binding StartOverCommand}" Style="{StaticResource LinkButton}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0" Visibility="{Binding AwaitingPrint, Converter={StaticResource VisibleWhen}}" />
                     </StackPanel>
                 </Border>
                 </ScrollViewer>
@@ -1249,6 +1290,8 @@
                                 <TextBlock Text="{x:Static loc:Strings.Common_Print}" FontWeight="SemiBold" />
                             </StackPanel>
                         </Button>
+                        <Button Content="{x:Static loc:Strings.Common_Cancel}" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}" />
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />

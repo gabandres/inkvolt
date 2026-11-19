@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only (Inkvolt Print's demo HP laser): written by hand, never captured from a device. The LaserJet MFP M234dw's
+     DiscoveryTree lists /DevMgmt/CopyConfigCap.xml and CopyConfigDyn.xml, but neither document has been recorded, so the
+     start's names here are LedmCopy's assumed ones (LedmCopy.StartNames, StartValues), laid out like the captured
+     PrintConfigCap: elementXPath, access, min/max, choices as child elements. Only the start is ever written; the other
+     settings are the panel's own, which Inkvolt Print leaves alone. A recording of a real printer replaces this. -->
+<cpcfgcap:CopyConfigCap xmlns:cpcfgcap="http://www.hp.com/schemas/imaging/con/ledm/cpcfgcap/2008/05/05" xmlns:cpcfgdyn="http://www.hp.com/schemas/imaging/con/ledm/cpcfgdyn/2008/05/05" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/">
+	<dd:Version>
+		<dd:Revision>demo</dd:Revision>
+	</dd:Version>
+	<cpcfgcap:Copies typeof="dd:NonNegativeInteger" min="1" max="99" step="1" elementXPath="cpcfgdyn:CopyConfigDyn/cpcfgdyn:CopySettings/dd:Copies" access="readWrite"></cpcfgcap:Copies>
+	<cpcfgcap:CollateSupport elementXPath="cpcfgdyn:CopyConfigDyn/cpcfgdyn:CopySettings/dd:Collate" access="readWrite">
+		<dd:Collate>collated</dd:Collate>
+		<dd:Collate>uncollated</dd:Collate>
+	</cpcfgcap:CollateSupport>
+	<cpcfgcap:DuplexSupport elementXPath="cpcfgdyn:CopyConfigDyn/cpcfgdyn:CopySettings/dd:Duplex" access="readWrite">
+		<dd:Duplex>simplexToSimplex</dd:Duplex>
+		<dd:Duplex>simplexToDuplex</dd:Duplex>
+	</cpcfgcap:DuplexSupport>
+	<cpcfgcap:ColorModeSupport elementXPath="cpcfgdyn:CopyConfigDyn/cpcfgdyn:CopySettings/dd:ColorMode" access="readOnly">
+		<dd:ColorMode>mono</dd:ColorMode>
+	</cpcfgcap:ColorModeSupport>
+	<cpcfgcap:CopyStateSupport elementXPath="cpcfgdyn:CopyConfigDyn/cpcfgdyn:CopyState" access="readWrite">
+		<cpcfgdyn:CopyState>start</cpcfgdyn:CopyState>
+	</cpcfgcap:CopyStateSupport>
+</cpcfgcap:CopyConfigCap>

@@ -14,9 +14,10 @@ namespace InkvoltPrint.App.ViewModels;
 
 /// <summary>
 /// Print a PDF: open it (button, drag-and-drop or "Open with"), see how many pages it has with
-/// thumbnails, pick pages / copies / two-sided, and send it to this printer's Windows queue.
+/// thumbnails, pick pages / copies / two-sided, and send it to this printer's Windows queue, or straight to the printer
+/// over IPP when it has none or the person chose that (roadmap 2.1, <see cref="PrintTarget"/>).
 /// </summary>
-public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppState state) : ObservableObject
+public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, AppState state) : ObservableObject
 {
     private const int MaxThumbnails = 60;
 
@@ -207,6 +208,20 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
         }
     }
 
+    /// <summary>The printer takes PWG raster, Apple raster or PCLm and it has a Windows queue too: the person may choose (roadmap 2.1).</summary>
+    [ObservableProperty] public partial bool CanChooseDirect { get; set; }
+
+    /// <summary>Print straight to the printer rather than through its Windows queue (kept per printer).</summary>
+    [ObservableProperty] public partial bool PrintDirect { get; set; }
+
+    /// <summary>The line saying pages go straight to the printer, or null when they go through the Windows queue.</summary>
+    [ObservableProperty] public partial string? RouteNote { get; set; }
+
+    /// <summary>Set by the printer: saves <see cref="PrintDirect"/> and re-checks the route.</summary>
+    public Action<bool>? DirectChosen { get; set; }
+
+    partial void OnPrintDirectChanged(bool value) => DirectChosen?.Invoke(value);
+
     /// <summary>The printer's Windows queue was just created or removed: re-check what it can do.</summary>
     public void QueueChanged()
     {
@@ -238,21 +253,16 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
         if (_twoSidedChecked) return;
         try
         {
-            var queue = await findQueue();
-            if (queue is null)
+            var target = await findTarget();
+            if (target is null)
             {
                 CanTwoSided = false;
             }
             else
             {
                 // Asking the driver can take several seconds (it queries the printer): show the last known answer now.
-                if (state.GetTwoSided(queue) is { } known) CanTwoSided = known;
-                CanTwoSided = await Task.Run(() =>
-                {
-                    using var q = QueuePrinter.Open(queue);
-                    return QueuePrinter.SupportsTwoSided(q);
-                });
-                state.SetTwoSided(queue, CanTwoSided);
+                if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
+                CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
                 _twoSidedChecked = true;
             }
         }
@@ -285,22 +295,27 @@ public sealed partial class PrintViewModel(Func<Task<string?>> findQueue, AppSta
         var sw = Stopwatch.StartNew();
         try
         {
-            var queueName = await findQueue();
-            if (queueName is null)
+            var target = await findTarget();
+            if (target is null)
             {
                 SetMessage(Strings.Print_NotSetUp, error: true);
                 return;
             }
-            var progress = new Progress<string>(m => SetMessage(m));
-            await QueuePrinter.PrintAsync(queueName, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
+            var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
+            var printed = await PrintTargets.PrintPdfAsync(target, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
                     FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize),
-                progress, _cts.Token, onSpooling: () => IsSpooling = true);
-            SetMessage(string.Format(Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
+                progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
+            SetMessage(string.Format(printed ? Strings.Print_SentDirect : Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
             RatingRequest.NoteSuccess(state);
         }
         catch (OperationCanceledException)
         {
             SetMessage(Strings.Print_Cancelled);
+        }
+        catch (Core.Printing.Direct.DirectPrintException ex)
+        {
+            Log.Write($"Direct print failed: {ex.Message} (IPP status {(ex.IppStatus is { } s ? $"0x{s:X4}" : "none")})");
+            SetMessage(ex.Message, error: true);
         }
         catch (Exception ex)
         {

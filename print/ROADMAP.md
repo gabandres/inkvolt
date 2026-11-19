@@ -53,7 +53,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
 | 3.1 Share a scanner on the network | | All of it |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
-| 3.3 The printer's own copier | All of it | |
+| 3.3 The printer's own copier | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 3.4 Job notifications | All of it | |
 | 3.5 Open in Inkvolt PDF on the Mac | All of it (done 2026-11-02) | |
 
@@ -264,6 +264,34 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   software", [CUPS](https://www.cups.org/doc/man-ippeveprinter.html)) accepts a 10-page PDF, a photo sheet and a copy
   in each raster format and the pages it saves match ours; the M234dw (PCLm / PWG / URF, no PDF) prints a page from a
   PC with no queue for it.
+- **Built (Windows, 2026-11-19).** `Core/Printing/Raster`: `PwgRasterWriter` (PWG 5102.4: `RaS2`, the 1796-byte header,
+  the line compression), `UrfWriter` (Apple raster as CUPS reads it) and `PclmWriter` (strips of 8-bit gray or RGB, Flate or
+  run-length, the page tree last, a classic cross-reference table), back sides turned as the printer's
+  `pwg-raster-document-sheet-back` / `urf-supported` DM / `pclm-raster-back-side` asks. `Core/Printing/Direct`:
+  `IppPrintCaps` (the formats and how to make them, `media-col-database` or else `media-supported` with the
+  `media-*-margin-supported`, sides, color, copies, quality, paper types; lists cut, sizes and resolutions out of range left
+  out), `DirectPrintPlan` (PWG first, then URF, then PCLm; 300 dpi, or drawn at 300 and enlarged for a 600-only printer;
+  copies the printer doesn't make sent again, a blank back between two-sided copies; what can't be kept stops the job),
+  `DirectJob` (Print-Job sent once with the raster streamed from a temporary file, Get-Job-Attributes every second until it
+  ends, Cancel-Job), `PrinterJobs` (Get-Jobs for the print queue card) and `PrintRoutes` (the Windows queue stays the
+  default; a printer with none, or one the person ticks *Print straight to the printer* for, goes direct). The IPP codec
+  reads collections, resolutions, ranges and dates (`IppCodec.DecodeGroups`, nesting bounded) and writes requests
+  (`IppRequest`). The app draws the same pages the queue path lays out (`QueuePrinter`'s paginators, the photo sheets) with
+  WPF at the plan's resolution (`App/Printing/DirectPrinter`, `PrintTargets`) for Print a PDF, Copy and Print photos.
+  Tests (`DirectPrintTests`, `RasterEncoderTests`, 45): each encoder byte for byte against its spec and read back by
+  decoders written from the specs, the requests' bytes, hostile attributes, the plan, a job through the demo inkjet's
+  fixture. Checked against CUPS 2.4.7's `ippeveprinter` (WSL) with `InkvoltPrint.exe --direct-print` (`DevDirectPrint`): a
+  10-page PDF, a photo contact sheet and a two-page copy in PWG raster, URF and PCLm, grey on a monochrome printer and color
+  on one set up for it, two-sided with turned backs, copies, IPP and IPPS: every file it kept was byte-identical to ours and
+  libcups read the PWG and URF back (page sizes, transforms, pixels), Windows' own PDF engine the PCLm
+  (`--direct-print --read-pclm`). ippeveprinter drops every `pclm-*` attribute it's
+  given, so the PCLm run assumed 600 dpi (dev aid only). After review: copies go to the printer only with
+  `multiple-document-handling` collated (else the pages are sent again), grey on an RGB-only format is drawn grey, a quality
+  or paper type the printer lacks stops the job, a cancel the printer doesn't take says the job may still print, a job that
+  may have printed offers no Print again, Copy and Photos get progress and Cancel, the attributes are read once per
+  connection a while (`IppCapsCache`), the printer's clock out of range is left out. Not yet: Batch print and the scan presets' print step still need
+  the Windows queue; job alerts don't watch direct jobs. Pending on hardware: the M234dw printing a page from a PC with no
+  queue for it. **Mac: waits** (no Mac now); PrintCore would carry the same encoders and plan.
 - **Effort** M. Windows; Mac the same code in PrintCore (today it prints through the CUPS queue).
 
 ### 2.2 Scan from the printer's button
@@ -477,6 +505,45 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Beat it when:** an HP printer whose tree lists `CopyConfigCap` / `CopyConfigDyn` (the M234dw's does) copies on
   the printer, no queue needed; the PC path stays for the rest and gains 2-up and 4-up, collate and a preview. Test:
   the LEDM copy document byte for byte against a recording fake; layout tests; on the M234dw, one copy from the app.
+- **Built (Windows, 2026-11-19).** **The printer's own copier:** `Core/Ledm/LedmCopy` reads `CopyConfigCap` and
+  `CopyConfigDyn` the way LEDM's other settings are read: a Cap entry marked `readWrite` names its Dyn element by its whole
+  `elementXPath` (prefixes dropped, the root's name may lead, `[1]` allowed; anything else, a second element of a name or an
+  element holding elements offers nothing), else the root's child named like the entry less `Support`; its choices are its
+  child elements. An offer exists only for a start element whose choices hold an explicit command (`start`, `startCopy`; a
+  state such as `processing` never counts). **Only the start is written:** CopyConfigDyn holds the control panel's walk-up
+  copy defaults, and putting copies, two-sided or color back after a copy needs to know when it has finished, which nothing
+  captured shows, so the printer copies with its panel's settings and the app's options belong to *Through this PC*.
+  `LedmCopy.Build` makes that one-element Dyn from the printer's own names and namespaces (`LedmSettingCatalog.BuildPut`);
+  `Core/Ledm/PrinterCopier` finds it by reading only (the tree, then two GETs) and sends it once over HTTPS
+  (`LedmClient.PutPathAsync(once: true)`: `SendOnceAsync`, never retried); 401/403 asks for the admin password, 404/405/501,
+  busy and other refusals are told in words, a send with no answer (or any failure once it may have gone) says the printer
+  may already be copying, to check its panel. A failed check on a new connection lets go of the last one's copier.
+  The Copy tab's *Copy with: The printer itself* (`Core/Printing/CopyRoute`) needs no scan to the PC and no Windows queue;
+  *Through this PC* is the default until a recorded printer confirms the names; ID cards always take the PC path.
+  **Unconfirmed:** no CopyConfig document has been captured (the fixtures hold only the M234dw's tree; the printer was off
+  the network on the day), so the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption, modelled on the
+  captured PrintConfig and ProductConfig documents. A printer whose documents differ gets no offer and copies through the
+  PC: nothing is sent on a guess. Record a printer now saves both documents (`PrinterRecorder`), so one recording settles it.
+  The demo HP laser's copy documents are written by hand to the assumed names (`Fixtures/hp-demo`). **Through the PC:** 1, 2
+  or 4 pages per sheet (`CopyLayout.Sides`, `PagesOnSide`, `NUp`: 2-up stacked and turned on portrait paper, side by side on
+  landscape, 4-up two by two in reading order, inside a ¼ in margin), collate on or off (`CopyLayout.Order`: uncollated
+  sheets repeated by the app with one copy on the ticket, a blank back after an odd last side two-sided; collated left to the
+  queue's copy count, except two-sided with an odd number of sides, made by the app with a blank back ending each copy, so
+  copies never share a sheet), and *Preview before printing* (scan, show each sheet as it prints, then Print; pages per sheet
+  and size still change it; while scanning only the side a page lands on is redrawn). What the tab shows for each way
+  (`CopyRoute.Controls`, `ClampCopies`) is in Core; the copies typed are kept when the way changes. `QueuePrinter.PrintCopyAsync`;
+  Print a PDF, batches and copies share one paginator (`PagesPaginator`, one page per sheet for the first two).
+  **Checked:** `PrinterCopyTests` (the M234dw tree lists both documents; without them nothing is offered and only GETs go
+  out; the demo laser's start; the PUT byte for byte (the start alone), its HTTPS address, type and own connection; refusals
+  in words, never sent twice; no answer; the password; hostile Caps: read-only, a state not a command, 40 choices,
+  100-character values, the full `elementXPath` against a namesake elsewhere, a second element of a name, predicates, `//`,
+  `*`, too long or deep; `CopyRoute`'s ways, controls and copy counts) and `CopyLayoutTests` (sides, 2-up and 4-up placement
+  and turning, bounds, the orders with their blank backs, sheet counts, a page with no size).
+  `--demo --snapshot`: the HP laser's Copy tab copying on the printer (English and Spanish), the inkjet's 2-up and 4-up
+  previews from a feeder batch (`--copy-on-printer`, `--copy-per-sheet`, `--copy-preview`, `--uncollated`, `--copies`).
+  **Not checked:** one copy from the app on a real M234dw (and its Record a printer to confirm the names); 2-up, 4-up and
+  uncollated copies on paper; the preview by a person on screen. **Mac half waits** (no Mac available now): PrintCore's
+  copy, the LEDM request and the layout, to port with these tests' names.
 - **Effort** S-M. Windows and Mac.
 
 ### 3.4 Job notifications

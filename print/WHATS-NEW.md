@@ -5,6 +5,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.
+- Copy with the printer itself: an HP printer that takes copy requests can copy on its own when you press Copy, with the settings on its control panel, and needs no Windows queue. Through this PC stays the choice for your own copies, collating and two-sided settings and the preview.
+- Copies through the PC can put 2 or 4 pages on each sheet, come out uncollated (all the copies of page 1, then of page 2), and wait in a preview until you press Print.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.

@@ -67,11 +67,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids), OnMonitor,
                 new FirmwareMemory(() => state.GetFirmware(uuid), record => state.SetFirmware(uuid, record)),
                 line => Log.Write($"[{Name}] {line}"));
-        Print = new PrintViewModel(FindQueueAsync, state) { Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state) };
-        Jobs = new PrintJobsViewModel(pc.PrintJobs(FindQueueAsync));
+        Print = new PrintViewModel(PrintTargetAsync, state)
+        {
+            Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state),
+            PrintDirect = state.GetPrintDirect(uuid),
+            DirectChosen = ChooseDirect,
+        };
+        Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync));
         _jobQueue = pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync);
-        Copy = new CopyViewModel(FindQueueAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
-        Photos = new PhotosViewModel(FindQueueAsync, state, pc.PhotoQueue(uuid));
+        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
+        Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid));
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
             canElevate: Features.ElevatedRepairs);
         Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, pc);
@@ -264,7 +269,70 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Print photos and other pictures with layouts, through the Windows queue.</summary>
     public PhotosViewModel Photos { get; }
 
-    partial void OnQueueInstalledChanged(bool value) => Copy.HasQueue = value;
+    partial void OnQueueInstalledChanged(bool value) => UpdatePrintRoute();
+
+    /// <summary>The printer's IPP client when it takes PWG raster, Apple raster or PCLm (roadmap 2.1), else null.</summary>
+    private Core.Ipp.IppClient? DirectIpp =>
+        _monitor?.Connection is { Ipp: { } ipp, Probe.Ipp: { } attributes }
+        && Core.Printing.Direct.IppPrintCaps.FormatsIn(attributes.Strs("document-format-supported")).Count > 0 ? ipp : null;
+
+    /// <summary>
+    /// Where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight to the printer over
+    /// IPP where there isn't or the person chose it (<see cref="Core.Printing.Direct.PrintRoutes"/>), else nowhere.
+    /// </summary>
+    public async Task<Printing.PrintTarget?> PrintTargetAsync()
+    {
+        var queue = await FindQueueAsync();
+        var ipp = DirectIpp;
+        return Core.Printing.Direct.PrintRoutes.Choose(queue is not null, ipp is not null, Print.PrintDirect) switch
+        {
+            Core.Printing.Direct.PrintRoute.Direct => new Printing.PrintTarget.Direct(ipp!, _pc.UserName, CapsFor(ipp!), _pc.MadeUpPrint),
+            Core.Printing.Direct.PrintRoute.Queue => new Printing.PrintTarget.Queue(queue!),
+            _ => null,
+        };
+    }
+
+    private (Core.Ipp.IppClient Client, Core.Printing.Direct.IppCapsCache Caps)? _directCaps;
+
+    /// <summary>One attributes cache per connection's IPP client: a reconnect (a new client) reads them again.</summary>
+    private Core.Printing.Direct.IppCapsCache CapsFor(Core.Ipp.IppClient ipp)
+    {
+        if (_directCaps is { } known && ReferenceEquals(known.Client, ipp)) return known.Caps;
+        var caps = Printing.PrintTarget.Direct.CapsOf(ipp);
+        _directCaps = (ipp, caps);
+        return caps;
+    }
+
+    /// <summary>The Print tab's choice and note, and whether Copy has somewhere to print, after a connection or a queue change.</summary>
+    private void UpdatePrintRoute() => _ = UpdatePrintRouteAsync();
+
+    /// <summary>The queue is looked up as a print does (<see cref="PrintTargetAsync"/>), so the note says where the next job goes.</summary>
+    private async Task UpdatePrintRouteAsync()
+    {
+        var direct = DirectIpp is not null;
+        Copy.HasQueue = QueueInstalled || direct;
+        bool queue;
+        try { queue = await FindQueueAsync() is not null; }
+        catch (Exception ex)
+        {
+            Log.Write($"Print route: {ex.Message}");
+            queue = QueueInstalled;
+        }
+        Print.CanChooseDirect = direct && queue;
+        Print.RouteNote = Core.Printing.Direct.PrintRoutes.Choose(queue, direct, Print.PrintDirect) == Core.Printing.Direct.PrintRoute.Direct
+            ? (queue ? Strings.Print_RouteDirectChosen : Strings.Print_RouteDirect)
+            : null;
+    }
+
+    private void ChooseDirect(bool direct)
+    {
+        _state.SetPrintDirect(Uuid, direct);
+        UpdatePrintRoute();
+        Print.QueueChanged();
+        Copy.QueueChanged();
+        Photos.QueueChanged();
+        Jobs.QueueChanged();
+    }
 
     /// <summary>This printer's Windows print queue (a card on the Overview).</summary>
     public PrintJobsViewModel Jobs { get; }
@@ -870,9 +938,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             new(Strings.Printer_AboutConnectedVia, string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
+        UpdatePrintRoute();
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
+        _ = FindPrinterCopyAsync(conn);
         if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, _pc.Passwords, _pc.Browser is null ? null : OpenWebPage);
@@ -884,6 +954,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             conn.Http.SetCredentials("admin", pw);
 
         _remember(this);
+    }
+
+    /// <summary>
+    /// The Copy tab learns whether the printer copies by itself (HP LEDM copy settings; reads only), for this connection. A
+    /// check that fails lets go of the copier found on an earlier connection, so a copy never goes through a closed one.
+    /// </summary>
+    private async Task FindPrinterCopyAsync(PrinterConnection conn)
+    {
+        Core.Ledm.PrinterCopier? copier = null;
+        try
+        {
+            copier = await Core.Ledm.PrinterCopier.DetectAsync(conn);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Printer copy not checked: {ex.Message}");
+        }
+        if (_monitor?.Connection == conn) Copy.AttachPrinterCopy(copier);
     }
 
     /// <summary>
